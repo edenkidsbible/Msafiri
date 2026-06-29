@@ -10,10 +10,29 @@ import ReportModal from "@/components/ReportModal";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 
-const REPORT_COLORS: Record<string, string> = {
-  camera: "#E53935", police: "#1565C0", accident: "#F44336",
-  pothole: "#F57C00", roadblock: "#7B1FA2", clear: "#00C853",
+// Emoji for each marker type
+const ZONE_EMOJI: Record<string, string> = {
+  camera: "📷",
+  police: "🚔",
+  zone: "🚦",
 };
+
+const REPORT_EMOJI: Record<string, string> = {
+  camera: "📷",
+  police: "🚔",
+  accident: "🚨",
+  pothole: "🕳️",
+  roadblock: "🚧",
+  clear: "✅",
+};
+
+function EmojiMarker({ emoji, size = 26 }: { emoji: string; size?: number }) {
+  return (
+    <View style={styles.emojiWrap}>
+      <Text style={{ fontSize: size }}>{emoji}</Text>
+    </View>
+  );
+}
 
 export default function MapViewScreen() {
   const c = useColors();
@@ -46,7 +65,6 @@ export default function MapViewScreen() {
     }
   };
 
-  // Fit map to active route
   const fitToRoute = () => {
     if (mapRef.current && activeRoute?.coords.length) {
       mapRef.current.fitToCoordinates(activeRoute.coords, {
@@ -71,39 +89,46 @@ export default function MapViewScreen() {
         showsCompass
         showsTraffic={showTraffic}
       >
-        {/* Speed zone markers */}
+        {/* Speed zone markers — emoji */}
         {SPEED_ZONES.map((z) => (
           <React.Fragment key={z.id}>
             <Marker
               coordinate={{ latitude: z.lat, longitude: z.lng }}
-              pinColor={z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#F57C00"}
+              anchor={{ x: 0.5, y: 1 }}
               title={z.name}
-              description={`${z.speedLimit} km/h – ${z.road}`}
-            />
+              description={`${z.speedLimit} km/h — ${z.road}`}
+            >
+              <EmojiMarker emoji={ZONE_EMOJI[z.type] ?? "🚦"} />
+            </Marker>
             <Circle
               center={{ latitude: z.lat, longitude: z.lng }}
-              radius={150}
-              strokeColor={z.type === "camera" ? "#E5393555" : "#1565C055"}
-              fillColor={z.type === "camera" ? "#E5393511" : "#1565C011"}
+              radius={200}
+              strokeColor={z.type === "camera" ? "#E5393540" : "#1565C040"}
+              fillColor={z.type === "camera" ? "#E5393510" : "#1565C010"}
               strokeWidth={1}
             />
           </React.Fragment>
         ))}
 
-        {/* Community reports */}
-        {communityReports.map((r) => (
-          <Marker
-            key={r.id}
-            coordinate={{ latitude: r.lat, longitude: r.lng }}
-            pinColor={REPORT_COLORS[r.type] ?? "#888"}
-            opacity={now - r.timestamp > 7200000 ? 0.45 : 1}
-            title={r.type.charAt(0).toUpperCase() + r.type.slice(1)}
-            description={`Reported ${Math.round((now - r.timestamp) / 60000)} min ago`}
-          />
-        ))}
+        {/* Community reports — emoji */}
+        {communityReports.map((r) => {
+          const faded = now - r.timestamp > 7200000;
+          return (
+            <Marker
+              key={r.id}
+              coordinate={{ latitude: r.lat, longitude: r.lng }}
+              anchor={{ x: 0.5, y: 1 }}
+              opacity={faded ? 0.4 : 1}
+              title={r.type.charAt(0).toUpperCase() + r.type.slice(1)}
+              description={`Reported ${Math.round((now - r.timestamp) / 60000)} min ago`}
+            >
+              <EmojiMarker emoji={REPORT_EMOJI[r.type] ?? "📍"} />
+            </Marker>
+          );
+        })}
 
-        {/* Alternative routes (drawn first, behind primary) */}
-        {altRoutes.map((r, i) => (
+        {/* Alternative routes (drawn behind primary) */}
+        {altRoutes.map((r) => (
           <Polyline
             key={r.id}
             coordinates={r.coords}
@@ -125,69 +150,53 @@ export default function MapViewScreen() {
           />
         )}
 
-        {/* Destination marker */}
+        {/* Destination pin */}
         {activeRoute && activeRoute.coords.length > 0 && (
           <Marker
             coordinate={activeRoute.coords[activeRoute.coords.length - 1]}
-            pinColor="#00C853"
+            anchor={{ x: 0.5, y: 1 }}
             title="Destination"
-          />
+          >
+            <EmojiMarker emoji="📍" size={30} />
+          </Marker>
         )}
       </MapView>
 
       {/* Legend */}
       <View style={[styles.legend, { backgroundColor: c.card + "EE", top: insets.top + 12 }]}>
         {[
-          { color: "#E53935", label: "Camera" },
-          { color: "#1565C0", label: "Police" },
-          { color: "#F57C00", label: "Zone" },
-          { color: "#00C853", label: "Report" },
+          { emoji: "📷", label: "Camera" },
+          { emoji: "🚔", label: "Police" },
+          { emoji: "🚦", label: "Zone" },
+          { emoji: "🚨", label: "Accident" },
+          { emoji: "🚧", label: "Roadblock" },
         ].map((l) => (
           <View key={l.label} style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: l.color }]} />
+            <Text style={{ fontSize: 13 }}>{l.emoji}</Text>
             <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
           </View>
         ))}
-        {activeRoute && (
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: c.primary }]} />
-            <Text style={[styles.legendText, { color: c.foreground }]}>Route</Text>
-          </View>
-        )}
       </View>
 
-      {/* Controls: right column */}
+      {/* Right-side controls */}
       <View style={[styles.controls, { bottom: insets.bottom + 96 }]}>
         {/* Traffic toggle */}
         <TouchableOpacity
-          style={[
-            styles.controlBtn,
-            { backgroundColor: showTraffic ? c.primary : c.card },
-          ]}
+          style={[styles.controlBtn, { backgroundColor: showTraffic ? c.primary : c.card }]}
           onPress={() => setShowTraffic(!showTraffic)}
         >
-          <Ionicons
-            name="car-outline"
-            size={20}
-            color={showTraffic ? c.primaryForeground : c.foreground}
-          />
+          <Text style={{ fontSize: 18 }}>🚗</Text>
         </TouchableOpacity>
 
-        {/* Fit route */}
+        {/* Fit to route */}
         {activeRoute && (
-          <TouchableOpacity
-            style={[styles.controlBtn, { backgroundColor: c.card }]}
-            onPress={fitToRoute}
-          >
+          <TouchableOpacity style={[styles.controlBtn, { backgroundColor: c.card }]} onPress={fitToRoute}>
             <Ionicons name="expand-outline" size={20} color={c.primary} />
           </TouchableOpacity>
         )}
 
         {/* Locate me */}
-        <TouchableOpacity
-          style={[styles.controlBtn, { backgroundColor: c.card }]}
-          onPress={centerOnUser}
-        >
+        <TouchableOpacity style={[styles.controlBtn, { backgroundColor: c.card }]} onPress={centerOnUser}>
           <Ionicons name="locate-outline" size={22} color={c.primary} />
         </TouchableOpacity>
       </View>
@@ -198,14 +207,14 @@ export default function MapViewScreen() {
         onPress={() => setShowReport(true)}
         activeOpacity={0.88}
       >
-        <Ionicons name="add" size={20} color={c.primaryForeground} />
+        <Text style={{ fontSize: 16 }}>🚨</Text>
         <Text style={[styles.reportBtnText, { color: c.primaryForeground }]}>Report</Text>
       </TouchableOpacity>
 
-      {/* Traffic label */}
+      {/* Traffic indicator */}
       {showTraffic && (
         <View style={[styles.trafficBadge, { backgroundColor: c.primary, bottom: insets.bottom + 154 }]}>
-          <Ionicons name="car" size={12} color={c.primaryForeground} />
+          <Text style={{ fontSize: 12 }}>🚗</Text>
           <Text style={[styles.trafficLabel, { color: c.primaryForeground }]}>Traffic On</Text>
         </View>
       )}
@@ -217,12 +226,16 @@ export default function MapViewScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  emojiWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   legend: {
     position: "absolute",
-    left: 14,
+    left: 12,
     borderRadius: 12,
     padding: 10,
-    gap: 7,
+    gap: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -230,11 +243,10 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   controls: {
     position: "absolute",
-    right: 14,
+    right: 12,
     flexDirection: "column",
     gap: 10,
   },
@@ -252,12 +264,12 @@ const styles = StyleSheet.create({
   },
   reportBtn: {
     position: "absolute",
-    right: 72,
+    right: 70,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 28,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
@@ -268,7 +280,7 @@ const styles = StyleSheet.create({
   reportBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   trafficBadge: {
     position: "absolute",
-    right: 14,
+    right: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
