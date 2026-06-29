@@ -41,7 +41,13 @@ export interface TripData {
 
 export interface SOSContact { name: string; phone: string }
 
-export interface NavDestination { name: string; lat: number; lng: number }
+export interface NavDestination {
+  name: string;
+  lat: number;
+  lng: number;
+  /** Set when the destination was chosen via the "Go" button on a POI card */
+  poiType?: "fuel" | "food";
+}
 
 export interface RouteCoord { latitude: number; longitude: number }
 
@@ -262,6 +268,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const stepIdxRef = useRef(0);
   const lastSpokenRef = useRef<string>("");
   const navActiveRef = useRef(false);
+  // Proximity voice refs
+  const communityReportsRef = useRef<CommunityReport[]>([]);
+  const navDestRef = useRef<NavDestination | null>(null);
+  const announcedReportsRef = useRef<Set<string>>(new Set());
+  const destAnnouncedRef = useRef(false);
 
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -284,6 +295,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifGranted.current = await requestNotificationPermission();
     })();
   }, []);
+
+  // ── Keep voice refs in sync with state ───────────────────────────────────
+  useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -331,13 +345,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertDismissed.current = false;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         if (notifGranted.current) void fireZoneNotification(alertCandidate, alertCandidate.distance);
-        speakText(`${alertCandidate.type === "camera" ? "Speed camera" : "Police checkpoint"} ahead. Reduce to ${alertCandidate.speedLimit} kilometres per hour.`);
+        const distWord = alertCandidate.distance > 600
+          ? `in ${Math.round(alertCandidate.distance / 100) * 100} metres, `
+          : "just ";
+        if (alertCandidate.type === "camera") {
+          speakText(`Speed camera ahead ${distWord}on ${alertCandidate.road}. Please reduce your speed to ${alertCandidate.speedLimit} kilometres per hour.`);
+        } else if (alertCandidate.type === "police") {
+          speakText(`Police checkpoint ahead ${distWord}on ${alertCandidate.road}. Please slow down to ${alertCandidate.speedLimit} kilometres per hour and have your documents ready.`);
+        } else {
+          speakText(`Speed zone ahead. Reduce to ${alertCandidate.speedLimit} kilometres per hour.`);
+        }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
       if (!alertDismissed.current) setActiveAlert(alertCandidate);
     } else {
       const stillInRange = alertZoneRef.current && withDist.find((z) => z.id === alertZoneRef.current && z.distance <= ALERT_DIST);
       if (!stillInRange) { alertZoneRef.current = null; alertDismissed.current = false; setActiveAlert(null); }
+    }
+
+    // ── Community report proximity voice alerts (1 km) ──────────────────────
+    const now = Date.now();
+    const REPORT_ANNOUNCE_DIST = 1000;
+    for (const report of communityReportsRef.current) {
+      if (announcedReportsRef.current.has(report.id)) continue;
+      if (now - report.timestamp > 7200000) continue; // ignore reports > 2 h old
+      const distToReport = haversine(lat, lng, report.lat, report.lng);
+      if (distToReport > REPORT_ANNOUNCE_DIST || distToReport <= IN_ZONE_DIST) continue;
+      announcedReportsRef.current.add(report.id);
+      const ageMin = Math.round((now - report.timestamp) / 60000);
+      const ageText = ageMin < 2 ? "just now" : `${ageMin} minutes ago`;
+      let msg = "";
+      if (report.type === "accident") {
+        msg = `Caution! An accident was reported ${ageText} ahead. Please slow down and drive carefully.`;
+      } else if (report.type === "pothole") {
+        msg = `Warning! A pothole has been reported on the road ahead. Reduce speed and watch out.`;
+      } else if (report.type === "roadblock") {
+        msg = `Road block reported ahead ${ageText}. Be prepared to stop or find an alternative route.`;
+      } else if (report.type === "police") {
+        msg = `Police checkpoint reported ahead ${ageText}. Please slow down and have your documents ready.`;
+      } else if (report.type === "camera") {
+        msg = `Speed camera reported by other drivers ahead. Please maintain a safe speed.`;
+      }
+      if (msg) speakText(msg);
+    }
+
+    // ── POI destination proximity announcement ───────────────────────────────
+    const dest = navDestRef.current;
+    if (dest?.poiType && !destAnnouncedRef.current) {
+      const distToDest = haversine(lat, lng, dest.lat, dest.lng);
+      if (distToDest <= 1500 && distToDest > 50) {
+        destAnnouncedRef.current = true;
+        const distText = distToDest >= 1000
+          ? `${(distToDest / 1000).toFixed(1)} kilometres`
+          : `${Math.round(distToDest / 50) * 50} metres`;
+        const typeWord = dest.poiType === "fuel" ? "fuel station" : "restaurant";
+        const shortName = dest.name.split(",")[0].trim();
+        speakText(`${shortName} ${typeWord} is approximately ${distText} ahead. Prepare to turn.`);
+      }
     }
 
     // Navigation step tracking
@@ -454,6 +518,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
+    navDestRef.current = d;
+    destAnnouncedRef.current = false;
     if (!d) {
       setActiveRoute(null);
       setAltRoutes([]);
@@ -497,6 +563,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNavigationActive(false);
     setDistToNextM(null);
     setNavDestState(null);
+    navDestRef.current = null;
+    destAnnouncedRef.current = false;
     setActiveRoute(null);
     setAltRoutes([]);
     setZonesOnRoute([]);

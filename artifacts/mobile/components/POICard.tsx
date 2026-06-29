@@ -50,7 +50,7 @@ export default function POICard({
   const isFuel = poi.type === "fuel";
 
   const navigateInApp = () => {
-    setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+    setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng, poiType: poi.type });
     router.push("/");
   };
 
