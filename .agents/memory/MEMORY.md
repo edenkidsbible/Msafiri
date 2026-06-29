@@ -1,1 +1,2 @@
 - [expo-router react-native-maps web fix](expo-router-rnmaps-web.md) — .native.tsx files in app/ dir still bundled on web by require.context; move native-only components to components/ with platform extensions instead.
+- [Speed zone pairing rule](speed-zone-pairing.md) — stretch zones (X→Y roads) need TWO entries (one per end); point cameras need only one.
