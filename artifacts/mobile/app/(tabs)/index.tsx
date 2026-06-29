@@ -309,17 +309,10 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          RIGHT: Floating action buttons (hidden during search/nav)
+          RIGHT: Utility FABs — Traffic & Night mode (hidden during search/nav)
       ══════════════════════════════════════════════════════════════════ */}
       {!showResults && !navigationActive && (
         <View style={[styles.fabCol, { top: topInset + 72, right: 12 }]}>
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: fabBg }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowReport(true); }}
-          >
-            <Ionicons name="warning-outline" size={19} color="#E65100" />
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: showTraffic ? c.primary : fabBg }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTraffic(!showTraffic); }}
@@ -350,6 +343,23 @@ export default function DriveScreen() {
             <Ionicons name="warning-outline" size={19} color="#E65100" />
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          BOTTOM: Prominent Report button (normal mode only)
+      ══════════════════════════════════════════════════════════════════ */}
+      {!isMapMode && !showResults && (
+        <TouchableOpacity
+          style={[styles.reportBar, { bottom: bottomBase + 72 }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="camera" size={20} color="#FFF" />
+          <Text style={styles.reportBarTxt}>Report Camera or Hazard</Text>
+          <View style={styles.reportBarBadge}>
+            <Ionicons name="add" size={16} color="#E65100" />
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -414,7 +424,7 @@ export default function DriveScreen() {
 
       {/* Additional zones strip — shown when 2+ zones are ahead */}
       {!isMapMode && !showResults && nearbyZones.length > 1 && (
-        <View style={[styles.zonesBar, { bottom: bottomBase + 68 }]}>
+        <View style={[styles.zonesBar, { bottom: bottomBase + 136 }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -643,6 +653,25 @@ const styles = StyleSheet.create({
   resultIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   resultName: { fontSize: 15, fontFamily: "Inter_500Medium" },
   resultSub:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+
+  // ── Prominent Report button ───────────────────────────────────────────────
+  reportBar: {
+    position: "absolute", left: 16, right: 16, zIndex: 11,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#E65100",
+    borderRadius: 20, paddingHorizontal: 20, paddingVertical: 15,
+    gap: 10,
+    shadowColor: "#E65100", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 10, elevation: 10,
+  },
+  reportBarTxt: {
+    flex: 1, color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold",
+  },
+  reportBarBadge: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "#FFF",
+    alignItems: "center", justifyContent: "center",
+  },
 
   // ── FAB column ────────────────────────────────────────────────────────────
   fabCol: { position: "absolute", zIndex: 12, gap: 9 },
