@@ -7,7 +7,7 @@ import { useApp } from "@/context/AppContext";
 
 export interface POIItem {
   id: string;
-  type: "fuel" | "food" | "shopping" | "hospital";
+  type: "fuel" | "food" | "shopping" | "hospital" | "nightlife";
   name: string;
   brand?: string;
   address?: string;
@@ -35,10 +35,11 @@ const TYPE_META: Record<
   POIItem["type"],
   { defaultColor: string; label: string }
 > = {
-  fuel:     { defaultColor: "#2E7D32", label: "Fuel Station" },
-  food:     { defaultColor: "#BF360C", label: "Restaurant" },
-  shopping: { defaultColor: "#1565C0", label: "Shop" },
-  hospital: { defaultColor: "#C62828", label: "Hospital" },
+  fuel:      { defaultColor: "#2E7D32", label: "Fuel Station" },
+  food:      { defaultColor: "#BF360C", label: "Restaurant" },
+  shopping:  { defaultColor: "#1565C0", label: "Shop" },
+  hospital:  { defaultColor: "#C62828", label: "Hospital" },
+  nightlife: { defaultColor: "#6A1B9A", label: "Bar / Club" },
 };
 
 function distStr(m: number): string {
@@ -47,12 +48,10 @@ function distStr(m: number): string {
 
 function POIIcon({ type, color }: { type: POIItem["type"]; color: string }) {
   const sz = 22;
-  if (type === "fuel")
-    return <MaterialCommunityIcons name="gas-station" size={sz} color={color} />;
-  if (type === "shopping")
-    return <Ionicons name="storefront-outline" size={sz} color={color} />;
-  if (type === "hospital")
-    return <Ionicons name="medkit-outline" size={sz} color={color} />;
+  if (type === "fuel")      return <MaterialCommunityIcons name="gas-station" size={sz} color={color} />;
+  if (type === "shopping")  return <Ionicons name="storefront-outline" size={sz} color={color} />;
+  if (type === "hospital")  return <Ionicons name="medkit-outline" size={sz} color={color} />;
+  if (type === "nightlife") return <MaterialCommunityIcons name="glass-cocktail" size={sz} color={color} />;
   return <Ionicons name="restaurant-outline" size={sz} color={color} />;
 }
 

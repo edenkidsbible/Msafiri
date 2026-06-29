@@ -46,7 +46,7 @@ export interface NavDestination {
   lat: number;
   lng: number;
   /** Set when the destination was chosen via the "Go" button on a POI card */
-  poiType?: "fuel" | "food" | "shopping" | "hospital";
+  poiType?: "fuel" | "food" | "shopping" | "hospital" | "nightlife";
 }
 
 export interface RouteCoord { latitude: number; longitude: number }
@@ -195,8 +195,8 @@ function speakText(text: string) {
   Speech.stop();
   Speech.speak(text, {
     language: "en-GB",
-    rate: 0.87,
-    pitch: 1.0,
+    rate: 0.82,   // slightly slower = clearer, more deliberate
+    pitch: 0.93,  // slightly lower = warmer, more human
     voice: _bestVoiceId,
   });
 }
@@ -302,26 +302,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setOnboardingComplete(onboarded === "true");
       notifGranted.current = await requestNotificationPermission();
 
-      // Select the most natural TTS voice available on this device
+      // Select the most natural/human TTS voice available on this device.
+      // Priority: Google neural (Android) > Apple premium (iOS) > Enhanced > any EN
       if (Platform.OS !== "web") {
         try {
           const voices = await Speech.getAvailableVoicesAsync();
           const en = voices.filter((v) => v.language?.startsWith("en"));
-          const enhanced = en.filter(
+
+          // Google TTS neural voices on Android sound far more natural
+          const googleNeural = en.filter((v) => {
+            const id = v.identifier?.toLowerCase() ?? "";
+            return id.includes("google") && (
+              id.includes("female") || id.includes("male") ||
+              id.includes("language") || id.includes("wavenet")
+            );
+          });
+
+          // Apple Premium / Enhanced voices on iOS
+          const applePremium = en.filter((v) => {
+            const id = v.identifier?.toLowerCase() ?? "";
+            return (
+              id.includes("premium") ||
+              id.includes("siri") ||
+              (v as any).quality === "Enhanced" ||
+              id.includes("enhanced")
+            );
+          });
+
+          // Any Enhanced / Premium marked voice (any platform)
+          const anyEnhanced = en.filter(
             (v) =>
               (v as any).quality === "Enhanced" ||
               v.identifier?.toLowerCase().includes("premium") ||
               v.identifier?.toLowerCase().includes("enhanced")
           );
-          // Prefer: enhanced AU → enhanced GB → enhanced US → any enhanced → any EN
+
+          // Prefer GB/AU accent for Kenyan market (familiar British English)
+          const preferredLocale = (list: typeof en) => [
+            ...list.filter((v) => v.language?.startsWith("en-GB")),
+            ...list.filter((v) => v.language?.startsWith("en-AU")),
+            ...list.filter((v) => v.language?.startsWith("en-US")),
+            ...list,
+          ];
+
           const ranked = [
-            ...enhanced.filter((v) => v.language?.startsWith("en-AU")),
-            ...enhanced.filter((v) => v.language?.startsWith("en-GB")),
-            ...enhanced.filter((v) => v.language?.startsWith("en-US")),
-            ...enhanced,
+            ...preferredLocale(googleNeural),
+            ...preferredLocale(applePremium),
+            ...preferredLocale(anyEnhanced),
             ...en,
           ];
-          if (ranked[0]) _bestVoiceId = ranked[0].identifier;
+
+          // Deduplicate by identifier
+          const seen = new Set<string>();
+          for (const v of ranked) {
+            if (!seen.has(v.identifier)) {
+              seen.add(v.identifier);
+              _bestVoiceId = v.identifier;
+              break;
+            }
+          }
         } catch {
           // voice selection is best-effort; silence the error
         }
@@ -432,9 +471,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? `${(distToDest / 1000).toFixed(1)} kilometres`
           : `${Math.round(distToDest / 50) * 50} metres`;
         const typeWord =
-          dest.poiType === "fuel" ? "fuel station" :
-          dest.poiType === "shopping" ? "shopping centre" :
-          dest.poiType === "hospital" ? "hospital" : "restaurant";
+          dest.poiType === "fuel"      ? "fuel station" :
+          dest.poiType === "shopping"  ? "shopping centre" :
+          dest.poiType === "hospital"  ? "hospital" :
+          dest.poiType === "nightlife" ? "venue" : "restaurant";
         const shortName = dest.name.split(",")[0].trim();
         speakText(`${shortName} ${typeWord} is approximately ${distText} ahead. Prepare to turn.`);
       }

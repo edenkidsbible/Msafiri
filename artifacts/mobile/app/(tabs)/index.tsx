@@ -482,31 +482,32 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* Speed bubble — bottom left during active navigation */}
-      {navigationActive && (
-        <View style={[
-          styles.speedBubble,
-          {
-            backgroundColor: overLimit ? "#E53935" : "#1B5E20",
-            bottom: bottomInset + tabBarHeight + 14,
-          },
-        ]}>
-          <Text style={styles.speedBubbleNumber}>{Math.round(currentSpeed)}</Text>
-          <Text style={styles.speedBubbleUnit}>km/h</Text>
-          {currentSpeedLimit != null && (
-            <View style={[styles.speedLimitInBubble, { backgroundColor: "#FFF2" }]}>
-              <Text style={styles.speedLimitInBubbleText}>{currentSpeedLimit}</Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Navigation active bottom bar */}
+      {/* Navigation active bottom bar — speed prominent on the left */}
       {navigationActive && (
         <View style={[
           styles.navBottomBar,
-          { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
+          { backgroundColor: c.card + "F8", paddingBottom: bottomInset + tabBarHeight + 10 },
         ]}>
+          {/* Speed — very large, clearly coloured */}
+          <View style={[
+            styles.navSpeedBlock,
+            { backgroundColor: overLimit ? "#E5393520" : "#1B5E2020" },
+          ]}>
+            <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : "#00C853" }]}>
+              {Math.round(currentSpeed)}
+            </Text>
+            <Text style={[styles.navSpeedUnit, { color: c.mutedForeground }]}>km/h</Text>
+            {currentSpeedLimit != null && (
+              <Text style={[styles.navSpeedLimit, { color: c.mutedForeground }]}>
+                {`limit ${currentSpeedLimit}`}
+              </Text>
+            )}
+          </View>
+
+          {/* Divider */}
+          <View style={[styles.navDivider, { backgroundColor: c.border }]} />
+
+          {/* ETA + destination */}
           <View style={{ flex: 1 }}>
             <Text style={[styles.navBarEta, { color: c.foreground }]}>
               {durationStr(activeRoute?.durationS ?? 0)}
@@ -515,7 +516,9 @@ export default function DriveScreen() {
               {navDestination?.name.split(",")[0]}
             </Text>
           </View>
+
           <SOSButton compact />
+
           <TouchableOpacity
             style={[styles.stopBtn, { backgroundColor: "#E53935" }]}
             onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
@@ -565,21 +568,6 @@ const styles = StyleSheet.create({
   },
   navStepText: { color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold", lineHeight: 22 },
   navStepDist: { color: "#FFFFFFCC", fontSize: 22, fontFamily: "Inter_700Bold", marginTop: 4 },
-  speedBubble: {
-    position: "absolute", left: 14,
-    width: 76, height: 76, borderRadius: 38,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
-  },
-  speedBubbleNumber: { color: "#FFF", fontSize: 26, fontFamily: "Inter_700Bold", lineHeight: 28 },
-  speedBubbleUnit: { color: "#FFFFFFAA", fontSize: 11, fontFamily: "Inter_500Medium" },
-  speedLimitInBubble: {
-    position: "absolute", top: -4, right: -4,
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: "center", justifyContent: "center",
-  },
-  speedLimitInBubbleText: { color: "#FFF", fontSize: 10, fontFamily: "Inter_700Bold" },
 
   /* Route preview bottom sheet */
   bottomSheet: {
@@ -625,6 +613,15 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.14, shadowRadius: 12, elevation: 12,
   },
+  navSpeedBlock: {
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16,
+    minWidth: 80,
+  },
+  navSpeedNum: { fontSize: 46, fontFamily: "Inter_700Bold", lineHeight: 50 },
+  navSpeedUnit: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -2 },
+  navSpeedLimit: { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 2, opacity: 0.8 },
+  navDivider: { width: 1, height: 52, borderRadius: 1, opacity: 0.4 },
   navBarEta: { fontSize: 18, fontFamily: "Inter_700Bold" },
   navBarDest: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   stopBtn: {
