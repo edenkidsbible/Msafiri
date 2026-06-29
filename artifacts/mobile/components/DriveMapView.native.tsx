@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { StyleSheet, View } from "react-native";
-import MapView, { Circle, Marker, Polyline } from "react-native-maps";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import MapView, { Callout, Circle, Marker, Polyline } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
@@ -61,6 +61,7 @@ export default function DriveMapView() {
     currentLat, currentLng,
     activeRoute, altRoutes, selectRoute,
     navigationActive, communityReports, showTraffic,
+    confirmReport, denyReport,
   } = useApp();
 
   const mapRef = useRef<MapView>(null);
@@ -131,8 +132,9 @@ export default function DriveMapView() {
       {/* Community reports */}
       {communityReports.map((r) => {
         const faded = now - r.timestamp > 7200000;
+        const confirmed = r.status === "confirmed";
         const iconMap: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
-          camera:    { name: "camera",          bg: "#E53935" },
+          camera:    { name: "camera",          bg: confirmed ? "#B71C1C" : "#E53935" },
           police:    { name: "shield-checkmark",bg: "#1565C0" },
           accident:  { name: "warning",         bg: "#E53935" },
           pothole:   { name: "alert-circle",    bg: "#F57C00" },
@@ -140,16 +142,44 @@ export default function DriveMapView() {
           clear:     { name: "checkmark-circle",bg: "#00C853" },
         };
         const m = iconMap[r.type] ?? { name: "alert-circle" as const, bg: "#888" };
+        const ageMin = Math.round((now - r.timestamp) / 60000);
+        const canVote = !r.isOwn;
         return (
           <Marker
             key={r.id}
             coordinate={{ latitude: r.lat, longitude: r.lng }}
             anchor={{ x: 0.5, y: 1 }}
-            opacity={faded ? 0.35 : 1}
-            title={r.type.charAt(0).toUpperCase() + r.type.slice(1)}
-            description={`${Math.round((now - r.timestamp) / 60000)} min ago`}
+            opacity={faded ? 0.45 : 1}
           >
-            <MarkerIcon name={m.name} bg={m.bg} size={28} />
+            <MarkerIcon name={m.name} bg={m.bg} size={confirmed ? 34 : 28} />
+            <Callout tooltip={false}>
+              <View style={{ minWidth: 190, padding: 10 }}>
+                <Text style={{ fontWeight: "700", fontSize: 14, color: "#212121", marginBottom: 2 }}>
+                  {r.type.charAt(0).toUpperCase() + r.type.slice(1)}
+                  {confirmed ? " (Verified)" : ""}
+                </Text>
+                <Text style={{ fontSize: 12, color: "#666", marginBottom: canVote ? 10 : 0 }}>
+                  {ageMin < 1 ? "Just now" : `${ageMin} min ago`}
+                  {r.confirmCount != null ? `  ·  ${r.confirmCount} confirmed` : ""}
+                </Text>
+                {canVote && (
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={() => confirmReport(r.id)}
+                      style={{ flex: 1, backgroundColor: "#388E3C", borderRadius: 6, paddingVertical: 6, alignItems: "center" }}
+                    >
+                      <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>Still here</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => denyReport(r.id)}
+                      style={{ flex: 1, backgroundColor: "#D32F2F", borderRadius: 6, paddingVertical: 6, alignItems: "center" }}
+                    >
+                      <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>Gone now</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </Callout>
           </Marker>
         );
       })}

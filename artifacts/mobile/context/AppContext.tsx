@@ -14,6 +14,7 @@ import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
+import { apiGet, apiPost } from "@/utils/apiClient";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,12 @@ export interface CommunityReport {
   lng: number;
   timestamp: number;
   confirmed: number;
+  // API-backed fields (populated after server sync)
+  serverId?: string;
+  status?: "active" | "confirmed" | "expired" | "denied";
+  confirmCount?: number;
+  denyCount?: number;
+  isOwn?: boolean;
 }
 
 export interface TripPoint { lat: number; lng: number; speed: number; time: number }
@@ -81,6 +88,9 @@ interface AppContextValue {
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
   addReport: (type: CommunityReport["type"], lat: number, lng: number) => void;
+  confirmReport: (id: string) => Promise<void>;
+  denyReport: (id: string) => Promise<void>;
+  deviceId: string | null;
   currentTrip: Partial<TripData> | null;
   tripHistory: TripData[];
   clearTripHistory: () => void;
@@ -112,6 +122,7 @@ const KEYS = {
   HUD: "sdk_hud",
   SOS: "sdk_sos",
   ONBOARDING: "sdk_onboarding",
+  DEVICE_ID: "sdk_device_id",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -267,6 +278,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [showTraffic, setShowTrafficState] = useState(false);
   const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
 
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const isOfflineRef = useRef(false);
+  const deviceIdRef = useRef<string | null>(null);
+  const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
   const tripRef = useRef<Partial<TripData> | null>(null);
@@ -285,12 +301,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const [trips, reports, hud, sos, onboarded] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
         AsyncStorage.getItem(KEYS.SOS),
         AsyncStorage.getItem(KEYS.ONBOARDING),
+        AsyncStorage.getItem(KEYS.DEVICE_ID),
       ]);
       if (trips) setTripHistory(JSON.parse(trips));
       if (reports) {
@@ -300,6 +317,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (hud) setHudModeState(JSON.parse(hud));
       if (sos) setSosContactState(JSON.parse(sos));
       setOnboardingComplete(onboarded === "true");
+      // Load or generate persistent device ID (used for deduplication on the server)
+      const did = storedDeviceId ?? (genId() + genId());
+      if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
+      deviceIdRef.current = did;
+      setDeviceId(did);
       notifGranted.current = await requestNotificationPermission();
 
       // Select the most natural/human TTS voice available on this device.
@@ -591,6 +613,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination?.lat, navDestination?.lng]);
 
+  // Sync isOffline to a ref so callbacks can read it without re-rendering
+  useEffect(() => { isOfflineRef.current = isOffline; }, [isOffline]);
+
+  // Keep the poll-location ref fresh (used by the 60s polling effect)
+  useEffect(() => {
+    if (currentLat != null && currentLng != null) {
+      pollLocationRef.current = { lat: currentLat, lng: currentLng };
+    }
+  }, [currentLat, currentLng]);
+
+  // Remote report polling — fetch nearby reports every 60 s when online
+  useEffect(() => {
+    if (!locationGranted) return;
+    const poll = async () => {
+      if (isOfflineRef.current || !pollLocationRef.current || !deviceIdRef.current) return;
+      const { lat, lng } = pollLocationRef.current;
+      try {
+        const data = await apiGet<{ reports: Array<{
+          id: string; type: string; lat: number; lng: number;
+          status: string; confirmCount: number; denyCount: number;
+          createdAt: number; expiresAt: number | null;
+        }> }>(`/reports?lat=${lat}&lng=${lng}&radius=20000`);
+        const remote: CommunityReport[] = data.reports.map((r) => ({
+          id: r.id,
+          type: r.type as CommunityReport["type"],
+          lat: r.lat,
+          lng: r.lng,
+          timestamp: r.createdAt,
+          confirmed: r.confirmCount,
+          serverId: r.id,
+          status: r.status as CommunityReport["status"],
+          confirmCount: r.confirmCount,
+          denyCount: r.denyCount,
+          isOwn: false,
+        }));
+        setCommunityReports((prev) => {
+          const owned = prev.filter((r) => r.isOwn);
+          const remoteNew = remote.filter((rem) => !owned.some((o) => o.serverId === rem.id));
+          const ownedUpdated = owned.map((o) => {
+            const match = remote.find((r) => r.id === o.serverId);
+            return match
+              ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount }
+              : o;
+          });
+          return [...ownedUpdated, ...remoteNew].filter(
+            (r) => r.status !== "expired" && r.status !== "denied"
+          );
+        });
+      } catch { /* network error — keep local copy */ }
+    };
+    poll(); // immediate on mount
+    const handle = setInterval(poll, 60000);
+    return () => clearInterval(handle);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationGranted]);
+
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
@@ -656,14 +734,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
   const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number) => {
-    const r: CommunityReport = { id: genId(), type, lat, lng, timestamp: Date.now(), confirmed: 1 };
+    const localId = genId();
+    const r: CommunityReport = {
+      id: localId, type, lat, lng, timestamp: Date.now(), confirmed: 1,
+      status: "active", confirmCount: 1, denyCount: 0, isOwn: true,
+    };
     setCommunityReports((prev) => { const u = [r, ...prev]; AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u)); return u; });
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Submit to API; keep local copy as offline fallback
+    if (!isOfflineRef.current && deviceIdRef.current) {
+      apiPost<{ id: string; status: string; confirmCount: number; action: string }>(
+        "/reports", { type, lat, lng, deviceId: deviceIdRef.current }
+      ).then((result) => {
+        setCommunityReports((prev) => {
+          const u = prev.map((rep) =>
+            rep.id === localId
+              ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
+              : rep
+          );
+          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+          return u;
+        });
+      }).catch(() => { /* offline — local copy remains */ });
+    }
   }, []);
   const clearTripHistory = useCallback(() => { setTripHistory([]); AsyncStorage.removeItem(KEYS.TRIPS); }, []);
   const completeOnboarding = useCallback(() => { setOnboardingComplete(true); AsyncStorage.setItem(KEYS.ONBOARDING, "true"); }, []);
   const setShowTraffic = useCallback((v: boolean) => setShowTrafficState(v), []);
+
+  const confirmReport = useCallback(async (id: string) => {
+    if (!deviceIdRef.current) return;
+    const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
+    const serverId = report?.serverId ?? id;
+    // Optimistic update
+    setCommunityReports((prev) =>
+      prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: (r.confirmCount ?? 1) + 1 } : r)
+    );
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { await apiPost(`/reports/${serverId}/confirm`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
+  }, []);
+
+  const denyReport = useCallback(async (id: string) => {
+    if (!deviceIdRef.current) return;
+    const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
+    const serverId = report?.serverId ?? id;
+    // Optimistic: bump count, remove if >= 3 denials
+    setCommunityReports((prev) => {
+      const updated = prev.map((r) =>
+        (r.id === id || r.serverId === id) ? { ...r, denyCount: (r.denyCount ?? 0) + 1 } : r
+      );
+      return updated.filter((r) => (r.denyCount ?? 0) < 3);
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
+  }, []);
 
   return (
     <AppContext.Provider value={{
@@ -672,7 +797,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activeAlert, currentSpeedLimit, nearbyZones, dismissAlert,
       hudMode, setHudMode,
       sosContact, setSosContact,
-      communityReports, addReport,
+      communityReports, addReport, confirmReport, denyReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
       onboardingComplete, completeOnboarding,
       isOffline,

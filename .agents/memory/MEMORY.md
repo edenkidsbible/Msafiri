@@ -1,2 +1,4 @@
 - [expo-router react-native-maps web fix](expo-router-rnmaps-web.md) — .native.tsx files in app/ dir still bundled on web by require.context; move native-only components to components/ with platform extensions instead.
 - [Speed zone pairing rule](speed-zone-pairing.md) — stretch zones (X→Y roads) need TWO entries (one per end); point cameras need only one.
+- [API server URL pattern](api-server-url.md) — proxy routes /api/* to port 8080; mobile uses https://${EXPO_PUBLIC_DOMAIN}/api
+- [Drizzle + Express 5 gotchas](drizzle-express5-gotchas.md) — ne() instead of not(inArray()), Express 5 req.params typed string|string[] so cast with as string
