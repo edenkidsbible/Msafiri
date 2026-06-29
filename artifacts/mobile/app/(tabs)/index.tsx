@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -18,6 +18,7 @@ import { useApp } from "@/context/AppContext";
 import SpeedometerDial from "@/components/SpeedometerDial";
 import AlertBanner from "@/components/AlertBanner";
 import SOSButton from "@/components/SOSButton";
+import DriveMapView from "@/components/DriveMapView";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 
 function distStr(m: number): string {
@@ -48,14 +49,15 @@ async function nominatimSearch(q: string): Promise<GeoResult[]> {
   });
 }
 
-function maneuverIcon(instruction: string): "arrow-forward-circle-outline" | "arrow-back-circle-outline" | "reload-outline" | "checkmark-circle-outline" | "navigate-outline" | "arrow-up-circle-outline" {
+function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
   const l = instruction.toLowerCase();
-  if (l.includes("right")) return "arrow-forward-circle-outline";
-  if (l.includes("left")) return "arrow-back-circle-outline";
-  if (l.includes("roundabout")) return "reload-outline";
-  if (l.includes("arrived") || l.includes("destination")) return "checkmark-circle-outline";
-  if (l.includes("head") || l.includes("depart")) return "navigate-outline";
-  return "arrow-up-circle-outline";
+  if (l.includes("right")) return "arrow-forward-circle";
+  if (l.includes("left")) return "arrow-back-circle";
+  if (l.includes("roundabout")) return "reload-circle";
+  if (l.includes("arrived") || l.includes("destination")) return "checkmark-circle";
+  if (l.includes("head") || l.includes("depart")) return "navigate";
+  if (l.includes("merge")) return "git-merge-outline";
+  return "arrow-up-circle";
 }
 
 export default function DriveScreen() {
@@ -64,15 +66,17 @@ export default function DriveScreen() {
   const {
     locationGranted, requestLocationPermission,
     currentSpeed, currentSpeedLimit, activeAlert, dismissAlert, nearbyZones,
-    hudMode, setHudMode, currentTrip,
+    hudMode, setHudMode,
     navDestination, setNavDestination,
     activeRoute, altRoutes, selectRoute, routeLoading,
     navigationActive, startNavigation, stopNavigation,
     currentStepIdx, distToNextM, zonesOnRoute,
+    showTraffic, setShowTraffic,
   } = useApp();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 96;
 
   const [searchText, setSearchText] = useState("");
   const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
@@ -81,22 +85,10 @@ export default function DriveScreen() {
   const [searchError, setSearchError] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { if (!locationGranted) requestLocationPermission(); }, []);
-
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-    let cleanup: (() => void) | undefined;
-    (async () => {
-      if (hudMode) {
-        const KA = await import("expo-keep-awake");
-        await KA.activateKeepAwakeAsync();
-        cleanup = () => KA.deactivateKeepAwake();
-      }
-    })();
-    return () => cleanup?.();
-  }, [hudMode]);
-
   const overLimit = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
+  const hasRoute = !!activeRoute;
+  const isMapMode = (hasRoute || navigationActive) && !showResults;
+  const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
 
   const runSearch = async (text: string) => {
     if (text.length < 2) { setGeoResults([]); setShowResults(false); return; }
@@ -140,153 +132,127 @@ export default function DriveScreen() {
     setSearchError(false);
   };
 
-  const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
-  const isSearchMode = showResults || (searchLoading && searchText.length > 1);
-
+  // ─── Layout ─────────────────────────────────────────────────────────────────
   return (
     <View style={[styles.screen, { backgroundColor: hudMode ? "#000" : c.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + 6 }]}>
-        <View>
-          <Text style={[styles.appTitle, { color: hudMode ? "#FFF" : c.foreground }]}>SafeDrive Kenya</Text>
-          {currentTrip && !navDestination && (
-            <View style={styles.tripPill}>
-              <View style={[styles.tripDot, { backgroundColor: c.speedSafe }]} />
-              <Text style={[styles.tripText, { color: c.speedSafe }]}>Trip active</Text>
-            </View>
-          )}
-        </View>
-        <TouchableOpacity
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHudMode(!hudMode); }}
-          style={[styles.iconBtn, { backgroundColor: hudMode ? "#FFF2" : c.muted }]}
-        >
-          <Ionicons name={hudMode ? "sunny" : "moon-outline"} size={20} color={hudMode ? "#FFF" : c.foreground} />
-        </TouchableOpacity>
-      </View>
 
-      {/* Destination search bar */}
-      <View style={[styles.searchBarWrap, { marginHorizontal: 14, marginBottom: 4 }]}>
-        <View style={[
-          styles.searchBar,
-          { backgroundColor: c.card, borderColor: navDestination && !isSearchMode ? c.primary : c.border },
-        ]}>
-          <Ionicons
-            name={navDestination && !isSearchMode ? "navigate" : "search-outline"}
-            size={18}
-            color={navDestination && !isSearchMode ? c.primary : c.mutedForeground}
-          />
-          <TextInput
-            style={[styles.searchInput, { color: c.foreground }]}
-            placeholder="Where to?"
-            placeholderTextColor={c.mutedForeground}
-            value={searchText}
-            onChangeText={handleSearchChange}
-            returnKeyType="search"
-            onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
-            autoCorrect={false}
-          />
-          {searchLoading && isSearchMode && (
-            <ActivityIndicator size="small" color={c.primary} />
-          )}
-          {(searchText.length > 0 || navDestination) && (
-            <TouchableOpacity onPress={clearDestination} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="close-circle" size={18} color={c.mutedForeground} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      {/* ════════ MAP MODE (route set or navigating) ════════ */}
+      {isMapMode ? (
+        <View style={styles.mapContainer}>
+          {/* Full-screen map */}
+          <DriveMapView />
 
-      {/* ── SEARCH MODE: inline results list ── */}
-      {isSearchMode ? (
-        <View style={[styles.searchResultsPanel, { backgroundColor: c.background }]}>
-          {searchError && (
-            <View style={styles.searchHint}>
-              <Ionicons name="cloud-offline-outline" size={16} color={c.mutedForeground} />
-              <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
-                No connection — check internet and try again
-              </Text>
+          {/* Top gradient fade so overlays are readable */}
+          <View style={[styles.topOverlay, { paddingTop: topInset + 6 }]}>
+            {/* Search bar — stays accessible during map mode */}
+            <View style={styles.searchBarWrap}>
+              <View style={[styles.searchBar, { backgroundColor: c.card + "F0", borderColor: c.primary }]}>
+                <Ionicons name="navigate" size={16} color={c.primary} />
+                <TextInput
+                  style={[styles.searchInput, { color: c.foreground }]}
+                  placeholder="Where to?"
+                  placeholderTextColor={c.mutedForeground}
+                  value={searchText}
+                  onChangeText={handleSearchChange}
+                  returnKeyType="search"
+                  onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+                  autoCorrect={false}
+                />
+                {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
+                <TouchableOpacity onPress={clearDestination} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={18} color={c.mutedForeground} />
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
-          {!searchError && geoResults.length === 0 && !searchLoading && searchText.length > 1 && (
-            <View style={styles.searchHint}>
-              <Ionicons name="location-outline" size={16} color={c.mutedForeground} />
-              <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
-                No places found in Kenya for "{searchText}"
-              </Text>
-            </View>
-          )}
-          {!searchError && searchText.length < 2 && (
-            <View style={styles.searchHint}>
-              <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
-              <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
-                Type at least 2 characters to search
-              </Text>
-            </View>
-          )}
-          <FlatList
-            data={geoResults}
-            keyExtractor={(_, i) => String(i)}
-            keyboardShouldPersistTaps="always"
-            renderItem={({ item, index }) => (
-              <TouchableOpacity
-                style={[
-                  styles.resultRow,
-                  { borderBottomColor: c.border },
-                  index === 0 && { borderTopColor: c.border, borderTopWidth: StyleSheet.hairlineWidth },
-                ]}
-                onPress={() => pickDestination(item)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.resultIcon, { backgroundColor: c.muted }]}>
-                  <Ionicons name="location-outline" size={16} color={c.primary} />
-                </View>
+
+            {/* Alert banner */}
+            {activeAlert && <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />}
+
+            {/* Navigation instruction panel */}
+            {navigationActive && currentStep && (
+              <View style={[styles.navInstructionCard, { backgroundColor: "#1565C0" }]}>
+                <Ionicons name={maneuverIcon(currentStep.instruction)} size={34} color="#FFF" />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.resultShort, { color: c.foreground }]} numberOfLines={1}>
-                    {item.short}
+                  <Text style={styles.navStepText} numberOfLines={2}>
+                    {currentStep.instruction}
                   </Text>
-                  <Text style={[styles.resultDetail, { color: c.mutedForeground }]} numberOfLines={1}>
-                    {item.display.split(",").slice(2).join(",").trim()}
-                  </Text>
+                  {distToNextM != null && (
+                    <Text style={styles.navStepDist}>{distStr(distToNextM)}</Text>
+                  )}
                 </View>
-                <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
-              </TouchableOpacity>
+              </View>
             )}
-          />
-        </View>
-      ) : (
-        <>
-          {/* Route loading indicator */}
-          {routeLoading && (
-            <View style={[styles.routeLoadRow, { backgroundColor: c.card, borderColor: c.border, marginHorizontal: 14, marginBottom: 6 }]}>
-              <ActivityIndicator size="small" color={c.primary} />
-              <Text style={[styles.routeLoadText, { color: c.mutedForeground }]}>Calculating route…</Text>
+          </View>
+
+          {/* Traffic toggle */}
+          <TouchableOpacity
+            style={[styles.trafficBtn, {
+              backgroundColor: showTraffic ? c.primary : c.card + "EE",
+              top: topInset + 14,
+            }]}
+            onPress={() => setShowTraffic(!showTraffic)}
+          >
+            <Text style={{ fontSize: 18 }}>🚗</Text>
+          </TouchableOpacity>
+
+          {/* Speed bubble — bottom left */}
+          {navigationActive && (
+            <View style={[
+              styles.speedBubble,
+              {
+                backgroundColor: overLimit ? "#E53935" : "#1B5E20",
+                bottom: bottomInset + tabBarHeight + 14,
+              },
+            ]}>
+              <Text style={styles.speedBubbleNumber}>{Math.round(currentSpeed)}</Text>
+              <Text style={styles.speedBubbleUnit}>km/h</Text>
+              {currentSpeedLimit != null && (
+                <View style={[styles.speedLimitInBubble, { backgroundColor: "#FFF2" }]}>
+                  <Text style={styles.speedLimitInBubbleText}>{currentSpeedLimit}</Text>
+                </View>
+              )}
             </View>
           )}
 
-          {/* Route preview */}
-          {activeRoute && !navigationActive && (
-            <View style={[styles.routePreview, { backgroundColor: c.card, borderColor: c.border, marginHorizontal: 14, marginBottom: 6 }]}>
-              <View style={styles.routeTopRow}>
-                <View style={styles.routeETA}>
-                  <Text style={[styles.routeTime, { color: c.foreground }]}>{durationStr(activeRoute.durationS)}</Text>
-                  <Text style={[styles.routeDist, { color: c.mutedForeground }]}>· {distStr(activeRoute.distanceM)}</Text>
+          {/* Route preview + Start — bottom sheet */}
+          {!navigationActive && activeRoute && (
+            <View style={[
+              styles.bottomSheet,
+              {
+                backgroundColor: c.card + "F5",
+                paddingBottom: bottomInset + tabBarHeight + 10,
+                bottom: 0,
+              },
+            ]}>
+              {/* ETA row */}
+              <View style={styles.etaRow}>
+                <View>
+                  <Text style={[styles.etaTime, { color: c.foreground }]}>
+                    {durationStr(activeRoute.durationS)}
+                  </Text>
+                  <Text style={[styles.etaDist, { color: c.mutedForeground }]}>
+                    {distStr(activeRoute.distanceM)} · {navDestination?.name.split(",")[0]}
+                  </Text>
                 </View>
                 {zonesOnRoute.length > 0 && (
-                  <View style={[styles.zonesChip, { backgroundColor: "#E5393522" }]}>
-                    <Text style={{ fontSize: 12 }}>⚠️</Text>
+                  <View style={[styles.zonesChip, { backgroundColor: "#E5393520" }]}>
+                    <Text style={styles.zonesChipEmoji}>⚠️</Text>
                     <Text style={[styles.zonesChipText, { color: "#E53935" }]}>
-                      {zonesOnRoute.filter(z => z.type === "camera").length}📷 · {zonesOnRoute.filter(z => z.type === "police").length}🚔
+                      {zonesOnRoute.filter((z) => z.type === "camera").length}📷
+                      {" · "}
+                      {zonesOnRoute.filter((z) => z.type === "police").length}🚔
                     </Text>
                   </View>
                 )}
               </View>
 
+              {/* Alternative routes */}
               {altRoutes.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
                   <View style={styles.altRow}>
                     <View style={[styles.altChip, { backgroundColor: c.primary }]}>
                       <Text style={[styles.altChipText, { color: c.primaryForeground }]}>
-                        Fastest · {durationStr(activeRoute.durationS)}
+                        ✦ Fastest · {durationStr(activeRoute.durationS)}
                       </Text>
                     </View>
                     {altRoutes.map((r, i) => (
@@ -304,16 +270,18 @@ export default function DriveScreen() {
                 </ScrollView>
               )}
 
+              {/* First step preview */}
               {activeRoute.steps[0] && (
                 <Text style={[styles.firstStep, { color: c.mutedForeground }]} numberOfLines={1}>
                   ➤ {activeRoute.steps[0].instruction}
                 </Text>
               )}
 
+              {/* Start button */}
               <TouchableOpacity
                 style={[styles.startBtn, { backgroundColor: c.primary }]}
                 onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
-                activeOpacity={0.85}
+                activeOpacity={0.87}
               >
                 <Ionicons name="navigate" size={18} color={c.primaryForeground} />
                 <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start Navigation</Text>
@@ -321,80 +289,191 @@ export default function DriveScreen() {
             </View>
           )}
 
-          {/* Navigation active — instruction banner */}
-          {navigationActive && currentStep && (
-            <View style={[styles.navBanner, { backgroundColor: "#1565C0", marginHorizontal: 14, marginBottom: 6 }]}>
-              <View style={styles.navLeft}>
-                <Ionicons name={maneuverIcon(currentStep.instruction)} size={26} color="#FFF" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.navInstruction} numberOfLines={2}>{currentStep.instruction}</Text>
-                  {distToNextM != null && <Text style={styles.navDist}>{distStr(distToNextM)}</Text>}
-                </View>
+          {/* Navigation bottom bar */}
+          {navigationActive && (
+            <View style={[
+              styles.navBottomBar,
+              {
+                backgroundColor: c.card + "F5",
+                paddingBottom: bottomInset + tabBarHeight + 10,
+                bottom: 0,
+              },
+            ]}>
+              <View>
+                <Text style={[styles.navBarEta, { color: c.foreground }]}>
+                  {durationStr(activeRoute?.durationS ?? 0)}
+                </Text>
+                <Text style={[styles.navBarDest, { color: c.mutedForeground }]} numberOfLines={1}>
+                  {navDestination?.name.split(",")[0]}
+                </Text>
               </View>
-              <View style={styles.navRight}>
-                <Text style={styles.navETA}>{durationStr(activeRoute?.durationS ?? 0)}</Text>
-                <TouchableOpacity
-                  style={styles.stopBtn}
-                  onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
-                >
-                  <Text style={styles.stopBtnText}>■ Stop</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[styles.stopBtn, { backgroundColor: "#E53935" }]}
+                onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+              >
+                <Ionicons name="stop" size={16} color="#FFF" />
+                <Text style={styles.stopBtnText}>Stop</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          {/* Speed zone alert */}
-          {activeAlert && <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />}
+          {/* SOS */}
+          <View style={[styles.sosWrap, { bottom: bottomInset + tabBarHeight + (navigationActive ? 90 : 160) }]}>
+            <SOSButton />
+          </View>
+        </View>
 
-          {/* Speedometer */}
-          <View style={[styles.dialWrap, navigationActive && { flex: 0.6, minHeight: 180 }]}>
-            <SpeedometerDial speed={currentSpeed} speedLimit={currentSpeedLimit} hudMode={hudMode} />
-            {overLimit && (
-              <View style={[styles.overLimitBanner, { backgroundColor: c.speedDanger }]}>
-                <Ionicons name="alert-circle" size={16} color="#FFF" />
-                <Text style={styles.overLimitText}>Slow down!</Text>
-              </View>
-            )}
+      ) : (
+        /* ════════ NORMAL MODE (no route) ════════ */
+        <>
+          {/* Header */}
+          <View style={[styles.header, { paddingTop: topInset + 6 }]}>
+            <View>
+              <Text style={[styles.appTitle, { color: hudMode ? "#FFF" : c.foreground }]}>SafeDrive Kenya</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHudMode(!hudMode); }}
+              style={[styles.iconBtn, { backgroundColor: hudMode ? "#FFF2" : c.muted }]}
+            >
+              <Ionicons name={hudMode ? "sunny" : "moon-outline"} size={20} color={hudMode ? "#FFF" : c.foreground} />
+            </TouchableOpacity>
           </View>
 
-          {/* Location prompt */}
-          {!locationGranted && (
-            <TouchableOpacity
-              style={[styles.permBtn, { backgroundColor: c.primary }]}
-              onPress={requestLocationPermission}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="location-outline" size={18} color={c.primaryForeground} />
-              <Text style={[styles.permText, { color: c.primaryForeground }]}>Enable Location</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Nearby zones strip */}
-          {!hudMode && !navigationActive && nearbyZones.length > 0 && (
-            <View style={styles.nearbySection}>
-              <Text style={[styles.nearbyTitle, { color: c.mutedForeground }]}>UPCOMING ZONES</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.nearbyScroll}>
-                {nearbyZones.slice(0, 5).map((z) => (
-                  <View key={z.id} style={[styles.zoneChip, { backgroundColor: c.card, borderColor: c.border }]}>
-                    <Text style={{ fontSize: 13 }}>
-                      {z.type === "camera" ? "📷" : z.type === "police" ? "🚔" : "🚦"}
-                    </Text>
-                    <Text style={[styles.zoneLimit, { color: c.foreground }]}>{z.speedLimit}</Text>
-                    <Text style={[styles.zoneKmh, { color: c.mutedForeground }]}>km/h</Text>
-                    <Text style={[styles.zoneDist, { color: c.mutedForeground }]}>{distStr(z.distance)}</Text>
-                  </View>
-                ))}
-              </ScrollView>
+          {/* Search bar */}
+          <View style={styles.searchBarPadded}>
+            <View style={[styles.searchBar, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
+              <TextInput
+                style={[styles.searchInput, { color: c.foreground }]}
+                placeholder="Where to?"
+                placeholderTextColor={c.mutedForeground}
+                value={searchText}
+                onChangeText={handleSearchChange}
+                returnKeyType="search"
+                onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+                autoCorrect={false}
+              />
+              {searchLoading && showResults && <ActivityIndicator size="small" color={c.primary} />}
             </View>
+          </View>
+
+          {/* ── Search results ── */}
+          {showResults ? (
+            <View style={[styles.searchResultsPanel, { backgroundColor: c.background }]}>
+              {searchError && (
+                <View style={styles.searchHint}>
+                  <Ionicons name="cloud-offline-outline" size={16} color={c.mutedForeground} />
+                  <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
+                    No connection — check internet and try again
+                  </Text>
+                </View>
+              )}
+              {!searchError && geoResults.length === 0 && !searchLoading && searchText.length > 1 && (
+                <View style={styles.searchHint}>
+                  <Ionicons name="location-outline" size={16} color={c.mutedForeground} />
+                  <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
+                    No places found in Kenya for "{searchText}"
+                  </Text>
+                </View>
+              )}
+              {!searchError && searchText.length < 2 && (
+                <View style={styles.searchHint}>
+                  <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
+                  <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
+                    Type at least 2 characters to search
+                  </Text>
+                </View>
+              )}
+              <FlatList
+                data={geoResults}
+                keyExtractor={(_, i) => String(i)}
+                keyboardShouldPersistTaps="always"
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.resultRow,
+                      { borderBottomColor: c.border },
+                      index === 0 && { borderTopColor: c.border, borderTopWidth: StyleSheet.hairlineWidth },
+                    ]}
+                    onPress={() => pickDestination(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.resultIcon, { backgroundColor: c.muted }]}>
+                      <Ionicons name="location-outline" size={16} color={c.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.resultShort, { color: c.foreground }]} numberOfLines={1}>
+                        {item.short}
+                      </Text>
+                      <Text style={[styles.resultDetail, { color: c.mutedForeground }]} numberOfLines={1}>
+                        {item.display.split(",").slice(2).join(",").trim()}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          ) : (
+            <>
+              {/* Route loading */}
+              {routeLoading && (
+                <View style={[styles.routeLoadRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <ActivityIndicator size="small" color={c.primary} />
+                  <Text style={[styles.routeLoadText, { color: c.mutedForeground }]}>Calculating route…</Text>
+                </View>
+              )}
+
+              {/* Alert banner */}
+              {activeAlert && <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />}
+
+              {/* Speedometer */}
+              <View style={styles.dialWrap}>
+                <SpeedometerDial speed={currentSpeed} speedLimit={currentSpeedLimit} hudMode={hudMode} />
+                {overLimit && (
+                  <View style={[styles.overLimitBanner, { backgroundColor: "#E53935" }]}>
+                    <Ionicons name="alert-circle" size={16} color="#FFF" />
+                    <Text style={styles.overLimitText}>Slow down!</Text>
+                  </View>
+                )}
+              </View>
+
+              {!locationGranted && (
+                <TouchableOpacity
+                  style={[styles.permBtn, { backgroundColor: c.primary }]}
+                  onPress={requestLocationPermission}
+                >
+                  <Ionicons name="location-outline" size={18} color={c.primaryForeground} />
+                  <Text style={[styles.permText, { color: c.primaryForeground }]}>Enable Location</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Nearby zones strip */}
+              {!hudMode && nearbyZones.length > 0 && (
+                <View style={styles.nearbySection}>
+                  <Text style={[styles.nearbyTitle, { color: c.mutedForeground }]}>UPCOMING ZONES</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.nearbyScroll}>
+                    {nearbyZones.slice(0, 5).map((z) => (
+                      <View key={z.id} style={[styles.zoneChip, { backgroundColor: c.card, borderColor: c.border }]}>
+                        <Text style={{ fontSize: 13 }}>
+                          {z.type === "camera" ? "📷" : z.type === "police" ? "🚔" : "🚦"}
+                        </Text>
+                        <Text style={[styles.zoneLimit, { color: c.foreground }]}>{z.speedLimit}</Text>
+                        <Text style={[styles.zoneKmh, { color: c.mutedForeground }]}>km/h</Text>
+                        <Text style={[styles.zoneDist, { color: c.mutedForeground }]}>{distStr(z.distance)}</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* SOS */}
+              <View style={[styles.sosWrap, { bottom: bottomInset + tabBarHeight + 8 }]}>
+                <SOSButton />
+              </View>
+            </>
           )}
         </>
-      )}
-
-      {/* SOS — always visible */}
-      {!isSearchMode && (
-        <View style={[styles.sosWrap, { bottom: bottomInset + (Platform.OS === "web" ? 90 : 96) }]}>
-          <SOSButton />
-        </View>
       )}
     </View>
   );
@@ -402,6 +481,154 @@ export default function DriveScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+
+  /* Map mode */
+  mapContainer: { flex: 1 },
+  topOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    gap: 8,
+    paddingBottom: 8,
+  },
+  trafficBtn: {
+    position: "absolute",
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  navInstructionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderRadius: 18,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  navStepText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 22,
+  },
+  navStepDist: {
+    color: "#FFFFFFCC",
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    marginTop: 4,
+  },
+  speedBubble: {
+    position: "absolute",
+    left: 14,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  speedBubbleNumber: { color: "#FFF", fontSize: 26, fontFamily: "Inter_700Bold", lineHeight: 28 },
+  speedBubbleUnit: { color: "#FFFFFFAA", fontSize: 11, fontFamily: "Inter_500Medium" },
+  speedLimitInBubble: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedLimitInBubbleText: { color: "#FFF", fontSize: 10, fontFamily: "Inter_700Bold" },
+  bottomSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingTop: 18,
+    paddingHorizontal: 16,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  etaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  etaTime: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  etaDist: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  zonesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  zonesChipEmoji: { fontSize: 13 },
+  zonesChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  altRow: { flexDirection: "row", gap: 8 },
+  altChip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20 },
+  altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  firstStep: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  startBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  startBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  navBottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingTop: 14,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  navBarEta: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  navBarDest: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, maxWidth: 220 },
+  stopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 28,
+  },
+  stopBtnText: { color: "#FFF", fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  /* Normal mode */
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -410,10 +637,8 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   appTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  tripPill: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  tripDot: { width: 6, height: 6, borderRadius: 3 },
-  tripText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   iconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  searchBarPadded: { paddingHorizontal: 14, marginBottom: 4 },
   searchBarWrap: {},
   searchBar: {
     flexDirection: "row",
@@ -425,6 +650,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+
+  /* Search results */
   searchResultsPanel: { flex: 1 },
   searchHint: {
     flexDirection: "row",
@@ -458,50 +685,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 12,
+    marginHorizontal: 14,
+    marginBottom: 6,
   },
   routeLoadText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  routePreview: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 10 },
-  routeTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  routeETA: { flexDirection: "row", alignItems: "baseline", gap: 6 },
-  routeTime: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  routeDist: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  zonesChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  zonesChipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  altRow: { flexDirection: "row", gap: 8, paddingVertical: 2 },
-  altChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  firstStep: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  startBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 13,
-    borderRadius: 14,
-  },
-  startBtnText: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  navBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
-    padding: 14,
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  navLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  navInstruction: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF", lineHeight: 20 },
-  navDist: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", marginTop: 2 },
-  navRight: { alignItems: "flex-end", gap: 4 },
-  navETA: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#FFFFFFAA" },
-  stopBtn: { backgroundColor: "#FFFFFF22", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  stopBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+
+  /* Speedometer */
   dialWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12, minHeight: 220 },
   overLimitBanner: {
     flexDirection: "row",
@@ -512,7 +701,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginTop: 14,
   },
-  overLimitText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  overLimitText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
   permBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -524,6 +713,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   permText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  /* Nearby zones */
   nearbySection: { paddingBottom: 8 },
   nearbyTitle: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1.5, marginLeft: 20, marginBottom: 6 },
   nearbyScroll: { paddingLeft: 16 },
@@ -540,5 +731,7 @@ const styles = StyleSheet.create({
   zoneLimit: { fontSize: 14, fontFamily: "Inter_700Bold" },
   zoneKmh: { fontSize: 10, fontFamily: "Inter_400Regular" },
   zoneDist: { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  /* SOS */
   sosWrap: { position: "absolute", right: 20 },
 });
