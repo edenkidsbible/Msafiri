@@ -84,4 +84,5 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz039", name: "Makuyu Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.8803, lng: 37.0989, speedLimit: 50, type: "zone", description: "Built-up area limit through Makuyu town. Limit: 50 km/h" },
   { id: "sz040", name: "Sagana Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.6711, lng: 37.2103, speedLimit: 50, type: "zone", description: "Built-up area limit through Sagana town. Limit: 50 km/h" },
   { id: "sz041", name: "Karatina Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.4808, lng: 37.1247, speedLimit: 50, type: "zone", description: "Built-up area limit through Karatina town. Limit: 50 km/h" },
+  { id: "sz042", name: "Kanyonyo Weighbridge – Speed Camera", road: "Machakos–Matuu Road (C80)", lat: -1.3620, lng: 37.3970, speedLimit: 50, type: "camera", description: "Fixed speed camera at Kanyonyo weighbridge on the Machakos–Matuu stretch. Limit: 50 km/h" },
 ];
