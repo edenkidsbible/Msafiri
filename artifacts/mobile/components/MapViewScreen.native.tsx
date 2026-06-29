@@ -66,7 +66,7 @@ export default function MapViewScreen() {
             key={r.id}
             coordinate={{ latitude: r.lat, longitude: r.lng }}
             pinColor={REPORT_COLORS[r.type] ?? "#888"}
-            opacity={now - r.timestamp > 5400000 ? 0.45 : 1}
+            opacity={now - r.timestamp > 7200000 ? 0.45 : 1}
             title={r.type.charAt(0).toUpperCase() + r.type.slice(1)}
             description={`Reported ${Math.round((now - r.timestamp) / 60000)} min ago`}
           />

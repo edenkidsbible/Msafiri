@@ -10,6 +10,8 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import * as Notifications from "expo-notifications";
+import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
 
 export interface CommunityReport {
@@ -65,6 +67,7 @@ interface AppContextValue {
   clearTripHistory: () => void;
   onboardingComplete: boolean;
   completeOnboarding: () => void;
+  isOffline: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -96,6 +99,44 @@ const IN_ZONE_DIST = 250;
 const MIN_TRIP_DIST = 200;
 const STOP_TIMEOUT_MS = 3 * 60 * 1000;
 
+// Configure notification handler once
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
+
+async function requestNotificationPermission(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  const { status } = await Notifications.requestPermissionsAsync();
+  return status === "granted";
+}
+
+async function scheduleAlertNotification(zone: SpeedZone, distM: number): Promise<void> {
+  if (Platform.OS === "web") return;
+  const typeLabel =
+    zone.type === "camera"
+      ? "Speed Camera"
+      : zone.type === "police"
+      ? "Police Checkpoint"
+      : "Speed Zone";
+  const distLabel = distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${Math.round(distM)} m`;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `⚠️ ${typeLabel} Ahead — ${zone.speedLimit} km/h`,
+      body: `${zone.name} is ${distLabel} away on ${zone.road}.`,
+      data: { zoneId: zone.id },
+    },
+    trigger: null, // fire immediately
+  });
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [locationGranted, setLocationGranted] = useState(false);
   const [currentLat, setCurrentLat] = useState<number | null>(null);
@@ -110,12 +151,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentTrip, setCurrentTrip] = useState<Partial<TripData> | null>(null);
   const [tripHistory, setTripHistory] = useState<TripData[]>([]);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifGranted = useRef(false);
 
+  // Load persisted data + request notification permission
   useEffect(() => {
     (async () => {
       const [trips, reports, hud, sos, onboarded] = await Promise.all([
@@ -134,7 +178,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (hud) setHudModeState(JSON.parse(hud));
       if (sos) setSosContactState(JSON.parse(sos));
       setOnboardingComplete(onboarded === "true");
+
+      notifGranted.current = await requestNotificationPermission();
     })();
+  }, []);
+
+  // Offline / connectivity detection
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const handleOnline = () => setIsOffline(false);
+      const handleOffline = () => setIsOffline(true);
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+      setIsOffline(!navigator.onLine);
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      };
+    }
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!(state.isConnected ?? true));
+    });
+    return unsubscribe;
   }, []);
 
   const requestLocationPermission = useCallback(async () => {
@@ -169,9 +234,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (alertCandidate) {
         if (alertCandidate.id !== alertZoneRef.current) {
+          // New zone entered — fire haptic + local notification
           alertZoneRef.current = alertCandidate.id;
           alertDismissed.current = false;
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          if (notifGranted.current) {
+            scheduleAlertNotification(alertCandidate, alertCandidate.distance);
+          }
         }
         if (!alertDismissed.current) setActiveAlert(alertCandidate);
       } else {
@@ -353,6 +422,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearTripHistory,
         onboardingComplete,
         completeOnboarding,
+        isOffline,
       }}
     >
       {children}

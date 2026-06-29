@@ -56,7 +56,9 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@react-native-community/netinfo": "11.4.1",
     "expo-keep-awake": "^15.0.8",
+    "expo-notifications": "~0.32.17",
     "expo-sms": "^14.0.8",
     "react-native-maps": "1.18.0"
   }

@@ -9,9 +9,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
@@ -20,6 +22,17 @@ import { useColors } from "@/hooks/useColors";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+function OfflineBanner() {
+  const { isOffline } = useApp();
+  if (!isOffline) return null;
+  return (
+    <View style={styles.offlineBanner}>
+      <Ionicons name="cloud-offline-outline" size={14} color="#fff" />
+      <Text style={styles.offlineText}>No internet — using offline data</Text>
+    </View>
+  );
+}
 
 function RootLayoutNav() {
   const { onboardingComplete, locationGranted, requestLocationPermission } = useApp();
@@ -38,28 +51,23 @@ function RootLayoutNav() {
   }, [onboardingComplete]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: c.card },
-        headerTintColor: c.foreground,
-        headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
-        headerBackTitle: "Back",
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="onboarding"
-        options={{ headerShown: false, gestureEnabled: false }}
-      />
-      <Stack.Screen
-        name="settings"
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          gestureEnabled: true,
+    <View style={{ flex: 1 }}>
+      <OfflineBanner />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: c.card },
+          headerTintColor: c.foreground,
+          headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
+          headerBackTitle: "Back",
         }}
-      />
-    </Stack>
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="onboarding"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+      </Stack>
+    </View>
   );
 }
 
@@ -95,3 +103,21 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#555",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    zIndex: 999,
+  },
+  offlineText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+});
