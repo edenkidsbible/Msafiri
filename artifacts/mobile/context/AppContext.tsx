@@ -146,7 +146,14 @@ async function fetchOSRM(
     `https://router.project-osrm.org/route/v1/driving/` +
     `${fromLng},${fromLat};${toLng},${toLat}` +
     `?alternatives=true&steps=true&overview=full&geometries=geojson`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await res.json();
   if (data.code !== "Ok" || !data.routes?.length) return [];
   return (data.routes as any[]).map((r, idx) => ({

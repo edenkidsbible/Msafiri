@@ -1,7 +1,9 @@
 import React from "react";
-import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
 
 export interface POIItem {
   id: string;
@@ -20,6 +22,7 @@ const BRAND_COLORS: Record<string, string> = {
   Total: "#E40613",
   TotalEnergies: "#E40613",
   Rubis: "#0059A8",
+  Astrol: "#1A6B3C",
   OiLibya: "#E31E24",
   "Java House": "#7B3F20",
   "Chicken Inn": "#C8102E",
@@ -32,24 +35,6 @@ function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-function openGoogleMapsNav(lat: number, lng: number) {
-  const gm = Platform.select({
-    ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
-    android: `google.navigation:q=${lat},${lng}&mode=d`,
-    default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
-  }) as string;
-
-  Linking.canOpenURL(gm)
-    .then((can) => {
-      if (can) return Linking.openURL(gm);
-      // Fallback to web Google Maps
-      return Linking.openURL(
-        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
-      );
-    })
-    .catch(console.warn);
-}
-
 export default function POICard({
   poi,
   distance,
@@ -58,13 +43,20 @@ export default function POICard({
   distance?: number;
 }) {
   const c = useColors();
+  const router = useRouter();
+  const { setNavDestination } = useApp();
   const brand = poi.brand ?? "";
   const brandColor = BRAND_COLORS[brand] ?? c.primary;
   const isFuel = poi.type === "fuel";
 
+  const navigateInApp = () => {
+    setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+    router.push("/");
+  };
+
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-      <View style={[styles.icon, { backgroundColor: brandColor + "25" }]}>
+      <View style={[styles.icon, { backgroundColor: brandColor + "22" }]}>
         {isFuel ? (
           <MaterialCommunityIcons name="gas-station" size={22} color={brandColor} />
         ) : (
@@ -78,20 +70,20 @@ export default function POICard({
             {poi.name}
           </Text>
           {poi.source === "live" && (
-            <View style={[styles.liveDot, { backgroundColor: c.speedSafe }]} />
+            <View style={[styles.liveDot, { backgroundColor: "#00C853" }]} />
           )}
         </View>
-        {poi.address ? (
+        {!!poi.address && (
           <Text style={[styles.addr, { color: c.mutedForeground }]} numberOfLines={1}>
             {poi.address}
           </Text>
-        ) : null}
-        {poi.hours ? (
+        )}
+        {!!poi.hours && (
           <View style={styles.hoursRow}>
             <Ionicons name="time-outline" size={11} color={c.mutedForeground} />
             <Text style={[styles.hours, { color: c.mutedForeground }]}>{poi.hours}</Text>
           </View>
-        ) : null}
+        )}
       </View>
 
       <View style={styles.rightCol}>
@@ -100,7 +92,7 @@ export default function POICard({
         )}
         <TouchableOpacity
           style={[styles.navBtn, { backgroundColor: c.primary }]}
-          onPress={() => openGoogleMapsNav(poi.lat, poi.lng)}
+          onPress={navigateInApp}
           activeOpacity={0.8}
         >
           <Ionicons name="navigate" size={13} color={c.primaryForeground} />
