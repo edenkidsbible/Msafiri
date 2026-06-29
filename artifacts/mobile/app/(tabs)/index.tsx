@@ -60,6 +60,13 @@ function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
   return "arrow-up-circle";
 }
 
+// Zone type icon — Ionicons only, works on all Android versions
+function ZoneIcon({ type, size = 14, color }: { type: string; size?: number; color: string }) {
+  const name: keyof typeof Ionicons.glyphMap =
+    type === "camera" ? "camera" : type === "police" ? "shield-checkmark" : "speedometer";
+  return <Ionicons name={name} size={size} color={color} />;
+}
+
 export default function DriveScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -144,13 +151,13 @@ export default function DriveScreen() {
 
           {/* Top gradient fade so overlays are readable */}
           <View style={[styles.topOverlay, { paddingTop: topInset + 6 }]}>
-            {/* Search bar — stays accessible during map mode */}
+            {/* Search bar — stays accessible in map mode */}
             <View style={styles.searchBarWrap}>
               <View style={[styles.searchBar, { backgroundColor: c.card + "F0", borderColor: c.primary }]}>
                 <Ionicons name="navigate" size={16} color={c.primary} />
                 <TextInput
                   style={[styles.searchInput, { color: c.foreground }]}
-                  placeholder="Where to?"
+                  placeholder="Search new destination…"
                   placeholderTextColor={c.mutedForeground}
                   value={searchText}
                   onChangeText={handleSearchChange}
@@ -159,8 +166,13 @@ export default function DriveScreen() {
                   autoCorrect={false}
                 />
                 {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
-                <TouchableOpacity onPress={clearDestination} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Ionicons name="close-circle" size={18} color={c.mutedForeground} />
+                {/* Clear / cancel button — always visible in map mode */}
+                <TouchableOpacity
+                  onPress={clearDestination}
+                  style={styles.clearBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Ionicons name="close-circle" size={20} color={c.mutedForeground} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -184,7 +196,7 @@ export default function DriveScreen() {
             )}
           </View>
 
-          {/* Traffic toggle */}
+          {/* Traffic toggle — top right (Ionicons, no emoji) */}
           <TouchableOpacity
             style={[styles.trafficBtn, {
               backgroundColor: showTraffic ? c.primary : c.card + "EE",
@@ -192,7 +204,7 @@ export default function DriveScreen() {
             }]}
             onPress={() => setShowTraffic(!showTraffic)}
           >
-            <Text style={{ fontSize: 18 }}>🚗</Text>
+            <Ionicons name="car" size={20} color={showTraffic ? "#FFF" : c.primary} />
           </TouchableOpacity>
 
           {/* Speed bubble — bottom left */}
@@ -214,33 +226,29 @@ export default function DriveScreen() {
             </View>
           )}
 
-          {/* Route preview + Start — bottom sheet */}
+          {/* ── Route preview bottom sheet ── */}
           {!navigationActive && activeRoute && (
             <View style={[
               styles.bottomSheet,
-              {
-                backgroundColor: c.card + "F5",
-                paddingBottom: bottomInset + tabBarHeight + 10,
-                bottom: 0,
-              },
+              { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
             ]}>
               {/* ETA row */}
               <View style={styles.etaRow}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={[styles.etaTime, { color: c.foreground }]}>
                     {durationStr(activeRoute.durationS)}
                   </Text>
-                  <Text style={[styles.etaDist, { color: c.mutedForeground }]}>
+                  <Text style={[styles.etaDist, { color: c.mutedForeground }]} numberOfLines={1}>
                     {distStr(activeRoute.distanceM)} · {navDestination?.name.split(",")[0]}
                   </Text>
                 </View>
                 {zonesOnRoute.length > 0 && (
-                  <View style={[styles.zonesChip, { backgroundColor: "#E5393520" }]}>
-                    <Text style={styles.zonesChipEmoji}>⚠️</Text>
+                  <View style={[styles.zonesChip, { backgroundColor: "#E5393518" }]}>
+                    <Ionicons name="warning" size={12} color="#E53935" />
                     <Text style={[styles.zonesChipText, { color: "#E53935" }]}>
-                      {zonesOnRoute.filter((z) => z.type === "camera").length}📷
+                      {zonesOnRoute.filter((z) => z.type === "camera").length} cam
                       {" · "}
-                      {zonesOnRoute.filter((z) => z.type === "police").length}🚔
+                      {zonesOnRoute.filter((z) => z.type === "police").length} police
                     </Text>
                   </View>
                 )}
@@ -248,11 +256,11 @@ export default function DriveScreen() {
 
               {/* Alternative routes */}
               {altRoutes.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
                   <View style={styles.altRow}>
                     <View style={[styles.altChip, { backgroundColor: c.primary }]}>
                       <Text style={[styles.altChipText, { color: c.primaryForeground }]}>
-                        ✦ Fastest · {durationStr(activeRoute.durationS)}
+                        Fastest · {durationStr(activeRoute.durationS)}
                       </Text>
                     </View>
                     {altRoutes.map((r, i) => (
@@ -272,34 +280,49 @@ export default function DriveScreen() {
 
               {/* First step preview */}
               {activeRoute.steps[0] && (
-                <Text style={[styles.firstStep, { color: c.mutedForeground }]} numberOfLines={1}>
-                  ➤ {activeRoute.steps[0].instruction}
-                </Text>
+                <View style={styles.firstStepRow}>
+                  <Ionicons name="arrow-forward-circle-outline" size={14} color={c.mutedForeground} />
+                  <Text style={[styles.firstStep, { color: c.mutedForeground }]} numberOfLines={1}>
+                    {activeRoute.steps[0].instruction}
+                  </Text>
+                </View>
               )}
 
-              {/* Start button */}
-              <TouchableOpacity
-                style={[styles.startBtn, { backgroundColor: c.primary }]}
-                onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
-                activeOpacity={0.87}
-              >
-                <Ionicons name="navigate" size={18} color={c.primaryForeground} />
-                <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start Navigation</Text>
-              </TouchableOpacity>
+              {/* Action row: Cancel + SOS + Start */}
+              <View style={styles.actionRow}>
+                {/* Cancel / change destination */}
+                <TouchableOpacity
+                  style={[styles.cancelRouteBtn, { backgroundColor: c.muted, borderColor: c.border }]}
+                  onPress={() => { clearDestination(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="close" size={16} color={c.foreground} />
+                  <Text style={[styles.cancelRouteTxt, { color: c.foreground }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                {/* SOS — integrated into the row, not floating */}
+                <SOSButton compact />
+
+                {/* Start navigation */}
+                <TouchableOpacity
+                  style={[styles.startBtn, { backgroundColor: c.primary }]}
+                  onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+                  activeOpacity={0.87}
+                >
+                  <Ionicons name="navigate" size={16} color={c.primaryForeground} />
+                  <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* Navigation bottom bar */}
+          {/* ── Navigation active bottom bar ── */}
           {navigationActive && (
             <View style={[
               styles.navBottomBar,
-              {
-                backgroundColor: c.card + "F5",
-                paddingBottom: bottomInset + tabBarHeight + 10,
-                bottom: 0,
-              },
+              { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
             ]}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.navBarEta, { color: c.foreground }]}>
                   {durationStr(activeRoute?.durationS ?? 0)}
                 </Text>
@@ -307,20 +330,20 @@ export default function DriveScreen() {
                   {navDestination?.name.split(",")[0]}
                 </Text>
               </View>
+
+              {/* SOS in nav bar */}
+              <SOSButton compact />
+
+              {/* Stop button */}
               <TouchableOpacity
                 style={[styles.stopBtn, { backgroundColor: "#E53935" }]}
                 onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
               >
-                <Ionicons name="stop" size={16} color="#FFF" />
+                <Ionicons name="stop" size={15} color="#FFF" />
                 <Text style={styles.stopBtnText}>Stop</Text>
               </TouchableOpacity>
             </View>
           )}
-
-          {/* SOS */}
-          <View style={[styles.sosWrap, { bottom: bottomInset + tabBarHeight + (navigationActive ? 90 : 160) }]}>
-            <SOSButton />
-          </View>
         </View>
 
       ) : (
@@ -328,9 +351,7 @@ export default function DriveScreen() {
         <>
           {/* Header */}
           <View style={[styles.header, { paddingTop: topInset + 6 }]}>
-            <View>
-              <Text style={[styles.appTitle, { color: hudMode ? "#FFF" : c.foreground }]}>SafeDrive Kenya</Text>
-            </View>
+            <Text style={[styles.appTitle, { color: hudMode ? "#FFF" : c.foreground }]}>SafeDrive Kenya</Text>
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHudMode(!hudMode); }}
               style={[styles.iconBtn, { backgroundColor: hudMode ? "#FFF2" : c.muted }]}
@@ -448,16 +469,16 @@ export default function DriveScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Nearby zones strip */}
+              {/* Nearby zones strip — Ionicons markers, no emoji */}
               {!hudMode && nearbyZones.length > 0 && (
                 <View style={styles.nearbySection}>
                   <Text style={[styles.nearbyTitle, { color: c.mutedForeground }]}>UPCOMING ZONES</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.nearbyScroll}>
                     {nearbyZones.slice(0, 5).map((z) => (
                       <View key={z.id} style={[styles.zoneChip, { backgroundColor: c.card, borderColor: c.border }]}>
-                        <Text style={{ fontSize: 13 }}>
-                          {z.type === "camera" ? "📷" : z.type === "police" ? "🚔" : "🚦"}
-                        </Text>
+                        <ZoneIcon type={z.type} size={13} color={
+                          z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"
+                        } />
                         <Text style={[styles.zoneLimit, { color: c.foreground }]}>{z.speedLimit}</Text>
                         <Text style={[styles.zoneKmh, { color: c.mutedForeground }]}>km/h</Text>
                         <Text style={[styles.zoneDist, { color: c.mutedForeground }]}>{distStr(z.distance)}</Text>
@@ -467,7 +488,7 @@ export default function DriveScreen() {
                 </View>
               )}
 
-              {/* SOS */}
+              {/* SOS — floating above tab bar in normal mode only */}
               <View style={[styles.sosWrap, { bottom: bottomInset + tabBarHeight + 8 }]}>
                 <SOSButton />
               </View>
@@ -485,253 +506,157 @@ const styles = StyleSheet.create({
   /* Map mode */
   mapContainer: { flex: 1 },
   topOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 12,
-    gap: 8,
-    paddingBottom: 8,
+    position: "absolute", top: 0, left: 0, right: 0,
+    paddingHorizontal: 12, gap: 8, paddingBottom: 8,
   },
   trafficBtn: {
-    position: "absolute",
-    right: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-    elevation: 5,
+    position: "absolute", right: 12,
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 5, elevation: 5,
   },
   navInstructionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    borderRadius: 18,
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 18, padding: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 10, elevation: 8,
   },
-  navStepText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    lineHeight: 22,
-  },
-  navStepDist: {
-    color: "#FFFFFFCC",
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    marginTop: 4,
-  },
+  navStepText: { color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold", lineHeight: 22 },
+  navStepDist: { color: "#FFFFFFCC", fontSize: 22, fontFamily: "Inter_700Bold", marginTop: 4 },
   speedBubble: {
-    position: "absolute",
-    left: 14,
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    position: "absolute", left: 14,
+    width: 76, height: 76, borderRadius: 38,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
   },
   speedBubbleNumber: { color: "#FFF", fontSize: 26, fontFamily: "Inter_700Bold", lineHeight: 28 },
   speedBubbleUnit: { color: "#FFFFFFAA", fontSize: 11, fontFamily: "Inter_500Medium" },
   speedLimitInBubble: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", top: -4, right: -4,
+    width: 26, height: 26, borderRadius: 13,
+    alignItems: "center", justifyContent: "center",
   },
   speedLimitInBubbleText: { color: "#FFF", fontSize: 10, fontFamily: "Inter_700Bold" },
+
+  /* Route preview bottom sheet */
   bottomSheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingTop: 18,
-    paddingHorizontal: 16,
-    gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 12,
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingTop: 18, paddingHorizontal: 16, gap: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.14, shadowRadius: 12, elevation: 12,
   },
   etaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  etaTime: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  etaTime: { fontSize: 24, fontFamily: "Inter_700Bold" },
   etaDist: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   zonesChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
   },
-  zonesChipEmoji: { fontSize: 13 },
   zonesChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   altRow: { flexDirection: "row", gap: 8 },
-  altChip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20 },
-  altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  firstStep: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  altChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16 },
+  altChipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  firstStepRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  firstStep: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+
+  /* Action row (cancel + SOS + start) */
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  cancelRouteBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1,
+  },
+  cancelRouteTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   startBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 16,
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 14, borderRadius: 16,
   },
-  startBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  startBtnText: { fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  /* Nav bottom bar */
   navBottomBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingTop: 14,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 12,
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingTop: 14, paddingHorizontal: 16,
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.14, shadowRadius: 12, elevation: 12,
   },
-  navBarEta: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  navBarDest: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, maxWidth: 220 },
+  navBarEta: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  navBarDest: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   stopBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 28,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14,
   },
-  stopBtnText: { color: "#FFF", fontSize: 15, fontFamily: "Inter_700Bold" },
+  stopBtnText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
 
   /* Normal mode */
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 16,
-    paddingBottom: 6,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingBottom: 6,
   },
-  appTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  appTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   iconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  searchBarPadded: { paddingHorizontal: 14, marginBottom: 4 },
+  searchBarPadded: { paddingHorizontal: 16, paddingBottom: 8 },
   searchBarWrap: {},
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1.5,
+    paddingHorizontal: 12, paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  clearBtn: { padding: 2 },
 
   /* Search results */
   searchResultsPanel: { flex: 1 },
-  searchHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  searchHintText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
+  searchHint: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16 },
+  searchHintText: { fontSize: 14, fontFamily: "Inter_400Regular", flex: 1 },
   resultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    gap: 12,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  resultIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  resultShort: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  resultDetail: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
-  routeLoadRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
-    marginHorizontal: 14,
-    marginBottom: 6,
-  },
-  routeLoadText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  resultIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  resultShort: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  resultDetail: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 
-  /* Speedometer */
-  dialWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12, minHeight: 220 },
-  overLimitBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 24,
-    marginTop: 14,
+  /* Route loading */
+  routeLoadRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 16, marginBottom: 8, padding: 12,
+    borderRadius: 12, borderWidth: 1,
   },
-  overLimitText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
+  routeLoadText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+
+  /* Speedometer section */
+  dialWrap: { alignItems: "center", paddingVertical: 8 },
+  overLimitBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginTop: 12, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20,
+  },
+  overLimitText: { color: "#FFF", fontSize: 15, fontFamily: "Inter_700Bold" },
   permBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 28,
-    marginBottom: 16,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    alignSelf: "center", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16,
+    marginTop: 8,
   },
   permText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
-  /* Nearby zones */
-  nearbySection: { paddingBottom: 8 },
-  nearbyTitle: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1.5, marginLeft: 20, marginBottom: 6 },
-  nearbyScroll: { paddingLeft: 16 },
+  /* Nearby zones strip */
+  nearbySection: { paddingHorizontal: 16, marginTop: 8 },
+  nearbyTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 1, marginBottom: 8 },
+  nearbyScroll: {},
   zoneChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginRight: 8,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12,
+    borderWidth: 1, marginRight: 8,
   },
-  zoneLimit: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  zoneLimit: { fontSize: 15, fontFamily: "Inter_700Bold" },
   zoneKmh: { fontSize: 10, fontFamily: "Inter_400Regular" },
-  zoneDist: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  zoneDist: { fontSize: 11, fontFamily: "Inter_500Medium" },
 
-  /* SOS */
-  sosWrap: { position: "absolute", right: 20 },
+  /* SOS (normal mode only — floating) */
+  sosWrap: { position: "absolute", right: 16 },
 });

@@ -187,10 +187,18 @@ function getZonesOnRoute(route: AppRoute, zones: SpeedZone[]): SpeedZone[] {
   );
 }
 
+// Best TTS voice — populated once at startup via getAvailableVoicesAsync()
+let _bestVoiceId: string | undefined;
+
 function speakText(text: string) {
   if (Platform.OS === "web") return;
   Speech.stop();
-  Speech.speak(text, { language: "en", rate: 0.92 });
+  Speech.speak(text, {
+    language: "en-GB",
+    rate: 0.87,
+    pitch: 1.0,
+    voice: _bestVoiceId,
+  });
 }
 
 // ─── Notification setup ───────────────────────────────────────────────────────
@@ -293,6 +301,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (sos) setSosContactState(JSON.parse(sos));
       setOnboardingComplete(onboarded === "true");
       notifGranted.current = await requestNotificationPermission();
+
+      // Select the most natural TTS voice available on this device
+      if (Platform.OS !== "web") {
+        try {
+          const voices = await Speech.getAvailableVoicesAsync();
+          const en = voices.filter((v) => v.language?.startsWith("en"));
+          const enhanced = en.filter(
+            (v) =>
+              (v as any).quality === "Enhanced" ||
+              v.identifier?.toLowerCase().includes("premium") ||
+              v.identifier?.toLowerCase().includes("enhanced")
+          );
+          // Prefer: enhanced AU → enhanced GB → enhanced US → any enhanced → any EN
+          const ranked = [
+            ...enhanced.filter((v) => v.language?.startsWith("en-AU")),
+            ...enhanced.filter((v) => v.language?.startsWith("en-GB")),
+            ...enhanced.filter((v) => v.language?.startsWith("en-US")),
+            ...enhanced,
+            ...en,
+          ];
+          if (ranked[0]) _bestVoiceId = ranked[0].identifier;
+        } catch {
+          // voice selection is best-effort; silence the error
+        }
+      }
     })();
   }, []);
 

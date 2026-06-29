@@ -4,7 +4,12 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 
-export default function SOSButton() {
+interface Props {
+  // compact = smaller inline pill for use inside nav bars / action rows
+  compact?: boolean;
+}
+
+export default function SOSButton({ compact = false }: Props) {
   const colors = useColors();
   const { sosContact, currentLat, currentLng } = useApp();
   const scale = useRef(new Animated.Value(1)).current;
@@ -62,12 +67,15 @@ export default function SOSButton() {
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[styles.btn, { backgroundColor: colors.speedDanger }]}
+        style={[
+          compact ? styles.btnCompact : styles.btn,
+          { backgroundColor: colors.speedDanger },
+        ]}
         onPress={handlePress}
         activeOpacity={0.85}
         testID="sos-button"
       >
-        <Text style={styles.label}>SOS</Text>
+        <Text style={compact ? styles.labelCompact : styles.label}>SOS</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -86,10 +94,28 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 10,
   },
+  btnCompact: {
+    paddingHorizontal: 14,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#FF3D00",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 6,
+  },
   label: {
     color: "#FFFFFF",
     fontSize: 14,
     fontFamily: "Inter_700Bold",
     letterSpacing: 1.5,
+  },
+  labelCompact: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.2,
   },
 });

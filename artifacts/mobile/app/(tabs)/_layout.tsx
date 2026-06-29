@@ -1,14 +1,52 @@
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
+// ─── iOS-only: all native-tab / SF-symbol imports are gated behind
+// conditional require() so Metro does NOT bundle them on Android/web.
+// Static top-level imports of expo-symbols / expo-router/unstable-native-tabs
+// embed iOS Private-Use-Area glyphs in the JS bundle which render as
+// "foreign characters" on Android. Conditional require() avoids this entirely.
+const isIOS = Platform.OS === "ios";
+
+function getIOSNativeTabs() {
+  if (!isIOS) return null;
+  try {
+    return require("expo-router/unstable-native-tabs") as {
+      NativeTabs: React.ComponentType<{ children: React.ReactNode }>;
+      Icon: React.ComponentType<{ sf: { default: string; selected?: string } }>;
+      Label: React.ComponentType<{ children: string }>;
+    };
+  } catch {
+    return null;
+  }
+}
+function getSymbolView() {
+  if (!isIOS) return null;
+  try {
+    return (require("expo-symbols") as { SymbolView: React.ComponentType<{ name: string; tintColor?: string; size?: number }> }).SymbolView;
+  } catch {
+    return null;
+  }
+}
+function isLiquidGlass(): boolean {
+  if (!isIOS) return false;
+  try {
+    return (require("expo-glass-effect") as { isLiquidGlassAvailable: () => boolean }).isLiquidGlassAvailable();
+  } catch {
+    return false;
+  }
+}
+
+const NativeTabsModule = getIOSNativeTabs();
+const SymbolView = getSymbolView();
+
 function NativeTabLayout() {
+  if (!NativeTabsModule) return null;
+  const { NativeTabs, Icon, Label } = NativeTabsModule;
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -43,8 +81,15 @@ function ClassicTabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  const icon = (featherName: React.ComponentProps<typeof Feather>["name"], sfName: string) =>
+    ({ color }: { color: string }) =>
+      isIOS && SymbolView ? (
+        <SymbolView name={sfName} tintColor={color} size={24} />
+      ) : (
+        <Feather name={featherName} size={22} color={color} />
+      );
 
   return (
     <Tabs
@@ -62,96 +107,26 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
-            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
           ) : null,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Drive",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="gauge" tintColor={color} size={24} />
-            ) : (
-              <Feather name="activity" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="map"
-        options={{
-          title: "Map",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="map" tintColor={color} size={24} />
-            ) : (
-              <Feather name="map" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="browse"
-        options={{
-          title: "Browse",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="location" tintColor={color} size={24} />
-            ) : (
-              <Feather name="compass" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="fines"
-        options={{
-          title: "Fines",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="doc.text" tintColor={color} size={24} />
-            ) : (
-              <Feather name="file-text" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: "History",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="clock" tintColor={color} size={24} />
-            ) : (
-              <Feather name="clock" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="gearshape" tintColor={color} size={24} />
-            ) : (
-              <Feather name="settings" size={22} color={color} />
-            ),
-        }}
-      />
+      <Tabs.Screen name="index"   options={{ title: "Drive",   tabBarIcon: icon("activity",   "gauge") }} />
+      <Tabs.Screen name="map"     options={{ title: "Map",     tabBarIcon: icon("map",        "map") }} />
+      <Tabs.Screen name="browse"  options={{ title: "Browse",  tabBarIcon: icon("compass",    "location") }} />
+      <Tabs.Screen name="fines"   options={{ title: "Fines",   tabBarIcon: icon("file-text",  "doc.text") }} />
+      <Tabs.Screen name="history" options={{ title: "History", tabBarIcon: icon("clock",      "clock") }} />
+      <Tabs.Screen name="settings"options={{ title: "Settings",tabBarIcon: icon("settings",   "gearshape") }} />
     </Tabs>
   );
 }
 
 export default function TabLayout() {
-  if (Platform.OS === "ios" && isLiquidGlassAvailable()) {
+  // NativeTabLayout is iOS-only (Liquid Glass, SF Symbols)
+  // On Android/Web: always ClassicTabLayout with Feather icons (never foreign symbols)
+  if (isIOS && isLiquidGlass() && NativeTabsModule) {
     return <NativeTabLayout />;
   }
   return <ClassicTabLayout />;

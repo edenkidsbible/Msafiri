@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { CommunityReport } from "@/context/AppContext";
 
@@ -11,18 +12,24 @@ interface ReportModalProps {
   onSubmit: (type: ReportType) => void;
 }
 
-const TYPES: Array<{ type: ReportType; label: string; emoji: string; color: string }> = [
-  { type: "camera",    label: "Speed Camera", emoji: "📷", color: "#E53935" },
-  { type: "police",    label: "Police Check",  emoji: "🚔", color: "#1565C0" },
-  { type: "accident",  label: "Accident",      emoji: "🚨", color: "#E53935" },
-  { type: "pothole",   label: "Pothole",       emoji: "🕳️", color: "#F57C00" },
-  { type: "roadblock", label: "Roadblock",     emoji: "🚧", color: "#7B1FA2" },
-  { type: "clear",     label: "Road Clear",    emoji: "✅", color: "#00C853" },
+const TYPES: Array<{
+  type: ReportType;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+}> = [
+  { type: "camera",    label: "Speed Camera", icon: "camera",          color: "#E53935" },
+  { type: "police",    label: "Police Check",  icon: "shield-checkmark",color: "#1565C0" },
+  { type: "accident",  label: "Accident",      icon: "warning",         color: "#E53935" },
+  { type: "pothole",   label: "Pothole",        icon: "alert-circle",   color: "#F57C00" },
+  { type: "roadblock", label: "Roadblock",      icon: "close-circle",   color: "#7B1FA2" },
+  { type: "clear",     label: "Road Clear",     icon: "checkmark-circle",color: "#00C853" },
 ];
 
 export default function ReportModal({ visible, onClose, onSubmit }: ReportModalProps) {
   const c = useColors();
   const [sel, setSel] = useState<ReportType | null>(null);
+  const selItem = TYPES.find((t) => t.type === sel);
 
   const submit = () => {
     if (!sel) return;
@@ -58,13 +65,16 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
                   onPress={() => setSel(t.type)}
                   activeOpacity={0.75}
                 >
-                  <Text style={styles.chipEmoji}>{t.emoji}</Text>
+                  <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
+                    <Ionicons name={t.icon} size={18} color={t.color} />
+                  </View>
                   <Text
                     style={[
                       styles.chipLabel,
                       { color: active ? t.color : c.foreground },
                       active && { fontFamily: "Inter_600SemiBold" },
                     ]}
+                    numberOfLines={1}
                   >
                     {t.label}
                   </Text>
@@ -81,13 +91,13 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
               <Text style={[styles.cancelTxt, { color: c.mutedForeground }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: sel ? c.primary : c.muted }]}
+              style={[styles.submitBtn, { backgroundColor: sel ? (selItem?.color ?? c.primary) : c.muted }]}
               onPress={submit}
               disabled={!sel}
             >
-              {sel && <Text style={{ fontSize: 16 }}>{TYPES.find((t) => t.type === sel)?.emoji}</Text>}
-              <Text style={[styles.submitTxt, { color: sel ? c.primaryForeground : c.mutedForeground }]}>
-                {sel ? `Report ${TYPES.find((t) => t.type === sel)?.label}` : "Select one above"}
+              {selItem && <Ionicons name={selItem.icon} size={16} color="#FFF" />}
+              <Text style={[styles.submitTxt, { color: sel ? "#FFF" : c.mutedForeground }]}>
+                {selItem ? `Report ${selItem.label}` : "Select one above"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -98,56 +108,27 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 48,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 48 },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 4 },
   sub: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 20 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
+    gap: 10,
+    paddingHorizontal: 12,
     paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1.5,
     width: "47%",
   },
-  chipEmoji: { fontSize: 20 },
+  chipIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 13, fontFamily: "Inter_500Medium", flexShrink: 1 },
   actions: { flexDirection: "row", gap: 12 },
-  cancelBtn: {
-    flex: 0.4,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: "center",
-  },
+  cancelBtn: { flex: 0.4, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center" },
   cancelTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
+  submitBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
   submitTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 });

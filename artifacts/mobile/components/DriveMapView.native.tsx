@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
-import { useColors } from "@/hooks/useColors";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import { POIS } from "@/data/pois";
@@ -9,79 +9,83 @@ import { POIS } from "@/data/pois";
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
 
-const ZONE_EMOJI: Record<string, string> = {
-  camera: "📷",
-  police: "🚔",
-  zone: "🚦",
-};
-const REPORT_EMOJI: Record<string, string> = {
-  camera: "📷",
-  police: "🚔",
-  accident: "🚨",
-  pothole: "🕳️",
-  roadblock: "🚧",
-  clear: "✅",
-};
-const POI_EMOJI: Record<string, string> = {
-  fuel: "⛽",
-  food: "🍽️",
-};
+// ─── Colored circle marker — works on all Android versions (no emoji) ─────────
+function MarkerIcon({
+  name,
+  bg,
+  size = 30,
+  matIcon,
+}: {
+  name?: React.ComponentProps<typeof Ionicons>["name"];
+  bg: string;
+  size?: number;
+  matIcon?: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+}) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: bg,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "#FFF",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
+      }}
+    >
+      {matIcon ? (
+        <MaterialCommunityIcons name={matIcon} size={size * 0.5} color="#FFF" />
+      ) : name ? (
+        <Ionicons name={name} size={size * 0.5} color="#FFF" />
+      ) : null}
+    </View>
+  );
+}
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  const φ1 = (lat1 * Math.PI) / 180, φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180, Δλ = ((lng2 - lng1) * Math.PI) / 180;
   const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export default function DriveMapView() {
-  const c = useColors();
   const {
-    currentLat,
-    currentLng,
-    activeRoute,
-    altRoutes,
-    selectRoute,
-    navigationActive,
-    communityReports,
-    showTraffic,
+    currentLat, currentLng,
+    activeRoute, altRoutes, selectRoute,
+    navigationActive, communityReports, showTraffic,
   } = useApp();
 
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
-  // Nearby static POIs within POI_RADIUS_M
   const nearbyPOIs = useMemo(() => {
     if (currentLat == null || currentLng == null) return [];
-    return POIS.filter(
-      (p) => haversine(currentLat, currentLng, p.lat, p.lng) <= POI_RADIUS_M
-    ).slice(0, 30);
+    return POIS.filter((p) => haversine(currentLat, currentLng, p.lat, p.lng) <= POI_RADIUS_M).slice(0, 25);
   }, [currentLat, currentLng]);
 
-  // Auto-fit to full route when route is set (not navigating)
   useEffect(() => {
     if (navigationActive || !activeRoute?.coords.length) return;
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       mapRef.current?.fitToCoordinates(activeRoute.coords, {
         edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
         animated: true,
       });
     }, 350);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [activeRoute?.id, navigationActive]);
 
-  // Follow driver at street-level zoom during navigation
   useEffect(() => {
     if (!navigationActive || currentLat == null || currentLng == null) return;
     mapRef.current?.animateCamera(
-      {
-        center: { latitude: currentLat, longitude: currentLng },
-        zoom: 17,
-        pitch: 40,
-      },
+      { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
       { duration: 900 }
     );
   }, [navigationActive, currentLat, currentLng]);
@@ -99,9 +103,8 @@ export default function DriveMapView() {
       showsMyLocationButton={false}
       showsCompass
       showsTraffic={showTraffic}
-      mapType="standard"
     >
-      {/* ── Speed zone markers ── */}
+      {/* Speed zone markers */}
       {SPEED_ZONES.map((z) => (
         <React.Fragment key={z.id}>
           <Marker
@@ -110,21 +113,33 @@ export default function DriveMapView() {
             title={z.name}
             description={`${z.speedLimit} km/h — ${z.road}`}
           >
-            <Text style={styles.markerEmoji}>{ZONE_EMOJI[z.type] ?? "🚦"}</Text>
+            <MarkerIcon
+              name={z.type === "camera" ? "camera" : z.type === "police" ? "shield-checkmark" : "speedometer"}
+              bg={z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"}
+            />
           </Marker>
           <Circle
             center={{ latitude: z.lat, longitude: z.lng }}
             radius={180}
             strokeColor={z.type === "camera" ? "#E5393555" : "#1565C055"}
-            fillColor={z.type === "camera" ? "#E5393512" : "#1565C012"}
+            fillColor={z.type === "camera" ? "#E5393912" : "#1565C012"}
             strokeWidth={1.5}
           />
         </React.Fragment>
       ))}
 
-      {/* ── Community reports ── */}
+      {/* Community reports */}
       {communityReports.map((r) => {
         const faded = now - r.timestamp > 7200000;
+        const iconMap: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
+          camera:    { name: "camera",          bg: "#E53935" },
+          police:    { name: "shield-checkmark",bg: "#1565C0" },
+          accident:  { name: "warning",         bg: "#E53935" },
+          pothole:   { name: "alert-circle",    bg: "#F57C00" },
+          roadblock: { name: "close-circle",    bg: "#7B1FA2" },
+          clear:     { name: "checkmark-circle",bg: "#00C853" },
+        };
+        const m = iconMap[r.type] ?? { name: "alert-circle" as const, bg: "#888" };
         return (
           <Marker
             key={r.id}
@@ -132,14 +147,14 @@ export default function DriveMapView() {
             anchor={{ x: 0.5, y: 1 }}
             opacity={faded ? 0.35 : 1}
             title={r.type.charAt(0).toUpperCase() + r.type.slice(1)}
-            description={`Reported ${Math.round((now - r.timestamp) / 60000)} min ago`}
+            description={`${Math.round((now - r.timestamp) / 60000)} min ago`}
           >
-            <Text style={styles.markerEmoji}>{REPORT_EMOJI[r.type] ?? "📍"}</Text>
+            <MarkerIcon name={m.name} bg={m.bg} size={28} />
           </Marker>
         );
       })}
 
-      {/* ── Nearby POIs (fuel + food) ── */}
+      {/* Nearby POIs */}
       {nearbyPOIs.map((p) => (
         <Marker
           key={p.id}
@@ -148,75 +163,34 @@ export default function DriveMapView() {
           title={p.name}
           description={p.address}
         >
-          <View style={styles.poiMarker}>
-            <Text style={styles.poiEmoji}>{POI_EMOJI[p.type] ?? "📍"}</Text>
-            <View style={[styles.poiLabel, { backgroundColor: c.card + "EE" }]}>
-              <Text style={[styles.poiLabelText, { color: c.foreground }]} numberOfLines={1}>
-                {p.brand || p.name.split(" ")[0]}
-              </Text>
-            </View>
-          </View>
+          <MarkerIcon
+            matIcon={p.type === "fuel" ? "gas-station" : undefined}
+            name={p.type === "fuel" ? undefined : "restaurant"}
+            bg={p.type === "fuel" ? "#2E7D32" : "#BF360C"}
+            size={26}
+          />
         </Marker>
       ))}
 
-      {/* ── Alternative routes (grey, tappable) ── */}
+      {/* Alternative routes */}
       {altRoutes.map((r) => (
-        <Polyline
-          key={r.id}
-          coordinates={r.coords}
-          strokeColor="#88888877"
-          strokeWidth={5}
-          tappable
-          onPress={() => selectRoute(r)}
-        />
+        <Polyline key={r.id} coordinates={r.coords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(r)} />
       ))}
 
-      {/* ── Active route ── */}
+      {/* Active route (shadow + fill) */}
       {activeRoute && (
         <>
-          {/* Route outline (shadow) */}
-          <Polyline
-            coordinates={activeRoute.coords}
-            strokeColor={navigationActive ? "#0D47A1AA" : "#1565C0AA"}
-            strokeWidth={10}
-            lineCap="round"
-            lineJoin="round"
-          />
-          {/* Route fill */}
-          <Polyline
-            coordinates={activeRoute.coords}
-            strokeColor={navigationActive ? "#1976D2" : "#2196F3"}
-            strokeWidth={6}
-            lineCap="round"
-            lineJoin="round"
-          />
+          <Polyline coordinates={activeRoute.coords} strokeColor={navigationActive ? "#0D47A1AA" : "#1565C0AA"} strokeWidth={10} lineCap="round" lineJoin="round" />
+          <Polyline coordinates={activeRoute.coords} strokeColor={navigationActive ? "#1976D2" : "#2196F3"} strokeWidth={6} lineCap="round" lineJoin="round" />
         </>
       )}
 
-      {/* ── Destination pin ── */}
+      {/* Destination */}
       {activeRoute && activeRoute.coords.length > 0 && (
-        <Marker
-          coordinate={activeRoute.coords[activeRoute.coords.length - 1]}
-          anchor={{ x: 0.5, y: 1 }}
-          title="Destination"
-        >
-          <Text style={{ fontSize: 32 }}>📍</Text>
+        <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
+          <MarkerIcon name="navigate" bg="#1565C0" size={34} />
         </Marker>
       )}
     </MapView>
   );
 }
-
-const styles = StyleSheet.create({
-  markerEmoji: { fontSize: 24 },
-  poiMarker: { alignItems: "center" },
-  poiEmoji: { fontSize: 20 },
-  poiLabel: {
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    marginTop: 2,
-    maxWidth: 72,
-  },
-  poiLabelText: { fontSize: 9, fontFamily: "Inter_500Medium" },
-});
