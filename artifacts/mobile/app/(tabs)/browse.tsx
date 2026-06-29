@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   StyleSheet,
@@ -12,20 +13,70 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { POIS, POI } from "@/data/pois";
-import POICard from "@/components/POICard";
+import { POIS } from "@/data/pois";
+import POICard, { POIItem } from "@/components/POICard";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
-  const f1 = (lat1 * Math.PI) / 180;
-  const f2 = (lat2 * Math.PI) / 180;
-  const df = ((lat2 - lat1) * Math.PI) / 180;
-  const dl = ((lng2 - lng1) * Math.PI) / 180;
+  const f1 = (lat1 * Math.PI) / 180, f2 = (lat2 * Math.PI) / 180;
+  const df = ((lat2 - lat1) * Math.PI) / 180, dl = ((lng2 - lng1) * Math.PI) / 180;
   const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+const MAX_DIST = 10000; // 10 km
+
+// OSM amenity tags for food
+const FOOD_TAGS = "restaurant|fast_food|cafe|food_court";
+
+async function fetchOverpass(type: "fuel" | "food", lat: number, lng: number): Promise<POIItem[]> {
+  const amenity = type === "fuel" ? '"amenity"="fuel"' : `"amenity"~"^(${FOOD_TAGS})$"`;
+  const query = `[out:json][timeout:12];(node[${amenity}](around:${MAX_DIST},${lat},${lng});way[${amenity}](around:${MAX_DIST},${lat},${lng}););out center 40;`;
+
+  const res = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "data=" + encodeURIComponent(query),
+    signal: AbortSignal.timeout(14000),
+  });
+  const data = await res.json();
+
+  return (data.elements as any[])
+    .map((el): POIItem | null => {
+      const plat = el.lat ?? el.center?.lat;
+      const plng = el.lon ?? el.center?.lon;
+      if (!plat || !plng) return null;
+      const tags = el.tags ?? {};
+      const name = tags.name || tags.brand || (type === "fuel" ? "Fuel Station" : "Restaurant");
+      return {
+        id: `osm-${el.type}-${el.id}`,
+        type,
+        name,
+        brand: tags.brand ?? tags["brand:en"] ?? "",
+        address: [tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ") || tags.description || "",
+        hours: tags.opening_hours ?? "",
+        lat: plat,
+        lng: plng,
+        source: "live",
+      };
+    })
+    .filter((p): p is POIItem => p !== null);
+}
+
 type Tab = "fuel" | "food";
+
+// Static POIs converted to POIItem
+const STATIC_POIS: POIItem[] = POIS.map((p: any) => ({
+  id: p.id,
+  type: p.type as "fuel" | "food",
+  name: p.name,
+  brand: p.brand ?? "",
+  address: p.address ?? "",
+  hours: p.hours ?? "",
+  lat: p.lat,
+  lng: p.lng,
+  source: "static" as const,
+}));
 
 export default function BrowseScreen() {
   const c = useColors();
@@ -33,39 +84,88 @@ export default function BrowseScreen() {
   const { currentLat, currentLng } = useApp();
   const [tab, setTab] = useState<Tab>("fuel");
   const [query, setQuery] = useState("");
+  const [pois, setPois] = useState<(POIItem & { distance?: number })[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [liveError, setLiveError] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const isMounted = useRef(true);
 
-  const pois = useMemo(() => {
-    const filtered = POIS.filter((p) => {
-      if (p.type !== tab) return false;
-      if (query.length > 1) {
-        const q = query.toLowerCase();
-        return p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) || p.address.toLowerCase().includes(q);
+  useEffect(() => { isMounted.current = true; return () => { isMounted.current = false; }; }, []);
+
+  const loadPOIs = useCallback(async (t: Tab, lat: number | null, lng: number | null) => {
+    setLoading(true);
+    setLiveError(false);
+
+    let items: POIItem[] = [];
+
+    if (lat && lng) {
+      try {
+        items = await fetchOverpass(t, lat, lng);
+      } catch {
+        setLiveError(true);
+        // Fall back to static data
+        items = STATIC_POIS.filter((p) => p.type === t);
       }
-      return true;
-    });
-
-    if (currentLat && currentLng) {
-      return filtered
-        .map((p) => ({ ...p, distance: haversine(currentLat, currentLng, p.lat, p.lng) }))
-        .sort((a, b) => a.distance - b.distance);
+    } else {
+      items = STATIC_POIS.filter((p) => p.type === t);
     }
-    return filtered.map((p) => ({ ...p, distance: undefined }));
-  }, [tab, query, currentLat, currentLng]);
 
-  const renderItem = ({ item }: { item: POI & { distance?: number } }) => (
-    <POICard poi={item} distance={item.distance} />
-  );
+    if (!isMounted.current) return;
+
+    const withDist = items.map((p) => ({
+      ...p,
+      distance: lat && lng ? haversine(lat, lng, p.lat, p.lng) : undefined,
+    })).filter((p) => !p.distance || p.distance <= MAX_DIST)
+      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+    setPois(withDist);
+    setLoading(false);
+  }, []);
+
+  // Reload when tab or location changes
+  useEffect(() => {
+    loadPOIs(tab, currentLat, currentLng);
+  }, [tab, currentLat, currentLng, loadPOIs]);
+
+  const filtered = query.length > 1
+    ? pois.filter((p) => {
+        const q = query.toLowerCase();
+        return p.name.toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q) || (p.address ?? "").toLowerCase().includes(q);
+      })
+    : pois;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
-        <Text style={[styles.title, { color: c.foreground }]}>Nearby Places</Text>
+        <View style={styles.headerRow}>
+          <Text style={[styles.title, { color: c.foreground }]}>Nearby Places</Text>
+          <View style={styles.headerRight}>
+            {liveError && (
+              <View style={[styles.offlinePill, { backgroundColor: c.muted }]}>
+                <Ionicons name="cloud-offline-outline" size={12} color={c.mutedForeground} />
+                <Text style={[styles.offlinePillText, { color: c.mutedForeground }]}>Offline</Text>
+              </View>
+            )}
+            {!liveError && currentLat && (
+              <View style={[styles.livePill, { backgroundColor: "#00C85322" }]}>
+                <View style={[styles.liveDot, { backgroundColor: "#00C853" }]} />
+                <Text style={[styles.livePillText, { color: "#00C853" }]}>Live</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={() => loadPOIs(tab, currentLat, currentLng)}
+              style={[styles.refreshBtn, { backgroundColor: c.muted }]}
+            >
+              <Ionicons name="refresh-outline" size={18} color={c.foreground} />
+            </TouchableOpacity>
+          </View>
+        </View>
         <Text style={[styles.sub, { color: c.mutedForeground }]}>
-          {currentLat ? "Sorted by distance" : "Browse fuel & food stops"}
+          {currentLat
+            ? `Showing real locations within 10 km`
+            : "Enable location for real nearby places"}
         </Text>
 
         {/* Search */}
@@ -91,7 +191,7 @@ export default function BrowseScreen() {
             <TouchableOpacity
               key={t}
               style={[styles.tabBtn, tab === t && { backgroundColor: c.card }]}
-              onPress={() => setTab(t)}
+              onPress={() => { setTab(t); setQuery(""); }}
               activeOpacity={0.8}
             >
               <Ionicons
@@ -99,13 +199,7 @@ export default function BrowseScreen() {
                 size={15}
                 color={tab === t ? c.primary : c.mutedForeground}
               />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: tab === t ? c.primary : c.mutedForeground },
-                  tab === t && { fontFamily: "Inter_600SemiBold" },
-                ]}
-              >
+              <Text style={[styles.tabLabel, { color: tab === t ? c.primary : c.mutedForeground }, tab === t && { fontFamily: "Inter_600SemiBold" }]}>
                 {t === "fuel" ? "Fuel Stations" : "Restaurants"}
               </Text>
             </TouchableOpacity>
@@ -113,30 +207,47 @@ export default function BrowseScreen() {
         </View>
       </View>
 
-      {/* List */}
-      <FlatList
-        data={pois as (POI & { distance?: number })[]}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: bottomInset + 100 }}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={pois.length > 0}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="search-outline" size={40} color={c.mutedForeground} />
-            <Text style={[styles.emptyText, { color: c.mutedForeground }]}>No results found</Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={c.primary} />
+          <Text style={[styles.loadingText, { color: c.mutedForeground }]}>
+            Finding nearby {tab === "fuel" ? "fuel stations" : "restaurants"}…
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          renderItem={({ item }) => <POICard poi={item} distance={item.distance} />}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingTop: 10, paddingBottom: bottomInset + 100 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="search-outline" size={40} color={c.mutedForeground} />
+              <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
+                {currentLat ? "No results found nearby" : "No results found"}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 10 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2, marginBottom: 14 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  livePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  livePillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  offlinePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  offlinePillText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  refreshBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 12 },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -145,24 +256,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  tabRow: {
-    flexDirection: "row",
-    borderRadius: 12,
-    padding: 4,
-  },
-  tabBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
+  tabRow: { flexDirection: "row", borderRadius: 12, padding: 4 },
+  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10 },
   tabLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  loadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
 });

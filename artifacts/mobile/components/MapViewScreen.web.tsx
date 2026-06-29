@@ -26,10 +26,22 @@ type ZoneFilter = "all" | "camera" | "police" | "zone";
 const TYPE_COLOR: Record<string, string> = { camera: "#E53935", police: "#1565C0", zone: "#F57C00" };
 const TYPE_ICON: Record<string, string> = { camera: "camera", police: "shield", zone: "warning" };
 
+function durationStr(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}min` : `${m} min`;
+}
+
 export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { currentLat, currentLng, communityReports, addReport } = useApp();
+  const {
+    currentLat, currentLng, communityReports, addReport,
+    activeRoute, altRoutes, selectRoute, navigationActive,
+    navDestination, showTraffic, setShowTraffic,
+    currentStepIdx, distToNextM,
+    startNavigation, stopNavigation,
+  } = useApp();
   const [filter, setFilter] = useState<ZoneFilter>("all");
   const [showReport, setShowReport] = useState(false);
 
@@ -49,14 +61,96 @@ export default function MapViewScreen() {
     <View style={[styles.screen, { backgroundColor: c.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: c.foreground }]}>Speed Zones</Text>
-          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: c.primary }]} onPress={() => setShowReport(true)}>
-            <Ionicons name="add" size={18} color={c.primaryForeground} />
-            <Text style={[styles.reportBtnText, { color: c.primaryForeground }]}>Report</Text>
-          </TouchableOpacity>
+          <Text style={[styles.title, { color: c.foreground }]}>
+            {navDestination ? "Navigation" : "Speed Zones"}
+          </Text>
+          <View style={styles.headerBtns}>
+            <TouchableOpacity
+              style={[styles.trafficToggle, { backgroundColor: showTraffic ? c.primary : c.muted }]}
+              onPress={() => setShowTraffic(!showTraffic)}
+            >
+              <Ionicons name="car-outline" size={15} color={showTraffic ? c.primaryForeground : c.foreground} />
+              <Text style={[styles.trafficToggleText, { color: showTraffic ? c.primaryForeground : c.foreground }]}>
+                Traffic
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.reportBtn, { backgroundColor: c.primary }]} onPress={() => setShowReport(true)}>
+              <Ionicons name="add" size={18} color={c.primaryForeground} />
+              <Text style={[styles.reportBtnText, { color: c.primaryForeground }]}>Report</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Active route panel */}
+        {activeRoute && navDestination && (
+          <View style={[styles.routePanel, { backgroundColor: navigationActive ? "#1565C0" : c.card, borderColor: c.border }]}>
+            <View style={styles.routePanelTop}>
+              <View>
+                <Text style={[styles.routeDestName, { color: navigationActive ? "#FFF" : c.foreground }]} numberOfLines={1}>
+                  {navDestination.name.split(",")[0]}
+                </Text>
+                <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
+                  {durationStr(activeRoute.durationS)} · {distStr(activeRoute.distanceM)}
+                </Text>
+              </View>
+              {navigationActive ? (
+                <TouchableOpacity style={styles.stopBtn} onPress={stopNavigation}>
+                  <Text style={styles.stopBtnText}>■ Stop</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={[styles.startBtn, { backgroundColor: c.primary }]} onPress={startNavigation}>
+                  <Ionicons name="navigate" size={14} color={c.primaryForeground} />
+                  <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Current instruction (nav active) */}
+            {navigationActive && activeRoute.steps[currentStepIdx] && (
+              <View style={styles.instructionRow}>
+                <Ionicons name="arrow-forward-circle-outline" size={18} color="#FFF" />
+                <Text style={styles.instructionText} numberOfLines={2}>
+                  {distToNextM != null ? `In ${distToNextM}m — ` : ""}{activeRoute.steps[currentStepIdx].instruction}
+                </Text>
+              </View>
+            )}
+
+            {/* Alternative routes */}
+            {altRoutes.length > 0 && !navigationActive && (
+              <View style={styles.altRow}>
+                {altRoutes.map((r, i) => (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={[styles.altChip, { backgroundColor: c.muted, borderColor: c.border }]}
+                    onPress={() => selectRoute(r)}
+                  >
+                    <Text style={[styles.altChipText, { color: c.foreground }]}>
+                      Alt {i + 1} · {durationStr(r.durationS)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Turn-by-turn steps list */}
+            {!navigationActive && activeRoute.steps.slice(0, 5).map((step, i) => (
+              <View key={i} style={[styles.stepRow, i > 0 && { borderTopColor: c.border, borderTopWidth: 1 }]}>
+                <View style={[styles.stepNum, { backgroundColor: c.muted }]}>
+                  <Text style={[styles.stepNumText, { color: c.foreground }]}>{i + 1}</Text>
+                </View>
+                <Text style={[styles.stepText, { color: c.foreground }]} numberOfLines={1}>
+                  {step.instruction}
+                </Text>
+                <Text style={[styles.stepDist, { color: c.mutedForeground }]}>
+                  {distStr(step.distanceM)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <Text style={[styles.sub, { color: c.mutedForeground }]}>
-          {currentLat ? "Sorted by distance from your location" : `${zones.length} zones on Kenya roads`}
+          {navDestination ? "Set destination on Drive tab" : currentLat ? "Sorted by distance from your location" : `${zones.length} zones on Kenya roads`}
         </Text>
         <View style={styles.filters}>
           {(["all", "camera", "police", "zone"] as ZoneFilter[]).map((f) => (
@@ -110,10 +204,31 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 10 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  headerBtns: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 12 },
+  trafficToggle: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  trafficToggleText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   reportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   reportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  routePanel: { borderRadius: 14, borderWidth: 1, marginBottom: 12, overflow: "hidden" },
+  routePanelTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
+  routeDestName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  routeMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  stopBtn: { backgroundColor: "#FFFFFF22", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  stopBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  startBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  startBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  instructionRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
+  instructionText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#FFF", lineHeight: 18 },
+  altRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 10, flexWrap: "wrap" },
+  altChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
+  altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  stepNum: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  stepNumText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  stepText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular" },
+  stepDist: { fontSize: 11, fontFamily: "Inter_400Regular" },
   filters: { flexDirection: "row", gap: 8 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   filterLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },

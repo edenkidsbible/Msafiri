@@ -60,6 +60,7 @@
     "expo-keep-awake": "^15.0.8",
     "expo-notifications": "~0.32.17",
     "expo-sms": "^14.0.8",
+    "expo-speech": "~14.0.8",
     "react-native-maps": "1.18.0"
   }
 }

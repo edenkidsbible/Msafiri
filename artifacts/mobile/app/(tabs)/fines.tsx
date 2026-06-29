@@ -16,6 +16,13 @@ import { FINE_CATEGORIES, PAYMENT_METHODS, CONTEST_STEPS, Fine } from "@/data/fi
 
 type Section = "fines" | "pay" | "contest";
 
+const CATEGORY_META: Record<string, { icon: string; color: string }> = {
+  speeding:  { icon: "speedometer-outline",   color: "#E53935" },
+  documents: { icon: "document-text-outline",  color: "#1565C0" },
+  traffic:   { icon: "warning-outline",        color: "#F57C00" },
+  parking:   { icon: "car-outline",            color: "#6A1B9A" },
+};
+
 export default function FinesScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -27,7 +34,7 @@ export default function FinesScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const currentCat = FINE_CATEGORIES.find((c) => c.id === activeCat);
+  const currentCat = FINE_CATEGORIES.find((cat) => cat.id === activeCat);
   const fines: Fine[] = currentCat
     ? search.length > 1
       ? currentCat.fines.filter((f) =>
@@ -36,8 +43,7 @@ export default function FinesScreen() {
       : currentCat.fines
     : [];
 
-  const formatKsh = (n: number) =>
-    `Ksh ${n.toLocaleString("en-KE")}`;
+  const formatKsh = (n: number) => `Ksh ${n.toLocaleString("en-KE")}`;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
@@ -74,39 +80,52 @@ export default function FinesScreen() {
       {/* Fines tab */}
       {section === "fines" && (
         <>
-          {/* Category pills */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.catScroll}
-          >
-            {FINE_CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.catPill,
-                  {
-                    backgroundColor: activeCat === cat.id ? c.primary : c.muted,
-                    borderColor: activeCat === cat.id ? c.primary : c.border,
-                  },
-                ]}
-                onPress={() => setActiveCat(cat.id)}
-              >
-                <Text
+          {/* Category chips — compact 4-in-a-row */}
+          <View style={styles.catRow}>
+            {FINE_CATEGORIES.map((cat) => {
+              const meta = CATEGORY_META[cat.id] ?? { icon: "list-outline", color: c.primary };
+              const active = activeCat === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.catLabel,
-                    { color: activeCat === cat.id ? c.primaryForeground : c.foreground },
+                    styles.catChip,
+                    {
+                      backgroundColor: active ? meta.color + "18" : c.muted,
+                      borderColor: active ? meta.color : c.border,
+                    },
                   ]}
+                  onPress={() => { setActiveCat(cat.id); setSearch(""); }}
+                  activeOpacity={0.75}
                 >
-                  {cat.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Ionicons
+                    name={meta.icon as "car-outline"}
+                    size={14}
+                    color={active ? meta.color : c.mutedForeground}
+                  />
+                  <Text
+                    style={[
+                      styles.catChipLabel,
+                      { color: active ? meta.color : c.mutedForeground },
+                      active && { fontFamily: "Inter_600SemiBold" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {cat.title}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Search */}
-          <View style={[styles.searchRow, { backgroundColor: c.muted, borderColor: c.border, marginHorizontal: 16, marginBottom: 8 }]}>
-            <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
+          <View
+            style={[
+              styles.searchRow,
+              { backgroundColor: c.muted, borderColor: c.border, marginHorizontal: 16, marginBottom: 8 },
+            ]}
+          >
+            <Ionicons name="search-outline" size={15} color={c.mutedForeground} />
             <TextInput
               style={[styles.searchInput, { color: c.foreground }]}
               placeholder="Search offences…"
@@ -114,6 +133,11 @@ export default function FinesScreen() {
               value={search}
               onChangeText={setSearch}
             />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={15} color={c.mutedForeground} />
+              </TouchableOpacity>
+            )}
           </View>
 
           <FlatList
@@ -127,7 +151,7 @@ export default function FinesScreen() {
               <View style={[styles.fineRow, { backgroundColor: c.card }]}>
                 <View style={styles.fineLeft}>
                   <Text style={[styles.offence, { color: c.foreground }]}>{item.offence}</Text>
-                  <Text style={[styles.section, { color: c.mutedForeground }]}>{item.section}</Text>
+                  <Text style={[styles.fineSection, { color: c.mutedForeground }]}>{item.section}</Text>
                   {item.points != null && (
                     <View style={[styles.pointsBadge, { backgroundColor: c.speedDanger + "22" }]}>
                       <Text style={[styles.pointsText, { color: c.speedDanger }]}>
@@ -159,7 +183,7 @@ export default function FinesScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text style={[styles.infoNote, { backgroundColor: c.muted, color: c.mutedForeground }]}>
-            Fines must be paid within 30 days of receiving the notice to avoid additional penalties.
+            Fines must be paid within 30 days to avoid additional penalties.
           </Text>
           {PAYMENT_METHODS.map((m) => (
             <View key={m.name} style={[styles.payCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -201,8 +225,7 @@ export default function FinesScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text style={[styles.infoNote, { backgroundColor: c.muted, color: c.mutedForeground }]}>
-            You have the right to contest any fine you believe was issued in error. You must file
-            within 14 days.
+            You have the right to contest any fine you believe was issued in error. You must file within 14 days.
           </Text>
           <View style={[styles.payCard, { backgroundColor: c.card, borderColor: c.border }]}>
             <Text style={[styles.payTitle, { color: c.foreground, marginBottom: 14 }]}>
@@ -217,7 +240,7 @@ export default function FinesScreen() {
               </View>
             ))}
           </View>
-          <View style={[styles.infoNote, { backgroundColor: c.muted, color: c.mutedForeground, marginTop: 0 }]}>
+          <View style={[styles.infoNote, { backgroundColor: c.muted, marginTop: 0 }]}>
             <Text style={{ color: c.mutedForeground, fontSize: 13 }}>
               For legal assistance, contact the Law Society of Kenya: +254 020 3874481
             </Text>
@@ -230,53 +253,54 @@ export default function FinesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12 },
+  header: { paddingHorizontal: 20, paddingBottom: 10 },
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2, marginBottom: 14 },
-  sectionRow: {
-    flexDirection: "row",
-    borderRadius: 12,
-    padding: 4,
-  },
-  sectionBtn: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
+  sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2, marginBottom: 12 },
+  sectionRow: { flexDirection: "row", borderRadius: 12, padding: 4 },
+  sectionBtn: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: 10 },
   sectionLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  catScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  catPill: {
+  catRow: {
+    flexDirection: "row",
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 24,
-    borderWidth: 1,
+    paddingVertical: 8,
+    gap: 6,
   },
-  catLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  catChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  catChipLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   searchInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   sep: { height: 1 },
   fineRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     gap: 12,
   },
   fineLeft: { flex: 1 },
   offence: { fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
-  section: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  fineSection: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   pointsBadge: {
     alignSelf: "flex-start",
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
     marginTop: 4,
@@ -287,8 +311,8 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   infoNote: {
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+    padding: 13,
+    marginBottom: 14,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -301,22 +325,22 @@ const styles = StyleSheet.create({
   payHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
+    padding: 13,
     gap: 12,
   },
   payTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   payDetail: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  stepsWrap: { borderTopWidth: 1, padding: 14, gap: 10 },
+  stepsWrap: { borderTopWidth: 1, padding: 13, gap: 10 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   stepNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
     flexShrink: 0,
   },
-  stepNumText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  stepNumText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   stepText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
 });
