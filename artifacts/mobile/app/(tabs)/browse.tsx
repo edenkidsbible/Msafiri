@@ -74,12 +74,31 @@ function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
   return `[out:json][timeout:20];(${filters});out center 60;`;
 }
 
+// Multiple mirrors — fired in parallel; first success wins
+const OVERPASS_MIRRORS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.fr/api/interpreter",
+];
+
 async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIItem[]> {
   const query = buildOverpassQuery(type, lat, lng);
-  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-  const res = await fetchWithTimeout(url, {}, 22000);
-  if (!res.ok) throw new Error(`Overpass ${res.status}`);
-  const data = await res.json();
+
+  const tryMirror = async (mirror: string): Promise<any> => {
+    const res = await fetchWithTimeout(
+      mirror,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `data=${encodeURIComponent(query)}`,
+      },
+      18000
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  };
+
+  const data = await Promise.any(OVERPASS_MIRRORS.map(tryMirror));
   const defaultName =
     type === "fuel"      ? "Fuel Station" :
     type === "food"      ? "Restaurant"   :
