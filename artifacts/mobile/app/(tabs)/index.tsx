@@ -149,403 +149,381 @@ export default function DriveScreen() {
   return (
     <View style={styles.screen}>
 
-      {/* ════════ ALWAYS: Map fills the entire screen ════════ */}
+      {/* ════════ Map always fills the entire screen ════════ */}
       <View style={StyleSheet.absoluteFillObject}>
         <DriveMapView />
+      </View>
 
-          {/* Top gradient fade so overlays are readable */}
-          <View style={[styles.topOverlay, { paddingTop: topInset + 6 }]}>
-            {/* Search bar — stays accessible in map mode */}
-            <View style={styles.searchBarWrap}>
-              <View style={[styles.searchBar, { backgroundColor: c.card + "F0", borderColor: c.primary }]}>
-                <Ionicons name="navigate" size={16} color={c.primary} />
-                <TextInput
-                  style={[styles.searchInput, { color: c.foreground }]}
-                  placeholder="Search new destination…"
-                  placeholderTextColor={c.mutedForeground}
-                  value={searchText}
-                  onChangeText={handleSearchChange}
-                  returnKeyType="search"
-                  onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
-                  autoCorrect={false}
-                />
-                {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
-                {/* Clear / cancel button — always visible in map mode */}
-                <TouchableOpacity
-                  onPress={clearDestination}
-                  style={styles.clearBtn}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                  <Ionicons name="close-circle" size={20} color={c.mutedForeground} />
-                </TouchableOpacity>
-              </View>
+      {/* ════════ Top overlay: header / search bar / nav instructions ════════ */}
+      <View style={[styles.topOverlay, { paddingTop: topInset + 6 }]} pointerEvents="box-none">
+
+        {/* ── Normal mode header (title + HUD toggle) — hidden once route is set ── */}
+        {!isMapMode && (
+          <View style={[styles.header, { marginBottom: 6 }]}>
+            <Text style={[styles.appTitle, { color: hudMode ? "#FFF" : "#FFF" }]}>SafeDrive Kenya</Text>
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHudMode(!hudMode); }}
+              style={[styles.iconBtn, { backgroundColor: "#0006" }]}
+            >
+              <Ionicons name={hudMode ? "sunny" : "moon-outline"} size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Search bar — always visible */}
+        <View style={styles.searchBarWrap}>
+          <View style={[styles.searchBar, {
+            backgroundColor: c.card + "F4",
+            borderColor: isMapMode ? c.primary : c.border,
+          }]}>
+            <Ionicons
+              name={isMapMode ? "navigate" : "search-outline"}
+              size={17}
+              color={isMapMode ? c.primary : c.mutedForeground}
+            />
+            <TextInput
+              style={[styles.searchInput, { color: c.foreground }]}
+              placeholder={isMapMode ? "Change destination…" : "Where to?"}
+              placeholderTextColor={c.mutedForeground}
+              value={searchText}
+              onChangeText={handleSearchChange}
+              returnKeyType="search"
+              onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+              autoCorrect={false}
+            />
+            {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
+            {isMapMode && (
+              <TouchableOpacity
+                onPress={clearDestination}
+                style={styles.clearBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close-circle" size={20} color={c.mutedForeground} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Alert banner */}
+        {activeAlert && <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />}
+
+        {/* Navigation instruction card */}
+        {navigationActive && currentStep && (
+          <View style={[styles.navInstructionCard, { backgroundColor: "#1565C0" }]}>
+            <Ionicons name={maneuverIcon(currentStep.instruction)} size={34} color="#FFF" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.navStepText} numberOfLines={2}>{currentStep.instruction}</Text>
+              {distToNextM != null && (
+                <Text style={styles.navStepDist}>{distStr(distToNextM)}</Text>
+              )}
             </View>
+          </View>
+        )}
+      </View>
 
-            {/* Alert banner */}
-            {activeAlert && <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />}
+      {/* Traffic toggle — top right floating button */}
+      <TouchableOpacity
+        style={[styles.trafficBtn, {
+          backgroundColor: showTraffic ? c.primary : c.card + "EE",
+          top: topInset + 14,
+        }]}
+        onPress={() => setShowTraffic(!showTraffic)}
+      >
+        <Ionicons name="car" size={20} color={showTraffic ? "#FFF" : c.primary} />
+      </TouchableOpacity>
 
-            {/* Navigation instruction panel */}
-            {navigationActive && currentStep && (
-              <View style={[styles.navInstructionCard, { backgroundColor: "#1565C0" }]}>
-                <Ionicons name={maneuverIcon(currentStep.instruction)} size={34} color="#FFF" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.navStepText} numberOfLines={2}>
-                    {currentStep.instruction}
-                  </Text>
-                  {distToNextM != null && (
-                    <Text style={styles.navStepDist}>{distStr(distToNextM)}</Text>
-                  )}
+      {/* ════════ Search results panel (floating) ════════ */}
+      {showResults && (
+        <View style={[styles.searchResultsPanel, { backgroundColor: c.card + "F8", top: searchResultsTop }]}>
+          {searchError && (
+            <View style={styles.searchHint}>
+              <Ionicons name="cloud-offline-outline" size={16} color={c.mutedForeground} />
+              <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
+                No connection — check internet and try again
+              </Text>
+            </View>
+          )}
+          {!searchError && geoResults.length === 0 && !searchLoading && searchText.length > 1 && (
+            <View style={styles.searchHint}>
+              <Ionicons name="location-outline" size={16} color={c.mutedForeground} />
+              <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
+                No places found in Kenya for "{searchText}"
+              </Text>
+            </View>
+          )}
+          {!searchError && searchText.length < 2 && (
+            <View style={styles.searchHint}>
+              <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
+              <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
+                Type at least 2 characters to search
+              </Text>
+            </View>
+          )}
+          <FlatList
+            data={geoResults}
+            keyExtractor={(_, i) => String(i)}
+            keyboardShouldPersistTaps="always"
+            renderItem={({ item, index }) => (
+              <TouchableOpacity
+                style={[
+                  styles.resultRow,
+                  { borderBottomColor: c.border },
+                  index === 0 && { borderTopColor: c.border, borderTopWidth: StyleSheet.hairlineWidth },
+                ]}
+                onPress={() => pickDestination(item)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.resultIcon, { backgroundColor: c.muted }]}>
+                  <Ionicons name="location-outline" size={16} color={c.primary} />
                 </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.resultShort, { color: c.foreground }]} numberOfLines={1}>
+                    {item.short}
+                  </Text>
+                  <Text style={[styles.resultDetail, { color: c.mutedForeground }]} numberOfLines={1}>
+                    {item.display.split(",").slice(2).join(",").trim()}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
+
+      {/* ════════ Normal mode bottom panel (speedometer + quick actions) ════════ */}
+      {!isMapMode && !showResults && (
+        <View
+          style={[
+            styles.normalBottomPanel,
+            {
+              backgroundColor: hudMode ? "#000D" : c.card + "F0",
+              paddingBottom: bottomInset + tabBarHeight + 10,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          {/* Route calculating indicator */}
+          {routeLoading && (
+            <View style={[styles.routeLoadRow, { backgroundColor: c.muted, borderColor: c.border }]}>
+              <ActivityIndicator size="small" color={c.primary} />
+              <Text style={[styles.routeLoadText, { color: c.mutedForeground }]}>Calculating route…</Text>
+            </View>
+          )}
+
+          {/* Speedometer */}
+          <View style={styles.dialWrap}>
+            <SpeedometerDial speed={currentSpeed} speedLimit={currentSpeedLimit} hudMode={hudMode} />
+            {overLimit && (
+              <View style={[styles.overLimitBanner, { backgroundColor: "#E53935" }]}>
+                <Ionicons name="alert-circle" size={16} color="#FFF" />
+                <Text style={styles.overLimitText}>Slow down!</Text>
               </View>
             )}
           </View>
 
-          {/* Traffic toggle — top right (Ionicons, no emoji) */}
-          <TouchableOpacity
-            style={[styles.trafficBtn, {
-              backgroundColor: showTraffic ? c.primary : c.card + "EE",
-              top: topInset + 14,
-            }]}
-            onPress={() => setShowTraffic(!showTraffic)}
-          >
-            <Ionicons name="car" size={20} color={showTraffic ? "#FFF" : c.primary} />
-          </TouchableOpacity>
-
-          {/* Speed bubble — bottom left */}
-          {navigationActive && (
-            <View style={[
-              styles.speedBubble,
-              {
-                backgroundColor: overLimit ? "#E53935" : "#1B5E20",
-                bottom: bottomInset + tabBarHeight + 14,
-              },
-            ]}>
-              <Text style={styles.speedBubbleNumber}>{Math.round(currentSpeed)}</Text>
-              <Text style={styles.speedBubbleUnit}>km/h</Text>
-              {currentSpeedLimit != null && (
-                <View style={[styles.speedLimitInBubble, { backgroundColor: "#FFF2" }]}>
-                  <Text style={styles.speedLimitInBubbleText}>{currentSpeedLimit}</Text>
-                </View>
-              )}
-            </View>
+          {!locationGranted && (
+            <TouchableOpacity
+              style={[styles.permBtn, { backgroundColor: c.primary }]}
+              onPress={requestLocationPermission}
+            >
+              <Ionicons name="location-outline" size={18} color={c.primaryForeground} />
+              <Text style={[styles.permText, { color: c.primaryForeground }]}>Enable Location</Text>
+            </TouchableOpacity>
           )}
 
-          {/* ── Route preview bottom sheet ── */}
-          {!navigationActive && activeRoute && (
-            <View style={[
-              styles.bottomSheet,
-              { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
-            ]}>
-              {/* ETA row */}
-              <View style={styles.etaRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.etaTime, { color: c.foreground }]}>
-                    {durationStr(activeRoute.durationS)}
-                  </Text>
-                  <Text style={[styles.etaDist, { color: c.mutedForeground }]} numberOfLines={1}>
-                    {distStr(activeRoute.distanceM)} · {navDestination?.name.split(",")[0]}
-                  </Text>
-                </View>
-                {zonesOnRoute.length > 0 && (
-                  <View style={[styles.zonesChip, { backgroundColor: "#E5393518" }]}>
-                    <Ionicons name="warning" size={12} color="#E53935" />
-                    <Text style={[styles.zonesChipText, { color: "#E53935" }]}>
-                      {zonesOnRoute.filter((z) => z.type === "camera").length} cam
-                      {" · "}
-                      {zonesOnRoute.filter((z) => z.type === "police").length} police
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Alternative routes */}
-              {altRoutes.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-                  <View style={styles.altRow}>
-                    <View style={[styles.altChip, { backgroundColor: c.primary }]}>
-                      <Text style={[styles.altChipText, { color: c.primaryForeground }]}>
-                        Fastest · {durationStr(activeRoute.durationS)}
-                      </Text>
-                    </View>
-                    {altRoutes.map((r, i) => (
-                      <TouchableOpacity
-                        key={r.id}
-                        style={[styles.altChip, { backgroundColor: c.muted, borderColor: c.border, borderWidth: 1 }]}
-                        onPress={() => { selectRoute(r); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                      >
-                        <Text style={[styles.altChipText, { color: c.foreground }]}>
-                          Alt {i + 1} · {durationStr(r.durationS)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-              )}
-
-              {/* First step preview */}
-              {activeRoute.steps[0] && (
-                <View style={styles.firstStepRow}>
-                  <Ionicons name="arrow-forward-circle-outline" size={14} color={c.mutedForeground} />
-                  <Text style={[styles.firstStep, { color: c.mutedForeground }]} numberOfLines={1}>
-                    {activeRoute.steps[0].instruction}
-                  </Text>
-                </View>
-              )}
-
-              {/* Action row: Cancel + SOS + Start */}
-              <View style={styles.actionRow}>
-                {/* Cancel / change destination */}
-                <TouchableOpacity
-                  style={[styles.cancelRouteBtn, { backgroundColor: c.muted, borderColor: c.border }]}
-                  onPress={() => { clearDestination(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="close" size={16} color={c.foreground} />
-                  <Text style={[styles.cancelRouteTxt, { color: c.foreground }]}>Cancel</Text>
-                </TouchableOpacity>
-
-                {/* SOS — integrated into the row, not floating */}
-                <SOSButton compact />
-
-                {/* Start navigation */}
-                <TouchableOpacity
-                  style={[styles.startBtn, { backgroundColor: c.primary }]}
-                  onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
-                  activeOpacity={0.87}
-                >
-                  <Ionicons name="navigate" size={16} color={c.primaryForeground} />
-                  <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* ── Navigation active bottom bar ── */}
-          {navigationActive && (
-            <View style={[
-              styles.navBottomBar,
-              { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
-            ]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.navBarEta, { color: c.foreground }]}>
-                  {durationStr(activeRoute?.durationS ?? 0)}
-                </Text>
-                <Text style={[styles.navBarDest, { color: c.mutedForeground }]} numberOfLines={1}>
-                  {navDestination?.name.split(",")[0]}
-                </Text>
-              </View>
-
-              {/* SOS in nav bar */}
-              <SOSButton compact />
-
-              {/* Stop button */}
+          {/* Quick actions: Report / Traffic / Night Mode */}
+          {!hudMode && (
+            <View style={[styles.quickRow, { paddingHorizontal: 16 }]}>
               <TouchableOpacity
-                style={[styles.stopBtn, { backgroundColor: "#E53935" }]}
-                onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                style={[styles.quickBtn, { backgroundColor: c.card, borderColor: c.border }]}
+                onPress={() => setShowReport(true)}
+                activeOpacity={0.8}
               >
-                <Ionicons name="stop" size={15} color="#FFF" />
-                <Text style={styles.stopBtnText}>Stop</Text>
+                <View style={[styles.quickBtnIcon, { backgroundColor: "#E6510018" }]}>
+                  <Ionicons name="warning-outline" size={22} color="#E65100" />
+                </View>
+                <Text style={[styles.quickBtnLabel, { color: c.foreground }]}>Report{"\n"}Incident</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickBtn, {
+                  backgroundColor: showTraffic ? c.primary + "14" : c.card,
+                  borderColor: showTraffic ? c.primary : c.border,
+                }]}
+                onPress={() => setShowTraffic(!showTraffic)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.quickBtnIcon, { backgroundColor: showTraffic ? c.primary + "22" : c.muted }]}>
+                  <Ionicons name="car-outline" size={22} color={showTraffic ? c.primary : c.mutedForeground} />
+                </View>
+                <Text style={[styles.quickBtnLabel, { color: showTraffic ? c.primary : c.foreground }]}>
+                  Traffic{"\n"}<Text style={{ fontSize: 10 }}>{showTraffic ? "On" : "Off"}</Text>
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickBtn, { backgroundColor: c.card, borderColor: c.border }]}
+                onPress={() => setHudMode(!hudMode)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.quickBtnIcon, { backgroundColor: c.muted }]}>
+                  <Ionicons name="moon-outline" size={22} color={c.mutedForeground} />
+                </View>
+                <Text style={[styles.quickBtnLabel, { color: c.foreground }]}>Night{"\n"}Mode</Text>
               </TouchableOpacity>
             </View>
           )}
-        </View>
 
-      ) : (
-        /* ════════ NORMAL MODE (no route) ════════ */
-        <>
-          {/* Header */}
-          <View style={[styles.header, { paddingTop: topInset + 6 }]}>
-            <Text style={[styles.appTitle, { color: hudMode ? "#FFF" : c.foreground }]}>SafeDrive Kenya</Text>
-            <TouchableOpacity
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHudMode(!hudMode); }}
-              style={[styles.iconBtn, { backgroundColor: hudMode ? "#FFF2" : c.muted }]}
-            >
-              <Ionicons name={hudMode ? "sunny" : "moon-outline"} size={20} color={hudMode ? "#FFF" : c.foreground} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Search bar */}
-          <View style={styles.searchBarPadded}>
-            <View style={[styles.searchBar, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
-              <TextInput
-                style={[styles.searchInput, { color: c.foreground }]}
-                placeholder="Where to?"
-                placeholderTextColor={c.mutedForeground}
-                value={searchText}
-                onChangeText={handleSearchChange}
-                returnKeyType="search"
-                onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
-                autoCorrect={false}
-              />
-              {searchLoading && showResults && <ActivityIndicator size="small" color={c.primary} />}
-            </View>
-          </View>
-
-          {/* ── Search results ── */}
-          {showResults ? (
-            <View style={[styles.searchResultsPanel, { backgroundColor: c.background }]}>
-              {searchError && (
-                <View style={styles.searchHint}>
-                  <Ionicons name="cloud-offline-outline" size={16} color={c.mutedForeground} />
-                  <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
-                    No connection — check internet and try again
-                  </Text>
-                </View>
-              )}
-              {!searchError && geoResults.length === 0 && !searchLoading && searchText.length > 1 && (
-                <View style={styles.searchHint}>
-                  <Ionicons name="location-outline" size={16} color={c.mutedForeground} />
-                  <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
-                    No places found in Kenya for "{searchText}"
-                  </Text>
-                </View>
-              )}
-              {!searchError && searchText.length < 2 && (
-                <View style={styles.searchHint}>
-                  <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
-                  <Text style={[styles.searchHintText, { color: c.mutedForeground }]}>
-                    Type at least 2 characters to search
-                  </Text>
-                </View>
-              )}
-              <FlatList
-                data={geoResults}
-                keyExtractor={(_, i) => String(i)}
-                keyboardShouldPersistTaps="always"
-                renderItem={({ item, index }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.resultRow,
-                      { borderBottomColor: c.border },
-                      index === 0 && { borderTopColor: c.border, borderTopWidth: StyleSheet.hairlineWidth },
-                    ]}
-                    onPress={() => pickDestination(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.resultIcon, { backgroundColor: c.muted }]}>
-                      <Ionicons name="location-outline" size={16} color={c.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.resultShort, { color: c.foreground }]} numberOfLines={1}>
-                        {item.short}
-                      </Text>
-                      <Text style={[styles.resultDetail, { color: c.mutedForeground }]} numberOfLines={1}>
-                        {item.display.split(",").slice(2).join(",").trim()}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          ) : (
-            <>
-              {/* Route loading */}
-              {routeLoading && (
-                <View style={[styles.routeLoadRow, { backgroundColor: c.card, borderColor: c.border }]}>
-                  <ActivityIndicator size="small" color={c.primary} />
-                  <Text style={[styles.routeLoadText, { color: c.mutedForeground }]}>Calculating route…</Text>
-                </View>
-              )}
-
-              {/* Alert banner */}
-              {activeAlert && <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />}
-
-              {/* Speedometer */}
-              <View style={styles.dialWrap}>
-                <SpeedometerDial speed={currentSpeed} speedLimit={currentSpeedLimit} hudMode={hudMode} />
-                {overLimit && (
-                  <View style={[styles.overLimitBanner, { backgroundColor: "#E53935" }]}>
-                    <Ionicons name="alert-circle" size={16} color="#FFF" />
-                    <Text style={styles.overLimitText}>Slow down!</Text>
+          {/* Upcoming zones strip */}
+          {!hudMode && nearbyZones.length > 0 && (
+            <View style={styles.nearbySection}>
+              <Text style={[styles.nearbyTitle, { color: c.mutedForeground }]}>UPCOMING ZONES</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.nearbyScroll}>
+                {nearbyZones.slice(0, 5).map((z) => (
+                  <View key={z.id} style={[styles.zoneChip, { backgroundColor: c.card, borderColor: c.border }]}>
+                    <ZoneIcon type={z.type} size={13} color={
+                      z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"
+                    } />
+                    <Text style={[styles.zoneLimit, { color: c.foreground }]}>{z.speedLimit}</Text>
+                    <Text style={[styles.zoneKmh, { color: c.mutedForeground }]}>km/h</Text>
+                    <Text style={[styles.zoneDist, { color: c.mutedForeground }]}>{distStr(z.distance)}</Text>
                   </View>
-                )}
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* SOS — floating, always visible in normal mode */}
+      {!isMapMode && !showResults && (
+        <View style={[styles.sosWrap, { bottom: bottomInset + tabBarHeight + 8 }]}>
+          <SOSButton />
+        </View>
+      )}
+
+      {/* ════════ Route preview bottom sheet (has route, not yet navigating) ════════ */}
+      {isMapMode && !navigationActive && activeRoute && (
+        <View style={[
+          styles.bottomSheet,
+          { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
+        ]}>
+          <View style={styles.etaRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.etaTime, { color: c.foreground }]}>{durationStr(activeRoute.durationS)}</Text>
+              <Text style={[styles.etaDist, { color: c.mutedForeground }]} numberOfLines={1}>
+                {distStr(activeRoute.distanceM)} · {navDestination?.name.split(",")[0]}
+              </Text>
+            </View>
+            {zonesOnRoute.length > 0 && (
+              <View style={[styles.zonesChip, { backgroundColor: "#E5393518" }]}>
+                <Ionicons name="warning" size={12} color="#E53935" />
+                <Text style={[styles.zonesChipText, { color: "#E53935" }]}>
+                  {zonesOnRoute.filter((z) => z.type === "camera").length} cam
+                  {" · "}
+                  {zonesOnRoute.filter((z) => z.type === "police").length} police
+                </Text>
               </View>
+            )}
+          </View>
 
-              {!locationGranted && (
-                <TouchableOpacity
-                  style={[styles.permBtn, { backgroundColor: c.primary }]}
-                  onPress={requestLocationPermission}
-                >
-                  <Ionicons name="location-outline" size={18} color={c.primaryForeground} />
-                  <Text style={[styles.permText, { color: c.primaryForeground }]}>Enable Location</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* ─── Quick actions (Report + Traffic) ─── */}
-              {!hudMode && (
-                <View style={[styles.quickRow, { paddingHorizontal: 20 }]}>
+          {altRoutes.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+              <View style={styles.altRow}>
+                <View style={[styles.altChip, { backgroundColor: c.primary }]}>
+                  <Text style={[styles.altChipText, { color: c.primaryForeground }]}>
+                    Fastest · {durationStr(activeRoute.durationS)}
+                  </Text>
+                </View>
+                {altRoutes.map((r, i) => (
                   <TouchableOpacity
-                    style={[styles.quickBtn, { backgroundColor: c.card, borderColor: c.border }]}
-                    onPress={() => setShowReport(true)}
-                    activeOpacity={0.8}
+                    key={r.id}
+                    style={[styles.altChip, { backgroundColor: c.muted, borderColor: c.border, borderWidth: 1 }]}
+                    onPress={() => { selectRoute(r); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
                   >
-                    <View style={[styles.quickBtnIcon, { backgroundColor: "#E6510018" }]}>
-                      <Ionicons name="warning-outline" size={22} color="#E65100" />
-                    </View>
-                    <Text style={[styles.quickBtnLabel, { color: c.foreground }]}>Report{"\n"}Incident</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.quickBtn,
-                      {
-                        backgroundColor: showTraffic ? c.primary + "14" : c.card,
-                        borderColor: showTraffic ? c.primary : c.border,
-                      },
-                    ]}
-                    onPress={() => setShowTraffic(!showTraffic)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.quickBtnIcon, { backgroundColor: showTraffic ? c.primary + "22" : c.muted }]}>
-                      <Ionicons name="car-outline" size={22} color={showTraffic ? c.primary : c.mutedForeground} />
-                    </View>
-                    <Text style={[styles.quickBtnLabel, { color: showTraffic ? c.primary : c.foreground }]}>
-                      Traffic{"\n"}
-                      <Text style={{ fontSize: 10 }}>{showTraffic ? "On" : "Off"}</Text>
+                    <Text style={[styles.altChipText, { color: c.foreground }]}>
+                      Alt {i + 1} · {durationStr(r.durationS)}
                     </Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.quickBtn, { backgroundColor: c.card, borderColor: c.border }]}
-                    onPress={() => setHudMode(!hudMode)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.quickBtnIcon, { backgroundColor: hudMode ? "#1565C022" : c.muted }]}>
-                      <Ionicons name="moon-outline" size={22} color={hudMode ? "#1565C0" : c.mutedForeground} />
-                    </View>
-                    <Text style={[styles.quickBtnLabel, { color: c.foreground }]}>Night{"\n"}Mode</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Nearby zones strip — Ionicons markers, no emoji */}
-              {!hudMode && nearbyZones.length > 0 && (
-                <View style={styles.nearbySection}>
-                  <Text style={[styles.nearbyTitle, { color: c.mutedForeground }]}>UPCOMING ZONES</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.nearbyScroll}>
-                    {nearbyZones.slice(0, 5).map((z) => (
-                      <View key={z.id} style={[styles.zoneChip, { backgroundColor: c.card, borderColor: c.border }]}>
-                        <ZoneIcon type={z.type} size={13} color={
-                          z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"
-                        } />
-                        <Text style={[styles.zoneLimit, { color: c.foreground }]}>{z.speedLimit}</Text>
-                        <Text style={[styles.zoneKmh, { color: c.mutedForeground }]}>km/h</Text>
-                        <Text style={[styles.zoneDist, { color: c.mutedForeground }]}>{distStr(z.distance)}</Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* SOS — floating above tab bar in normal mode only */}
-              <View style={[styles.sosWrap, { bottom: bottomInset + tabBarHeight + 8 }]}>
-                <SOSButton />
+                ))}
               </View>
-            </>
+            </ScrollView>
           )}
-        </>
+
+          {activeRoute.steps[0] && (
+            <View style={styles.firstStepRow}>
+              <Ionicons name="arrow-forward-circle-outline" size={14} color={c.mutedForeground} />
+              <Text style={[styles.firstStep, { color: c.mutedForeground }]} numberOfLines={1}>
+                {activeRoute.steps[0].instruction}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.cancelRouteBtn, { backgroundColor: c.muted, borderColor: c.border }]}
+              onPress={() => { clearDestination(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={16} color={c.foreground} />
+              <Text style={[styles.cancelRouteTxt, { color: c.foreground }]}>Cancel</Text>
+            </TouchableOpacity>
+            <SOSButton compact />
+            <TouchableOpacity
+              style={[styles.startBtn, { backgroundColor: c.primary }]}
+              onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+              activeOpacity={0.87}
+            >
+              <Ionicons name="navigate" size={16} color={c.primaryForeground} />
+              <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Speed bubble — bottom left during active navigation */}
+      {navigationActive && (
+        <View style={[
+          styles.speedBubble,
+          {
+            backgroundColor: overLimit ? "#E53935" : "#1B5E20",
+            bottom: bottomInset + tabBarHeight + 14,
+          },
+        ]}>
+          <Text style={styles.speedBubbleNumber}>{Math.round(currentSpeed)}</Text>
+          <Text style={styles.speedBubbleUnit}>km/h</Text>
+          {currentSpeedLimit != null && (
+            <View style={[styles.speedLimitInBubble, { backgroundColor: "#FFF2" }]}>
+              <Text style={styles.speedLimitInBubbleText}>{currentSpeedLimit}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Navigation active bottom bar */}
+      {navigationActive && (
+        <View style={[
+          styles.navBottomBar,
+          { backgroundColor: c.card + "F5", paddingBottom: bottomInset + tabBarHeight + 10 },
+        ]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.navBarEta, { color: c.foreground }]}>
+              {durationStr(activeRoute?.durationS ?? 0)}
+            </Text>
+            <Text style={[styles.navBarDest, { color: c.mutedForeground }]} numberOfLines={1}>
+              {navDestination?.name.split(",")[0]}
+            </Text>
+          </View>
+          <SOSButton compact />
+          <TouchableOpacity
+            style={[styles.stopBtn, { backgroundColor: "#E53935" }]}
+            onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+          >
+            <Ionicons name="stop" size={15} color="#FFF" />
+            <Text style={styles.stopBtnText}>Stop</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Report incident modal */}
@@ -663,17 +641,36 @@ const styles = StyleSheet.create({
   appTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   iconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   searchBarPadded: { paddingHorizontal: 16, paddingBottom: 8 },
-  searchBarWrap: {},
+  searchBarWrap: { paddingHorizontal: 12 },
   searchBar: {
     flexDirection: "row", alignItems: "center", gap: 10,
     borderRadius: 14, borderWidth: 1.5,
     paddingHorizontal: 12, paddingVertical: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
   },
   searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
   clearBtn: { padding: 2 },
 
-  /* Search results */
-  searchResultsPanel: { flex: 1 },
+  /* Normal-mode bottom panel (floats above tab bar, below map) */
+  normalBottomPanel: {
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 16,
+  },
+
+  /* Search results (floating, below search bar) */
+  searchResultsPanel: {
+    position: "absolute", left: 0, right: 0,
+    maxHeight: 360,
+    borderRadius: 16,
+    marginHorizontal: 12,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 10, elevation: 12,
+    overflow: "hidden",
+  },
   searchHint: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16 },
   searchHintText: { fontSize: 14, fontFamily: "Inter_400Regular", flex: 1 },
   resultRow: {
