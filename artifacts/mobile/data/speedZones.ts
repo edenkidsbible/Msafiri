@@ -73,11 +73,15 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz034", name: "Northern Bypass – Gitaru/Wangige", road: "Northern Bypass", lat: -1.2175, lng: 36.7508, speedLimit: 80, type: "camera", description: "Mobile enforcement point after Gitaru near Wangige on Northern Bypass. Limit: 80 km/h" },
 
   // --- Mombasa Road (A109) – additional stretches ---
-  { id: "sz035", name: "Mombasa Road – Nyayo Stadium to Sameer Park Zone", road: "Mombasa Road (A109)", lat: -1.3100, lng: 36.8253, speedLimit: 80, type: "zone", description: "Speed zone between Nyayo Stadium and Sameer Business Park. Limit: 80 km/h" },
+  // sz035/sz035b: paired entries at BOTH ends so drivers approaching from either direction are warned
+  { id: "sz035",  name: "Mombasa Rd Zone – Nyayo Stadium end",    road: "Mombasa Road (A109)", lat: -1.3100, lng: 36.8253, speedLimit: 80, type: "zone", description: "Speed zone: Nyayo Stadium → Sameer Business Park. Approaching from Nairobi CBD side. Limit: 80 km/h" },
+  { id: "sz035b", name: "Mombasa Rd Zone – Sameer Business Park end", road: "Mombasa Road (A109)", lat: -1.3168, lng: 36.8760, speedLimit: 80, type: "zone", description: "Speed zone: Nyayo Stadium → Sameer Business Park. Approaching from Mlolongo/JKIA side. Limit: 80 km/h" },
   { id: "sz036", name: "Mombasa Road – Cabanas/JKIA Camera", road: "Mombasa Road (A109)", lat: -1.3264, lng: 36.9142, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Cabanas near JKIA junction. Limit: 80 km/h" },
 
   // --- Waiyaki Way – additional zone ---
-  { id: "sz037", name: "Waiyaki Way – Kangemi to Uthiru Zone", road: "Waiyaki Way", lat: -1.2664, lng: 36.7447, speedLimit: 60, type: "zone", description: "Built-up area speed zone from Kangemi to Uthiru. Limit: 60 km/h" },
+  // sz037/sz037b: paired entries at BOTH ends of the Kangemi–Uthiru stretch
+  { id: "sz037",  name: "Waiyaki Way Zone – Kangemi end", road: "Waiyaki Way", lat: -1.2664, lng: 36.7447, speedLimit: 60, type: "zone", description: "Built-up area zone: Kangemi → Uthiru. Approaching from Nairobi/Westlands side. Limit: 60 km/h" },
+  { id: "sz037b", name: "Waiyaki Way Zone – Uthiru end",  road: "Waiyaki Way", lat: -1.2583, lng: 36.7138, speedLimit: 60, type: "zone", description: "Built-up area zone: Kangemi → Uthiru. Approaching from Kikuyu/Dagoretti side. Limit: 60 km/h" },
 
   // --- A2 Highway – Nairobi–Nyeri corridor town zones ---
   { id: "sz038", name: "Kenol Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.9136, lng: 37.0708, speedLimit: 50, type: "zone", description: "Built-up area limit through Kenol town. Limit: 50 km/h" },

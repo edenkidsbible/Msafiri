@@ -143,14 +143,15 @@ export default function DriveScreen() {
   };
 
   // ─── Layout ─────────────────────────────────────────────────────────────────
-  return (
-    <View style={[styles.screen, { backgroundColor: hudMode ? "#000" : c.background }]}>
+  // Approximate top section height (status bar + header + search bar) for search results offset
+  const searchResultsTop = topInset + 110;
 
-      {/* ════════ MAP MODE (route set or navigating) ════════ */}
-      {isMapMode ? (
-        <View style={styles.mapContainer}>
-          {/* Full-screen map */}
-          <DriveMapView />
+  return (
+    <View style={styles.screen}>
+
+      {/* ════════ ALWAYS: Map fills the entire screen ════════ */}
+      <View style={StyleSheet.absoluteFillObject}>
+        <DriveMapView />
 
           {/* Top gradient fade so overlays are readable */}
           <View style={[styles.topOverlay, { paddingTop: topInset + 6 }]}>
