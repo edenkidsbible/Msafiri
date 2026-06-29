@@ -234,12 +234,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (alertCandidate) {
         if (alertCandidate.id !== alertZoneRef.current) {
-          // New zone entered — fire haptic + local notification
+          // New zone entered — fire haptic + local notification + count the alert
           alertZoneRef.current = alertCandidate.id;
           alertDismissed.current = false;
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           if (notifGranted.current) {
             scheduleAlertNotification(alertCandidate, alertCandidate.distance);
+          }
+          // Count every triggered zone alert in the active trip
+          if (tripRef.current) {
+            tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
           }
         }
         if (!alertDismissed.current) setActiveAlert(alertCandidate);
