@@ -56,4 +56,32 @@ export const SPEED_ZONES: SpeedZone[] = [
   // --- Nairobi CBD / Enterprise ---
   { id: "sz024", name: "Enterprise Road Camera", road: "Enterprise Road", lat: -1.31, lng: 36.905, speedLimit: 50, type: "camera", description: "Industrial area camera. Limit: 50 km/h" },
   { id: "sz025", name: "Karen Residential Zone", road: "Karen Road", lat: -1.36, lng: 36.71, speedLimit: 50, type: "zone", description: "Residential area. Limit: 50 km/h" },
+
+  // --- Nairobi Expressway ---
+  { id: "sz026", name: "Expressway – Museum Hill/Westlands Camera", road: "Nairobi Expressway", lat: -1.2706, lng: 36.8219, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on elevated expressway, Museum Hill–Westlands section. Limit: 80 km/h" },
+  { id: "sz027", name: "Expressway – After Nyayo Stadium Camera", road: "Nairobi Expressway", lat: -1.3064, lng: 36.8248, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on elevated expressway past Nyayo Stadium. Limit: 80 km/h" },
+
+  // --- Thika Superhighway (A2) – additional corridor cameras ---
+  { id: "sz028", name: "Thika Road – Pangani/Muthaiga Interchange", road: "Thika Superhighway (A2)", lat: -1.2697, lng: 36.8393, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Pangani/Muthaiga interchange. Limit: 80 km/h" },
+  { id: "sz029", name: "Thika Road – Allsops/GSU HQ", road: "Thika Superhighway (A2)", lat: -1.2447, lng: 36.8643, speedLimit: 80, type: "camera", description: "Fixed ANPR camera opposite GSU Headquarters at Allsops. Limit: 80 km/h" },
+  { id: "sz030", name: "Thika Road – Roysambu/TRM", road: "Thika Superhighway (A2)", lat: -1.2189, lng: 36.8854, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Roysambu near TRM Mall. Limit: 80 km/h" },
+  { id: "sz031", name: "Thika Road – Safari Park", road: "Thika Superhighway (A2)", lat: -1.1944, lng: 36.9006, speedLimit: 110, type: "camera", description: "Fixed ANPR camera near Safari Park Hotel. Open highway: 110 km/h" },
+  { id: "sz032", name: "Thika Road – Jomoko Turnoff", road: "Thika Superhighway (A2)", lat: -1.1153, lng: 36.9600, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Jomoko turnoff near Ruiru. Limit: 80 km/h" },
+
+  // --- Southern & Northern Bypass ---
+  { id: "sz033", name: "Southern Bypass – Virtual Weighbridge", road: "Southern Bypass", lat: -1.3194, lng: 36.7228, speedLimit: 80, type: "camera", description: "Virtual weighbridge enforcement point on Southern Bypass. Limit: 80 km/h" },
+  { id: "sz034", name: "Northern Bypass – Gitaru/Wangige", road: "Northern Bypass", lat: -1.2175, lng: 36.7508, speedLimit: 80, type: "camera", description: "Mobile enforcement point after Gitaru near Wangige on Northern Bypass. Limit: 80 km/h" },
+
+  // --- Mombasa Road (A109) – additional stretches ---
+  { id: "sz035", name: "Mombasa Road – Nyayo Stadium to Sameer Park Zone", road: "Mombasa Road (A109)", lat: -1.3100, lng: 36.8253, speedLimit: 80, type: "zone", description: "Speed zone between Nyayo Stadium and Sameer Business Park. Limit: 80 km/h" },
+  { id: "sz036", name: "Mombasa Road – Cabanas/JKIA Camera", road: "Mombasa Road (A109)", lat: -1.3264, lng: 36.9142, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Cabanas near JKIA junction. Limit: 80 km/h" },
+
+  // --- Waiyaki Way – additional zone ---
+  { id: "sz037", name: "Waiyaki Way – Kangemi to Uthiru Zone", road: "Waiyaki Way", lat: -1.2664, lng: 36.7447, speedLimit: 60, type: "zone", description: "Built-up area speed zone from Kangemi to Uthiru. Limit: 60 km/h" },
+
+  // --- A2 Highway – Nairobi–Nyeri corridor town zones ---
+  { id: "sz038", name: "Kenol Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.9136, lng: 37.0708, speedLimit: 50, type: "zone", description: "Built-up area limit through Kenol town. Limit: 50 km/h" },
+  { id: "sz039", name: "Makuyu Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.8803, lng: 37.0989, speedLimit: 50, type: "zone", description: "Built-up area limit through Makuyu town. Limit: 50 km/h" },
+  { id: "sz040", name: "Sagana Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.6711, lng: 37.2103, speedLimit: 50, type: "zone", description: "Built-up area limit through Sagana town. Limit: 50 km/h" },
+  { id: "sz041", name: "Karatina Town Speed Zone", road: "A2 Highway (Nairobi–Nyeri)", lat: -0.4808, lng: 37.1247, speedLimit: 50, type: "zone", description: "Built-up area limit through Karatina town. Limit: 50 km/h" },
 ];
