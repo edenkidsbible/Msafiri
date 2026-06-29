@@ -350,12 +350,12 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
         <TouchableOpacity
-          style={[styles.reportBar, { bottom: bottomBase + 72 }]}
+          style={[styles.reportBar, { bottom: bottomBase + 92 }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
           activeOpacity={0.85}
         >
           <Ionicons name="camera" size={20} color="#FFF" />
-          <Text style={styles.reportBarTxt}>Report Camera or Hazard</Text>
+          <Text style={styles.reportBarTxt}>Report Camera/Incident</Text>
           <View style={styles.reportBarBadge}>
             <Ionicons name="add" size={16} color="#E65100" />
           </View>
@@ -424,7 +424,7 @@ export default function DriveScreen() {
 
       {/* Additional zones strip — shown when 2+ zones are ahead */}
       {!isMapMode && !showResults && nearbyZones.length > 1 && (
-        <View style={[styles.zonesBar, { bottom: bottomBase + 136 }]}>
+        <View style={[styles.zonesBar, { bottom: bottomBase + 158 }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -690,15 +690,15 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 12, elevation: 10,
   },
-  speedGroup: { alignItems: "center", minWidth: 46 },
-  speedNum:   { fontSize: 36, fontFamily: "Inter_700Bold", lineHeight: 38 },
-  speedUnit:  { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -3 },
+  speedGroup: { alignItems: "center", minWidth: 56 },
+  speedNum:   { fontSize: 54, fontFamily: "Inter_700Bold", lineHeight: 56 },
+  speedUnit:  { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -4 },
 
   limitRing: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 3,
+    width: 46, height: 46, borderRadius: 23, borderWidth: 3.5,
     alignItems: "center", justifyContent: "center",
   },
-  limitNum: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  limitNum: { fontSize: 16, fontFamily: "Inter_700Bold" },
 
   vdivider: { width: 1, height: 36, borderRadius: 1 },
 

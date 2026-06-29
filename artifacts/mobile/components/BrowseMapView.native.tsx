@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -43,8 +43,22 @@ export default function BrowseMapView({ pois, tab, userLat, userLng, onGo }: Pro
   const c = useColors();
   const mapRef = useRef<MapView>(null);
   const [selectedPOI, setSelectedPOI] = useState<(POIItem & { distance?: number }) | null>(null);
+  const hasCenteredRef = useRef(false);
 
   const visiblePOIs = pois.filter((p) => p.type === tab);
+
+  // Centre map on user the first time a GPS fix arrives
+  useEffect(() => {
+    if (hasCenteredRef.current || !userLat || !userLng) return;
+    hasCenteredRef.current = true;
+    const t = setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        { latitude: userLat, longitude: userLng, latitudeDelta: 0.06, longitudeDelta: 0.06 },
+        900
+      );
+    }, 300);
+    return () => clearTimeout(t);
+  }, [userLat, userLng]);
 
   const centerOnUser = () => {
     if (mapRef.current && userLat && userLng) {

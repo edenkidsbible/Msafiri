@@ -65,7 +65,21 @@ export default function DriveMapView() {
   } = useApp();
 
   const mapRef = useRef<MapView>(null);
+  const hasCenteredRef = useRef(false);
   const now = Date.now();
+
+  // Centre on user the first time a GPS fix arrives (not during navigation — that has its own camera)
+  useEffect(() => {
+    if (hasCenteredRef.current || navigationActive || currentLat == null || currentLng == null) return;
+    hasCenteredRef.current = true;
+    const t = setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.05, longitudeDelta: 0.05 },
+        900
+      );
+    }, 300);
+    return () => clearTimeout(t);
+  }, [currentLat, currentLng, navigationActive]);
 
   const nearbyPOIs = useMemo(() => {
     if (currentLat == null || currentLng == null) return [];
