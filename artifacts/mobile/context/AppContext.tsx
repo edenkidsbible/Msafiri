@@ -89,7 +89,7 @@ interface AppContextValue {
   sosContact: SOSContact | null;
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
-  addReport: (type: CommunityReport["type"], lat: number, lng: number) => void;
+  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<void>;
   deleteReport: (id: string) => Promise<void>;
@@ -737,11 +737,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
-  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number) => {
+  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
     const localId = genId();
     const r: CommunityReport = {
       id: localId, type, lat, lng, timestamp: Date.now(), confirmed: 1,
       status: "active", confirmCount: 1, denyCount: 0, isOwn: true,
+      speedLimit,
     };
     setCommunityReports((prev) => { const u = [r, ...prev]; AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u)); return u; });
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
@@ -749,7 +750,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Submit to API; keep local copy as offline fallback
     if (!isOfflineRef.current && deviceIdRef.current) {
       apiPost<{ id: string; status: string; confirmCount: number; action: string }>(
-        "/reports", { type, lat, lng, deviceId: deviceIdRef.current }
+        "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit }
       ).then((result) => {
         setCommunityReports((prev) => {
           const u = prev.map((rep) =>

@@ -333,16 +333,16 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* Compact FABs also during map/navigation */}
+      {/* Clear "Report Incident" button during navigation — replaces old triangle FAB */}
       {!showResults && navigationActive && (
-        <View style={[styles.fabCol, { top: topInset + 120, right: 12 }]}>
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: fabBg }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowReport(true); }}
-          >
-            <Ionicons name="warning-outline" size={19} color="#E65100" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.navReportBtn, { top: topInset + 118, right: 12 }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="camera" size={14} color="#FFF" />
+          <Text style={styles.navReportTxt}>Report Incident</Text>
+        </TouchableOpacity>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -590,8 +590,8 @@ export default function DriveScreen() {
       <ReportModal
         visible={showReport}
         onClose={() => setShowReport(false)}
-        onSubmit={(type) => {
-          if (currentLat !== null && currentLng !== null) addReport(type, currentLat, currentLng);
+        onSubmit={(type, speedLimit) => {
+          if (currentLat !== null && currentLng !== null) addReport(type, currentLat, currentLng, speedLimit);
           setShowReport(false);
         }}
       />
@@ -690,15 +690,15 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 12, elevation: 10,
   },
-  speedGroup: { alignItems: "center", minWidth: 56 },
-  speedNum:   { fontSize: 54, fontFamily: "Inter_700Bold", lineHeight: 56 },
-  speedUnit:  { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -4 },
+  speedGroup: { alignItems: "center", minWidth: 64 },
+  speedNum:   { fontSize: 72, fontFamily: "Inter_700Bold", lineHeight: 74 },
+  speedUnit:  { fontSize: 13, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -6 },
 
   limitRing: {
-    width: 46, height: 46, borderRadius: 23, borderWidth: 3.5,
+    width: 52, height: 52, borderRadius: 26, borderWidth: 3.5,
     alignItems: "center", justifyContent: "center",
   },
-  limitNum: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  limitNum: { fontSize: 18, fontFamily: "Inter_700Bold" },
 
   vdivider: { width: 1, height: 36, borderRadius: 1 },
 
@@ -763,13 +763,13 @@ const styles = StyleSheet.create({
   navSpeedBlock: {
     alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
   },
-  navSpeedNum:  { fontSize: 40, fontFamily: "Inter_700Bold", lineHeight: 42 },
-  navSpeedUnit: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -2 },
+  navSpeedNum:  { fontSize: 54, fontFamily: "Inter_700Bold", lineHeight: 56 },
+  navSpeedUnit: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -3 },
   navLimitRing: {
-    width: 32, height: 32, borderRadius: 16, borderWidth: 2.5,
+    width: 38, height: 38, borderRadius: 19, borderWidth: 2.5,
     alignItems: "center", justifyContent: "center",
   },
-  navLimitNum:  { fontSize: 12, fontFamily: "Inter_700Bold" },
+  navLimitNum:  { fontSize: 14, fontFamily: "Inter_700Bold" },
   navDivider:   { width: 1, height: 52, borderRadius: 1, marginHorizontal: 2, opacity: 0.5 },
   navEta:       { fontSize: 19, fontFamily: "Inter_700Bold" },
   navDest:      { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
@@ -779,4 +779,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
   },
   stopBtnTxt: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  navReportBtn: {
+    position: "absolute",
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#E65100",
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 8,
+  },
+  navReportTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
 });

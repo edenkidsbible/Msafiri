@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { CommunityReport } from "@/context/AppContext";
@@ -9,7 +18,7 @@ type ReportType = CommunityReport["type"];
 interface ReportModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (type: ReportType) => void;
+  onSubmit: (type: ReportType, speedLimit?: number) => void;
 }
 
 const TYPES: Array<{
@@ -18,30 +27,46 @@ const TYPES: Array<{
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
 }> = [
-  { type: "camera",    label: "Speed Camera", icon: "camera",          color: "#E53935" },
-  { type: "police",    label: "Police Check",  icon: "shield-checkmark",color: "#1565C0" },
-  { type: "accident",  label: "Accident",      icon: "warning",         color: "#E53935" },
-  { type: "pothole",   label: "Pothole",        icon: "alert-circle",   color: "#F57C00" },
-  { type: "roadblock", label: "Roadblock",      icon: "close-circle",   color: "#7B1FA2" },
+  { type: "camera",    label: "Speed Camera", icon: "camera",           color: "#E53935" },
+  { type: "police",    label: "Police Check",  icon: "shield-checkmark", color: "#1565C0" },
+  { type: "accident",  label: "Accident",      icon: "warning",          color: "#E53935" },
+  { type: "pothole",   label: "Pothole",        icon: "alert-circle",    color: "#F57C00" },
+  { type: "roadblock", label: "Roadblock",      icon: "close-circle",    color: "#7B1FA2" },
   { type: "clear",     label: "Road Clear",     icon: "checkmark-circle",color: "#00C853" },
 ];
 
 export default function ReportModal({ visible, onClose, onSubmit }: ReportModalProps) {
   const c = useColors();
   const [sel, setSel] = useState<ReportType | null>(null);
+  const [speedLimit, setSpeedLimit] = useState("");
   const selItem = TYPES.find((t) => t.type === sel);
+
+  const reset = () => {
+    setSel(null);
+    setSpeedLimit("");
+  };
 
   const submit = () => {
     if (!sel) return;
-    onSubmit(sel);
-    setSel(null);
+    const limit = sel === "camera" && speedLimit.trim()
+      ? parseInt(speedLimit.trim(), 10)
+      : undefined;
+    onSubmit(sel, isNaN(limit as number) ? undefined : limit);
+    reset();
+  };
+
+  const handleClose = () => {
+    reset();
     onClose();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
         <View style={[styles.sheet, { backgroundColor: c.card }]}>
           <View style={[styles.handle, { backgroundColor: c.border }]} />
           <Text style={[styles.title, { color: c.foreground }]}>Report an Incident</Text>
@@ -49,6 +74,7 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
             What do you see at your current location?
           </Text>
 
+          {/* Type grid */}
           <View style={styles.grid}>
             {TYPES.map((t) => {
               const active = sel === t.type;
@@ -62,7 +88,7 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
                       borderColor: active ? t.color : c.border,
                     },
                   ]}
-                  onPress={() => setSel(t.type)}
+                  onPress={() => { setSel(t.type); setSpeedLimit(""); }}
                   activeOpacity={0.75}
                 >
                   <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
@@ -83,10 +109,32 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
             })}
           </View>
 
+          {/* Speed limit field — appears when "Speed Camera" is selected */}
+          {sel === "camera" && (
+            <View style={[styles.speedRow, { backgroundColor: "#E5393512", borderColor: "#E5393544" }]}>
+              <Ionicons name="speedometer-outline" size={18} color="#E53935" />
+              <Text style={[styles.speedLabel, { color: "#E53935" }]}>Speed limit at this camera:</Text>
+              <View style={[styles.speedInputWrap, { borderColor: "#E5393566", backgroundColor: c.card }]}>
+                <TextInput
+                  style={[styles.speedInput, { color: c.foreground }]}
+                  value={speedLimit}
+                  onChangeText={(v) => setSpeedLimit(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="number-pad"
+                  placeholder="km/h"
+                  placeholderTextColor={c.mutedForeground}
+                  maxLength={3}
+                  returnKeyType="done"
+                />
+              </View>
+              <Text style={[styles.speedOptional, { color: c.mutedForeground }]}>optional</Text>
+            </View>
+          )}
+
+          {/* Actions */}
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.cancelBtn, { borderColor: c.border }]}
-              onPress={() => { setSel(null); onClose(); }}
+              onPress={handleClose}
             >
               <Text style={[styles.cancelTxt, { color: c.mutedForeground }]}>Cancel</Text>
             </TouchableOpacity>
@@ -102,7 +150,7 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -113,22 +161,37 @@ const styles = StyleSheet.create({
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 4 },
   sub: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 20 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
   chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    width: "47%",
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 12, paddingVertical: 11,
+    borderRadius: 12, borderWidth: 1.5, width: "47%",
   },
   chipIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 13, fontFamily: "Inter_500Medium", flexShrink: 1 },
+
+  speedRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1, borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 11,
+    marginBottom: 18,
+    flexWrap: "wrap",
+  },
+  speedLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 1 },
+  speedInputWrap: {
+    borderWidth: 1.5, borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 4,
+    minWidth: 68,
+  },
+  speedInput: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center", minWidth: 52 },
+  speedOptional: { fontSize: 11, fontFamily: "Inter_400Regular" },
+
   actions: { flexDirection: "row", gap: 12 },
   cancelBtn: { flex: 0.4, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center" },
   cancelTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  submitBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+  submitBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8,
+  },
   submitTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 });
