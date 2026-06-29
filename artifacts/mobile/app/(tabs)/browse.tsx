@@ -164,10 +164,22 @@ export default function BrowseScreen() {
     return () => { isMounted.current = false; };
   }, []);
 
-  const loadPOIs = useCallback(async (t: Tab, lat: number | null, lng: number | null) => {
-    setLoading(true);
-    setError(null);
-    setIsLive(false);
+  // Track where we last fetched from, so we only re-query when the user has
+  // moved far enough (2.5 km). Within that radius we just re-sort in place.
+  const fetchOriginRef = useRef<{ lat: number; lng: number } | null>(null);
+  const activeTabRef = useRef<Tab>(activeTab);
+
+  const loadPOIs = useCallback(async (
+    t: Tab,
+    lat: number | null,
+    lng: number | null,
+    incremental = false,
+  ) => {
+    if (!incremental) {
+      setLoading(true);
+      setError(null);
+      setIsLive(false);
+    }
 
     let items: POIItem[] = [];
     let live = false;
@@ -178,8 +190,10 @@ export default function BrowseScreen() {
         live = true;
       } catch {
         if (!isMounted.current) return;
-        setError("Live data unavailable. Showing cached results.");
-        items = STATIC_POIS.filter((p) => p.type === t);
+        if (!incremental) {
+          setError("Live data unavailable. Showing cached results.");
+          items = STATIC_POIS.filter((p) => p.type === t);
+        }
       }
     } else {
       items = STATIC_POIS.filter((p) => p.type === t);
@@ -195,14 +209,69 @@ export default function BrowseScreen() {
       .filter((p) => p.distance === undefined || p.distance <= MAX_DIST)
       .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
-    setPois(withDist);
-    setIsLive(live);
-    setLoading(false);
+    if (incremental && lat !== null && lng !== null) {
+      // Merge: keep existing POIs still in range + add genuinely new ones
+      setPois((prev) => {
+        const existingInRange = prev
+          .map((p) => ({ ...p, distance: haversine(lat, lng, p.lat, p.lng) }))
+          .filter((p) => p.distance <= MAX_DIST);
+        const existingIds = new Set(existingInRange.map((p) => p.id));
+        const newItems = withDist.filter((p) => !existingIds.has(p.id));
+        return [...existingInRange, ...newItems]
+          .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+      });
+    } else {
+      setPois(withDist);
+    }
+
+    if (live) setIsLive(true);
+    if (!incremental) setLoading(false);
   }, []);
 
+  // Tab change → always do a full reload and reset the fetch origin
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    loadPOIs(activeTab, currentLat, currentLng);
-  }, [activeTab, currentLat, currentLng, loadPOIs]);
+    activeTabRef.current = activeTab;
+    fetchOriginRef.current =
+      currentLat !== null && currentLng !== null
+        ? { lat: currentLat, lng: currentLng }
+        : null;
+    setLoading(true);
+    setError(null);
+    setIsLive(false);
+    setPois([]);
+    loadPOIs(activeTab, currentLat, currentLng, false);
+  }, [activeTab]);
+
+  // Location update → incremental: re-sort if <2.5 km, re-fetch if farther
+  useEffect(() => {
+    if (currentLat === null || currentLng === null) return;
+    const origin = fetchOriginRef.current;
+
+    if (!origin) {
+      // First GPS fix after this tab was mounted — do the initial fetch now
+      fetchOriginRef.current = { lat: currentLat, lng: currentLng };
+      loadPOIs(activeTabRef.current, currentLat, currentLng, false);
+      return;
+    }
+
+    const dist = haversine(currentLat, currentLng, origin.lat, origin.lng);
+
+    if (dist > 2500) {
+      // Moved significantly — fetch fresh results, merge with existing
+      fetchOriginRef.current = { lat: currentLat, lng: currentLng };
+      loadPOIs(activeTabRef.current, currentLat, currentLng, true);
+    } else {
+      // Still close — just recompute distances and drop anything now >10 km
+      setPois((prev) =>
+        prev
+          .map((p) => ({ ...p, distance: haversine(currentLat, currentLng, p.lat, p.lng) }))
+          .filter((p) => p.distance <= MAX_DIST)
+          .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLat, currentLng]);
 
   const tabMeta = TABS.find((t) => t.type === activeTab)!;
   const isLiveOnly = LIVE_ONLY_TABS.includes(activeTab);

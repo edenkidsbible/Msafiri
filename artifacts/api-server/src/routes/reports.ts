@@ -205,6 +205,70 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
   }
 });
 
+// ── DELETE /reports/:id — remove own report ────────────────────────────────────
+router.delete("/reports/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const { deviceId } = req.body as { deviceId: string };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    const [report] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!report) return res.status(404).json({ error: "Not found" });
+    if (report.deviceId !== deviceId) return res.status(403).json({ error: "Not your report" });
+    if (report.confirmCount >= 3)
+      return res.status(403).json({ error: "Report is protected — 3 or more users have confirmed this location" });
+
+    await db
+      .update(communityReportsTable)
+      .set({ status: "expired" })
+      .where(eq(communityReportsTable.id, id));
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /reports/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── PATCH /reports/:id — update own camera report ──────────────────────────────
+router.patch("/reports/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const { deviceId, speedLimit, roadName } = req.body as {
+      deviceId: string; speedLimit?: number; roadName?: string;
+    };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    const [report] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!report) return res.status(404).json({ error: "Not found" });
+    if (report.deviceId !== deviceId) return res.status(403).json({ error: "Not your report" });
+    if (report.type !== "camera") return res.status(400).json({ error: "Only camera reports can be updated" });
+
+    const updates: Record<string, unknown> = {};
+    if (speedLimit !== undefined) updates["speedLimit"] = speedLimit;
+    if (roadName !== undefined) updates["roadName"] = roadName;
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set(updates as any)
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    return res.json({ success: true, speedLimit: updated.speedLimit, roadName: updated.roadName });
+  } catch (err) {
+    console.error("PATCH /reports/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── POST /reports/:id/deny — "Gone now" ───────────────────────────────────────
 router.post("/reports/:id/deny", async (req: Request, res: Response) => {
   try {

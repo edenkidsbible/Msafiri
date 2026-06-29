@@ -22,3 +22,25 @@ export async function apiPost<T>(path: string, body: unknown, timeoutMs = 10000)
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<T>;
 }
+
+export async function apiPatch<T>(path: string, body: unknown, timeoutMs = 10000): Promise<T> {
+  if (!API_BASE) throw new Error("API_BASE not configured");
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }, timeoutMs);
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export async function apiDelete<T>(path: string, body: unknown, timeoutMs = 10000): Promise<T> {
+  if (!API_BASE) throw new Error("API_BASE not configured");
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }, timeoutMs);
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<T>;
+}

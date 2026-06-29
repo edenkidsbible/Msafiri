@@ -14,7 +14,7 @@ import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
-import { apiGet, apiPost } from "@/utils/apiClient";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,8 @@ export interface CommunityReport {
   confirmCount?: number;
   denyCount?: number;
   isOwn?: boolean;
+  speedLimit?: number;
+  roadName?: string;
 }
 
 export interface TripPoint { lat: number; lng: number; speed: number; time: number }
@@ -90,6 +92,8 @@ interface AppContextValue {
   addReport: (type: CommunityReport["type"], lat: number, lng: number) => void;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<void>;
+  deleteReport: (id: string) => Promise<void>;
+  updateReport: (id: string, speedLimit: number) => Promise<void>;
   deviceId: string | null;
   currentTrip: Partial<TripData> | null;
   tripHistory: TripData[];
@@ -763,6 +767,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const completeOnboarding = useCallback(() => { setOnboardingComplete(true); AsyncStorage.setItem(KEYS.ONBOARDING, "true"); }, []);
   const setShowTraffic = useCallback((v: boolean) => setShowTrafficState(v), []);
 
+  const deleteReport = useCallback(async (id: string) => {
+    const report = communityReportsRef.current.find((r) => r.id === id);
+    if (!report) return;
+    if ((report.confirmCount ?? 1) >= 3) return; // protected by community
+    // Optimistic: remove locally
+    setCommunityReports((prev) => {
+      const u = prev.filter((r) => r.id !== id);
+      AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+      return u;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!isOfflineRef.current && deviceIdRef.current && report.serverId) {
+      try {
+        await apiDelete(`/reports/${report.serverId}`, { deviceId: deviceIdRef.current });
+      } catch { /* local removal already done; server will TTL-expire eventually */ }
+    }
+  }, []);
+
+  const updateReport = useCallback(async (id: string, speedLimit: number) => {
+    const report = communityReportsRef.current.find((r) => r.id === id);
+    if (!report || report.type !== "camera") return;
+    // Optimistic: update local speedLimit
+    setCommunityReports((prev) => {
+      const u = prev.map((r) => r.id === id ? { ...r, speedLimit } : r);
+      AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+      return u;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isOfflineRef.current && deviceIdRef.current && report.serverId) {
+      try {
+        await apiPatch(`/reports/${report.serverId}`, { deviceId: deviceIdRef.current, speedLimit });
+      } catch { /* keep optimistic value */ }
+    }
+  }, []);
+
   const confirmReport = useCallback(async (id: string) => {
     if (!deviceIdRef.current) return;
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
@@ -797,7 +836,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activeAlert, currentSpeedLimit, nearbyZones, dismissAlert,
       hudMode, setHudMode,
       sosContact, setSosContact,
-      communityReports, addReport, confirmReport, denyReport, deviceId,
+      communityReports, addReport, confirmReport, denyReport, deleteReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
       onboardingComplete, completeOnboarding,
       isOffline,

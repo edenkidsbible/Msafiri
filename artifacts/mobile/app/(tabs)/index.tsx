@@ -346,27 +346,10 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM: Prominent Report button (normal mode only)
+          BOTTOM: Normal-mode compact speed strip (sits above report bar)
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
-        <TouchableOpacity
-          style={[styles.reportBar, { bottom: bottomBase + 92 }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="camera" size={20} color="#FFF" />
-          <Text style={styles.reportBarTxt}>Report Camera/Incident</Text>
-          <View style={styles.reportBarBadge}>
-            <Ionicons name="add" size={16} color="#E65100" />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM: Normal-mode compact speed strip
-      ══════════════════════════════════════════════════════════════════ */}
-      {!isMapMode && !showResults && (
-        <View style={[styles.speedStrip, { bottom: bottomBase, backgroundColor: bg }]}>
+        <View style={[styles.speedStrip, { bottom: bottomBase + 68, backgroundColor: bg }]}>
 
           {/* Speed number */}
           <View style={styles.speedGroup}>
@@ -420,6 +403,23 @@ export default function DriveScreen() {
           {/* SOS */}
           <SOSButton compact />
         </View>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          BOTTOM: Prominent Report button (below speed strip, above tab bar)
+      ══════════════════════════════════════════════════════════════════ */}
+      {!isMapMode && !showResults && (
+        <TouchableOpacity
+          style={[styles.reportBar, { bottom: bottomBase }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="camera" size={20} color="#FFF" />
+          <Text style={styles.reportBarTxt}>Report Camera/Incident</Text>
+          <View style={styles.reportBarBadge}>
+            <Ionicons name="add" size={16} color="#E65100" />
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* Additional zones strip — shown when 2+ zones are ahead */}
