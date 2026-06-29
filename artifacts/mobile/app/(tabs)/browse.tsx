@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Platform,
   StyleSheet,
   Text,
@@ -9,12 +10,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { POIS } from "@/data/pois";
-import { POIItem } from "@/components/POICard";
-import BrowseMapView from "@/components/BrowseMapView";
+import POICard, { POIItem } from "@/components/POICard";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -27,159 +26,293 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 
 const MAX_DIST = 10000;
 
-async function fetchOverpassGET(type: "fuel" | "food", lat: number, lng: number): Promise<POIItem[]> {
-  const amenity = type === "fuel"
-    ? `"amenity"="fuel"`
-    : `"amenity"~"^(restaurant|fast_food|cafe|food_court)$"`;
-  const query =
-    `[out:json][timeout:15];` +
-    `(node[${amenity}](around:${MAX_DIST},${lat},${lng});` +
-    `way[${amenity}](around:${MAX_DIST},${lat},${lng}););` +
-    `out center 50;`;
+type Tab = "fuel" | "food" | "shopping" | "hospital";
+
+const TABS: Array<{
+  type: Tab;
+  label: string;
+  matIcon?: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  ionIcon?: React.ComponentProps<typeof Ionicons>["name"];
+  color: string;
+}> = [
+  { type: "fuel",     label: "Fuel",     matIcon: "gas-station",       color: "#2E7D32" },
+  { type: "food",     label: "Food",     ionIcon: "restaurant",         color: "#BF360C" },
+  { type: "shopping", label: "Shopping", ionIcon: "storefront-outline", color: "#1565C0" },
+  { type: "hospital", label: "Hospital", ionIcon: "medkit-outline",     color: "#C62828" },
+];
+
+// Overpass query per category
+function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
+  const r = MAX_DIST;
+  let filters = "";
+  if (type === "fuel") {
+    filters = `node["amenity"="fuel"](around:${r},${lat},${lng});way["amenity"="fuel"](around:${r},${lat},${lng});`;
+  } else if (type === "food") {
+    filters = `node["amenity"~"^(restaurant|fast_food|cafe|food_court)$"](around:${r},${lat},${lng});way["amenity"~"^(restaurant|fast_food|cafe|food_court)$"](around:${r},${lat},${lng});`;
+  } else if (type === "shopping") {
+    filters =
+      `node["shop"~"^(supermarket|mall|department_store|convenience|wholesale)$"](around:${r},${lat},${lng});` +
+      `way["shop"~"^(supermarket|mall|department_store|convenience|wholesale)$"](around:${r},${lat},${lng});` +
+      `way["building"~"^(mall|retail)$"](around:${r},${lat},${lng});`;
+  } else {
+    filters =
+      `node["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});` +
+      `way["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});`;
+  }
+  return `[out:json][timeout:20];(${filters});out center 60;`;
+}
+
+async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIItem[]> {
+  const query = buildOverpassQuery(type, lat, lng);
   const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-  const res = await fetchWithTimeout(url, {}, 16000);
+  const res = await fetchWithTimeout(url, {}, 22000);
   if (!res.ok) throw new Error(`Overpass ${res.status}`);
   const data = await res.json();
+  const defaultName =
+    type === "fuel" ? "Fuel Station" :
+    type === "food" ? "Restaurant" :
+    type === "shopping" ? "Shop" : "Hospital / Clinic";
   return (data.elements as any[])
     .map((el): POIItem | null => {
       const plat: number = el.lat ?? el.center?.lat;
       const plng: number = el.lon ?? el.center?.lon;
       if (!plat || !plng) return null;
       const tags: Record<string, string> = el.tags ?? {};
-      const name: string = tags.name || tags["name:en"] || tags.brand || (type === "fuel" ? "Fuel Station" : "Restaurant");
+      const name = tags.name || tags["name:en"] || tags.brand || tags.operator || defaultName;
       const address = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"] || tags["addr:suburb"]].filter(Boolean).join(", ");
-      return { id: `osm-${el.type}-${el.id}`, type, name, brand: tags.brand ?? "", address, hours: tags.opening_hours ?? "", lat: plat, lng: plng, source: "live" };
+      return {
+        id: `osm-${el.type}-${el.id}`,
+        type,
+        name,
+        brand: tags.brand ?? tags.operator ?? "",
+        address,
+        hours: tags.opening_hours ?? "",
+        lat: plat,
+        lng: plng,
+        source: "live",
+      };
     })
     .filter((p): p is POIItem => p !== null);
 }
 
-type Tab = "fuel" | "food";
+// Static fallback data (fuel + food only — from pois.ts)
+const STATIC_POIS: POIItem[] = POIS
+  .filter((p) => p.type === "fuel" || p.type === "food")
+  .map((p: any) => ({
+    id: p.id, type: p.type as Tab, name: p.name, brand: p.brand ?? "",
+    address: p.address ?? "", hours: p.hours ?? "", lat: p.lat, lng: p.lng, source: "static" as const,
+  }));
 
-const STATIC_POIS: POIItem[] = POIS.map((p: any) => ({
-  id: p.id, type: p.type as Tab, name: p.name, brand: p.brand ?? "",
-  address: p.address ?? "", hours: p.hours ?? "", lat: p.lat, lng: p.lng, source: "static" as const,
-}));
+function TabIcon({ tab, active }: { tab: typeof TABS[number]; active: boolean }) {
+  const color = active ? tab.color : "#888";
+  const sz = 15;
+  if (tab.matIcon) return <MaterialCommunityIcons name={tab.matIcon} size={sz} color={color} />;
+  if (tab.ionIcon) return <Ionicons name={tab.ionIcon} size={sz} color={color} />;
+  return null;
+}
 
 export default function BrowseScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { currentLat, currentLng, setNavDestination } = useApp();
-  const [tab, setTab] = useState<Tab>("fuel");
+  const { currentLat, currentLng } = useApp();
+
+  const [activeTab, setActiveTab] = useState<Tab>("fuel");
   const [pois, setPois] = useState<(POIItem & { distance?: number })[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 96;
+
   const isMounted = useRef(true);
-  useEffect(() => { isMounted.current = true; return () => { isMounted.current = false; }; }, []);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const loadPOIs = useCallback(async (t: Tab, lat: number | null, lng: number | null) => {
     setLoading(true);
     setError(null);
     setIsLive(false);
+
     let items: POIItem[] = [];
     let live = false;
+
     if (lat !== null && lng !== null) {
       try {
-        items = await fetchOverpassGET(t, lat, lng);
+        items = await fetchOverpass(t, lat, lng);
         live = true;
-      } catch (e: any) {
+      } catch {
         if (!isMounted.current) return;
-        setError(`Live data unavailable. Showing cached results.`);
+        setError("Live data unavailable. Showing cached results.");
+        // Only fuel/food have offline fallback
         items = STATIC_POIS.filter((p) => p.type === t);
       }
     } else {
       items = STATIC_POIS.filter((p) => p.type === t);
     }
+
     if (!isMounted.current) return;
+
     const withDist = items
-      .map((p) => ({ ...p, distance: lat !== null && lng !== null ? haversine(lat, lng, p.lat, p.lng) : undefined }))
+      .map((p) => ({
+        ...p,
+        distance: lat !== null && lng !== null ? haversine(lat, lng, p.lat, p.lng) : undefined,
+      }))
       .filter((p) => p.distance === undefined || p.distance <= MAX_DIST)
       .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
     setPois(withDist);
     setIsLive(live);
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadPOIs(tab, currentLat, currentLng); }, [tab, currentLat, currentLng, loadPOIs]);
+  useEffect(() => {
+    loadPOIs(activeTab, currentLat, currentLng);
+  }, [activeTab, currentLat, currentLng, loadPOIs]);
 
-  const handleGo = (poi: POIItem) => {
-    setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng, poiType: poi.type });
-    router.push("/");
-  };
+  const tabMeta = TABS.find((t) => t.type === activeTab)!;
+  const noOfflineData = (activeTab === "shopping" || activeTab === "hospital") && !isLive && pois.length === 0 && !loading;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
-      {/* Header */}
+      {/* ─── Header ─── */}
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: c.background }]}>
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: c.foreground }]}>Nearby Places</Text>
-          <View style={styles.statusRow}>
+          <View style={styles.headerRight}>
             {isLive ? (
               <View style={[styles.livePill, { backgroundColor: "#00C85322" }]}>
                 <View style={[styles.liveDot, { backgroundColor: "#00C853" }]} />
-                <Text style={[styles.liveText, { color: "#00C853" }]}>Live OSM</Text>
+                <Text style={[styles.liveText, { color: "#00C853" }]}>Live</Text>
               </View>
             ) : error ? (
               <View style={[styles.livePill, { backgroundColor: c.muted }]}>
+                <Ionicons name="cloud-offline-outline" size={11} color={c.mutedForeground} />
                 <Text style={[styles.liveText, { color: c.mutedForeground }]}>Offline</Text>
               </View>
             ) : null}
             <TouchableOpacity
-              onPress={() => loadPOIs(tab, currentLat, currentLng)}
+              onPress={() => loadPOIs(activeTab, currentLat, currentLng)}
               style={[styles.refreshBtn, { backgroundColor: c.muted }]}
               disabled={loading}
             >
-              <Ionicons name="refresh-outline" size={18} color={loading ? c.mutedForeground : c.foreground} />
+              <Ionicons
+                name="refresh-outline"
+                size={17}
+                color={loading ? c.mutedForeground : c.foreground}
+              />
             </TouchableOpacity>
           </View>
         </View>
 
         <Text style={[styles.sub, { color: c.mutedForeground }]}>
           {currentLat
-            ? `Tap a pin on the map to navigate · ${pois.filter(p => p.type === tab).length} found`
-            : "Enable location to see real nearby places"}
+            ? `${pois.length} place${pois.length !== 1 ? "s" : ""} within 10 km · tap Go to navigate`
+            : "Enable location for live nearby results"}
         </Text>
 
-        {/* Tab toggle */}
-        <View style={[styles.tabRow, { backgroundColor: c.muted }]}>
-          {(["fuel", "food"] as Tab[]).map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.tabBtn, tab === t && { backgroundColor: c.card }]}
-              onPress={() => setTab(t)}
-              activeOpacity={0.8}
-            >
-              {t === "fuel" ? (
-                <MaterialCommunityIcons name="gas-station" size={16} color={tab === t ? c.primary : c.mutedForeground} />
-              ) : (
-                <Ionicons name="restaurant" size={15} color={tab === t ? c.primary : c.mutedForeground} />
-              )}
-              <Text style={[styles.tabLabel, { color: tab === t ? c.primary : c.mutedForeground }, tab === t && { fontFamily: "Inter_600SemiBold" }]}>
-                {t === "fuel" ? "Fuel Stations" : "Restaurants"}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* ─── Category tabs ─── */}
+        <View style={[styles.tabStrip, { backgroundColor: c.muted }]}>
+          {TABS.map((t) => {
+            const active = activeTab === t.type;
+            return (
+              <TouchableOpacity
+                key={t.type}
+                style={[
+                  styles.tabBtn,
+                  active && { backgroundColor: c.card, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+                ]}
+                onPress={() => setActiveTab(t.type)}
+                activeOpacity={0.75}
+              >
+                <TabIcon tab={t} active={active} />
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    { color: active ? t.color : c.mutedForeground },
+                    active && { fontFamily: "Inter_600SemiBold" },
+                  ]}
+                >
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
-      {/* Map or loading */}
+      {/* ─── Content ─── */}
       {loading ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={c.primary} />
+          <ActivityIndicator size="large" color={tabMeta.color} />
           <Text style={[styles.loadingText, { color: c.mutedForeground }]}>
-            Finding nearby {tab === "fuel" ? "fuel stations" : "restaurants"}...
+            Finding nearby {tabMeta.label.toLowerCase()}s…
           </Text>
         </View>
+      ) : noOfflineData ? (
+        <View style={styles.emptyWrap}>
+          {tabMeta.ionIcon && (
+            <View style={[styles.emptyIcon, { backgroundColor: tabMeta.color + "18" }]}>
+              <Ionicons name={tabMeta.ionIcon} size={32} color={tabMeta.color} />
+            </View>
+          )}
+          <Text style={[styles.emptyTitle, { color: c.foreground }]}>
+            Location required
+          </Text>
+          <Text style={[styles.emptyBody, { color: c.mutedForeground }]}>
+            Enable location access to find {tabMeta.label.toLowerCase()}s near you using live OpenStreetMap data.
+          </Text>
+        </View>
+      ) : pois.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          {tabMeta.ionIcon ? (
+            <View style={[styles.emptyIcon, { backgroundColor: tabMeta.color + "18" }]}>
+              <Ionicons name={tabMeta.ionIcon} size={32} color={tabMeta.color} />
+            </View>
+          ) : tabMeta.matIcon ? (
+            <View style={[styles.emptyIcon, { backgroundColor: tabMeta.color + "18" }]}>
+              <MaterialCommunityIcons name={tabMeta.matIcon} size={32} color={tabMeta.color} />
+            </View>
+          ) : null}
+          <Text style={[styles.emptyTitle, { color: c.foreground }]}>
+            None found nearby
+          </Text>
+          <Text style={[styles.emptyBody, { color: c.mutedForeground }]}>
+            No {tabMeta.label.toLowerCase()}s found within 10 km of your location.
+          </Text>
+          <TouchableOpacity
+            style={[styles.retryBtn, { backgroundColor: tabMeta.color }]}
+            onPress={() => loadPOIs(activeTab, currentLat, currentLng)}
+          >
+            <Ionicons name="refresh-outline" size={16} color="#FFF" />
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
-        <BrowseMapView
-          pois={pois}
-          tab={tab}
-          userLat={currentLat}
-          userLng={currentLng}
-          onGo={handleGo}
+        <FlatList
+          data={pois}
+          keyExtractor={(p) => p.id}
+          renderItem={({ item }) => <POICard poi={item} distance={item.distance} />}
+          contentContainerStyle={{
+            paddingTop: 10,
+            // ← ensures last card sits above the tab bar — key fix for blocking issue
+            paddingBottom: bottomInset + tabBarHeight + 16,
+          }}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={null}
+          ListHeaderComponent={
+            error ? (
+              <View style={[styles.errorBanner, { backgroundColor: "#F57C0018" }]}>
+                <Ionicons name="cloud-offline-outline" size={14} color="#F57C00" />
+                <Text style={[styles.errorText, { color: "#F57C00" }]}>
+                  Showing cached results — connect to get live data
+                </Text>
+              </View>
+            ) : null
+          }
         />
       )}
     </View>
@@ -188,18 +321,46 @@ export default function BrowseScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 10 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  header: { paddingHorizontal: 16, paddingBottom: 12 },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  livePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  livePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   refreshBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  sub: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 8 },
-  tabRow: { flexDirection: "row", borderRadius: 12, padding: 4 },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10 },
-  tabLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  sub: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 10 },
+
+  tabStrip: {
+    flexDirection: "row",
+    borderRadius: 14,
+    padding: 4,
+    gap: 2,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  tabLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
   loadingText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+
+  emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 40 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  emptyBody: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
+  retryText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  errorBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 10,
+  },
+  errorText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
 });

@@ -1,4 +1,4 @@
-export type POIType = "fuel" | "food";
+export type POIType = "fuel" | "food" | "shopping" | "hospital";
 
 export interface POI {
   id: string;

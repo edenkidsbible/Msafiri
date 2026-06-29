@@ -46,7 +46,7 @@ export interface NavDestination {
   lat: number;
   lng: number;
   /** Set when the destination was chosen via the "Go" button on a POI card */
-  poiType?: "fuel" | "food";
+  poiType?: "fuel" | "food" | "shopping" | "hospital";
 }
 
 export interface RouteCoord { latitude: number; longitude: number }
@@ -431,7 +431,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const distText = distToDest >= 1000
           ? `${(distToDest / 1000).toFixed(1)} kilometres`
           : `${Math.round(distToDest / 50) * 50} metres`;
-        const typeWord = dest.poiType === "fuel" ? "fuel station" : "restaurant";
+        const typeWord =
+          dest.poiType === "fuel" ? "fuel station" :
+          dest.poiType === "shopping" ? "shopping centre" :
+          dest.poiType === "hospital" ? "hospital" : "restaurant";
         const shortName = dest.name.split(",")[0].trim();
         speakText(`${shortName} ${typeWord} is approximately ${distText} ahead. Prepare to turn.`);
       }

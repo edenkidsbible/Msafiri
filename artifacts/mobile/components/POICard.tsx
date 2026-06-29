@@ -7,7 +7,7 @@ import { useApp } from "@/context/AppContext";
 
 export interface POIItem {
   id: string;
-  type: "fuel" | "food";
+  type: "fuel" | "food" | "shopping" | "hospital";
   name: string;
   brand?: string;
   address?: string;
@@ -31,8 +31,29 @@ const BRAND_COLORS: Record<string, string> = {
   "Nairobi Java House": "#7B3F20",
 };
 
+const TYPE_META: Record<
+  POIItem["type"],
+  { defaultColor: string; label: string }
+> = {
+  fuel:     { defaultColor: "#2E7D32", label: "Fuel Station" },
+  food:     { defaultColor: "#BF360C", label: "Restaurant" },
+  shopping: { defaultColor: "#1565C0", label: "Shop" },
+  hospital: { defaultColor: "#C62828", label: "Hospital" },
+};
+
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+function POIIcon({ type, color }: { type: POIItem["type"]; color: string }) {
+  const sz = 22;
+  if (type === "fuel")
+    return <MaterialCommunityIcons name="gas-station" size={sz} color={color} />;
+  if (type === "shopping")
+    return <Ionicons name="storefront-outline" size={sz} color={color} />;
+  if (type === "hospital")
+    return <Ionicons name="medkit-outline" size={sz} color={color} />;
+  return <Ionicons name="restaurant-outline" size={sz} color={color} />;
 }
 
 export default function POICard({
@@ -45,9 +66,10 @@ export default function POICard({
   const c = useColors();
   const router = useRouter();
   const { setNavDestination } = useApp();
+
+  const meta = TYPE_META[poi.type];
   const brand = poi.brand ?? "";
-  const brandColor = BRAND_COLORS[brand] ?? c.primary;
-  const isFuel = poi.type === "fuel";
+  const accentColor = BRAND_COLORS[brand] ?? meta.defaultColor;
 
   const navigateInApp = () => {
     setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng, poiType: poi.type });
@@ -56,12 +78,8 @@ export default function POICard({
 
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-      <View style={[styles.icon, { backgroundColor: brandColor + "22" }]}>
-        {isFuel ? (
-          <MaterialCommunityIcons name="gas-station" size={22} color={brandColor} />
-        ) : (
-          <Ionicons name="restaurant-outline" size={22} color={brandColor} />
-        )}
+      <View style={[styles.icon, { backgroundColor: accentColor + "1E" }]}>
+        <POIIcon type={poi.type} color={accentColor} />
       </View>
 
       <View style={styles.info}>
@@ -88,15 +106,15 @@ export default function POICard({
 
       <View style={styles.rightCol}>
         {distance != null && (
-          <Text style={[styles.dist, { color: c.primary }]}>{distStr(distance)}</Text>
+          <Text style={[styles.dist, { color: accentColor }]}>{distStr(distance)}</Text>
         )}
         <TouchableOpacity
-          style={[styles.navBtn, { backgroundColor: c.primary }]}
+          style={[styles.navBtn, { backgroundColor: accentColor }]}
           onPress={navigateInApp}
           activeOpacity={0.8}
         >
-          <Ionicons name="navigate" size={13} color={c.primaryForeground} />
-          <Text style={[styles.navBtnText, { color: c.primaryForeground }]}>Go</Text>
+          <Ionicons name="navigate" size={13} color="#FFF" />
+          <Text style={styles.navBtnText}>Go</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -115,9 +133,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   icon: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -139,5 +157,5 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
-  navBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  navBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
 });

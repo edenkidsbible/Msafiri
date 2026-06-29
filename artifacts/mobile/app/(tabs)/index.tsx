@@ -19,6 +19,7 @@ import SpeedometerDial from "@/components/SpeedometerDial";
 import AlertBanner from "@/components/AlertBanner";
 import SOSButton from "@/components/SOSButton";
 import DriveMapView from "@/components/DriveMapView";
+import ReportModal from "@/components/ReportModal";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 
 function distStr(m: number): string {
@@ -79,6 +80,7 @@ export default function DriveScreen() {
     navigationActive, startNavigation, stopNavigation,
     currentStepIdx, distToNextM, zonesOnRoute,
     showTraffic, setShowTraffic,
+    addReport, currentLat, currentLng,
   } = useApp();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
@@ -90,6 +92,7 @@ export default function DriveScreen() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchError, setSearchError] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const overLimit = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
@@ -469,6 +472,53 @@ export default function DriveScreen() {
                 </TouchableOpacity>
               )}
 
+              {/* ─── Quick actions (Report + Traffic) ─── */}
+              {!hudMode && (
+                <View style={[styles.quickRow, { paddingHorizontal: 20 }]}>
+                  <TouchableOpacity
+                    style={[styles.quickBtn, { backgroundColor: c.card, borderColor: c.border }]}
+                    onPress={() => setShowReport(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.quickBtnIcon, { backgroundColor: "#E6510018" }]}>
+                      <Ionicons name="warning-outline" size={22} color="#E65100" />
+                    </View>
+                    <Text style={[styles.quickBtnLabel, { color: c.foreground }]}>Report{"\n"}Incident</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.quickBtn,
+                      {
+                        backgroundColor: showTraffic ? c.primary + "14" : c.card,
+                        borderColor: showTraffic ? c.primary : c.border,
+                      },
+                    ]}
+                    onPress={() => setShowTraffic(!showTraffic)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.quickBtnIcon, { backgroundColor: showTraffic ? c.primary + "22" : c.muted }]}>
+                      <Ionicons name="car-outline" size={22} color={showTraffic ? c.primary : c.mutedForeground} />
+                    </View>
+                    <Text style={[styles.quickBtnLabel, { color: showTraffic ? c.primary : c.foreground }]}>
+                      Traffic{"\n"}
+                      <Text style={{ fontSize: 10 }}>{showTraffic ? "On" : "Off"}</Text>
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.quickBtn, { backgroundColor: c.card, borderColor: c.border }]}
+                    onPress={() => setHudMode(!hudMode)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.quickBtnIcon, { backgroundColor: hudMode ? "#1565C022" : c.muted }]}>
+                      <Ionicons name="moon-outline" size={22} color={hudMode ? "#1565C0" : c.mutedForeground} />
+                    </View>
+                    <Text style={[styles.quickBtnLabel, { color: c.foreground }]}>Night{"\n"}Mode</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Nearby zones strip — Ionicons markers, no emoji */}
               {!hudMode && nearbyZones.length > 0 && (
                 <View style={styles.nearbySection}>
@@ -496,6 +546,18 @@ export default function DriveScreen() {
           )}
         </>
       )}
+
+      {/* Report incident modal */}
+      <ReportModal
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        onSubmit={(type) => {
+          if (currentLat !== null && currentLng !== null) {
+            addReport(type, currentLat, currentLng);
+          }
+          setShowReport(false);
+        }}
+      />
     </View>
   );
 }
@@ -656,6 +718,22 @@ const styles = StyleSheet.create({
   zoneLimit: { fontSize: 15, fontFamily: "Inter_700Bold" },
   zoneKmh: { fontSize: 10, fontFamily: "Inter_400Regular" },
   zoneDist: { fontSize: 11, fontFamily: "Inter_500Medium" },
+
+  /* Quick actions row (Report / Traffic / Night) */
+  quickRow: {
+    flexDirection: "row", gap: 10, marginTop: 12, marginBottom: 4,
+  },
+  quickBtn: {
+    flex: 1, alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 12, borderRadius: 16, borderWidth: 1,
+  },
+  quickBtnIcon: {
+    width: 42, height: 42, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  quickBtnLabel: {
+    fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "center", lineHeight: 16,
+  },
 
   /* SOS (normal mode only — floating) */
   sosWrap: { position: "absolute", right: 16 },
