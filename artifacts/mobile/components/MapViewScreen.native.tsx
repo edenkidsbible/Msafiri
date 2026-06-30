@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useCallback } from "react";
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -151,7 +151,18 @@ export default function MapViewScreen() {
   const [showReport, setShowReport] = useState(false);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
+  const suppressCloseRef = useRef(false);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
+
+  const openCluster = useCallback((group: ClusterGroup) => {
+    suppressCloseRef.current = true;
+    setSelectedCluster(group);
+    setTimeout(() => { suppressCloseRef.current = false; }, 450);
+  }, []);
+
+  const closeCluster = useCallback(() => {
+    if (!suppressCloseRef.current) setSelectedCluster(null);
+  }, []);
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
@@ -224,7 +235,7 @@ export default function MapViewScreen() {
             coordinate={{ latitude: group.lat, longitude: group.lng }}
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
-            onPress={() => setSelectedCluster(group)}
+            onPress={() => openCluster(group)}
           >
             <MapClusterMarker group={group} now={now} />
           </Marker>
@@ -336,11 +347,11 @@ export default function MapViewScreen() {
           visible
           transparent
           animationType="slide"
-          onRequestClose={() => setSelectedCluster(null)}
+          onRequestClose={closeCluster}
         >
           <TouchableOpacity
             style={styles.sheetBackdrop}
-            onPress={() => setSelectedCluster(null)}
+            onPress={closeCluster}
             activeOpacity={1}
           >
             <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: c.card }]}>
