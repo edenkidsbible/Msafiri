@@ -266,7 +266,7 @@ export default function MapViewScreen() {
             tracksViewChanges={false}
           >
             <MapClusterMarker group={group} now={now} />
-            <Callout tooltip={false}>
+            <Callout tooltip={true} style={calloutS.callout}>
               <CalloutContent group={group} />
             </Callout>
           </Marker>
@@ -436,12 +436,20 @@ const styles = StyleSheet.create({
 });
 
 const calloutS = StyleSheet.create({
-  wrap: { minWidth: 150, maxWidth: 240, paddingVertical: 4, paddingHorizontal: 2 },
+  callout: { backgroundColor: "transparent" },
+  wrap: {
+    minWidth: 170, maxWidth: 260,
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18, shadowRadius: 8, elevation: 8,
+  },
   title: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111", marginBottom: 2 },
   sub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#666" },
-  heading: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111", marginBottom: 6 },
-  row: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 4 },
+  heading: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111", marginBottom: 8 },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 6 },
   rowEmoji: { fontSize: 16, lineHeight: 20 },
-  rowLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111" },
-  rowAge: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#666" },
+  rowLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111" },
+  rowAge: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#666", marginTop: 1 },
 });
