@@ -55,6 +55,7 @@ export default function Reports() {
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
+  const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -87,6 +88,7 @@ export default function Reports() {
         toast({ title: "Incident Created", description: "New telemetry logged." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
         setIsAddOpen(false);
+        setPendingCoords(null);
         createForm.reset();
       },
       onError: () => {
@@ -152,6 +154,19 @@ export default function Reports() {
     setEditingReport(report);
   };
 
+  const handleMapClick = (lat: number, lng: number) => {
+    setPendingCoords({ lat, lng });
+    createForm.reset({
+      type: "hazard",
+      lat,
+      lng,
+      status: "active",
+      roadName: "",
+      speedLimit: 0,
+    });
+    setIsAddOpen(true);
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -182,7 +197,7 @@ export default function Reports() {
               </Button>
             </div>
 
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setPendingCoords(null); }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 font-mono uppercase tracking-wider">
                   <Plus className="h-4 w-4" /> Add Incident
@@ -302,15 +317,22 @@ export default function Reports() {
             </div>
           ) : (
             <>
-              {data && data.reports.length > 0 && (
-                <p className="text-xs text-muted-foreground font-mono -mb-2">
-                  Plotting {data.reports.length} of {data.total} incidents — use filters to narrow the view.
+              <div className="flex items-center justify-between -mb-2">
+                {data && data.reports.length > 0 && (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    Plotting {data.reports.length} of {data.total} incidents — use filters to narrow the view.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground font-mono ml-auto">
+                  Click anywhere on the map to log a new incident at that location.
                 </p>
-              )}
+              </div>
               <ReportsMap
                 reports={data?.reports ?? []}
                 onEdit={openEditDialog}
                 onDelete={(id) => setReportToDelete(id)}
+                onMapClick={handleMapClick}
+                pendingCoords={pendingCoords}
               />
             </>
           )

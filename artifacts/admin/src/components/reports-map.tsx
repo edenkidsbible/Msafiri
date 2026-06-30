@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, Marker, useMapEvents } from "react-leaflet";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,11 +45,22 @@ interface ReportsMapProps {
   reports: AdminReport[];
   onEdit: (report: AdminReport) => void;
   onDelete: (id: string) => void;
+  onMapClick?: (lat: number, lng: number) => void;
+  pendingCoords?: { lat: number; lng: number } | null;
 }
 
 const KENYA_CENTER: [number, number] = [-1.286389, 36.817223];
 
-export function ReportsMap({ reports, onEdit, onDelete }: ReportsMapProps) {
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoords }: ReportsMapProps) {
   const validReports = reports.filter(
     (r) => r.lat !== 0 || r.lng !== 0
   );
@@ -75,6 +86,17 @@ export function ReportsMap({ reports, onEdit, onDelete }: ReportsMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
           maxZoom={19}
         />
+        {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
+        {pendingCoords && (
+          <Marker position={[pendingCoords.lat, pendingCoords.lng]}>
+            <Popup>
+              <div className="text-xs font-mono text-center">
+                <div className="font-semibold mb-0.5">Selected Location</div>
+                <div>{pendingCoords.lat.toFixed(5)}, {pendingCoords.lng.toFixed(5)}</div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
         {validReports.map((report) => {
           const color = TYPE_MARKER_COLORS[report.type] ?? "#94a3b8";
           return (
@@ -87,6 +109,9 @@ export function ReportsMap({ reports, onEdit, onDelete }: ReportsMapProps) {
                 fillColor: color,
                 fillOpacity: 0.85,
                 weight: 2,
+              }}
+              eventHandlers={{
+                click: (e) => { e.originalEvent.stopPropagation(); },
               }}
             >
               <Popup className="leaflet-popup-dark">
