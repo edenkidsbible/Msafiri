@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription } from "@/lib/revenuecat";
@@ -71,6 +72,7 @@ function RootLayoutNav() {
   return (
     <View style={{ flex: 1 }}>
       <OfflineBanner />
+      <RouteIncidentsPanel />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: c.card },

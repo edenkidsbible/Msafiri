@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -15,6 +16,7 @@ import * as Speech from "expo-speech";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
+import { resolveIncidentType } from "@/constants/incidentTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +84,29 @@ export interface AppRoute {
   steps: RouteStep[];
 }
 
+/** A single hazard/checkpoint located along the active route — merges static
+ *  speed-camera/police zones with live community reports into one shape so
+ *  the UI can render them as a unified, sorted "what's ahead" list. */
+export interface RouteIncident {
+  id: string;
+  source: "static" | "report";
+  type: string;
+  label: string;
+  name: string;
+  road?: string;
+  description?: string;
+  speedLimit?: number;
+  lat: number;
+  lng: number;
+  /** Distance in metres from the start of the route to this incident. */
+  distanceAlongRouteM: number;
+  /** Distance in metres from the driver's current position to this incident
+   *  (clamped to 0). Only populated on items from `routeIncidentsAhead`. */
+  aheadDistanceM?: number;
+  confirmCount?: number;
+  timestamp?: number;
+}
+
 interface AppContextValue {
   locationGranted: boolean;
   requestLocationPermission: () => Promise<void>;
@@ -128,6 +153,9 @@ interface AppContextValue {
   showTraffic: boolean;
   setShowTraffic: (v: boolean) => void;
   zonesOnRoute: SpeedZone[];
+  routeIncidentsAhead: RouteIncident[];
+  routeIncidentsExpanded: boolean;
+  setRouteIncidentsExpanded: (v: boolean) => void;
   arrivedInfo: ArrivedInfo | null;
   clearArrival: () => void;
 }
@@ -217,6 +245,39 @@ function getZonesOnRoute(route: AppRoute, zones: SpeedZone[]): SpeedZone[] {
   );
 }
 
+const ROUTE_CORRIDOR_M = 250; // matches getZonesOnRoute's "on this route" threshold
+
+/** Cumulative distance (metres) from the route start to each coordinate. */
+function buildCumulativeDistances(coords: RouteCoord[]): number[] {
+  const dists = [0];
+  for (let i = 1; i < coords.length; i++) {
+    dists.push(
+      dists[i - 1] + haversine(coords[i - 1].latitude, coords[i - 1].longitude, coords[i].latitude, coords[i].longitude)
+    );
+  }
+  return dists;
+}
+
+/** Finds the closest point on the route polyline to (lat, lng) and returns
+ *  both its lateral distance off the route and how far along the route it is. */
+function projectOntoRoute(
+  coords: RouteCoord[],
+  cumDist: number[],
+  lat: number,
+  lng: number
+): { offRouteM: number; alongRouteM: number } | null {
+  let best: { offRouteM: number; alongRouteM: number } | null = null;
+  for (let i = 0; i < coords.length; i++) {
+    const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
+    if (!best || d < best.offRouteM) best = { offRouteM: d, alongRouteM: cumDist[i] };
+  }
+  return best;
+}
+
+function staticZoneLabel(type: SpeedZone["type"]): string {
+  return type === "camera" ? "Speed Camera" : type === "police" ? "Police Checkpoint" : "Speed Zone";
+}
+
 // Best TTS voice — populated once at startup via getAvailableVoicesAsync()
 let _bestVoiceId: string | undefined;
 
@@ -298,6 +359,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [routeLoading, setRouteLoading] = useState(false);
   const [showTraffic, setShowTrafficState] = useState(false);
   const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
+  const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
 
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const isOfflineRef = useRef(false);
@@ -738,6 +800,75 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationGranted]);
 
+  // ── Route incidents (unified static zones + community reports along the route) ─
+  const routeCumDist = useMemo(
+    () => (activeRoute ? buildCumulativeDistances(activeRoute.coords) : null),
+    [activeRoute]
+  );
+
+  const routeIncidents = useMemo<RouteIncident[]>(() => {
+    if (!activeRoute || !routeCumDist) return [];
+    const list: RouteIncident[] = [];
+    for (const z of SPEED_ZONES) {
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, z.lat, z.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        list.push({
+          id: `static-${z.id}`,
+          source: "static",
+          type: z.type,
+          label: staticZoneLabel(z.type),
+          name: z.name,
+          road: z.road,
+          description: z.description,
+          speedLimit: z.speedLimit,
+          lat: z.lat,
+          lng: z.lng,
+          distanceAlongRouteM: proj.alongRouteM,
+        });
+      }
+    }
+    for (const r of communityReports) {
+      if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, r.lat, r.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        const info = resolveIncidentType(r.type);
+        list.push({
+          id: `report-${r.id}`,
+          source: "report",
+          type: r.type,
+          label: info.label,
+          name: info.label,
+          road: r.roadName,
+          speedLimit: r.speedLimit,
+          lat: r.lat,
+          lng: r.lng,
+          distanceAlongRouteM: proj.alongRouteM,
+          confirmCount: r.confirmCount,
+          timestamp: r.timestamp,
+        });
+      }
+    }
+    return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
+  }, [activeRoute, routeCumDist, communityReports]);
+
+  const currentRouteDistanceM = useMemo(() => {
+    if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
+    const proj = projectOntoRoute(activeRoute.coords, routeCumDist, currentLat, currentLng);
+    return proj ? proj.alongRouteM : null;
+  }, [activeRoute, routeCumDist, currentLat, currentLng]);
+
+  const routeIncidentsAhead = useMemo(() => {
+    const withAhead = (list: RouteIncident[]) =>
+      list.map((inc) => ({
+        ...inc,
+        aheadDistanceM: Math.max(0, inc.distanceAlongRouteM - (currentRouteDistanceM ?? 0)),
+      }));
+    if (!navigationActive || currentRouteDistanceM == null) return withAhead(routeIncidents);
+    return withAhead(
+      routeIncidents.filter((inc) => inc.distanceAlongRouteM >= currentRouteDistanceM - 50)
+    );
+  }, [routeIncidents, navigationActive, currentRouteDistanceM]);
+
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
@@ -748,6 +879,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAltRoutes([]);
       setZonesOnRoute([]);
       routeRef.current = null;
+      setRouteIncidentsExpanded(false);
     }
     setNavigationActive(false);
     navActiveRef.current = false;
@@ -796,9 +928,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
     Speech.stop?.();
+    setRouteIncidentsExpanded(false);
   }, []);
 
-  const clearArrival = useCallback(() => { setArrivedInfo(null); }, []);
+  const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
 
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
@@ -940,6 +1073,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentStepIdx, distToNextM, routeLoading,
       showTraffic, setShowTraffic,
       zonesOnRoute,
+      routeIncidentsAhead, routeIncidentsExpanded, setRouteIncidentsExpanded,
       arrivedInfo, clearArrival,
     }}>
       {children}

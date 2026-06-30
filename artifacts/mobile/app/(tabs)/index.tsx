@@ -87,6 +87,7 @@ export default function DriveScreen() {
     activeRoute, altRoutes, selectRoute, routeLoading,
     navigationActive, startNavigation, stopNavigation,
     currentStepIdx, distToNextM, zonesOnRoute,
+    routeIncidentsAhead, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
     addReport, currentLat, currentLng,
     arrivedInfo, clearArrival,
@@ -471,15 +472,22 @@ export default function DriveScreen() {
                 {navDestination ? ` · ${navDestination.name.split(",")[0]}` : ""}
               </Text>
             </View>
-            {zonesOnRoute.length > 0 && (
-              <View style={[styles.zonesTag, { backgroundColor: "#E5393514" }]}>
+            {routeIncidentsAhead.length > 0 && (
+              <TouchableOpacity
+                style={[styles.zonesTag, { backgroundColor: "#E5393514" }]}
+                onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              >
                 <Ionicons name="warning" size={12} color="#E53935" />
                 <Text style={[styles.zonesTagTxt, { color: "#E53935" }]}>
-                  {zonesOnRoute.filter((z) => z.type === "camera").length} cam
+                  {routeIncidentsAhead.filter((i) => i.type === "camera").length} cam
                   {"  ·  "}
-                  {zonesOnRoute.filter((z) => z.type === "police").length} police
+                  {routeIncidentsAhead.filter((i) => i.type === "police").length} police
+                  {routeIncidentsAhead.some((i) => i.source === "report")
+                    ? `  ·  ${routeIncidentsAhead.filter((i) => i.source === "report").length} reports`
+                    : ""}
                 </Text>
-              </View>
+                <Ionicons name="chevron-down" size={12} color="#E53935" />
+              </TouchableOpacity>
             )}
           </View>
 
@@ -575,6 +583,18 @@ export default function DriveScreen() {
               {navDestination?.name.split(",")[0]}
             </Text>
           </View>
+
+          {routeIncidentsAhead.length > 0 && (
+            <TouchableOpacity
+              style={[styles.navAheadTag, { backgroundColor: hudMode ? "#00E67618" : "#E5393514" }]}
+              onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            >
+              <Ionicons name="warning" size={12} color={hudMode ? "#00E676" : "#E53935"} />
+              <Text style={[styles.navAheadTagTxt, { color: hudMode ? "#00E676" : "#E53935" }]}>
+                {routeIncidentsAhead.length} ahead
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <SOSButton compact />
 
@@ -825,6 +845,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
   },
   zonesTagTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  navAheadTag: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10,
+  },
+  navAheadTagTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   altPill:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18 },
   altPillTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
   firstStepRow: { flexDirection: "row", alignItems: "center", gap: 6 },

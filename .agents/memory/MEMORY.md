@@ -7,3 +7,5 @@
 - [RevenueCat proxy client](revenuecat-proxy-client.md) — createClient calls _fetch(Request); must check instanceof Request; proxy path needs /v2 prefix; OAuth token is project-scoped so cannot create projects.
 - [react-native-maps Marker tap closes immediately](rnmaps-marker-onpress-quirk.md) — Marker tap also fires MapView's onPress; never use MapView onPress to clear marker-driven state, use a backdrop or native Callout instead.
 - [Icon transparency via flood-fill](icon-transparency-flood-fill.md) — when bg-removal tool fails on edge-to-edge backgrounds, use ImageMagick multi-seed flood-fill; transparent PNGs can render as black in generic viewers (not a failure).
+- [Route incident "ahead" projection](route-incident-projection.md) — nearest-point + cumulative-distance projection onto route polyline for "what's ahead" lists; known limitation on looping routes, accepted trade-off.
+- [usePathname for tab detection](usepathname-tab-detection.md) — usePathname() resolves to "/" for the (tabs)/index screen on both Classic Tabs and iOS NativeTabs layouts; safe to gate global-overlay behavior on it.
