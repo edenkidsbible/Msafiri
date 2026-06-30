@@ -1,15 +1,15 @@
+import React from "react";
 import { Link } from "wouter";
 import { Navigation, ArrowLeft } from "lucide-react";
 
-interface LegalLayoutProps {
+interface PageLayoutProps {
   badge: string;
   title: string;
-  effectiveDate: string;
-  lastUpdated: string;
+  subtitle?: string;
   children: React.ReactNode;
 }
 
-export function LegalLayout({ badge, title, effectiveDate, lastUpdated, children }: LegalLayoutProps) {
+export function PageLayout({ badge, title, subtitle, children }: PageLayoutProps) {
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {/* Nav */}
@@ -30,9 +30,7 @@ export function LegalLayout({ badge, title, effectiveDate, lastUpdated, children
       <div className="py-16 px-6 text-center border-b border-border/20" style={{ background: "linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)" }}>
         <p className="text-xs font-semibold tracking-[0.2em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>{badge}</p>
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">{title}</h1>
-        <p className="text-muted-foreground text-sm">
-          Effective Date: {effectiveDate}&nbsp;&nbsp;|&nbsp;&nbsp;Last Updated: {lastUpdated}
-        </p>
+        {subtitle && <p className="text-muted-foreground text-base max-w-xl mx-auto leading-relaxed">{subtitle}</p>}
       </div>
 
       {/* Content */}

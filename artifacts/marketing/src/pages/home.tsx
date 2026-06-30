@@ -427,10 +427,11 @@ export default function Home() {
             <span className="font-bold text-xl tracking-tight">Msafiri</span>
           </div>
           
-          <div className="flex gap-8 text-sm text-muted-foreground font-medium">
+          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground font-medium">
+            <a href="/marketing/about" className="hover:text-foreground transition-colors">About</a>
+            <a href="/marketing/contact" className="hover:text-foreground transition-colors">Contact</a>
             <a href="/marketing/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
             <a href="/marketing/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
-            <a href="mailto:support@msafirikenya.com" className="hover:text-foreground transition-colors">Contact Support</a>
           </div>
 
           <div className="text-sm text-muted-foreground">
