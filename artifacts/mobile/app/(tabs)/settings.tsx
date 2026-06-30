@@ -16,6 +16,8 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
+import { useSubscription } from "@/lib/revenuecat";
+import { PaywallModal } from "@/components/PaywallModal";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -61,6 +63,9 @@ export default function SettingsScreen() {
     hudMode, setHudMode, sosContact, setSosContact, clearTripHistory,
     communityReports, deleteReport, updateReport,
   } = useApp();
+
+  const { isSubscribed } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const [name, setName] = useState(sosContact?.name ?? "");
   const [phone, setPhone] = useState(sosContact?.phone ?? "");
@@ -155,12 +160,39 @@ export default function SettingsScreen() {
   );
 
   return (
+    <>
     <ScrollView
       style={[styles.screen, { backgroundColor: c.background }]}
       contentContainerStyle={{ paddingBottom: bottomInset + 40, paddingTop: topInset + 12 }}
       showsVerticalScrollIndicator={false}
     >
       <Text style={[styles.pageTitle, { color: c.foreground }]}>Settings</Text>
+
+      {/* Pro subscription banner */}
+      {isSubscribed ? (
+        <View style={[styles.proBanner, { backgroundColor: "#E8F5E9", borderColor: "#A5D6A7" }]}>
+          <Ionicons name="shield-checkmark" size={20} color="#2E7D32" />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.proBannerTitle, { color: "#1B5E20" }]}>SafeDrive Pro</Text>
+            <Text style={[styles.proBannerSub, { color: "#388E3C" }]}>Your subscription is active</Text>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.proBanner, { backgroundColor: "#1B5E20" }]}
+          onPress={() => setShowPaywall(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="shield-checkmark-outline" size={20} color="#fff" />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.proBannerTitle, { color: "#fff" }]}>Upgrade to SafeDrive Pro</Text>
+            <Text style={[styles.proBannerSub, { color: "#A5D6A7" }]}>
+              From KES 150/week · 1-day free trial
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#A5D6A7" />
+        </TouchableOpacity>
+      )}
 
       {/* SOS Contact */}
       <View style={styles.section}>
@@ -385,6 +417,9 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+
+    <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
+    </>
   );
 }
 
@@ -526,4 +561,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   speedCancelTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  proBanner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 16, marginBottom: 20,
+    borderRadius: 18, paddingVertical: 16, paddingHorizontal: 18,
+    borderWidth: 1,
+  },
+  proBannerTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  proBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });

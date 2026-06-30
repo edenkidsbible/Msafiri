@@ -74,7 +74,7 @@ const PRODUCTS = [
 async function seedRevenueCat() {
   const client = await getUncachableRevenueCatClient();
 
-  let project: Project;
+  // The OAuth token is project-scoped — list available projects and use the first one.
   const { data: existingProjects, error: listProjectsError } = await listProjects({
     client,
     query: { limit: 20 },
@@ -82,20 +82,9 @@ async function seedRevenueCat() {
 
   if (listProjectsError) throw new Error("Failed to list projects");
 
-  const existingProject = existingProjects.items?.find((p) => p.name === PROJECT_NAME);
-
-  if (existingProject) {
-    console.log("Project already exists:", existingProject.id);
-    project = existingProject;
-  } else {
-    const { data: newProject, error: createProjectError } = await createProject({
-      client,
-      body: { name: PROJECT_NAME },
-    });
-    if (createProjectError) throw new Error("Failed to create project");
-    console.log("Created project:", newProject.id);
-    project = newProject;
-  }
+  const project: Project | undefined = existingProjects.items?.[0];
+  if (!project) throw new Error("No RevenueCat projects found for this account");
+  console.log("Using project:", project.name, "(id:", project.id + ")");
 
   const { data: apps, error: listAppsError } = await listApps({
     client,
