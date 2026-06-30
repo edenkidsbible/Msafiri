@@ -15,59 +15,205 @@ import { useSubscription } from "@/lib/revenuecat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 
+type Result = "success" | "restored" | "error" | null;
+
 const FEATURES = [
-  { icon: "speedometer",        label: "Real-time GPS speed display" },
-  { icon: "shield-checkmark",   label: "Speed camera & police alerts" },
-  { icon: "people",             label: "Community road reports" },
-  { icon: "mic",                label: "Voice announcements & haptic alerts" },
-  { icon: "alert-circle",       label: "SOS emergency button" },
-  { icon: "navigate",           label: "Turn-by-turn navigation" },
-  { icon: "time",               label: "Trip history & stats" },
-  { icon: "cloud-offline",      label: "Offline speed zone data" },
+  { icon: "speedometer",      label: "Real-time GPS speed display" },
+  { icon: "shield-checkmark", label: "Speed camera & police alerts" },
+  { icon: "people",           label: "Community road reports" },
+  { icon: "mic",              label: "Voice announcements & haptic alerts" },
+  { icon: "alert-circle",     label: "SOS emergency button" },
+  { icon: "navigate",         label: "Turn-by-turn navigation" },
+  { icon: "time",             label: "Trip history & stats" },
+  { icon: "cloud-offline",    label: "Offline speed zone data" },
 ];
 
 export default function PaywallScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { requestLocationPermission } = useApp();
-  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring, error } =
+  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
-
-  const currentOffering = offerings?.current;
-  const weeklyPkg = currentOffering?.availablePackages.find(
-    (p) => p.identifier === "$rc_weekly",
-  );
-  const monthlyPkg = currentOffering?.availablePackages.find(
-    (p) => p.identifier === "$rc_monthly",
-  );
-  const chosenPkg = selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
+  const [result, setResult] = useState<Result>(null);
+  const [activePlanLabel, setActivePlanLabel] = useState("");
+  const [activePlanPrice, setActivePlanPrice] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const topPad = Platform.OS === "web" ? 20 : insets.top + 8;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom + 16;
+
+  const currentOffering = offerings?.current;
+  const weeklyPkg  = currentOffering?.availablePackages.find((p) => p.identifier === "$rc_weekly");
+  const monthlyPkg = currentOffering?.availablePackages.find((p) => p.identifier === "$rc_monthly");
+  const chosenPkg  = selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
 
   async function handleSubscribe() {
     if (!chosenPkg) return;
     try {
       await purchase(chosenPkg);
-      await requestLocationPermission();
-      router.replace("/(tabs)");
+      setActivePlanLabel(selectedPkg === "$rc_weekly" ? "Weekly" : "Monthly");
+      setActivePlanPrice(chosenPkg.product.priceString);
+      setResult("success");
     } catch (e: any) {
-      // user cancelled — stay on screen
+      if (e?.userCancelled) return;
+      setErrorMessage(
+        e?.message && !e.message.includes("userCancelled")
+          ? e.message
+          : "The payment could not be completed. Please check your payment details and try again."
+      );
+      setResult("error");
     }
   }
 
   async function handleRestore() {
     try {
       await restore();
-      await requestLocationPermission();
-      router.replace("/(tabs)");
-    } catch {
-      // restore failed — stay on screen
+      setResult("restored");
+    } catch (e: any) {
+      setErrorMessage(
+        e?.message ?? "No active subscription was found for your account. If you believe this is an error, please contact support."
+      );
+      setResult("error");
     }
   }
 
+  async function handleEnterApp() {
+    await requestLocationPermission();
+    router.replace("/(tabs)");
+  }
+
+  // ── Success screen ──────────────────────────────────────────────────────────
+  if (result === "success") {
+    return (
+      <View style={[styles.root, styles.centred, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
+        <View style={[styles.resultBadge, { backgroundColor: "#E8F5E9" }]}>
+          <Ionicons name="checkmark-circle" size={56} color="#2E7D32" />
+        </View>
+        <Text style={[styles.resultTitle, { color: c.foreground }]}>You're all set!</Text>
+        <Text style={[styles.resultSub, { color: c.mutedForeground }]}>
+          Your <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>{activePlanLabel}</Text> subscription
+          is now active.
+        </Text>
+
+        <View style={[styles.planSummaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={styles.planSummaryRow}>
+            <Ionicons name="calendar-outline" size={18} color={c.mutedForeground} />
+            <Text style={[styles.planSummaryLabel, { color: c.mutedForeground }]}>Plan</Text>
+            <Text style={[styles.planSummaryValue, { color: c.foreground }]}>{activePlanLabel}</Text>
+          </View>
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+          <View style={styles.planSummaryRow}>
+            <Ionicons name="card-outline" size={18} color={c.mutedForeground} />
+            <Text style={[styles.planSummaryLabel, { color: c.mutedForeground }]}>Price</Text>
+            <Text style={[styles.planSummaryValue, { color: c.foreground }]}>
+              {activePlanPrice}/{activePlanLabel === "Weekly" ? "week" : "month"}
+            </Text>
+          </View>
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+          <View style={styles.planSummaryRow}>
+            <Ionicons name="refresh-circle-outline" size={18} color={c.mutedForeground} />
+            <Text style={[styles.planSummaryLabel, { color: c.mutedForeground }]}>Renewal</Text>
+            <Text style={[styles.planSummaryValue, { color: c.foreground }]}>Auto — cancel anytime</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.resultNote, { color: c.mutedForeground }]}>
+          Manage or cancel your subscription at any time via your App Store or Google Play account settings.
+        </Text>
+
+        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0 }]}>
+          <TouchableOpacity
+            style={[styles.ctaBtn, { backgroundColor: "#2E7D32" }]}
+            onPress={handleEnterApp}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaBtnTxt}>Start Driving</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Restored screen ─────────────────────────────────────────────────────────
+  if (result === "restored") {
+    return (
+      <View style={[styles.root, styles.centred, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
+        <View style={[styles.resultBadge, { backgroundColor: "#E3F2FD" }]}>
+          <Ionicons name="cloud-done" size={56} color="#1565C0" />
+        </View>
+        <Text style={[styles.resultTitle, { color: c.foreground }]}>Subscription Restored!</Text>
+        <Text style={[styles.resultSub, { color: c.mutedForeground }]}>
+          Your previous subscription has been successfully restored. You have full access to Msafiri.
+        </Text>
+
+        <View style={[styles.infoCard, { backgroundColor: c.card, borderColor: "#1565C020" }]}>
+          <Ionicons name="information-circle-outline" size={20} color="#1565C0" />
+          <Text style={[styles.infoText, { color: c.mutedForeground }]}>
+            Your subscription continues to be managed through your App Store or Google Play account. No additional charge was made.
+          </Text>
+        </View>
+
+        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0 }]}>
+          <TouchableOpacity
+            style={[styles.ctaBtn, { backgroundColor: "#1565C0" }]}
+            onPress={handleEnterApp}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaBtnTxt}>Start Driving</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Error screen ────────────────────────────────────────────────────────────
+  if (result === "error") {
+    return (
+      <View style={[styles.root, styles.centred, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
+        <View style={[styles.resultBadge, { backgroundColor: "#FFEBEE" }]}>
+          <Ionicons name="close-circle" size={56} color="#C62828" />
+        </View>
+        <Text style={[styles.resultTitle, { color: c.foreground }]}>Payment Unsuccessful</Text>
+        <Text style={[styles.resultSub, { color: c.mutedForeground }]}>
+          {errorMessage || "Something went wrong. Please check your payment details and try again."}
+        </Text>
+
+        <View style={[styles.infoCard, { backgroundColor: c.card, borderColor: "#C6282820" }]}>
+          <Ionicons name="help-circle-outline" size={20} color="#C62828" />
+          <Text style={[styles.infoText, { color: c.mutedForeground }]}>
+            If you were charged but can't access Msafiri, use "Restore Purchases" below or contact{" "}
+            <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>support@msafirikenya.com</Text>
+          </Text>
+        </View>
+
+        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0, gap: 10 }]}>
+          <TouchableOpacity
+            style={[styles.ctaBtn, { backgroundColor: c.primary }]}
+            onPress={() => { setResult(null); setErrorMessage(""); }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaBtnTxt}>Try Again</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={async () => { setResult(null); setErrorMessage(""); await handleRestore(); }}
+            disabled={isRestoring}
+            style={styles.restoreBtn}
+          >
+            <Text style={[styles.restoreTxt, { color: c.mutedForeground }]}>
+              {isRestoring ? "Restoring…" : "Restore purchases"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Main paywall ─────────────────────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: c.background, paddingTop: topPad }]}>
       {/* Logo header */}
@@ -120,7 +266,6 @@ export default function PaywallScreen() {
           <ActivityIndicator color={c.primary} style={{ marginVertical: 28 }} />
         ) : (
           <View style={styles.plans}>
-            {/* Monthly — shown first as recommended */}
             {monthlyPkg && (
               <TouchableOpacity
                 style={[
@@ -147,16 +292,13 @@ export default function PaywallScreen() {
                     <Text style={[styles.planNote, { color: c.primary }]}>Save 17% vs weekly</Text>
                   </View>
                   <View style={styles.priceWrap}>
-                    <Text style={[styles.price, { color: c.foreground }]}>
-                      {monthlyPkg.product.priceString}
-                    </Text>
+                    <Text style={[styles.price, { color: c.foreground }]}>{monthlyPkg.product.priceString}</Text>
                     <Text style={[styles.period, { color: c.mutedForeground }]}>/month</Text>
                   </View>
                 </View>
               </TouchableOpacity>
             )}
 
-            {/* Weekly */}
             {weeklyPkg && (
               <TouchableOpacity
                 style={[
@@ -180,19 +322,13 @@ export default function PaywallScreen() {
                     <Text style={[styles.planNote, { color: c.mutedForeground }]}>Flexible, cancel anytime</Text>
                   </View>
                   <View style={styles.priceWrap}>
-                    <Text style={[styles.price, { color: c.foreground }]}>
-                      {weeklyPkg.product.priceString}
-                    </Text>
+                    <Text style={[styles.price, { color: c.foreground }]}>{weeklyPkg.product.priceString}</Text>
                     <Text style={[styles.period, { color: c.mutedForeground }]}>/week</Text>
                   </View>
                 </View>
               </TouchableOpacity>
             )}
           </View>
-        )}
-
-        {error && (
-          <Text style={styles.errorText}>Something went wrong. Please try again.</Text>
         )}
 
         {/* Legal */}
@@ -236,13 +372,15 @@ export default function PaywallScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-
-  logoRow: {
-    flexDirection: "row",
+  centred: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
+    paddingHorizontal: 28,
+  },
+
+  logoRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 14,
   },
   logoText: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
 
@@ -283,8 +421,7 @@ const styles = StyleSheet.create({
   planCard: { borderRadius: 16, borderWidth: 2, padding: 16, overflow: "hidden" },
   bestBadge: {
     position: "absolute", top: 0, right: 0,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderBottomLeftRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 12,
   },
   bestText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
   planTop: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -299,10 +436,6 @@ const styles = StyleSheet.create({
   price: { fontSize: 20, fontFamily: "Inter_700Bold" },
   period: { fontSize: 12, fontFamily: "Inter_400Regular" },
 
-  errorText: {
-    color: "#E53935", fontSize: 13, fontFamily: "Inter_400Regular",
-    textAlign: "center", marginBottom: 8,
-  },
   legal: {
     fontSize: 11, fontFamily: "Inter_400Regular",
     textAlign: "center", lineHeight: 16, marginTop: 4,
@@ -312,8 +445,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24, paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth, gap: 12,
   },
-  ctaBtn: { borderRadius: 18, paddingVertical: 17, alignItems: "center" },
+  ctaBtn: {
+    borderRadius: 18, paddingVertical: 17,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+  },
   ctaBtnTxt: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   restoreBtn: { alignItems: "center", paddingBottom: 4 },
   restoreTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
+
+  // Result screens
+  resultBadge: {
+    width: 100, height: 100, borderRadius: 32,
+    alignItems: "center", justifyContent: "center", marginBottom: 24,
+  },
+  resultTitle: {
+    fontSize: 26, fontFamily: "Inter_700Bold",
+    textAlign: "center", marginBottom: 12,
+  },
+  resultSub: {
+    fontSize: 15, fontFamily: "Inter_400Regular",
+    textAlign: "center", lineHeight: 22, marginBottom: 28,
+  },
+  planSummaryCard: {
+    width: "100%", borderRadius: 16, borderWidth: 1,
+    paddingHorizontal: 20, paddingVertical: 4, marginBottom: 20,
+  },
+  planSummaryRow: {
+    flexDirection: "row", alignItems: "center",
+    gap: 10, paddingVertical: 14,
+  },
+  planSummaryLabel: { fontSize: 14, fontFamily: "Inter_400Regular", flex: 1 },
+  planSummaryValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  divider: { height: StyleSheet.hairlineWidth },
+  infoCard: {
+    width: "100%", flexDirection: "row", alignItems: "flex-start",
+    gap: 12, borderRadius: 14, borderWidth: 1,
+    padding: 16, marginBottom: 28,
+  },
+  infoText: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    lineHeight: 20, flex: 1,
+  },
+  resultNote: {
+    fontSize: 12, fontFamily: "Inter_400Regular",
+    textAlign: "center", lineHeight: 18,
+    marginBottom: 32, paddingHorizontal: 8,
+  },
 });
