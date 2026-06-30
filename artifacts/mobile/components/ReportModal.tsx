@@ -24,21 +24,21 @@ interface ReportModalProps {
 const TYPES: Array<{
   type: ReportType;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  emoji: string;
   color: string;
 }> = [
-  { type: "camera",    label: "Speed Camera",  icon: "camera",           color: "#E53935" },
-  { type: "police",    label: "Police Check",   icon: "shield-checkmark", color: "#1565C0" },
-  { type: "accident",  label: "Accident",       icon: "warning",          color: "#B71C1C" },
-  { type: "traffic",   label: "Traffic Jam",    icon: "git-network",      color: "#C62828" },
-  { type: "roadblock", label: "Roadblock",       icon: "construct",        color: "#7B1FA2" },
-  { type: "hazard",    label: "Hazard",          icon: "flash",            color: "#FF6F00" },
-  { type: "pothole",   label: "Pothole",         icon: "alert-circle",    color: "#F57C00" },
-  { type: "debris",    label: "Debris",          icon: "cube",             color: "#795548" },
-  { type: "breakdown", label: "Broken Down",     icon: "car",              color: "#FF8F00" },
-  { type: "weather",   label: "Bad Weather",     icon: "rainy",            color: "#37474F" },
-  { type: "closure",   label: "Road Closed",     icon: "hand-left",        color: "#880E4F" },
-  { type: "clear",     label: "Road Clear",      icon: "checkmark-circle", color: "#00C853" },
+  { type: "camera",    label: "Speed Camera",  emoji: "📷",  color: "#E53935" },
+  { type: "police",    label: "Police Check",   emoji: "🚔",  color: "#1565C0" },
+  { type: "accident",  label: "Accident",       emoji: "💥",  color: "#B71C1C" },
+  { type: "traffic",   label: "Traffic Jam",    emoji: "🚦",  color: "#C62828" },
+  { type: "roadblock", label: "Roadblock",      emoji: "🚧",  color: "#7B1FA2" },
+  { type: "hazard",    label: "Hazard",         emoji: "⚠️",  color: "#FF6F00" },
+  { type: "pothole",   label: "Pothole",        emoji: "🕳️",  color: "#F57C00" },
+  { type: "debris",    label: "Debris",         emoji: "🪨",  color: "#795548" },
+  { type: "breakdown", label: "Broken Down",    emoji: "🚗",  color: "#FF8F00" },
+  { type: "weather",   label: "Bad Weather",    emoji: "🌧️",  color: "#37474F" },
+  { type: "closure",   label: "Road Closed",    emoji: "🛑",  color: "#880E4F" },
+  { type: "clear",     label: "Road Clear",     emoji: "✅",  color: "#00C853" },
 ];
 
 export default function ReportModal({ visible, onClose, onSubmit }: ReportModalProps) {
@@ -98,7 +98,7 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
                   activeOpacity={0.75}
                 >
                   <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
-                    <Ionicons name={t.icon} size={18} color={t.color} />
+                    <Text style={styles.chipEmoji}>{t.emoji}</Text>
                   </View>
                   <Text
                     style={[
@@ -149,7 +149,7 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
               onPress={submit}
               disabled={!sel}
             >
-              {selItem && <Ionicons name={selItem.icon} size={16} color="#FFF" />}
+              {selItem && <Text style={styles.submitEmoji}>{selItem.emoji}</Text>}
               <Text style={[styles.submitTxt, { color: sel ? "#FFF" : c.mutedForeground }]}>
                 {selItem ? `Report ${selItem.label}` : "Select one above"}
               </Text>
@@ -191,6 +191,9 @@ const styles = StyleSheet.create({
   },
   speedInput: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center", minWidth: 52 },
   speedOptional: { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  chipEmoji: { fontSize: 17, lineHeight: 22 },
+  submitEmoji: { fontSize: 16, lineHeight: 20 },
 
   actions: { flexDirection: "row", gap: 12 },
   cancelBtn: { flex: 0.4, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center" },
