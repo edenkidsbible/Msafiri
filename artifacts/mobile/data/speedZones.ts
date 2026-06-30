@@ -132,4 +132,8 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz071", name: "Nyali Police Checkpoint (Mombasa)", road: "A7 Nyali", lat: -4.0523, lng: 39.6931, speedLimit: 50, type: "police", description: "Nyali Police Station — speed checks near Nyali Bridge. Limit: 50 km/h" },
   { id: "sz072", name: "Kericho Police Checkpoint", road: "A12 / Kericho Town", lat: -0.3676, lng: 35.2874, speedLimit: 50, type: "police", description: "Kericho Police Station — checkpoint at town entry on A12. Limit: 50 km/h" },
   { id: "sz073", name: "Naivasha Police Checkpoint", road: "A104 (Nakuru Road)", lat: -0.7741, lng: 36.4266, speedLimit: 50, type: "police", description: "Police post on Nakuru road near Naivasha — regular speed checks. Limit: 50 km/h" },
+
+  // --- Southern & Northern Bypass – additional points (NTSA city highway list) ---
+  { id: "sz074", name: "Southern Bypass – Ngong Road Interchange", road: "Southern Bypass", lat: -1.3633, lng: 36.7375, speedLimit: 80, type: "camera", description: "NTSA-monitored interchange where the Southern Bypass meets Ngong Road. Limit: 80 km/h" },
+  { id: "sz075", name: "Northern Bypass – Ruaka/Wangige Stretch", road: "Northern Bypass", lat: -1.2039, lng: 36.7806, speedLimit: 80, type: "camera", description: "NTSA-monitored stretch near Ruaka, on the Northern Bypass approach to Wangige. Limit: 80 km/h" },
 ];
