@@ -27,12 +27,18 @@ const TYPES: Array<{
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
 }> = [
-  { type: "camera",    label: "Speed Camera", icon: "camera",           color: "#E53935" },
-  { type: "police",    label: "Police Check",  icon: "shield-checkmark", color: "#1565C0" },
-  { type: "accident",  label: "Accident",      icon: "warning",          color: "#E53935" },
-  { type: "pothole",   label: "Pothole",        icon: "alert-circle",    color: "#F57C00" },
-  { type: "roadblock", label: "Roadblock",      icon: "close-circle",    color: "#7B1FA2" },
-  { type: "clear",     label: "Road Clear",     icon: "checkmark-circle",color: "#00C853" },
+  { type: "camera",    label: "Speed Camera",  icon: "camera",           color: "#E53935" },
+  { type: "police",    label: "Police Check",   icon: "shield-checkmark", color: "#1565C0" },
+  { type: "accident",  label: "Accident",       icon: "warning",          color: "#B71C1C" },
+  { type: "traffic",   label: "Traffic Jam",    icon: "git-network",      color: "#C62828" },
+  { type: "roadblock", label: "Roadblock",       icon: "construct",        color: "#7B1FA2" },
+  { type: "hazard",    label: "Hazard",          icon: "flash",            color: "#FF6F00" },
+  { type: "pothole",   label: "Pothole",         icon: "alert-circle",    color: "#F57C00" },
+  { type: "debris",    label: "Debris",          icon: "cube",             color: "#795548" },
+  { type: "breakdown", label: "Broken Down",     icon: "car",              color: "#FF8F00" },
+  { type: "weather",   label: "Bad Weather",     icon: "rainy",            color: "#37474F" },
+  { type: "closure",   label: "Road Closed",     icon: "hand-left",        color: "#880E4F" },
+  { type: "clear",     label: "Road Clear",      icon: "checkmark-circle", color: "#00C853" },
 ];
 
 export default function ReportModal({ visible, onClose, onSubmit }: ReportModalProps) {

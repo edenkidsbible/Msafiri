@@ -6,3 +6,27 @@ id = "SmMHysVrgaFz-Z722HdDx"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "muzvTFOdHuNeW-udV67yZ"
+uri = "file://artifacts/mobile/assets/images/onboarding1.png"
+type = "image"
+title = "kenyan driver speed camera app"
+
+[[generated]]
+id = "l8W_gLIuzpBDoIej9cRuV"
+uri = "file://artifacts/mobile/assets/images/onboarding2.png"
+type = "image"
+title = "kenyan woman driving speed display"
+
+[[generated]]
+id = "-TQloc5Ot9RydRKVtJmJy"
+uri = "file://artifacts/mobile/assets/images/onboarding3.png"
+type = "image"
+title = "kenyan drivers community sharing"
+
+[[generated]]
+id = "3kzLyDd6WLSW-GX2pqksY"
+uri = "file://artifacts/mobile/assets/images/onboarding4.png"
+type = "image"
+title = "kenyan man location phone nairobi"

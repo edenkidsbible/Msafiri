@@ -20,7 +20,7 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 
 export interface CommunityReport {
   id: string;
-  type: "camera" | "police" | "accident" | "pothole" | "roadblock" | "clear";
+  type: "camera" | "police" | "accident" | "pothole" | "roadblock" | "clear" | "hazard" | "closure" | "weather" | "debris" | "breakdown" | "traffic";
   lat: number;
   lng: number;
   timestamp: number;

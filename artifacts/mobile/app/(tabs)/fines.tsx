@@ -302,8 +302,23 @@ export default function FinesScreen() {
             ))}
           </View>
           <View style={[styles.infoNote, { backgroundColor: c.muted, marginTop: 0 }]}>
+            <Text style={{ color: c.mutedForeground, fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 6 }}>
+              Need Legal Help?
+            </Text>
+            <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
+              Law Society of Kenya (LSK)
+            </Text>
+            <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
+              📞 +254 20 3874481
+            </Text>
+            <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
+              📞 +254 709 155 000
+            </Text>
+            <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
+              ✉️  info@lsk.or.ke
+            </Text>
             <Text style={{ color: c.mutedForeground, fontSize: 13 }}>
-              For legal assistance, contact the Law Society of Kenya: +254 020 3874481
+              🌐 www.lsk.or.ke
             </Text>
           </View>
         </ScrollView>

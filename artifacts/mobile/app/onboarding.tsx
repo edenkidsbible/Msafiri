@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -21,28 +22,28 @@ const { width } = Dimensions.get("window");
 const SLIDES = [
   {
     id: "1",
-    icon: "shield-checkmark" as const,
+    image: require("@/assets/images/onboarding1.png"),
     title: "Drive Safer in Kenya",
     body: "SafeDrive Kenya warns you about speed cameras, police checkpoints, and speed zones before you reach them — so you're never caught by surprise.",
     color: "#00C853",
   },
   {
     id: "2",
-    icon: "speedometer" as const,
+    image: require("@/assets/images/onboarding2.png"),
     title: "Know Your Speed",
     body: "Your device's GPS shows your real-time speed in km/h. The app instantly alerts you when you're approaching a speed limit ahead.",
     color: "#1565C0",
   },
   {
     id: "3",
-    icon: "people" as const,
+    image: require("@/assets/images/onboarding3.png"),
     title: "Community Reports",
     body: "Drivers on the road report new cameras, police checks, accidents, and more in real time. You can contribute too — and help fellow drivers.",
     color: "#7B1FA2",
   },
   {
     id: "4",
-    icon: "location" as const,
+    image: require("@/assets/images/onboarding4.png"),
     title: "We Need Your Location",
     body: "To show your speed and detect nearby zones, we need access to your device's location. Your data stays on your device and is never shared.",
     color: "#F57C00",
@@ -93,14 +94,11 @@ export default function OnboardingScreen() {
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         renderItem={({ item }) => (
           <View style={[styles.slide, { width }]}>
-            <View
-              style={[
-                styles.iconCircle,
-                { backgroundColor: item.color + "18", marginTop: topInset + 60 },
-              ]}
-            >
-              <Ionicons name={item.icon} size={64} color={item.color} />
-            </View>
+            <Image
+              source={item.image}
+              style={[styles.slideImage, { marginTop: topInset + 24, borderColor: item.color + "44" }]}
+              resizeMode="cover"
+            />
             <Text style={[styles.slideTitle, { color: c.foreground }]}>{item.title}</Text>
             <Text style={[styles.slideBody, { color: c.mutedForeground }]}>{item.body}</Text>
           </View>
@@ -153,13 +151,12 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   slide: { alignItems: "center", paddingHorizontal: 36, paddingBottom: 20 },
-  iconCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 40,
+  slideImage: {
+    width: width * 0.78,
+    height: 260,
+    borderRadius: 24,
+    marginBottom: 28,
+    borderWidth: 2,
   },
   slideTitle: {
     fontSize: 26,

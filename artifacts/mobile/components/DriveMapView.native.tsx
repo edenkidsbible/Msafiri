@@ -52,10 +52,16 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
 const ICON_MAP: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
   camera:    { name: "camera",           bg: "#E53935" },
   police:    { name: "shield-checkmark", bg: "#1565C0" },
-  accident:  { name: "warning",          bg: "#E65100" },
+  accident:  { name: "warning",          bg: "#B71C1C" },
   pothole:   { name: "alert-circle",     bg: "#F57C00" },
-  roadblock: { name: "close-circle",     bg: "#7B1FA2" },
+  roadblock: { name: "construct",        bg: "#7B1FA2" },
   clear:     { name: "checkmark-circle", bg: "#00C853" },
+  traffic:   { name: "git-network",      bg: "#C62828" },
+  hazard:    { name: "flash",            bg: "#FF6F00" },
+  debris:    { name: "cube",             bg: "#795548" },
+  breakdown: { name: "car",             bg: "#FF8F00" },
+  weather:   { name: "rainy",            bg: "#37474F" },
+  closure:   { name: "hand-left",        bg: "#880E4F" },
 };
 
 function reportLabel(type: string): string {
@@ -63,7 +69,13 @@ function reportLabel(type: string): string {
        : type === "police"    ? "Police Checkpoint"
        : type === "accident"  ? "Accident"
        : type === "pothole"   ? "Pothole"
-       : type === "roadblock" ? "Road Block"
+       : type === "roadblock" ? "Roadblock"
+       : type === "traffic"   ? "Traffic Jam"
+       : type === "hazard"    ? "Hazard"
+       : type === "debris"    ? "Debris"
+       : type === "breakdown" ? "Broken Down"
+       : type === "weather"   ? "Bad Weather"
+       : type === "closure"   ? "Road Closed"
                               : "Road Clear";
 }
 
