@@ -39,7 +39,7 @@ export default function TermsScreen() {
       {/* 1 */}
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>1. Acknowledgement</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        {"This agreement is between you and Msafiri Kenya — "}<B>not</B>{" with Apple Inc. ("Apple") or Google LLC ("Google"). Msafiri Kenya, not Apple or Google, is solely responsible for the App and all content, functionality, and services provided through it."}
+        {"This agreement is between you and Msafiri Kenya — "}<B>not</B>{' with Apple Inc. ("Apple") or Google LLC ("Google"). Msafiri Kenya, not Apple or Google, is solely responsible for the App and all content, functionality, and services provided through it.'}
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Apple and Google are not parties to these Terms and have no obligation whatsoever to provide any
