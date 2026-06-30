@@ -4,6 +4,9 @@ export interface Fine {
   amount: number;
   section: string;
   points?: number;
+  note?: string;
+  isWarning?: boolean;
+  isCourt?: boolean;
 }
 
 export interface FineCategory {
@@ -18,16 +21,58 @@ export interface PaymentMethod {
   steps: string[];
 }
 
+export interface EnforcementStep {
+  icon: string;
+  title: string;
+  detail: string;
+}
+
 export const FINE_CATEGORIES: FineCategory[] = [
   {
     id: "speeding",
     title: "Speeding",
     fines: [
-      { id: "f001", offence: "Exceeding limit by 1–10 km/h", amount: 5000, section: "Traffic Act S.5", points: 3 },
-      { id: "f002", offence: "Exceeding limit by 11–20 km/h", amount: 10000, section: "Traffic Act S.5", points: 6 },
-      { id: "f003", offence: "Exceeding limit by 21–30 km/h", amount: 20000, section: "Traffic Act S.5", points: 9 },
-      { id: "f004", offence: "Exceeding limit by 31–50 km/h", amount: 30000, section: "Traffic Act S.5", points: 12 },
-      { id: "f005", offence: "Exceeding limit by more than 50 km/h", amount: 50000, section: "Traffic Act S.5", points: 15 },
+      {
+        id: "f001",
+        offence: "Exceeding limit by 1–5 km/h",
+        amount: 0,
+        section: "LN 161/2016 – Schedule",
+        points: 0,
+        isWarning: true,
+        note: "Officially logged against your TIMS/Aviator record. No payment required, but repeated warnings accumulate.",
+      },
+      {
+        id: "f002",
+        offence: "Exceeding limit by 6–10 km/h",
+        amount: 500,
+        section: "LN 161/2016 – Schedule",
+        points: 1,
+        note: "Instant fine. Pay within 7 days via eCitizen or M-Pesa.",
+      },
+      {
+        id: "f003",
+        offence: "Exceeding limit by 11–15 km/h",
+        amount: 3000,
+        section: "LN 161/2016 – Schedule",
+        points: 3,
+        note: "Instant fine. Pay within 7 days or dispute at Traffic Court.",
+      },
+      {
+        id: "f004",
+        offence: "Exceeding limit by 16–20 km/h",
+        amount: 10000,
+        section: "LN 161/2016 – Schedule",
+        points: 6,
+        note: "Instant fine. Pay within 7 days or dispute at Traffic Court.",
+      },
+      {
+        id: "f005",
+        offence: "Exceeding limit by 21 km/h or more",
+        amount: 0,
+        section: "Traffic Act – not a minor offence",
+        isCourt: true,
+        note: "Not classified as a minor offence. Mandatory court appearance required. Risk of licence suspension and vehicle impoundment.",
+      },
     ],
   },
   {
@@ -64,6 +109,29 @@ export const FINE_CATEGORIES: FineCategory[] = [
       { id: "f021", offence: "Obstruction of road or traffic", amount: 5000, section: "Traffic Act S.61" },
       { id: "f022", offence: "Defective brakes or lights", amount: 5000, section: "Traffic Act S.62" },
     ],
+  },
+];
+
+export const ENFORCEMENT_STEPS: EnforcementStep[] = [
+  {
+    icon: "camera-outline",
+    title: "Automated Detection",
+    detail: "Smart roadside cameras photograph your vehicle's number plate and record the exact speed violation.",
+  },
+  {
+    icon: "phone-portrait-outline",
+    title: "Digital Alert via TIMS",
+    detail: "NTSA matches the plate to the TIMS / Aviator registry and sends a Police Notification of Traffic Offence by SMS or email.",
+  },
+  {
+    icon: "checkmark-circle-outline",
+    title: "7-Day Resolution Window",
+    detail: "You have 7 days to either admit liability and pay electronically, or dispute the allegation to be heard in Traffic Court.",
+  },
+  {
+    icon: "alert-circle-outline",
+    title: "Demerit Points",
+    detail: "Unpaid or recurrent speeding offences accumulate demerit points on your licence, eventually triggering automatic suspension.",
   },
 ];
 
@@ -107,7 +175,7 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
 
 export const CONTEST_STEPS: string[] = [
   "Obtain a copy of the offence report from the issuing officer or NTSA",
-  "File a Notice of Intention to Contest within 14 days of receiving the fine",
+  "File a Notice of Intention to Contest within 7 days of receiving the fine",
   "Appear at the relevant Traffic Court on the date specified",
   "Present your defence with supporting evidence (dashcam footage, witnesses)",
   "The Traffic Magistrate will determine the outcome",

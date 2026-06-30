@@ -12,7 +12,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { FINE_CATEGORIES, PAYMENT_METHODS, CONTEST_STEPS, Fine } from "@/data/fines";
+import {
+  FINE_CATEGORIES,
+  PAYMENT_METHODS,
+  CONTEST_STEPS,
+  ENFORCEMENT_STEPS,
+  Fine,
+} from "@/data/fines";
 
 type Section = "fines" | "pay" | "contest";
 
@@ -43,7 +49,17 @@ export default function FinesScreen() {
       : currentCat.fines
     : [];
 
-  const formatKsh = (n: number) => `Ksh ${n.toLocaleString("en-KE")}`;
+  const formatAmount = (f: Fine): string => {
+    if (f.isWarning) return "Warning";
+    if (f.isCourt) return "Court";
+    return `Ksh ${f.amount.toLocaleString("en-KE")}`;
+  };
+
+  const amountColor = (f: Fine): string => {
+    if (f.isWarning) return "#F57C00";
+    if (f.isCourt) return "#6A1B9A";
+    return c.speedDanger;
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
@@ -51,7 +67,7 @@ export default function FinesScreen() {
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <Text style={[styles.title, { color: c.foreground }]}>NTSA Fines</Text>
         <Text style={[styles.sub, { color: c.mutedForeground }]}>
-          Kenya Traffic Act – fine schedule & payment
+          Minor Offences Rules (LN 161/2016) & Traffic Act
         </Text>
 
         {/* Section tabs */}
@@ -77,10 +93,10 @@ export default function FinesScreen() {
         </View>
       </View>
 
-      {/* Fines tab */}
+      {/* ── Fines tab ── */}
       {section === "fines" && (
         <>
-          {/* Category chips — compact 4-in-a-row */}
+          {/* Category chips */}
           <View style={styles.catRow}>
             {FINE_CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat.id] ?? { icon: "list-outline", color: c.primary };
@@ -144,25 +160,53 @@ export default function FinesScreen() {
             data={fines}
             keyExtractor={(f) => f.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 100 }}
+            ListHeaderComponent={
+              activeCat === "speeding" ? (
+                <View style={[styles.speedNote, { backgroundColor: "#E53935" + "12", borderColor: "#E53935" + "30" }]}>
+                  <Ionicons name="information-circle-outline" size={15} color="#E53935" />
+                  <Text style={[styles.speedNoteText, { color: "#E53935" }]}>
+                    NTSA graduated instant-fine system (LN 161/2016). Fines are issued automatically via camera and matched to your plate through TIMS.
+                  </Text>
+                </View>
+              ) : null
+            }
             ItemSeparatorComponent={() => (
               <View style={[styles.sep, { backgroundColor: c.border }]} />
             )}
             renderItem={({ item }) => (
-              <View style={[styles.fineRow, { backgroundColor: c.card }]}>
+              <View
+                style={[
+                  styles.fineRow,
+                  { backgroundColor: c.card },
+                  item.isCourt && { borderLeftWidth: 3, borderLeftColor: "#6A1B9A" },
+                  item.isWarning && { borderLeftWidth: 3, borderLeftColor: "#F57C00" },
+                ]}
+              >
                 <View style={styles.fineLeft}>
                   <Text style={[styles.offence, { color: c.foreground }]}>{item.offence}</Text>
                   <Text style={[styles.fineSection, { color: c.mutedForeground }]}>{item.section}</Text>
-                  {item.points != null && (
+                  {item.note != null && (
+                    <Text style={[styles.fineNote, { color: c.mutedForeground }]}>{item.note}</Text>
+                  )}
+                  {item.points != null && item.points > 0 && (
                     <View style={[styles.pointsBadge, { backgroundColor: c.speedDanger + "22" }]}>
                       <Text style={[styles.pointsText, { color: c.speedDanger }]}>
-                        {item.points} demerit pts
+                        {item.points} demerit {item.points === 1 ? "pt" : "pts"}
                       </Text>
                     </View>
                   )}
                 </View>
-                <Text style={[styles.amount, { color: c.speedDanger }]}>
-                  {formatKsh(item.amount)}
-                </Text>
+                <View style={[
+                  styles.amountBadge,
+                  {
+                    backgroundColor: amountColor(item) + "15",
+                    borderColor: amountColor(item) + "30",
+                  },
+                ]}>
+                  <Text style={[styles.amount, { color: amountColor(item) }]}>
+                    {formatAmount(item)}
+                  </Text>
+                </View>
               </View>
             )}
             ListEmptyComponent={
@@ -176,15 +220,32 @@ export default function FinesScreen() {
         </>
       )}
 
-      {/* How to Pay tab */}
+      {/* ── How to Pay tab ── */}
       {section === "pay" && (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 100 }}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.infoNote, { backgroundColor: c.muted, color: c.mutedForeground }]}>
-            Fines must be paid within 30 days to avoid additional penalties.
+          {/* How automated enforcement works */}
+          <Text style={[styles.sectionHeading, { color: c.foreground }]}>How It Works</Text>
+          {ENFORCEMENT_STEPS.map((step, i) => (
+            <View key={i} style={[styles.enforcementCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <View style={[styles.enforcementIcon, { backgroundColor: c.primary + "18" }]}>
+                <Ionicons name={step.icon as "camera-outline"} size={20} color={c.primary} />
+              </View>
+              <View style={styles.enforcementBody}>
+                <Text style={[styles.enforcementTitle, { color: c.foreground }]}>{step.title}</Text>
+                <Text style={[styles.enforcementDetail, { color: c.mutedForeground }]}>{step.detail}</Text>
+              </View>
+            </View>
+          ))}
+
+          <Text style={[styles.infoNote, { backgroundColor: c.muted, color: c.mutedForeground, marginTop: 8 }]}>
+            You have 7 days from receiving the NTSA notice to pay or dispute. Missing this window may result in additional penalties.
           </Text>
+
+          {/* Payment methods */}
+          <Text style={[styles.sectionHeading, { color: c.foreground, marginTop: 8 }]}>Payment Methods</Text>
           {PAYMENT_METHODS.map((m) => (
             <View key={m.name} style={[styles.payCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <TouchableOpacity
@@ -218,14 +279,14 @@ export default function FinesScreen() {
         </ScrollView>
       )}
 
-      {/* Contest tab */}
+      {/* ── Contest tab ── */}
       {section === "contest" && (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 100 }}
           showsVerticalScrollIndicator={false}
         >
           <Text style={[styles.infoNote, { backgroundColor: c.muted, color: c.mutedForeground }]}>
-            You have the right to contest any fine you believe was issued in error. You must file within 14 days.
+            You have the right to contest any fine you believe was issued in error. You must file within 7 days of receiving the NTSA notice.
           </Text>
           <View style={[styles.payCard, { backgroundColor: c.card, borderColor: c.border }]}>
             <Text style={[styles.payTitle, { color: c.foreground, marginBottom: 14 }]}>
@@ -287,6 +348,16 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   searchInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
+  speedNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10,
+  },
+  speedNoteText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   sep: { height: 1 },
   fineRow: {
     flexDirection: "row",
@@ -298,6 +369,7 @@ const styles = StyleSheet.create({
   fineLeft: { flex: 1 },
   offence: { fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
   fineSection: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  fineNote: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 3, lineHeight: 16, fontStyle: "italic" },
   pointsBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 7,
@@ -306,9 +378,44 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   pointsText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  amount: { fontSize: 14, fontFamily: "Inter_700Bold", minWidth: 84, textAlign: "right" },
+  amountBadge: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    marginTop: 2,
+    minWidth: 72,
+    alignItems: "center",
+  },
+  amount: { fontSize: 13, fontFamily: "Inter_700Bold", textAlign: "center" },
   empty: { alignItems: "center", paddingTop: 40 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  sectionHeading: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 10,
+  },
+  enforcementCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  enforcementIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  enforcementBody: { flex: 1 },
+  enforcementTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
+  enforcementDetail: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   infoNote: {
     borderRadius: 12,
     padding: 13,

@@ -35,12 +35,17 @@ function OfflineBanner() {
 }
 
 function RootLayoutNav() {
-  const { onboardingComplete, locationGranted, requestLocationPermission } = useApp();
+  const { hydrated, onboardingComplete, locationGranted, requestLocationPermission } = useApp();
   const c = useColors();
   const router = useRouter();
   const checked = useRef(false);
 
   useEffect(() => {
+    // Wait until AppContext has finished hydrating from AsyncStorage.
+    // Without this guard, onboardingComplete is still false on the first
+    // render tick, causing router.replace() to fire before the Stack
+    // navigator is ready — crashing expo-router on web.
+    if (!hydrated) return;
     if (checked.current) return;
     checked.current = true;
     if (!onboardingComplete) {
@@ -48,7 +53,7 @@ function RootLayoutNav() {
     } else if (!locationGranted) {
       requestLocationPermission();
     }
-  }, [onboardingComplete]);
+  }, [hydrated, onboardingComplete]);
 
   return (
     <View style={{ flex: 1 }}>

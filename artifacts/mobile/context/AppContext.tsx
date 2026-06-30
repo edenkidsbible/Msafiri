@@ -98,6 +98,7 @@ interface AppContextValue {
   currentTrip: Partial<TripData> | null;
   tripHistory: TripData[];
   clearTripHistory: () => void;
+  hydrated: boolean;
   onboardingComplete: boolean;
   completeOnboarding: () => void;
   isOffline: boolean;
@@ -269,6 +270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [communityReports, setCommunityReports] = useState<CommunityReport[]>([]);
   const [currentTrip, setCurrentTrip] = useState<Partial<TripData> | null>(null);
   const [tripHistory, setTripHistory] = useState<TripData[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   // Navigation
@@ -321,6 +323,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (hud) setHudModeState(JSON.parse(hud));
       if (sos) setSosContactState(JSON.parse(sos));
       setOnboardingComplete(onboarded === "true");
+      setHydrated(true);
       // Load or generate persistent device ID (used for deduplication on the server)
       const did = storedDeviceId ?? (genId() + genId());
       if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
@@ -839,7 +842,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sosContact, setSosContact,
       communityReports, addReport, confirmReport, denyReport, deleteReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
-      onboardingComplete, completeOnboarding,
+      hydrated, onboardingComplete, completeOnboarding,
       isOffline,
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
