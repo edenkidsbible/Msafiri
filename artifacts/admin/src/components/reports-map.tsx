@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2 } from "lucide-react";
 import type { AdminReport } from "@workspace/api-client-react";
+import { useTheme } from "@/components/ThemeProvider";
 import L from "leaflet";
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -61,6 +62,12 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
 }
 
 export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoords }: ReportsMapProps) {
+  const { resolvedTheme } = useTheme();
+  const tileUrl = resolvedTheme === "dark"
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+  const mapBg = resolvedTheme === "dark" ? "#0f172a" : "#e5e7eb";
+
   const validReports = reports.filter(
     (r) => r.lat !== 0 || r.lng !== 0
   );
@@ -78,11 +85,12 @@ export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoord
       <MapContainer
         center={center}
         zoom={validReports.length > 0 ? 10 : 7}
-        style={{ height: "100%", width: "100%", background: "#0f172a" }}
+        style={{ height: "100%", width: "100%", background: mapBg }}
         scrollWheelZoom={true}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          key={tileUrl}
+          url={tileUrl}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
           maxZoom={19}
         />

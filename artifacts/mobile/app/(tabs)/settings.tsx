@@ -62,6 +62,7 @@ export default function SettingsScreen() {
   const {
     hudMode, setHudMode, sosContact, setSosContact, clearTripHistory,
     communityReports, deleteReport, updateReport,
+    themeOverride, setThemeOverride,
   } = useApp();
 
   const { isSubscribed } = useSubscription();
@@ -170,27 +171,27 @@ export default function SettingsScreen() {
 
       {/* Pro subscription banner */}
       {isSubscribed ? (
-        <View style={[styles.proBanner, { backgroundColor: "#E8F5E9", borderColor: "#A5D6A7" }]}>
-          <Ionicons name="shield-checkmark" size={20} color="#2E7D32" />
+        <View style={[styles.proBanner, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
+          <Ionicons name="shield-checkmark" size={20} color={c.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.proBannerTitle, { color: "#1B5E20" }]}>Msafiri Pro</Text>
-            <Text style={[styles.proBannerSub, { color: "#388E3C" }]}>Your subscription is active</Text>
+            <Text style={[styles.proBannerTitle, { color: c.foreground }]}>Msafiri Pro</Text>
+            <Text style={[styles.proBannerSub, { color: c.mutedForeground }]}>Your subscription is active</Text>
           </View>
         </View>
       ) : (
         <TouchableOpacity
-          style={[styles.proBanner, { backgroundColor: "#1B5E20" }]}
+          style={[styles.proBanner, { backgroundColor: c.primary, borderColor: "transparent" }]}
           onPress={() => setShowPaywall(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="shield-checkmark-outline" size={20} color="#fff" />
+          <Ionicons name="shield-checkmark-outline" size={20} color={c.primaryForeground} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.proBannerTitle, { color: "#fff" }]}>Upgrade to Msafiri Pro</Text>
-            <Text style={[styles.proBannerSub, { color: "#A5D6A7" }]}>
+            <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Upgrade to Msafiri Pro</Text>
+            <Text style={[styles.proBannerSub, { color: c.primaryForeground + "CC" }]}>
               From KES 150/week · 1-day free trial
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#A5D6A7" />
+          <Ionicons name="chevron-forward" size={18} color={c.primaryForeground + "CC"} />
         </TouchableOpacity>
       )}
 
@@ -371,6 +372,47 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DISPLAY</Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          {/* Appearance */}
+          <View style={{ gap: 10 }}>
+            <Text style={[styles.toggleLabel, { color: c.foreground }]}>Appearance</Text>
+            <View style={styles.themeRow}>
+              {(["system", "light", "dark"] as const).map((opt) => {
+                const active = themeOverride === opt;
+                const label = opt === "system" ? "Auto" : opt === "light" ? "Light" : "Dark";
+                const icon  = opt === "system" ? "phone-portrait-outline" : opt === "light" ? "sunny-outline" : "moon-outline";
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.themeBtn,
+                      {
+                        backgroundColor: active ? c.primary : c.muted,
+                        borderColor: active ? c.primary : c.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      setThemeOverride(opt);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name={icon as any}
+                      size={16}
+                      color={active ? c.primaryForeground : c.mutedForeground}
+                    />
+                    <Text style={[styles.themeBtnText, { color: active ? c.primaryForeground : c.mutedForeground }]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
+
+          {/* HUD mode */}
           <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.toggleLabel, { color: c.foreground }]}>HUD / Night Mode</Text>
@@ -463,6 +505,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
+  themeRow: { flexDirection: "row", gap: 8 },
+  themeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  themeBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  dividerLine: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   toggleSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },

@@ -50,52 +50,49 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ── Light theme (default) ───────────────────────────────────────── */
 :root {
-  color-scheme: dark;
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  color-scheme: light dark;
+  --button-outline: rgba(0, 0, 0, .08);
+  --badge-outline: rgba(0, 0, 0, .04);
+  --opaque-button-border-intensity: -9;
+  --elevate-1: rgba(0, 0, 0, .03);
+  --elevate-2: rgba(0, 0, 0, .06);
 
-  --opaque-button-border-intensity: 9;
+  --background: 0 0% 100%;
+  --foreground: 240 10% 8%;
 
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --border: 240 10% 88%;
+  --input: 240 10% 88%;
+  --ring: 32 95% 48%;
 
-  /* Deep charcoal background */
-  --background: 240 10% 4%;
-  --foreground: 0 0% 98%;
+  --card: 240 10% 97%;
+  --card-foreground: 240 10% 8%;
+  --card-border: 240 10% 88%;
 
-  --border: 240 10% 12%;
-  --input: 240 10% 12%;
-  --ring: 32 95% 54%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 8%;
+  --popover-border: 240 10% 88%;
 
-  --card: 240 10% 6%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 10% 12%;
+  --primary: 32 95% 48%;
+  --primary-foreground: 0 0% 100%;
 
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 240 10% 12%;
+  --secondary: 240 10% 93%;
+  --secondary-foreground: 240 10% 15%;
 
-  /* Amber/Orange Primary */
-  --primary: 32 95% 54%;
-  --primary-foreground: 240 10% 4%;
-  
-  --secondary: 240 10% 12%;
-  --secondary-foreground: 0 0% 98%;
+  --muted: 240 10% 93%;
+  --muted-foreground: 240 5% 42%;
 
-  --muted: 240 10% 12%;
-  --muted-foreground: 240 5% 65%;
+  --accent: 32 95% 48%;
+  --accent-foreground: 0 0% 100%;
 
-  --accent: 32 95% 54%;
-  --accent-foreground: 240 10% 4%;
-
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: 0 84% 55%;
+  --destructive-foreground: 0 0% 100%;
 
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'Space Mono', monospace;
-  
+
   --radius: 0.75rem;
 
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -105,27 +102,42 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* ── Dark theme ──────────────────────────────────────────────────── */
 .dark {
-  /* Enforce dark mode variables everywhere */
+  color-scheme: dark;
+  --button-outline: rgba(255, 255, 255, .10);
+  --badge-outline: rgba(255, 255, 255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255, 255, 255, .04);
+  --elevate-2: rgba(255, 255, 255, .09);
+
   --background: 240 10% 4%;
   --foreground: 0 0% 98%;
+
   --border: 240 10% 12%;
   --input: 240 10% 12%;
   --ring: 32 95% 54%;
+
   --card: 240 10% 6%;
   --card-foreground: 0 0% 98%;
   --card-border: 240 10% 12%;
+
   --popover: 240 10% 6%;
   --popover-foreground: 0 0% 98%;
   --popover-border: 240 10% 12%;
+
   --primary: 32 95% 54%;
   --primary-foreground: 240 10% 4%;
+
   --secondary: 240 10% 12%;
   --secondary-foreground: 0 0% 98%;
+
   --muted: 240 10% 12%;
   --muted-foreground: 240 5% 65%;
+
   --accent: 32 95% 54%;
   --accent-foreground: 240 10% 4%;
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 98%;
 }
@@ -136,10 +148,7 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground selection:bg-primary/30;
-    /* Force dark mode */
-    color-scheme: dark;
   }
-  
   html {
     scroll-behavior: smooth;
   }

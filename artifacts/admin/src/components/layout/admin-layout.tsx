@@ -1,12 +1,14 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { ShieldAlert, LayoutDashboard, AlertTriangle, Users, LogOut } from "lucide-react";
+import { ShieldAlert, LayoutDashboard, AlertTriangle, Users, LogOut, Sun, Moon } from "lucide-react";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/components/ThemeProvider";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const user = getUser();
+  const { resolvedTheme, toggle } = useTheme();
 
   const handleLogout = () => {
     clearToken();
@@ -49,9 +51,20 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               <span className="text-sm font-medium truncate">{user?.name}</span>
               <span className="text-xs text-muted-foreground uppercase font-mono tracking-wider">{user?.role}</span>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggle}
+                className="text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </aside>

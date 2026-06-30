@@ -1,9 +1,12 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { ShieldAlert, Zap, Navigation, BellRing, Download, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useTheme } from "@/components/ThemeProvider";
 
 export default function Home() {
+  const { resolvedTheme, toggle } = useTheme();
+
   const fadeUp = {
     hidden: { opacity: 0, y: 30 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } }
@@ -21,7 +24,7 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground overflow-hidden selection:bg-primary/20">
       
       {/* Navbar */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-md border-b border-white/5">
+      <nav className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
@@ -29,11 +32,18 @@ export default function Home() {
             </div>
             <span className="font-bold text-lg tracking-tight">Msafiri</span>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Features</a>
             <a href="#pro" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Msafiri Pro</a>
             <a href="#faq" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">FAQ</a>
-            <button className="bg-white text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-white/90 transition-colors">
+            <button
+              onClick={toggle}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Toggle theme"
+            >
+              {resolvedTheme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button className="bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
               Get the App
             </button>
           </div>
@@ -46,7 +56,7 @@ export default function Home() {
           <img 
             src={`${import.meta.env.BASE_URL}images/hero-bg.png`} 
             alt="Cinematic night highway" 
-            className="w-full h-full object-cover opacity-40 mix-blend-screen"
+            className="w-full h-full object-cover opacity-30 dark:opacity-40 dark:mix-blend-screen"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
@@ -59,7 +69,7 @@ export default function Home() {
             variants={staggerContainer}
             className="max-w-xl"
           >
-            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-primary mb-6">
+            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono text-primary mb-6">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -68,7 +78,7 @@ export default function Home() {
             </motion.div>
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
               The road is unpredictable.<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-300">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">
                 You don't have to be.
               </span>
             </motion.h1>
@@ -76,17 +86,17 @@ export default function Home() {
               Msafiri keeps you ahead of speed cameras, police checkpoints, and speed zones on Kenyan roads. Quiet awareness, exactly when you need it.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4 mb-8">
-              <a href="#" className="flex items-center justify-center gap-3 bg-white text-black px-6 py-4 rounded-xl font-bold text-lg hover:bg-white/90 transition-all hover:scale-105 active:scale-95">
+              <a href="#" className="flex items-center justify-center gap-3 bg-foreground text-background px-6 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
                 <Apple className="w-6 h-6 fill-current" />
                 <div className="flex flex-col items-start leading-none">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-black/60">Download on the</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-background/60">Download on the</span>
                   <span>App Store</span>
                 </div>
               </a>
-              <a href="#" className="flex items-center justify-center gap-3 bg-white/10 border border-white/20 text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-white/20 transition-all hover:scale-105 active:scale-95">
+              <a href="#" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-6 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
                 <Play className="w-6 h-6 fill-current" />
                 <div className="flex flex-col items-start leading-none">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-white/60">Get it on</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Get it on</span>
                   <span>Google Play</span>
                 </div>
               </a>
@@ -113,7 +123,7 @@ export default function Home() {
       </section>
 
       {/* Social Proof / Stats */}
-      <section className="py-12 border-y border-white/5 bg-white/[0.02]">
+      <section className="py-12 border-y border-border bg-muted/20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
             {[
@@ -123,7 +133,7 @@ export default function Home() {
               { label: "App Store Rating", value: "4.9/5" }
             ].map((stat, i) => (
               <div key={i} className="text-center">
-                <div className="text-3xl md:text-4xl font-bold font-mono text-white mb-2">{stat.value}</div>
+                <div className="text-3xl md:text-4xl font-bold font-mono text-foreground mb-2">{stat.value}</div>
                 <div className="text-sm text-muted-foreground uppercase tracking-wider">{stat.label}</div>
               </div>
             ))}
@@ -189,7 +199,7 @@ export default function Home() {
                   hidden: { opacity: 0, y: 20 },
                   visible: { opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6 } }
                 }}
-                className="bg-white/5 border border-white/10 rounded-3xl p-8 hover:bg-white/[0.07] transition-colors"
+                className="bg-card border border-card-border rounded-3xl p-8 hover:border-primary/30 transition-colors"
               >
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
                   {feature.icon}
@@ -210,7 +220,7 @@ export default function Home() {
           <img 
             src={`${import.meta.env.BASE_URL}images/nairobi-night.png`} 
             alt="Nairobi Highway" 
-            className="w-full h-full object-cover opacity-30"
+            className="w-full h-full object-cover opacity-20 dark:opacity-30"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/50" />
         </div>
@@ -238,7 +248,7 @@ export default function Home() {
                 "Dark mode optimized for night driving",
                 "Low battery consumption"
               ].map((item, i) => (
-                <li key={i} className="flex items-center gap-3 text-lg font-medium text-white/90">
+                <li key={i} className="flex items-center gap-3 text-lg font-medium text-foreground">
                   <ShieldCheck className="w-5 h-5 text-primary" />
                   {item}
                 </li>
@@ -247,16 +257,16 @@ export default function Home() {
           </motion.div>
           
           <div className="relative flex justify-center md:justify-end">
-            <div className="aspect-[4/5] w-full max-w-sm rounded-3xl overflow-hidden border border-white/10 bg-zinc-900 relative shadow-2xl">
+            <div className="aspect-[4/5] w-full max-w-sm rounded-3xl overflow-hidden border border-border bg-zinc-900 relative shadow-2xl">
               <div className="absolute inset-0 flex items-center justify-center flex-col p-8 text-center bg-black/60 backdrop-blur-sm z-10">
                 <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6 animate-pulse">
                   <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center">
                     <ShieldAlert className="w-8 h-8 text-primary-foreground" />
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold mb-2">Camera Ahead</h3>
+                <h3 className="text-3xl font-bold text-white mb-2">Camera Ahead</h3>
                 <p className="text-xl font-mono text-primary">50 km/h Zone</p>
-                <p className="mt-4 text-muted-foreground">Waiyaki Way, 400m</p>
+                <p className="mt-4 text-white/60">Waiyaki Way, 400m</p>
               </div>
               <img 
                 src={`${import.meta.env.BASE_URL}images/hero-bg.png`} 
@@ -269,7 +279,7 @@ export default function Home() {
       </section>
 
       {/* Pricing / Pro */}
-      <section id="pro" className="py-24 px-6 bg-white/[0.02]">
+      <section id="pro" className="py-24 px-6 bg-muted/20">
         <div className="max-w-3xl mx-auto">
           <motion.div 
             initial="hidden"
@@ -289,7 +299,7 @@ export default function Home() {
             whileInView="visible"
             viewport={{ once: true }}
             variants={fadeUp}
-            className="bg-gradient-to-b from-white/10 to-white/5 border border-primary/30 rounded-[2rem] p-8 md:p-12 relative overflow-hidden"
+            className="bg-card border border-primary/30 rounded-[2rem] p-8 md:p-12 relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2" />
             
@@ -369,7 +379,7 @@ export default function Home() {
                 a: "We accept M-PESA directly through the app, as well as standard Apple App Store and Google Play subscriptions."
               }
             ].map((faq, i) => (
-              <AccordionItem key={i} value={`item-${i}`} className="border-b border-white/10">
+              <AccordionItem key={i} value={`item-${i}`} className="border-b border-border">
                 <AccordionTrigger className="text-left text-lg font-medium py-6 hover:text-primary transition-colors">
                   {faq.q}
                 </AccordionTrigger>
@@ -383,7 +393,7 @@ export default function Home() {
       </section>
 
       {/* CTA / Download */}
-      <section className="py-24 px-6 relative overflow-hidden border-t border-white/5">
+      <section className="py-24 px-6 relative overflow-hidden border-t border-border">
         <div className="absolute inset-0 bg-primary/5" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <h2 className="text-4xl md:text-6xl font-bold mb-6">Ready to drive smarter?</h2>
@@ -391,17 +401,17 @@ export default function Home() {
             Join over 50,000 drivers in Kenya who trust Msafiri every day. Download now and take back control of your journey.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <a href="#" className="flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/90 transition-all hover:scale-105 active:scale-95">
+            <a href="#" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
               <Apple className="w-6 h-6 fill-current" />
               <div className="flex flex-col items-start leading-none">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-black/60">Download on the</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-background/60">Download on the</span>
                 <span>App Store</span>
               </div>
             </a>
-            <a href="#" className="flex items-center justify-center gap-3 bg-white/10 border border-white/20 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/20 transition-all hover:scale-105 active:scale-95">
+            <a href="#" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-8 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
               <Play className="w-6 h-6 fill-current" />
               <div className="flex flex-col items-start leading-none">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-white/60">Get it on</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Get it on</span>
                 <span>Google Play</span>
               </div>
             </a>
@@ -410,7 +420,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 bg-background">
+      <footer className="py-12 px-6 bg-background border-t border-border">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
             <Navigation className="w-5 h-5 text-primary fill-current" />
@@ -418,9 +428,9 @@ export default function Home() {
           </div>
           
           <div className="flex gap-8 text-sm text-muted-foreground font-medium">
-            <a href="/marketing/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
-            <a href="/marketing/terms" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="mailto:support@msafirikenya.com" className="hover:text-white transition-colors">Contact Support</a>
+            <a href="/marketing/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
+            <a href="/marketing/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
+            <a href="mailto:support@msafirikenya.com" className="hover:text-foreground transition-colors">Contact Support</a>
           </div>
 
           <div className="text-sm text-muted-foreground">

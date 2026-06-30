@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Platform } from "react-native";
+import { Appearance, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -94,6 +94,8 @@ interface AppContextValue {
   dismissAlert: () => void;
   hudMode: boolean;
   setHudMode: (v: boolean) => void;
+  themeOverride: "system" | "light" | "dark";
+  setThemeOverride: (v: "system" | "light" | "dark") => void;
   sosContact: SOSContact | null;
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
@@ -138,6 +140,7 @@ const KEYS = {
   SOS: "sdk_sos",
   ONBOARDING: "sdk_onboarding",
   DEVICE_ID: "sdk_device_id",
+  THEME: "sdk_theme",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -276,6 +279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentSpeedLimit, setCurrentSpeedLimit] = useState<number | null>(null);
   const [nearbyZones, setNearbyZones] = useState<Array<SpeedZone & { distance: number }>>([]);
   const [hudMode, setHudModeState] = useState(false);
+  const [themeOverride, setThemeOverrideState] = useState<"system" | "light" | "dark">("system");
   const [sosContact, setSosContactState] = useState<SOSContact | null>(null);
   const [communityReports, setCommunityReports] = useState<CommunityReport[]>([]);
   const [currentTrip, setCurrentTrip] = useState<Partial<TripData> | null>(null);
@@ -320,13 +324,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
         AsyncStorage.getItem(KEYS.SOS),
         AsyncStorage.getItem(KEYS.ONBOARDING),
         AsyncStorage.getItem(KEYS.DEVICE_ID),
+        AsyncStorage.getItem(KEYS.THEME),
       ]);
       if (trips) setTripHistory(JSON.parse(trips));
       if (reports) {
@@ -335,6 +340,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (hud) setHudModeState(JSON.parse(hud));
       if (sos) setSosContactState(JSON.parse(sos));
+      if (storedTheme) {
+        const t = storedTheme as "system" | "light" | "dark";
+        setThemeOverrideState(t);
+        if (Platform.OS !== "web") {
+          Appearance.setColorScheme(t === "system" ? null : t);
+        }
+      }
       setOnboardingComplete(onboarded === "true");
       setHydrated(true);
       // Load or generate persistent device ID (used for deduplication on the server)
@@ -786,6 +798,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
+  const setThemeOverride = useCallback((v: "system" | "light" | "dark") => {
+    setThemeOverrideState(v);
+    AsyncStorage.setItem(KEYS.THEME, v);
+    if (Platform.OS !== "web") {
+      Appearance.setColorScheme(v === "system" ? null : v);
+    }
+  }, []);
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
   const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
     const localId = genId();
@@ -886,6 +905,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentLat, currentLng, currentSpeed,
       activeAlert, currentSpeedLimit, nearbyZones, dismissAlert,
       hudMode, setHudMode,
+      themeOverride, setThemeOverride,
       sosContact, setSosContact,
       communityReports, addReport, confirmReport, denyReport, deleteReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
