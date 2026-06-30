@@ -49,6 +49,21 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
   return clusters;
 }
 
+const EMOJI_MAP: Record<string, string> = {
+  camera:    "📷",
+  police:    "🚔",
+  accident:  "💥",
+  pothole:   "🕳️",
+  roadblock: "🚧",
+  clear:     "✅",
+  traffic:   "🚦",
+  hazard:    "⚠️",
+  debris:    "🪨",
+  breakdown: "🚗",
+  weather:   "🌧️",
+  closure:   "🛑",
+};
+
 const ICON_MAP: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
   camera:    { name: "camera",           bg: "#E53935" },
   police:    { name: "shield-checkmark", bg: "#1565C0" },
@@ -340,7 +355,7 @@ export default function DriveMapView() {
                       style={[ms.incidentRow, i > 0 && ms.incidentDivider]}
                     >
                       <View style={[ms.incidentIcon, { backgroundColor: m.bg + "22" }]}>
-                        <Ionicons name={m.name} size={18} color={m.bg} />
+                        <Text style={ms.incidentEmoji}>{EMOJI_MAP[r.type] ?? "📍"}</Text>
                       </View>
                       <View style={{ flex: 1, gap: 3 }}>
                         <View style={ms.incidentLabelRow}>
@@ -453,6 +468,7 @@ const ms = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12,
     alignItems: "center", justifyContent: "center", marginTop: 2,
   },
+  incidentEmoji: { fontSize: 20, lineHeight: 26 },
   incidentLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   incidentType: { fontSize: 15, fontWeight: "700", color: "#212121" },
   verifiedBadge: {

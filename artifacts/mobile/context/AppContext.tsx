@@ -481,11 +481,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else if (report.type === "pothole") {
         msg = `Warning! A pothole has been reported on the road ahead. Reduce speed and watch out.`;
       } else if (report.type === "roadblock") {
-        msg = `Road block reported ahead ${ageText}. Be prepared to stop or find an alternative route.`;
+        msg = `Roadblock reported ahead ${ageText}. Be prepared to stop or find an alternative route.`;
       } else if (report.type === "police") {
         msg = `Police checkpoint reported ahead ${ageText}. Please slow down and have your documents ready.`;
       } else if (report.type === "camera") {
         msg = `Speed camera reported by other drivers ahead. Please maintain a safe speed.`;
+      } else if (report.type === "traffic") {
+        msg = `Heavy traffic reported ahead ${ageText}. Expect delays and consider an alternative route.`;
+      } else if (report.type === "hazard") {
+        msg = `Road hazard reported ahead ${ageText}. Reduce speed and proceed with caution.`;
+      } else if (report.type === "debris") {
+        msg = `Debris on the road reported ${ageText} ahead. Slow down and watch out for objects on the road.`;
+      } else if (report.type === "breakdown") {
+        msg = `Broken down vehicle reported on the road ahead ${ageText}. Slow down and give way.`;
+      } else if (report.type === "weather") {
+        msg = `Bad weather conditions reported ahead ${ageText}. Reduce speed and drive carefully.`;
+      } else if (report.type === "closure") {
+        msg = `Road closed ahead ${ageText}. Please find an alternative route.`;
       }
       if (msg) speakText(msg);
     }
