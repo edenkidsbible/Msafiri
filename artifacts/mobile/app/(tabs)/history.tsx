@@ -45,7 +45,7 @@ export default function HistoryScreen() {
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity
-            onPress={() => router.navigate("/(tabs)/")}
+            onPress={() => router.back()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="chevron-back" size={26} color={c.foreground} />

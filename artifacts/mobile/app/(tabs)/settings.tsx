@@ -357,6 +357,18 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Trip History */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>TRIP HISTORY</Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, padding: 0, overflow: "hidden" }]}>
+          <Row
+            label="View Trip History"
+            icon="time-outline"
+            onPress={() => router.push("/(tabs)/history")}
+          />
+        </View>
+      </View>
+
       {/* Display */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DISPLAY</Text>
