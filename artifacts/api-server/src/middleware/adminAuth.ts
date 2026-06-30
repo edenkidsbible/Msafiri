@@ -1,7 +1,13 @@
 import { type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.ADMIN_JWT_SECRET ?? "fallback-dev-secret";
+function requireJwtSecret(): string {
+  const secret = process.env.ADMIN_JWT_SECRET;
+  if (!secret) {
+    throw new Error("ADMIN_JWT_SECRET environment variable is required but not set.");
+  }
+  return secret;
+}
 
 export interface AdminJwtPayload {
   id: string;
@@ -17,7 +23,7 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
   }
   const token = auth.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as AdminJwtPayload;
+    const payload = jwt.verify(token, requireJwtSecret()) as AdminJwtPayload;
     (req as any).adminUser = payload;
     next();
   } catch {
@@ -34,5 +40,5 @@ export function adminOnlyMiddleware(req: Request, res: Response, next: NextFunct
 }
 
 export function signAdminToken(payload: AdminJwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, requireJwtSecret(), { expiresIn: "7d" });
 }

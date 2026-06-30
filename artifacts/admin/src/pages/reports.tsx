@@ -218,6 +218,13 @@ export default function Reports() {
                   <FormField control={createForm.control} name="roadName" render={({ field }) => (
                     <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
                   )} />
+                  <FormField control={createForm.control} name="speedLimit" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Speed Limit (km/h)</FormLabel>
+                      <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   <DialogFooter className="pt-4">
                     <Button type="submit" disabled={createMutation.isPending} className="font-mono uppercase w-full">
                       {createMutation.isPending ? "Logging..." : "Log Incident"}
@@ -271,6 +278,7 @@ export default function Reports() {
                 <TableHead className="font-mono text-xs uppercase tracking-wider">Type</TableHead>
                 <TableHead className="font-mono text-xs uppercase tracking-wider">Location / Road</TableHead>
                 <TableHead className="font-mono text-xs uppercase tracking-wider">Status</TableHead>
+                <TableHead className="font-mono text-xs uppercase tracking-wider">Speed Limit</TableHead>
                 <TableHead className="font-mono text-xs uppercase tracking-wider">Confidence</TableHead>
                 <TableHead className="font-mono text-xs uppercase tracking-wider">Logged At</TableHead>
                 <TableHead className="font-mono text-xs uppercase tracking-wider text-right">Actions</TableHead>
@@ -279,13 +287,13 @@ export default function Reports() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                     Scanning grid for anomalies...
                   </TableCell>
                 </TableRow>
               ) : data?.reports.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
+                  <TableCell colSpan={7} className="h-32 text-center">
                     <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
                     <p className="text-muted-foreground">No telemetry found matching parameters.</p>
                   </TableCell>
@@ -313,6 +321,9 @@ export default function Reports() {
                       <Badge variant="outline" className={`capitalize font-mono text-xs ${STATUS_COLORS[report.status] || "bg-secondary"}`}>
                         {report.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm font-mono">
+                      {report.speedLimit != null ? `${report.speedLimit} km/h` : <span className="text-muted-foreground/50">—</span>}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 text-xs font-mono">
@@ -426,6 +437,13 @@ export default function Reports() {
               </div>
               <FormField control={editForm.control} name="roadName" render={({ field }) => (
                 <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
+              )} />
+              <FormField control={editForm.control} name="speedLimit" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Speed Limit (km/h)</FormLabel>
+                  <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <DialogFooter className="pt-4">
                 <Button type="submit" disabled={updateMutation.isPending} className="font-mono uppercase w-full">
