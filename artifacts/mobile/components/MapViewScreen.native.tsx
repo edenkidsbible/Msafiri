@@ -1,8 +1,8 @@
-import React, { useRef, useState, useMemo, useCallback } from "react";
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useRef, useState, useMemo } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import MapView, { Circle, Marker, Polyline } from "react-native-maps";
+import MapView, { Callout, Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
@@ -137,6 +137,47 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
   );
 }
 
+function CalloutContent({ group }: { group: ClusterGroup }) {
+  const now = Date.now();
+  const { members } = group;
+
+  const ageStr = (timestamp: number) => {
+    const ageMin = Math.round((now - timestamp) / 60000);
+    if (ageMin < 1) return "Just now";
+    if (ageMin < 60) return `${ageMin} min ago`;
+    return `${Math.floor(ageMin / 60)}h ago`;
+  };
+
+  if (members.length === 1) {
+    const r = members[0];
+    const def = resolveIncidentType(r.type);
+    return (
+      <View style={calloutS.wrap}>
+        <Text style={calloutS.title}>{def.emoji}  {def.label}</Text>
+        <Text style={calloutS.sub}>{ageStr(r.timestamp)}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={calloutS.wrap}>
+      <Text style={calloutS.heading}>{members.length} incidents nearby</Text>
+      {members.map((r) => {
+        const def = resolveIncidentType(r.type);
+        return (
+          <View key={r.id} style={calloutS.row}>
+            <Text style={calloutS.rowEmoji}>{def.emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={calloutS.rowLabel}>{def.label}</Text>
+              <Text style={calloutS.rowAge}>{ageStr(r.timestamp)}</Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -150,19 +191,7 @@ export default function MapViewScreen() {
 
   const [showReport, setShowReport] = useState(false);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
-  const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
-  const suppressCloseRef = useRef(false);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
-
-  const openCluster = useCallback((group: ClusterGroup) => {
-    suppressCloseRef.current = true;
-    setSelectedCluster(group);
-    setTimeout(() => { suppressCloseRef.current = false; }, 450);
-  }, []);
-
-  const closeCluster = useCallback(() => {
-    if (!suppressCloseRef.current) setSelectedCluster(null);
-  }, []);
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
@@ -228,16 +257,18 @@ export default function MapViewScreen() {
           );
         })}
 
-        {/* Community report clusters — tap to expand */}
+        {/* Community report clusters — tap to show callout */}
         {clusters.map((group, idx) => (
           <Marker
             key={`cluster-${idx}`}
             coordinate={{ latitude: group.lat, longitude: group.lng }}
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
-            onPress={() => openCluster(group)}
           >
             <MapClusterMarker group={group} now={now} />
+            <Callout tooltip={false}>
+              <CalloutContent group={group} />
+            </Callout>
           </Marker>
         ))}
 
@@ -341,62 +372,6 @@ export default function MapViewScreen() {
       )}
 
       <ReportModal visible={showReport} onClose={() => setShowReport(false)} onSubmit={handleReport} />
-
-      {selectedCluster && (
-        <Modal
-          visible
-          transparent
-          animationType="slide"
-          onRequestClose={closeCluster}
-        >
-          <TouchableOpacity
-            style={styles.sheetBackdrop}
-            onPress={closeCluster}
-            activeOpacity={1}
-          >
-            <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: c.card }]}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeaderRow}>
-                <Text style={[styles.sheetTitle, { color: c.foreground }]}>
-                  {selectedCluster.members.length === 1
-                    ? resolveIncidentType(selectedCluster.members[0].type).label
-                    : `${selectedCluster.members.length} incidents at this location`}
-                </Text>
-                <TouchableOpacity
-                  style={styles.sheetCloseBtn}
-                  onPress={() => setSelectedCluster(null)}
-                >
-                  <Ionicons name="close" size={18} color="#555" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
-                {selectedCluster.members.map((r, i) => {
-                  const def = resolveIncidentType(r.type);
-                  const ageMin = Math.round((now - r.timestamp) / 60000);
-                  const ageStr =
-                    ageMin < 1  ? "Just now" :
-                    ageMin < 60 ? `${ageMin} min ago` :
-                                  `${Math.floor(ageMin / 60)}h ago`;
-                  return (
-                    <View
-                      key={r.id}
-                      style={[styles.incidentRow, i > 0 && styles.incidentDivider, { borderTopColor: c.border }]}
-                    >
-                      <View style={[styles.incidentIconWrap, { backgroundColor: def.color + "22" }]}>
-                        <Text style={styles.incidentEmoji}>{def.emoji}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.incidentType, { color: c.foreground }]}>{def.label}</Text>
-                        <Text style={[styles.incidentMeta, { color: c.mutedForeground }]}>{ageStr}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
-      )}
     </View>
   );
 }
@@ -447,22 +422,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#00000020",
   },
   clusterBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#222" },
-  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingBottom: 32, shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 16,
-  },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#CCC", alignSelf: "center", marginTop: 12, marginBottom: 8 },
-  sheetHeaderRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 10 },
-  sheetTitle: { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1 },
-  sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F0F0F0" },
-  incidentRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
-  incidentDivider: { borderTopWidth: StyleSheet.hairlineWidth },
-  incidentIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  incidentEmoji: { fontSize: 18 },
-  incidentType: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
-  incidentMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
   legendToggleRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4, gap: 12, minWidth: 110,
@@ -474,4 +433,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14,
   },
   trafficLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+});
+
+const calloutS = StyleSheet.create({
+  wrap: { minWidth: 150, maxWidth: 240, paddingVertical: 4, paddingHorizontal: 2 },
+  title: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111", marginBottom: 2 },
+  sub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#666" },
+  heading: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111", marginBottom: 6 },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 4 },
+  rowEmoji: { fontSize: 16, lineHeight: 20 },
+  rowLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111" },
+  rowAge: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#666" },
 });
