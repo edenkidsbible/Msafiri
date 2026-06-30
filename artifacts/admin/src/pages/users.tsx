@@ -19,10 +19,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getUser } from "@/lib/auth";
 import type { AdminUser } from "@workspace/api-client-react";
 
-const userSchema = z.object({
+const createUserSchema = z.object({
   name: z.string().min(2, "Name is required"),
   email: z.string().email("Invalid email"),
-  password: z.string().min(6, "Password must be at least 6 characters").or(z.literal("")),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(["admin", "staff"]),
+});
+
+const editUserSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "Password must be at least 8 characters").or(z.literal("")),
   role: z.enum(["admin", "staff"]),
 });
 
@@ -78,8 +85,8 @@ export default function Users() {
     }
   });
 
-  const form = useForm<z.infer<typeof userSchema>>({
-    resolver: zodResolver(userSchema),
+  const form = useForm<z.infer<typeof createUserSchema>>({
+    resolver: zodResolver(createUserSchema),
     defaultValues: {
       name: "",
       email: "",
@@ -88,8 +95,8 @@ export default function Users() {
     },
   });
 
-  const editForm = useForm<z.infer<typeof userSchema>>({
-    resolver: zodResolver(userSchema),
+  const editForm = useForm<z.infer<typeof editUserSchema>>({
+    resolver: zodResolver(editUserSchema),
   });
 
   const handleDelete = () => {
@@ -98,11 +105,11 @@ export default function Users() {
     }
   };
 
-  const onSubmit = (values: z.infer<typeof userSchema>) => {
-    createMutation.mutate({ data: { ...values, password: values.password || "default123" } });
+  const onSubmit = (values: z.infer<typeof createUserSchema>) => {
+    createMutation.mutate({ data: values });
   };
 
-  const onEditSubmit = (values: z.infer<typeof userSchema>) => {
+  const onEditSubmit = (values: z.infer<typeof editUserSchema>) => {
     if (editingUser) {
       const dataToUpdate: any = { name: values.name, email: values.email, role: values.role };
       if (values.password) {

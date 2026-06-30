@@ -49,6 +49,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       mq.addEventListener("change", handler);
       return () => mq.removeEventListener("change", handler);
     }
+
+    return undefined;
   }, [theme]);
 
   const setTheme = (t: Theme) => {
