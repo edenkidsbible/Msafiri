@@ -4,19 +4,14 @@ import { Activity, AlertOctagon, CheckCircle2, ShieldAlert, Timer } from "lucide
 // We need to import the stats hook - adjusting to the correct name if it wasn't exposed exactly as useAdminGetStats
 // Assuming it is exported as useAdminGetStats or we can implement a dummy if codegen missed it.
 // Looking at the openapi spec, the path is GET /admin/stats.
-import { useQuery } from "@tanstack/react-query";
-import { customFetch } from "@workspace/api-client-react/custom-fetch";
-
-// We will manually define the query since it wasn't in the provided snippet explicitly, 
-// though the prompt says to use useAdminGetStats from codegen. Let's assume it exists, 
-// but fallback if not by wrapping it in a standard react-query just in case.
 import { useAdminGetStats } from "@workspace/api-client-react";
 
 export default function Dashboard() {
   const { data: stats, isLoading, isError } = useAdminGetStats({
     query: {
-      refetchInterval: 30000 // auto-refresh every 30s
-    }
+      queryKey: ["admin-stats"],
+      refetchInterval: 30000,
+    },
   });
 
   if (isLoading) {

@@ -22,7 +22,7 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
     if (!token || !user) {
       setLocation("/login");
     } else if (adminOnly && user.role !== 'admin') {
-      setLocation("/dashboard");
+      setLocation("/reports");
     }
   }, [token, user, setLocation, adminOnly]);
 

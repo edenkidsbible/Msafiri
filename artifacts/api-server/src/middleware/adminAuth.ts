@@ -16,10 +16,11 @@ export interface AdminJwtPayload {
   role: string;
 }
 
-export function adminAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+export function adminAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized" });
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
   const token = auth.slice(7);
   try {
@@ -27,14 +28,15 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
     (req as any).adminUser = payload;
     next();
   } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
+    res.status(401).json({ error: "Invalid or expired token" });
   }
 }
 
-export function adminOnlyMiddleware(req: Request, res: Response, next: NextFunction) {
+export function adminOnlyMiddleware(req: Request, res: Response, next: NextFunction): void {
   const user = (req as any).adminUser as AdminJwtPayload | undefined;
   if (!user || user.role !== "admin") {
-    return res.status(403).json({ error: "Forbidden — admin only" });
+    res.status(403).json({ error: "Forbidden — admin only" });
+    return;
   }
   next();
 }

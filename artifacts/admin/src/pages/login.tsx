@@ -4,7 +4,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAdminLogin } from "@workspace/api-client-react";
-import { setToken, getToken } from "@/lib/auth";
+import { setToken, getToken, getUser } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,8 @@ export default function Login() {
 
   useEffect(() => {
     if (token) {
-      setLocation("/dashboard");
+      const user = getUser();
+      setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
     }
   }, [token, setLocation]);
 
@@ -41,11 +42,12 @@ export default function Login() {
     mutation: {
       onSuccess: (data) => {
         setToken(data.token);
+        const user = getUser();
         toast({
           title: "Authenticated successfully",
           description: "Welcome back to the command center.",
         });
-        setLocation("/dashboard");
+        setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
       },
       onError: (error) => {
         toast({

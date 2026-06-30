@@ -16,7 +16,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import type { AdminReport } from "@workspace/api-client-react/generated/api.schemas";
+import type { AdminReport } from "@workspace/api-client-react";
 
 const TYPE_COLORS: Record<string, string> = {
   camera: "bg-blue-500/10 text-blue-500 border-blue-500/20",

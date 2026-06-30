@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { getUser } from "@/lib/auth";
-import type { AdminUser } from "@workspace/api-client-react/generated/api.schemas";
+import type { AdminUser } from "@workspace/api-client-react";
 
 const userSchema = z.object({
   name: z.string().min(2, "Name is required"),
