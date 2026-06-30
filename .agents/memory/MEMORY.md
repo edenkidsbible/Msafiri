@@ -5,3 +5,4 @@
 - [Expo Router web nav crash fix](expo-router-web-nav.md) — router.replace() before Stack mounts crashes on web; fix: add hydrated flag to AppContext, gate navigation on it
 - [NTSA Minor Offences fines](ntsa-fines.md) — LN 161/2016 real brackets: warning/500/3k/10k/court; 7-day pay window; 21+ km/h is court not fine
 - [RevenueCat proxy client](revenuecat-proxy-client.md) — createClient calls _fetch(Request); must check instanceof Request; proxy path needs /v2 prefix; OAuth token is project-scoped so cannot create projects.
+- [react-native-maps Marker tap closes immediately](rnmaps-marker-onpress-quirk.md) — Marker tap also fires MapView's onPress; never use MapView onPress to clear marker-driven state, use a backdrop or native Callout instead.

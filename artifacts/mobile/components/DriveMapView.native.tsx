@@ -54,39 +54,12 @@ function reportLabel(type: string): string {
   return resolveIncidentType(type).label;
 }
 
-// ─── Inline icon renderer (supports both Ionicons and MaterialCommunityIcons) ─
-
-function IncidentIcon({
-  type, size, color,
-}: {
-  type: string; size: number; color: string;
-}) {
-  const def = resolveIncidentType(type);
-  if (def.iconSet === "MaterialCommunityIcons") {
-    return (
-      <MaterialCommunityIcons
-        name={def.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
-        size={size}
-        color={color}
-      />
-    );
-  }
-  return (
-    <Ionicons
-      name={def.icon as React.ComponentProps<typeof Ionicons>["name"]}
-      size={size}
-      color={color}
-    />
-  );
-}
-
-// ─── Single-colour circle marker ──────────────────────────────────────────────
+// ─── Single-colour circle marker (used for speed zones, POIs, destination) ────
 
 function MarkerIcon({
-  type, bg, size = 32,
+  bg, size = 32,
   ioniconName, matIcon,
 }: {
-  type?: string;
   bg: string;
   size?: number;
   ioniconName?: React.ComponentProps<typeof Ionicons>["name"];
@@ -101,13 +74,11 @@ function MarkerIcon({
       shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
     }}>
-      {type
-        ? <IncidentIcon type={type} size={iconSize} color="#FFF" />
-        : matIcon
-          ? <MaterialCommunityIcons name={matIcon} size={iconSize} color="#FFF" />
-          : ioniconName
-            ? <Ionicons name={ioniconName} size={iconSize} color="#FFF" />
-            : null}
+      {matIcon
+        ? <MaterialCommunityIcons name={matIcon} size={iconSize} color="#FFF" />
+        : ioniconName
+          ? <Ionicons name={ioniconName} size={iconSize} color="#FFF" />
+          : null}
     </View>
   );
 }
@@ -121,11 +92,12 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
   if (members.length === 1) {
     const r = members[0];
     const def = resolveIncidentType(r.type);
-    const bg = def.color;
     const confirmed = r.status === "confirmed";
     return (
       <View style={{ opacity: faded ? 0.45 : 1 }}>
-        <MarkerIcon type={r.type} bg={confirmed ? "#B71C1C" : bg} size={confirmed ? 36 : 32} />
+        <View style={[ms.emojiMarker, { backgroundColor: confirmed ? "#B71C1C" : def.color }]}>
+          <Text style={ms.emojiMarkerText}>{def.emoji}</Text>
+        </View>
       </View>
     );
   }
@@ -137,10 +109,9 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
         <View style={ms.clusterGrid}>
           {icons.map((r) => {
             const def = resolveIncidentType(r.type);
-            const bg = def.color;
             return (
-              <View key={r.id} style={[ms.clusterCell, { backgroundColor: bg }]}>
-                <IncidentIcon type={r.type} size={9} color="#FFF" />
+              <View key={r.id} style={[ms.clusterCell, { backgroundColor: def.color }]}>
+                <Text style={ms.clusterEmoji}>{def.emoji}</Text>
               </View>
             );
           })}
@@ -220,7 +191,6 @@ export default function DriveMapView() {
         showsMyLocationButton={false}
         showsCompass
         showsTraffic={showTraffic}
-        onPress={() => setSelectedCluster(null)}
       >
         {/* Speed zone markers */}
         {SPEED_ZONES.map((z) => (
@@ -252,7 +222,7 @@ export default function DriveMapView() {
           <Marker
             key={`cluster-${idx}`}
             coordinate={{ latitude: group.lat, longitude: group.lng }}
-            anchor={{ x: 0.5, y: 1 }}
+            anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
             onPress={() => setSelectedCluster(group)}
           >
@@ -408,6 +378,16 @@ export default function DriveMapView() {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const ms = StyleSheet.create({
+  // ── Single emoji marker ─────────────────────────────────────────────────────
+  emojiMarker: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#FFF",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.28, shadowRadius: 4, elevation: 5,
+  },
+  emojiMarkerText: { fontSize: 18, lineHeight: 22 },
+
   // ── Cluster marker ──────────────────────────────────────────────────────────
   clusterWrap: {
     width: 52, height: 52,
@@ -426,6 +406,7 @@ const ms = StyleSheet.create({
     width: 14, height: 14, borderRadius: 4,
     alignItems: "center", justifyContent: "center",
   },
+  clusterEmoji: { fontSize: 9 },
   clusterBadge: {
     position: "absolute", top: -7, right: -7,
     minWidth: 20, height: 20, borderRadius: 10,
