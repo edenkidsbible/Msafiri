@@ -15,6 +15,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
+const TYPE_LABELS: Record<string, string> = {
+  camera:    "Speed Camera",
+  police:    "Police Checkpoint",
+  accident:  "Accident",
+  traffic:   "Traffic Jam",
+  roadblock: "Roadblock",
+  hazard:    "Hazard",
+  pothole:   "Pothole",
+  debris:    "Debris",
+  breakdown: "Broken Down",
+  weather:   "Bad Weather",
+  closure:   "Road Closed",
+  clear:     "Road Clear",
+};
+
+function resolveTypeLabel(type: string): string {
+  return TYPE_LABELS[type] ?? (type ? type.charAt(0).toUpperCase() + type.slice(1) : "Unknown");
+}
+
 // Palette kept in sync with mobile incidentTypes.ts
 const TYPE_MARKER_COLORS: Record<string, string> = {
   camera:    "#E53935",
@@ -29,6 +48,7 @@ const TYPE_MARKER_COLORS: Record<string, string> = {
   weather:   "#37474F",
   closure:   "#880E4F",
   clear:     "#00C853",
+  __unknown: "#546E7A",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -51,6 +71,7 @@ const TYPE_COLORS: Record<string, string> = {
   weather:   "bg-slate-600/10 text-slate-600 border-slate-600/20",
   closure:   "bg-pink-800/10 text-pink-800 border-pink-800/20",
   clear:     "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  __unknown: "bg-slate-500/10 text-slate-500 border-slate-500/20",
 };
 
 interface ReportsMapProps {
@@ -117,7 +138,7 @@ export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoord
           </Marker>
         )}
         {validReports.map((report) => {
-          const color = TYPE_MARKER_COLORS[report.type] ?? "#94a3b8";
+          const color = TYPE_MARKER_COLORS[report.type] ?? TYPE_MARKER_COLORS.__unknown;
           return (
             <CircleMarker
               key={report.id}
@@ -138,9 +159,9 @@ export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoord
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge
                       variant="outline"
-                      className={`capitalize text-xs ${TYPE_COLORS[report.type] ?? "bg-secondary text-secondary-foreground"}`}
+                      className={`text-xs ${TYPE_COLORS[report.type] ?? TYPE_COLORS.__unknown}`}
                     >
-                      {report.type}
+                      {resolveTypeLabel(report.type)}
                     </Badge>
                     <Badge
                       variant="outline"

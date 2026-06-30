@@ -13,7 +13,7 @@ import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import { POIS } from "@/data/pois";
-import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER } from "@/constants/incidentTypes";
+import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
@@ -51,7 +51,7 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
 }
 
 function reportLabel(type: string): string {
-  return INCIDENT_TYPES[type]?.label ?? "Incident";
+  return resolveIncidentType(type).label;
 }
 
 // ─── Inline icon renderer (supports both Ionicons and MaterialCommunityIcons) ─
@@ -61,8 +61,7 @@ function IncidentIcon({
 }: {
   type: string; size: number; color: string;
 }) {
-  const def = INCIDENT_TYPES[type];
-  if (!def) return <Ionicons name="alert-circle" size={size} color={color} />;
+  const def = resolveIncidentType(type);
   if (def.iconSet === "MaterialCommunityIcons") {
     return (
       <MaterialCommunityIcons
@@ -121,8 +120,8 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
   if (members.length === 1) {
     const r = members[0];
-    const def = INCIDENT_TYPES[r.type];
-    const bg = def?.color ?? "#888";
+    const def = resolveIncidentType(r.type);
+    const bg = def.color;
     const confirmed = r.status === "confirmed";
     return (
       <View style={{ opacity: faded ? 0.45 : 1 }}>
@@ -137,8 +136,8 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
       <View style={ms.clusterWrap}>
         <View style={ms.clusterGrid}>
           {icons.map((r) => {
-            const def = INCIDENT_TYPES[r.type];
-            const bg = def?.color ?? "#888";
+            const def = resolveIncidentType(r.type);
+            const bg = def.color;
             return (
               <View key={r.id} style={[ms.clusterCell, { backgroundColor: bg }]}>
                 <IncidentIcon type={r.type} size={9} color="#FFF" />
@@ -337,9 +336,9 @@ export default function DriveMapView() {
               {/* Incident list */}
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
                 {selectedCluster.members.map((r, i) => {
-                  const def = INCIDENT_TYPES[r.type];
-                  const bg = def?.color ?? "#888";
-                  const emoji = def?.emoji ?? "📍";
+                  const def = resolveIncidentType(r.type);
+                  const bg = def.color;
+                  const emoji = def.emoji;
                   const ageMin = Math.round((now - r.timestamp) / 60000);
                   const ageStr =
                     ageMin < 1  ? "Just now" :

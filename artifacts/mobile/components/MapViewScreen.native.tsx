@@ -7,7 +7,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import ReportModal from "@/components/ReportModal";
-import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER } from "@/constants/incidentTypes";
+import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import type { CommunityReport } from "@/context/AppContext";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
@@ -27,7 +27,7 @@ function MarkerIcon({
   matIcon?: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 }) {
   const iconSize = size * 0.52;
-  const def = type ? INCIDENT_TYPES[type] : undefined;
+  const def = type ? resolveIncidentType(type) : undefined;
   return (
     <View style={[styles.markerCircle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
       {def ? (
@@ -157,18 +157,17 @@ export default function MapViewScreen() {
         {/* Community reports */}
         {communityReports.map((r) => {
           const faded = now - r.timestamp > 7200000;
-          const def = INCIDENT_TYPES[r.type];
-          const bg = def?.color ?? "#888";
+          const def = resolveIncidentType(r.type);
           return (
             <Marker
               key={r.id}
               coordinate={{ latitude: r.lat, longitude: r.lng }}
               anchor={{ x: 0.5, y: 1 }}
               opacity={faded ? 0.4 : 1}
-              title={def?.label ?? r.type}
+              title={def.label}
               description={`${Math.round((now - r.timestamp) / 60000)} min ago`}
             >
-              <MarkerIcon type={r.type} bg={bg} size={30} />
+              <MarkerIcon type={r.type} bg={def.color} size={30} />
             </Marker>
           );
         })}
