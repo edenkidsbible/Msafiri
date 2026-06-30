@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import TripCard from "@/components/TripCard";
@@ -43,7 +44,13 @@ export default function HistoryScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: c.foreground }]}>Trip History</Text>
+          <TouchableOpacity
+            onPress={() => router.navigate("/(tabs)/")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={26} color={c.foreground} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: c.foreground, flex: 1, marginLeft: 4 }]}>Trip History</Text>
           {tripHistory.length > 0 && (
             <TouchableOpacity onPress={onClear}>
               <Ionicons name="trash-outline" size={20} color={c.mutedForeground} />

@@ -88,6 +88,10 @@ function RootLayoutNav() {
           name="paywall"
           options={{ headerShown: false, gestureEnabled: false }}
         />
+        <Stack.Screen name="about"   options={{ title: "About Msafiri" }} />
+        <Stack.Screen name="contact" options={{ title: "Contact Us" }} />
+        <Stack.Screen name="privacy" options={{ title: "Privacy Policy" }} />
+        <Stack.Screen name="terms"   options={{ title: "Terms of Service" }} />
       </Stack>
     </View>
   );

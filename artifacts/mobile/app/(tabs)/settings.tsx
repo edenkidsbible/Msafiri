@@ -11,13 +11,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { useSubscription } from "@/lib/revenuecat";
 import { PaywallModal } from "@/components/PaywallModal";
+import { resolveIncidentType } from "@/constants/incidentTypes";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -29,32 +31,6 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function reportLabel(type: CommunityReport["type"]): string {
-  return type === "camera"    ? "Speed Camera"
-       : type === "police"    ? "Police Checkpoint"
-       : type === "accident"  ? "Accident"
-       : type === "pothole"   ? "Pothole"
-       : type === "roadblock" ? "Road Block"
-                              : "Clear Road";
-}
-
-function reportIcon(type: CommunityReport["type"]): React.ComponentProps<typeof Ionicons>["name"] {
-  return type === "camera"    ? "camera"
-       : type === "police"    ? "shield-checkmark"
-       : type === "accident"  ? "warning"
-       : type === "pothole"   ? "alert-circle"
-       : type === "roadblock" ? "ban"
-                              : "checkmark-circle";
-}
-
-function reportIconColor(type: CommunityReport["type"]): string {
-  return type === "camera"    ? "#E53935"
-       : type === "police"    ? "#1565C0"
-       : type === "accident"  ? "#E65100"
-       : type === "pothole"   ? "#6A1B9A"
-       : type === "roadblock" ? "#BF360C"
-                              : "#2E7D32";
-}
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -119,7 +95,7 @@ export default function SettingsScreen() {
   const confirmDelete = (report: CommunityReport) => {
     Alert.alert(
       "Remove Report",
-      `Remove your ${reportLabel(report.type)} report? This cannot be undone.`,
+      `Remove your ${resolveIncidentType(report.type).label} report? This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -168,7 +144,15 @@ export default function SettingsScreen() {
       contentContainerStyle={{ paddingBottom: bottomInset + 40, paddingTop: topInset + 12 }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.pageTitle, { color: c.foreground }]}>Settings</Text>
+      <View style={styles.pageTitleRow}>
+        <TouchableOpacity
+          onPress={() => router.navigate("/(tabs)/")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-back" size={26} color={c.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.pageTitle, { color: c.foreground }]}>Settings</Text>
+      </View>
 
       {/* Pro subscription banner */}
       {isSubscribed ? (
@@ -259,7 +243,7 @@ export default function SettingsScreen() {
           ) : (
             ownReports.map((report, idx) => {
               const isProtected = (report.confirmCount ?? 1) >= 3;
-              const iconColor = reportIconColor(report.type);
+              const def = resolveIncidentType(report.type);
               const isEditing = editingId === report.id;
 
               return (
@@ -272,12 +256,16 @@ export default function SettingsScreen() {
                   ]}
                 >
                   {/* Main row */}
-                  <View style={[styles.reportIconWrap, { backgroundColor: iconColor + "18" }]}>
-                    <Ionicons name={reportIcon(report.type)} size={18} color={iconColor} />
+                  <View style={[styles.reportIconWrap, { backgroundColor: def.color + "18" }]}>
+                    {def.iconSet === "MaterialCommunityIcons" ? (
+                      <MaterialCommunityIcons name={def.icon as any} size={18} color={def.color} />
+                    ) : (
+                      <Ionicons name={def.icon as any} size={18} color={def.color} />
+                    )}
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.reportType, { color: c.foreground }]}>
-                      {reportLabel(report.type)}
+                      {def.label}
                       {report.speedLimit ? `  ·  ${report.speedLimit} km/h` : ""}
                     </Text>
                     <View style={styles.reportMeta}>
@@ -500,13 +488,11 @@ export default function SettingsScreen() {
       {/* About */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ABOUT</Text>
-        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.aboutApp, { color: c.foreground }]}>Msafiri</Text>
-          <Text style={[styles.aboutVersion, { color: c.mutedForeground }]}>Version 1.0.0</Text>
-          <Text style={[styles.aboutDesc, { color: c.mutedForeground }]}>
-            Real-time speed awareness for Kenyan roads. Data is for guidance only — always obey
-            all traffic signs and regulations.
-          </Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, padding: 0, overflow: "hidden" }]}>
+          <Row label="About Msafiri"    icon="information-circle-outline" onPress={() => router.push("/about")} />
+          <Row label="Contact Us"       icon="mail-outline"               onPress={() => router.push("/contact")} />
+          <Row label="Privacy Policy"   icon="shield-outline"             onPress={() => router.push("/privacy")} />
+          <Row label="Terms of Service" icon="document-text-outline"      onPress={() => router.push("/terms")} />
         </View>
       </View>
     </ScrollView>
@@ -518,7 +504,8 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  pageTitle: { fontSize: 28, fontFamily: "Inter_700Bold", paddingHorizontal: 20, marginBottom: 24 },
+  pageTitleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 24, gap: 4 },
+  pageTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
   section: { marginBottom: 24, paddingHorizontal: 16 },
   sectionTitle: {
     fontSize: 11,

@@ -123,9 +123,9 @@ export default function PaywallScreen() {
           Manage or cancel your subscription at any time via your App Store or Google Play account settings.
         </Text>
 
-        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0 }]}>
+        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0, paddingHorizontal: 0, alignSelf: "stretch" }]}>
           <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: "#2E7D32" }]}
+            style={[styles.ctaBtn, { backgroundColor: c.primary }]}
             onPress={handleEnterApp}
             activeOpacity={0.85}
           >
@@ -156,9 +156,9 @@ export default function PaywallScreen() {
           </Text>
         </View>
 
-        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0 }]}>
+        <View style={[styles.ctaWrap, { borderTopColor: "transparent", paddingBottom: 0, paddingHorizontal: 0, alignSelf: "stretch" }]}>
           <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: "#1565C0" }]}
+            style={[styles.ctaBtn, { backgroundColor: c.primary }]}
             onPress={handleEnterApp}
             activeOpacity={0.85}
           >

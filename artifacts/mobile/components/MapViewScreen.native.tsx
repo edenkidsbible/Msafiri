@@ -1,5 +1,5 @@
-import React, { useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useRef, useState, useMemo } from "react";
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
@@ -77,6 +77,66 @@ const LEGEND_ITEMS: Array<{
   { key: "zone", label: "Speed Zone", bg: "#E65100", iconSet: "static" as const, icon: "speedometer" },
 ];
 
+// ─── Cluster grouping ─────────────────────────────────────────────────────────
+
+type ClusterGroup = { members: CommunityReport[]; lat: number; lng: number };
+const CLUSTER_RADIUS = 0.003;
+
+function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
+  const used = new Set<string>();
+  const clusters: ClusterGroup[] = [];
+  for (const r of reports) {
+    if (used.has(r.id)) continue;
+    const group: ClusterGroup = { members: [r], lat: r.lat, lng: r.lng };
+    used.add(r.id);
+    for (const s of reports) {
+      if (used.has(s.id)) continue;
+      if (Math.abs(s.lat - r.lat) < CLUSTER_RADIUS && Math.abs(s.lng - r.lng) < CLUSTER_RADIUS) {
+        group.members.push(s);
+        used.add(s.id);
+      }
+    }
+    clusters.push(group);
+  }
+  return clusters;
+}
+
+function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
+  const { members } = group;
+  const faded = members.every((r) => now - r.timestamp > 7200000);
+
+  if (members.length === 1) {
+    const r = members[0];
+    const def = resolveIncidentType(r.type);
+    return (
+      <View style={{ opacity: faded ? 0.45 : 1 }}>
+        <MarkerIcon type={r.type} bg={def.color} size={30} />
+      </View>
+    );
+  }
+
+  const icons = members.slice(0, 4);
+  return (
+    <View style={{ opacity: faded ? 0.45 : 1 }}>
+      <View style={styles.clusterWrap}>
+        <View style={styles.clusterGrid}>
+          {icons.map((r) => {
+            const def = resolveIncidentType(r.type);
+            return (
+              <View key={r.id} style={[styles.clusterCell, { backgroundColor: def.color }]}>
+                <Text style={styles.clusterEmoji}>{def.emoji}</Text>
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.clusterBadge}>
+          <Text style={styles.clusterBadgeTxt}>{members.length}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -89,6 +149,9 @@ export default function MapViewScreen() {
   } = useApp();
 
   const [showReport, setShowReport] = useState(false);
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
+  const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
@@ -129,6 +192,7 @@ export default function MapViewScreen() {
         showsMyLocationButton={false}
         showsCompass
         showsTraffic={showTraffic}
+        onPress={() => setSelectedCluster(null)}
       >
         {/* Speed zone markers */}
         {SPEED_ZONES.map((z) => {
@@ -154,23 +218,18 @@ export default function MapViewScreen() {
           );
         })}
 
-        {/* Community reports */}
-        {communityReports.map((r) => {
-          const faded = now - r.timestamp > 7200000;
-          const def = resolveIncidentType(r.type);
-          return (
-            <Marker
-              key={r.id}
-              coordinate={{ latitude: r.lat, longitude: r.lng }}
-              anchor={{ x: 0.5, y: 1 }}
-              opacity={faded ? 0.4 : 1}
-              title={def.label}
-              description={`${Math.round((now - r.timestamp) / 60000)} min ago`}
-            >
-              <MarkerIcon type={r.type} bg={def.color} size={30} />
-            </Marker>
-          );
-        })}
+        {/* Community report clusters — tap to expand */}
+        {clusters.map((group, idx) => (
+          <Marker
+            key={`cluster-${idx}`}
+            coordinate={{ latitude: group.lat, longitude: group.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            onPress={() => setSelectedCluster(group)}
+          >
+            <MapClusterMarker group={group} now={now} />
+          </Marker>
+        ))}
 
         {/* Alternative routes */}
         {altRoutes.map((r) => (
@@ -194,35 +253,49 @@ export default function MapViewScreen() {
         )}
       </MapView>
 
-      {/* Legend — scrollable so it never overflows on small screens */}
+      {/* Legend — minimize/maximize */}
       <View style={[styles.legendWrap, { backgroundColor: c.card + "EE", top: insets.top + 12 }]}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          style={styles.legendScroll}
-          contentContainerStyle={styles.legendContent}
+        <TouchableOpacity
+          style={styles.legendToggleRow}
+          onPress={() => setLegendCollapsed((v) => !v)}
+          activeOpacity={0.7}
         >
-          {LEGEND_ITEMS.map((l) => (
-            <View key={l.key} style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: l.bg }]}>
-                {l.iconSet === "MaterialCommunityIcons" ? (
-                  <MaterialCommunityIcons
-                    name={l.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
-                    size={9}
-                    color="#FFF"
-                  />
-                ) : (
-                  <Ionicons
-                    name={l.icon as React.ComponentProps<typeof Ionicons>["name"]}
-                    size={9}
-                    color="#FFF"
-                  />
-                )}
+          <Text style={[styles.legendTitle, { color: c.foreground }]}>Map Guide</Text>
+          <Ionicons
+            name={legendCollapsed ? "chevron-down-outline" : "chevron-up-outline"}
+            size={13}
+            color={c.mutedForeground}
+          />
+        </TouchableOpacity>
+        {!legendCollapsed && (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            style={styles.legendScroll}
+            contentContainerStyle={styles.legendContent}
+          >
+            {LEGEND_ITEMS.map((l) => (
+              <View key={l.key} style={styles.legendRow}>
+                <View style={[styles.legendDot, { backgroundColor: l.bg }]}>
+                  {l.iconSet === "MaterialCommunityIcons" ? (
+                    <MaterialCommunityIcons
+                      name={l.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
+                      size={9}
+                      color="#FFF"
+                    />
+                  ) : (
+                    <Ionicons
+                      name={l.icon as React.ComponentProps<typeof Ionicons>["name"]}
+                      size={9}
+                      color="#FFF"
+                    />
+                  )}
+                </View>
+                <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
               </View>
-              <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
-            </View>
-          ))}
-        </ScrollView>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {/* Right controls */}
@@ -258,6 +331,62 @@ export default function MapViewScreen() {
       )}
 
       <ReportModal visible={showReport} onClose={() => setShowReport(false)} onSubmit={handleReport} />
+
+      {selectedCluster && (
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedCluster(null)}
+        >
+          <TouchableOpacity
+            style={styles.sheetBackdrop}
+            onPress={() => setSelectedCluster(null)}
+            activeOpacity={1}
+          >
+            <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: c.card }]}>
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetHeaderRow}>
+                <Text style={[styles.sheetTitle, { color: c.foreground }]}>
+                  {selectedCluster.members.length === 1
+                    ? resolveIncidentType(selectedCluster.members[0].type).label
+                    : `${selectedCluster.members.length} incidents at this location`}
+                </Text>
+                <TouchableOpacity
+                  style={styles.sheetCloseBtn}
+                  onPress={() => setSelectedCluster(null)}
+                >
+                  <Ionicons name="close" size={18} color="#555" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
+                {selectedCluster.members.map((r, i) => {
+                  const def = resolveIncidentType(r.type);
+                  const ageMin = Math.round((now - r.timestamp) / 60000);
+                  const ageStr =
+                    ageMin < 1  ? "Just now" :
+                    ageMin < 60 ? `${ageMin} min ago` :
+                                  `${Math.floor(ageMin / 60)}h ago`;
+                  return (
+                    <View
+                      key={r.id}
+                      style={[styles.incidentRow, i > 0 && styles.incidentDivider, { borderTopColor: c.border }]}
+                    >
+                      <View style={[styles.incidentIconWrap, { backgroundColor: def.color + "22" }]}>
+                        <Text style={styles.incidentEmoji}>{def.emoji}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.incidentType, { color: c.foreground }]}>{def.label}</Text>
+                        <Text style={[styles.incidentMeta, { color: c.mutedForeground }]}>{ageStr}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -297,6 +426,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
   },
   reportBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  clusterWrap: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  clusterGrid: { width: 36, height: 36, flexWrap: "wrap", flexDirection: "row", gap: 2, borderRadius: 10, overflow: "hidden" },
+  clusterCell: { width: 16, height: 16, alignItems: "center", justifyContent: "center", borderRadius: 4 },
+  clusterEmoji: { fontSize: 9 },
+  clusterBadge: {
+    position: "absolute", bottom: 0, right: 0,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: "#FFF", alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#00000020",
+  },
+  clusterBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#222" },
+  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingBottom: 32, shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 16,
+  },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#CCC", alignSelf: "center", marginTop: 12, marginBottom: 8 },
+  sheetHeaderRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 10 },
+  sheetTitle: { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1 },
+  sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F0F0F0" },
+  incidentRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
+  incidentDivider: { borderTopWidth: StyleSheet.hairlineWidth },
+  incidentIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  incidentEmoji: { fontSize: 18 },
+  incidentType: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  incidentMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  legendToggleRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4, gap: 12, minWidth: 110,
+  },
+  legendTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   trafficBadge: {
     position: "absolute", right: 12,
     flexDirection: "row", alignItems: "center", gap: 4,
