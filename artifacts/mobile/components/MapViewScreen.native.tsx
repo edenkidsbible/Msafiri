@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
@@ -7,52 +7,74 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import ReportModal from "@/components/ReportModal";
+import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER } from "@/constants/incidentTypes";
+import type { CommunityReport } from "@/context/AppContext";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 
-// Colored circle icon marker — Ionicons-based, works on all Android versions
+// Colored circle icon marker — supports Ionicons and MaterialCommunityIcons
 function MarkerIcon({
-  name,
+  type,
   bg,
-  size = 30,
+  size = 32,
+  ioniconName,
   matIcon,
 }: {
-  name?: React.ComponentProps<typeof Ionicons>["name"];
+  type?: string;
   bg: string;
   size?: number;
+  ioniconName?: React.ComponentProps<typeof Ionicons>["name"];
   matIcon?: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 }) {
+  const iconSize = size * 0.52;
+  const def = type ? INCIDENT_TYPES[type] : undefined;
   return (
     <View style={[styles.markerCircle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
-      {matIcon ? (
-        <MaterialCommunityIcons name={matIcon} size={size * 0.5} color="#FFF" />
-      ) : name ? (
-        <Ionicons name={name} size={size * 0.5} color="#FFF" />
+      {def ? (
+        def.iconSet === "MaterialCommunityIcons" ? (
+          <MaterialCommunityIcons
+            name={def.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
+            size={iconSize}
+            color="#FFF"
+          />
+        ) : (
+          <Ionicons
+            name={def.icon as React.ComponentProps<typeof Ionicons>["name"]}
+            size={iconSize}
+            color="#FFF"
+          />
+        )
+      ) : matIcon ? (
+        <MaterialCommunityIcons name={matIcon} size={iconSize} color="#FFF" />
+      ) : ioniconName ? (
+        <Ionicons name={ioniconName} size={iconSize} color="#FFF" />
       ) : null}
     </View>
   );
 }
 
-const ZONE_MARKER: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
-  camera: { name: "camera",          bg: "#E53935" },
-  police: { name: "shield-checkmark",bg: "#1565C0" },
-  zone:   { name: "speedometer",     bg: "#E65100" },
-};
-const REPORT_MARKER: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
-  camera:    { name: "camera",          bg: "#E53935" },
-  police:    { name: "shield-checkmark",bg: "#1565C0" },
-  accident:  { name: "warning",         bg: "#E53935" },
-  pothole:   { name: "alert-circle",    bg: "#F57C00" },
-  roadblock: { name: "close-circle",    bg: "#7B1FA2" },
-  clear:     { name: "checkmark-circle",bg: "#00C853" },
+const ZONE_MARKER: Record<string, { ioniconName: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
+  camera: { ioniconName: "camera",          bg: "#E53935" },
+  police: { ioniconName: "shield-checkmark", bg: "#1565C0" },
+  zone:   { ioniconName: "speedometer",      bg: "#E65100" },
 };
 
-const LEGEND_ITEMS = [
-  { icon: "camera" as const,          bg: "#E53935", label: "Camera" },
-  { icon: "shield-checkmark" as const,bg: "#1565C0", label: "Police" },
-  { icon: "speedometer" as const,     bg: "#E65100", label: "Zone" },
-  { icon: "warning" as const,         bg: "#E53935", label: "Accident" },
-  { icon: "close-circle" as const,    bg: "#7B1FA2", label: "Roadblock" },
+// Legend: all 12 community-report types + static Zone entry
+const LEGEND_ITEMS: Array<{
+  key: string;
+  label: string;
+  bg: string;
+  iconSet: "Ionicons" | "MaterialCommunityIcons" | "static";
+  icon: string;
+}> = [
+  ...INCIDENT_TYPE_ORDER.map((t) => ({
+    key: t,
+    label: INCIDENT_TYPES[t].label,
+    bg: INCIDENT_TYPES[t].color,
+    iconSet: INCIDENT_TYPES[t].iconSet as "Ionicons" | "MaterialCommunityIcons",
+    icon: INCIDENT_TYPES[t].icon,
+  })),
+  { key: "zone", label: "Speed Zone", bg: "#E65100", iconSet: "static" as const, icon: "speedometer" },
 ];
 
 export default function MapViewScreen() {
@@ -70,7 +92,7 @@ export default function MapViewScreen() {
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
-  const handleReport = (type: "camera" | "police" | "accident" | "pothole" | "roadblock" | "clear") => {
+  const handleReport = (type: CommunityReport["type"]) => {
     if (currentLat && currentLng) addReport(type, currentLat, currentLng);
     setShowReport(false);
   };
@@ -119,7 +141,7 @@ export default function MapViewScreen() {
                 title={z.name}
                 description={`${z.speedLimit} km/h — ${z.road}`}
               >
-                <MarkerIcon name={m.name} bg={m.bg} />
+                <MarkerIcon ioniconName={m.ioniconName} bg={m.bg} />
               </Marker>
               <Circle
                 center={{ latitude: z.lat, longitude: z.lng }}
@@ -135,17 +157,18 @@ export default function MapViewScreen() {
         {/* Community reports */}
         {communityReports.map((r) => {
           const faded = now - r.timestamp > 7200000;
-          const m = REPORT_MARKER[r.type] ?? { name: "alert-circle" as const, bg: "#888" };
+          const def = INCIDENT_TYPES[r.type];
+          const bg = def?.color ?? "#888";
           return (
             <Marker
               key={r.id}
               coordinate={{ latitude: r.lat, longitude: r.lng }}
               anchor={{ x: 0.5, y: 1 }}
               opacity={faded ? 0.4 : 1}
-              title={r.type.charAt(0).toUpperCase() + r.type.slice(1)}
+              title={def?.label ?? r.type}
               description={`${Math.round((now - r.timestamp) / 60000)} min ago`}
             >
-              <MarkerIcon name={m.name} bg={m.bg} size={28} />
+              <MarkerIcon type={r.type} bg={bg} size={30} />
             </Marker>
           );
         })}
@@ -167,21 +190,40 @@ export default function MapViewScreen() {
         {/* Destination */}
         {activeRoute && activeRoute.coords.length > 0 && (
           <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
-            <MarkerIcon name="navigate" bg="#1565C0" size={34} />
+            <MarkerIcon ioniconName="navigate" bg="#1565C0" size={36} />
           </Marker>
         )}
       </MapView>
 
-      {/* Legend */}
-      <View style={[styles.legend, { backgroundColor: c.card + "EE", top: insets.top + 12 }]}>
-        {LEGEND_ITEMS.map((l) => (
-          <View key={l.label} style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: l.bg }]}>
-              <Ionicons name={l.icon} size={8} color="#FFF" />
+      {/* Legend — scrollable so it never overflows on small screens */}
+      <View style={[styles.legendWrap, { backgroundColor: c.card + "EE", top: insets.top + 12 }]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          style={styles.legendScroll}
+          contentContainerStyle={styles.legendContent}
+        >
+          {LEGEND_ITEMS.map((l) => (
+            <View key={l.key} style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: l.bg }]}>
+                {l.iconSet === "MaterialCommunityIcons" ? (
+                  <MaterialCommunityIcons
+                    name={l.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
+                    size={9}
+                    color="#FFF"
+                  />
+                ) : (
+                  <Ionicons
+                    name={l.icon as React.ComponentProps<typeof Ionicons>["name"]}
+                    size={9}
+                    color="#FFF"
+                  />
+                )}
+              </View>
+              <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
             </View>
-            <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
-          </View>
-        ))}
+          ))}
+        </ScrollView>
       </View>
 
       {/* Right controls */}
@@ -225,19 +267,22 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   markerCircle: {
     alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#FFF",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 3, elevation: 5,
+    borderWidth: 2.5, borderColor: "#FFF",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
   },
-  legend: {
+  legendWrap: {
     position: "absolute", left: 12,
-    borderRadius: 12, padding: 10, gap: 6,
+    borderRadius: 12,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15, shadowRadius: 6, elevation: 6,
+    maxHeight: 320,
   },
+  legendScroll: { borderRadius: 12 },
+  legendContent: { padding: 10, gap: 6 },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  legendDot: { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  legendText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  legendDot: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  legendText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   controls: { position: "absolute", right: 12, flexDirection: "column", gap: 10 },
   controlBtn: {
     width: 46, height: 46, borderRadius: 23,

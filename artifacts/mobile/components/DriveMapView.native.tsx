@@ -13,6 +13,7 @@ import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import { POIS } from "@/data/pois";
+import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER } from "@/constants/incidentTypes";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
@@ -49,73 +50,65 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
   return clusters;
 }
 
-const EMOJI_MAP: Record<string, string> = {
-  camera:    "📷",
-  police:    "🚔",
-  accident:  "💥",
-  pothole:   "🕳️",
-  roadblock: "🚧",
-  clear:     "✅",
-  traffic:   "🚦",
-  hazard:    "⚠️",
-  debris:    "🪨",
-  breakdown: "🚗",
-  weather:   "🌧️",
-  closure:   "🛑",
-};
-
-const ICON_MAP: Record<string, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
-  camera:    { name: "camera",           bg: "#E53935" },
-  police:    { name: "shield-checkmark", bg: "#1565C0" },
-  accident:  { name: "warning",          bg: "#B71C1C" },
-  pothole:   { name: "alert-circle",     bg: "#F57C00" },
-  roadblock: { name: "construct",        bg: "#7B1FA2" },
-  clear:     { name: "checkmark-circle", bg: "#00C853" },
-  traffic:   { name: "git-network",      bg: "#C62828" },
-  hazard:    { name: "flash",            bg: "#FF6F00" },
-  debris:    { name: "cube",             bg: "#795548" },
-  breakdown: { name: "car",             bg: "#FF8F00" },
-  weather:   { name: "rainy",            bg: "#37474F" },
-  closure:   { name: "hand-left",        bg: "#880E4F" },
-};
-
 function reportLabel(type: string): string {
-  return type === "camera"    ? "Speed Camera"
-       : type === "police"    ? "Police Checkpoint"
-       : type === "accident"  ? "Accident"
-       : type === "pothole"   ? "Pothole"
-       : type === "roadblock" ? "Roadblock"
-       : type === "traffic"   ? "Traffic Jam"
-       : type === "hazard"    ? "Hazard"
-       : type === "debris"    ? "Debris"
-       : type === "breakdown" ? "Broken Down"
-       : type === "weather"   ? "Bad Weather"
-       : type === "closure"   ? "Road Closed"
-                              : "Road Clear";
+  return INCIDENT_TYPES[type]?.label ?? "Incident";
 }
 
-// ─── Single-colour circle marker (no emoji, works on all Android) ─────────────
+// ─── Inline icon renderer (supports both Ionicons and MaterialCommunityIcons) ─
+
+function IncidentIcon({
+  type, size, color,
+}: {
+  type: string; size: number; color: string;
+}) {
+  const def = INCIDENT_TYPES[type];
+  if (!def) return <Ionicons name="alert-circle" size={size} color={color} />;
+  if (def.iconSet === "MaterialCommunityIcons") {
+    return (
+      <MaterialCommunityIcons
+        name={def.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
+        size={size}
+        color={color}
+      />
+    );
+  }
+  return (
+    <Ionicons
+      name={def.icon as React.ComponentProps<typeof Ionicons>["name"]}
+      size={size}
+      color={color}
+    />
+  );
+}
+
+// ─── Single-colour circle marker ──────────────────────────────────────────────
 
 function MarkerIcon({
-  name, bg, size = 30, matIcon,
+  type, bg, size = 32,
+  ioniconName, matIcon,
 }: {
-  name?: React.ComponentProps<typeof Ionicons>["name"];
-  bg: string; size?: number;
+  type?: string;
+  bg: string;
+  size?: number;
+  ioniconName?: React.ComponentProps<typeof Ionicons>["name"];
   matIcon?: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 }) {
+  const iconSize = size * 0.52;
   return (
     <View style={{
       width: size, height: size, borderRadius: size / 2,
       backgroundColor: bg, alignItems: "center", justifyContent: "center",
-      borderWidth: 2, borderColor: "#FFF",
-      shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3, shadowRadius: 3, elevation: 5,
+      borderWidth: 2.5, borderColor: "#FFF",
+      shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
     }}>
-      {matIcon
-        ? <MaterialCommunityIcons name={matIcon} size={size * 0.5} color="#FFF" />
-        : name
-          ? <Ionicons name={name} size={size * 0.5} color="#FFF" />
-          : null}
+      {type
+        ? <IncidentIcon type={type} size={iconSize} color="#FFF" />
+        : matIcon
+          ? <MaterialCommunityIcons name={matIcon} size={iconSize} color="#FFF" />
+          : ioniconName
+            ? <Ionicons name={ioniconName} size={iconSize} color="#FFF" />
+            : null}
     </View>
   );
 }
@@ -128,11 +121,12 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
   if (members.length === 1) {
     const r = members[0];
-    const m = ICON_MAP[r.type] ?? { name: "alert-circle" as const, bg: "#888" };
+    const def = INCIDENT_TYPES[r.type];
+    const bg = def?.color ?? "#888";
     const confirmed = r.status === "confirmed";
     return (
       <View style={{ opacity: faded ? 0.45 : 1 }}>
-        <MarkerIcon name={m.name} bg={confirmed ? "#B71C1C" : m.bg} size={confirmed ? 34 : 28} />
+        <MarkerIcon type={r.type} bg={confirmed ? "#B71C1C" : bg} size={confirmed ? 36 : 32} />
       </View>
     );
   }
@@ -143,10 +137,11 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
       <View style={ms.clusterWrap}>
         <View style={ms.clusterGrid}>
           {icons.map((r) => {
-            const m = ICON_MAP[r.type] ?? { name: "alert-circle" as const, bg: "#888" };
+            const def = INCIDENT_TYPES[r.type];
+            const bg = def?.color ?? "#888";
             return (
-              <View key={r.id} style={[ms.clusterCell, { backgroundColor: m.bg }]}>
-                <Ionicons name={m.name} size={9} color="#FFF" />
+              <View key={r.id} style={[ms.clusterCell, { backgroundColor: bg }]}>
+                <IncidentIcon type={r.type} size={9} color="#FFF" />
               </View>
             );
           })}
@@ -238,8 +233,9 @@ export default function DriveMapView() {
               description={`${z.speedLimit} km/h — ${z.road}`}
             >
               <MarkerIcon
-                name={z.type === "camera" ? "camera" : z.type === "police" ? "shield-checkmark" : "speedometer"}
+                ioniconName={z.type === "camera" ? "camera" : z.type === "police" ? "shield-checkmark" : "speedometer"}
                 bg={z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"}
+                size={32}
               />
             </Marker>
             <Circle
@@ -276,9 +272,9 @@ export default function DriveMapView() {
           >
             <MarkerIcon
               matIcon={p.type === "fuel" ? "gas-station" : undefined}
-              name={p.type === "fuel" ? undefined : "restaurant"}
+              ioniconName={p.type === "fuel" ? undefined : "restaurant"}
               bg={p.type === "fuel" ? "#2E7D32" : "#BF360C"}
-              size={26}
+              size={28}
             />
           </Marker>
         ))}
@@ -299,7 +295,7 @@ export default function DriveMapView() {
         {/* Destination pin */}
         {activeRoute && activeRoute.coords.length > 0 && (
           <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
-            <MarkerIcon name="navigate" bg="#1565C0" size={34} />
+            <MarkerIcon ioniconName="navigate" bg="#1565C0" size={36} />
           </Marker>
         )}
       </MapView>
@@ -341,7 +337,9 @@ export default function DriveMapView() {
               {/* Incident list */}
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
                 {selectedCluster.members.map((r, i) => {
-                  const m = ICON_MAP[r.type] ?? { name: "alert-circle" as const, bg: "#888" };
+                  const def = INCIDENT_TYPES[r.type];
+                  const bg = def?.color ?? "#888";
+                  const emoji = def?.emoji ?? "📍";
                   const ageMin = Math.round((now - r.timestamp) / 60000);
                   const ageStr =
                     ageMin < 1  ? "Just now" :
@@ -354,8 +352,8 @@ export default function DriveMapView() {
                       key={r.id}
                       style={[ms.incidentRow, i > 0 && ms.incidentDivider]}
                     >
-                      <View style={[ms.incidentIcon, { backgroundColor: m.bg + "22" }]}>
-                        <Text style={ms.incidentEmoji}>{EMOJI_MAP[r.type] ?? "📍"}</Text>
+                      <View style={[ms.incidentIcon, { backgroundColor: bg + "22" }]}>
+                        <Text style={ms.incidentEmoji}>{emoji}</Text>
                       </View>
                       <View style={{ flex: 1, gap: 3 }}>
                         <View style={ms.incidentLabelRow}>
@@ -413,29 +411,29 @@ export default function DriveMapView() {
 const ms = StyleSheet.create({
   // ── Cluster marker ──────────────────────────────────────────────────────────
   clusterWrap: {
-    width: 48, height: 48,
+    width: 52, height: 52,
     backgroundColor: "#FFF",
-    borderRadius: 14, borderWidth: 2, borderColor: "#E0E0E0",
+    borderRadius: 15, borderWidth: 2, borderColor: "#E0E0E0",
     alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25, shadowRadius: 5, elevation: 6,
+    shadowOpacity: 0.28, shadowRadius: 6, elevation: 7,
   },
   clusterGrid: {
     flexDirection: "row", flexWrap: "wrap",
-    gap: 2, width: 30, height: 30,
+    gap: 2, width: 32, height: 32,
     alignItems: "center", justifyContent: "center",
   },
   clusterCell: {
-    width: 13, height: 13, borderRadius: 4,
+    width: 14, height: 14, borderRadius: 4,
     alignItems: "center", justifyContent: "center",
   },
   clusterBadge: {
-    position: "absolute", top: -6, right: -6,
-    minWidth: 18, height: 18, borderRadius: 9,
+    position: "absolute", top: -7, right: -7,
+    minWidth: 20, height: 20, borderRadius: 10,
     backgroundColor: "#E53935", borderWidth: 1.5, borderColor: "#FFF",
     alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
   },
-  clusterBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "800" },
+  clusterBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
 
   // ── Modal backdrop & sheet ──────────────────────────────────────────────────
   backdrop: {

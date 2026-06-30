@@ -15,14 +15,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
+// Palette kept in sync with mobile incidentTypes.ts
 const TYPE_MARKER_COLORS: Record<string, string> = {
-  camera: "#3b82f6",
-  police: "#6366f1",
-  accident: "#ef4444",
-  pothole: "#f59e0b",
-  roadblock: "#f97316",
-  clear: "#10b981",
-  hazard: "#a855f7",
+  camera:    "#E53935",
+  police:    "#1565C0",
+  accident:  "#B71C1C",
+  traffic:   "#C62828",
+  roadblock: "#7B1FA2",
+  hazard:    "#FF6F00",
+  pothole:   "#F57C00",
+  debris:    "#795548",
+  breakdown: "#FF8F00",
+  weather:   "#37474F",
+  closure:   "#880E4F",
+  clear:     "#00C853",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -33,13 +39,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  camera: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  police: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  accident: "bg-red-500/10 text-red-500 border-red-500/20",
-  pothole: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  roadblock: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  clear: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  hazard: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  camera:    "bg-red-500/10 text-red-500 border-red-500/20",
+  police:    "bg-blue-800/10 text-blue-800 border-blue-800/20",
+  accident:  "bg-red-800/10 text-red-800 border-red-800/20",
+  traffic:   "bg-red-700/10 text-red-700 border-red-700/20",
+  roadblock: "bg-purple-700/10 text-purple-700 border-purple-700/20",
+  hazard:    "bg-amber-600/10 text-amber-600 border-amber-600/20",
+  pothole:   "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  debris:    "bg-stone-500/10 text-stone-500 border-stone-500/20",
+  breakdown: "bg-yellow-600/10 text-yellow-600 border-yellow-600/20",
+  weather:   "bg-slate-600/10 text-slate-600 border-slate-600/20",
+  closure:   "bg-pink-800/10 text-pink-800 border-pink-800/20",
+  clear:     "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
 };
 
 interface ReportsMapProps {
