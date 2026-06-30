@@ -192,7 +192,6 @@ export default function MapViewScreen() {
         showsMyLocationButton={false}
         showsCompass
         showsTraffic={showTraffic}
-        onPress={() => setSelectedCluster(null)}
       >
         {/* Speed zone markers */}
         {SPEED_ZONES.map((z) => {
