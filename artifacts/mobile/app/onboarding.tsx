@@ -22,28 +22,28 @@ const { width } = Dimensions.get("window");
 const SLIDES = [
   {
     id: "1",
-    image: require("@/assets/images/onboarding1.png"),
+    image: require("@/assets/images/onboarding1.webp"),
     title: "Drive Safer in Kenya",
     body: "Msafiri warns you about speed cameras, police checkpoints, and speed zones before you reach them — so you're never caught by surprise.",
     color: "#00C853",
   },
   {
     id: "2",
-    image: require("@/assets/images/onboarding2.png"),
+    image: require("@/assets/images/onboarding2.webp"),
     title: "Know Your Speed",
     body: "Your device's GPS shows your real-time speed in km/h. The app instantly alerts you when you're approaching a speed limit ahead.",
     color: "#1565C0",
   },
   {
     id: "3",
-    image: require("@/assets/images/onboarding3.png"),
+    image: require("@/assets/images/onboarding3.webp"),
     title: "Community Reports",
     body: "Drivers on the road report new cameras, police checks, accidents, and more in real time. You can contribute too — and help fellow drivers.",
     color: "#7B1FA2",
   },
   {
     id: "4",
-    image: require("@/assets/images/onboarding4.png"),
+    image: require("@/assets/images/onboarding4.webp"),
     title: "We Need Your Location",
     body: "To show your speed and detect nearby zones, we need access to your device's location. Your data stays on your device and is never shared.",
     color: "#F57C00",

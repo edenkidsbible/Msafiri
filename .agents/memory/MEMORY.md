@@ -6,3 +6,4 @@
 - [NTSA Minor Offences fines](ntsa-fines.md) — LN 161/2016 real brackets: warning/500/3k/10k/court; 7-day pay window; 21+ km/h is court not fine
 - [RevenueCat proxy client](revenuecat-proxy-client.md) — createClient calls _fetch(Request); must check instanceof Request; proxy path needs /v2 prefix; OAuth token is project-scoped so cannot create projects.
 - [react-native-maps Marker tap closes immediately](rnmaps-marker-onpress-quirk.md) — Marker tap also fires MapView's onPress; never use MapView onPress to clear marker-driven state, use a backdrop or native Callout instead.
+- [Icon transparency via flood-fill](icon-transparency-flood-fill.md) — when bg-removal tool fails on edge-to-edge backgrounds, use ImageMagick multi-seed flood-fill; transparent PNGs can render as black in generic viewers (not a failure).
