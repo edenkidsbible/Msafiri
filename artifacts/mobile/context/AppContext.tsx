@@ -96,6 +96,7 @@ interface AppContextValue {
   setHudMode: (v: boolean) => void;
   themeOverride: "system" | "light" | "dark";
   setThemeOverride: (v: "system" | "light" | "dark") => void;
+  clearAllData: () => Promise<void>;
   sosContact: SOSContact | null;
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
@@ -805,6 +806,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       Appearance.setColorScheme(v === "system" ? null : v);
     }
   }, []);
+
+  const clearAllData = useCallback(async () => {
+    await AsyncStorage.multiRemove([
+      KEYS.TRIPS, KEYS.REPORTS, KEYS.HUD, KEYS.SOS,
+      KEYS.ONBOARDING, KEYS.DEVICE_ID, KEYS.THEME,
+    ]);
+    setTripHistory([]);
+    setCommunityReports([]);
+    setHudModeState(false);
+    setSosContactState(null);
+    setThemeOverrideState("system");
+    if (Platform.OS !== "web") Appearance.setColorScheme(null);
+    const newId = genId() + genId();
+    await AsyncStorage.setItem(KEYS.DEVICE_ID, newId);
+    deviceIdRef.current = newId;
+    setDeviceId(newId);
+  }, []);
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
   const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
     const localId = genId();
@@ -906,6 +924,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activeAlert, currentSpeedLimit, nearbyZones, dismissAlert,
       hudMode, setHudMode,
       themeOverride, setThemeOverride,
+      clearAllData,
       sosContact, setSosContact,
       communityReports, addReport, confirmReport, denyReport, deleteReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,

@@ -63,6 +63,7 @@ export default function SettingsScreen() {
     hudMode, setHudMode, sosContact, setSosContact, clearTripHistory,
     communityReports, deleteReport, updateReport,
     themeOverride, setThemeOverride,
+    clearAllData,
   } = useApp();
 
   const { isSubscribed } = useSubscription();
@@ -446,6 +447,56 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Privacy & Data */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>PRIVACY & DATA</Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
+            Msafiri stores your trip history, reported incidents, and SOS contact locally on this
+            device. No personal account is required. Deleting your data removes everything
+            permanently and cannot be undone.
+          </Text>
+          <TouchableOpacity
+            style={[styles.deleteDataBtn, { borderColor: c.destructive + "60", backgroundColor: c.destructive + "10" }]}
+            activeOpacity={0.75}
+            onPress={() => {
+              Alert.alert(
+                "Delete All My Data",
+                "This will permanently erase your trip history, reported incidents, SOS contact, and all preferences stored on this device. This cannot be undone.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Delete Everything",
+                    style: "destructive",
+                    onPress: () => {
+                      Alert.alert(
+                        "Are you sure?",
+                        "Your data will be gone immediately and cannot be recovered.",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Yes, Delete",
+                            style: "destructive",
+                            onPress: async () => {
+                              await clearAllData();
+                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                              Alert.alert("Data Deleted", "All your local data has been erased.");
+                            },
+                          },
+                        ]
+                      );
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <Ionicons name="trash" size={16} color={c.destructive} />
+            <Text style={[styles.deleteDataBtnText, { color: c.destructive }]}>Delete All My Data</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* About */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ABOUT</Text>
@@ -530,6 +581,16 @@ const styles = StyleSheet.create({
   },
   rowLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   rowValue: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  deleteDataBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  deleteDataBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   aboutApp: { fontSize: 16, fontFamily: "Inter_700Bold" },
   aboutVersion: { fontSize: 13, fontFamily: "Inter_400Regular" },
   aboutDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
