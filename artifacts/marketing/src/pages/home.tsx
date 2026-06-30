@@ -78,7 +78,7 @@ export default function Home() {
             </motion.div>
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
               The road is unpredictable.<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
                 You don't have to be.
               </span>
             </motion.h1>
