@@ -20,6 +20,7 @@ import type { CommunityReport } from "@/context/AppContext";
 import { useSubscription } from "@/lib/revenuecat";
 import { PaywallModal } from "@/components/PaywallModal";
 import { resolveIncidentType } from "@/constants/incidentTypes";
+import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -39,6 +40,7 @@ export default function SettingsScreen() {
     hudMode, setHudMode, sosContact, setSosContact, clearTripHistory,
     communityReports, deleteReport, updateReport,
     themeOverride, setThemeOverride,
+    vehicleType, setVehicleType,
     clearAllData,
   } = useApp();
 
@@ -369,6 +371,48 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Vehicle Type */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>VEHICLE TYPE</Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
+            Speed limits in Kenya vary by vehicle class. We'll show you the correct limit for your vehicle at every zone.
+          </Text>
+          <View style={styles.vehicleTypeGrid}>
+            {VEHICLE_TYPES.map((v) => {
+              const active = vehicleType === v.id;
+              const IconComponent = v.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
+              return (
+                <TouchableOpacity
+                  key={v.id}
+                  style={[
+                    styles.vehicleTypeBtn,
+                    {
+                      backgroundColor: active ? c.primary : c.muted,
+                      borderColor: active ? c.primary : c.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setVehicleType(v.id);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <IconComponent
+                    name={v.icon as any}
+                    size={18}
+                    color={active ? c.primaryForeground : c.mutedForeground}
+                  />
+                  <Text style={[styles.vehicleTypeBtnText, { color: active ? c.primaryForeground : c.mutedForeground }]}>
+                    {v.shortLabel}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
       {/* Display */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DISPLAY</Text>
@@ -567,6 +611,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   themeBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  vehicleTypeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  vehicleTypeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  vehicleTypeBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   dividerLine: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   toggleLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },

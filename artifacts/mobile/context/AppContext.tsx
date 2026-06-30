@@ -17,6 +17,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 import { resolveIncidentType } from "@/constants/incidentTypes";
+import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,8 @@ interface AppContextValue {
   onboardingComplete: boolean;
   completeOnboarding: () => void;
   isOffline: boolean;
+  vehicleType: VehicleTypeId;
+  setVehicleType: (v: VehicleTypeId) => void;
   // Navigation
   navDestination: NavDestination | null;
   setNavDestination: (d: NavDestination | null) => void;
@@ -170,6 +173,7 @@ const KEYS = {
   ONBOARDING: "sdk_onboarding",
   DEVICE_ID: "sdk_device_id",
   THEME: "sdk_theme",
+  VEHICLE_TYPE: "sdk_vehicle_type",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -349,6 +353,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [vehicleType, setVehicleTypeState] = useState<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
+  const vehicleTypeRef = useRef<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   // Navigation
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
@@ -387,7 +393,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -395,7 +401,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(KEYS.ONBOARDING),
         AsyncStorage.getItem(KEYS.DEVICE_ID),
         AsyncStorage.getItem(KEYS.THEME),
+        AsyncStorage.getItem(KEYS.VEHICLE_TYPE),
       ]);
+      if (storedVehicleType) {
+        const v = storedVehicleType as VehicleTypeId;
+        setVehicleTypeState(v);
+        vehicleTypeRef.current = v;
+      }
       if (trips) setTripHistory(JSON.parse(trips));
       if (reports) {
         const parsed: CommunityReport[] = JSON.parse(reports);
@@ -487,6 +499,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Keep voice refs in sync with state ───────────────────────────────────
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
+  useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -520,8 +533,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentSpeed(kmh);
 
     // Speed zones
+    const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
     const withDist = SPEED_ZONES
-      .map((z) => ({ ...z, distance: haversine(lat, lng, z.lat, z.lng) }))
+      .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: haversine(lat, lng, z.lat, z.lng) }))
       .sort((a, b) => a.distance - b.distance);
     setNearbyZones(withDist.filter((z) => z.distance < 5000));
     const inZone = withDist.find((z) => z.distance <= IN_ZONE_DIST);
@@ -735,7 +749,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setActiveRoute(primary);
         routeRef.current = primary;
         setAltRoutes(alts);
-        setZonesOnRoute(getZonesOnRoute(primary, SPEED_ZONES));
+        const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+        setZonesOnRoute(getZonesOnRoute(primary, SPEED_ZONES).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
       })
       .catch((e) => { if (!cancelled) console.warn("OSRM:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
@@ -808,6 +823,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const routeIncidents = useMemo<RouteIncident[]>(() => {
     if (!activeRoute || !routeCumDist) return [];
+    const vehicle = getVehicleTypeDef(vehicleType);
     const list: RouteIncident[] = [];
     for (const z of SPEED_ZONES) {
       const proj = projectOntoRoute(activeRoute.coords, routeCumDist, z.lat, z.lng);
@@ -820,7 +836,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           name: z.name,
           road: z.road,
           description: z.description,
-          speedLimit: z.speedLimit,
+          speedLimit: capSpeedLimit(z.speedLimit, vehicle),
           lat: z.lat,
           lng: z.lng,
           distanceAlongRouteM: proj.alongRouteM,
@@ -839,7 +855,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           label: info.label,
           name: info.label,
           road: r.roadName,
-          speedLimit: r.speedLimit,
+          speedLimit: r.speedLimit != null ? capSpeedLimit(r.speedLimit, vehicle) : r.speedLimit,
           lat: r.lat,
           lng: r.lng,
           distanceAlongRouteM: proj.alongRouteM,
@@ -849,7 +865,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
-  }, [activeRoute, routeCumDist, communityReports]);
+  }, [activeRoute, routeCumDist, communityReports, vehicleType]);
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
@@ -896,7 +912,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setActiveRoute(r);
     routeRef.current = r;
-    setZonesOnRoute(getZonesOnRoute(r, SPEED_ZONES));
+    const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+    setZonesOnRoute(getZonesOnRoute(r, SPEED_ZONES).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
@@ -944,16 +961,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setVehicleType = useCallback((v: VehicleTypeId) => {
+    setVehicleTypeState(v);
+    vehicleTypeRef.current = v;
+    AsyncStorage.setItem(KEYS.VEHICLE_TYPE, v);
+  }, []);
+
   const clearAllData = useCallback(async () => {
     await AsyncStorage.multiRemove([
       KEYS.TRIPS, KEYS.REPORTS, KEYS.HUD, KEYS.SOS,
-      KEYS.ONBOARDING, KEYS.DEVICE_ID, KEYS.THEME,
+      KEYS.ONBOARDING, KEYS.DEVICE_ID, KEYS.THEME, KEYS.VEHICLE_TYPE,
     ]);
     setTripHistory([]);
     setCommunityReports([]);
     setHudModeState(false);
     setSosContactState(null);
     setThemeOverrideState("system");
+    setVehicleTypeState(DEFAULT_VEHICLE_TYPE);
+    vehicleTypeRef.current = DEFAULT_VEHICLE_TYPE;
     if (Platform.OS !== "web") Appearance.setColorScheme(null);
     const newId = genId() + genId();
     await AsyncStorage.setItem(KEYS.DEVICE_ID, newId);
@@ -1067,6 +1092,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentTrip, tripHistory, clearTripHistory,
       hydrated, onboardingComplete, completeOnboarding,
       isOffline,
+      vehicleType, setVehicleType,
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
       navigationActive, startNavigation, stopNavigation,

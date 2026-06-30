@@ -9,3 +9,4 @@
 - [Icon transparency via flood-fill](icon-transparency-flood-fill.md) — when bg-removal tool fails on edge-to-edge backgrounds, use ImageMagick multi-seed flood-fill; transparent PNGs can render as black in generic viewers (not a failure).
 - [Route incident "ahead" projection](route-incident-projection.md) — nearest-point + cumulative-distance projection onto route polyline for "what's ahead" lists; known limitation on looping routes, accepted trade-off.
 - [usePathname for tab detection](usepathname-tab-detection.md) — usePathname() resolves to "/" for the (tabs)/index screen on both Classic Tabs and iOS NativeTabs layouts; safe to gate global-overlay behavior on it.
+- [Vehicle-type speed capping](vehicle-type-speed-capping.md) — cap displayed limits by vehicle class, never cap a community report's own submitted speedLimit; capping doesn't propagate, audit each SPEED_ZONES consumer.

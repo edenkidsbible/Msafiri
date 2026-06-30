@@ -6,6 +6,7 @@ import MapView, { Callout, Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
+import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import type { CommunityReport } from "@/context/AppContext";
@@ -181,7 +182,9 @@ export default function MapViewScreen() {
     activeRoute, altRoutes, selectRoute,
     navigationActive,
     showTraffic, setShowTraffic,
+    vehicleType,
   } = useApp();
+  const vehicle = getVehicleTypeDef(vehicleType);
 
   const [showReport, setShowReport] = useState(false);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
@@ -236,7 +239,7 @@ export default function MapViewScreen() {
                 coordinate={{ latitude: z.lat, longitude: z.lng }}
                 anchor={{ x: 0.5, y: 1 }}
                 title={z.name}
-                description={`${z.speedLimit} km/h — ${z.road}`}
+                description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
               >
                 <MarkerIcon ioniconName={m.ioniconName} bg={m.bg} />
               </Marker>

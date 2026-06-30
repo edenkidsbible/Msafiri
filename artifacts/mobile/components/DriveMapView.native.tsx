@@ -14,6 +14,7 @@ import type { CommunityReport } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import { POIS } from "@/data/pois";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
+import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
@@ -132,7 +133,9 @@ export default function DriveMapView() {
     activeRoute, altRoutes, selectRoute,
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport,
+    vehicleType,
   } = useApp();
+  const vehicle = getVehicleTypeDef(vehicleType);
 
   const mapRef = useRef<MapView>(null);
   const hasCenteredRef = useRef(false);
@@ -199,7 +202,7 @@ export default function DriveMapView() {
               coordinate={{ latitude: z.lat, longitude: z.lng }}
               anchor={{ x: 0.5, y: 1 }}
               title={z.name}
-              description={`${z.speedLimit} km/h — ${z.road}`}
+              description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
             >
               <MarkerIcon
                 ioniconName={z.type === "camera" ? "camera" : z.type === "police" ? "shield-checkmark" : "speedometer"}
@@ -342,7 +345,7 @@ export default function DriveMapView() {
                         <Text style={ms.incidentMeta}>
                           {ageStr}
                           {r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount} confirmed` : ""}
-                          {r.type === "camera" && r.speedLimit ? `  ·  ${r.speedLimit} km/h zone` : ""}
+                          {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         {canVote && (
                           <View style={ms.voteRow}>

@@ -6,6 +6,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
+import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -42,7 +43,9 @@ export default function MapViewScreen() {
     navDestination, showTraffic, setShowTraffic,
     currentStepIdx, distToNextM,
     startNavigation, stopNavigation,
+    vehicleType,
   } = useApp();
+  const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
   const [showReport, setShowReport] = useState(false);
 
@@ -50,7 +53,7 @@ export default function MapViewScreen() {
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
   const zones = SPEED_ZONES.filter((z) => filter === "all" || z.type === filter)
-    .map((z) => ({ ...z, distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
+    .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
   const handleReport = (type: CommunityReport["type"], speedLimit?: number) => {
