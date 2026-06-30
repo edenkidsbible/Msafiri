@@ -87,7 +87,7 @@ export default function DriveScreen() {
     activeRoute, altRoutes, selectRoute, routeLoading,
     navigationActive, startNavigation, stopNavigation,
     currentStepIdx, distToNextM, zonesOnRoute,
-    routeIncidentsAhead, setRouteIncidentsExpanded,
+    routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
     addReport, currentLat, currentLng,
     arrivedInfo, clearArrival,
@@ -465,12 +465,20 @@ export default function DriveScreen() {
           <View style={styles.etaRow}>
             <View>
               <Text style={[styles.etaTime, { color: fgMain }]}>
-                {durationStr(activeRoute.durationS)}
+                {durationStr(activeRoute.durationS + routeTrafficDelayS)}
               </Text>
               <Text style={[styles.etaDist, { color: fgMuted }]}>
                 {distStr(activeRoute.distanceM)}
                 {navDestination ? ` · ${navDestination.name.split(",")[0]}` : ""}
               </Text>
+              {routeTrafficDelayS > 0 && (
+                <View style={styles.trafficDelayRow}>
+                  <Ionicons name="time-outline" size={11} color="#E65100" />
+                  <Text style={styles.trafficDelayTxt}>
+                    Expect ~{Math.round(routeTrafficDelayS / 60)} min delay in traffic
+                  </Text>
+                </View>
+              )}
             </View>
             {routeIncidentsAhead.length > 0 && (
               <TouchableOpacity
@@ -497,7 +505,7 @@ export default function DriveScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <View style={[styles.altPill, { backgroundColor: c.primary }]}>
                   <Text style={[styles.altPillTxt, { color: "#FFF" }]}>
-                    Fastest · {durationStr(activeRoute.durationS)}
+                    Fastest · {durationStr(activeRoute.durationS + routeTrafficDelayS)}
                   </Text>
                 </View>
                 {altRoutes.map((r, i) => (
@@ -577,7 +585,7 @@ export default function DriveScreen() {
           {/* ETA + destination */}
           <View style={{ flex: 1 }}>
             <Text style={[styles.navEta, { color: fgMain }]}>
-              {durationStr(activeRoute?.durationS ?? 0)}
+              {durationStr((activeRoute?.durationS ?? 0) + routeTrafficDelayS)}
             </Text>
             <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
               {navDestination?.name.split(",")[0]}
@@ -840,6 +848,8 @@ const styles = StyleSheet.create({
   etaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   etaTime: { fontSize: 28, fontFamily: "Inter_700Bold" },
   etaDist: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  trafficDelayRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  trafficDelayTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#E65100" },
   zonesTag: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,

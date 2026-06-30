@@ -10,3 +10,4 @@
 - [Route incident "ahead" projection](route-incident-projection.md) — nearest-point + cumulative-distance projection onto route polyline for "what's ahead" lists; known limitation on looping routes, accepted trade-off.
 - [usePathname for tab detection](usepathname-tab-detection.md) — usePathname() resolves to "/" for the (tabs)/index screen on both Classic Tabs and iOS NativeTabs layouts; safe to gate global-overlay behavior on it.
 - [Vehicle-type speed capping](vehicle-type-speed-capping.md) — cap displayed limits by vehicle class, never cap a community report's own submitted speedLimit; capping doesn't propagate, audit each SPEED_ZONES consumer.
+- [Traffic delay estimation](traffic-delay-estimation.md) — no live traffic API; delay heuristically summed from congestion-type community reports, capped at 45min; add to durationS wherever route duration is shown.

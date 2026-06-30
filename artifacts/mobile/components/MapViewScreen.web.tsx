@@ -43,7 +43,7 @@ export default function MapViewScreen() {
     navDestination, showTraffic, setShowTraffic,
     currentStepIdx, distToNextM,
     startNavigation, stopNavigation,
-    vehicleType,
+    vehicleType, routeTrafficDelayS,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
@@ -94,8 +94,13 @@ export default function MapViewScreen() {
                   {navDestination.name.split(",")[0]}
                 </Text>
                 <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
-                  {durationStr(activeRoute.durationS)} · {distStr(activeRoute.distanceM)}
+                  {durationStr(activeRoute.durationS + routeTrafficDelayS)} · {distStr(activeRoute.distanceM)}
                 </Text>
+                {routeTrafficDelayS > 0 && (
+                  <Text style={[styles.routeMeta, { color: navigationActive ? "#FFD180" : "#E65100", marginTop: 1 }]}>
+                    incl. ~{Math.round(routeTrafficDelayS / 60)} min traffic delay
+                  </Text>
+                )}
               </View>
               {navigationActive ? (
                 <TouchableOpacity style={styles.stopBtn} onPress={stopNavigation}>

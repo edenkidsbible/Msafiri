@@ -40,10 +40,14 @@ function incidentVisual(inc: RouteIncident): { IconComp: typeof Ionicons | typeo
   }
 }
 
+function delayMinutesLabel(delayS: number): string {
+  return `${Math.round(delayS / 60)} min`;
+}
+
 export default function RouteIncidentsPanel() {
   const {
     activeRoute, navigationActive, arrivedInfo,
-    routeIncidentsAhead, routeIncidentsExpanded, setRouteIncidentsExpanded,
+    routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
   } = useApp();
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -87,6 +91,22 @@ export default function RouteIncidentsPanel() {
             <Ionicons name="close" size={20} color={c.mutedForeground} />
           </TouchableOpacity>
         </View>
+
+        {routeTrafficDelayS > 0 && (
+          <View style={[styles.delayBanner, { backgroundColor: "#E6510014", borderColor: "#E6510033" }]}>
+            <View style={[styles.delayBannerIcon, { backgroundColor: "#E6510018" }]}>
+              <Ionicons name="time" size={16} color="#E65100" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.delayBannerTitle}>
+                Expect ~{delayMinutesLabel(routeTrafficDelayS)} delay in traffic
+              </Text>
+              <Text style={[styles.delayBannerSub, { color: c.mutedForeground }]}>
+                Based on driver reports along this route
+              </Text>
+            </View>
+          </View>
+        )}
 
         {routeIncidentsAhead.length === 0 ? (
           <View style={styles.emptyState}>
@@ -188,6 +208,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  delayBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 10,
+  },
+  delayBannerIcon: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+  },
+  delayBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E65100" },
+  delayBannerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
   emptyState: { alignItems: "center", gap: 8, paddingVertical: 28 },
   emptyTxt: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
   list: { marginTop: 4 },

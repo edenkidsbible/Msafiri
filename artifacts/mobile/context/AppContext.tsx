@@ -157,6 +157,7 @@ interface AppContextValue {
   setShowTraffic: (v: boolean) => void;
   zonesOnRoute: SpeedZone[];
   routeIncidentsAhead: RouteIncident[];
+  routeTrafficDelayS: number;
   routeIncidentsExpanded: boolean;
   setRouteIncidentsExpanded: (v: boolean) => void;
   arrivedInfo: ArrivedInfo | null;
@@ -280,6 +281,39 @@ function projectOntoRoute(
 
 function staticZoneLabel(type: SpeedZone["type"]): string {
   return type === "camera" ? "Speed Camera" : type === "police" ? "Police Checkpoint" : "Speed Zone";
+}
+
+// ── Traffic delay estimation ───────────────────────────────────────────────
+// No live-traffic API is wired up (OSRM only returns free-flow duration), so
+// we approximate an "expect X min delay" figure from crowd-sourced reports
+// that actually slow traffic down along the route. Static zones (cameras,
+// police checkpoints) don't congest the road, so they're excluded.
+const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
+  closure: 15,
+  accident: 12,
+  roadblock: 10,
+  traffic: 8,
+  roadworks: 5,
+  breakdown: 4,
+  weather: 3,
+};
+const MAX_TRAFFIC_DELAY_MIN = 45;
+
+/** Estimates total traffic delay (seconds) from community reports ahead on
+ *  the route. Each report's weight scales with how many drivers confirmed
+ *  it — confirmed reports carry more confidence, single unconfirmed reports
+ *  are discounted — then the total is capped to avoid an unrealistic figure. */
+function estimateTrafficDelayS(incidents: RouteIncident[]): number {
+  let totalMin = 0;
+  for (const inc of incidents) {
+    if (inc.source !== "report") continue;
+    const base = TRAFFIC_DELAY_WEIGHTS_MIN[inc.type];
+    if (!base) continue;
+    const confirms = inc.confirmCount ?? 0;
+    const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
+    totalMin += base * confidence;
+  }
+  return Math.min(totalMin, MAX_TRAFFIC_DELAY_MIN) * 60;
 }
 
 // Best TTS voice — populated once at startup via getAvailableVoicesAsync()
@@ -885,6 +919,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, [routeIncidents, navigationActive, currentRouteDistanceM]);
 
+  const routeTrafficDelayS = useMemo(
+    () => estimateTrafficDelayS(routeIncidentsAhead),
+    [routeIncidentsAhead]
+  );
+
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
@@ -1099,7 +1138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentStepIdx, distToNextM, routeLoading,
       showTraffic, setShowTraffic,
       zonesOnRoute,
-      routeIncidentsAhead, routeIncidentsExpanded, setRouteIncidentsExpanded,
+      routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
       arrivedInfo, clearArrival,
     }}>
       {children}
