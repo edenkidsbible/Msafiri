@@ -14,6 +14,8 @@
       "backgroundColor": "#0A0E1A"
     },
     "ios": {
+      "bundleIdentifier": "com.msafirikenya.app",
+      "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",
@@ -21,11 +23,16 @@
       }
     },
     "android": {
+      "package": "com.msafirikenya.app",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "SEND_SMS"
-      ]
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
+        "backgroundColor": "#0A0E1A"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -43,6 +50,13 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Msafiri needs location access to show your speed and detect speed cameras nearby."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/adaptive-icon-foreground.png",
+          "color": "#00C853"
         }
       ]
     ],

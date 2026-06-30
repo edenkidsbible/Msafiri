@@ -98,10 +98,12 @@ export default function PrivacyScreen() {
         numbers. Your device's carrier may retain this data under its own privacy policy.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.6 Usage and Analytics Data</Text>
-      <Li><B>App interaction logs</B>{" — screens visited, features used, session duration (collected anonymously via device ID only)."}</Li>
-      <Li><B>Crash reports</B>{" — automatic crash logs that include device model, OS version, and stack trace. These do not include location data."}</Li>
+      <Text style={[s.h3, { color: c.primary }]}>1.6 Usage Data</Text>
       <Li><B>API request logs</B>{" — server-side request logs including IP address, endpoint called, and timestamp, retained for up to 30 days for security and abuse monitoring."}</Li>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        We do not currently use a third-party analytics or crash-reporting service. If we add one in the
+        future, we will update this policy before it goes into effect.
+      </Text>
 
       {/* 2 */}
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>2. How We Use Your Information</Text>
@@ -110,7 +112,7 @@ export default function PrivacyScreen() {
       <Li><B>Community report system</B>{" — validating, aggregating, and expiring road reports submitted by users."}</Li>
       <Li><B>Subscription management</B>{" — verifying your Msafiri Pro subscription status via RevenueCat to unlock premium features."}</Li>
       <Li><B>Safety features</B>{" — enabling the SOS emergency SMS feature to function correctly."}</Li>
-      <Li><B>App improvement</B>{" — analysing anonymised usage patterns and crash data to fix bugs and improve performance."}</Li>
+      <Li><B>App improvement</B>{" — reviewing server-side request logs to fix bugs and improve performance."}</Li>
       <Li><B>Security and fraud prevention</B>{" — detecting and preventing spam reports, abuse, or unauthorised access to our API."}</Li>
       <Li><B>Legal compliance</B>{" — complying with applicable laws, regulations, and lawful requests from Kenyan authorities."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
@@ -152,7 +154,6 @@ export default function PrivacyScreen() {
       <Li><B>Device ID and usage logs</B>{" — retained for up to 12 months, after which they are permanently deleted or anonymised beyond recovery."}</Li>
       <Li><B>API access logs (IP addresses)</B>{" — retained for up to 30 days for security monitoring."}</Li>
       <Li><B>Subscription records</B>{" — retained for the duration of your subscription and for up to 12 months after cancellation for billing and legal dispute purposes."}</Li>
-      <Li><B>Crash reports</B>{" — retained for up to 6 months to assist with bug resolution."}</Li>
 
       {/* 5 */}
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>5. Data Security</Text>
@@ -192,12 +193,6 @@ export default function PrivacyScreen() {
       <Li>{"Email us at "}<B>privacy@msafirikenya.com</B>{" with the subject line \"Data Deletion Request.\""}</Li>
       <Li>{"We will delete all data tied to your device ID within "}<B>30 days</B>{" of receiving your request, except where retention is required by law or for legitimate security purposes."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>6.3 Opting Out of Analytics</Text>
-      <Text style={[s.p, { color: c.mutedForeground }]}>
-        You may opt out of anonymised analytics collection within the App under Settings → Privacy.
-        Opting out does not affect crash reporting, which is required for app stability.
-      </Text>
-
       <Text style={[s.h3, { color: c.primary }]}>6.4 Subscription Cancellation</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You may cancel your Msafiri Pro subscription at any time through the App Store or Google Play
@@ -220,8 +215,9 @@ export default function PrivacyScreen() {
       {/* 8 */}
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>8. SMS Permissions</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        Msafiri requests <B>SEND_SMS</B> permission on Android solely to enable the SOS emergency feature.
-        This permission is used only when you deliberately press and hold the SOS button. We do not:
+        The SOS emergency feature drafts a message with your location and opens your device's native SMS app
+        for you to review and send. Msafiri does not request Android's restricted SEND_SMS permission and
+        cannot send a text message without you tapping send in your own messaging app. We do not:
       </Text>
       <Li>{"Send SMS messages without your explicit action."}</Li>
       <Li>{"Read your existing SMS messages."}</Li>
