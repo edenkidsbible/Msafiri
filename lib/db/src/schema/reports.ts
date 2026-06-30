@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 
 export const communityReportsTable = pgTable("community_reports", {
   id:           uuid("id").primaryKey().defaultRandom(),
-  type:         text("type").notNull(),           // camera|police|accident|pothole|roadblock|clear
+  type:         text("type").notNull(),           // camera|police|accident|traffic|roadblock|hazard|pothole|debris|breakdown|weather|closure|clear
   lat:          doublePrecision("lat").notNull(),
   lng:          doublePrecision("lng").notNull(),
   deviceId:     text("device_id").notNull(),

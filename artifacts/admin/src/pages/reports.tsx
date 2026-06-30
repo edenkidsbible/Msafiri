@@ -20,13 +20,18 @@ import type { AdminReport } from "@workspace/api-client-react";
 import { ReportsMap } from "@/components/reports-map";
 
 const TYPE_COLORS: Record<string, string> = {
-  camera: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  police: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  accident: "bg-red-500/10 text-red-500 border-red-500/20",
-  pothole: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  camera:    "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  police:    "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+  accident:  "bg-red-500/10 text-red-500 border-red-500/20",
+  traffic:   "bg-rose-500/10 text-rose-500 border-rose-500/20",
   roadblock: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  clear: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  hazard: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  hazard:    "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  pothole:   "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  debris:    "bg-stone-500/10 text-stone-500 border-stone-500/20",
+  breakdown: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+  weather:   "bg-slate-500/10 text-slate-500 border-slate-500/20",
+  closure:   "bg-pink-500/10 text-pink-500 border-pink-500/20",
+  clear:     "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
 };
 
 const STATUS_COLORS: Record<string, string> = {

@@ -9,10 +9,15 @@ const TTL_SECONDS: Record<string, number | null> = {
   camera:    null,        // permanent until denied
   police:    4 * 3600,    // 4 h
   accident:  2 * 3600,    // 2 h
-  pothole:   7 * 86400,   // 7 days
+  traffic:   1 * 3600,    // 1 h
   roadblock: 12 * 3600,   // 12 h
-  clear:     1 * 3600,    // 1 h
   hazard:    12 * 3600,   // 12 h
+  pothole:   7 * 86400,   // 7 days
+  debris:    4 * 3600,    // 4 h
+  breakdown: 2 * 3600,    // 2 h
+  weather:   1 * 3600,    // 1 h
+  closure:   8 * 3600,    // 8 h
+  clear:     1 * 3600,    // 1 h
 };
 
 // Camera cluster radius in degrees (~50 m at equatorial latitudes)
