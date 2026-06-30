@@ -303,9 +303,9 @@ export default function MapViewScreen() {
         >
           <Text style={[styles.legendTitle, { color: c.foreground }]}>Map Guide</Text>
           <Ionicons
-            name={legendCollapsed ? "chevron-down-outline" : "chevron-up-outline"}
-            size={13}
-            color={c.mutedForeground}
+            name={legendCollapsed ? "chevron-down" : "chevron-up"}
+            size={18}
+            color={c.primary}
           />
         </TouchableOpacity>
         {!legendCollapsed && (
@@ -424,9 +424,9 @@ const styles = StyleSheet.create({
   clusterBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#222" },
   legendToggleRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4, gap: 12, minWidth: 110,
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, gap: 14, minWidth: 130,
   },
-  legendTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  legendTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
   trafficBadge: {
     position: "absolute", right: 12,
     flexDirection: "row", alignItems: "center", gap: 4,
