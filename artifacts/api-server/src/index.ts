@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { db, adminUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import { startExpireReportsJob } from "./jobs/expireReports";
 
 const rawPort = process.env["PORT"];
 
@@ -55,4 +56,5 @@ app.listen(port, async (err) => {
 
   logger.info({ port }, "Server listening");
   await seedDefaultAdmin();
+  startExpireReportsJob();
 });
