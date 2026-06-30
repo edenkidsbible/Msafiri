@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { initializeRevenueCat, SubscriptionProvider, useSubscription } from "@/lib/revenuecat";
 
 try {
   initializeRevenueCat();
@@ -42,25 +42,31 @@ function OfflineBanner() {
 }
 
 function RootLayoutNav() {
-  const { hydrated, onboardingComplete, locationGranted, requestLocationPermission } = useApp();
+  const { hydrated, onboardingComplete, requestLocationPermission } = useApp();
+  const { isSubscribed, isLoading: subLoading } = useSubscription();
   const c = useColors();
   const router = useRouter();
   const checked = useRef(false);
 
   useEffect(() => {
-    // Wait until AppContext has finished hydrating from AsyncStorage.
-    // Without this guard, onboardingComplete is still false on the first
-    // render tick, causing router.replace() to fire before the Stack
-    // navigator is ready — crashing expo-router on web.
+    // Wait until AppContext has hydrated from AsyncStorage and RevenueCat
+    // has resolved subscription status before making routing decisions.
     if (!hydrated) return;
     if (checked.current) return;
-    checked.current = true;
     if (!onboardingComplete) {
+      checked.current = true;
       router.replace("/onboarding");
-    } else if (!locationGranted) {
+      return;
+    }
+    // Onboarding done — wait for RevenueCat to confirm subscription status
+    if (subLoading) return;
+    checked.current = true;
+    if (!isSubscribed) {
+      router.replace("/paywall");
+    } else {
       requestLocationPermission();
     }
-  }, [hydrated, onboardingComplete]);
+  }, [hydrated, onboardingComplete, isSubscribed, subLoading]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -76,6 +82,10 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="onboarding"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="paywall"
           options={{ headerShown: false, gestureEnabled: false }}
         />
       </Stack>

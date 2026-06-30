@@ -74,9 +74,8 @@ export default function OnboardingScreen() {
   };
 
   const finish = async () => {
-    await requestLocationPermission();
     completeOnboarding();
-    router.replace("/(tabs)");
+    router.replace("/paywall");
   };
 
   const isLast = activeIdx === SLIDES.length - 1;
