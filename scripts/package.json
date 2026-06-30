@@ -5,7 +5,12 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "seedRevenueCat": "tsx ./src/seedRevenueCat.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@replit/connectors-sdk": "latest",
+    "@replit/revenuecat-sdk": "latest"
   },
   "devDependencies": {
     "@types/node": "catalog:",

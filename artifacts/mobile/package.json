@@ -61,6 +61,7 @@
     "expo-notifications": "~0.32.17",
     "expo-sms": "^14.0.8",
     "expo-speech": "~14.0.8",
-    "react-native-maps": "1.18.0"
+    "react-native-maps": "1.18.0",
+    "react-native-purchases": "^10.4.0"
   }
 }
