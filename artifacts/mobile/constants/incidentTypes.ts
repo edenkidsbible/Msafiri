@@ -14,9 +14,11 @@ export type IncidentTypeDef = {
 export const INCIDENT_TYPES: Record<string, IncidentTypeDef> = {
   camera:    { label: "Speed Camera",      icon: "camera",           iconSet: "Ionicons",               color: "#E53935", emoji: "📷"  },
   police:    { label: "Police Checkpoint", icon: "shield-checkmark", iconSet: "Ionicons",               color: "#1565C0", emoji: "🚔"  },
+  alcoblow:  { label: "Alcoblow",          icon: "beer",             iconSet: "Ionicons",               color: "#283593", emoji: "🍺"  },
   accident:  { label: "Accident",          icon: "warning",          iconSet: "Ionicons",               color: "#B71C1C", emoji: "💥"  },
   traffic:   { label: "Traffic Jam",       icon: "traffic-light",    iconSet: "MaterialCommunityIcons", color: "#C62828", emoji: "🚦"  },
   roadblock: { label: "Roadblock",         icon: "construct",        iconSet: "Ionicons",               color: "#7B1FA2", emoji: "🚧"  },
+  roadworks: { label: "Road Works",        icon: "hammer",           iconSet: "Ionicons",               color: "#FBC02D", emoji: "👷"  },
   hazard:    { label: "Hazard",            icon: "flash",            iconSet: "Ionicons",               color: "#FF6F00", emoji: "⚠️"  },
   pothole:   { label: "Pothole",           icon: "remove-circle",    iconSet: "Ionicons",               color: "#F57C00", emoji: "🕳️" },
   debris:    { label: "Debris",            icon: "cube",             iconSet: "Ionicons",               color: "#795548", emoji: "🪨"  },
@@ -32,6 +34,6 @@ export function resolveIncidentType(type: string): IncidentTypeDef {
 }
 
 export const INCIDENT_TYPE_ORDER: (keyof typeof INCIDENT_TYPES)[] = [
-  "camera", "police", "accident", "traffic", "roadblock",
+  "camera", "police", "alcoblow", "accident", "traffic", "roadblock", "roadworks",
   "hazard", "pothole", "debris", "breakdown", "weather", "closure", "clear",
 ];

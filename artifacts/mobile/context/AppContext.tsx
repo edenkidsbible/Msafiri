@@ -20,7 +20,7 @@ import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 
 export interface CommunityReport {
   id: string;
-  type: "camera" | "police" | "accident" | "pothole" | "roadblock" | "clear" | "hazard" | "closure" | "weather" | "debris" | "breakdown" | "traffic";
+  type: "camera" | "police" | "alcoblow" | "accident" | "pothole" | "roadblock" | "roadworks" | "clear" | "hazard" | "closure" | "weather" | "debris" | "breakdown" | "traffic";
   lat: number;
   lng: number;
   timestamp: number;
@@ -522,6 +522,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         msg = `Roadblock reported ahead ${ageText}. Be prepared to stop or find an alternative route.`;
       } else if (report.type === "police") {
         msg = `Police checkpoint reported ahead ${ageText}. Please slow down and have your documents ready.`;
+      } else if (report.type === "alcoblow") {
+        msg = `Alcoblow checkpoint reported ahead ${ageText}. Slow down and have your documents ready.`;
+      } else if (report.type === "roadworks") {
+        msg = `Road works reported ahead ${ageText}. Reduce speed and watch for workers and diversions.`;
       } else if (report.type === "camera") {
         msg = `Speed camera reported by other drivers ahead. Please maintain a safe speed.`;
       } else if (report.type === "traffic") {

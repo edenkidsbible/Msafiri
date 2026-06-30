@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import type { CommunityReport } from "@/context/AppContext";
 import { SPEED_ZONES } from "@/data/speedZones";
 import ReportModal from "@/components/ReportModal";
 
@@ -52,8 +53,8 @@ export default function MapViewScreen() {
     .map((z) => ({ ...z, distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
-  const handleReport = (type: "camera" | "police" | "accident" | "pothole" | "roadblock" | "clear") => {
-    if (currentLat && currentLng) addReport(type, currentLat, currentLng);
+  const handleReport = (type: CommunityReport["type"], speedLimit?: number) => {
+    if (currentLat && currentLng) addReport(type, currentLat, currentLng, speedLimit);
     setShowReport(false);
   };
 

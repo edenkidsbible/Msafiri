@@ -29,9 +29,11 @@ const TYPES: Array<{
 }> = [
   { type: "camera",    label: "Speed Camera",  emoji: "📷",  color: "#E53935" },
   { type: "police",    label: "Police Check",   emoji: "🚔",  color: "#1565C0" },
+  { type: "alcoblow",  label: "Alcoblow",       emoji: "🍺",  color: "#283593" },
   { type: "accident",  label: "Accident",       emoji: "💥",  color: "#B71C1C" },
   { type: "traffic",   label: "Traffic Jam",    emoji: "🚦",  color: "#C62828" },
   { type: "roadblock", label: "Roadblock",      emoji: "🚧",  color: "#7B1FA2" },
+  { type: "roadworks", label: "Road Works",     emoji: "👷",  color: "#FBC02D" },
   { type: "hazard",    label: "Hazard",         emoji: "⚠️",  color: "#FF6F00" },
   { type: "pothole",   label: "Pothole",        emoji: "🕳️",  color: "#F57C00" },
   { type: "debris",    label: "Debris",         emoji: "🪨",  color: "#795548" },
