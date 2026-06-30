@@ -35,14 +35,15 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
 function RootRedirect() {
   const [, setLocation] = useLocation();
   const token = getToken();
+  const user = getUser();
   
   useEffect(() => {
-    if (token) {
-      setLocation("/dashboard");
+    if (token && user) {
+      setLocation(user.role === 'admin' ? "/dashboard" : "/reports");
     } else {
       setLocation("/login");
     }
-  }, [token, setLocation]);
+  }, [token, user, setLocation]);
   
   return null;
 }
@@ -52,7 +53,7 @@ function Router() {
     <Switch>
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
-      <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
+      <Route path="/dashboard"><ProtectedRoute component={Dashboard} adminOnly={true} /></Route>
       <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
       <Route path="/users"><ProtectedRoute component={Users} adminOnly={true} /></Route>
       <Route component={NotFound} />

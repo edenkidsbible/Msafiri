@@ -14,9 +14,9 @@ router.use(authRouter);
 router.use(adminAuthMiddleware);
 
 router.use(reportsRouter);
-router.use(statsRouter);
 
-// Users management: admin role only
+// Stats and users management: admin role only
+router.use(adminOnlyMiddleware, statsRouter);
 router.use(adminOnlyMiddleware, usersRouter);
 
 export default router;
