@@ -229,7 +229,7 @@ export default function Terms() {
       </p>
       <p style={S.p}>
         If you believe any content in the App infringes your intellectual property rights, please contact
-        us at legal@msafiri.co.ke.
+        us at legal@msafirikenya.com.
       </p>
 
       {/* 10 */}
@@ -311,7 +311,7 @@ export default function Terms() {
       <h2 style={S.h2}>14. Dispute Resolution</h2>
       <p style={S.p}>
         Before initiating any formal legal proceedings, you agree to first contact us at
-        legal@msafiri.co.ke to attempt to resolve the dispute informally. We will try to resolve
+        legal@msafirikenya.com to attempt to resolve the dispute informally. We will try to resolve
         the dispute within 30 days. If we cannot resolve it informally, either party may pursue
         formal legal proceedings.
       </p>
@@ -367,8 +367,8 @@ export default function Terms() {
       </p>
       <div style={S.callout}>
         <p style={{ ...S.p, marginBottom: "0.25rem" }}><span style={S.bold}>Msafiri Kenya</span></p>
-        <p style={{ ...S.p, marginBottom: "0.25rem" }}>Legal enquiries: <span style={S.bold}>legal@msafiri.co.ke</span></p>
-        <p style={{ ...S.p, marginBottom: "0.25rem" }}>General support: <span style={S.bold}>support@msafiri.co.ke</span></p>
+        <p style={{ ...S.p, marginBottom: "0.25rem" }}>Legal enquiries: <span style={S.bold}>legal@msafirikenya.com</span></p>
+        <p style={{ ...S.p, marginBottom: "0.25rem" }}>General support: <span style={S.bold}>support@msafirikenya.com</span></p>
         <p style={{ ...S.p, marginBottom: 0 }}>Website: <span style={S.bold}>msafirikenya.com</span></p>
       </div>
     </LegalLayout>

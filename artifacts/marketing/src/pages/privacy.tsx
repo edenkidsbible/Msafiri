@@ -180,7 +180,7 @@ export default function Privacy() {
       <p style={S.p}>
         While we implement industry-standard safeguards, no method of electronic transmission or storage
         is 100% secure. We cannot guarantee absolute security. If you believe your data has been
-        compromised, please contact us immediately at privacy@msafiri.co.ke.
+        compromised, please contact us immediately at privacy@msafirikenya.com.
       </p>
 
       {/* 6 */}
@@ -204,7 +204,7 @@ export default function Privacy() {
         To request deletion of all data associated with your device:
       </p>
       <ul style={S.ul}>
-        <li style={S.li}>Email us at <span style={S.bold}>privacy@msafiri.co.ke</span> with the subject line "Data Deletion Request."</li>
+        <li style={S.li}>Email us at <span style={S.bold}>privacy@msafirikenya.com</span> with the subject line "Data Deletion Request."</li>
         <li style={S.li}>We will delete all data tied to your device ID within <span style={S.bold}>30 days</span> of receiving your request, except where retention is required by law or for legitimate security purposes.</li>
       </ul>
 
@@ -253,7 +253,7 @@ export default function Privacy() {
       <p style={S.p}>
         Msafiri is not directed to children under the age of 13. We do not knowingly collect personal
         information from children under 13. If you are a parent or guardian and believe your child has
-        provided us with personal information, please contact us at privacy@msafiri.co.ke and we will
+        provided us with personal information, please contact us at privacy@msafirikenya.com and we will
         take steps to delete that information.
       </p>
       <p style={S.p}>
@@ -309,8 +309,8 @@ export default function Privacy() {
       </p>
       <div style={S.callout}>
         <p style={{ ...S.p, marginBottom: "0.25rem" }}><span style={S.bold}>Msafiri Kenya</span></p>
-        <p style={{ ...S.p, marginBottom: "0.25rem" }}>Email: <span style={S.bold}>privacy@msafiri.co.ke</span></p>
-        <p style={{ ...S.p, marginBottom: "0.25rem" }}>Support: <span style={S.bold}>support@msafiri.co.ke</span></p>
+        <p style={{ ...S.p, marginBottom: "0.25rem" }}>Email: <span style={S.bold}>privacy@msafirikenya.com</span></p>
+        <p style={{ ...S.p, marginBottom: "0.25rem" }}>Support: <span style={S.bold}>support@msafirikenya.com</span></p>
         <p style={{ ...S.p, marginBottom: 0 }}>Website: <span style={S.bold}>msafirikenya.com</span></p>
       </div>
       <p style={S.p}>

@@ -420,7 +420,7 @@ export default function Home() {
           <div className="flex gap-8 text-sm text-muted-foreground font-medium">
             <a href="/marketing/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
             <a href="/marketing/terms" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="mailto:support@msafiri.co.ke" className="hover:text-white transition-colors">Contact Support</a>
+            <a href="mailto:support@msafirikenya.com" className="hover:text-white transition-colors">Contact Support</a>
           </div>
 
           <div className="text-sm text-muted-foreground">
