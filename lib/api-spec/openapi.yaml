@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: admin-auth
+    description: Admin authentication
+  - name: admin-reports
+    description: Admin report management
+  - name: admin-users
+    description: Admin user management
+  - name: admin-stats
+    description: Admin statistics
 paths:
   /healthz:
     get:
@@ -24,6 +32,231 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /admin/auth/login:
+    post:
+      operationId: adminLogin
+      tags: [admin-auth]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResult"
+        "401":
+          description: Invalid credentials
+
+  /admin/reports:
+    get:
+      operationId: adminListReports
+      tags: [admin-reports]
+      summary: List all reports (paginated)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: type
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200":
+          description: Reports list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: adminCreateReport
+      tags: [admin-reports]
+      summary: Create a report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminReportInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReport"
+        "401":
+          description: Unauthorized
+
+  /admin/reports/{id}:
+    patch:
+      operationId: adminUpdateReport
+      tags: [admin-reports]
+      summary: Update a report
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminReportUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReport"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: adminDeleteReport
+      tags: [admin-reports]
+      summary: Delete a report
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin-users]
+      summary: List admin users
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserList"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden (staff cannot access)
+    post:
+      operationId: adminCreateUser
+      tags: [admin-users]
+      summary: Create an admin/staff user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/users/{id}:
+    patch:
+      operationId: adminUpdateUser
+      tags: [admin-users]
+      summary: Update an admin user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: adminDeleteUser
+      tags: [admin-users]
+      summary: Delete an admin user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin-stats]
+      summary: Dashboard statistics
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          description: Unauthorized
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +267,136 @@ components:
       required:
         - status
 
+    AdminLoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:   { type: string }
+        password: { type: string }
+
+    AdminLoginResult:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user:
+          $ref: "#/components/schemas/AdminUser"
+
+    AdminUser:
+      type: object
+      required: [id, email, name, role, createdAt]
+      properties:
+        id:        { type: string }
+        email:     { type: string }
+        name:      { type: string }
+        role:      { type: string }
+        createdAt: { type: string }
+
+    AdminUserList:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+
+    AdminUserInput:
+      type: object
+      required: [email, name, password, role]
+      properties:
+        email:    { type: string }
+        name:     { type: string }
+        password: { type: string }
+        role:     { type: string }
+
+    AdminUserUpdate:
+      type: object
+      properties:
+        email:    { type: string }
+        name:     { type: string }
+        password: { type: string }
+        role:     { type: string }
+
+    AdminReport:
+      type: object
+      required: [id, type, lat, lng, deviceId, status, confirmCount, denyCount, createdAt]
+      properties:
+        id:           { type: string }
+        type:         { type: string }
+        lat:          { type: number }
+        lng:          { type: number }
+        deviceId:     { type: string }
+        status:       { type: string }
+        confirmCount: { type: integer }
+        denyCount:    { type: integer }
+        speedLimit:   { type: ["integer", "null"] }
+        roadName:     { type: ["string", "null"] }
+        createdAt:    { type: string }
+        expiresAt:    { type: ["string", "null"] }
+
+    AdminReportList:
+      type: object
+      required: [reports, total, page, limit]
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        total:  { type: integer }
+        page:   { type: integer }
+        limit:  { type: integer }
+
+    AdminReportInput:
+      type: object
+      required: [type, lat, lng]
+      properties:
+        type:       { type: string }
+        lat:        { type: number }
+        lng:        { type: number }
+        deviceId:   { type: string }
+        status:     { type: string }
+        speedLimit: { type: ["integer", "null"] }
+        roadName:   { type: ["string", "null"] }
+
+    AdminReportUpdate:
+      type: object
+      properties:
+        type:         { type: string }
+        lat:          { type: number }
+        lng:          { type: number }
+        status:       { type: string }
+        speedLimit:   { type: ["integer", "null"] }
+        roadName:     { type: ["string", "null"] }
+        confirmCount: { type: integer }
+        denyCount:    { type: integer }
+
+    AdminStats:
+      type: object
+      required: [totalReports, activeReports, expiredReports, reportsToday, byType, byStatus]
+      properties:
+        totalReports:   { type: integer }
+        activeReports:  { type: integer }
+        expiredReports: { type: integer }
+        reportsToday:   { type: integer }
+        byType:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatCount"
+        byStatus:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatCount"
+
+    StatCount:
+      type: object
+      required: [label, count]
+      properties:
+        label: { type: string }
+        count: { type: integer }
+
+    DeleteResult:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
