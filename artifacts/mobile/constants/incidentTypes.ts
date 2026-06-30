@@ -22,7 +22,7 @@ export const INCIDENT_TYPES: Record<string, IncidentTypeDef> = {
   debris:    { label: "Debris",            icon: "cube",             iconSet: "Ionicons",               color: "#795548", emoji: "🪨"  },
   breakdown: { label: "Broken Down",       icon: "car",              iconSet: "Ionicons",               color: "#FF8F00", emoji: "🚗"  },
   weather:   { label: "Bad Weather",       icon: "rainy",            iconSet: "Ionicons",               color: "#37474F", emoji: "🌧️" },
-  closure:   { label: "Road Closed",       icon: "hand-left",        iconSet: "Ionicons",               color: "#880E4F", emoji: "🛑"  },
+  closure:   { label: "Road Closed",       icon: "hand-left",        iconSet: "Ionicons",               color: "#880E4F", emoji: "🔴"  },
   clear:     { label: "Road Clear",        icon: "checkmark-circle", iconSet: "Ionicons",               color: "#00C853", emoji: "✅"  },
   __unknown: { label: "Unknown",           icon: "help-circle",      iconSet: "Ionicons",               color: "#546E7A", emoji: "❓"  },
 };

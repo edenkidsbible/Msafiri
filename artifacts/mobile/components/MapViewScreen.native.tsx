@@ -60,21 +60,13 @@ const ZONE_MARKER: Record<string, { ioniconName: React.ComponentProps<typeof Ion
 };
 
 // Legend: all 12 community-report types + static Zone entry
-const LEGEND_ITEMS: Array<{
-  key: string;
-  label: string;
-  bg: string;
-  iconSet: "Ionicons" | "MaterialCommunityIcons" | "static";
-  icon: string;
-}> = [
+const LEGEND_ITEMS: Array<{ key: string; label: string; emoji: string }> = [
   ...INCIDENT_TYPE_ORDER.map((t) => ({
     key: t,
     label: INCIDENT_TYPES[t].label,
-    bg: INCIDENT_TYPES[t].color,
-    iconSet: INCIDENT_TYPES[t].iconSet as "Ionicons" | "MaterialCommunityIcons",
-    icon: INCIDENT_TYPES[t].icon,
+    emoji: INCIDENT_TYPES[t].emoji,
   })),
-  { key: "zone", label: "Speed Zone", bg: "#E65100", iconSet: "static" as const, icon: "speedometer" },
+  { key: "zone", label: "Speed Zone", emoji: "⚡" },
 ];
 
 // ─── Cluster grouping ─────────────────────────────────────────────────────────
@@ -110,7 +102,9 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
     const def = resolveIncidentType(r.type);
     return (
       <View style={{ opacity: faded ? 0.45 : 1 }}>
-        <MarkerIcon type={r.type} bg={def.color} size={30} />
+        <View style={[styles.emojiMarker, { backgroundColor: def.color }]}>
+          <Text style={styles.emojiMarkerText}>{def.emoji}</Text>
+        </View>
       </View>
     );
   }
@@ -317,21 +311,7 @@ export default function MapViewScreen() {
           >
             {LEGEND_ITEMS.map((l) => (
               <View key={l.key} style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: l.bg }]}>
-                  {l.iconSet === "MaterialCommunityIcons" ? (
-                    <MaterialCommunityIcons
-                      name={l.icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
-                      size={9}
-                      color="#FFF"
-                    />
-                  ) : (
-                    <Ionicons
-                      name={l.icon as React.ComponentProps<typeof Ionicons>["name"]}
-                      size={9}
-                      color="#FFF"
-                    />
-                  )}
-                </View>
+                <Text style={styles.legendEmoji}>{l.emoji}</Text>
                 <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
               </View>
             ))}
@@ -393,7 +373,15 @@ const styles = StyleSheet.create({
   },
   legendScroll: { borderRadius: 12 },
   legendContent: { padding: 10, gap: 6 },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  emojiMarker: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.28, shadowRadius: 4, elevation: 5,
+  },
+  emojiMarkerText: { fontSize: 18, lineHeight: 22 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  legendEmoji: { fontSize: 16, width: 22, textAlign: "center" },
   legendDot: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   legendText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   controls: { position: "absolute", right: 12, flexDirection: "column", gap: 10 },
