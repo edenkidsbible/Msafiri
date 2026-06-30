@@ -50,6 +50,14 @@ export interface TripData {
 
 export interface SOSContact { name: string; phone: string }
 
+export interface ArrivedInfo {
+  destName: string;
+  distM: number;
+  durationS: number;
+  maxSpeedKmh: number;
+  alertsCount: number;
+}
+
 export interface NavDestination {
   name: string;
   lat: number;
@@ -117,6 +125,8 @@ interface AppContextValue {
   showTraffic: boolean;
   setShowTraffic: (v: boolean) => void;
   zonesOnRoute: SpeedZone[];
+  arrivedInfo: ArrivedInfo | null;
+  clearArrival: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -289,8 +299,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deviceIdRef = useRef<string | null>(null);
   const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
+  const [arrivedInfo, setArrivedInfo] = useState<ArrivedInfo | null>(null);
+
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
+  const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifGranted = useRef(false);
@@ -439,6 +452,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const inZone = withDist.find((z) => z.distance <= IN_ZONE_DIST);
     setCurrentSpeedLimit(inZone?.speedLimit ?? null);
 
+    // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
+    if (inZone && kmh > inZone.speedLimit) {
+      const warnNow = Date.now();
+      if (warnNow - lastSpeedingWarnRef.current > 25000) {
+        lastSpeedingWarnRef.current = warnNow;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        speakText(`You are exceeding the speed limit. Please slow down to ${inZone.speedLimit} kilometres per hour.`);
+      }
+    } else {
+      lastSpeedingWarnRef.current = 0;
+    }
+
     const alertCandidate = withDist.find((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
     if (alertCandidate) {
       if (alertCandidate.id !== alertZoneRef.current) {
@@ -544,6 +569,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             speakText("You have arrived at your destination");
             navActiveRef.current = false;
             setNavigationActive(false);
+            const trip = tripRef.current;
+            setArrivedInfo({
+              destName: navDestRef.current?.name.split(",")[0] ?? "your destination",
+              distM: trip?.distance ?? routeRef.current?.distanceM ?? 0,
+              durationS: Math.round((Date.now() - (trip?.startTime ?? Date.now())) / 1000),
+              maxSpeedKmh: trip?.maxSpeed ?? 0,
+              alertsCount: trip?.alertsCount ?? 0,
+            });
           }
         }
       }
@@ -748,6 +781,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     Speech.stop?.();
   }, []);
 
+  const clearArrival = useCallback(() => { setArrivedInfo(null); }, []);
+
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
@@ -862,6 +897,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentStepIdx, distToNextM, routeLoading,
       showTraffic, setShowTraffic,
       zonesOnRoute,
+      arrivedInfo, clearArrival,
     }}>
       {children}
     </AppContext.Provider>

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -88,6 +89,7 @@ export default function DriveScreen() {
     currentStepIdx, distToNextM, zonesOnRoute,
     showTraffic, setShowTraffic,
     addReport, currentLat, currentLng,
+    arrivedInfo, clearArrival,
   } = useApp();
 
   const topInset    = Platform.OS === "web" ? 67 : insets.top;
@@ -586,6 +588,94 @@ export default function DriveScreen() {
         </View>
       )}
 
+      {/* ── Arrival card ──────────────────────────────────────────────────── */}
+      {arrivedInfo && (
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={() => { clearArrival(); stopNavigation(); }}
+        >
+          <View style={styles.arrivalOverlay}>
+            <View style={[styles.arrivalSheet, { backgroundColor: c.card }]}>
+              <View style={[styles.arrivalHandle, { backgroundColor: c.border }]} />
+
+              {/* Icon + title */}
+              <View style={styles.arrivalIconWrap}>
+                <Ionicons name="checkmark-circle" size={60} color="#00C853" />
+              </View>
+              <Text style={[styles.arrivalHeading, { color: c.foreground }]}>You've arrived!</Text>
+              <Text style={[styles.arrivalDestName, { color: c.mutedForeground }]} numberOfLines={2}>
+                {arrivedInfo.destName}
+              </Text>
+
+              {/* Trip stats strip */}
+              <View style={[styles.arrivalStats, { backgroundColor: c.muted, borderColor: c.border }]}>
+                <View style={styles.arrivalStat}>
+                  <Text style={[styles.arrivalStatVal, { color: c.foreground }]}>
+                    {arrivedInfo.distM >= 1000
+                      ? `${(arrivedInfo.distM / 1000).toFixed(1)}`
+                      : `${Math.round(arrivedInfo.distM)}`}
+                  </Text>
+                  <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>
+                    {arrivedInfo.distM >= 1000 ? "km" : "m"}
+                  </Text>
+                </View>
+                <View style={[styles.arrivalStatDiv, { backgroundColor: c.border }]} />
+                <View style={styles.arrivalStat}>
+                  <Text style={[styles.arrivalStatVal, { color: c.foreground }]}>
+                    {Math.floor(arrivedInfo.durationS / 60)}
+                  </Text>
+                  <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>min</Text>
+                </View>
+                <View style={[styles.arrivalStatDiv, { backgroundColor: c.border }]} />
+                <View style={styles.arrivalStat}>
+                  <Text style={[styles.arrivalStatVal, { color: c.foreground }]}>
+                    {Math.round(arrivedInfo.maxSpeedKmh)}
+                  </Text>
+                  <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>km/h max</Text>
+                </View>
+                {arrivedInfo.alertsCount > 0 && (
+                  <>
+                    <View style={[styles.arrivalStatDiv, { backgroundColor: c.border }]} />
+                    <View style={styles.arrivalStat}>
+                      <Text style={[styles.arrivalStatVal, { color: "#E53935" }]}>
+                        {arrivedInfo.alertsCount}
+                      </Text>
+                      <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>alerts</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              {/* Parking search button */}
+              <TouchableOpacity
+                style={[styles.arrivalParkBtn, { backgroundColor: c.muted, borderColor: c.border }]}
+                onPress={() => {
+                  clearArrival();
+                  stopNavigation();
+                  setSearchText("parking near me");
+                  runSearch("parking near me");
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="car-outline" size={18} color={c.foreground} />
+                <Text style={[styles.arrivalParkTxt, { color: c.foreground }]}>Find Nearby Parking</Text>
+              </TouchableOpacity>
+
+              {/* Done button */}
+              <TouchableOpacity
+                style={[styles.arrivalDoneBtn, { backgroundColor: c.primary }]}
+                onPress={() => { clearArrival(); stopNavigation(); }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Report incident modal */}
       <ReportModal
         visible={showReport}
@@ -789,4 +879,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 6, elevation: 8,
   },
   navReportTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  // ── Arrival card ────────────────────────────────────────────────────────
+  arrivalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  arrivalSheet: {
+    borderTopLeftRadius: 32, borderTopRightRadius: 32,
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 48,
+    alignItems: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.18, shadowRadius: 20, elevation: 24,
+  },
+  arrivalHandle: {
+    width: 40, height: 4, borderRadius: 2, marginBottom: 24,
+  },
+  arrivalIconWrap: { marginBottom: 12 },
+  arrivalHeading: {
+    fontSize: 26, fontFamily: "Inter_700Bold", marginBottom: 6, textAlign: "center",
+  },
+  arrivalDestName: {
+    fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center",
+    marginBottom: 24, paddingHorizontal: 8,
+  },
+  arrivalStats: {
+    flexDirection: "row", borderRadius: 18, borderWidth: 1,
+    paddingVertical: 16, paddingHorizontal: 8,
+    width: "100%", marginBottom: 20,
+  },
+  arrivalStat: { flex: 1, alignItems: "center", gap: 2 },
+  arrivalStatVal: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  arrivalStatLbl: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  arrivalStatDiv: { width: 1, marginVertical: 4 },
+  arrivalParkBtn: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    width: "100%", paddingVertical: 15, paddingHorizontal: 20,
+    borderRadius: 16, borderWidth: 1, marginBottom: 12, justifyContent: "center",
+  },
+  arrivalParkTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  arrivalDoneBtn: {
+    width: "100%", paddingVertical: 16, borderRadius: 16, alignItems: "center",
+  },
+  arrivalDoneTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });
