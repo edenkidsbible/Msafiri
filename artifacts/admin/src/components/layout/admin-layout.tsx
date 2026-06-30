@@ -28,7 +28,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       <aside className="w-full md:w-64 bg-sidebar border-r border-sidebar-border flex flex-col flex-shrink-0">
         <div className="p-6 flex items-center gap-3 border-b border-sidebar-border">
           <ShieldAlert className="h-6 w-6 text-primary" />
-          <span className="font-mono font-bold tracking-wider uppercase text-lg text-sidebar-foreground">SafeDrive C2</span>
+          <span className="font-mono font-bold tracking-wider uppercase text-lg text-sidebar-foreground">Msafiri</span>
         </div>
         
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">

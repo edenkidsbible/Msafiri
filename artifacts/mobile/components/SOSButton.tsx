@@ -38,7 +38,7 @@ export default function SOSButton({ compact = false }: Props) {
         ? `https://maps.google.com/?q=${currentLat.toFixed(5)},${currentLng.toFixed(5)}`
         : "Location unavailable";
 
-    const msg = `EMERGENCY – I need help!\nLocation: ${locText}\n\nSent via SafeDrive Kenya`;
+    const msg = `EMERGENCY – I need help!\nLocation: ${locText}\n\nSent via Msafiri`;
 
     if (Platform.OS !== "web") {
       try {

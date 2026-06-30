@@ -76,7 +76,7 @@ export function PaywallModal({ visible, onClose }: Props) {
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: c.border }]}>
           <View style={styles.headerLeft} />
-          <Text style={[styles.headerTitle, { color: c.foreground }]}>SafeDrive Pro</Text>
+          <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri Pro</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="close" size={24} color={c.mutedForeground} />
           </TouchableOpacity>

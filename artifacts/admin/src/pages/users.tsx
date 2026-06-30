@@ -166,7 +166,7 @@ export default function Users() {
                       <FormItem>
                         <FormLabel>Comm Channel (Email)</FormLabel>
                         <FormControl>
-                          <Input placeholder="operator@safedrive.co.ke" {...field} className="bg-background" />
+                          <Input placeholder="operator@msafiri.co.ke" {...field} className="bg-background" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -316,7 +316,7 @@ export default function Users() {
                   <FormItem>
                     <FormLabel>Comm Channel (Email)</FormLabel>
                     <FormControl>
-                      <Input placeholder="operator@safedrive.co.ke" {...field} className="bg-background" />
+                      <Input placeholder="operator@msafiri.co.ke" {...field} className="bg-background" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

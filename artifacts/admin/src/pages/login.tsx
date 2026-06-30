@@ -68,7 +68,7 @@ export default function Login() {
           <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 border border-primary/20">
             <ShieldAlert className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground font-mono uppercase">SafeDrive C2</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground font-mono uppercase">Msafiri</h1>
           <p className="text-muted-foreground mt-2">Operations Command Center</p>
         </div>
 
@@ -87,7 +87,7 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Operator Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="operator@safedrive.co.ke" {...field} className="bg-background" />
+                        <Input placeholder="operator@msafiri.co.ke" {...field} className="bg-background" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

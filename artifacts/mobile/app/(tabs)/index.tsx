@@ -42,7 +42,7 @@ async function nominatimSearch(q: string): Promise<GeoResult[]> {
     `&q=${encodeURIComponent(q)}`;
   const res = await fetchWithTimeout(
     url,
-    { headers: { "User-Agent": "SafeDriveKenya/1.0", "Accept-Language": "en" } },
+    { headers: { "User-Agent": "MsafiriKenya/1.0", "Accept-Language": "en" } },
     9000
   );
   const data = await res.json();

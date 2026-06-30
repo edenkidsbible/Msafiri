@@ -173,7 +173,7 @@ export default function SettingsScreen() {
         <View style={[styles.proBanner, { backgroundColor: "#E8F5E9", borderColor: "#A5D6A7" }]}>
           <Ionicons name="shield-checkmark" size={20} color="#2E7D32" />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.proBannerTitle, { color: "#1B5E20" }]}>SafeDrive Pro</Text>
+            <Text style={[styles.proBannerTitle, { color: "#1B5E20" }]}>Msafiri Pro</Text>
             <Text style={[styles.proBannerSub, { color: "#388E3C" }]}>Your subscription is active</Text>
           </View>
         </View>
@@ -185,7 +185,7 @@ export default function SettingsScreen() {
         >
           <Ionicons name="shield-checkmark-outline" size={20} color="#fff" />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.proBannerTitle, { color: "#fff" }]}>Upgrade to SafeDrive Pro</Text>
+            <Text style={[styles.proBannerTitle, { color: "#fff" }]}>Upgrade to Msafiri Pro</Text>
             <Text style={[styles.proBannerSub, { color: "#A5D6A7" }]}>
               From KES 150/week · 1-day free trial
             </Text>
@@ -408,7 +408,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ABOUT</Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.aboutApp, { color: c.foreground }]}>SafeDrive Kenya</Text>
+          <Text style={[styles.aboutApp, { color: c.foreground }]}>Msafiri</Text>
           <Text style={[styles.aboutVersion, { color: c.mutedForeground }]}>Version 1.0.0</Text>
           <Text style={[styles.aboutDesc, { color: c.mutedForeground }]}>
             Real-time speed awareness for Kenyan roads. Data is for guidance only — always obey

@@ -24,7 +24,7 @@ const SLIDES = [
     id: "1",
     image: require("@/assets/images/onboarding1.png"),
     title: "Drive Safer in Kenya",
-    body: "SafeDrive Kenya warns you about speed cameras, police checkpoints, and speed zones before you reach them — so you're never caught by surprise.",
+    body: "Msafiri warns you about speed cameras, police checkpoints, and speed zones before you reach them — so you're never caught by surprise.",
     color: "#00C853",
   },
   {

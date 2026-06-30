@@ -30,3 +30,21 @@ id = "3kzLyDd6WLSW-GX2pqksY"
 uri = "file://artifacts/mobile/assets/images/onboarding4.png"
 type = "image"
 title = "kenyan man location phone nairobi"
+
+[[generated]]
+id = "yf0g1tfMbDzJmeJRj2Hmu"
+uri = "file://artifacts/marketing/public/images/hero-bg.png"
+type = "image"
+title = "Cinematic night highway from dashboard"
+
+[[generated]]
+id = "m3iyIYynN7j4qVjXzE4_Y"
+uri = "file://artifacts/marketing/public/images/app-ui.png"
+type = "image"
+title = "Minimalist dark mode navigation map"
+
+[[generated]]
+id = "2Ay__csWsk8VtW7tnmwI3"
+uri = "file://artifacts/marketing/public/images/nairobi-night.png"
+type = "image"
+title = "Nairobi highway at dusk"
