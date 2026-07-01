@@ -41,7 +41,7 @@ export default function MapViewScreen() {
     currentLat, currentLng, communityReports, addReport,
     activeRoute, altRoutes, selectRoute, navigationActive,
     navDestination, showTraffic, setShowTraffic,
-    currentStepIdx, distToNextM,
+    currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS,
     startNavigation, stopNavigation,
     vehicleType, routeTrafficDelayS,
   } = useApp();
@@ -94,7 +94,7 @@ export default function MapViewScreen() {
                   {navDestination.name.split(",")[0]}
                 </Text>
                 <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
-                  {durationStr(activeRoute.durationS + routeTrafficDelayS)} · {distStr(activeRoute.distanceM)}
+                  {durationStr(durationRemainingS ?? (activeRoute.durationS + routeTrafficDelayS))} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
                 </Text>
                 {routeTrafficDelayS > 0 && (
                   <Text style={[styles.routeMeta, { color: navigationActive ? "#FFD180" : "#E65100", marginTop: 1 }]}>

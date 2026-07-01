@@ -86,7 +86,7 @@ export default function DriveScreen() {
     navDestination, setNavDestination,
     activeRoute, altRoutes, selectRoute, routeLoading,
     navigationActive, startNavigation, stopNavigation,
-    currentStepIdx, distToNextM, zonesOnRoute,
+    currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, zonesOnRoute,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
     addReport, currentLat, currentLng,
@@ -582,12 +582,13 @@ export default function DriveScreen() {
 
           <View style={[styles.navDivider, { backgroundColor: divBg }]} />
 
-          {/* ETA + destination */}
+          {/* ETA + destination — recomputed live from the current GPS fix */}
           <View style={{ flex: 1 }}>
             <Text style={[styles.navEta, { color: fgMain }]}>
-              {durationStr((activeRoute?.durationS ?? 0) + routeTrafficDelayS)}
+              {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
             </Text>
             <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
+              {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
               {navDestination?.name.split(",")[0]}
             </Text>
           </View>

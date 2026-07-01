@@ -153,6 +153,8 @@ interface AppContextValue {
   stopNavigation: () => void;
   currentStepIdx: number;
   distToNextM: number | null;
+  distanceRemainingM: number | null;
+  durationRemainingS: number | null;
   routeLoading: boolean;
   showTraffic: boolean;
   setShowTraffic: (v: boolean) => void;
@@ -420,6 +422,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastSpokenRef = useRef<string>("");
   const navActiveRef = useRef(false);
   const lastLocationAtRef = useRef(0);
+  const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
   // Proximity voice refs
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
@@ -563,7 +566,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Core location handler ─────────────────────────────────────────────────
   const handleLocation = useCallback((lat: number, lng: number, speedMs: number | null) => {
-    const kmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : 0;
+    // Device-reported GPS speed is often 0/-1/null even while genuinely
+    // moving (common on many phones, especially right after a fix or when
+    // Doppler-based speed sensing hasn't locked yet). Fall back to a
+    // distance/time estimate from consecutive fixes so the speed readout
+    // keeps updating in real time regardless of what the device reports.
+    const deviceKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
+    const now = Date.now();
+    const prevFix = lastFixRef.current;
+    let computedKmh: number | null = null;
+    if (prevFix) {
+      const dt = (now - prevFix.t) / 1000;
+      if (dt >= 0.5) {
+        computedKmh = (haversine(prevFix.lat, prevFix.lng, lat, lng) / dt) * 3.6;
+      }
+    }
+    lastFixRef.current = { lat, lng, t: now };
+    const kmh =
+      deviceKmh != null && deviceKmh > 1
+        ? deviceKmh
+        : computedKmh != null
+          ? Math.min(computedKmh, 220)
+          : deviceKmh ?? 0;
     setCurrentLat(lat);
     setCurrentLng(lng);
     setCurrentSpeed(kmh);
@@ -615,7 +639,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // ── Community report proximity voice alerts (1 km) ──────────────────────
-    const now = Date.now();
     const REPORT_ANNOUNCE_DIST = 1000;
     for (const report of communityReportsRef.current) {
       if (announcedReportsRef.current.has(report.id)) continue;
@@ -980,6 +1003,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [routeIncidentsAhead]
   );
 
+  // Live "distance/time remaining to destination" — recomputed every time
+  // currentRouteDistanceM updates (i.e. every GPS fix), unlike the route's
+  // static total distanceM/durationS which never change once fetched.
+  const distanceRemainingM = useMemo(() => {
+    if (!activeRoute) return null;
+    if (currentRouteDistanceM == null) return activeRoute.distanceM;
+    return Math.max(0, activeRoute.distanceM - currentRouteDistanceM);
+  }, [activeRoute, currentRouteDistanceM]);
+
+  const durationRemainingS = useMemo(() => {
+    if (!activeRoute || distanceRemainingM == null) return null;
+    const totalWithDelay = activeRoute.durationS + routeTrafficDelayS;
+    if (activeRoute.distanceM <= 0) return totalWithDelay;
+    return Math.round((distanceRemainingM / activeRoute.distanceM) * totalWithDelay);
+  }, [activeRoute, distanceRemainingM, routeTrafficDelayS]);
+
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
@@ -1191,7 +1230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
       navigationActive, startNavigation, stopNavigation,
-      currentStepIdx, distToNextM, routeLoading,
+      currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, routeLoading,
       showTraffic, setShowTraffic,
       zonesOnRoute,
       routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
