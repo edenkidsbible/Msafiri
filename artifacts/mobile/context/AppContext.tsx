@@ -13,6 +13,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
@@ -418,6 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const stepIdxRef = useRef(0);
   const lastSpokenRef = useRef<string>("");
   const navActiveRef = useRef(false);
+  const lastLocationAtRef = useRef(0);
   // Proximity voice refs
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
@@ -742,27 +744,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── GPS watch ─────────────────────────────────────────────────────────────
+  // Some devices/OS versions silently pause `watchPositionAsync` after the
+  // first fix (e.g. iOS throttling high-accuracy updates without background
+  // location entitlements, or the screen dimming during a drive). A watchdog
+  // below detects a stalled subscription and transparently resubscribes so
+  // position/speed/turn-instructions keep advancing instead of freezing.
   useEffect(() => {
     if (!locationGranted) return;
-    let cleanup: (() => void) | undefined;
-    if (Platform.OS !== "web") {
-      (async () => {
-        const sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 5 },
-          (loc) => handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed)
-        );
-        cleanup = () => sub.remove();
-      })();
-    } else if ("geolocation" in navigator) {
-      const id = navigator.geolocation.watchPosition(
-        (pos) => handleLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.speed),
-        (err) => console.warn("Geo:", err),
-        { enableHighAccuracy: true }
-      );
-      cleanup = () => navigator.geolocation.clearWatch(id);
-    }
-    return () => cleanup?.();
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let liveSub: { remove: () => void } | null = null;
+
+    const teardown = () => {
+      liveSub?.remove();
+      liveSub = null;
+    };
+
+    const subscribe = async () => {
+      if (cancelled) return;
+      teardown();
+      // Reset the freshness baseline on every (re)subscribe attempt so the
+      // watchdog also catches a subscription that never delivers a fix.
+      lastLocationAtRef.current = Date.now();
+      try {
+        if (Platform.OS !== "web") {
+          const sub = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 3 },
+            (loc) => {
+              lastLocationAtRef.current = Date.now();
+              handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed);
+            }
+          );
+          if (cancelled) { sub.remove(); return; }
+          liveSub = sub;
+        } else if ("geolocation" in navigator) {
+          const id = navigator.geolocation.watchPosition(
+            (pos) => {
+              lastLocationAtRef.current = Date.now();
+              handleLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.speed);
+            },
+            (err) => console.warn("Geo:", err),
+            { enableHighAccuracy: true }
+          );
+          liveSub = { remove: () => navigator.geolocation.clearWatch(id) };
+        }
+      } catch (e) {
+        console.warn("Location watch failed to start, retrying:", e);
+        if (!cancelled) retryTimer = setTimeout(subscribe, 4000);
+      }
+    };
+
+    subscribe();
+
+    const watchdog = setInterval(() => {
+      if (cancelled) return;
+      if (Date.now() - lastLocationAtRef.current > 8000) {
+        console.warn("GPS watch stalled — resubscribing");
+        subscribe();
+      }
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      clearInterval(watchdog);
+      teardown();
+    };
   }, [locationGranted, handleLocation]);
+
+  // Keep the screen awake while actively navigating so the OS doesn't dim/
+  // lock the display and throttle GPS callbacks mid-trip.
+  useEffect(() => {
+    if (!navigationActive) return;
+    activateKeepAwakeAsync("msafiri-navigation").catch(() => {});
+    return () => { deactivateKeepAwake("msafiri-navigation").catch(() => {}); };
+  }, [navigationActive]);
 
   // ── Route fetching ────────────────────────────────────────────────────────
   useEffect(() => {

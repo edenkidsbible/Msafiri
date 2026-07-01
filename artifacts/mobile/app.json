@@ -19,7 +19,8 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",
-        "NSLocationAlwaysUsageDescription": "Msafiri uses your location to detect speed zones while driving."
+        "NSLocationAlwaysUsageDescription": "Msafiri uses your location to detect speed zones while driving.",
+        "UIBackgroundModes": ["location"]
       }
     },
     "android": {
@@ -27,7 +28,9 @@
       "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
@@ -49,7 +52,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Msafiri needs location access to show your speed and detect speed cameras nearby."
+          "locationAlwaysAndWhenInUsePermission": "Msafiri needs location access to show your speed and detect speed cameras nearby.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       [

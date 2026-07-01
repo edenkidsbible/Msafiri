@@ -12,3 +12,4 @@
 - [Vehicle-type speed capping](vehicle-type-speed-capping.md) — cap displayed limits by vehicle class, never cap a community report's own submitted speedLimit; capping doesn't propagate, audit each SPEED_ZONES consumer.
 - [Traffic delay estimation](traffic-delay-estimation.md) — no live traffic API; delay heuristically summed from congestion-type community reports, capped at 45min; add to durationS wherever route duration is shown.
 - [Geo data placement verification](geo-data-placement-verification.md) — never trust hardcoded lat/lng "looks right"; cross-check named places against a geocoding API (Photon works, Nominatim 403s from sandbox) and flag >10-15km deltas.
+- [Expo watchPositionAsync silent stall](expo-location-watch-stall.md) — watchPositionAsync can freeze after first fix; pair GPS tracking with a watchdog resubscribe + keep-awake, don't trust a bare subscription.
