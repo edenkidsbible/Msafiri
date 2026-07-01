@@ -30,3 +30,10 @@ When seeding example/demo `speed_zones` "stretch" rows (mode='stretch'), don't f
 **Why:** the corridor-matching confidence gate (80m) assumes a straight chord between start/end approximates the real road. Long or curvy real-world segments (e.g. an escarpment road) break that assumption — the chord can run through terrain the road doesn't, causing false negatives (safe) or, on roads that cross the chord, false positives (unsafe). Straight, well-known highway sections (flat plains, dual carriageways) are safe stretch candidates; winding sections (e.g. Limuru–Naivasha via the old escarpment road) are not, even if verified endpoints exist for the towns at either end.
 
 **How to apply:** before adding a stretch row, sanity-check the real road's straightness between the two points (known flat/dual-carriageway sections are good; famous winding/escarpment sections are not), and note in the `description` that it's a straight-line approximation so a future admin knows to refine it with waypoints/polylines if needed.
+
+## Seeding stretches: always check for towns between the endpoints
+A long stretch's two endpoints being verified is not enough — any town/trading-centre that sits *between* them (not just at the endpoints) needs its own `mode='point'` 50 km/h zone, or the stretch's higher corridor limit will apply through that town too.
+
+**Why:** `activeLimitZone = inZone ?? stretchMatch` — the point-zone check (`inZone`) already takes priority over the stretch corridor match, so this is a pure data-completeness problem, not a logic bug. Geocode every real town along the route (not just the two endpoints) and check its distance to the stretch's chord — real intermediate towns can legitimately end up several km off a straight chord (road curves/bypasses), which doesn't invalidate adding the town's own point zone (it's evaluated independently by radius, not via the chord).
+
+**How to apply:** for every stretch, geocode candidate towns along the real route (web knowledge + Photon geocoding to confirm coordinates) and add a point-mode 50 km/h zone for each one found, even if it sits a few km from the straight-line chord.
