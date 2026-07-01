@@ -20,3 +20,6 @@ When adding any zone described as "X to Y" or covering a named stretch:
 ## Existing paired zones
 - sz035 / sz035b — Mombasa Rd: Nyayo Stadium end ↔ Sameer Business Park end
 - sz037 / sz037b — Waiyaki Way: Kangemi end ↔ Uthiru end
+
+## Relation to DB-managed "stretch" zones
+Admin-created DB stretch zones (mode="stretch", start/end coords) use this same start/end pairing for their ALERT_DIST proximity warning and map markers, but the driver's *confident current limit* along the corridor's middle is decided by a separate, tighter mechanism — see [Speed corridor confidence matching](speed-corridor-confidence-matching.md). Don't assume the point-pairing distance logic here is sufficient for "what's my limit right now" claims on long stretches.

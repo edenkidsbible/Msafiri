@@ -181,7 +181,7 @@ export default function MapViewScreen() {
     activeRoute, altRoutes, selectRoute,
     navigationActive,
     showTraffic, setShowTraffic,
-    vehicleType, allZones,
+    vehicleType, allZones, stretchZones,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
 
@@ -229,6 +229,19 @@ export default function MapViewScreen() {
         showsCompass
         showsTraffic={showTraffic}
       >
+        {/* Admin-defined road-stretch corridors (continuous limits, e.g. open highway) */}
+        {stretchZones.map((s) => (
+          <Polyline
+            key={s.id}
+            coordinates={[
+              { latitude: s.startLat, longitude: s.startLng },
+              { latitude: s.endLat, longitude: s.endLng },
+            ]}
+            strokeColor={s.type === "camera" ? "#E53935AA" : s.type === "police" ? "#1565C0AA" : "#E65100AA"}
+            strokeWidth={5}
+          />
+        ))}
+
         {/* Speed zone markers */}
         {allZones.map((z) => {
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;

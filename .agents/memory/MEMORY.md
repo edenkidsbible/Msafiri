@@ -15,3 +15,4 @@
 - [Expo watchPositionAsync silent stall](expo-location-watch-stall.md) — watchPositionAsync can freeze after first fix; pair GPS tracking with a watchdog resubscribe + keep-awake, don't trust a bare subscription.
 - [Live ETA/distance-remaining display locations](live-eta-distance-display.md) — two separate route panels (index.tsx nav bar, MapViewScreen.web.tsx) both need updating in sync, or one drifts back to static.
 - [Mobile API client pattern](mobile-api-client-pattern.md) — mobile app uses a hand-written apiGet/apiPost wrapper, not generated api-client-react hooks like the web artifacts.
+- [Speed corridor confidence matching](speed-corridor-confidence-matching.md) — a stricter confidence check must exclude the data feeding a looser legacy check, not just be given fallback priority over it.

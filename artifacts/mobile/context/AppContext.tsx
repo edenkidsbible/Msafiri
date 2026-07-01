@@ -119,6 +119,7 @@ interface AppContextValue {
   currentSpeedLimit: number | null;
   nearbyZones: Array<SpeedZone & { distance: number }>;
   allZones: SpeedZone[];
+  stretchZones: SpeedStretch[];
   dismissAlert: () => void;
   hudMode: boolean;
   setHudMode: (v: boolean) => void;
@@ -287,6 +288,50 @@ function staticZoneLabel(type: SpeedZone["type"]): string {
   return type === "camera" ? "Speed Camera" : type === "police" ? "Police Checkpoint" : "Speed Zone";
 }
 
+const METERS_PER_DEG_LAT = 110540;
+function metersPerDegLng(atLat: number): number {
+  return 111320 * Math.cos((atLat * Math.PI) / 180);
+}
+
+/** Projects (lat,lng) onto the line segment from (startLat,startLng) to
+ *  (endLat,endLng) using a local flat-earth approximation (accurate enough
+ *  for road-length segments). Returns the perpendicular offset in metres and
+ *  the *unclamped* fractional position along the segment — 0 is the start,
+ *  1 is the end; outside [0,1] means the point is beyond one of the two
+ *  ends, i.e. off this particular stretch entirely. */
+function projectOntoSegment(
+  lat: number, lng: number,
+  startLat: number, startLng: number,
+  endLat: number, endLng: number
+): { offsetM: number; alongFrac: number } {
+  const mLng = metersPerDegLng(startLat);
+  const px = (lng - startLng) * mLng, py = (lat - startLat) * METERS_PER_DEG_LAT;
+  const bx = (endLng - startLng) * mLng, by = (endLat - startLat) * METERS_PER_DEG_LAT;
+  const lenSq = bx * bx + by * by;
+  const t = lenSq > 0 ? (px * bx + py * by) / lenSq : 0;
+  const tClamped = Math.max(0, Math.min(1, t));
+  const offsetM = Math.hypot(px - tClamped * bx, py - tClamped * by);
+  return { offsetM, alongFrac: t };
+}
+
+/** A continuous admin-defined "this whole road segment has this limit" zone
+ *  (e.g. the open-highway stretch between two towns), as opposed to a single
+ *  point (camera/checkpoint). Kept separate from `SpeedZone` so the mobile
+ *  app can match the driver's position anywhere along the corridor, not just
+ *  near its two endpoints — see `projectOntoSegment` and its use below. */
+export interface SpeedStretch {
+  id: string;
+  name: string;
+  road: string;
+  type: SpeedZone["type"];
+  speedLimit: number;
+  description: string;
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+}
+
 // ── Admin-managed speed zones (fetched from the API, merged with the static list) ─
 interface ApiSpeedZone {
   id: string;
@@ -314,11 +359,29 @@ function apiZoneToStaticZones(z: ApiSpeedZone): SpeedZone[] {
   }
   if (z.mode === "stretch" && z.startLat != null && z.startLng != null && z.endLat != null && z.endLng != null) {
     return [
-      { ...base, id: `db-${z.id}-start`, lat: z.startLat, lng: z.startLng },
-      { ...base, id: `db-${z.id}-end`, lat: z.endLat, lng: z.endLng },
+      { ...base, id: `db-${z.id}-start`, lat: z.startLat, lng: z.startLng, isStretchEndpoint: true },
+      { ...base, id: `db-${z.id}-end`, lat: z.endLat, lng: z.endLng, isStretchEndpoint: true },
     ];
   }
   return [];
+}
+
+function apiZoneToStretch(z: ApiSpeedZone): SpeedStretch | null {
+  if (z.status !== "active" || z.speedLimit == null || z.mode !== "stretch") return null;
+  if (z.startLat == null || z.startLng == null || z.endLat == null || z.endLng == null) return null;
+  const type: SpeedZone["type"] = z.type === "camera" || z.type === "police" ? z.type : "zone";
+  return {
+    id: `db-${z.id}`,
+    name: z.name,
+    road: z.road ?? "",
+    type,
+    speedLimit: z.speedLimit,
+    description: z.description ?? "",
+    startLat: z.startLat,
+    startLng: z.startLng,
+    endLat: z.endLat,
+    endLng: z.endLng,
+  };
 }
 
 // ── Traffic delay estimation ───────────────────────────────────────────────
@@ -405,6 +468,10 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
 const STEP_ANNOUNCE_DIST = 220; // m — announce next step when within this distance
 const STEP_ADVANCE_DIST = 35;  // m — advance step index when past maneuver
+// Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
+// readout, so we only claim confidence in a posted limit when squarely
+// inside the admin-defined corridor — not just "somewhere nearby".
+const STRETCH_CORRIDOR_M = 80;
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -439,7 +506,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
   const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
+  const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
   const allZonesRef = useRef<SpeedZone[]>(SPEED_ZONES);
+  const dbStretchesRef = useRef<SpeedStretch[]>([]);
 
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const isOfflineRef = useRef(false);
@@ -635,16 +704,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: haversine(lat, lng, z.lat, z.lng) }))
       .sort((a, b) => a.distance - b.distance);
     setNearbyZones(withDist.filter((z) => z.distance < 5000));
-    const inZone = withDist.find((z) => z.distance <= IN_ZONE_DIST);
-    setCurrentSpeedLimit(inZone?.speedLimit ?? null);
+    // Flattened stretch endpoints (isStretchEndpoint) are excluded here: a
+    // 250m point-radius match near just one end of a highway can't confirm
+    // the driver is actually on that road — the tighter corridor projection
+    // below (stretchMatch) is the source of truth for stretch zones.
+    const inZone = withDist.find((z) => z.distance <= IN_ZONE_DIST && !z.isStretchEndpoint);
+
+    // A driver can be squarely inside an admin-defined "road stretch" corridor
+    // (e.g. the open highway between two towns) without being near either of
+    // its two endpoints, so that can't be caught by the point-distance check
+    // above. Project the fix onto every stretch's line segment instead, and
+    // only treat it as a confident match within a tight lateral corridor.
+    const stretchMatch = dbStretchesRef.current.length
+      ? dbStretchesRef.current
+          .map((s) => {
+            const { offsetM, alongFrac } = projectOntoSegment(lat, lng, s.startLat, s.startLng, s.endLat, s.endLng);
+            return { ...s, speedLimit: capSpeedLimit(s.speedLimit, vehicle), offsetM, alongFrac };
+          })
+          .filter((s) => s.offsetM <= STRETCH_CORRIDOR_M && s.alongFrac >= 0 && s.alongFrac <= 1)
+          .sort((a, b) => a.offsetM - b.offsetM)[0] ?? null
+      : null;
+
+    // A point zone (camera/police checkpoint/local zone) is more specific
+    // than a general road-stretch limit, so it takes priority when both
+    // match — otherwise fall back to the stretch's posted limit.
+    const activeLimitZone = inZone ?? stretchMatch;
+    setCurrentSpeedLimit(activeLimitZone?.speedLimit ?? null);
 
     // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
-    if (inZone && kmh > inZone.speedLimit) {
+    if (activeLimitZone && kmh > activeLimitZone.speedLimit) {
       const warnNow = Date.now();
       if (warnNow - lastSpeedingWarnRef.current > 25000) {
         lastSpeedingWarnRef.current = warnNow;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        speakText(`You are exceeding the speed limit. Please slow down to ${inZone.speedLimit} kilometres per hour.`);
+        speakText(`You are exceeding the speed limit. Please slow down to ${activeLimitZone.speedLimit} kilometres per hour.`);
       }
     } else {
       lastSpeedingWarnRef.current = 0;
@@ -975,6 +1068,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const data = await apiGet<{ zones: ApiSpeedZone[] }>(`/speed-zones?lat=${lat}&lng=${lng}&radius=100000`);
         setDbZones(data.zones.flatMap(apiZoneToStaticZones));
+        setDbStretches(data.zones.map(apiZoneToStretch).filter((s): s is SpeedStretch => s !== null));
       } catch { /* network error — keep previous DB zones */ }
     };
     poll(); // immediate on mount
@@ -990,6 +1084,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [dbZones]
   );
   useEffect(() => { allZonesRef.current = allZones; }, [allZones]);
+  useEffect(() => { dbStretchesRef.current = dbStretches; }, [dbStretches]);
 
   // ── Route incidents (unified static zones + community reports along the route) ─
   const routeCumDist = useMemo(
@@ -1280,7 +1375,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission,
       currentLat, currentLng, currentSpeed,
-      activeAlert, currentSpeedLimit, nearbyZones, allZones, dismissAlert,
+      activeAlert, currentSpeedLimit, nearbyZones, allZones, stretchZones: dbStretches, dismissAlert,
       hudMode, setHudMode,
       themeOverride, setThemeOverride,
       clearAllData,

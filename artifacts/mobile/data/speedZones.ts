@@ -9,6 +9,14 @@ export interface SpeedZone {
   speedLimit: number;
   type: ZoneType;
   description: string;
+  /** True for the two flattened endpoint markers derived from an admin
+   *  "road stretch" zone (see apiZoneToStaticZones in AppContext.tsx). These
+   *  exist only for map display / proximity alerts; they must NOT be used to
+   *  determine the driver's confident current speed limit — that's decided
+   *  by the tighter corridor projection against the full stretch segment
+   *  (see projectOntoSegment / stretchMatch), since a point-radius match at
+   *  an endpoint can't tell whether the driver is actually on that road. */
+  isStretchEndpoint?: boolean;
 }
 
 export const SPEED_ZONES: SpeedZone[] = [
