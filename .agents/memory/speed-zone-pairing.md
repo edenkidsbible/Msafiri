@@ -23,3 +23,10 @@ When adding any zone described as "X to Y" or covering a named stretch:
 
 ## Relation to DB-managed "stretch" zones
 Admin-created DB stretch zones (mode="stretch", start/end coords) use this same start/end pairing for their ALERT_DIST proximity warning and map markers, but the driver's *confident current limit* along the corridor's middle is decided by a separate, tighter mechanism — see [Speed corridor confidence matching](speed-corridor-confidence-matching.md). Don't assume the point-pairing distance logic here is sufficient for "what's my limit right now" claims on long stretches.
+
+## Seeding DB stretch rows: reuse verified point coordinates as endpoints
+When seeding example/demo `speed_zones` "stretch" rows (mode='stretch'), don't fabricate new coordinates — reuse lat/lng from existing already-verified `SPEED_ZONES` point entries (town/interchange cameras) as the start/end of the stretch. This keeps every stretch endpoint independently verifiable and avoids introducing new unverified geo data.
+
+**Why:** the corridor-matching confidence gate (80m) assumes a straight chord between start/end approximates the real road. Long or curvy real-world segments (e.g. an escarpment road) break that assumption — the chord can run through terrain the road doesn't, causing false negatives (safe) or, on roads that cross the chord, false positives (unsafe). Straight, well-known highway sections (flat plains, dual carriageways) are safe stretch candidates; winding sections (e.g. Limuru–Naivasha via the old escarpment road) are not, even if verified endpoints exist for the towns at either end.
+
+**How to apply:** before adding a stretch row, sanity-check the real road's straightness between the two points (known flat/dual-carriageway sections are good; famous winding/escarpment sections are not), and note in the `description` that it's a straight-line approximation so a future admin knows to refine it with waypoints/polylines if needed.
