@@ -1,0 +1,10 @@
+---
+name: Verifying lat/lng placements for real-world locations
+description: How to audit hardcoded speed-zone/camera/checkpoint coordinates against real-world places
+---
+
+When a data file hardcodes lat/lng for real Kenyan places (speed cameras, checkpoints, zones), never trust that a coordinate "looks plausible" just because it's in the right country/region — cross-check it. Several entries in `speedZones.ts` had town names correctly labeled but coordinates 15–110km away from the real place (e.g. "Kapsabet" camera placed with a negative latitude near Kericho instead of its real position north of the equator; "Malindi Town" zone duplicating Mombasa-area coordinates instead of the actual town 80km north; "Kanyonyo Weighbridge" placed near Machakos instead of on the A3 east of Matuu).
+
+**Why:** These errors are invisible from just reading the code (the description text sounds right) and only show up when the coordinate is actually plotted or compared against a real geocoded reference — a purely "does this compile" check would never catch it.
+
+**How to apply:** To audit geo data, use the Photon geocoding API (`https://photon.komoot.io/api/?q=<place>&limit=N`, no key needed — Nominatim's public endpoint returns 403 for sandboxed/datacenter IPs) to fetch real coordinates for each named place, compute haversine distance to the stored coordinate, and flag anything more than ~10-15km off for manual review. For ambiguous/unmapped landmarks (e.g. a specific weighbridge), use `webSearch` to find the road corridor and interpolate between two known towns along that road. Corridor-style "zone" entries representing a stretch of highway (not a single town) don't need pinpoint accuracy — just check the point falls somewhere along the real road between the two named endpoints.
