@@ -69,6 +69,10 @@ router.patch("/users/:id", async (req: Request, res: Response) => {
       email?: string; name?: string; password?: string; role?: string;
     };
 
+    if (role !== undefined && !["admin", "staff"].includes(role)) {
+      return res.status(400).json({ error: "role must be 'admin' or 'staff'" });
+    }
+
     const [existing] = await db
       .select()
       .from(adminUsersTable)

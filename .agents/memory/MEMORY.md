@@ -14,3 +14,4 @@
 - [Geo data placement verification](geo-data-placement-verification.md) — never trust hardcoded lat/lng "looks right"; cross-check named places against a geocoding API (Photon works, Nominatim 403s from sandbox) and flag >10-15km deltas.
 - [Expo watchPositionAsync silent stall](expo-location-watch-stall.md) — watchPositionAsync can freeze after first fix; pair GPS tracking with a watchdog resubscribe + keep-awake, don't trust a bare subscription.
 - [Live ETA/distance-remaining display locations](live-eta-distance-display.md) — two separate route panels (index.tsx nav bar, MapViewScreen.web.tsx) both need updating in sync, or one drifts back to static.
+- [Mobile API client pattern](mobile-api-client-pattern.md) — mobile app uses a hand-written apiGet/apiPost wrapper, not generated api-client-react hooks like the web artifacts.

@@ -18,6 +18,10 @@ tags:
     description: Admin user management
   - name: admin-stats
     description: Admin statistics
+  - name: speed-zones
+    description: Public speed zone lookup
+  - name: admin-speed-zones
+    description: Admin speed zone management
 paths:
   /healthz:
     get:
@@ -257,6 +261,138 @@ paths:
         "401":
           description: Unauthorized
 
+  /speed-zones:
+    get:
+      operationId: listSpeedZones
+      tags: [speed-zones]
+      summary: List active speed zones near a point
+      parameters:
+        - in: query
+          name: lat
+          required: true
+          schema: { type: number }
+        - in: query
+          name: lng
+          required: true
+          schema: { type: number }
+        - in: query
+          name: radius
+          schema: { type: number }
+      responses:
+        "200":
+          description: Speed zones near the point
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeedZonePublicList"
+        "400":
+          description: Missing lat/lng
+
+  /admin/speed-zones:
+    get:
+      operationId: adminListSpeedZones
+      tags: [admin-speed-zones]
+      summary: List all speed zones (paginated)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: type
+          schema: { type: string }
+        - in: query
+          name: mode
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200":
+          description: Speed zones list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSpeedZoneList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: adminCreateSpeedZone
+      tags: [admin-speed-zones]
+      summary: Create a speed zone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeedZoneInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSpeedZone"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /admin/speed-zones/{id}:
+    patch:
+      operationId: adminUpdateSpeedZone
+      tags: [admin-speed-zones]
+      summary: Update a speed zone
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeedZoneUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSpeedZone"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: adminDeleteSpeedZone
+      tags: [admin-speed-zones]
+      summary: Delete a speed zone
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -400,3 +536,100 @@ components:
       required: [success]
       properties:
         success: { type: boolean }
+
+    SpeedZonePublic:
+      type: object
+      required: [id, name, type, mode, status]
+      properties:
+        id:          { type: string }
+        name:        { type: string }
+        road:        { type: ["string", "null"] }
+        type:        { type: string }
+        mode:        { type: string }
+        speedLimit:  { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+        lat:         { type: ["number", "null"] }
+        lng:         { type: ["number", "null"] }
+        startLat:    { type: ["number", "null"] }
+        startLng:    { type: ["number", "null"] }
+        endLat:      { type: ["number", "null"] }
+        endLng:      { type: ["number", "null"] }
+        status:      { type: string }
+        createdAt:   { type: integer }
+
+    SpeedZonePublicList:
+      type: object
+      required: [zones]
+      properties:
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpeedZonePublic"
+
+    AdminSpeedZone:
+      type: object
+      required: [id, name, type, mode, status, createdAt, updatedAt]
+      properties:
+        id:          { type: string }
+        name:        { type: string }
+        road:        { type: ["string", "null"] }
+        type:        { type: string }
+        mode:        { type: string }
+        speedLimit:  { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+        lat:         { type: ["number", "null"] }
+        lng:         { type: ["number", "null"] }
+        startLat:    { type: ["number", "null"] }
+        startLng:    { type: ["number", "null"] }
+        endLat:      { type: ["number", "null"] }
+        endLng:      { type: ["number", "null"] }
+        status:      { type: string }
+        createdBy:   { type: ["string", "null"] }
+        createdAt:   { type: string }
+        updatedAt:   { type: string }
+
+    AdminSpeedZoneList:
+      type: object
+      required: [zones, total, page, limit]
+      properties:
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminSpeedZone"
+        total: { type: integer }
+        page:  { type: integer }
+        limit: { type: integer }
+
+    SpeedZoneInput:
+      type: object
+      required: [name, type]
+      properties:
+        name:        { type: string, minLength: 1 }
+        road:        { type: ["string", "null"] }
+        type:        { type: string }
+        mode:        { type: string }
+        speedLimit:  { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+        lat:         { type: ["number", "null"] }
+        lng:         { type: ["number", "null"] }
+        startLat:    { type: ["number", "null"] }
+        startLng:    { type: ["number", "null"] }
+        endLat:      { type: ["number", "null"] }
+        endLng:      { type: ["number", "null"] }
+
+    SpeedZoneUpdate:
+      type: object
+      properties:
+        name:        { type: string, minLength: 1 }
+        road:        { type: ["string", "null"] }
+        type:        { type: string }
+        mode:        { type: string }
+        speedLimit:  { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+        lat:         { type: ["number", "null"] }
+        lng:         { type: ["number", "null"] }
+        startLat:    { type: ["number", "null"] }
+        startLng:    { type: ["number", "null"] }
+        endLat:      { type: ["number", "null"] }
+        endLng:      { type: ["number", "null"] }
+        status:      { type: string }

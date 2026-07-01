@@ -231,3 +231,172 @@ export const AdminGetStatsResponse = zod.object({
 })
 
 
+/**
+ * @summary List active speed zones near a point
+ */
+export const ListSpeedZonesQueryParams = zod.object({
+  "lat": zod.coerce.number(),
+  "lng": zod.coerce.number(),
+  "radius": zod.coerce.number().optional()
+})
+
+export const ListSpeedZonesResponse = zod.object({
+  "zones": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.number().optional()
+}))
+})
+
+
+/**
+ * @summary List all speed zones (paginated)
+ */
+export const AdminListSpeedZonesQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "type": zod.coerce.string().optional(),
+  "mode": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const AdminListSpeedZonesResponse = zod.object({
+  "zones": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create a speed zone
+ */
+
+
+
+export const AdminCreateSpeedZoneBody = zod.object({
+  "name": zod.string().min(1),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string().optional(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish()
+})
+
+export const AdminCreateSpeedZoneResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a speed zone
+ */
+export const AdminUpdateSpeedZoneParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+
+
+export const AdminUpdateSpeedZoneBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "road": zod.string().nullish(),
+  "type": zod.string().optional(),
+  "mode": zod.string().optional(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string().optional()
+})
+
+export const AdminUpdateSpeedZoneResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a speed zone
+ */
+export const AdminDeleteSpeedZoneParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeleteSpeedZoneResponse = zod.object({
+  "success": zod.boolean()
+})
+
+

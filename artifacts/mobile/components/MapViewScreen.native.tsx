@@ -5,7 +5,6 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Callout, Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { SPEED_ZONES } from "@/data/speedZones";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
@@ -182,7 +181,7 @@ export default function MapViewScreen() {
     activeRoute, altRoutes, selectRoute,
     navigationActive,
     showTraffic, setShowTraffic,
-    vehicleType,
+    vehicleType, allZones,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
 
@@ -231,7 +230,7 @@ export default function MapViewScreen() {
         showsTraffic={showTraffic}
       >
         {/* Speed zone markers */}
-        {SPEED_ZONES.map((z) => {
+        {allZones.map((z) => {
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;
           return (
             <React.Fragment key={z.id}>

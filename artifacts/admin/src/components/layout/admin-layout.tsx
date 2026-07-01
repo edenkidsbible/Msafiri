@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { ShieldAlert, LayoutDashboard, AlertTriangle, Users, LogOut, Sun, Moon } from "lucide-react";
+import { ShieldAlert, LayoutDashboard, AlertTriangle, Gauge, Users, LogOut, Sun, Moon } from "lucide-react";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
@@ -18,6 +18,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/reports", label: "Incidents", icon: AlertTriangle },
+    { href: "/speed-zones", label: "Speed Zones", icon: Gauge },
   ];
 
   if (user?.role === 'admin') {

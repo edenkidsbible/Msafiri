@@ -113,10 +113,144 @@ export interface DeleteResult {
   success: boolean;
 }
 
+export interface SpeedZonePublic {
+  id: string;
+  name: string;
+  /** @nullable */
+  road?: string | null;
+  type: string;
+  mode: string;
+  /** @nullable */
+  speedLimit?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  startLat?: number | null;
+  /** @nullable */
+  startLng?: number | null;
+  /** @nullable */
+  endLat?: number | null;
+  /** @nullable */
+  endLng?: number | null;
+  status: string;
+  createdAt?: number;
+}
+
+export interface SpeedZonePublicList {
+  zones: SpeedZonePublic[];
+}
+
+export interface AdminSpeedZone {
+  id: string;
+  name: string;
+  /** @nullable */
+  road?: string | null;
+  type: string;
+  mode: string;
+  /** @nullable */
+  speedLimit?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  startLat?: number | null;
+  /** @nullable */
+  startLng?: number | null;
+  /** @nullable */
+  endLat?: number | null;
+  /** @nullable */
+  endLng?: number | null;
+  status: string;
+  /** @nullable */
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminSpeedZoneList {
+  zones: AdminSpeedZone[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface SpeedZoneInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  road?: string | null;
+  type: string;
+  mode?: string;
+  /** @nullable */
+  speedLimit?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  startLat?: number | null;
+  /** @nullable */
+  startLng?: number | null;
+  /** @nullable */
+  endLat?: number | null;
+  /** @nullable */
+  endLng?: number | null;
+}
+
+export interface SpeedZoneUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  road?: string | null;
+  type?: string;
+  mode?: string;
+  /** @nullable */
+  speedLimit?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  startLat?: number | null;
+  /** @nullable */
+  startLng?: number | null;
+  /** @nullable */
+  endLat?: number | null;
+  /** @nullable */
+  endLng?: number | null;
+  status?: string;
+}
+
 export type AdminListReportsParams = {
 page?: number;
 limit?: number;
 type?: string;
+status?: string;
+search?: string;
+};
+
+export type ListSpeedZonesParams = {
+lat: number;
+lng: number;
+radius?: number;
+};
+
+export type AdminListSpeedZonesParams = {
+page?: number;
+limit?: number;
+type?: string;
+mode?: string;
 status?: string;
 search?: string;
 };

@@ -7,12 +7,15 @@
  */
 
 export * from './adminListReportsParams';
+export * from './adminListSpeedZonesParams';
 export * from './adminLoginInput';
 export * from './adminLoginResult';
 export * from './adminReport';
 export * from './adminReportInput';
 export * from './adminReportList';
 export * from './adminReportUpdate';
+export * from './adminSpeedZone';
+export * from './adminSpeedZoneList';
 export * from './adminStats';
 export * from './adminUser';
 export * from './adminUserInput';
@@ -20,4 +23,9 @@ export * from './adminUserList';
 export * from './adminUserUpdate';
 export * from './deleteResult';
 export * from './healthStatus';
+export * from './listSpeedZonesParams';
+export * from './speedZoneInput';
+export * from './speedZonePublic';
+export * from './speedZonePublicList';
+export * from './speedZoneUpdate';
 export * from './statCount';

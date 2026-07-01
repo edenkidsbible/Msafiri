@@ -21,19 +21,26 @@ import type {
 
 import type {
   AdminListReportsParams,
+  AdminListSpeedZonesParams,
   AdminLoginInput,
   AdminLoginResult,
   AdminReport,
   AdminReportInput,
   AdminReportList,
   AdminReportUpdate,
+  AdminSpeedZone,
+  AdminSpeedZoneList,
   AdminStats,
   AdminUser,
   AdminUserInput,
   AdminUserList,
   AdminUserUpdate,
   DeleteResult,
-  HealthStatus
+  HealthStatus,
+  ListSpeedZonesParams,
+  SpeedZoneInput,
+  SpeedZonePublicList,
+  SpeedZoneUpdate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -870,4 +877,383 @@ export function useAdminGetStats<TData = Awaited<ReturnType<typeof adminGetStats
 
 
 
+
+export const getListSpeedZonesUrl = (params: ListSpeedZonesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/speed-zones?${stringifiedParams}` : `/api/speed-zones`
+}
+
+/**
+ * @summary List active speed zones near a point
+ */
+export const listSpeedZones = async (params: ListSpeedZonesParams, options?: RequestInit): Promise<SpeedZonePublicList> => {
+
+  return customFetch<SpeedZonePublicList>(getListSpeedZonesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSpeedZonesQueryKey = (params?: ListSpeedZonesParams,) => {
+    return [
+    `/api/speed-zones`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSpeedZonesQueryOptions = <TData = Awaited<ReturnType<typeof listSpeedZones>>, TError = ErrorType<void>>(params: ListSpeedZonesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSpeedZones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSpeedZonesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpeedZones>>> = ({ signal }) => listSpeedZones(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSpeedZones>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSpeedZonesQueryResult = NonNullable<Awaited<ReturnType<typeof listSpeedZones>>>
+export type ListSpeedZonesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List active speed zones near a point
+ */
+
+export function useListSpeedZones<TData = Awaited<ReturnType<typeof listSpeedZones>>, TError = ErrorType<void>>(
+ params: ListSpeedZonesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSpeedZones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSpeedZonesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminListSpeedZonesUrl = (params?: AdminListSpeedZonesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/speed-zones?${stringifiedParams}` : `/api/admin/speed-zones`
+}
+
+/**
+ * @summary List all speed zones (paginated)
+ */
+export const adminListSpeedZones = async (params?: AdminListSpeedZonesParams, options?: RequestInit): Promise<AdminSpeedZoneList> => {
+
+  return customFetch<AdminSpeedZoneList>(getAdminListSpeedZonesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListSpeedZonesQueryKey = (params?: AdminListSpeedZonesParams,) => {
+    return [
+    `/api/admin/speed-zones`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListSpeedZonesQueryOptions = <TData = Awaited<ReturnType<typeof adminListSpeedZones>>, TError = ErrorType<void>>(params?: AdminListSpeedZonesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListSpeedZones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListSpeedZonesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListSpeedZones>>> = ({ signal }) => adminListSpeedZones(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListSpeedZones>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListSpeedZonesQueryResult = NonNullable<Awaited<ReturnType<typeof adminListSpeedZones>>>
+export type AdminListSpeedZonesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all speed zones (paginated)
+ */
+
+export function useAdminListSpeedZones<TData = Awaited<ReturnType<typeof adminListSpeedZones>>, TError = ErrorType<void>>(
+ params?: AdminListSpeedZonesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListSpeedZones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListSpeedZonesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminCreateSpeedZoneUrl = () => {
+
+
+
+
+  return `/api/admin/speed-zones`
+}
+
+/**
+ * @summary Create a speed zone
+ */
+export const adminCreateSpeedZone = async (speedZoneInput: SpeedZoneInput, options?: RequestInit): Promise<AdminSpeedZone> => {
+
+  return customFetch<AdminSpeedZone>(getAdminCreateSpeedZoneUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(speedZoneInput)
+  }
+);}
+
+
+
+
+export const getAdminCreateSpeedZoneMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateSpeedZone>>, TError,{data: BodyType<SpeedZoneInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateSpeedZone>>, TError,{data: BodyType<SpeedZoneInput>}, TContext> => {
+
+const mutationKey = ['adminCreateSpeedZone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateSpeedZone>>, {data: BodyType<SpeedZoneInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateSpeedZone(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateSpeedZoneMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateSpeedZone>>>
+    export type AdminCreateSpeedZoneMutationBody = BodyType<SpeedZoneInput>
+    export type AdminCreateSpeedZoneMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a speed zone
+ */
+export const useAdminCreateSpeedZone = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateSpeedZone>>, TError,{data: BodyType<SpeedZoneInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateSpeedZone>>,
+        TError,
+        {data: BodyType<SpeedZoneInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateSpeedZoneMutationOptions(options));
+    }
+
+export const getAdminUpdateSpeedZoneUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/speed-zones/${id}`
+}
+
+/**
+ * @summary Update a speed zone
+ */
+export const adminUpdateSpeedZone = async (id: string,
+    speedZoneUpdate: SpeedZoneUpdate, options?: RequestInit): Promise<AdminSpeedZone> => {
+
+  return customFetch<AdminSpeedZone>(getAdminUpdateSpeedZoneUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(speedZoneUpdate)
+  }
+);}
+
+
+
+
+export const getAdminUpdateSpeedZoneMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSpeedZone>>, TError,{id: string;data: BodyType<SpeedZoneUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSpeedZone>>, TError,{id: string;data: BodyType<SpeedZoneUpdate>}, TContext> => {
+
+const mutationKey = ['adminUpdateSpeedZone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateSpeedZone>>, {id: string;data: BodyType<SpeedZoneUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdateSpeedZone(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateSpeedZoneMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateSpeedZone>>>
+    export type AdminUpdateSpeedZoneMutationBody = BodyType<SpeedZoneUpdate>
+    export type AdminUpdateSpeedZoneMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a speed zone
+ */
+export const useAdminUpdateSpeedZone = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSpeedZone>>, TError,{id: string;data: BodyType<SpeedZoneUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateSpeedZone>>,
+        TError,
+        {id: string;data: BodyType<SpeedZoneUpdate>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateSpeedZoneMutationOptions(options));
+    }
+
+export const getAdminDeleteSpeedZoneUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/speed-zones/${id}`
+}
+
+/**
+ * @summary Delete a speed zone
+ */
+export const adminDeleteSpeedZone = async (id: string, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminDeleteSpeedZoneUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeleteSpeedZoneMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteSpeedZone>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteSpeedZone>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminDeleteSpeedZone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteSpeedZone>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminDeleteSpeedZone(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteSpeedZoneMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteSpeedZone>>>
+
+    export type AdminDeleteSpeedZoneMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a speed zone
+ */
+export const useAdminDeleteSpeedZone = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteSpeedZone>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteSpeedZone>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteSpeedZoneMutationOptions(options));
+    }
 

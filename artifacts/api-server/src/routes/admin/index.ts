@@ -4,6 +4,7 @@ import authRouter from "./auth.js";
 import reportsRouter from "./reports.js";
 import usersRouter from "./users.js";
 import statsRouter from "./stats.js";
+import speedZonesRouter from "./speedZones.js";
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use(authRouter);
 router.use(adminAuthMiddleware);
 
 router.use(reportsRouter);
+router.use(speedZonesRouter);
 
 // Stats and users management: admin role only
 router.use(adminOnlyMiddleware, statsRouter);

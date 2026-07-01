@@ -5,7 +5,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
-import { SPEED_ZONES } from "@/data/speedZones";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 
@@ -43,7 +42,7 @@ export default function MapViewScreen() {
     navDestination, showTraffic, setShowTraffic,
     currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS,
     startNavigation, stopNavigation,
-    vehicleType, routeTrafficDelayS,
+    vehicleType, routeTrafficDelayS, allZones,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
@@ -52,7 +51,7 @@ export default function MapViewScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const zones = SPEED_ZONES.filter((z) => filter === "all" || z.type === filter)
+  const zones = allZones.filter((z) => filter === "all" || z.type === filter)
     .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 

@@ -118,6 +118,7 @@ interface AppContextValue {
   activeAlert: (SpeedZone & { distance: number }) | null;
   currentSpeedLimit: number | null;
   nearbyZones: Array<SpeedZone & { distance: number }>;
+  allZones: SpeedZone[];
   dismissAlert: () => void;
   hudMode: boolean;
   setHudMode: (v: boolean) => void;
@@ -286,6 +287,40 @@ function staticZoneLabel(type: SpeedZone["type"]): string {
   return type === "camera" ? "Speed Camera" : type === "police" ? "Police Checkpoint" : "Speed Zone";
 }
 
+// ── Admin-managed speed zones (fetched from the API, merged with the static list) ─
+interface ApiSpeedZone {
+  id: string;
+  name: string;
+  road: string | null;
+  type: string;
+  mode: "point" | "stretch";
+  speedLimit: number | null;
+  description: string | null;
+  lat: number | null;
+  lng: number | null;
+  startLat: number | null;
+  startLng: number | null;
+  endLat: number | null;
+  endLng: number | null;
+  status: string;
+}
+
+function apiZoneToStaticZones(z: ApiSpeedZone): SpeedZone[] {
+  if (z.status !== "active" || z.speedLimit == null) return [];
+  const type: SpeedZone["type"] = z.type === "camera" || z.type === "police" ? z.type : "zone";
+  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "" };
+  if (z.mode === "point" && z.lat != null && z.lng != null) {
+    return [{ ...base, id: `db-${z.id}`, lat: z.lat, lng: z.lng }];
+  }
+  if (z.mode === "stretch" && z.startLat != null && z.startLng != null && z.endLat != null && z.endLng != null) {
+    return [
+      { ...base, id: `db-${z.id}-start`, lat: z.startLat, lng: z.startLng },
+      { ...base, id: `db-${z.id}-end`, lat: z.endLat, lng: z.endLng },
+    ];
+  }
+  return [];
+}
+
 // ── Traffic delay estimation ───────────────────────────────────────────────
 // No live-traffic API is wired up (OSRM only returns free-flow duration), so
 // we approximate an "expect X min delay" figure from crowd-sourced reports
@@ -403,6 +438,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [showTraffic, setShowTrafficState] = useState(false);
   const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
   const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
+  const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
+  const allZonesRef = useRef<SpeedZone[]>(SPEED_ZONES);
 
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const isOfflineRef = useRef(false);
@@ -594,7 +631,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Speed zones
     const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-    const withDist = SPEED_ZONES
+    const withDist = allZonesRef.current
       .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: haversine(lat, lng, z.lat, z.lng) }))
       .sort((a, b) => a.distance - b.distance);
     setNearbyZones(withDist.filter((z) => z.distance < 5000));
@@ -863,7 +900,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         routeRef.current = primary;
         setAltRoutes(alts);
         const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-        setZonesOnRoute(getZonesOnRoute(primary, SPEED_ZONES).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
+        setZonesOnRoute(getZonesOnRoute(primary, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
       })
       .catch((e) => { if (!cancelled) console.warn("OSRM:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
@@ -928,6 +965,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationGranted]);
 
+  // Admin-managed speed zones — fetch nearby DB zones every 5 min when online,
+  // merged with the built-in static list (see allZones below).
+  useEffect(() => {
+    if (!locationGranted) return;
+    const poll = async () => {
+      if (isOfflineRef.current || !pollLocationRef.current) return;
+      const { lat, lng } = pollLocationRef.current;
+      try {
+        const data = await apiGet<{ zones: ApiSpeedZone[] }>(`/speed-zones?lat=${lat}&lng=${lng}&radius=100000`);
+        setDbZones(data.zones.flatMap(apiZoneToStaticZones));
+      } catch { /* network error — keep previous DB zones */ }
+    };
+    poll(); // immediate on mount
+    const handle = setInterval(poll, 300000);
+    return () => clearInterval(handle);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationGranted]);
+
+  // Merged static + admin-managed zones, kept in a ref so non-reactive
+  // callbacks (e.g. handleLocation) always read the latest list.
+  const allZones = useMemo<SpeedZone[]>(
+    () => (dbZones.length ? [...SPEED_ZONES, ...dbZones] : SPEED_ZONES),
+    [dbZones]
+  );
+  useEffect(() => { allZonesRef.current = allZones; }, [allZones]);
+
   // ── Route incidents (unified static zones + community reports along the route) ─
   const routeCumDist = useMemo(
     () => (activeRoute ? buildCumulativeDistances(activeRoute.coords) : null),
@@ -938,7 +1001,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!activeRoute || !routeCumDist) return [];
     const vehicle = getVehicleTypeDef(vehicleType);
     const list: RouteIncident[] = [];
-    for (const z of SPEED_ZONES) {
+    for (const z of allZones) {
       const proj = projectOntoRoute(activeRoute.coords, routeCumDist, z.lat, z.lng);
       if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
         list.push({
@@ -978,7 +1041,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
-  }, [activeRoute, routeCumDist, communityReports, vehicleType]);
+  }, [activeRoute, routeCumDist, communityReports, vehicleType, allZones]);
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
@@ -1047,7 +1110,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveRoute(r);
     routeRef.current = r;
     const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-    setZonesOnRoute(getZonesOnRoute(r, SPEED_ZONES).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
+    setZonesOnRoute(getZonesOnRoute(r, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
@@ -1217,7 +1280,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission,
       currentLat, currentLng, currentSpeed,
-      activeAlert, currentSpeedLimit, nearbyZones, dismissAlert,
+      activeAlert, currentSpeedLimit, nearbyZones, allZones, dismissAlert,
       hudMode, setHudMode,
       themeOverride, setThemeOverride,
       clearAllData,

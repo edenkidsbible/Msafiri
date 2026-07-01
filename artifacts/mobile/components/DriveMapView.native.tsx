@@ -11,7 +11,6 @@ import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
-import { SPEED_ZONES } from "@/data/speedZones";
 import { POIS } from "@/data/pois";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
@@ -133,7 +132,7 @@ export default function DriveMapView() {
     activeRoute, altRoutes, selectRoute,
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport,
-    vehicleType,
+    vehicleType, allZones,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
 
@@ -196,7 +195,7 @@ export default function DriveMapView() {
         showsTraffic={showTraffic}
       >
         {/* Speed zone markers */}
-        {SPEED_ZONES.map((z) => (
+        {allZones.map((z) => (
           <React.Fragment key={z.id}>
             <Marker
               coordinate={{ latitude: z.lat, longitude: z.lng }}

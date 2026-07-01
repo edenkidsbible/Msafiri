@@ -10,6 +10,7 @@ import { getToken, getUser } from "@/lib/auth";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Reports from "@/pages/reports";
+import SpeedZones from "@/pages/speed-zones";
 import Users from "@/pages/users";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} adminOnly={true} /></Route>
       <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
+      <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} /></Route>
       <Route path="/users"><ProtectedRoute component={Users} adminOnly={true} /></Route>
       <Route component={NotFound} />
     </Switch>
