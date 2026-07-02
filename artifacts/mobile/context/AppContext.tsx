@@ -544,6 +544,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const navActiveRef = useRef(false);
   const lastLocationAtRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
+  const speedHistoryRef = useRef<number[]>([]);
+  const stationaryStreakRef = useRef(0);
   // Proximity voice refs
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
@@ -686,29 +688,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Core location handler ─────────────────────────────────────────────────
-  const handleLocation = useCallback((lat: number, lng: number, speedMs: number | null) => {
+  const handleLocation = useCallback((lat: number, lng: number, speedMs: number | null, accuracyM: number | null = null) => {
     // Device-reported GPS speed is often 0/-1/null even while genuinely
     // moving (common on many phones, especially right after a fix or when
     // Doppler-based speed sensing hasn't locked yet). Fall back to a
     // distance/time estimate from consecutive fixes so the speed readout
     // keeps updating in real time regardless of what the device reports.
+    //
+    // Both sources are noisy when the phone is actually stationary: a poor
+    // horizontal accuracy fix can "jump" a few metres between updates, which
+    // a naive distance/time calc turns into a false ~5-15 km/h reading. We
+    // guard against that with (a) discounting low-accuracy fixes, (b) a
+    // minimum-distance-moved dead-band before trusting the computed speed,
+    // and (c) a short rolling median to smooth out one-off spikes.
     const deviceKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
     const now = Date.now();
     const prevFix = lastFixRef.current;
+    // GPS horizontal accuracy is typically 3-15m in good conditions; treat
+    // anything worse as too noisy to derive a speed delta from directly.
+    const isLowAccuracy = accuracyM != null && accuracyM > 25;
     let computedKmh: number | null = null;
     if (prevFix) {
       const dt = (now - prevFix.t) / 1000;
       if (dt >= 0.5) {
-        computedKmh = (haversine(prevFix.lat, prevFix.lng, lat, lng) / dt) * 3.6;
+        const distM = haversine(prevFix.lat, prevFix.lng, lat, lng);
+        // A fix can drift a few metres from noise alone even while parked.
+        // Require the movement to exceed the fix's own accuracy radius (with
+        // a small floor) before treating it as real motion.
+        const noiseFloorM = Math.max(4, (accuracyM ?? 8) * 0.6);
+        computedKmh = distM > noiseFloorM ? (distM / dt) * 3.6 : 0;
       }
     }
     lastFixRef.current = { lat, lng, t: now };
-    const kmh =
-      deviceKmh != null && deviceKmh > 1
+
+    let rawKmh =
+      deviceKmh != null && deviceKmh > 1 && !isLowAccuracy
         ? deviceKmh
         : computedKmh != null
           ? Math.min(computedKmh, 220)
           : deviceKmh ?? 0;
+
+    // Stationary dead-band: once we've seen several consecutive near-zero
+    // readings, snap fully to 0 instead of letting jitter hover at 2-4 km/h.
+    if (rawKmh < 3) {
+      stationaryStreakRef.current += 1;
+      if (stationaryStreakRef.current >= 2) rawKmh = 0;
+    } else {
+      stationaryStreakRef.current = 0;
+    }
+
+    // Rolling median (last 3 samples) smooths one-off spikes without adding
+    // the lag a moving average would — a genuine speed change still shows up
+    // within 1-2 fixes.
+    const hist = speedHistoryRef.current;
+    hist.push(rawKmh);
+    if (hist.length > 3) hist.shift();
+    const sorted = [...hist].sort((a, b) => a - b);
+    const kmh = sorted[Math.floor(sorted.length / 2)];
+
     setCurrentLat(lat);
     setCurrentLng(lng);
     setCurrentSpeed(kmh);
@@ -940,7 +977,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 3 },
             (loc) => {
               lastLocationAtRef.current = Date.now();
-              handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed);
+              handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy);
             }
           );
           if (cancelled) { sub.remove(); return; }
@@ -949,7 +986,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const id = navigator.geolocation.watchPosition(
             (pos) => {
               lastLocationAtRef.current = Date.now();
-              handleLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.speed);
+              handleLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.speed, pos.coords.accuracy);
             },
             (err) => console.warn("Geo:", err),
             { enableHighAccuracy: true }

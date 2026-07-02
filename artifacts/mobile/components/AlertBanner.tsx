@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { SpeedZone } from "@/data/speedZones";
+import { playSound } from "@/utils/sound";
 
 type AlertZone = SpeedZone & { distance: number };
 
@@ -25,6 +26,7 @@ export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
       tension: 70,
       friction: 9,
     }).start();
+    playSound("alert");
   }, [zone.id]);
 
   const dist =

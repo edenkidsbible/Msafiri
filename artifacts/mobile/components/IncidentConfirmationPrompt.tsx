@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Modal,
   StyleSheet,
@@ -11,6 +11,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp, CommunityReport } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
+import { playSound } from "@/utils/sound";
 
 interface Props {
   report: CommunityReport;
@@ -22,6 +23,10 @@ export default function IncidentConfirmationPrompt({ report, onDismiss }: Props)
   const { confirmReport, denyReport } = useApp();
   const def = resolveIncidentType(report.type);
   const id = report.serverId ?? report.id;
+
+  useEffect(() => {
+    playSound("confirm");
+  }, [report.id]);
 
   const handleStillHere = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

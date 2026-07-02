@@ -53,3 +53,21 @@ id = "2-AYpwHxIfnZcwJt0QIuG"
 uri = "file://msafiri-app-store-screenshots.zip"
 type = "unspecified"
 title = "Msafiri App Store Screenshots"
+
+[[outputs]]
+id = "1hx_5nPLl0y1SIybvY8Bf"
+uri = "file://artifacts/mobile/assets/sounds/confirm_chime.mp3"
+type = "audio"
+title = "confirm_chime"
+
+[[outputs]]
+id = "TnrNcW_QVacBJxFoS2ArE"
+uri = "file://artifacts/mobile/assets/sounds/alert_tone.mp3"
+type = "audio"
+title = "alert_tone"
+
+[[outputs]]
+id = "b87oA31F78DP9VMTPMuxp"
+uri = "file://artifacts/mobile/assets/sounds/notify_pop.mp3"
+type = "audio"
+title = "notify_pop"

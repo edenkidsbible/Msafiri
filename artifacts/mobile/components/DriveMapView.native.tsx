@@ -68,13 +68,16 @@ function MarkerIcon({
 }) {
   const iconSize = size * 0.52;
   return (
-    <View style={{
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: bg, alignItems: "center", justifyContent: "center",
-      borderWidth: 2.5, borderColor: "#FFF",
-      shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
-    }}>
+    <View
+      collapsable={false}
+      style={{
+        width: size, height: size, borderRadius: size / 2,
+        backgroundColor: bg, alignItems: "center", justifyContent: "center",
+        borderWidth: 2.5, borderColor: "#FFF",
+        shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
+      }}
+    >
       {matIcon
         ? <MaterialCommunityIcons name={matIcon} size={iconSize} color="#FFF" />
         : ioniconName
@@ -95,7 +98,7 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
     const def = resolveIncidentType(r.type);
     const confirmed = r.status === "confirmed";
     return (
-      <View style={{ opacity: faded ? 0.45 : 1 }}>
+      <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
         <View style={[ms.emojiMarker, { backgroundColor: confirmed ? "#B71C1C" : def.color }]}>
           <Text style={ms.emojiMarkerText}>{def.emoji}</Text>
         </View>
@@ -105,7 +108,7 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
   const icons = members.slice(0, 4);
   return (
-    <View style={{ opacity: faded ? 0.45 : 1 }}>
+    <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
       <View style={ms.clusterWrap}>
         <View style={ms.clusterGrid}>
           {icons.map((r) => {
@@ -251,17 +254,21 @@ export default function DriveMapView() {
         ))}
 
         {/* Community report clusters */}
-        {clusters.map((group, idx) => (
-          <Marker
-            key={`cluster-${idx}`}
-            coordinate={{ latitude: group.lat, longitude: group.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
-            onPress={() => setSelectedCluster(group)}
-          >
-            <ClusterMarker group={group} now={now} />
-          </Marker>
-        ))}
+        {clusters.map((group) => {
+          const clusterKey = group.members.map((m) => m.id).sort().join("-");
+          return (
+            <Marker
+              key={clusterKey}
+              coordinate={{ latitude: group.lat, longitude: group.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              onPress={() => setSelectedCluster(group)}
+              zIndex={10}
+            >
+              <ClusterMarker group={group} now={now} />
+            </Marker>
+          );
+        })}
 
         {/* Nearby POIs */}
         {nearbyPOIs.map((p) => (

@@ -5,7 +5,7 @@
 - [Expo Router web nav crash fix](expo-router-web-nav.md) — router.replace() before Stack mounts crashes on web; fix: add hydrated flag to AppContext, gate navigation on it
 - [NTSA Minor Offences fines](ntsa-fines.md) — LN 161/2016 real brackets: warning/500/3k/10k/court; 7-day pay window; 21+ km/h is court not fine
 - [RevenueCat proxy client](revenuecat-proxy-client.md) — createClient calls _fetch(Request); must check instanceof Request; proxy path needs /v2 prefix; OAuth token is project-scoped so cannot create projects.
-- [react-native-maps Marker tap closes immediately](rnmaps-marker-onpress-quirk.md) — Marker tap also fires MapView's onPress; never use MapView onPress to clear marker-driven state, use a backdrop or native Callout instead.
+- [react-native-maps Marker tap closes/doesn't register](rnmaps-marker-onpress-quirk.md) — MapView onPress race clears marker state instantly; also Android needs collapsable={false} + stable cluster keys or taps land inconsistently.
 - [Icon transparency via flood-fill](icon-transparency-flood-fill.md) — when bg-removal tool fails on edge-to-edge backgrounds, use ImageMagick multi-seed flood-fill; transparent PNGs can render as black in generic viewers (not a failure).
 - [Route incident "ahead" projection](route-incident-projection.md) — nearest-point + cumulative-distance projection onto route polyline for "what's ahead" lists; known limitation on looping routes, accepted trade-off.
 - [usePathname for tab detection](usepathname-tab-detection.md) — usePathname() resolves to "/" for the (tabs)/index screen on both Classic Tabs and iOS NativeTabs layouts; safe to gate global-overlay behavior on it.
@@ -16,3 +16,5 @@
 - [Live ETA/distance-remaining display locations](live-eta-distance-display.md) — two separate route panels (index.tsx nav bar, MapViewScreen.web.tsx) both need updating in sync, or one drifts back to static.
 - [Mobile API client pattern](mobile-api-client-pattern.md) — mobile app uses a hand-written apiGet/apiPost wrapper, not generated api-client-react hooks like the web artifacts.
 - [Speed corridor confidence matching](speed-corridor-confidence-matching.md) — a stricter confidence check must exclude the data feeding a looser legacy check, not just be given fallback priority over it.
+- [Speed gauge stationary jitter](speed-gauge-stationary-jitter.md) — GPS phantom motion while parked; fix needs accuracy-based noise floor + dead-band + rolling median together, not just one.
+- [expo-audio in-app sound](expo-audio-inapp-sound.md) — createAudioPlayer (imperative) for a shared sound utility, not useAudioPlayer hook; unrelated to push notification sound (OS handles that).

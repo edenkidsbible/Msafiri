@@ -29,7 +29,7 @@ function MarkerIcon({
   const iconSize = size * 0.52;
   const def = type ? resolveIncidentType(type) : undefined;
   return (
-    <View style={[styles.markerCircle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
+    <View collapsable={false} style={[styles.markerCircle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
       {def ? (
         def.iconSet === "MaterialCommunityIcons" ? (
           <MaterialCommunityIcons
@@ -101,7 +101,7 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
     const r = members[0];
     const def = resolveIncidentType(r.type);
     return (
-      <View style={{ opacity: faded ? 0.45 : 1 }}>
+      <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
         <View style={[styles.emojiMarker, { backgroundColor: def.color }]}>
           <Text style={styles.emojiMarkerText}>{def.emoji}</Text>
         </View>
@@ -111,7 +111,7 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
 
   const icons = members.slice(0, 4);
   return (
-    <View style={{ opacity: faded ? 0.45 : 1 }}>
+    <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
       <View style={styles.clusterWrap}>
         <View style={styles.clusterGrid}>
           {icons.map((r) => {
@@ -275,19 +275,23 @@ export default function MapViewScreen() {
         })}
 
         {/* Community report clusters — tap to show callout */}
-        {clusters.map((group, idx) => (
-          <Marker
-            key={`cluster-${idx}`}
-            coordinate={{ latitude: group.lat, longitude: group.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
-          >
-            <MapClusterMarker group={group} now={now} />
-            <Callout tooltip={true} style={calloutS.callout}>
-              <CalloutContent group={group} />
-            </Callout>
-          </Marker>
-        ))}
+        {clusters.map((group) => {
+          const clusterKey = group.members.map((m) => m.id).sort().join("-");
+          return (
+            <Marker
+              key={clusterKey}
+              coordinate={{ latitude: group.lat, longitude: group.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              zIndex={10}
+            >
+              <MapClusterMarker group={group} now={now} />
+              <Callout tooltip={true} style={calloutS.callout}>
+                <CalloutContent group={group} />
+              </Callout>
+            </Marker>
+          );
+        })}
 
         {/* Alternative routes */}
         {altRoutes.map((r) => (
