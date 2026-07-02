@@ -6,6 +6,7 @@ export const adminUsersTable = pgTable("admin_users", {
   name:         text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role:         text("role").notNull().default("staff"), // admin | moderator | staff
+  permissions:  text("permissions"), // JSON array of feature keys, null = use role defaults
   createdAt:    timestamp("created_at").notNull().defaultNow(),
 });
 

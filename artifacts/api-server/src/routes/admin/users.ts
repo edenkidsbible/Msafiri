@@ -9,17 +9,23 @@ const VALID_ROLES = ["admin", "moderator", "staff"];
 
 const router = Router();
 
+function parsePermissions(raw: string | null | undefined): string[] | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 // GET /admin/users
 router.get("/users", async (_req: Request, res: Response) => {
   try {
     const users = await db.select().from(adminUsersTable);
     return res.json({
       users: users.map((u) => ({
-        id:        u.id,
-        email:     u.email,
-        name:      u.name,
-        role:      u.role,
-        createdAt: u.createdAt.toISOString(),
+        id:          u.id,
+        email:       u.email,
+        name:        u.name,
+        role:        u.role,
+        permissions: parsePermissions(u.permissions),
+        createdAt:   u.createdAt.toISOString(),
       })),
     });
   } catch (err) {
@@ -31,8 +37,9 @@ router.get("/users", async (_req: Request, res: Response) => {
 // POST /admin/users
 router.post("/users", async (req: Request, res: Response) => {
   try {
-    const { email, name, password, role } = req.body as {
+    const { email, name, password, role, permissions } = req.body as {
       email: string; name: string; password: string; role: string;
+      permissions?: string[] | null;
     };
 
     if (!email || !name || !password || !role) {
@@ -43,10 +50,11 @@ router.post("/users", async (req: Request, res: Response) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const permissionsJson = permissions ? JSON.stringify(permissions) : null;
 
     const [inserted] = await db
       .insert(adminUsersTable)
-      .values({ email: email.toLowerCase().trim(), name, passwordHash, role })
+      .values({ email: email.toLowerCase().trim(), name, passwordHash, role, permissions: permissionsJson })
       .returning();
 
     const actor = (req as any).adminUser as AdminJwtPayload;
@@ -58,11 +66,12 @@ router.post("/users", async (req: Request, res: Response) => {
     });
 
     return res.status(201).json({
-      id:        inserted.id,
-      email:     inserted.email,
-      name:      inserted.name,
-      role:      inserted.role,
-      createdAt: inserted.createdAt.toISOString(),
+      id:          inserted.id,
+      email:       inserted.email,
+      name:        inserted.name,
+      role:        inserted.role,
+      permissions: parsePermissions(inserted.permissions),
+      createdAt:   inserted.createdAt.toISOString(),
     });
   } catch (err: any) {
     if (err?.code === "23505") {
@@ -77,8 +86,9 @@ router.post("/users", async (req: Request, res: Response) => {
 router.patch("/users/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
-    const { email, name, password, role } = req.body as {
+    const { email, name, password, role, permissions } = req.body as {
       email?: string; name?: string; password?: string; role?: string;
+      permissions?: string[] | null;
     };
 
     if (role !== undefined && !VALID_ROLES.includes(role)) {
@@ -93,10 +103,13 @@ router.patch("/users/:id", async (req: Request, res: Response) => {
     if (!existing) return res.status(404).json({ error: "Not found" });
 
     const updates: Record<string, unknown> = {};
-    if (email)    updates["email"] = email.toLowerCase().trim();
-    if (name)     updates["name"]  = name;
-    if (role)     updates["role"]  = role;
-    if (password) updates["passwordHash"] = await bcrypt.hash(password, 12);
+    if (email)       updates["email"]       = email.toLowerCase().trim();
+    if (name)        updates["name"]        = name;
+    if (role)        updates["role"]        = role;
+    if (password)    updates["passwordHash"] = await bcrypt.hash(password, 12);
+    if (permissions !== undefined) {
+      updates["permissions"] = permissions ? JSON.stringify(permissions) : null;
+    }
 
     const [updated] = await db
       .update(adminUsersTable)
@@ -109,11 +122,12 @@ router.patch("/users/:id", async (req: Request, res: Response) => {
     await logAudit({ actor, action: "user.update", targetType: "user", targetId: id, details: { changes } });
 
     return res.json({
-      id:        updated.id,
-      email:     updated.email,
-      name:      updated.name,
-      role:      updated.role,
-      createdAt: updated.createdAt.toISOString(),
+      id:          updated.id,
+      email:       updated.email,
+      name:        updated.name,
+      role:        updated.role,
+      permissions: parsePermissions(updated.permissions),
+      createdAt:   updated.createdAt.toISOString(),
     });
   } catch (err: any) {
     if (err?.code === "23505") {
