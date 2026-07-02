@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon, BookOpen, Calendar, ChevronRight } from "lucide-react";
+import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon, BookOpen, Calendar, ChevronRight, Camera, Shield, Flame, Car, Ban, CircleOff, Wrench, CloudRain, XCircle, CheckCircle2, Layers, Wine, Siren } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
@@ -196,33 +196,33 @@ export default function Home() {
             {[
               {
                 icon: <ShieldAlert className="w-6 h-6 text-primary" />,
-                title: "Speed Cameras",
-                desc: "Get notified well before you approach fixed and known mobile speed camera locations on highways."
+                title: "NTSA Speed Camera Alerts",
+                desc: "Get notified before you reach fixed and mobile NTSA speed camera locations on Thika Road, Mombasa Road, and all major Kenyan highways."
               },
               {
-                icon: <AlertTriangle className="w-6 h-6 text-primary" />,
-                title: "Police Checkpoints",
-                desc: "Real-time crowd-sourced alerts for roadblocks and random checks across major routes."
+                icon: <Shield className="w-6 h-6 text-primary" />,
+                title: "Police Checkpoint Warnings",
+                desc: "Real-time crowd-sourced alerts for police roadblocks and random checks across Nairobi and upcountry routes."
               },
               {
                 icon: <Zap className="w-6 h-6 text-primary" />,
-                title: "Speed Zones",
-                desc: "Sudden drop from 100 to 50 km/h? Msafiri warns you before you miss the sign."
+                title: "Speed Zone Changes",
+                desc: "Sudden drop from 100 to 50 km/h? Msafiri warns you before you miss the sign and get caught by an NTSA camera."
               },
               {
                 icon: <RadioTower className="w-6 h-6 text-primary" />,
-                title: "Live Community Data",
-                desc: "Thousands of drivers reporting in real-time to keep the network accurate and fresh."
+                title: "Live Community Reports",
+                desc: "Thousands of Kenyan drivers reporting in real-time to keep road safety alerts accurate and fresh across 47 counties."
               },
               {
                 icon: <BellRing className="w-6 h-6 text-primary" />,
-                title: "Audio Only Mode",
-                desc: "Keeps running in the background. It speaks up over your music only when needed."
+                title: "Audio Alerts — Eyes on Road",
+                desc: "Runs quietly in the background and speaks over your music or navigation only when you need to pay attention."
               },
               {
                 icon: <MapPin className="w-6 h-6 text-primary" />,
-                title: "Works with Maps",
-                desc: "Run Msafiri seamlessly alongside Google Maps or Waze without interference."
+                title: "Works with Google Maps & Waze",
+                desc: "Run Msafiri alongside Google Maps or Waze without interference. Your navigation, plus our safety layer."
               }
             ].map((feature, i) => (
               <motion.div 
@@ -246,6 +246,59 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+
+          {/* Community Reporting — all incident types */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+            variants={fadeUp}
+            className="mt-20"
+          >
+            <div className="text-center max-w-2xl mx-auto mb-12">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono text-primary mb-4">
+                <RadioTower className="w-3 h-3" />
+                COMMUNITY POWERED
+              </div>
+              <h3 className="text-2xl md:text-4xl font-bold mb-4">Report Any Road Incident in One Tap.</h3>
+              <p className="text-lg text-muted-foreground">
+                See something on the road? Alert every driver behind you instantly. Msafiri drivers can report 13 different incident types — from potholes to alcoblow checkpoints.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {[
+                { icon: <Camera className="w-5 h-5" />, label: "Speed Camera", color: "text-red-500", bg: "bg-red-500/10", desc: "Fixed or mobile NTSA camera ahead" },
+                { icon: <Shield className="w-5 h-5" />, label: "Police Check", color: "text-blue-600", bg: "bg-blue-600/10", desc: "Police checkpoint or random stop" },
+                { icon: <Wine className="w-5 h-5" />, label: "Alcoblow", color: "text-indigo-700", bg: "bg-indigo-700/10", desc: "Breathalyser checkpoint active" },
+                { icon: <Flame className="w-5 h-5" />, label: "Accident", color: "text-red-700", bg: "bg-red-700/10", desc: "Crash or collision on road" },
+                { icon: <Car className="w-5 h-5" />, label: "Traffic Jam", color: "text-orange-600", bg: "bg-orange-600/10", desc: "Heavy congestion ahead" },
+                { icon: <Ban className="w-5 h-5" />, label: "Roadblock", color: "text-purple-700", bg: "bg-purple-700/10", desc: "Road fully blocked or diverted" },
+                { icon: <AlertTriangle className="w-5 h-5" />, label: "Hazard", color: "text-amber-600", bg: "bg-amber-600/10", desc: "General danger on the road" },
+                { icon: <CircleOff className="w-5 h-5" />, label: "Pothole", color: "text-orange-500", bg: "bg-orange-500/10", desc: "Deep pothole or damaged tarmac" },
+                { icon: <Layers className="w-5 h-5" />, label: "Debris", color: "text-stone-600", bg: "bg-stone-600/10", desc: "Rocks, cargo or debris on road" },
+                { icon: <Wrench className="w-5 h-5" />, label: "Broken Down", color: "text-amber-700", bg: "bg-amber-700/10", desc: "Stalled vehicle blocking lane" },
+                { icon: <CloudRain className="w-5 h-5" />, label: "Bad Weather", color: "text-slate-600", bg: "bg-slate-600/10", desc: "Fog, heavy rain or flooding" },
+                { icon: <XCircle className="w-5 h-5" />, label: "Road Closed", color: "text-rose-700", bg: "bg-rose-700/10", desc: "Road completely closed ahead" },
+                { icon: <CheckCircle2 className="w-5 h-5" />, label: "Road Clear", color: "text-green-600", bg: "bg-green-600/10", desc: "Previous incident now cleared" },
+              ].map((incident, i) => (
+                <motion.div
+                  key={i}
+                  variants={{
+                    hidden: { opacity: 0, scale: 0.9 },
+                    visible: { opacity: 1, scale: 1, transition: { delay: i * 0.04, duration: 0.4 } }
+                  }}
+                  className="bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center text-center hover:border-primary/30 transition-colors group"
+                >
+                  <div className={`w-11 h-11 rounded-xl ${incident.bg} flex items-center justify-center mb-3 ${incident.color}`}>
+                    {incident.icon}
+                  </div>
+                  <p className="font-bold text-sm mb-1">{incident.label}</p>
+                  <p className="text-xs text-muted-foreground leading-tight">{incident.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
 
