@@ -1,11 +1,46 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon } from "lucide-react";
+import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon, BookOpen, Calendar, ChevronRight } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useTheme } from "@/components/ThemeProvider";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+
+const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
+
+interface BlogPostSummary {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  author: string;
+  publishedAt: string | null;
+  createdAt: string;
+  readCount: number;
+}
+
+function useLatestPosts() {
+  return useQuery<{ posts: BlogPostSummary[]; total: number; pages: number }>({
+    queryKey: ["/api/blog/posts/home"],
+    queryFn: () => fetch(`${API_BASE}/blog/posts?limit=3&page=1`).then((r) => r.json()),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+function formatDate(iso: string | null) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 export default function Home() {
   const { resolvedTheme, toggle } = useTheme();
+  const { data: blogData } = useLatestPosts();
+
+  useEffect(() => {
+    document.title = "Msafiri Kenya — Speed Camera & Police Checkpoint Alerts App";
+    const desc = document.querySelector('meta[name="description"]');
+    if (desc) desc.setAttribute("content", "Msafiri is Kenya's #1 road safety app. Get real-time NTSA speed camera alerts, police checkpoint warnings, and speed zone notifications for Nairobi and all major Kenyan highways.");
+  }, []);
 
   const fadeUp = {
     hidden: { opacity: 0, y: 30 },
@@ -34,7 +69,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Features</a>
-            <a href="#pro" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Msafiri Pro</a>
+            <Link href="/blog" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Blog</Link>
             <a href="#faq" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">FAQ</a>
             <button
               onClick={toggle}
@@ -151,9 +186,9 @@ export default function Home() {
             variants={fadeUp}
             className="text-center max-w-2xl mx-auto mb-16"
           >
-            <h2 className="text-3xl md:text-5xl font-bold mb-6">Drive with absolute clarity.</h2>
+            <h2 className="text-3xl md:text-5xl font-bold mb-6">NTSA Speed Cameras, Checkpoints & Speed Zones — All in One App.</h2>
             <p className="text-lg text-muted-foreground">
-              Built specifically for everyday Kenyan driving. No cluttered maps, no unnecessary noise. Just the alerts that matter.
+              Built specifically for everyday Kenyan driving. No cluttered maps, no unnecessary noise — just the road safety alerts that matter on Nairobi and Kenya highways.
             </p>
           </motion.div>
 
@@ -224,9 +259,9 @@ export default function Home() {
             variants={fadeUp}
             className="text-center mb-14"
           >
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">See it in action.</h2>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">Kenya's Road Safety App — See It in Action.</h2>
             <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Every screen, designed to keep your eyes on the road.
+              Every screen designed to keep your eyes on the road, whether you're on Thika Road, Mombasa Road, or the Nairobi Expressway.
             </p>
           </motion.div>
           <motion.div
@@ -285,10 +320,10 @@ export default function Home() {
             variants={fadeUp}
           >
             <h2 className="text-4xl md:text-5xl font-bold leading-tight mb-6">
-              A calm co-pilot for chaotic roads.
+              Your Co-pilot for Kenyan Roads — Speed Cameras, Checkpoints & Alcoblow Alerts.
             </h2>
             <p className="text-xl text-muted-foreground mb-8">
-              We know what driving in Kenya feels like. The sudden speed bumps, the hidden cameras on Waiyaki Way, the unpredictable speed zone changes.
+              We know what driving in Kenya feels like. The sudden speed bumps, the hidden NTSA cameras on Waiyaki Way, the unpredictable speed zone changes on the Nairobi–Nakuru Highway.
             </p>
             <p className="text-xl text-muted-foreground mb-8">
               Msafiri doesn't try to replace your navigation app. It runs quietly in the background, speaking up only when you need to pay attention.
@@ -394,9 +429,9 @@ export default function Home() {
             variants={fadeUp}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">Questions?</h2>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">Frequently Asked Questions About Msafiri Kenya</h2>
             <p className="text-lg text-muted-foreground">
-              Everything you need to know about Msafiri.
+              Everything you need to know about Kenya's road safety and speed camera alert app.
             </p>
           </motion.div>
 
@@ -432,13 +467,98 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Blog Preview Section */}
+      <section className="py-24 px-6 bg-muted/10 border-t border-border">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+            variants={fadeUp}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12"
+          >
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono text-primary mb-4">
+                <BookOpen className="w-3 h-3" />
+                MSAFIRI KENYA BLOG
+              </div>
+              <h2 className="text-3xl md:text-5xl font-bold">Road Safety Guides for Kenyan Drivers.</h2>
+              <p className="text-lg text-muted-foreground mt-3 max-w-xl">
+                Expert articles on NTSA fines, speed cameras, alcoblow locations, and traffic tips for Nairobi and Kenya highways.
+              </p>
+            </div>
+            <Link href="/blog" className="inline-flex items-center gap-2 text-primary font-semibold hover:underline whitespace-nowrap shrink-0">
+              View all articles <ChevronRight className="w-4 h-4" />
+            </Link>
+          </motion.div>
+
+          {blogData?.posts && blogData.posts.length > 0 ? (
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={staggerContainer}
+              className="grid md:grid-cols-3 gap-6"
+            >
+              {blogData.posts.map((post, i) => (
+                <motion.div
+                  key={post.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 20 },
+                    visible: { opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6 } }
+                  }}
+                >
+                  <Link href={`/blog/${post.slug}`}>
+                    <div className="group bg-card border border-card-border rounded-3xl overflow-hidden hover:border-primary/30 transition-colors cursor-pointer h-full flex flex-col">
+                      <div className="h-44 bg-primary/5 flex items-center justify-center">
+                        <Navigation className="w-12 h-12 text-primary/20 fill-current" />
+                      </div>
+                      <div className="p-6 flex flex-col flex-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(post.publishedAt || post.createdAt)}
+                        </div>
+                        <h3 className="font-bold text-lg leading-snug mb-3 group-hover:text-primary transition-colors line-clamp-3">
+                          {post.title}
+                        </h3>
+                        {post.excerpt && (
+                          <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-4 flex-1">
+                            {post.excerpt}
+                          </p>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-primary text-sm font-semibold mt-auto">
+                          Read article <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="bg-card border border-card-border rounded-3xl overflow-hidden h-72 animate-pulse">
+                  <div className="h-44 bg-muted" />
+                  <div className="p-6 space-y-3">
+                    <div className="h-3 bg-muted rounded w-1/3" />
+                    <div className="h-4 bg-muted rounded w-full" />
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* CTA / Download */}
       <section className="py-24 px-6 relative overflow-hidden border-t border-border">
         <div className="absolute inset-0 bg-primary/5" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl md:text-6xl font-bold mb-6">Ready to drive smarter?</h2>
+          <h2 className="text-4xl md:text-6xl font-bold mb-6">Download Kenya's #1 Road Safety App — Free.</h2>
           <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-            Join over 50,000 drivers in Kenya who trust Msafiri every day. Download now and take back control of your journey.
+            Join over 50,000 Kenyan drivers who trust Msafiri every day for NTSA speed camera alerts, police checkpoint warnings, and alcoblow notifications. Download now.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a href="#" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
@@ -469,6 +589,7 @@ export default function Home() {
           
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground font-medium">
             <a href="/marketing/about" className="hover:text-foreground transition-colors">About</a>
+            <a href="/marketing/blog" className="hover:text-foreground transition-colors">Blog</a>
             <a href="/marketing/contact" className="hover:text-foreground transition-colors">Contact</a>
             <a href="/marketing/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
             <a href="/marketing/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
