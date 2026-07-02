@@ -32,6 +32,10 @@ tags:
     description: Public speed zone lookup
   - name: admin-speed-zones
     description: Admin speed zone management
+  - name: blog
+    description: Public blog posts
+  - name: admin-blog
+    description: Admin blog management
 paths:
   /healthz:
     get:
@@ -835,6 +839,157 @@ paths:
         "401":
           description: Unauthorized
 
+  /blog/posts:
+    get:
+      operationId: listBlogPosts
+      tags: [blog]
+      summary: List published blog posts
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Paginated blog post list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlogPostList"
+
+  /blog/posts/{slug}:
+    get:
+      operationId: getBlogPost
+      tags: [blog]
+      summary: Get a published post by slug (increments read count)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Full blog post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlogPostFull"
+        "404":
+          description: Not found
+
+  /admin/blog/posts:
+    get:
+      operationId: adminListBlogPosts
+      tags: [admin-blog]
+      summary: List all blog posts (admin)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBlogPostList"
+    post:
+      operationId: adminCreateBlogPost
+      tags: [admin-blog]
+      summary: Create a blog post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminBlogPostInput"
+      responses:
+        "201":
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBlogPost"
+
+  /admin/blog/posts/{id}:
+    get:
+      operationId: adminGetBlogPost
+      tags: [admin-blog]
+      summary: Get a single post by ID (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBlogPost"
+    put:
+      operationId: adminUpdateBlogPost
+      tags: [admin-blog]
+      summary: Update a blog post
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminBlogPostInput"
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBlogPost"
+    delete:
+      operationId: adminDeleteBlogPost
+      tags: [admin-blog]
+      summary: Delete a blog post
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+  /admin/blog/stats:
+    get:
+      operationId: adminGetBlogStats
+      tags: [admin-blog]
+      summary: Blog read stats — total reads, top posts
+      responses:
+        "200":
+          description: Blog statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlogStats"
+
 components:
   schemas:
     HealthStatus:
@@ -1293,3 +1448,108 @@ components:
         data:
           type: object
           additionalProperties: {}
+
+    BlogPostSummary:
+      type: object
+      required: [id, slug, title, author, readCount, createdAt]
+      properties:
+        id:           { type: string }
+        slug:         { type: string }
+        title:        { type: string }
+        excerpt:      { type: ["string", "null"] }
+        author:       { type: string }
+        featuredImage: { type: ["string", "null"] }
+        keywords:
+          type: array
+          items: { type: string }
+        readCount:    { type: integer }
+        publishedAt:  { type: ["string", "null"] }
+        createdAt:    { type: string }
+
+    BlogPostFull:
+      type: object
+      required: [id, slug, title, content, author, status, readCount, createdAt, updatedAt]
+      properties:
+        id:              { type: string }
+        slug:            { type: string }
+        title:           { type: string }
+        excerpt:         { type: ["string", "null"] }
+        content:         { type: string }
+        author:          { type: string }
+        status:          { type: string }
+        featuredImage:   { type: ["string", "null"] }
+        metaTitle:       { type: ["string", "null"] }
+        metaDescription: { type: ["string", "null"] }
+        keywords:
+          type: array
+          items: { type: string }
+        readCount:       { type: integer }
+        publishedAt:     { type: ["string", "null"] }
+        createdAt:       { type: string }
+        updatedAt:       { type: string }
+
+    BlogPostList:
+      type: object
+      required: [posts, total, page, limit, pages]
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogPostSummary"
+        total:  { type: integer }
+        page:   { type: integer }
+        limit:  { type: integer }
+        pages:  { type: integer }
+
+    AdminBlogPost:
+      allOf:
+        - $ref: "#/components/schemas/BlogPostFull"
+
+    AdminBlogPostList:
+      type: object
+      required: [posts, total, page, limit, pages]
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminBlogPost"
+        total:  { type: integer }
+        page:   { type: integer }
+        limit:  { type: integer }
+        pages:  { type: integer }
+
+    AdminBlogPostInput:
+      type: object
+      required: [title]
+      properties:
+        title:           { type: string }
+        slug:            { type: string }
+        excerpt:         { type: string }
+        content:         { type: string }
+        author:          { type: string }
+        status:          { type: string }
+        featuredImage:   { type: string }
+        metaTitle:       { type: string }
+        metaDescription: { type: string }
+        keywords:
+          type: array
+          items: { type: string }
+
+    BlogStats:
+      type: object
+      required: [totalReads, publishedCount, draftCount, topPosts]
+      properties:
+        totalReads:     { type: integer }
+        publishedCount: { type: integer }
+        draftCount:     { type: integer }
+        topPosts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:          { type: string }
+              slug:        { type: string }
+              title:       { type: string }
+              status:      { type: string }
+              readCount:   { type: integer }
+              publishedAt: { type: ["string", "null"] }

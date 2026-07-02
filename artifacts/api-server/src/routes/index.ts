@@ -4,6 +4,7 @@ import reportsRouter from "./reports";
 import speedZonesRouter from "./speedZones.js";
 import pushRouter from "./push.js";
 import appVersionRouter from "./appVersion.js";
+import blogRouter from "./blog.js";
 import adminRouter from "./admin/index.js";
 
 const router: IRouter = Router();
@@ -13,6 +14,7 @@ router.use(reportsRouter);
 router.use(speedZonesRouter);
 router.use(pushRouter);
 router.use(appVersionRouter);
+router.use(blogRouter);
 router.use("/admin", adminRouter);
 
 export default router;

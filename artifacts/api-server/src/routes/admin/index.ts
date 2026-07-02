@@ -10,6 +10,7 @@ import notificationsRouter from "./notifications.js";
 import subscribersRouter from "./subscribers.js";
 import pushCampaignsRouter from "./push-campaigns.js";
 import releasesRouter from "./releases.js";
+import blogRouter from "./blog.js";
 
 const router = Router();
 
@@ -23,12 +24,13 @@ router.use(adminAuthMiddleware);
 router.use(reportsRouter);
 router.use(speedZonesRouter);
 
-// Moderator and admin: bulk/export, notifications, subscribers, audit logs, push campaigns
+// Moderator and admin: bulk/export, notifications, subscribers, audit logs, push campaigns, blog
 router.use(adminOrModeratorMiddleware, notificationsRouter);
 router.use(adminOrModeratorMiddleware, subscribersRouter);
 router.use(adminOrModeratorMiddleware, auditLogsRouter);
 router.use(adminOrModeratorMiddleware, pushCampaignsRouter);
 router.use(adminOrModeratorMiddleware, releasesRouter);
+router.use("/blog", adminOrModeratorMiddleware, blogRouter);
 
 // Admin only: stats and user management
 router.use(adminOnlyMiddleware, statsRouter);

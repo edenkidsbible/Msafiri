@@ -749,3 +749,221 @@ export const AdminDeletePushCampaignResponse = zod.object({
 })
 
 
+/**
+ * @summary List published blog posts
+ */
+export const ListBlogPostsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListBlogPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish(),
+  "author": zod.string(),
+  "featuredImage": zod.string().nullish(),
+  "keywords": zod.array(zod.string()).optional(),
+  "readCount": zod.number(),
+  "publishedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "pages": zod.number()
+})
+
+
+/**
+ * @summary Get a published post by slug (increments read count)
+ */
+export const GetBlogPostParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetBlogPostResponse = zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish(),
+  "content": zod.string(),
+  "author": zod.string(),
+  "status": zod.string(),
+  "featuredImage": zod.string().nullish(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "keywords": zod.array(zod.string()).optional(),
+  "readCount": zod.number(),
+  "publishedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List all blog posts (admin)
+ */
+export const AdminListBlogPostsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const AdminListBlogPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish(),
+  "content": zod.string(),
+  "author": zod.string(),
+  "status": zod.string(),
+  "featuredImage": zod.string().nullish(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "keywords": zod.array(zod.string()).optional(),
+  "readCount": zod.number(),
+  "publishedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "pages": zod.number()
+})
+
+
+/**
+ * @summary Create a blog post
+ */
+export const AdminCreateBlogPostBody = zod.object({
+  "title": zod.string(),
+  "slug": zod.string().optional(),
+  "excerpt": zod.string().optional(),
+  "content": zod.string().optional(),
+  "author": zod.string().optional(),
+  "status": zod.string().optional(),
+  "featuredImage": zod.string().optional(),
+  "metaTitle": zod.string().optional(),
+  "metaDescription": zod.string().optional(),
+  "keywords": zod.array(zod.string()).optional()
+})
+
+export const AdminCreateBlogPostResponse = zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish(),
+  "content": zod.string(),
+  "author": zod.string(),
+  "status": zod.string(),
+  "featuredImage": zod.string().nullish(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "keywords": zod.array(zod.string()).optional(),
+  "readCount": zod.number(),
+  "publishedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a single post by ID (admin)
+ */
+export const AdminGetBlogPostParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminGetBlogPostResponse = zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish(),
+  "content": zod.string(),
+  "author": zod.string(),
+  "status": zod.string(),
+  "featuredImage": zod.string().nullish(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "keywords": zod.array(zod.string()).optional(),
+  "readCount": zod.number(),
+  "publishedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a blog post
+ */
+export const AdminUpdateBlogPostParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminUpdateBlogPostBody = zod.object({
+  "title": zod.string(),
+  "slug": zod.string().optional(),
+  "excerpt": zod.string().optional(),
+  "content": zod.string().optional(),
+  "author": zod.string().optional(),
+  "status": zod.string().optional(),
+  "featuredImage": zod.string().optional(),
+  "metaTitle": zod.string().optional(),
+  "metaDescription": zod.string().optional(),
+  "keywords": zod.array(zod.string()).optional()
+})
+
+export const AdminUpdateBlogPostResponse = zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish(),
+  "content": zod.string(),
+  "author": zod.string(),
+  "status": zod.string(),
+  "featuredImage": zod.string().nullish(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "keywords": zod.array(zod.string()).optional(),
+  "readCount": zod.number(),
+  "publishedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a blog post
+ */
+export const AdminDeleteBlogPostParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeleteBlogPostResponse = zod.object({
+  "success": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Blog read stats — total reads, top posts
+ */
+export const AdminGetBlogStatsResponse = zod.object({
+  "totalReads": zod.number(),
+  "publishedCount": zod.number(),
+  "draftCount": zod.number(),
+  "topPosts": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "slug": zod.string().optional(),
+  "title": zod.string().optional(),
+  "status": zod.string().optional(),
+  "readCount": zod.number().optional(),
+  "publishedAt": zod.string().nullish()
+}))
+})
+
+

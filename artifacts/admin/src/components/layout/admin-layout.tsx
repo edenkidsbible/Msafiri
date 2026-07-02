@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, Map, ClipboardList, Bell, CreditCard, Megaphone, Rocket } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, Map, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText } from "lucide-react";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
@@ -52,6 +52,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/notifications",  label: "Notifications",    icon: Bell },
     { href: "/push-campaigns", label: "Push Campaigns",   icon: Megaphone },
     { href: "/releases",       label: "App Releases",     icon: Rocket },
+    { href: "/blog",           label: "Blog Posts",       icon: FileText },
     { href: "/audit-log",      label: "Activity Log",     icon: ClipboardList },
     { href: "/subscribers",    label: "Subscribers",      icon: CreditCard },
   ];

@@ -418,6 +418,93 @@ export interface PushCampaignInput {
   data?: PushCampaignInputData;
 }
 
+export interface BlogPostSummary {
+  id: string;
+  slug: string;
+  title: string;
+  /** @nullable */
+  excerpt?: string | null;
+  author: string;
+  /** @nullable */
+  featuredImage?: string | null;
+  keywords?: string[];
+  readCount: number;
+  /** @nullable */
+  publishedAt?: string | null;
+  createdAt: string;
+}
+
+export interface BlogPostFull {
+  id: string;
+  slug: string;
+  title: string;
+  /** @nullable */
+  excerpt?: string | null;
+  content: string;
+  author: string;
+  status: string;
+  /** @nullable */
+  featuredImage?: string | null;
+  /** @nullable */
+  metaTitle?: string | null;
+  /** @nullable */
+  metaDescription?: string | null;
+  keywords?: string[];
+  readCount: number;
+  /** @nullable */
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BlogPostList {
+  posts: BlogPostSummary[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export type AdminBlogPost = BlogPostFull;
+
+export interface AdminBlogPostList {
+  posts: AdminBlogPost[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface AdminBlogPostInput {
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  content?: string;
+  author?: string;
+  status?: string;
+  featuredImage?: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  keywords?: string[];
+}
+
+export type BlogStatsTopPostsItem = {
+  id?: string;
+  slug?: string;
+  title?: string;
+  status?: string;
+  readCount?: number;
+  /** @nullable */
+  publishedAt?: string | null;
+};
+
+export interface BlogStats {
+  totalReads: number;
+  publishedCount: number;
+  draftCount: number;
+  topPosts: BlogStatsTopPostsItem[];
+}
+
 export type AdminListReportsParams = {
 page?: number;
 limit?: number;
@@ -457,5 +544,20 @@ export type GetAppVersionParams = {
 platform?: string;
 version?: string;
 build?: number;
+};
+
+export type ListBlogPostsParams = {
+page?: number;
+limit?: number;
+};
+
+export type AdminListBlogPostsParams = {
+page?: number;
+limit?: number;
+status?: string;
+};
+
+export type AdminDeleteBlogPost200 = {
+  success?: boolean;
 };
 
