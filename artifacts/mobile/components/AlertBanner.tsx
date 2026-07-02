@@ -12,7 +12,7 @@ interface AlertBannerProps {
 }
 
 const TYPE_LABELS = { camera: "Speed Camera", police: "Police Check", zone: "Speed Zone" } as const;
-const TYPE_ICONS = { camera: "camera" as const, police: "shield" as const, zone: "warning" as const };
+const TYPE_ICONS = { camera: "camera" as const, police: "person" as const, zone: "warning" as const };
 
 export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
   const colors = useColors();

@@ -21,7 +21,7 @@ function distLabel(m: number): string {
 function incidentVisual(inc: RouteIncident): { IconComp: typeof Ionicons | typeof MaterialCommunityIcons; icon: string; color: string } {
   if (inc.source === "static") {
     if (inc.type === "camera") return { IconComp: Ionicons, icon: "camera", color: "#E53935" };
-    if (inc.type === "police") return { IconComp: Ionicons, icon: "shield-checkmark", color: "#1565C0" };
+    if (inc.type === "police") return { IconComp: Ionicons, icon: "person", color: "#1565C0" };
     return { IconComp: Ionicons, icon: "speedometer", color: "#E65100" };
   }
   switch (inc.type) {

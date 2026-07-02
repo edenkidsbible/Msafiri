@@ -28,7 +28,7 @@ const TYPES: Array<{
   color: string;
 }> = [
   { type: "camera",    label: "Speed Camera",  emoji: "📷",  color: "#E53935" },
-  { type: "police",    label: "Police Check",   emoji: "🚔",  color: "#1565C0" },
+  { type: "police",    label: "Police Check",   emoji: "👮",  color: "#1565C0" },
   { type: "alcoblow",  label: "Alcoblow",       emoji: "🍺",  color: "#283593" },
   { type: "accident",  label: "Accident",       emoji: "💥",  color: "#B71C1C" },
   { type: "traffic",   label: "Traffic Jam",    emoji: "🚦",  color: "#C62828" },

@@ -68,7 +68,7 @@ function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
 
 function ZoneIcon({ type, size = 14, color }: { type: string; size?: number; color: string }) {
   const name: keyof typeof Ionicons.glyphMap =
-    type === "camera" ? "camera" : type === "police" ? "shield-checkmark" : "speedometer";
+    type === "camera" ? "camera" : type === "police" ? "person" : "speedometer";
   return <Ionicons name={name} size={size} color={color} />;
 }
 
