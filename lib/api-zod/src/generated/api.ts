@@ -99,6 +99,31 @@ export const AdminCreateReportResponse = zod.object({
 
 
 /**
+ * @summary Export reports as CSV
+ */
+export const AdminExportReportsQueryParams = zod.object({
+  "type": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const AdminExportReportsResponse = zod.unknown()
+
+
+/**
+ * @summary Bulk action on reports (confirm, deny, delete)
+ */
+export const AdminBulkReportsBody = zod.object({
+  "action": zod.enum(['confirm', 'deny', 'delete']),
+  "ids": zod.array(zod.string())
+})
+
+export const AdminBulkReportsResponse = zod.object({
+  "success": zod.boolean(),
+  "affected": zod.number()
+})
+
+
+/**
  * @summary Update a report
  */
 export const AdminUpdateReportParams = zod.object({
@@ -159,7 +184,7 @@ export const AdminListUsersResponse = zod.object({
 
 
 /**
- * @summary Create an admin/staff user
+ * @summary Create an admin/moderator/staff user
  */
 export const AdminCreateUserBody = zod.object({
   "email": zod.string(),
@@ -227,7 +252,105 @@ export const AdminGetStatsResponse = zod.object({
   "byStatus": zod.array(zod.object({
   "label": zod.string(),
   "count": zod.number()
+})),
+  "reportsByDay": zod.array(zod.object({
+  "date": zod.string(),
+  "count": zod.number()
 }))
+})
+
+
+/**
+ * @summary List audit logs
+ */
+export const AdminListAuditLogsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "action": zod.coerce.string().optional(),
+  "since": zod.coerce.string().optional()
+})
+
+export const AdminListAuditLogsResponse = zod.object({
+  "logs": zod.array(zod.object({
+  "id": zod.string(),
+  "actorId": zod.string(),
+  "actorName": zod.string(),
+  "actorRole": zod.string(),
+  "action": zod.string(),
+  "targetType": zod.string().nullish(),
+  "targetId": zod.string().nullish(),
+  "details": zod.unknown().optional(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary List notifications
+ */
+export const AdminListNotificationsResponse = zod.object({
+  "notifications": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "message": zod.string(),
+  "type": zod.string(),
+  "isRead": zod.boolean(),
+  "createdAt": zod.string()
+})),
+  "unreadCount": zod.number()
+})
+
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const AdminMarkAllNotificationsReadResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Mark a notification as read
+ */
+export const AdminMarkNotificationReadParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminMarkNotificationReadResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Delete a notification
+ */
+export const AdminDeleteNotificationParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeleteNotificationResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List RevenueCat subscribers
+ */
+export const AdminListSubscribersResponse = zod.object({
+  "subscribers": zod.array(zod.object({
+  "id": zod.string(),
+  "appUserId": zod.string(),
+  "lastSeenAt": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "hasActiveEntitlement": zod.boolean()
+})),
+  "total": zod.number(),
+  "activeSubscribers": zod.number(),
+  "trialSubscribers": zod.number(),
+  "projectName": zod.string().nullish()
 })
 
 

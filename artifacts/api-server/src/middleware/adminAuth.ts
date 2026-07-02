@@ -41,6 +41,15 @@ export function adminOnlyMiddleware(req: Request, res: Response, next: NextFunct
   next();
 }
 
+export function adminOrModeratorMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const user = (req as any).adminUser as AdminJwtPayload | undefined;
+  if (!user || !["admin", "moderator"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden — admin or moderator only" });
+    return;
+  }
+  next();
+}
+
 export function signAdminToken(payload: AdminJwtPayload): string {
   return jwt.sign(payload, requireJwtSecret(), { expiresIn: "7d" });
 }

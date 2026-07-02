@@ -375,6 +375,12 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@replit/connectors-sdk':
+        specifier: latest
+        version: 0.4.1
+      '@replit/revenuecat-sdk':
+        specifier: latest
+        version: 5.0.0(typescript@5.9.3)
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -390,6 +396,9 @@ importers:
       cors:
         specifier: ^2.8.6
         version: 2.8.6
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.4.0
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
@@ -1025,7 +1034,7 @@ importers:
         version: 0.4.1
       '@replit/revenuecat-sdk':
         specifier: latest
-        version: 4.2.0(typescript@5.9.3)
+        version: 5.0.0(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2644,6 +2653,11 @@ packages:
 
   '@replit/revenuecat-sdk@4.2.0':
     resolution: {integrity: sha512-6y1qm4Wn9vJHKy9h6XAUHj8fPbblN6vu+poHD8fPpoTiSk8fv4RevH/EfXLQLusBmWrRDQ4fkYCUoT5Pfe3Cyg==}
+    peerDependencies:
+      typescript: ^5
+
+  '@replit/revenuecat-sdk@5.0.0':
+    resolution: {integrity: sha512-waW/1S5P53KNoTAfDdN+aDevzaTKSPb1GdLTWdFSwYaRqOlS+ljm8lkD3SHcLqhjnTgC/tmhNH4oo1TeLfKeXA==}
     peerDependencies:
       typescript: ^5
 
@@ -8722,6 +8736,10 @@ snapshots:
   '@replit/connectors-sdk@0.4.1': {}
 
   '@replit/revenuecat-sdk@4.2.0(typescript@5.9.3)':
+    dependencies:
+      typescript: 5.9.3
+
+  '@replit/revenuecat-sdk@5.0.0(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 

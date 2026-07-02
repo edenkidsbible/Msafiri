@@ -12,10 +12,21 @@ import Dashboard from "@/pages/dashboard";
 import Reports from "@/pages/reports";
 import SpeedZones from "@/pages/speed-zones";
 import Users from "@/pages/users";
+import AuditLog from "@/pages/audit-log";
+import Notifications from "@/pages/notifications";
+import Subscribers from "@/pages/subscribers";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ component: Component, adminOnly = false }: { component: any, adminOnly?: boolean }) {
+function ProtectedRoute({
+  component: Component,
+  adminOnly = false,
+  adminOrModerator = false,
+}: {
+  component: any;
+  adminOnly?: boolean;
+  adminOrModerator?: boolean;
+}) {
   const [, setLocation] = useLocation();
   const token = getToken();
   const user = getUser();
@@ -23,14 +34,17 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
   useEffect(() => {
     if (!token || !user) {
       setLocation("/login");
-    } else if (adminOnly && user.role !== 'admin') {
+    } else if (adminOnly && user.role !== "admin") {
+      setLocation(user.role === "moderator" ? "/reports" : "/reports");
+    } else if (adminOrModerator && !["admin", "moderator"].includes(user.role)) {
       setLocation("/reports");
     }
-  }, [token, user, setLocation, adminOnly]);
+  }, [token, user, setLocation, adminOnly, adminOrModerator]);
 
   if (!token || !user) return null;
-  if (adminOnly && user.role !== 'admin') return null;
-  
+  if (adminOnly && user.role !== "admin") return null;
+  if (adminOrModerator && !["admin", "moderator"].includes(user.role)) return null;
+
   return <Component />;
 }
 
@@ -38,15 +52,15 @@ function RootRedirect() {
   const [, setLocation] = useLocation();
   const token = getToken();
   const user = getUser();
-  
+
   useEffect(() => {
     if (token && user) {
-      setLocation(user.role === 'admin' ? "/dashboard" : "/reports");
+      setLocation(user.role === "admin" ? "/dashboard" : "/reports");
     } else {
       setLocation("/login");
     }
   }, [token, user, setLocation]);
-  
+
   return null;
 }
 
@@ -59,6 +73,9 @@ function Router() {
       <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
       <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} /></Route>
       <Route path="/users"><ProtectedRoute component={Users} adminOnly={true} /></Route>
+      <Route path="/audit-log"><ProtectedRoute component={AuditLog} adminOrModerator={true} /></Route>
+      <Route path="/notifications"><ProtectedRoute component={Notifications} adminOrModerator={true} /></Route>
+      <Route path="/subscribers"><ProtectedRoute component={Subscribers} adminOrModerator={true} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,10 +1,13 @@
 import { Router } from "express";
-import { adminAuthMiddleware, adminOnlyMiddleware } from "../../middleware/adminAuth.js";
+import { adminAuthMiddleware, adminOnlyMiddleware, adminOrModeratorMiddleware } from "../../middleware/adminAuth.js";
 import authRouter from "./auth.js";
 import reportsRouter from "./reports.js";
 import usersRouter from "./users.js";
 import statsRouter from "./stats.js";
 import speedZonesRouter from "./speedZones.js";
+import auditLogsRouter from "./audit-logs.js";
+import notificationsRouter from "./notifications.js";
+import subscribersRouter from "./subscribers.js";
 
 const router = Router();
 
@@ -14,10 +17,16 @@ router.use(authRouter);
 // All routes below require a valid admin JWT
 router.use(adminAuthMiddleware);
 
+// Staff, moderator, and admin: reports and speed zones
 router.use(reportsRouter);
 router.use(speedZonesRouter);
 
-// Stats and users management: admin role only
+// Moderator and admin: bulk/export (embedded in reports router), notifications, subscribers, audit logs
+router.use(adminOrModeratorMiddleware, notificationsRouter);
+router.use(adminOrModeratorMiddleware, subscribersRouter);
+router.use(adminOrModeratorMiddleware, auditLogsRouter);
+
+// Admin only: stats and user management
 router.use(adminOnlyMiddleware, statsRouter);
 router.use(adminOnlyMiddleware, usersRouter);
 

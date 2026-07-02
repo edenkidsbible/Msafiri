@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
-import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport } from "@workspace/api-client-react";
+import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -19,6 +20,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AdminReport } from "@workspace/api-client-react";
 import { ReportsMap } from "@/components/reports-map";
+import { getToken } from "@/lib/auth";
+
+const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 const TYPE_COLORS: Record<string, string> = {
   camera:    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
@@ -38,20 +42,40 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-primary/10 text-primary border-primary/20",
+  active:    "bg-primary/10 text-primary border-primary/20",
   confirmed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-  expired: "bg-muted text-muted-foreground border-muted-foreground/20",
-  denied: "bg-destructive/10 text-destructive border-destructive/20",
+  expired:   "bg-muted text-muted-foreground border-muted-foreground/20",
+  denied:    "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 const reportSchema = z.object({
-  type: z.string().min(1, "Type is required"),
-  lat: z.coerce.number().min(-90).max(90),
-  lng: z.coerce.number().min(-180).max(180),
-  status: z.string().min(1, "Status is required"),
-  roadName: z.string().optional().nullable(),
+  type:       z.string().min(1, "Type is required"),
+  lat:        z.coerce.number().min(-90).max(90),
+  lng:        z.coerce.number().min(-180).max(180),
+  status:     z.string().min(1, "Status is required"),
+  roadName:   z.string().optional().nullable(),
   speedLimit: z.coerce.number().optional().nullable(),
 });
+
+function handleExportCsv(type?: string, status?: string) {
+  const token = getToken();
+  const params = new URLSearchParams();
+  if (type)   params.set("type", type);
+  if (status) params.set("status", status);
+  const url = `${BASE_URL}/api/admin/reports/export${params.size ? "?" + params.toString() : ""}`;
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then((r) => r.blob())
+    .then((blob) => {
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.setAttribute("download", "reports.csv");
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    });
+}
 
 export default function Reports() {
   const [page, setPage] = useState(1);
@@ -59,6 +83,8 @@ export default function Reports() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"table" | "map">("table");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -72,7 +98,7 @@ export default function Reports() {
     page,
     limit: viewMode === "map" ? 500 : 20,
     search: search || undefined,
-    type: typeFilter !== "all" ? typeFilter : undefined,
+    type:   typeFilter !== "all" ? typeFilter : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   });
 
@@ -88,6 +114,23 @@ export default function Reports() {
         setReportToDelete(null);
       }
     }
+  });
+
+  const bulkMutation = useAdminBulkReports({
+    mutation: {
+      onSuccess: (result, vars) => {
+        const action = (vars.data as any).action;
+        const label = action === "delete" ? "deleted" : action === "confirm" ? "confirmed" : "denied";
+        toast({ title: `Bulk action complete`, description: `${result.affected} report${result.affected !== 1 ? "s" : ""} ${label}.` });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+        setSelectedIds(new Set());
+        setBulkDeleteOpen(false);
+      },
+      onError: () => {
+        toast({ title: "Bulk action failed", variant: "destructive" });
+        setBulkDeleteOpen(false);
+      },
+    },
   });
 
   const createMutation = useAdminCreateReport({
@@ -120,24 +163,13 @@ export default function Reports() {
 
   const createForm = useForm<z.infer<typeof reportSchema>>({
     resolver: zodResolver(reportSchema),
-    defaultValues: {
-      type: "hazard",
-      lat: 0,
-      lng: 0,
-      status: "active",
-      roadName: "",
-      speedLimit: 0,
-    },
+    defaultValues: { type: "hazard", lat: 0, lng: 0, status: "active", roadName: "", speedLimit: 0 },
   });
 
-  const editForm = useForm<z.infer<typeof reportSchema>>({
-    resolver: zodResolver(reportSchema),
-  });
+  const editForm = useForm<z.infer<typeof reportSchema>>({ resolver: zodResolver(reportSchema) });
 
   const handleDelete = () => {
-    if (reportToDelete) {
-      deleteMutation.mutate({ id: reportToDelete });
-    }
+    if (reportToDelete) deleteMutation.mutate({ id: reportToDelete });
   };
 
   const onCreateSubmit = (values: z.infer<typeof reportSchema>) => {
@@ -145,34 +177,37 @@ export default function Reports() {
   };
 
   const onEditSubmit = (values: z.infer<typeof reportSchema>) => {
-    if (editingReport) {
-      updateMutation.mutate({ id: editingReport.id, data: values });
-    }
+    if (editingReport) updateMutation.mutate({ id: editingReport.id, data: values });
   };
 
   const openEditDialog = (report: AdminReport) => {
-    editForm.reset({
-      type: report.type,
-      lat: report.lat,
-      lng: report.lng,
-      status: report.status,
-      roadName: report.roadName || "",
-      speedLimit: report.speedLimit || 0,
-    });
+    editForm.reset({ type: report.type, lat: report.lat, lng: report.lng, status: report.status, roadName: report.roadName || "", speedLimit: report.speedLimit || 0 });
     setEditingReport(report);
   };
 
   const handleMapClick = (lat: number, lng: number) => {
     setPendingCoords({ lat, lng });
-    createForm.reset({
-      type: "hazard",
-      lat,
-      lng,
-      status: "active",
-      roadName: "",
-      speedLimit: 0,
-    });
+    createForm.reset({ type: "hazard", lat, lng, status: "active", roadName: "", speedLimit: 0 });
     setIsAddOpen(true);
+  };
+
+  const reports = data?.reports ?? [];
+  const allOnPageSelected = reports.length > 0 && reports.every((r) => selectedIds.has(r.id));
+
+  const toggleAll = () => {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => { const next = new Set(prev); reports.forEach((r) => next.delete(r.id)); return next; });
+    } else {
+      setSelectedIds((prev) => { const next = new Set(prev); reports.forEach((r) => next.add(r.id)); return next; });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  };
+
+  const doBulk = (action: "confirm" | "deny" | "delete") => {
+    bulkMutation.mutate({ data: { action, ids: [...selectedIds] } });
   };
 
   return (
@@ -185,32 +220,29 @@ export default function Reports() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              className="gap-2 shadow-none"
+              onClick={() => handleExportCsv(
+                typeFilter !== "all" ? typeFilter : undefined,
+                statusFilter !== "all" ? statusFilter : undefined,
+              )}
+            >
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+
             <div className="flex bg-muted/50 p-1 rounded-lg">
-              <Button
-                variant={viewMode === "table" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 gap-2 px-3 shadow-none"
-                onClick={() => setViewMode("table")}
-                data-testid="btn-view-table"
-              >
+              <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" className="h-8 gap-2 px-3 shadow-none" onClick={() => setViewMode("table")} data-testid="btn-view-table">
                 <List className="h-4 w-4" /> Table
               </Button>
-              <Button
-                variant={viewMode === "map" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 gap-2 px-3 shadow-none"
-                onClick={() => setViewMode("map")}
-                data-testid="btn-view-map"
-              >
+              <Button variant={viewMode === "map" ? "secondary" : "ghost"} size="sm" className="h-8 gap-2 px-3 shadow-none" onClick={() => setViewMode("map")} data-testid="btn-view-map">
                 <Map className="h-4 w-4" /> Map
               </Button>
             </div>
 
             <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setPendingCoords(null); }}>
               <DialogTrigger asChild>
-                <Button className="gap-2" data-testid="btn-add-report">
-                  <Plus className="h-4 w-4" /> Add Incident
-                </Button>
+                <Button className="gap-2" data-testid="btn-add-report"><Plus className="h-4 w-4" /> Add Incident</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[450px]">
                 <DialogHeader>
@@ -220,42 +252,20 @@ export default function Reports() {
                 <Form {...createForm}>
                   <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={createForm.control}
-                        name="type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                {Object.keys(TYPE_COLORS).map(type => (
-                                  <SelectItem key={type} value={type} className="capitalize">{type}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={createForm.control}
-                        name="status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Status</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                              <SelectContent>
-                                {Object.keys(STATUS_COLORS).map(status => (
-                                  <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <FormField control={createForm.control} name="type" render={({ field }) => (
+                        <FormItem><FormLabel>Type</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                          </Select><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={createForm.control} name="status" render={({ field }) => (
+                        <FormItem><FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                          </Select><FormMessage /></FormItem>
+                      )} />
                       <FormField control={createForm.control} name="lat" render={({ field }) => (
                         <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>
                       )} />
@@ -264,14 +274,10 @@ export default function Reports() {
                       )} />
                     </div>
                     <FormField control={createForm.control} name="roadName" render={({ field }) => (
-                      <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
+                      <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ""} onChange={field.onChange} /></FormControl></FormItem>
                     )} />
                     <FormField control={createForm.control} name="speedLimit" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Speed Limit (km/h)</FormLabel>
-                        <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      <FormItem><FormLabel>Speed Limit (km/h)</FormLabel><FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ""} onChange={field.onChange} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <DialogFooter className="pt-4">
                       <Button type="submit" disabled={createMutation.isPending} className="w-full">
@@ -289,64 +295,81 @@ export default function Reports() {
         <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by road name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-background"
-              data-testid="input-search"
-            />
+            <Input placeholder="Search by road name..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-background" data-testid="input-search" />
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-type">
-              <SelectValue placeholder="All Types" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-type"><SelectValue placeholder="All Types" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
-              {Object.keys(TYPE_COLORS).map(type => (
-                <SelectItem key={type} value={type} className="capitalize">{type}</SelectItem>
-              ))}
+              {Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-status">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {Object.keys(STATUS_COLORS).map(status => (
-                <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
-              ))}
+              {Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
 
+        {/* Bulk action toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-lg px-4 py-3">
+            <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 h-8 shadow-none border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                disabled={bulkMutation.isPending}
+                onClick={() => doBulk("confirm")}
+              >
+                {bulkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Confirm All
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 h-8 shadow-none border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600"
+                disabled={bulkMutation.isPending}
+                onClick={() => doBulk("deny")}
+              >
+                {bulkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                Deny All
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 h-8 shadow-none border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={bulkMutation.isPending}
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                {bulkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Delete All
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
         {viewMode === "map" ? (
           isLoading ? (
             <div className="border rounded-xl bg-muted/10 h-[550px] flex items-center justify-center text-muted-foreground">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Loading map data...
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading map data...
             </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 {data && data.reports.length > 0 && (
-                  <span className="text-muted-foreground">
-                    Displaying {data.reports.length} of {data.total} incidents
-                  </span>
+                  <span className="text-muted-foreground">Displaying {data.reports.length} of {data.total} incidents</span>
                 )}
-                <span className="text-muted-foreground ml-auto">
-                  Tip: Click anywhere on the map to add an incident.
-                </span>
+                <span className="text-muted-foreground ml-auto">Tip: Click anywhere on the map to add an incident.</span>
               </div>
               <div className="rounded-xl overflow-hidden border shadow-sm">
-                <ReportsMap
-                  reports={data?.reports ?? []}
-                  onEdit={openEditDialog}
-                  onDelete={(id) => setReportToDelete(id)}
-                  onMapClick={handleMapClick}
-                  pendingCoords={pendingCoords}
-                />
+                <ReportsMap reports={data?.reports ?? []} onEdit={openEditDialog} onDelete={(id) => setReportToDelete(id)} onMapClick={handleMapClick} pendingCoords={pendingCoords} />
               </div>
             </div>
           )
@@ -356,6 +379,13 @@ export default function Reports() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow>
+                    <TableHead className="w-[44px]">
+                      <Checkbox
+                        checked={allOnPageSelected}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="w-[120px]">Type</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead className="w-[120px]">Status</TableHead>
@@ -368,14 +398,14 @@ export default function Reports() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-48 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-48 text-center text-muted-foreground">
                         <Loader2 className="mx-auto h-6 w-6 animate-spin mb-2" />
                         Loading reports...
                       </TableCell>
                     </TableRow>
                   ) : data?.reports.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-48 text-center">
+                      <TableCell colSpan={8} className="h-48 text-center">
                         <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3 opacity-20" />
                         <p className="text-muted-foreground font-medium">No incidents found</p>
                         <p className="text-sm text-muted-foreground/70 mt-1">Try adjusting your search or filters.</p>
@@ -384,6 +414,13 @@ export default function Reports() {
                   ) : (
                     data?.reports.map((report) => (
                       <TableRow key={report.id} className="hover:bg-muted/30 transition-colors group" data-testid={`row-report-${report.id}`}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(report.id)}
+                            onCheckedChange={() => toggleOne(report.id)}
+                            aria-label={`Select ${report.id}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={`capitalize font-medium shadow-none ${TYPE_COLORS[report.type] || "bg-secondary text-secondary-foreground"}`}>
                             {report.type}
@@ -394,9 +431,7 @@ export default function Reports() {
                             <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                             <div>
                               <div className="font-medium text-sm text-foreground">{report.roadName || "Unknown Sector"}</div>
-                              <div className="text-xs text-muted-foreground mt-0.5 font-mono">
-                                {report.lat.toFixed(5)}, {report.lng.toFixed(5)}
-                              </div>
+                              <div className="text-xs text-muted-foreground mt-0.5 font-mono">{report.lat.toFixed(5)}, {report.lng.toFixed(5)}</div>
                             </div>
                           </div>
                         </TableCell>
@@ -429,16 +464,11 @@ export default function Reports() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => openEditDialog(report)} className="cursor-pointer">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Details
+                                <Edit className="mr-2 h-4 w-4" /> Edit Details
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => setReportToDelete(report.id)} 
-                                className="text-destructive focus:text-destructive cursor-pointer"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Incident
+                              <DropdownMenuItem onClick={() => setReportToDelete(report.id)} className="text-destructive focus:text-destructive cursor-pointer">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Incident
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -453,27 +483,15 @@ export default function Reports() {
             {data && data.total > data.limit && (
               <div className="flex items-center justify-between px-2">
                 <span className="text-sm text-muted-foreground">
-                  Showing <span className="font-medium text-foreground">{(page - 1) * data.limit + 1}</span> to <span className="font-medium text-foreground">{Math.min(page * data.limit, data.total)}</span> of <span className="font-medium text-foreground">{data.total}</span> entries
+                  Showing <span className="font-medium text-foreground">{(page - 1) * data.limit + 1}</span> to{" "}
+                  <span className="font-medium text-foreground">{Math.min(page * data.limit, data.total)}</span> of{" "}
+                  <span className="font-medium text-foreground">{data.total}</span> entries
                 </span>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 shadow-none"
-                    disabled={page === 1}
-                    onClick={() => setPage(p => p - 1)}
-                    data-testid="btn-prev-page"
-                  >
+                  <Button variant="outline" size="sm" className="h-8 shadow-none" disabled={page === 1} onClick={() => setPage((p) => p - 1)} data-testid="btn-prev-page">
                     <ArrowLeft className="mr-2 h-3.5 w-3.5" /> Previous
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 shadow-none"
-                    disabled={page * data.limit >= data.total}
-                    onClick={() => setPage(p => p + 1)}
-                    data-testid="btn-next-page"
-                  >
+                  <Button variant="outline" size="sm" className="h-8 shadow-none" disabled={page * data.limit >= data.total} onClick={() => setPage((p) => p + 1)} data-testid="btn-next-page">
                     Next <ArrowRight className="ml-2 h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -483,51 +501,30 @@ export default function Reports() {
         )}
       </div>
 
+      {/* Edit dialog */}
       <Dialog open={!!editingReport} onOpenChange={(open) => !open && setEditingReport(null)}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle>Edit Incident</DialogTitle>
-            <DialogDescription>Update details for this incident report.</DialogDescription>
+            <DialogDescription>Modify details for this report.</DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {Object.keys(TYPE_COLORS).map(type => (
-                            <SelectItem key={type} value={type} className="capitalize">{type}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {Object.keys(STATUS_COLORS).map(status => (
-                            <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={editForm.control} name="type" render={({ field }) => (
+                  <FormItem><FormLabel>Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
+                <FormField control={editForm.control} name="status" render={({ field }) => (
+                  <FormItem><FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
                 <FormField control={editForm.control} name="lat" render={({ field }) => (
                   <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>
                 )} />
@@ -536,14 +533,10 @@ export default function Reports() {
                 )} />
               </div>
               <FormField control={editForm.control} name="roadName" render={({ field }) => (
-                <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
+                <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ""} onChange={field.onChange} /></FormControl></FormItem>
               )} />
               <FormField control={editForm.control} name="speedLimit" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Speed Limit (km/h)</FormLabel>
-                  <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>Speed Limit (km/h)</FormLabel><FormControl><Input type="number" min={0} value={field.value ?? ""} onChange={field.onChange} /></FormControl><FormMessage /></FormItem>
               )} />
               <DialogFooter className="pt-4">
                 <Button type="submit" disabled={updateMutation.isPending} className="w-full">
@@ -556,21 +549,31 @@ export default function Reports() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete single */}
       <AlertDialog open={!!reportToDelete} onOpenChange={(open) => !open && setReportToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Incident</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this incident report? This action cannot be undone and it will be removed from the public API immediately.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This will permanently remove the report. This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
-              Delete
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirm */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Report{selectedIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete the selected incidents. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => doBulk("delete")} disabled={bulkMutation.isPending}>
+              {bulkMutation.isPending ? "Deleting..." : `Delete ${selectedIds.size} Reports`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

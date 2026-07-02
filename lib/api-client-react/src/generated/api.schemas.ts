@@ -95,8 +95,32 @@ export interface AdminReportUpdate {
   denyCount?: number;
 }
 
+export type AdminBulkReportInputAction = typeof AdminBulkReportInputAction[keyof typeof AdminBulkReportInputAction];
+
+
+export const AdminBulkReportInputAction = {
+  confirm: 'confirm',
+  deny: 'deny',
+  delete: 'delete',
+} as const;
+
+export interface AdminBulkReportInput {
+  action: AdminBulkReportInputAction;
+  ids: string[];
+}
+
+export interface AdminBulkReportResult {
+  success: boolean;
+  affected: number;
+}
+
 export interface StatCount {
   label: string;
+  count: number;
+}
+
+export interface DayCount {
+  date: string;
   count: number;
 }
 
@@ -107,10 +131,65 @@ export interface AdminStats {
   reportsToday: number;
   byType: StatCount[];
   byStatus: StatCount[];
+  reportsByDay: DayCount[];
 }
 
 export interface DeleteResult {
   success: boolean;
+}
+
+export interface AuditLog {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  /** @nullable */
+  targetType?: string | null;
+  /** @nullable */
+  targetId?: string | null;
+  details?: unknown;
+  createdAt: string;
+}
+
+export interface AuditLogList {
+  logs: AuditLog[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface AdminNotificationList {
+  notifications: AdminNotification[];
+  unreadCount: number;
+}
+
+export interface AdminSubscriber {
+  id: string;
+  appUserId: string;
+  /** @nullable */
+  lastSeenAt?: string | null;
+  /** @nullable */
+  country?: string | null;
+  hasActiveEntitlement: boolean;
+}
+
+export interface AdminSubscriberList {
+  subscribers: AdminSubscriber[];
+  total: number;
+  activeSubscribers: number;
+  trialSubscribers: number;
+  /** @nullable */
+  projectName?: string | null;
 }
 
 export interface SpeedZonePublic {
@@ -238,6 +317,18 @@ limit?: number;
 type?: string;
 status?: string;
 search?: string;
+};
+
+export type AdminExportReportsParams = {
+type?: string;
+status?: string;
+};
+
+export type AdminListAuditLogsParams = {
+page?: number;
+limit?: number;
+action?: string;
+since?: string;
 };
 
 export type ListSpeedZonesParams = {

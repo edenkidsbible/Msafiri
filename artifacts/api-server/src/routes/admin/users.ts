@@ -2,6 +2,10 @@ import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
 import { db, adminUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { logAudit, createNotification } from "../../lib/audit.js";
+import type { AdminJwtPayload } from "../../middleware/adminAuth.js";
+
+const VALID_ROLES = ["admin", "moderator", "staff"];
 
 const router = Router();
 
@@ -34,8 +38,8 @@ router.post("/users", async (req: Request, res: Response) => {
     if (!email || !name || !password || !role) {
       return res.status(400).json({ error: "email, name, password, role required" });
     }
-    if (!["admin", "staff"].includes(role)) {
-      return res.status(400).json({ error: "role must be 'admin' or 'staff'" });
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: `role must be one of: ${VALID_ROLES.join(", ")}` });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -44,6 +48,14 @@ router.post("/users", async (req: Request, res: Response) => {
       .insert(adminUsersTable)
       .values({ email: email.toLowerCase().trim(), name, passwordHash, role })
       .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({ actor, action: "user.create", targetType: "user", targetId: inserted.id, details: { name, email, role } });
+    await createNotification({
+      title:   `New team member added`,
+      message: `${actor.name} added ${inserted.name} (${inserted.role}) to the team.`,
+      type:    "info",
+    });
 
     return res.status(201).json({
       id:        inserted.id,
@@ -69,8 +81,8 @@ router.patch("/users/:id", async (req: Request, res: Response) => {
       email?: string; name?: string; password?: string; role?: string;
     };
 
-    if (role !== undefined && !["admin", "staff"].includes(role)) {
-      return res.status(400).json({ error: "role must be 'admin' or 'staff'" });
+    if (role !== undefined && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: `role must be one of: ${VALID_ROLES.join(", ")}` });
     }
 
     const [existing] = await db
@@ -91,6 +103,10 @@ router.patch("/users/:id", async (req: Request, res: Response) => {
       .set(updates as any)
       .where(eq(adminUsersTable.id, id))
       .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    const changes = Object.keys(updates).filter((k) => k !== "passwordHash");
+    await logAudit({ actor, action: "user.update", targetType: "user", targetId: id, details: { changes } });
 
     return res.json({
       id:        updated.id,
@@ -120,12 +136,15 @@ router.delete("/users/:id", async (req: Request, res: Response) => {
 
     if (!existing) return res.status(404).json({ error: "Not found" });
 
-    const caller = (req as any).adminUser;
+    const caller = (req as any).adminUser as AdminJwtPayload;
     if (caller?.id === id) {
       return res.status(400).json({ error: "Cannot delete your own account" });
     }
 
     await db.delete(adminUsersTable).where(eq(adminUsersTable.id, id));
+
+    await logAudit({ actor: caller, action: "user.delete", targetType: "user", targetId: id, details: { name: existing.name } });
+
     return res.json({ success: true });
   } catch (err) {
     console.error("DELETE /admin/users/:id error:", err);

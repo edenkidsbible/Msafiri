@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DayCount } from './dayCount';
 import type { StatCount } from './statCount';
 
 export interface AdminStats {
@@ -14,4 +15,5 @@ export interface AdminStats {
   reportsToday: number;
   byType: StatCount[];
   byStatus: StatCount[];
+  reportsByDay: DayCount[];
 }
