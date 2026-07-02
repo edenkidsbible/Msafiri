@@ -386,14 +386,14 @@ export default function Reports() {
                         <FormItem><FormLabel>Incident Type</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                            <SelectContent className="z-[99999]">{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
                           </Select><FormMessage /></FormItem>
                       )} />
                       <FormField control={createForm.control} name="status" render={({ field }) => (
                         <FormItem><FormLabel>Status</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                            <SelectContent className="z-[99999]">{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
                           </Select><FormMessage /></FormItem>
                       )} />
                     </div>
@@ -646,14 +646,14 @@ export default function Reports() {
                   <FormItem><FormLabel>Type</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                      <SelectContent>{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                      <SelectContent className="z-[99999]">{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
                     </Select><FormMessage /></FormItem>
                 )} />
                 <FormField control={editForm.control} name="status" render={({ field }) => (
                   <FormItem><FormLabel>Status</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                      <SelectContent>{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                      <SelectContent className="z-[99999]">{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
                     </Select><FormMessage /></FormItem>
                 )} />
                 <FormField control={editForm.control} name="lat" render={({ field }) => (
