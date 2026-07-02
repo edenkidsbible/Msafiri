@@ -76,6 +76,17 @@ function zoneColor(type: string) {
   return type === "camera" ? "#E53935" : type === "police" ? "#1565C0" : "#E65100";
 }
 
+function incidentSummaryParts(incidents: { type: string; source: string }[]): { emoji: string; label: string }[] {
+  const camCount = incidents.filter((i) => i.type === "camera").length;
+  const policeCount = incidents.filter((i) => i.type === "police").length;
+  const reportCount = incidents.filter((i) => i.source === "report").length;
+  const parts: { emoji: string; label: string }[] = [];
+  if (camCount > 0) parts.push({ emoji: "📷", label: `${camCount} camera${camCount === 1 ? "" : "s"}` });
+  if (policeCount > 0) parts.push({ emoji: "👮", label: `${policeCount} police` });
+  if (reportCount > 0) parts.push({ emoji: "📢", label: `${reportCount} report${reportCount === 1 ? "" : "s"}` });
+  return parts;
+}
+
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function DriveScreen() {
@@ -490,24 +501,21 @@ export default function DriveScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            {routeIncidentsAhead.length > 0 && (
-              <TouchableOpacity
-                style={[styles.zonesTag, { backgroundColor: "#E5393514" }]}
-                onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-              >
-                <Ionicons name="warning" size={12} color="#E53935" />
-                <Text style={[styles.zonesTagTxt, { color: "#E53935" }]}>
-                  {routeIncidentsAhead.filter((i) => i.type === "camera").length} cam
-                  {"  ·  "}
-                  {routeIncidentsAhead.filter((i) => i.type === "police").length} police
-                  {routeIncidentsAhead.some((i) => i.source === "report")
-                    ? `  ·  ${routeIncidentsAhead.filter((i) => i.source === "report").length} reports`
-                    : ""}
-                </Text>
-                <Ionicons name="chevron-down" size={12} color="#E53935" />
-              </TouchableOpacity>
-            )}
           </View>
+
+          {/* Incidents ahead — dedicated full-width bar, not squeezed into the ETA row */}
+          {routeIncidentsAhead.length > 0 && (
+            <TouchableOpacity
+              style={[styles.incidentsBar, { backgroundColor: "#E5393512", borderColor: "#E5393530" }]}
+              onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.incidentsBarTxt} numberOfLines={1}>
+                {incidentSummaryParts(routeIncidentsAhead).map((p) => `${p.emoji} ${p.label}`).join("   ")}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="#E53935" />
+            </TouchableOpacity>
+          )}
 
           {/* Alt routes */}
           {altRoutes.length > 0 && (
@@ -570,60 +578,66 @@ export default function DriveScreen() {
       {navigationActive && (
         <View style={[styles.navBar, { backgroundColor: bg, paddingBottom: bottomBase }]}>
 
-          {/* Speed block */}
-          <View style={[styles.navSpeedBlock, {
-            backgroundColor: overLimit ? "#E5393518" : (hudMode ? "#00E67618" : "#E8F5E9"),
-          }]}>
-            <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (hudMode ? "#00E676" : "#2E7D32") }]}>
-              {Math.round(currentSpeed)}
-            </Text>
-            <Text style={[styles.navSpeedUnit, { color: fgMuted }]}>km/h</Text>
-            {currentSpeedLimit != null && (
-              <View style={[styles.navLimitRing, {
-                borderColor: overLimit ? "#E53935" : (hudMode ? "#555" : "#333"),
-                marginTop: 4,
-              }]}>
-                <Text style={[styles.navLimitNum, { color: overLimit ? "#E53935" : fgMain }]}>
-                  {currentSpeedLimit}
-                </Text>
-              </View>
-            )}
-          </View>
+          <View style={styles.navBarTopRow}>
+            {/* Speed block */}
+            <View style={[styles.navSpeedBlock, {
+              backgroundColor: overLimit ? "#E5393518" : (hudMode ? "#00E67618" : "#E8F5E9"),
+            }]}>
+              <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (hudMode ? "#00E676" : "#2E7D32") }]}>
+                {Math.round(currentSpeed)}
+              </Text>
+              <Text style={[styles.navSpeedUnit, { color: fgMuted }]}>km/h</Text>
+              {currentSpeedLimit != null && (
+                <View style={[styles.navLimitRing, {
+                  borderColor: overLimit ? "#E53935" : (hudMode ? "#555" : "#333"),
+                  marginTop: 4,
+                }]}>
+                  <Text style={[styles.navLimitNum, { color: overLimit ? "#E53935" : fgMain }]}>
+                    {currentSpeedLimit}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-          <View style={[styles.navDivider, { backgroundColor: divBg }]} />
+            <View style={[styles.navDivider, { backgroundColor: divBg }]} />
 
-          {/* ETA + destination — recomputed live from the current GPS fix */}
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.navEta, { color: fgMain }]}>
-              {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
-            </Text>
-            <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
-              {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
-              {navDestination?.name.split(",")[0]}
-            </Text>
+            {/* ETA + destination — recomputed live from the current GPS fix */}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.navEta, { color: fgMain }]}>
+                {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
+              </Text>
+              <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
+                {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
+                {navDestination?.name.split(",")[0]}
+              </Text>
+            </View>
+
+            <SOSButton compact />
+
+            <TouchableOpacity
+              style={styles.stopBtn}
+              onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+            >
+              <Ionicons name="stop-circle" size={15} color="#FFF" />
+              <Text style={styles.stopBtnTxt}>Stop</Text>
+            </TouchableOpacity>
           </View>
 
           {routeIncidentsAhead.length > 0 && (
             <TouchableOpacity
-              style={[styles.navAheadTag, { backgroundColor: hudMode ? "#00E67618" : "#E5393514" }]}
+              style={[styles.incidentsBar, {
+                backgroundColor: hudMode ? "#00E67614" : "#E5393512",
+                borderColor: hudMode ? "#00E67640" : "#E5393530",
+              }]}
               onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              activeOpacity={0.8}
             >
-              <Ionicons name="warning" size={12} color={hudMode ? "#00E676" : "#E53935"} />
-              <Text style={[styles.navAheadTagTxt, { color: hudMode ? "#00E676" : "#E53935" }]}>
-                {routeIncidentsAhead.length} ahead
+              <Text style={styles.incidentsBarTxt} numberOfLines={1}>
+                {incidentSummaryParts(routeIncidentsAhead).map((p) => `${p.emoji} ${p.label}`).join("   ")}
               </Text>
+              <Ionicons name="chevron-forward" size={16} color={hudMode ? "#00E676" : "#E53935"} />
             </TouchableOpacity>
           )}
-
-          <SOSButton compact />
-
-          <TouchableOpacity
-            style={styles.stopBtn}
-            onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
-          >
-            <Ionicons name="stop-circle" size={15} color="#FFF" />
-            <Text style={styles.stopBtnTxt}>Stop</Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -873,16 +887,11 @@ const styles = StyleSheet.create({
   etaDist: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   trafficDelayRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   trafficDelayTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#E65100" },
-  zonesTag: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
+  incidentsBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1,
   },
-  zonesTagTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  navAheadTag: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10,
-  },
-  navAheadTagTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  incidentsBarTxt: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#E53935" },
   altPill:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18 },
   altPillTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
   firstStepRow: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -902,11 +911,14 @@ const styles = StyleSheet.create({
   // ── Navigation bottom bar ─────────────────────────────────────────────────
   navBar: {
     position: "absolute", left: 0, right: 0, bottom: 0,
-    flexDirection: "row", alignItems: "center", gap: 10,
+    gap: 10,
     paddingTop: 14, paddingHorizontal: 16,
     borderTopLeftRadius: 26, borderTopRightRadius: 26,
     shadowColor: "#000", shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.13, shadowRadius: 16, elevation: 16,
+  },
+  navBarTopRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
   },
   navSpeedBlock: {
     alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
