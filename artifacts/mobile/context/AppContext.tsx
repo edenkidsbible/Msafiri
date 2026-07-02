@@ -131,7 +131,7 @@ interface AppContextValue {
   communityReports: CommunityReport[];
   addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void;
   confirmReport: (id: string) => Promise<void>;
-  denyReport: (id: string) => Promise<void>;
+  denyReport: (id: string) => Promise<boolean>;
   deleteReport: (id: string) => Promise<void>;
   updateReport: (id: string, speedLimit: number) => Promise<void>;
   deviceId: string | null;
@@ -1380,14 +1380,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const denyReport = useCallback(async (id: string) => {
-    if (!deviceIdRef.current) return;
+  const denyReport = useCallback(async (id: string): Promise<boolean> => {
+    if (!deviceIdRef.current) return false;
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
-    const serverId = report?.serverId ?? id;
+    if (!report) return false;
+    const serverId = report.serverId ?? id;
     // Optimistic: immediately remove — server now denies on first vote
     setCommunityReports((prev) => prev.filter((r) => r.id !== id && r.serverId !== id));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try { await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
+    try {
+      await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current });
+      return true;
+    } catch {
+      // Roll back — restore the report so it isn't silently lost
+      setCommunityReports((prev) => [...prev, report]);
+      return false;
+    }
   }, []);
 
   return (

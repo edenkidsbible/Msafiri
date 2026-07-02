@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -140,6 +141,7 @@ export default function DriveMapView() {
   const hasCenteredRef = useRef(false);
   const now = Date.now();
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
+  const [denyingId, setDenyingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasCenteredRef.current || navigationActive || currentLat == null || currentLng == null) return;
@@ -369,11 +371,23 @@ export default function DriveMapView() {
                               <Text style={[ms.voteTxt, { color: "#388E3C" }]}>Still here</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }]}
-                              onPress={() => { denyReport(r.id); setSelectedCluster(null); }}
+                              style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }, denyingId === r.id && ms.voteBtnDisabled]}
+                              disabled={denyingId === r.id}
+                              onPress={async () => {
+                                setDenyingId(r.id);
+                                const ok = await denyReport(r.id);
+                                setDenyingId(null);
+                                if (ok) {
+                                  setSelectedCluster(null);
+                                } else {
+                                  Alert.alert("Couldn't remove", "Check your connection and try again.");
+                                }
+                              }}
                             >
-                              <Ionicons name="thumbs-down-outline" size={13} color="#D32F2F" />
-                              <Text style={[ms.voteTxt, { color: "#D32F2F" }]}>Gone now</Text>
+                              <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
+                              <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
+                                {denyingId === r.id ? "Removing…" : "Gone now"}
+                              </Text>
                             </TouchableOpacity>
                           </View>
                         )}
@@ -479,5 +493,6 @@ const ms = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
   },
+  voteBtnDisabled: { opacity: 0.5 },
   voteTxt: { fontSize: 12, fontWeight: "600" },
 });
