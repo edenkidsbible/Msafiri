@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -90,6 +90,64 @@ export default function Reports() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!locationQuery.trim() || locationQuery.length < 3) {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLocationLoading(true);
+      try {
+        const resp = await fetch(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(locationQuery)}&limit=6&bbox=33.9,-4.7,41.9,4.6&lang=en`
+        );
+        const data = await resp.json();
+        const results = (data.features || []).map((f: { properties: Record<string, string>; geometry: { coordinates: [number, number] } }) => {
+          const p = f.properties;
+          const parts = [p.name, p.street, p.district, p.city, p.county].filter(Boolean);
+          const deduped = [...new Set(parts)];
+          return {
+            name: deduped.slice(0, 3).join(", "),
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
+          };
+        });
+        setLocationSuggestions(results);
+        setShowSuggestions(results.length > 0);
+      } catch {
+        setLocationSuggestions([]);
+      } finally {
+        setLocationLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [locationQuery]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectSuggestion = (s: { name: string; lat: number; lng: number }) => {
+    createForm.setValue("lat", s.lat);
+    createForm.setValue("lng", s.lng);
+    createForm.setValue("roadName", s.name);
+    setLocationQuery(s.name);
+    setShowSuggestions(false);
+  };
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -240,20 +298,92 @@ export default function Reports() {
               </Button>
             </div>
 
-            <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setPendingCoords(null); }}>
+            <Dialog open={isAddOpen} onOpenChange={(open) => {
+              setIsAddOpen(open);
+              if (!open) {
+                setPendingCoords(null);
+                setLocationQuery("");
+                setLocationSuggestions([]);
+                setShowSuggestions(false);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="gap-2" data-testid="btn-add-report"><Plus className="h-4 w-4" /> Add Incident</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[450px]">
+              <DialogContent className="sm:max-w-[520px]">
                 <DialogHeader>
                   <DialogTitle>Log New Incident</DialogTitle>
-                  <DialogDescription>Create a new incident report on the network.</DialogDescription>
+                  <DialogDescription>Search for a road, area, or landmark to place the incident.</DialogDescription>
                 </DialogHeader>
                 <Form {...createForm}>
-                  <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 pt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                  <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 pt-2">
+
+                    {/* Location search */}
+                    <div ref={searchRef} className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        {locationLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+                        <Input
+                          placeholder="Search road, street, area, landmark…"
+                          value={locationQuery}
+                          onChange={(e) => setLocationQuery(e.target.value)}
+                          onFocus={() => locationSuggestions.length > 0 && setShowSuggestions(true)}
+                          className="pl-9 pr-9"
+                          autoComplete="off"
+                        />
+                      </div>
+                      {showSuggestions && locationSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-xl z-[9999] overflow-hidden">
+                          {locationSuggestions.map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-muted/60 transition-colors text-left border-b border-border/40 last:border-0"
+                              onClick={() => selectSuggestion(s)}
+                            >
+                              <MapPin className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                              <div>
+                                <div className="text-sm font-medium text-foreground leading-tight">{s.name}</div>
+                                <div className="text-xs text-muted-foreground font-mono mt-0.5">{s.lat.toFixed(5)}, {s.lng.toFixed(5)}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Coords preview — shown once a location is picked or coords already set from map click */}
+                    {(createForm.watch("lat") !== 0 || createForm.watch("lng") !== 0) && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg text-sm">
+                        <MapPin className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-foreground font-medium truncate">{createForm.watch("roadName") || "Selected location"}</span>
+                        <span className="font-mono text-muted-foreground text-xs ml-auto shrink-0">
+                          {(createForm.watch("lat") as number).toFixed(5)}, {(createForm.watch("lng") as number).toFixed(5)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Manual lat/lng — always available for precise edits */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField control={createForm.control} name="lat" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Latitude</FormLabel>
+                          <FormControl><Input type="number" step="any" className="font-mono text-sm" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={createForm.control} name="lng" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Longitude</FormLabel>
+                          <FormControl><Input type="number" step="any" className="font-mono text-sm" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
                       <FormField control={createForm.control} name="type" render={({ field }) => (
-                        <FormItem><FormLabel>Type</FormLabel>
+                        <FormItem><FormLabel>Incident Type</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>{Object.keys(TYPE_COLORS).map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
@@ -266,20 +396,21 @@ export default function Reports() {
                             <SelectContent>{Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
                           </Select><FormMessage /></FormItem>
                       )} />
-                      <FormField control={createForm.control} name="lat" render={({ field }) => (
-                        <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField control={createForm.control} name="roadName" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Road / Location Name</FormLabel>
+                          <FormControl><Input value={field.value || ""} onChange={field.onChange} placeholder="Auto-filled from search" /></FormControl>
+                        </FormItem>
                       )} />
-                      <FormField control={createForm.control} name="lng" render={({ field }) => (
-                        <FormItem><FormLabel>Longitude</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>
+                      <FormField control={createForm.control} name="speedLimit" render={({ field }) => (
+                        <FormItem><FormLabel>Speed Limit (km/h)</FormLabel><FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ""} onChange={field.onChange} /></FormControl><FormMessage /></FormItem>
                       )} />
                     </div>
-                    <FormField control={createForm.control} name="roadName" render={({ field }) => (
-                      <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ""} onChange={field.onChange} /></FormControl></FormItem>
-                    )} />
-                    <FormField control={createForm.control} name="speedLimit" render={({ field }) => (
-                      <FormItem><FormLabel>Speed Limit (km/h)</FormLabel><FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ""} onChange={field.onChange} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <DialogFooter className="pt-4">
+
+                    <DialogFooter className="pt-2">
                       <Button type="submit" disabled={createMutation.isPending} className="w-full">
                         {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {createMutation.isPending ? "Saving..." : "Save Incident"}
