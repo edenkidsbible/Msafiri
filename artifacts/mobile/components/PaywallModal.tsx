@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useSubscription } from "@/lib/revenuecat";
 import { useColors } from "@/hooks/useColors";
 
@@ -209,9 +210,20 @@ export function PaywallModal({ visible, onClose }: Props) {
 
           {/* Legal note */}
           <Text style={[styles.legal, { color: c.mutedForeground }]}>
-            Subscription auto-renews unless cancelled 24 hours before the end of the current period.
-            Managed through your App Store or Google Play account.
+            {chosenPkg
+              ? `Msafiri Premium starts with a 1-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+              : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
+            Manage or cancel anytime in your App Store or Google Play account settings.
           </Text>
+          <View style={styles.legalLinks}>
+            <TouchableOpacity onPress={() => { onClose(); router.push("/terms"); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={[styles.legalLink, { color: "#2E7D32" }]}>Terms of Service</Text>
+            </TouchableOpacity>
+            <Text style={[styles.legalLinkSep, { color: c.mutedForeground }]}>·</Text>
+            <TouchableOpacity onPress={() => { onClose(); router.push("/privacy"); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={[styles.legalLink, { color: "#2E7D32" }]}>Privacy Policy</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
         {/* CTA */}
@@ -341,6 +353,12 @@ const styles = StyleSheet.create({
   legal: {
     fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 16, marginTop: 4,
   },
+  legalLinks: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, marginTop: 10,
+  },
+  legalLink: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  legalLinkSep: { fontSize: 12 },
 
   ctaWrap: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, gap: 12 },
   ctaBtn: {

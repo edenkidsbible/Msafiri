@@ -51,6 +51,13 @@ const SLIDES = [
   },
   {
     id: "5",
+    icon: "notifications" as const,
+    title: "Stay Informed",
+    body: "We'll send you alerts for speed cameras and checkpoints ahead, plus updates when the community confirms a report you submitted. You can turn these off anytime in Settings.",
+    color: "#1E88E5",
+  },
+  {
+    id: "6",
     vehiclePicker: true,
     title: "What Do You Drive?",
     body: "Speed limits in Kenya vary by vehicle class. Tell us what you drive so we can show you the correct limit for every zone.",
@@ -61,7 +68,13 @@ const SLIDES = [
 export default function OnboardingScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { completeOnboarding, requestLocationPermission, vehicleType, setVehicleType } = useApp();
+  const {
+    completeOnboarding,
+    requestLocationPermission,
+    requestNotificationPermission,
+    vehicleType,
+    setVehicleType,
+  } = useApp();
   const [activeIdx, setActiveIdx] = useState(0);
   const flatRef = useRef<FlatList<(typeof SLIDES)[0]>>(null);
 
@@ -83,6 +96,8 @@ export default function OnboardingScreen() {
 
   const finish = async () => {
     completeOnboarding();
+    await requestLocationPermission();
+    await requestNotificationPermission();
     router.replace("/paywall");
   };
 
@@ -109,6 +124,10 @@ export default function OnboardingScreen() {
             {"vehiclePicker" in item ? (
               <View style={[styles.vehicleIconWrap, { marginTop: topInset + 24, borderColor: item.color + "44" }]}>
                 <Ionicons name="car-sport" size={64} color={item.color} />
+              </View>
+            ) : "icon" in item ? (
+              <View style={[styles.vehicleIconWrap, { marginTop: topInset + 24, borderColor: item.color + "44" }]}>
+                <Ionicons name={item.icon} size={64} color={item.color} />
               </View>
             ) : (
               <Image

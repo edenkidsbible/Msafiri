@@ -333,9 +333,20 @@ export default function PaywallScreen() {
 
         {/* Legal */}
         <Text style={[styles.legal, { color: c.mutedForeground }]}>
-          Subscription auto-renews unless cancelled at least 24 hours before the end of
-          the current period. Managed through your App Store or Google Play account.
+          {chosenPkg
+            ? `Msafiri Premium starts with a 1-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+            : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
+          Manage or cancel anytime in your App Store or Google Play account settings.
         </Text>
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => router.push("/terms")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.legalLink, { color: c.primary }]}>Terms of Service</Text>
+          </TouchableOpacity>
+          <Text style={[styles.legalLinkSep, { color: c.mutedForeground }]}>·</Text>
+          <TouchableOpacity onPress={() => router.push("/privacy")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.legalLink, { color: c.primary }]}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Bottom CTA */}
@@ -440,6 +451,12 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: "Inter_400Regular",
     textAlign: "center", lineHeight: 16, marginTop: 4,
   },
+  legalLinks: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, marginTop: 10,
+  },
+  legalLink: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  legalLinkSep: { fontSize: 12 },
 
   ctaWrap: {
     paddingHorizontal: 24, paddingTop: 16,

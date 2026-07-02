@@ -112,6 +112,7 @@ export interface RouteIncident {
 interface AppContextValue {
   locationGranted: boolean;
   requestLocationPermission: () => Promise<void>;
+  requestNotificationPermission: () => Promise<boolean>;
   currentLat: number | null;
   currentLng: number | null;
   currentSpeed: number;
@@ -452,7 +453,7 @@ if (Platform.OS !== "web") {
   });
 }
 
-async function requestNotificationPermission(): Promise<boolean> {
+async function requestNotificationPermissionInternal(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   const { status } = await Notifications.requestPermissionsAsync();
   return status === "granted";
@@ -591,7 +592,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
       deviceIdRef.current = did;
       setDeviceId(did);
-      notifGranted.current = await requestNotificationPermission();
+      // Only auto-request on launch for returning users who already saw the
+      // in-app rationale during onboarding. First-time users get this
+      // requested explicitly at the end of onboarding, right after the
+      // "Stay Informed" explanation slide.
+      if (onboarded === "true") {
+        notifGranted.current = await requestNotificationPermissionInternal();
+      }
 
       // Select the most natural/human TTS voice available on this device.
       // Priority: Google neural (Android) > Apple premium (iOS) > Enhanced > any EN
@@ -685,6 +692,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const { status } = await Location.requestForegroundPermissionsAsync();
     setLocationGranted(status === "granted");
+  }, []);
+
+  // ── Notification permission ───────────────────────────────────────────────
+  const requestNotificationPermission = useCallback(async () => {
+    notifGranted.current = await requestNotificationPermissionInternal();
+    return notifGranted.current;
   }, []);
 
   // ── Core location handler ─────────────────────────────────────────────────
@@ -1458,7 +1471,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      locationGranted, requestLocationPermission,
+      locationGranted, requestLocationPermission, requestNotificationPermission,
       currentLat, currentLng, currentSpeed,
       activeAlert, currentSpeedLimit, nearbyZones, allZones, stretchZones: dbStretches, dismissAlert,
       hudMode, setHudMode,
