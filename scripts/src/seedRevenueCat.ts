@@ -54,7 +54,7 @@ const PRODUCTS = [
     packageIdentifier: "$rc_weekly",
     packageDisplayName: "Weekly Subscription",
     prices: [
-      { amount_micros: 150_000_000, currency: "KES" },
+      { amount_micros: 100_000_000, currency: "KES" },
     ],
   },
   {
@@ -66,7 +66,7 @@ const PRODUCTS = [
     packageIdentifier: "$rc_monthly",
     packageDisplayName: "Monthly Subscription",
     prices: [
-      { amount_micros: 500_000_000, currency: "KES" },
+      { amount_micros: 300_000_000, currency: "KES" },
     ],
   },
 ];
@@ -74,7 +74,10 @@ const PRODUCTS = [
 async function seedRevenueCat() {
   const client = await getUncachableRevenueCatClient();
 
-  // The OAuth token is project-scoped — list available projects and use the first one.
+  // The OAuth token may have access to multiple projects (e.g. shared Replit demo account).
+  // Prefer the project pinned via REVENUECAT_PROJECT_ID (set once this app's project is
+  // provisioned); only fall back to name-matching or "first project" if that's unset,
+  // since blindly picking items[0] can silently target an unrelated project.
   const { data: existingProjects, error: listProjectsError } = await listProjects({
     client,
     query: { limit: 20 },
@@ -82,7 +85,24 @@ async function seedRevenueCat() {
 
   if (listProjectsError) throw new Error("Failed to list projects");
 
-  const project: Project | undefined = existingProjects.items?.[0];
+  const pinnedProjectId = process.env.REVENUECAT_PROJECT_ID;
+  let project: Project | undefined;
+  if (pinnedProjectId) {
+    project = existingProjects.items?.find((p) => p.id === pinnedProjectId);
+    if (!project) {
+      throw new Error(
+        `REVENUECAT_PROJECT_ID=${pinnedProjectId} is set but no matching project was found for this account. Refusing to guess a different project.`
+      );
+    }
+  } else {
+    project = existingProjects.items?.find((p) => p.name === PROJECT_NAME);
+    if (!project && (existingProjects.items?.length ?? 0) > 1) {
+      throw new Error(
+        `Multiple RevenueCat projects are visible to this account (${existingProjects.items!.map((p) => p.name).join(", ")}) and none is named "${PROJECT_NAME}". Set REVENUECAT_PROJECT_ID to the correct project id before seeding.`
+      );
+    }
+    project = project ?? existingProjects.items?.[0];
+  }
   if (!project) throw new Error("No RevenueCat projects found for this account");
   console.log("Using project:", project.name, "(id:", project.id + ")");
 

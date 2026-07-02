@@ -32,7 +32,7 @@ export default function PaywallScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { requestLocationPermission } = useApp();
-  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring } =
+  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring, isTrialEligible } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -48,6 +48,10 @@ export default function PaywallScreen() {
   const weeklyPkg  = currentOffering?.availablePackages.find((p) => p.identifier === "$rc_weekly");
   const monthlyPkg = currentOffering?.availablePackages.find((p) => p.identifier === "$rc_monthly");
   const chosenPkg  = selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
+
+  // If this store account has already used its free trial (iOS only — Android/web
+  // always report eligible), show regular pricing copy instead of trial copy.
+  const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
 
   async function handleSubscribe() {
     if (!chosenPkg) return;
@@ -241,12 +245,21 @@ export default function PaywallScreen() {
         </View>
 
         {/* Free trial badge */}
-        <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
-          <Ionicons name="gift-outline" size={16} color={c.primary} />
-          <Text style={[styles.trialText, { color: c.primary }]}>
-            Start with a 1-day free trial — cancel anytime
-          </Text>
-        </View>
+        {trialEligible ? (
+          <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+            <Ionicons name="gift-outline" size={16} color={c.primary} />
+            <Text style={[styles.trialText, { color: c.primary }]}>
+              Start with a 2-day free trial — cancel anytime
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
+            <Text style={[styles.trialText, { color: c.primary }]}>
+              Cancel anytime — no long-term commitment
+            </Text>
+          </View>
+        )}
 
         {/* Feature list */}
         <View style={[styles.featuresCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -289,7 +302,7 @@ export default function PaywallScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.planName, { color: c.foreground }]}>Monthly</Text>
-                    <Text style={[styles.planNote, { color: c.primary }]}>Save 17% vs weekly</Text>
+                    <Text style={[styles.planNote, { color: c.primary }]}>Save 25% vs weekly</Text>
                   </View>
                   <View style={styles.priceWrap}>
                     <Text style={[styles.price, { color: c.foreground }]}>{monthlyPkg.product.priceString}</Text>
@@ -333,8 +346,10 @@ export default function PaywallScreen() {
 
         {/* Legal */}
         <Text style={[styles.legal, { color: c.mutedForeground }]}>
-          {chosenPkg
-            ? `Msafiri Premium starts with a 1-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+          {chosenPkg && trialEligible
+            ? `Msafiri Premium starts with a 2-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+            : chosenPkg
+            ? `You'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
             : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
           Manage or cancel anytime in your App Store or Google Play account settings.
         </Text>
@@ -363,7 +378,7 @@ export default function PaywallScreen() {
           {isPurchasing ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.ctaBtnTxt}>Start 1-Day Free Trial</Text>
+            <Text style={styles.ctaBtnTxt}>{trialEligible ? "Start 2-Day Free Trial" : "Subscribe Now"}</Text>
           )}
         </TouchableOpacity>
 

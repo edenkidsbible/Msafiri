@@ -51,6 +51,30 @@ function useSubscriptionContext() {
     staleTime: 300 * 1000,
   });
 
+  const productIdentifiers =
+    offeringsQuery.data?.current?.availablePackages.map((p) => p.product.identifier) ?? [];
+
+  // Free-trial-abuse mitigation: ask the store whether THIS account has already used a
+  // trial/intro offer for these products. This is iOS-only — Apple ties trial eligibility
+  // to the App Store account, so it survives uninstall/reinstall on the same account.
+  // Android's Play Billing API has no equivalent check (always returns UNKNOWN), and no
+  // client-side check can catch a different store account on the same device, so this is
+  // a real but partial mitigation, not a hard technical block.
+  const trialEligibilityQuery = useQuery({
+    queryKey: ["revenuecat", "trial-eligibility", productIdentifiers],
+    queryFn: async () => Purchases.checkTrialOrIntroductoryPriceEligibility(productIdentifiers),
+    enabled: Platform.OS === "ios" && productIdentifiers.length > 0,
+    staleTime: 300 * 1000,
+  });
+
+  // Default to "eligible" (current behavior) whenever we can't determine otherwise —
+  // Android, web, or an unknown/error result — so we never wrongly hide the trial offer.
+  const isTrialEligible = (productIdentifier: string) => {
+    if (Platform.OS !== "ios") return true;
+    const status = trialEligibilityQuery.data?.[productIdentifier]?.status;
+    return status !== Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_INELIGIBLE;
+  };
+
   const purchaseMutation = useMutation({
     mutationFn: async (packageToPurchase: any) => {
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
@@ -76,6 +100,7 @@ function useSubscriptionContext() {
     restore: restoreMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,
     isRestoring: restoreMutation.isPending,
+    isTrialEligible,
     error: customerInfoQuery.error ?? offeringsQuery.error ?? purchaseMutation.error ?? null,
   };
 }

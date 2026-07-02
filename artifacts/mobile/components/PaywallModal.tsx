@@ -31,7 +31,7 @@ const FEATURES = [
 export function PaywallModal({ visible, onClose }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring, error } =
+  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring, error, isTrialEligible } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -47,6 +47,10 @@ export function PaywallModal({ visible, onClose }: Props) {
 
   const chosenPkg =
     selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
+
+  // If this store account has already used its free trial (iOS only — Android/web
+  // always report eligible), show regular pricing copy instead of trial copy.
+  const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
 
   async function handlePurchase() {
     if (!chosenPkg) return;
@@ -90,8 +94,8 @@ export function PaywallModal({ visible, onClose }: Props) {
         >
           {/* Hero */}
           <View style={styles.heroWrap}>
-            <View style={[styles.heroBadge, { backgroundColor: "#E8F5E9" }]}>
-              <Ionicons name="shield-checkmark" size={40} color="#2E7D32" />
+            <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
+              <Ionicons name="shield-checkmark" size={40} color={c.primary} />
             </View>
             <Text style={[styles.heroTitle, { color: c.foreground }]}>
               Drive smarter.{"\n"}Stay protected.
@@ -102,19 +106,28 @@ export function PaywallModal({ visible, onClose }: Props) {
           </View>
 
           {/* Free trial badge */}
-          <View style={[styles.trialBadge, { backgroundColor: "#FFF9C4", borderColor: "#F9A825" }]}>
-            <Ionicons name="gift-outline" size={16} color="#F57F17" />
-            <Text style={[styles.trialText, { color: "#E65100" }]}>
-              1-day free trial — cancel anytime
-            </Text>
-          </View>
+          {trialEligible ? (
+            <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+              <Ionicons name="gift-outline" size={16} color={c.primary} />
+              <Text style={[styles.trialText, { color: c.primary }]}>
+                2-day free trial — cancel anytime
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
+              <Text style={[styles.trialText, { color: c.primary }]}>
+                Cancel anytime — no long-term commitment
+              </Text>
+            </View>
+          )}
 
           {/* Feature list */}
           <View style={[styles.featuresCard, { backgroundColor: c.card, borderColor: c.border }]}>
             {FEATURES.map((f) => (
               <View key={f.label} style={styles.featureRow}>
-                <View style={[styles.featureIcon, { backgroundColor: "#E8F5E9" }]}>
-                  <Ionicons name={f.icon as any} size={16} color="#2E7D32" />
+                <View style={[styles.featureIcon, { backgroundColor: c.primary + "18" }]}>
+                  <Ionicons name={f.icon as any} size={16} color={c.primary} />
                 </View>
                 <Text style={[styles.featureLabel, { color: c.foreground }]}>{f.label}</Text>
               </View>
@@ -132,27 +145,27 @@ export function PaywallModal({ visible, onClose }: Props) {
                   style={[
                     styles.planCard,
                     {
-                      borderColor: selectedPkg === "$rc_monthly" ? "#2E7D32" : c.border,
+                      borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border,
                       backgroundColor:
-                        selectedPkg === "$rc_monthly" ? "#E8F5E9" : c.card,
+                        selectedPkg === "$rc_monthly" ? c.primary + "12" : c.card,
                     },
                   ]}
                   onPress={() => setSelectedPkg("$rc_monthly")}
                   activeOpacity={0.8}
                 >
-                  <View style={styles.planBestBadge}>
+                  <View style={[styles.planBestBadge, { backgroundColor: c.primary }]}>
                     <Text style={styles.planBestText}>BEST VALUE</Text>
                   </View>
                   <View style={styles.planTop}>
-                    <View style={[styles.planRadio, { borderColor: selectedPkg === "$rc_monthly" ? "#2E7D32" : c.border }]}>
+                    <View style={[styles.planRadio, { borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border }]}>
                       {selectedPkg === "$rc_monthly" && (
-                        <View style={[styles.planRadioDot, { backgroundColor: "#2E7D32" }]} />
+                        <View style={[styles.planRadioDot, { backgroundColor: c.primary }]} />
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.planName, { color: c.foreground }]}>Monthly</Text>
-                      <Text style={[styles.planSave, { color: "#2E7D32" }]}>
-                        Save 17% vs weekly
+                      <Text style={[styles.planSave, { color: c.primary }]}>
+                        Save 25% vs weekly
                       </Text>
                     </View>
                     <View style={styles.planPriceWrap}>
@@ -171,17 +184,17 @@ export function PaywallModal({ visible, onClose }: Props) {
                   style={[
                     styles.planCard,
                     {
-                      borderColor: selectedPkg === "$rc_weekly" ? "#2E7D32" : c.border,
-                      backgroundColor: selectedPkg === "$rc_weekly" ? "#E8F5E9" : c.card,
+                      borderColor: selectedPkg === "$rc_weekly" ? c.primary : c.border,
+                      backgroundColor: selectedPkg === "$rc_weekly" ? c.primary + "12" : c.card,
                     },
                   ]}
                   onPress={() => setSelectedPkg("$rc_weekly")}
                   activeOpacity={0.8}
                 >
                   <View style={styles.planTop}>
-                    <View style={[styles.planRadio, { borderColor: selectedPkg === "$rc_weekly" ? "#2E7D32" : c.border }]}>
+                    <View style={[styles.planRadio, { borderColor: selectedPkg === "$rc_weekly" ? c.primary : c.border }]}>
                       {selectedPkg === "$rc_weekly" && (
-                        <View style={[styles.planRadioDot, { backgroundColor: "#2E7D32" }]} />
+                        <View style={[styles.planRadioDot, { backgroundColor: c.primary }]} />
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
@@ -210,18 +223,20 @@ export function PaywallModal({ visible, onClose }: Props) {
 
           {/* Legal note */}
           <Text style={[styles.legal, { color: c.mutedForeground }]}>
-            {chosenPkg
-              ? `Msafiri Premium starts with a 1-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+            {chosenPkg && trialEligible
+              ? `Msafiri Premium starts with a 2-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+              : chosenPkg
+              ? `You'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
               : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
             Manage or cancel anytime in your App Store or Google Play account settings.
           </Text>
           <View style={styles.legalLinks}>
             <TouchableOpacity onPress={() => { onClose(); router.push("/terms"); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[styles.legalLink, { color: "#2E7D32" }]}>Terms of Service</Text>
+              <Text style={[styles.legalLink, { color: c.primary }]}>Terms of Service</Text>
             </TouchableOpacity>
             <Text style={[styles.legalLinkSep, { color: c.mutedForeground }]}>·</Text>
             <TouchableOpacity onPress={() => { onClose(); router.push("/privacy"); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[styles.legalLink, { color: "#2E7D32" }]}>Privacy Policy</Text>
+              <Text style={[styles.legalLink, { color: c.primary }]}>Privacy Policy</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -229,7 +244,7 @@ export function PaywallModal({ visible, onClose }: Props) {
         {/* CTA */}
         <View style={[styles.ctaWrap, { borderTopColor: c.border }]}>
           <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: "#2E7D32", opacity: isPurchasing || isLoading ? 0.6 : 1 }]}
+            style={[styles.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || isLoading ? 0.6 : 1 }]}
             onPress={handlePurchase}
             disabled={isPurchasing || isLoading || !chosenPkg}
             activeOpacity={0.85}
@@ -238,7 +253,7 @@ export function PaywallModal({ visible, onClose }: Props) {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.ctaBtnTxt}>
-                Start Free Trial
+                {trialEligible ? "Start 2-Day Free Trial" : "Subscribe Now"}
               </Text>
             )}
           </TouchableOpacity>
@@ -277,7 +292,7 @@ export function PaywallModal({ visible, onClose }: Props) {
                     <Text style={[styles.confirmCancelTxt, { color: c.foreground }]}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.confirmOk, { backgroundColor: "#2E7D32" }]}
+                    style={[styles.confirmOk, { backgroundColor: c.primary }]}
                     onPress={confirmPurchase}
                   >
                     <Text style={styles.confirmOkTxt}>Confirm</Text>
@@ -332,7 +347,7 @@ const styles = StyleSheet.create({
   },
   planBestBadge: {
     position: "absolute", top: 0, right: 0,
-    backgroundColor: "#2E7D32", paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 10, paddingVertical: 4,
     borderBottomLeftRadius: 12,
   },
   planBestText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },

@@ -18,3 +18,4 @@
 - [Speed corridor confidence matching](speed-corridor-confidence-matching.md) — a stricter confidence check must exclude the data feeding a looser legacy check, not just be given fallback priority over it.
 - [Speed gauge stationary jitter](speed-gauge-stationary-jitter.md) — GPS phantom motion while parked; fix needs accuracy-based noise floor + dead-band + rolling median together, not just one.
 - [expo-audio in-app sound](expo-audio-inapp-sound.md) — createAudioPlayer (imperative) for a shared sound utility, not useAudioPlayer hook; unrelated to push notification sound (OS handles that).
+- [RevenueCat seed project pinning](revenuecat-seed-project-pinning.md) — never pick listProjects().items[0]; pin to existing REVENUECAT_PROJECT_ID or the wrong project silently gets seeded.

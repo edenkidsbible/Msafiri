@@ -101,8 +101,9 @@ export default function Terms() {
         additional features. Current pricing is:
       </p>
       <ul style={S.ul}>
-        <li style={S.li}><span style={S.bold}>Weekly plan:</span> KES 150 per week, with a 1-day free trial for new subscribers.</li>
-        <li style={S.li}>Other subscription durations (monthly, annual) may be offered from time to time as listed in the App.</li>
+        <li style={S.li}><span style={S.bold}>Weekly plan:</span> KES 100 per week, with a 2-day free trial for new subscribers.</li>
+        <li style={S.li}><span style={S.bold}>Monthly plan:</span> KES 300 per month, with a 2-day free trial for new subscribers.</li>
+        <li style={S.li}>Other subscription durations (annual, etc.) may be offered from time to time as listed in the App.</li>
       </ul>
       <p style={S.p}>
         Pricing may change. We will give you at least 30 days' notice of any price increase before it
@@ -111,9 +112,11 @@ export default function Terms() {
 
       <h3 style={S.h3}>5.2 Free Trial</h3>
       <p style={S.p}>
-        New subscribers may be eligible for a <span style={S.bold}>1-day free trial</span>. The free trial
+        New subscribers may be eligible for a <span style={S.bold}>2-day free trial</span>. The free trial
         begins on the date you subscribe and automatically converts to a paid subscription at the end of
-        the trial period unless you cancel before the trial ends. Each device is eligible for one free trial.
+        the trial period unless you cancel before the trial ends. Free trial eligibility is determined by Apple
+        or Google based on your App Store or Google Play account, and is generally limited to one trial per
+        account — reinstalling or re-downloading the App does not grant an additional trial.
       </p>
 
       <h3 style={S.h3}>5.3 Billing and Renewal</h3>

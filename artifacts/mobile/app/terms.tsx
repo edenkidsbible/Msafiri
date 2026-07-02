@@ -98,8 +98,9 @@ export default function TermsScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Msafiri offers a premium subscription tier, "}<B>Msafiri Pro</B>{", which unlocks additional features. Current pricing is:"}
       </Text>
-      <Li><B>Weekly plan:</B>{" KES 150 per week, with a 1-day free trial for new subscribers."}</Li>
-      <Li>{"Other subscription durations (monthly, annual) may be offered from time to time as listed in the App."}</Li>
+      <Li><B>Weekly plan:</B>{" KES 100 per week, with a 2-day free trial for new subscribers."}</Li>
+      <Li><B>Monthly plan:</B>{" KES 300 per month, with a 2-day free trial for new subscribers."}</Li>
+      <Li>{"Other subscription durations (annual, etc.) may be offered from time to time as listed in the App."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Pricing may change. We will give you at least 30 days' notice of any price increase before it
         takes effect. Continued use after the price change constitutes your acceptance of the new price.
@@ -107,7 +108,7 @@ export default function TermsScreen() {
 
       <Text style={[s.h3, { color: c.primary }]}>5.2 Free Trial</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        {"New subscribers may be eligible for a "}<B>1-day free trial</B>{". The free trial begins on the date you subscribe and automatically converts to a paid subscription at the end of the trial period unless you cancel before the trial ends. Each device is eligible for one free trial."}
+        {"New subscribers may be eligible for a "}<B>2-day free trial</B>{". The free trial begins on the date you subscribe and automatically converts to a paid subscription at the end of the trial period unless you cancel before the trial ends. Free trial eligibility is determined by Apple or Google based on your App Store or Google Play account, and is generally limited to one trial per account — reinstalling or re-downloading the App does not grant an additional trial."}
       </Text>
 
       <Text style={[s.h3, { color: c.primary }]}>5.3 Billing and Renewal</Text>

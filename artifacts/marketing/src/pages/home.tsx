@@ -442,8 +442,9 @@ export default function Home() {
                 <p className="text-muted-foreground">Everything you need for total peace of mind.</p>
               </div>
               <div className="text-left md:text-right">
-                <div className="text-4xl font-bold font-mono">KES 150<span className="text-xl text-muted-foreground">/wk</span></div>
-                <p className="text-sm text-primary mt-1">1-day free trial included</p>
+                <div className="text-4xl font-bold font-mono">KES 100<span className="text-xl text-muted-foreground">/wk</span></div>
+                <p className="text-sm text-muted-foreground mt-1">or KES 300/month <span className="text-primary">(save 25%)</span></p>
+                <p className="text-sm text-primary mt-1">2-day free trial included</p>
               </div>
             </div>
 
