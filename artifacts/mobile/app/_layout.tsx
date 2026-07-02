@@ -20,6 +20,7 @@ import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription } from "@/lib/revenuecat";
 
 try {
@@ -50,12 +51,30 @@ function RootLayoutNav() {
   const router = useRouter();
   const checked = useRef(false);
   usePushNotifications();
+  const versionCheck = useAppVersion();
 
   useEffect(() => {
     // Wait until AppContext has hydrated from AsyncStorage and RevenueCat
     // has resolved subscription status before making routing decisions.
     if (!hydrated) return;
     if (checked.current) return;
+
+    // Check for required update before anything else
+    if (versionCheck.checked && versionCheck.isForceRequired) {
+      checked.current = true;
+      router.replace({
+        pathname: "/force-update",
+        params: {
+          latestVersion:   versionCheck.latestVersion ?? "",
+          releaseNotes:    versionCheck.releaseNotes ?? "",
+          storeUrlIos:     versionCheck.storeUrlIos ?? "",
+          storeUrlAndroid: versionCheck.storeUrlAndroid ?? "",
+          isSoft:          "false",
+        },
+      } as any);
+      return;
+    }
+
     if (!onboardingComplete) {
       checked.current = true;
       router.replace("/onboarding");
@@ -69,7 +88,7 @@ function RootLayoutNav() {
     } else {
       requestLocationPermission();
     }
-  }, [hydrated, onboardingComplete, isSubscribed, subLoading]);
+  }, [hydrated, onboardingComplete, isSubscribed, subLoading, versionCheck]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -95,7 +114,8 @@ function RootLayoutNav() {
         <Stack.Screen name="about"   options={{ title: "About Msafiri" }} />
         <Stack.Screen name="contact" options={{ title: "Contact Us" }} />
         <Stack.Screen name="privacy" options={{ title: "Privacy Policy" }} />
-        <Stack.Screen name="terms"   options={{ title: "Terms of Service" }} />
+        <Stack.Screen name="terms"         options={{ title: "Terms of Service" }} />
+        <Stack.Screen name="force-update"  options={{ headerShown: false, gestureEnabled: false }} />
       </Stack>
     </View>
   );

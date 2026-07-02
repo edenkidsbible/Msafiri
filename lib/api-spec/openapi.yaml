@@ -561,6 +561,159 @@ paths:
         "404":
           description: Not found
 
+  /app/version:
+    get:
+      operationId: getAppVersion
+      tags: [health]
+      summary: Get current app version info and force-update status
+      parameters:
+        - in: query
+          name: platform
+          schema: { type: string }
+        - in: query
+          name: version
+          schema: { type: string }
+        - in: query
+          name: build
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Version info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppVersionInfo"
+
+  /admin/releases:
+    get:
+      operationId: adminListReleases
+      tags: [admin-push]
+      summary: List all app releases
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Release list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppReleaseList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: adminCreateRelease
+      tags: [admin-push]
+      summary: Create a new draft release
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppReleaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppRelease"
+        "401":
+          description: Unauthorized
+
+  /admin/releases/{id}:
+    patch:
+      operationId: adminUpdateRelease
+      tags: [admin-push]
+      summary: Update a draft release
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppReleaseInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "401":
+          description: Unauthorized
+    delete:
+      operationId: adminDeleteRelease
+      tags: [admin-push]
+      summary: Delete a draft release
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "401":
+          description: Unauthorized
+
+  /admin/releases/{id}/publish:
+    post:
+      operationId: adminPublishRelease
+      tags: [admin-push]
+      summary: Publish a draft release (draft → live)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "401":
+          description: Unauthorized
+
+  /admin/releases/{id}/deprecate:
+    post:
+      operationId: adminDeprecateRelease
+      tags: [admin-push]
+      summary: Deprecate a live release
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deprecated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "401":
+          description: Unauthorized
+
   /push/register:
     post:
       operationId: registerPushToken
@@ -1075,6 +1228,60 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PushCampaign"
+
+    AppVersionInfo:
+      type: object
+      required: [isForceRequired, updateAvailable]
+      properties:
+        latestVersion:      { type: ["string", "null"] }
+        latestBuild:        { type: ["integer", "null"] }
+        minRequiredVersion: { type: ["string", "null"] }
+        minRequiredBuild:   { type: ["integer", "null"] }
+        isForceRequired:    { type: boolean }
+        updateAvailable:    { type: boolean }
+        releaseNotes:       { type: ["string", "null"] }
+        storeUrlIos:        { type: ["string", "null"] }
+        storeUrlAndroid:    { type: ["string", "null"] }
+
+    AppRelease:
+      type: object
+      required: [id, version, buildNumber, platform, releaseType, status, isForceUpdate, createdBy, createdAt]
+      properties:
+        id:             { type: string }
+        version:        { type: string }
+        buildNumber:    { type: integer }
+        platform:       { type: string }
+        releaseType:    { type: string }
+        releaseNotes:   { type: ["string", "null"] }
+        status:         { type: string }
+        isForceUpdate:  { type: boolean }
+        storeUrlIos:    { type: ["string", "null"] }
+        storeUrlAndroid: { type: ["string", "null"] }
+        createdBy:      { type: string }
+        createdAt:      { type: string }
+        publishedAt:    { type: ["string", "null"] }
+
+    AppReleaseList:
+      type: object
+      required: [releases]
+      properties:
+        releases:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppRelease"
+
+    AppReleaseInput:
+      type: object
+      required: [version]
+      properties:
+        version:         { type: string }
+        buildNumber:     { type: integer }
+        platform:        { type: string }
+        releaseType:     { type: string }
+        releaseNotes:    { type: ["string", "null"] }
+        isForceUpdate:   { type: boolean }
+        storeUrlIos:     { type: ["string", "null"] }
+        storeUrlAndroid: { type: ["string", "null"] }
 
     PushCampaignInput:
       type: object

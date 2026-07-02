@@ -352,6 +352,63 @@ export interface PushCampaignList {
   campaigns: PushCampaign[];
 }
 
+export interface AppVersionInfo {
+  /** @nullable */
+  latestVersion?: string | null;
+  /** @nullable */
+  latestBuild?: number | null;
+  /** @nullable */
+  minRequiredVersion?: string | null;
+  /** @nullable */
+  minRequiredBuild?: number | null;
+  isForceRequired: boolean;
+  updateAvailable: boolean;
+  /** @nullable */
+  releaseNotes?: string | null;
+  /** @nullable */
+  storeUrlIos?: string | null;
+  /** @nullable */
+  storeUrlAndroid?: string | null;
+}
+
+export interface AppRelease {
+  id: string;
+  version: string;
+  buildNumber: number;
+  platform: string;
+  releaseType: string;
+  /** @nullable */
+  releaseNotes?: string | null;
+  status: string;
+  isForceUpdate: boolean;
+  /** @nullable */
+  storeUrlIos?: string | null;
+  /** @nullable */
+  storeUrlAndroid?: string | null;
+  createdBy: string;
+  createdAt: string;
+  /** @nullable */
+  publishedAt?: string | null;
+}
+
+export interface AppReleaseList {
+  releases: AppRelease[];
+}
+
+export interface AppReleaseInput {
+  version: string;
+  buildNumber?: number;
+  platform?: string;
+  releaseType?: string;
+  /** @nullable */
+  releaseNotes?: string | null;
+  isForceUpdate?: boolean;
+  /** @nullable */
+  storeUrlIos?: string | null;
+  /** @nullable */
+  storeUrlAndroid?: string | null;
+}
+
 export type PushCampaignInputData = {[key: string]: unknown};
 
 export interface PushCampaignInput {
@@ -394,5 +451,11 @@ type?: string;
 mode?: string;
 status?: string;
 search?: string;
+};
+
+export type GetAppVersionParams = {
+platform?: string;
+version?: string;
+build?: number;
 };
 

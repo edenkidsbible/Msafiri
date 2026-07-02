@@ -41,9 +41,14 @@ import type {
   AdminUserInput,
   AdminUserList,
   AdminUserUpdate,
+  AppRelease,
+  AppReleaseInput,
+  AppReleaseList,
+  AppVersionInfo,
   AuditLogList,
   DeleteResult,
   DeregisterPushTokenInput,
+  GetAppVersionParams,
   HealthStatus,
   ListSpeedZonesParams,
   PushCampaign,
@@ -1871,6 +1876,518 @@ export const useAdminDeleteSpeedZone = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteSpeedZoneMutationOptions(options));
+    }
+
+export const getGetAppVersionUrl = (params?: GetAppVersionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/app/version?${stringifiedParams}` : `/api/app/version`
+}
+
+/**
+ * @summary Get current app version info and force-update status
+ */
+export const getAppVersion = async (params?: GetAppVersionParams, options?: RequestInit): Promise<AppVersionInfo> => {
+
+  return customFetch<AppVersionInfo>(getGetAppVersionUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAppVersionQueryKey = (params?: GetAppVersionParams,) => {
+    return [
+    `/api/app/version`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAppVersionQueryOptions = <TData = Awaited<ReturnType<typeof getAppVersion>>, TError = ErrorType<unknown>>(params?: GetAppVersionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAppVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAppVersionQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppVersion>>> = ({ signal }) => getAppVersion(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAppVersion>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAppVersionQueryResult = NonNullable<Awaited<ReturnType<typeof getAppVersion>>>
+export type GetAppVersionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current app version info and force-update status
+ */
+
+export function useGetAppVersion<TData = Awaited<ReturnType<typeof getAppVersion>>, TError = ErrorType<unknown>>(
+ params?: GetAppVersionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAppVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAppVersionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminListReleasesUrl = () => {
+
+
+
+
+  return `/api/admin/releases`
+}
+
+/**
+ * @summary List all app releases
+ */
+export const adminListReleases = async ( options?: RequestInit): Promise<AppReleaseList> => {
+
+  return customFetch<AppReleaseList>(getAdminListReleasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListReleasesQueryKey = () => {
+    return [
+    `/api/admin/releases`
+    ] as const;
+    }
+
+
+export const getAdminListReleasesQueryOptions = <TData = Awaited<ReturnType<typeof adminListReleases>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListReleases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListReleasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListReleases>>> = ({ signal }) => adminListReleases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListReleases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListReleasesQueryResult = NonNullable<Awaited<ReturnType<typeof adminListReleases>>>
+export type AdminListReleasesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all app releases
+ */
+
+export function useAdminListReleases<TData = Awaited<ReturnType<typeof adminListReleases>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListReleases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListReleasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminCreateReleaseUrl = () => {
+
+
+
+
+  return `/api/admin/releases`
+}
+
+/**
+ * @summary Create a new draft release
+ */
+export const adminCreateRelease = async (appReleaseInput: AppReleaseInput, options?: RequestInit): Promise<AppRelease> => {
+
+  return customFetch<AppRelease>(getAdminCreateReleaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(appReleaseInput)
+  }
+);}
+
+
+
+
+export const getAdminCreateReleaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateRelease>>, TError,{data: BodyType<AppReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateRelease>>, TError,{data: BodyType<AppReleaseInput>}, TContext> => {
+
+const mutationKey = ['adminCreateRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateRelease>>, {data: BodyType<AppReleaseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateRelease(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateRelease>>>
+    export type AdminCreateReleaseMutationBody = BodyType<AppReleaseInput>
+    export type AdminCreateReleaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new draft release
+ */
+export const useAdminCreateRelease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateRelease>>, TError,{data: BodyType<AppReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateRelease>>,
+        TError,
+        {data: BodyType<AppReleaseInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateReleaseMutationOptions(options));
+    }
+
+export const getAdminUpdateReleaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/releases/${id}`
+}
+
+/**
+ * @summary Update a draft release
+ */
+export const adminUpdateRelease = async (id: string,
+    appReleaseInput: AppReleaseInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminUpdateReleaseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(appReleaseInput)
+  }
+);}
+
+
+
+
+export const getAdminUpdateReleaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateRelease>>, TError,{id: string;data: BodyType<AppReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateRelease>>, TError,{id: string;data: BodyType<AppReleaseInput>}, TContext> => {
+
+const mutationKey = ['adminUpdateRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateRelease>>, {id: string;data: BodyType<AppReleaseInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdateRelease(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateRelease>>>
+    export type AdminUpdateReleaseMutationBody = BodyType<AppReleaseInput>
+    export type AdminUpdateReleaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a draft release
+ */
+export const useAdminUpdateRelease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateRelease>>, TError,{id: string;data: BodyType<AppReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateRelease>>,
+        TError,
+        {id: string;data: BodyType<AppReleaseInput>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateReleaseMutationOptions(options));
+    }
+
+export const getAdminDeleteReleaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/releases/${id}`
+}
+
+/**
+ * @summary Delete a draft release
+ */
+export const adminDeleteRelease = async (id: string, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminDeleteReleaseUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeleteReleaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteRelease>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteRelease>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminDeleteRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteRelease>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminDeleteRelease(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteRelease>>>
+
+    export type AdminDeleteReleaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a draft release
+ */
+export const useAdminDeleteRelease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteRelease>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteRelease>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteReleaseMutationOptions(options));
+    }
+
+export const getAdminPublishReleaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/releases/${id}/publish`
+}
+
+/**
+ * @summary Publish a draft release (draft → live)
+ */
+export const adminPublishRelease = async (id: string, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminPublishReleaseUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminPublishReleaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPublishRelease>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminPublishRelease>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminPublishRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminPublishRelease>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminPublishRelease(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminPublishReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof adminPublishRelease>>>
+
+    export type AdminPublishReleaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish a draft release (draft → live)
+ */
+export const useAdminPublishRelease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPublishRelease>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminPublishRelease>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminPublishReleaseMutationOptions(options));
+    }
+
+export const getAdminDeprecateReleaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/releases/${id}/deprecate`
+}
+
+/**
+ * @summary Deprecate a live release
+ */
+export const adminDeprecateRelease = async (id: string, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminDeprecateReleaseUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeprecateReleaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeprecateRelease>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeprecateRelease>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminDeprecateRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeprecateRelease>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminDeprecateRelease(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeprecateReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeprecateRelease>>>
+
+    export type AdminDeprecateReleaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Deprecate a live release
+ */
+export const useAdminDeprecateRelease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeprecateRelease>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeprecateRelease>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeprecateReleaseMutationOptions(options));
     }
 
 export const getRegisterPushTokenUrl = () => {

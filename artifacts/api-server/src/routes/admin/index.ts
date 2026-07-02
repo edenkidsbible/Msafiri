@@ -9,6 +9,7 @@ import auditLogsRouter from "./audit-logs.js";
 import notificationsRouter from "./notifications.js";
 import subscribersRouter from "./subscribers.js";
 import pushCampaignsRouter from "./push-campaigns.js";
+import releasesRouter from "./releases.js";
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use(adminOrModeratorMiddleware, notificationsRouter);
 router.use(adminOrModeratorMiddleware, subscribersRouter);
 router.use(adminOrModeratorMiddleware, auditLogsRouter);
 router.use(adminOrModeratorMiddleware, pushCampaignsRouter);
+router.use(adminOrModeratorMiddleware, releasesRouter);
 
 // Admin only: stats and user management
 router.use(adminOnlyMiddleware, statsRouter);

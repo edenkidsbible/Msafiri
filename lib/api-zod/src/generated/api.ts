@@ -524,6 +524,140 @@ export const AdminDeleteSpeedZoneResponse = zod.object({
 
 
 /**
+ * @summary Get current app version info and force-update status
+ */
+export const GetAppVersionQueryParams = zod.object({
+  "platform": zod.coerce.string().optional(),
+  "version": zod.coerce.string().optional(),
+  "build": zod.coerce.number().optional()
+})
+
+export const GetAppVersionResponse = zod.object({
+  "latestVersion": zod.string().nullish(),
+  "latestBuild": zod.number().nullish(),
+  "minRequiredVersion": zod.string().nullish(),
+  "minRequiredBuild": zod.number().nullish(),
+  "isForceRequired": zod.boolean(),
+  "updateAvailable": zod.boolean(),
+  "releaseNotes": zod.string().nullish(),
+  "storeUrlIos": zod.string().nullish(),
+  "storeUrlAndroid": zod.string().nullish()
+})
+
+
+/**
+ * @summary List all app releases
+ */
+export const AdminListReleasesResponse = zod.object({
+  "releases": zod.array(zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "platform": zod.string(),
+  "releaseType": zod.string(),
+  "releaseNotes": zod.string().nullish(),
+  "status": zod.string(),
+  "isForceUpdate": zod.boolean(),
+  "storeUrlIos": zod.string().nullish(),
+  "storeUrlAndroid": zod.string().nullish(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string(),
+  "publishedAt": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Create a new draft release
+ */
+export const AdminCreateReleaseBody = zod.object({
+  "version": zod.string(),
+  "buildNumber": zod.number().optional(),
+  "platform": zod.string().optional(),
+  "releaseType": zod.string().optional(),
+  "releaseNotes": zod.string().nullish(),
+  "isForceUpdate": zod.boolean().optional(),
+  "storeUrlIos": zod.string().nullish(),
+  "storeUrlAndroid": zod.string().nullish()
+})
+
+export const AdminCreateReleaseResponse = zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "buildNumber": zod.number(),
+  "platform": zod.string(),
+  "releaseType": zod.string(),
+  "releaseNotes": zod.string().nullish(),
+  "status": zod.string(),
+  "isForceUpdate": zod.boolean(),
+  "storeUrlIos": zod.string().nullish(),
+  "storeUrlAndroid": zod.string().nullish(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string(),
+  "publishedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a draft release
+ */
+export const AdminUpdateReleaseParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminUpdateReleaseBody = zod.object({
+  "version": zod.string(),
+  "buildNumber": zod.number().optional(),
+  "platform": zod.string().optional(),
+  "releaseType": zod.string().optional(),
+  "releaseNotes": zod.string().nullish(),
+  "isForceUpdate": zod.boolean().optional(),
+  "storeUrlIos": zod.string().nullish(),
+  "storeUrlAndroid": zod.string().nullish()
+})
+
+export const AdminUpdateReleaseResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Delete a draft release
+ */
+export const AdminDeleteReleaseParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeleteReleaseResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Publish a draft release (draft → live)
+ */
+export const AdminPublishReleaseParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminPublishReleaseResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Deprecate a live release
+ */
+export const AdminDeprecateReleaseParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeprecateReleaseResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Register device push token
  */
 export const RegisterPushTokenBody = zod.object({
