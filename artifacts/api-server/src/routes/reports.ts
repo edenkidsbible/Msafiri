@@ -144,7 +144,8 @@ router.post("/reports", async (req: Request, res: Response) => {
       if (cluster) {
         // Original creator OR device that already confirmed → no-op, return existing report
         const isCreator = cluster.deviceId === deviceId;
-        const alreadyConfirmed = isCreator || (cluster.confirmedBy as string[]).includes(deviceId);
+        const clusterConfirmedBy = (cluster.confirmedBy ?? []) as string[];
+        const alreadyConfirmed = isCreator || clusterConfirmedBy.includes(deviceId);
         if (alreadyConfirmed) {
           return res.json({
             id: cluster.id,
@@ -156,7 +157,7 @@ router.post("/reports", async (req: Request, res: Response) => {
         const newCount = cluster.confirmCount + 1;
         const newStatus =
           newCount >= 2 && cluster.status === "active" ? "confirmed" : cluster.status;
-        const newConfirmedBy = [...(cluster.confirmedBy as string[]), deviceId];
+        const newConfirmedBy = [...clusterConfirmedBy, deviceId];
         await db
           .update(communityReportsTable)
           .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy })
@@ -204,9 +205,9 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
     if (report.deviceId === deviceId)
       return res.status(403).json({ error: "Cannot confirm own report" });
 
-    const confirmedBy = report.confirmedBy as string[];
+    const confirmedBy = (report.confirmedBy ?? []) as string[];
     if (confirmedBy.includes(deviceId)) {
-      return res.json({ confirmCount: report.confirmCount, status: report.status });
+      return res.status(409).json({ error: "Already confirmed", confirmCount: report.confirmCount, status: report.status });
     }
 
     const newCount = report.confirmCount + 1;

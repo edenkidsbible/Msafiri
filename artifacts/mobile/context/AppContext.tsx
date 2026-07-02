@@ -1360,12 +1360,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!deviceIdRef.current) return;
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
     const serverId = report?.serverId ?? id;
+    const originalCount = report?.confirmCount ?? 1;
     // Optimistic update
     setCommunityReports((prev) =>
-      prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: (r.confirmCount ?? 1) + 1 } : r)
+      prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: originalCount + 1 } : r)
     );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try { await apiPost(`/reports/${serverId}/confirm`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
+    try {
+      const result = await apiPost<{ confirmCount: number; status: string }>(`/reports/${serverId}/confirm`, { deviceId: deviceIdRef.current });
+      // Sync with authoritative server count
+      setCommunityReports((prev) =>
+        prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: result.confirmCount, status: result.status } : r)
+      );
+    } catch {
+      // Roll back optimistic update (e.g. 409 already confirmed, or network error)
+      setCommunityReports((prev) =>
+        prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: originalCount } : r)
+      );
+    }
   }, []);
 
   const denyReport = useCallback(async (id: string) => {
