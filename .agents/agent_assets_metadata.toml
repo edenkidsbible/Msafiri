@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "SmMHysVrgaFz-Z722HdDx"
@@ -48,3 +47,9 @@ id = "2Ay__csWsk8VtW7tnmwI3"
 uri = "file://artifacts/marketing/public/images/nairobi-night.png"
 type = "image"
 title = "Nairobi highway at dusk"
+
+[[outputs]]
+id = "2-AYpwHxIfnZcwJt0QIuG"
+uri = "file://msafiri-app-store-screenshots.zip"
+type = "unspecified"
+title = "Msafiri App Store Screenshots"

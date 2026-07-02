@@ -114,9 +114,9 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-primary/20 blur-[120px] rounded-full" />
             <img 
-              src={`${import.meta.env.BASE_URL}images/app-ui.png`} 
+              src={`${import.meta.env.BASE_URL}images/mockup-drive.jpg`} 
               alt="Msafiri App Interface" 
-              className="relative z-10 w-full max-w-[320px] mx-auto rounded-[2.5rem] border-[6px] border-zinc-800 shadow-2xl shadow-black/80"
+              className="relative z-10 w-full max-w-[340px] mx-auto drop-shadow-[0_60px_80px_rgba(0,0,0,0.9)]"
             />
           </motion.div>
         </div>
@@ -214,6 +214,56 @@ export default function Home() {
         </div>
       </section>
 
+      {/* App Screenshots Showcase */}
+      <section className="py-20 px-6 overflow-hidden bg-muted/10">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+            variants={fadeUp}
+            className="text-center mb-14"
+          >
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">See it in action.</h2>
+            <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+              Every screen, designed to keep your eyes on the road.
+            </p>
+          </motion.div>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="flex gap-6 overflow-x-auto pb-4 md:justify-center snap-x snap-mandatory"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {[
+              { src: "mockup-onboarding.jpg", label: "Onboarding" },
+              { src: "mockup-drive.jpg",      label: "Drive Mode" },
+              { src: "mockup-zones.jpg",      label: "Speed Zones" },
+              { src: "mockup-browse.jpg",     label: "Nearby Places" },
+              { src: "mockup-settings.jpg",   label: "Settings" },
+            ].map((shot, i) => (
+              <motion.div
+                key={i}
+                variants={{
+                  hidden: { opacity: 0, y: 30, scale: 0.96 },
+                  visible: { opacity: 1, y: 0, scale: 1, transition: { delay: i * 0.08, duration: 0.6 } }
+                }}
+                className="flex-shrink-0 snap-center flex flex-col items-center gap-3"
+              >
+                <img
+                  src={`${import.meta.env.BASE_URL}images/${shot.src}`}
+                  alt={shot.label}
+                  className="w-[220px] md:w-[240px] drop-shadow-[0_24px_48px_rgba(0,0,0,0.45)] hover:scale-[1.03] transition-transform duration-300"
+                />
+                <span className="text-sm font-medium text-muted-foreground">{shot.label}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
       {/* Vibe / Storytelling Section */}
       <section className="py-24 px-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -257,23 +307,11 @@ export default function Home() {
           </motion.div>
           
           <div className="relative flex justify-center md:justify-end">
-            <div className="aspect-[4/5] w-full max-w-sm rounded-3xl overflow-hidden border border-border bg-zinc-900 relative shadow-2xl">
-              <div className="absolute inset-0 flex items-center justify-center flex-col p-8 text-center bg-black/60 backdrop-blur-sm z-10">
-                <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6 animate-pulse">
-                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center">
-                    <ShieldAlert className="w-8 h-8 text-primary-foreground" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-bold text-white mb-2">Camera Ahead</h3>
-                <p className="text-xl font-mono text-primary">50 km/h Zone</p>
-                <p className="mt-4 text-white/60">Waiyaki Way, 400m</p>
-              </div>
-              <img 
-                src={`${import.meta.env.BASE_URL}images/hero-bg.png`} 
-                alt="Background" 
-                className="absolute inset-0 w-full h-full object-cover opacity-40"
-              />
-            </div>
+            <img
+              src={`${import.meta.env.BASE_URL}images/mockup-zones.jpg`}
+              alt="Msafiri Speed Zones"
+              className="w-full max-w-[300px] drop-shadow-[0_40px_80px_rgba(0,0,0,0.7)]"
+            />
           </div>
         </div>
       </section>
