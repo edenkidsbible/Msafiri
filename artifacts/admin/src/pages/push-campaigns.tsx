@@ -77,12 +77,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  broadcast:     "Broadcast",
-  scheduled:     "Scheduled",
-  daily_morning: "Morning Reminder",
-  daily_evening: "Evening Reminder",
-  engagement:    "Engagement",
-  incident:      "Incident Alert",
+  broadcast:      "Broadcast",
+  scheduled:      "Scheduled",
+  daily_morning:  "Morning Reminder",
+  daily_evening:  "Evening Reminder",
+  engagement:     "Engagement",
+  incident:       "Incident Alert",
+  incident_check: "Incident Check",
 };
 
 function StatusBadge({ status }: { status: string }) {

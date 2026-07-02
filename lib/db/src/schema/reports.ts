@@ -14,8 +14,10 @@ export const communityReportsTable = pgTable("community_reports", {
   denyCount:    integer("deny_count").notNull().default(0),
   speedLimit:   integer("speed_limit"),           // cameras only
   roadName:     text("road_name"),
-  createdAt:    timestamp("created_at").notNull().defaultNow(),
-  expiresAt:    timestamp("expires_at"),          // null = never expires (cameras)
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  expiresAt:       timestamp("expires_at"),          // null = never expires (cameras)
+  lastNotifiedAt:  timestamp("last_notified_at"),    // last time a confirmation push was sent for this report
+  lastVotedAt:     timestamp("last_voted_at"),       // last time any device confirmed or denied this report
 });
 
 export const insertReportSchema = createInsertSchema(communityReportsTable).omit({

@@ -3,7 +3,8 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiPost } from "@/utils/apiClient";
+import { apiPost, apiGet } from "@/utils/apiClient";
+import { useApp, CommunityReport } from "@/context/AppContext";
 
 const DEVICE_ID_KEY = "@msafiri/deviceId";
 const TOKEN_KEY = "@msafiri/pushToken";
@@ -70,7 +71,13 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const router = useRouter();
+  const { communityReports, setPendingConfirmationReport, setPendingFocusCoords } = useApp();
+  const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+
+  useEffect(() => {
+    communityReportsRef.current = communityReports;
+  }, [communityReports]);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -88,7 +95,72 @@ export function usePushNotifications() {
         >;
         const type = data?.type as string | undefined;
 
-        if (type === "incident") {
+        if (type === "incident_check") {
+          const reportId = data?.reportId as string | undefined;
+          const payloadLat = data?.lat as number | undefined;
+          const payloadLng = data?.lng as number | undefined;
+
+          // Navigate to the map tab immediately
+          router.push("/(tabs)" as any);
+
+          // Center the map on the incident
+          if (payloadLat != null && payloadLng != null) {
+            setPendingFocusCoords({ lat: payloadLat, lng: payloadLng });
+          }
+
+          if (reportId) {
+            // Try to find the report in the current in-memory cache first
+            const report = communityReportsRef.current.find(
+              (r) => r.serverId === reportId || r.id === reportId
+            );
+
+            if (report) {
+              setPendingConfirmationReport(report);
+            } else if (payloadLat != null && payloadLng != null) {
+              // Report not in local cache — fetch it from the server by its coordinates
+              // to build the prompt, and in the meantime show a stub
+              apiGet<{ reports: Array<{
+                id: string; type: string; lat: number; lng: number;
+                status: string; confirmCount: number; denyCount: number;
+                speedLimit?: number; roadName?: string; createdAt: number;
+              }> }>(`/reports?lat=${payloadLat}&lng=${payloadLng}&radius=300`)
+                .then(({ reports }) => {
+                  const match = reports.find((r) => r.id === reportId);
+                  if (match) {
+                    const stub: CommunityReport = {
+                      id: match.id,
+                      serverId: match.id,
+                      type: match.type as CommunityReport["type"],
+                      lat: match.lat,
+                      lng: match.lng,
+                      timestamp: match.createdAt,
+                      confirmed: match.confirmCount,
+                      status: match.status as CommunityReport["status"],
+                      confirmCount: match.confirmCount,
+                      denyCount: match.denyCount,
+                      speedLimit: match.speedLimit,
+                      roadName: match.roadName,
+                    };
+                    setPendingConfirmationReport(stub);
+                  }
+                })
+                .catch(() => {
+                  // Fetch failed — build a minimal stub from the notification payload
+                  // so the user can still vote
+                  const stub: CommunityReport = {
+                    id: reportId,
+                    serverId: reportId,
+                    type: "hazard",
+                    lat: payloadLat,
+                    lng: payloadLng,
+                    timestamp: Date.now(),
+                    confirmed: 1,
+                  };
+                  setPendingConfirmationReport(stub);
+                });
+            }
+          }
+        } else if (type === "incident") {
           router.push("/(tabs)/map" as any);
         } else {
           // All other types: go to home/map tab

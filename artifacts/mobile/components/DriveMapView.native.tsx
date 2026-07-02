@@ -134,6 +134,7 @@ export default function DriveMapView() {
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport,
     vehicleType, allZones, stretchZones,
+    pendingFocusCoords, setPendingFocusCoords,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
 
@@ -173,6 +174,21 @@ export default function DriveMapView() {
       { duration: 900 }
     );
   }, [navigationActive, currentLat, currentLng]);
+
+  // Deep-link focus: center map on a push-notification incident then clear
+  useEffect(() => {
+    if (!pendingFocusCoords) return;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: pendingFocusCoords.lat,
+        longitude: pendingFocusCoords.lng,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      },
+      700
+    );
+    setPendingFocusCoords(null);
+  }, [pendingFocusCoords]);
 
   const nearbyPOIs = useMemo(() => {
     if (currentLat == null || currentLng == null) return [];

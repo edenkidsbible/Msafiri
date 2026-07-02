@@ -1,5 +1,5 @@
-import { db, pushTokensTable, pushCampaignsTable } from "@workspace/db";
-import { and, eq, lte, gte } from "drizzle-orm";
+import { db, pushTokensTable, pushCampaignsTable, communityReportsTable } from "@workspace/db";
+import { and, eq, lte, gte, isNull, or, ne } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -173,11 +173,98 @@ async function checkDailyTriggers(): Promise<void> {
   }
 }
 
+// ─── Incident confirmation notifications ─────────────────────────────────────
+
+async function checkIncidentConfirmations(): Promise<void> {
+  const now = new Date();
+  const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000);
+  const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+  const qualifying = await db
+    .select()
+    .from(communityReportsTable)
+    .where(
+      and(
+        or(
+          eq(communityReportsTable.status, "active"),
+          eq(communityReportsTable.status, "confirmed")
+        ),
+        ne(communityReportsTable.type, "camera"),
+        // Report must be at least 30 minutes old
+        lte(communityReportsTable.createdAt, thirtyMinAgo),
+        // Must not have had a notification in the last 2 hours
+        or(
+          isNull(communityReportsTable.lastNotifiedAt),
+          lte(communityReportsTable.lastNotifiedAt, twoHoursAgo)
+        ),
+        // Must not have received a vote in the last 30 minutes
+        or(
+          isNull(communityReportsTable.lastVotedAt),
+          lte(communityReportsTable.lastVotedAt, thirtyMinAgo)
+        )
+      )
+    );
+
+  if (qualifying.length === 0) return;
+
+  const tokens = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable);
+
+  if (tokens.length === 0) return;
+
+  for (const report of qualifying) {
+    const typeLabel = report.type.charAt(0).toUpperCase() + report.type.slice(1);
+    const road = report.roadName ? ` on ${report.roadName}` : "";
+    const title = `Is ${typeLabel} still there?`;
+    const body = `Is ${typeLabel}${road} still active? Help other drivers — tap to confirm.`;
+    const data = { type: "incident_check", reportId: report.id, lat: report.lat, lng: report.lng };
+
+    const [campaign] = await db
+      .insert(pushCampaignsTable)
+      .values({
+        title,
+        body,
+        type: "incident_check",
+        status: "sending",
+        createdBy: "system",
+        dataJson: JSON.stringify(data),
+      })
+      .returning();
+
+    const { ok, failed } = await sendPushNotifications(
+      tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, data }))
+    );
+
+    await db
+      .update(pushCampaignsTable)
+      .set({ status: "sent", sentAt: now, sentCount: ok, failedCount: failed })
+      .where(eq(pushCampaignsTable.id, campaign.id));
+
+    await db
+      .update(communityReportsTable)
+      .set({ lastNotifiedAt: now })
+      .where(eq(communityReportsTable.id, report.id));
+
+    logger.info({ reportId: report.id, ok, failed }, "Incident confirmation push sent");
+  }
+}
+
 // ─── Job entry point ──────────────────────────────────────────────────────────
+
+// Run incident checks every 15 minutes independently of the 1-minute main loop
+let lastIncidentCheckAt = 0;
+const INCIDENT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 async function runJob(): Promise<void> {
   await processScheduledCampaigns();
   await checkDailyTriggers();
+
+  const now = Date.now();
+  if (now - lastIncidentCheckAt >= INCIDENT_CHECK_INTERVAL_MS) {
+    lastIncidentCheckAt = now;
+    await checkIncidentConfirmations();
+  }
 }
 
 export function startPushNotificationsJob(): NodeJS.Timeout {

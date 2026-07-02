@@ -44,6 +44,20 @@ function delayMinutesLabel(delayS: number): string {
   return `${Math.round(delayS / 60)} min`;
 }
 
+// Mirror of AppContext TRAFFIC_DELAY_WEIGHTS_MIN — used to tag delay-causing rows
+const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
+  closure: 15, accident: 12, roadblock: 10, traffic: 8, roadworks: 5, breakdown: 4, weather: 3,
+};
+
+function incidentDelayMin(inc: RouteIncident): number | null {
+  if (inc.source !== "report") return null;
+  const base = TRAFFIC_DELAY_WEIGHTS_MIN[inc.type];
+  if (!base) return null;
+  const confirms = inc.confirmCount ?? 0;
+  const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
+  return Math.round(base * confidence);
+}
+
 export default function RouteIncidentsPanel() {
   const {
     activeRoute, navigationActive, arrivedInfo,
@@ -121,13 +135,22 @@ export default function RouteIncidentsPanel() {
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {routeIncidentsAhead.map((inc) => {
               const { IconComp, icon, color } = incidentVisual(inc);
+              const delayMin = incidentDelayMin(inc);
               return (
                 <View key={inc.id} style={[styles.row, { borderColor: c.border }]}>
                   <View style={[styles.rowIcon, { backgroundColor: color + "18" }]}>
                     <IconComp name={icon as never} size={16} color={color} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.rowTitle, { color: c.foreground }]}>{inc.label}</Text>
+                    <View style={styles.rowTitleRow}>
+                      <Text style={[styles.rowTitle, { color: c.foreground }]}>{inc.label}</Text>
+                      {delayMin != null && (
+                        <View style={styles.delayChip}>
+                          <Ionicons name="time-outline" size={10} color="#E65100" />
+                          <Text style={styles.delayChipTxt}>~{delayMin} min</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={[styles.rowSub, { color: c.mutedForeground }]} numberOfLines={1}>
                       {inc.source === "static" ? (inc.road ?? inc.name) : "Reported by a driver"}
                     </Text>
@@ -237,7 +260,14 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
   },
+  rowTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   rowTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  delayChip: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "#E6510018", borderRadius: 8,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  delayChipTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#E65100" },
   rowSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   rowDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   rowDist: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginLeft: 6 },

@@ -21,6 +21,8 @@ import AlertBanner from "@/components/AlertBanner";
 import SOSButton from "@/components/SOSButton";
 import DriveMapView from "@/components/DriveMapView";
 import ReportModal from "@/components/ReportModal";
+import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
+import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -91,7 +93,10 @@ export default function DriveScreen() {
     showTraffic, setShowTraffic,
     addReport, currentLat, currentLng,
     arrivedInfo, clearArrival,
+    pendingConfirmationReport, setPendingConfirmationReport,
   } = useApp();
+
+  const { markDismissed } = useIncidentConfirmationPrompt();
 
   const topInset    = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -472,12 +477,17 @@ export default function DriveScreen() {
                 {navDestination ? ` · ${navDestination.name.split(",")[0]}` : ""}
               </Text>
               {routeTrafficDelayS > 0 && (
-                <View style={styles.trafficDelayRow}>
+                <TouchableOpacity
+                  style={styles.trafficDelayRow}
+                  onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  activeOpacity={0.7}
+                >
                   <Ionicons name="time-outline" size={11} color="#E65100" />
                   <Text style={styles.trafficDelayTxt}>
                     Expect ~{Math.round(routeTrafficDelayS / 60)} min delay in traffic
                   </Text>
-                </View>
+                  <Ionicons name="chevron-forward" size={10} color="#E65100" />
+                </TouchableOpacity>
               )}
             </View>
             {routeIncidentsAhead.length > 0 && (
@@ -714,6 +724,18 @@ export default function DriveScreen() {
           setShowReport(false);
         }}
       />
+
+      {/* Incident confirmation prompt — proximity-triggered or push-notification deep-link */}
+      {pendingConfirmationReport && (
+        <IncidentConfirmationPrompt
+          report={pendingConfirmationReport}
+          onDismiss={() => {
+            const id = pendingConfirmationReport.serverId ?? pendingConfirmationReport.id;
+            markDismissed(id);
+            setPendingConfirmationReport(null);
+          }}
+        />
+      )}
     </View>
   );
 }

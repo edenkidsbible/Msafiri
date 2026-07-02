@@ -160,7 +160,7 @@ router.post("/reports", async (req: Request, res: Response) => {
         const newConfirmedBy = [...clusterConfirmedBy, deviceId];
         await db
           .update(communityReportsTable)
-          .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy })
+          .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy, lastVotedAt: new Date() })
           .where(eq(communityReportsTable.id, cluster.id));
         return res.json({
           id: cluster.id,
@@ -217,7 +217,7 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
 
     await db
       .update(communityReportsTable)
-      .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy })
+      .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy, lastVotedAt: new Date() })
       .where(eq(communityReportsTable.id, id));
 
     return res.json({ confirmCount: newCount, status: newStatus });
@@ -310,7 +310,7 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
 
     await db
       .update(communityReportsTable)
-      .set({ denyCount: newDenyCount, status: newStatus })
+      .set({ denyCount: newDenyCount, status: newStatus, lastVotedAt: new Date() })
       .where(eq(communityReportsTable.id, id));
 
     return res.json({ denyCount: newDenyCount, status: newStatus });

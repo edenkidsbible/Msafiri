@@ -167,6 +167,11 @@ interface AppContextValue {
   setRouteIncidentsExpanded: (v: boolean) => void;
   arrivedInfo: ArrivedInfo | null;
   clearArrival: () => void;
+  pendingConfirmationReport: CommunityReport | null;
+  setPendingConfirmationReport: (r: CommunityReport | null) => void;
+  hasVotedOnReport: (id: string) => boolean;
+  pendingFocusCoords: { lat: number; lng: number } | null;
+  setPendingFocusCoords: (coords: { lat: number; lng: number } | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -516,6 +521,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const [arrivedInfo, setArrivedInfo] = useState<ArrivedInfo | null>(null);
+  const [pendingConfirmationReport, setPendingConfirmationReport] = useState<CommunityReport | null>(null);
+  const [pendingFocusCoords, setPendingFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const votedReportIdsRef = useRef<Set<string>>(new Set());
+  const hasVotedOnReport = useCallback((id: string) => votedReportIdsRef.current.has(id), []);
 
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
@@ -1361,6 +1370,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
     const serverId = report?.serverId ?? id;
     const originalCount = report?.confirmCount ?? 1;
+    // Track that this device has voted on this report
+    votedReportIdsRef.current.add(id);
+    if (report?.serverId) votedReportIdsRef.current.add(report.serverId);
     // Optimistic update
     setCommunityReports((prev) =>
       prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: originalCount + 1 } : r)
@@ -1385,6 +1397,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
     if (!report) return false;
     const serverId = report.serverId ?? id;
+    // Track that this device has voted on this report
+    votedReportIdsRef.current.add(id);
+    if (report.serverId) votedReportIdsRef.current.add(report.serverId);
     // Optimistic: immediately remove — server now denies on first vote
     setCommunityReports((prev) => prev.filter((r) => r.id !== id && r.serverId !== id));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1420,6 +1435,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       zonesOnRoute,
       routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
       arrivedInfo, clearArrival,
+      pendingConfirmationReport, setPendingConfirmationReport,
+      hasVotedOnReport,
+      pendingFocusCoords, setPendingFocusCoords,
     }}>
       {children}
     </AppContext.Provider>
