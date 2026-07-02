@@ -64,6 +64,7 @@ interface Campaign {
   sentAt: string | null;
   sentCount: number;
   failedCount: number;
+  targetCount: number | null;
   createdBy: string;
   createdAt: string;
 }
@@ -346,6 +347,7 @@ export default function PushCampaigns() {
                     <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Sent</TableHead>
+                    <TableHead className="text-right">Target</TableHead>
                     <TableHead className="text-right">Failed</TableHead>
                     <TableHead>Sent At</TableHead>
                     <TableHead>By</TableHead>
@@ -368,6 +370,11 @@ export default function PushCampaigns() {
                       </TableCell>
                       <TableCell><StatusBadge status={c.status} /></TableCell>
                       <TableCell className="text-right font-mono text-sm">{c.sentCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                        {c.type === "incident_check" && c.targetCount != null
+                          ? <span title="Nearby devices targeted">{c.targetCount.toLocaleString()}</span>
+                          : "—"}
+                      </TableCell>
                       <TableCell className="text-right font-mono text-sm text-destructive">
                         {c.failedCount > 0 ? c.failedCount : "—"}
                       </TableCell>

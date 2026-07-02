@@ -1,5 +1,5 @@
 import { db, pushTokensTable, pushCampaignsTable, communityReportsTable } from "@workspace/db";
-import { and, eq, lte, gte, isNull, or, ne } from "drizzle-orm";
+import { and, eq, lte, gte, isNull, or, ne, isNotNull } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -41,6 +41,23 @@ function getDayOfYear(): number {
 function pickMessage<T extends { title: string; body: string }>(arr: T[]): T {
   return arr[getDayOfYear() % arr.length]!;
 }
+
+// ─── Geo helpers ──────────────────────────────────────────────────────────────
+
+const EARTH_RADIUS_KM = 6371;
+
+/** Returns the great-circle distance in kilometres between two lat/lng points. */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const INCIDENT_NOTIFY_RADIUS_KM = 5;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -207,11 +224,17 @@ async function checkIncidentConfirmations(): Promise<void> {
 
   if (qualifying.length === 0) return;
 
-  const tokens = await db
-    .select({ token: pushTokensTable.token })
+  // Fetch all tokens that have a known location (needed for proximity filtering).
+  // Also fetch tokens without a location so we can count the total pool.
+  const allTokens = await db
+    .select({
+      token: pushTokensTable.token,
+      lastLat: pushTokensTable.lastLat,
+      lastLng: pushTokensTable.lastLng,
+    })
     .from(pushTokensTable);
 
-  if (tokens.length === 0) return;
+  if (allTokens.length === 0) return;
 
   for (const report of qualifying) {
     const typeLabel = report.type.charAt(0).toUpperCase() + report.type.slice(1);
@@ -219,6 +242,49 @@ async function checkIncidentConfirmations(): Promise<void> {
     const title = `Is ${typeLabel} still there?`;
     const body = `Is ${typeLabel}${road} still active? Help other drivers — tap to confirm.`;
     const data = { type: "incident_check", reportId: report.id, lat: report.lat, lng: report.lng };
+
+    // Filter to only devices that are within 5 km of the incident.
+    // Devices with no recorded location are excluded — they will be reached
+    // by the proximity-triggered in-app prompt instead.
+    const nearbyTokens = allTokens.filter((t) => {
+      if (t.lastLat == null || t.lastLng == null) return false;
+      return haversineKm(t.lastLat, t.lastLng, report.lat, report.lng) <= INCIDENT_NOTIFY_RADIUS_KM;
+    });
+
+    const totalDevices = allTokens.length;
+    const targetDevices = nearbyTokens.length;
+
+    logger.info(
+      { reportId: report.id, totalDevices, targetDevices },
+      "Incident confirmation: filtering push tokens by proximity"
+    );
+
+    if (nearbyTokens.length === 0) {
+      // No nearby devices with a known location — record a skipped campaign
+      // so the admin log shows the attempt.
+      await db
+        .insert(pushCampaignsTable)
+        .values({
+          title,
+          body,
+          type: "incident_check",
+          status: "sent",
+          sentAt: now,
+          sentCount: 0,
+          failedCount: 0,
+          targetCount: 0,
+          createdBy: "system",
+          dataJson: JSON.stringify(data),
+        });
+
+      await db
+        .update(communityReportsTable)
+        .set({ lastNotifiedAt: now })
+        .where(eq(communityReportsTable.id, report.id));
+
+      logger.info({ reportId: report.id }, "Incident confirmation: no nearby devices, skipped send");
+      continue;
+    }
 
     const [campaign] = await db
       .insert(pushCampaignsTable)
@@ -229,16 +295,17 @@ async function checkIncidentConfirmations(): Promise<void> {
         status: "sending",
         createdBy: "system",
         dataJson: JSON.stringify(data),
+        targetCount: targetDevices,
       })
       .returning();
 
     const { ok, failed } = await sendPushNotifications(
-      tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, data }))
+      nearbyTokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, data }))
     );
 
     await db
       .update(pushCampaignsTable)
-      .set({ status: "sent", sentAt: now, sentCount: ok, failedCount: failed })
+      .set({ status: "sent", sentAt: now, sentCount: ok, failedCount: failed, targetCount: targetDevices })
       .where(eq(pushCampaignsTable.id, campaign.id));
 
     await db
@@ -246,7 +313,10 @@ async function checkIncidentConfirmations(): Promise<void> {
       .set({ lastNotifiedAt: now })
       .where(eq(communityReportsTable.id, report.id));
 
-    logger.info({ reportId: report.id, ok, failed }, "Incident confirmation push sent");
+    logger.info(
+      { reportId: report.id, ok, failed, targetDevices, totalDevices },
+      "Incident confirmation push sent to nearby drivers"
+    );
   }
 }
 

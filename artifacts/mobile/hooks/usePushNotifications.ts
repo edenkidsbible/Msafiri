@@ -9,6 +9,9 @@ import { useApp, CommunityReport } from "@/context/AppContext";
 const DEVICE_ID_KEY = "@msafiri/deviceId";
 const TOKEN_KEY = "@msafiri/pushToken";
 
+// How often to push location to the server (ms). Every 5 minutes is enough.
+const LOCATION_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
 async function getOrCreateDeviceId(): Promise<string> {
   let id = await AsyncStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
@@ -18,7 +21,7 @@ async function getOrCreateDeviceId(): Promise<string> {
   return id;
 }
 
-async function registerToken(): Promise<void> {
+async function registerToken(lat?: number | null, lng?: number | null): Promise<void> {
   // Push notifications are not available on web or in Expo simulators
   if (Platform.OS === "web") return;
 
@@ -42,19 +45,33 @@ async function registerToken(): Promise<void> {
 
   const token = tokenData.data;
   const cachedToken = await AsyncStorage.getItem(TOKEN_KEY);
-  if (cachedToken === token) return; // Already registered, nothing changed
 
   const deviceId = await getOrCreateDeviceId();
+
+  // Only skip if token hasn't changed AND we already have a location to avoid
+  // registering without coordinates on the very first call
+  if (cachedToken === token && (lat == null || lng == null)) return;
 
   try {
     await apiPost("/push/register", {
       deviceId,
       token,
       platform: Platform.OS,
+      ...(lat != null && lng != null ? { lat, lng } : {}),
     });
     await AsyncStorage.setItem(TOKEN_KEY, token);
   } catch (err) {
     console.warn("[usePushNotifications] Failed to register token:", err);
+  }
+}
+
+async function syncLocation(lat: number, lng: number): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    const deviceId = await getOrCreateDeviceId();
+    await apiPost("/push/location", { deviceId, lat, lng });
+  } catch {
+    // Non-critical — silently swallow
   }
 }
 
@@ -71,18 +88,30 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const router = useRouter();
-  const { communityReports, setPendingConfirmationReport, setPendingFocusCoords } = useApp();
+  const { communityReports, setPendingConfirmationReport, setPendingFocusCoords, currentLat, currentLng } = useApp();
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+
+  // Keep a ref to the latest coordinates so the interval always uses fresh values
+  const latRef = useRef<number | null>(currentLat);
+  const lngRef = useRef<number | null>(currentLng);
+  const lastSyncedAtRef = useRef(0);
 
   useEffect(() => {
     communityReportsRef.current = communityReports;
   }, [communityReports]);
 
+  // Track latest coordinates
+  useEffect(() => {
+    latRef.current = currentLat;
+    lngRef.current = currentLng;
+  }, [currentLat, currentLng]);
+
+  // Register push token (once, with initial location if available)
   useEffect(() => {
     if (Platform.OS === "web") return;
 
-    registerToken().catch((err) =>
+    registerToken(currentLat, currentLng).catch((err) =>
       console.warn("[usePushNotifications] registerToken error:", err)
     );
 
@@ -171,5 +200,24 @@ export function usePushNotifications() {
     return () => {
       responseListener.current?.remove();
     };
+  }, []);
+
+  // Periodically sync location to the server so incident notifications are targeted
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const interval = setInterval(() => {
+      const lat = latRef.current;
+      const lng = lngRef.current;
+      if (lat == null || lng == null) return;
+
+      const now = Date.now();
+      if (now - lastSyncedAtRef.current < LOCATION_SYNC_INTERVAL_MS) return;
+      lastSyncedAtRef.current = now;
+
+      syncLocation(lat, lng).catch(() => {});
+    }, 60 * 1000); // check every minute, sync every LOCATION_SYNC_INTERVAL_MS
+
+    return () => clearInterval(interval);
   }, []);
 }

@@ -1,10 +1,12 @@
-import { pgTable, uuid, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, real } from "drizzle-orm/pg-core";
 
 export const pushTokensTable = pgTable("push_tokens", {
   id:         uuid("id").primaryKey().defaultRandom(),
   deviceId:   text("device_id").notNull().unique(),
   token:      text("token").notNull(),
   platform:   text("platform").notNull().default("unknown"), // ios | android | web
+  lastLat:    real("last_lat"),
+  lastLng:    real("last_lng"),
   createdAt:  timestamp("created_at").notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
 });
@@ -20,6 +22,7 @@ export const pushCampaignsTable = pgTable("push_campaigns", {
   sentAt:      timestamp("sent_at"),
   sentCount:   integer("sent_count").notNull().default(0),
   failedCount: integer("failed_count").notNull().default(0),
+  targetCount: integer("target_count"),
   createdBy:   text("created_by").notNull().default("system"),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 });

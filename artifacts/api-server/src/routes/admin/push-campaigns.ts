@@ -50,6 +50,7 @@ router.get("/push/campaigns", async (_req: Request, res: Response) => {
         sentAt:      c.sentAt?.toISOString() ?? null,
         sentCount:   c.sentCount,
         failedCount: c.failedCount,
+        targetCount: c.targetCount ?? null,
         createdBy:   c.createdBy,
         createdAt:   c.createdAt.toISOString(),
       })),

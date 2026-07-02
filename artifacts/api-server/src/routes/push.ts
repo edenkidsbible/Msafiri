@@ -6,10 +6,12 @@ const router = Router();
 
 // POST /push/register
 router.post("/push/register", async (req: Request, res: Response) => {
-  const { deviceId, token, platform } = req.body as {
+  const { deviceId, token, platform, lat, lng } = req.body as {
     deviceId: string;
     token: string;
     platform?: string;
+    lat?: number;
+    lng?: number;
   };
 
   if (!deviceId || !token) {
@@ -23,6 +25,8 @@ router.post("/push/register", async (req: Request, res: Response) => {
         deviceId,
         token,
         platform: platform ?? "unknown",
+        lastLat: lat ?? null,
+        lastLng: lng ?? null,
         lastSeenAt: new Date(),
       })
       .onConflictDoUpdate({
@@ -30,12 +34,37 @@ router.post("/push/register", async (req: Request, res: Response) => {
         set: {
           token,
           platform: platform ?? "unknown",
+          ...(lat != null && lng != null ? { lastLat: lat, lastLng: lng } : {}),
           lastSeenAt: new Date(),
         },
       });
     return res.json({ success: true });
   } catch (err) {
     console.error("POST /push/register error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /push/location — update the last-known position for a registered device
+router.post("/push/location", async (req: Request, res: Response) => {
+  const { deviceId, lat, lng } = req.body as {
+    deviceId: string;
+    lat: number;
+    lng: number;
+  };
+
+  if (!deviceId || lat == null || lng == null) {
+    return res.status(400).json({ error: "deviceId, lat, and lng are required" });
+  }
+
+  try {
+    await db
+      .update(pushTokensTable)
+      .set({ lastLat: lat, lastLng: lng, lastSeenAt: new Date() })
+      .where(eq(pushTokensTable.deviceId, deviceId));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("PUT /push/location error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
