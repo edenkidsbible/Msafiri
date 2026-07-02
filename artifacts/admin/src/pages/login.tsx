@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ShieldAlert } from "lucide-react";
+import { MapPin, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -44,15 +44,15 @@ export default function Login() {
         setToken(data.token);
         const user = getUser();
         toast({
-          title: "Authenticated successfully",
-          description: "Welcome back to the command center.",
+          title: "Sign in successful",
+          description: "Welcome back to Msafiri Ops.",
         });
         setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
       },
       onError: (error) => {
         toast({
-          title: "Authentication failed",
-          description: error.message || "Invalid credentials. Please try again.",
+          title: "Sign in failed",
+          description: error.message || "Invalid email or password.",
           variant: "destructive",
         });
       },
@@ -64,32 +64,32 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 border border-primary/20">
-            <ShieldAlert className="h-8 w-8 text-primary" />
+    <div className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-[400px]">
+        <div className="flex flex-col items-center mb-10">
+          <div className="h-14 w-14 bg-white dark:bg-zinc-900 rounded-xl shadow-sm flex items-center justify-center mb-5 border border-border">
+            <MapPin className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground font-mono uppercase">Msafiri</h1>
-          <p className="text-muted-foreground mt-2">Operations Command Center</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Msafiri Operations</h1>
+          <p className="text-muted-foreground text-sm mt-1.5">Internal safety management platform</p>
         </div>
 
-        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle>System Access</CardTitle>
-            <CardDescription>Enter your credentials to access the grid.</CardDescription>
+        <Card className="border-border/60 shadow-lg bg-card">
+          <CardHeader className="space-y-1.5 pb-6">
+            <CardTitle className="text-xl">Sign in</CardTitle>
+            <CardDescription>Enter your team credentials to continue.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
                 <FormField
                   control={form.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Operator Email</FormLabel>
+                      <FormLabel>Work Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="operator@msafiri.co.ke" {...field} className="bg-background" />
+                        <Input placeholder="name@msafiri.co.ke" {...field} className="bg-background h-10" data-testid="input-email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -100,9 +100,9 @@ export default function Login() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Clearance Code</FormLabel>
+                      <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} className="bg-background" />
+                        <Input type="password" placeholder="••••••••" {...field} className="bg-background h-10" data-testid="input-password" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -110,10 +110,11 @@ export default function Login() {
                 />
                 <Button 
                   type="submit" 
-                  className="w-full font-mono uppercase tracking-widest" 
+                  className="w-full h-10 mt-2 font-medium" 
                   disabled={loginMutation.isPending}
+                  data-testid="btn-login"
                 >
-                  {loginMutation.isPending ? "Authenticating..." : "Authorize Access"}
+                  {loginMutation.isPending ? "Signing in..." : "Sign in to Operations"}
                 </Button>
               </form>
             </Form>

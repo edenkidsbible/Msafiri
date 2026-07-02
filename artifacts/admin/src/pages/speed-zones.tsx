@@ -12,11 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -26,14 +27,14 @@ import type { AdminSpeedZone } from "@workspace/api-client-react";
 import { SpeedZonesMap, type PendingZoneCoords } from "@/components/speed-zones-map";
 
 const TYPE_COLORS: Record<string, string> = {
-  camera: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  police: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  zone:   "bg-orange-500/10 text-orange-500 border-orange-500/20",
+  camera: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
+  police: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+  zone:   "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  active:   "bg-primary/20 text-primary border-primary/30",
-  inactive: "bg-muted text-muted-foreground border-muted-foreground/30",
+  active:   "bg-primary/10 text-primary border-primary/20",
+  inactive: "bg-muted text-muted-foreground border-muted-foreground/20",
 };
 
 const zoneSchema = z.object({
@@ -83,12 +84,12 @@ export default function SpeedZones() {
   const deleteMutation = useAdminDeleteSpeedZone({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Speed Zone Removed", description: "The speed zone has been permanently removed." });
+        toast({ title: "Zone deleted", description: "The speed zone has been removed." });
         invalidate();
         setZoneToDelete(null);
       },
       onError: () => {
-        toast({ title: "Operation Failed", description: "Unable to remove the speed zone.", variant: "destructive" });
+        toast({ title: "Operation Failed", description: "Unable to remove the zone.", variant: "destructive" });
         setZoneToDelete(null);
       }
     }
@@ -97,7 +98,7 @@ export default function SpeedZones() {
   const createMutation = useAdminCreateSpeedZone({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Speed Zone Created", description: "New speed zone has been added." });
+        toast({ title: "Zone created", description: "New speed zone has been created." });
         invalidate();
         setIsAddOpen(false);
         setPendingCoords(null);
@@ -112,7 +113,7 @@ export default function SpeedZones() {
   const updateMutation = useAdminUpdateSpeedZone({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Speed Zone Updated", description: "Speed zone updated." });
+        toast({ title: "Zone updated", description: "Speed zone details saved." });
         invalidate();
         setEditingZone(null);
       },
@@ -206,7 +207,6 @@ export default function SpeedZones() {
       return;
     }
 
-    // stretch mode: first click sets start, second click sets end and opens dialog
     if (!pendingCoords || pendingCoords.mode !== "stretch" || pendingCoords.endLat != null) {
       setPendingCoords({ mode: "stretch", startLat: lat, startLng: lng });
       return;
@@ -227,29 +227,30 @@ export default function SpeedZones() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-4">
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight uppercase font-mono">Speed Zones</h1>
-            <p className="text-muted-foreground mt-1">Fixed speed cameras, checkpoints, and enforced speed stretches.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-page-title">Speed Zones</h1>
+            <p className="text-muted-foreground mt-1" data-testid="text-page-description">Manage fixed speed cameras, checkpoints, and enforced stretches.</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border border-border rounded-md overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="flex bg-muted/50 p-1 rounded-lg">
               <Button
-                variant="ghost"
+                variant={viewMode === "table" ? "secondary" : "ghost"}
                 size="sm"
-                className={`rounded-none gap-2 font-mono uppercase tracking-wider text-xs px-3 h-9 ${viewMode === "table" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                className="h-8 gap-2 px-3 shadow-none"
                 onClick={() => setViewMode("table")}
+                data-testid="btn-view-table"
               >
                 <List className="h-4 w-4" /> Table
               </Button>
-              <div className="w-px h-6 bg-border" />
               <Button
-                variant="ghost"
+                variant={viewMode === "map" ? "secondary" : "ghost"}
                 size="sm"
-                className={`rounded-none gap-2 font-mono uppercase tracking-wider text-xs px-3 h-9 ${viewMode === "map" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                className="h-8 gap-2 px-3 shadow-none"
                 onClick={() => setViewMode("map")}
+                data-testid="btn-view-map"
               >
                 <Map className="h-4 w-4" /> Map
               </Button>
@@ -258,19 +259,20 @@ export default function SpeedZones() {
             <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setPendingCoords(null); }}>
               <DialogTrigger asChild>
                 <Button
-                  className="gap-2 font-mono uppercase tracking-wider"
+                  className="gap-2"
                   onClick={() => {
                     setPendingCoords(null);
                     createForm.reset(defaultValues);
                   }}
+                  data-testid="btn-add-zone"
                 >
-                  <Plus className="h-4 w-4" /> Add Speed Zone
+                  <Plus className="h-4 w-4" /> Add Zone
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-border sm:max-w-[425px]">
+              <DialogContent className="sm:max-w-[450px]">
                 <DialogHeader>
-                  <DialogTitle className="uppercase font-mono tracking-wider">Add Speed Zone</DialogTitle>
-                  <DialogDescription className="sr-only">Fill in the form to add a new speed zone.</DialogDescription>
+                  <DialogTitle>Add Speed Zone</DialogTitle>
+                  <DialogDescription>Define a new enforcement point or stretch.</DialogDescription>
                 </DialogHeader>
                 <Form {...createForm}>
                   <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 pt-4">
@@ -342,19 +344,36 @@ export default function SpeedZones() {
                     <FormField control={createForm.control} name="road" render={({ field }) => (
                       <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
                     )} />
-                    <FormField control={createForm.control} name="speedLimit" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Speed Limit (km/h)</FormLabel>
-                        <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={createForm.control} name="status" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              {Object.keys(STATUS_COLORS).map(status => (
+                                <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={createForm.control} name="speedLimit" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Speed Limit (km/h)</FormLabel>
+                          <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </div>
                     <FormField control={createForm.control} name="description" render={({ field }) => (
                       <FormItem><FormLabel>Description</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
                     )} />
                     <DialogFooter className="pt-4">
-                      <Button type="submit" disabled={createMutation.isPending} className="font-mono uppercase w-full">
-                        {createMutation.isPending ? "Saving..." : "Save Speed Zone"}
+                      <Button type="submit" disabled={createMutation.isPending} className="w-full">
+                        {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {createMutation.isPending ? "Saving..." : "Save Zone"}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -364,18 +383,19 @@ export default function SpeedZones() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name or road..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-card/50"
+              className="pl-9 bg-background"
+              data-testid="input-search"
             />
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[180px] bg-card/50">
+            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-type">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -386,7 +406,7 @@ export default function SpeedZones() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] bg-card/50">
+            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -400,125 +420,143 @@ export default function SpeedZones() {
 
         {viewMode === "map" ? (
           isLoading ? (
-            <div className="border border-border/50 rounded-md bg-card/30 h-[520px] flex items-center justify-center text-muted-foreground">
-              Loading speed zones...
+            <div className="border rounded-xl bg-muted/10 h-[550px] flex items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Loading map data...
             </div>
           ) : (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-2 -mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground font-mono uppercase">Click mode:</span>
-                  <div className="flex items-center border border-border rounded-md overflow-hidden">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground font-medium">Creation mode:</span>
+                  <div className="flex bg-muted/50 p-1 rounded-lg">
                     <Button
-                      variant="ghost"
+                      variant={creationMode === "point" ? "secondary" : "ghost"}
                       size="sm"
-                      className={`rounded-none gap-1 font-mono uppercase tracking-wider text-xs px-3 h-7 ${creationMode === "point" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                      className="h-7 gap-1.5 px-2.5 shadow-none text-xs"
                       onClick={() => { setCreationMode("point"); setPendingCoords(null); }}
                     >
                       <MapPin className="h-3 w-3" /> Point
                     </Button>
-                    <div className="w-px h-5 bg-border" />
                     <Button
-                      variant="ghost"
+                      variant={creationMode === "stretch" ? "secondary" : "ghost"}
                       size="sm"
-                      className={`rounded-none gap-1 font-mono uppercase tracking-wider text-xs px-3 h-7 ${creationMode === "stretch" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                      className="h-7 gap-1.5 px-2.5 shadow-none text-xs"
                       onClick={() => { setCreationMode("stretch"); setPendingCoords(null); }}
                     >
                       <Gauge className="h-3 w-3" /> Stretch
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground font-mono">
+                <span className="text-muted-foreground">
                   {creationMode === "point"
-                    ? "Click anywhere on the map to add a point zone."
+                    ? "Tip: Click map to place a single camera/zone."
                     : pendingCoords?.mode === "stretch" && pendingCoords.endLat == null
                       ? "Start point set — click again to set the end point."
-                      : "Click to set the start point, then click again for the end point."}
-                </p>
+                      : "Tip: Click to set start point, then click again for end point."}
+                </span>
               </div>
-              <SpeedZonesMap
-                zones={data?.zones ?? []}
-                onEdit={openEditDialog}
-                onDelete={(id) => setZoneToDelete(id)}
-                onMapClick={handleMapClick}
-                pendingCoords={pendingCoords}
-              />
-            </>
+              <div className="rounded-xl overflow-hidden border shadow-sm">
+                <SpeedZonesMap
+                  zones={data?.zones ?? []}
+                  onEdit={openEditDialog}
+                  onDelete={(id) => setZoneToDelete(id)}
+                  onMapClick={handleMapClick}
+                  pendingCoords={pendingCoords}
+                />
+              </div>
+            </div>
           )
         ) : (
-          <>
-            <div className="border border-border/50 rounded-md bg-card/30 overflow-hidden">
+          <div className="space-y-4">
+            <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
               <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Type</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Name / Road</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Mode</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Status</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Speed Limit</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Created At</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider text-right">Actions</TableHead>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="w-[120px]">Type</TableHead>
+                    <TableHead>Zone Name / Road</TableHead>
+                    <TableHead className="w-[100px]">Mode</TableHead>
+                    <TableHead className="w-[100px]">Status</TableHead>
+                    <TableHead className="w-[120px]">Speed Limit</TableHead>
+                    <TableHead className="w-[150px]">Created</TableHead>
+                    <TableHead className="w-[70px] text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="h-48 text-center text-muted-foreground">
+                        <Loader2 className="mx-auto h-6 w-6 animate-spin mb-2" />
                         Loading speed zones...
                       </TableCell>
                     </TableRow>
                   ) : data?.zones.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-                        <p className="text-muted-foreground">No speed zones found matching parameters.</p>
+                      <TableCell colSpan={7} className="h-48 text-center">
+                        <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3 opacity-20" />
+                        <p className="text-muted-foreground font-medium">No speed zones found</p>
+                        <p className="text-sm text-muted-foreground/70 mt-1">Try adjusting your search or filters.</p>
                       </TableCell>
                     </TableRow>
                   ) : (
                     data?.zones.map((zone) => (
-                      <TableRow key={zone.id} className="hover:bg-muted/50 transition-colors">
+                      <TableRow key={zone.id} className="hover:bg-muted/30 transition-colors group" data-testid={`row-zone-${zone.id}`}>
                         <TableCell>
-                          <Badge variant="outline" className={`capitalize ${TYPE_COLORS[zone.type] || "bg-secondary text-secondary-foreground"}`}>
+                          <Badge variant="outline" className={`capitalize font-medium shadow-none ${TYPE_COLORS[zone.type] || "bg-secondary text-secondary-foreground"}`}>
                             {zone.type}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-start gap-2">
-                            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="flex items-start gap-2.5">
+                            {zone.mode === "stretch" ? (
+                              <Gauge className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                            ) : (
+                              <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                            )}
                             <div>
-                              <div className="font-medium text-sm">{zone.name}</div>
-                              <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                                {zone.road || "Unknown Sector"}
+                              <div className="font-medium text-sm text-foreground">{zone.name}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {zone.road || "Unknown Road"}
                               </div>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm font-mono capitalize">{zone.mode}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground capitalize">{zone.mode}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`capitalize font-mono text-xs ${STATUS_COLORS[zone.status] || "bg-secondary"}`}>
+                          <Badge variant="outline" className={`capitalize shadow-none ${STATUS_COLORS[zone.status] || "bg-secondary"}`}>
                             {zone.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm font-mono">
-                          {zone.speedLimit != null ? `${zone.speedLimit} km/h` : <span className="text-muted-foreground/50">—</span>}
-                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(zone.createdAt), "MMM d, HH:mm")}
+                          {zone.speedLimit != null ? <span className="font-medium text-foreground">{zone.speedLimit} km/h</span> : <span>—</span>}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {format(new Date(zone.createdAt), "MMM d, yyyy")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(zone)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setZoneToDelete(zone.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => openEditDialog(zone)} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => setZoneToDelete(zone.id)} 
+                                className="text-destructive focus:text-destructive cursor-pointer"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Zone
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))
@@ -528,39 +566,43 @@ export default function SpeedZones() {
             </div>
 
             {data && data.total > data.limit && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground font-mono">
-                  Showing {(page - 1) * data.limit + 1}-{Math.min(page * data.limit, data.total)} of {data.total}
+              <div className="flex items-center justify-between px-2">
+                <span className="text-sm text-muted-foreground">
+                  Showing <span className="font-medium text-foreground">{(page - 1) * data.limit + 1}</span> to <span className="font-medium text-foreground">{Math.min(page * data.limit, data.total)}</span> of <span className="font-medium text-foreground">{data.total}</span> entries
                 </span>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 shadow-none"
                     disabled={page === 1}
                     onClick={() => setPage(p => p - 1)}
+                    data-testid="btn-prev-page"
                   >
-                    Previous
+                    <ArrowLeft className="mr-2 h-3.5 w-3.5" /> Previous
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 shadow-none"
                     disabled={page * data.limit >= data.total}
                     onClick={() => setPage(p => p + 1)}
+                    data-testid="btn-next-page"
                   >
-                    Next
+                    Next <ArrowRight className="ml-2 h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
       <Dialog open={!!editingZone} onOpenChange={(open) => !open && setEditingZone(null)}>
-        <DialogContent className="bg-card border-border sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
-            <DialogTitle className="uppercase font-mono tracking-wider">Edit Speed Zone</DialogTitle>
-            <DialogDescription className="sr-only">Edit the selected speed zone.</DialogDescription>
+            <DialogTitle>Edit Speed Zone</DialogTitle>
+            <DialogDescription>Update details for {editingZone?.name}.</DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
@@ -588,16 +630,15 @@ export default function SpeedZones() {
                 />
                 <FormField
                   control={editForm.control}
-                  name="status"
+                  name="mode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <FormLabel>Mode (Cannot change)</FormLabel>
+                      <Select disabled onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger className="bg-muted"><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {Object.keys(STATUS_COLORS).map(status => (
-                            <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
-                          ))}
+                          <SelectItem value="point" className="capitalize">Point</SelectItem>
+                          <SelectItem value="stretch" className="capitalize">Stretch</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -633,19 +674,36 @@ export default function SpeedZones() {
               <FormField control={editForm.control} name="road" render={({ field }) => (
                 <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
               )} />
-              <FormField control={editForm.control} name="speedLimit" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Speed Limit (km/h)</FormLabel>
-                  <FormControl><Input type="number" min={0} placeholder="e.g. 50" value={field.value ?? ''} onChange={field.onChange} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={editForm.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {Object.keys(STATUS_COLORS).map(status => (
+                          <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={editForm.control} name="speedLimit" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Speed Limit (km/h)</FormLabel>
+                    <FormControl><Input type="number" min={0} value={field.value ?? ''} onChange={field.onChange} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
               <FormField control={editForm.control} name="description" render={({ field }) => (
                 <FormItem><FormLabel>Description</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
               )} />
               <DialogFooter className="pt-4">
-                <Button type="submit" disabled={updateMutation.isPending} className="font-mono uppercase w-full">
-                  {updateMutation.isPending ? "Updating..." : "Update Speed Zone"}
+                <Button type="submit" disabled={updateMutation.isPending} className="w-full">
+                  {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </DialogFooter>
             </form>
@@ -654,23 +712,20 @@ export default function SpeedZones() {
       </Dialog>
 
       <AlertDialog open={!!zoneToDelete} onOpenChange={(open) => !open && setZoneToDelete(null)}>
-        <AlertDialogContent className="bg-card border-destructive/20">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Confirm Deletion
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete Speed Zone</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove this speed zone. This action cannot be reversed.
+              Are you sure you want to delete this speed zone? It will be removed from the map for all drivers immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent">Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Remove Zone
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

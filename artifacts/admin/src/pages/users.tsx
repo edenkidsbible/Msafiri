@@ -5,11 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, ShieldAlert, Trash2, Plus, Users as UsersIcon, Edit } from "lucide-react";
+import { Shield, ShieldAlert, Trash2, Plus, Users as UsersIcon, Edit, Loader2, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from "zod";
@@ -47,12 +48,12 @@ export default function Users() {
   const deleteMutation = useAdminDeleteUser({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Operator Access Revoked", description: "The account has been removed from the system." });
+        toast({ title: "Account deleted", description: "The team member has been removed." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         setUserToDelete(null);
       },
       onError: () => {
-        toast({ title: "Operation Failed", description: "Unable to revoke access.", variant: "destructive" });
+        toast({ title: "Operation Failed", description: "Unable to remove account.", variant: "destructive" });
         setUserToDelete(null);
       }
     }
@@ -61,13 +62,13 @@ export default function Users() {
   const createMutation = useAdminCreateUser({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Operator Added", description: "New clearance granted successfully." });
+        toast({ title: "Member added", description: "New account has been created." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         setIsAddOpen(false);
         form.reset();
       },
       onError: (error) => {
-        toast({ title: "Provisioning Failed", description: error.message || "Could not create operator account.", variant: "destructive" });
+        toast({ title: "Creation Failed", description: error.message || "Could not create account.", variant: "destructive" });
       }
     }
   });
@@ -75,12 +76,12 @@ export default function Users() {
   const updateMutation = useAdminUpdateUser({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Operator Updated", description: "Account credentials and clearance updated." });
+        toast({ title: "Account updated", description: "Details saved successfully." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         setEditingUser(null);
       },
       onError: (error) => {
-        toast({ title: "Update Failed", description: error.message || "Could not update operator account.", variant: "destructive" });
+        toast({ title: "Update Failed", description: error.message || "Could not update account.", variant: "destructive" });
       }
     }
   });
@@ -131,24 +132,24 @@ export default function Users() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-4">
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight uppercase font-mono">Operator Roster</h1>
-            <p className="text-muted-foreground mt-1">Manage personnel clearance and system access.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-page-title">Team Members</h1>
+            <p className="text-muted-foreground mt-1" data-testid="text-page-description">Manage access to the Msafiri Ops platform.</p>
           </div>
           
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 font-mono uppercase tracking-wider">
-                <Plus className="h-4 w-4" /> Grant Access
+              <Button className="gap-2" data-testid="btn-add-user">
+                <Plus className="h-4 w-4" /> Add Member
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle className="uppercase font-mono tracking-wider">Provision New Operator</DialogTitle>
+                <DialogTitle>Add Team Member</DialogTitle>
                 <DialogDescription>
-                  Enter details to grant system access. A secure clearance code is required.
+                  Create a new account with access to the dashboard.
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
@@ -158,9 +159,9 @@ export default function Users() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Designation (Name)</FormLabel>
+                        <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="John Doe" {...field} className="bg-background" />
+                          <Input placeholder="Jane Doe" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -171,9 +172,9 @@ export default function Users() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Comm Channel (Email)</FormLabel>
+                        <FormLabel>Work Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="operator@msafiri.co.ke" {...field} className="bg-background" />
+                          <Input placeholder="jane@msafiri.co.ke" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -184,9 +185,9 @@ export default function Users() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Clearance Code (Password)</FormLabel>
+                        <FormLabel>Initial Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} className="bg-background" />
+                          <Input type="password" placeholder="••••••••" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -197,16 +198,16 @@ export default function Users() {
                     name="role"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Clearance Level</FormLabel>
+                        <FormLabel>Access Role</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-background">
-                              <SelectValue placeholder="Select level" />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="staff">Staff (Standard)</SelectItem>
-                            <SelectItem value="admin">Admin (Elevated)</SelectItem>
+                            <SelectItem value="staff">Staff</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -214,8 +215,9 @@ export default function Users() {
                     )}
                   />
                   <DialogFooter className="pt-4">
-                    <Button type="submit" disabled={createMutation.isPending} className="font-mono uppercase w-full">
-                      {createMutation.isPending ? "Provisioning..." : "Authorize"}
+                    <Button type="submit" disabled={createMutation.isPending} className="w-full">
+                      {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {createMutation.isPending ? "Creating..." : "Create Account"}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -224,44 +226,45 @@ export default function Users() {
           </Dialog>
         </div>
 
-        <div className="border border-border/50 rounded-md bg-card/30 overflow-hidden">
+        <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
           <Table>
-            <TableHeader className="bg-secondary/50">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="font-mono text-xs uppercase tracking-wider">Designation</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider">Comm Channel</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider">Clearance</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider">Commissioned</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-wider text-right">Actions</TableHead>
+            <TableHeader className="bg-muted/30">
+              <TableRow>
+                <TableHead>Member Name</TableHead>
+                <TableHead>Email Address</TableHead>
+                <TableHead className="w-[150px]">Role</TableHead>
+                <TableHead className="w-[150px]">Joined</TableHead>
+                <TableHead className="w-[70px] text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                    Accessing personnel records...
+                  <TableCell colSpan={5} className="h-48 text-center text-muted-foreground">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin mb-2" />
+                    Loading accounts...
                   </TableCell>
                 </TableRow>
               ) : data?.users?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center">
-                    <UsersIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-                    <p className="text-muted-foreground">No personnel records found.</p>
+                  <TableCell colSpan={5} className="h-48 text-center">
+                    <UsersIcon className="h-10 w-10 mx-auto text-muted-foreground mb-3 opacity-20" />
+                    <p className="text-muted-foreground font-medium">No team members found.</p>
                   </TableCell>
                 </TableRow>
               ) : (
                 data?.users?.map((user) => (
-                  <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableRow key={user.id} className="hover:bg-muted/30 transition-colors group" data-testid={`row-user-${user.id}`}>
+                    <TableCell className="font-medium text-foreground">{user.name}</TableCell>
                     <TableCell className="text-muted-foreground">{user.email}</TableCell>
                     <TableCell>
                       {user.role === 'admin' ? (
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1 font-mono uppercase text-xs">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1.5 shadow-none">
                           <ShieldAlert className="h-3 w-3" /> Admin
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="bg-secondary text-secondary-foreground border-secondary gap-1 font-mono uppercase text-xs">
-                          <Shield className="h-3 w-3" /> Staff
+                        <Badge variant="outline" className="bg-secondary text-secondary-foreground border-secondary gap-1.5 shadow-none">
+                          <Shield className="h-3 w-3 text-muted-foreground" /> Staff
                         </Badge>
                       )}
                     </TableCell>
@@ -270,19 +273,29 @@ export default function Users() {
                     </TableCell>
                     <TableCell className="text-right">
                       {currentUser?.id !== user.id && (
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(user)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setUserToDelete(user.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEditDialog(user)} className="cursor-pointer">
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Account
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => setUserToDelete(user.id)} 
+                              className="text-destructive focus:text-destructive cursor-pointer"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete Account
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   </TableRow>
@@ -294,9 +307,9 @@ export default function Users() {
       </div>
 
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
-        <DialogContent className="bg-card border-border sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="uppercase font-mono tracking-wider">Update Operator</DialogTitle>
+            <DialogTitle>Update Team Member</DialogTitle>
             <DialogDescription>
               Modify details for {editingUser?.name}.
             </DialogDescription>
@@ -308,9 +321,9 @@ export default function Users() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Designation (Name)</FormLabel>
+                    <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} className="bg-background" />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -321,9 +334,9 @@ export default function Users() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Comm Channel (Email)</FormLabel>
+                    <FormLabel>Work Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="operator@msafiri.co.ke" {...field} className="bg-background" />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -334,9 +347,9 @@ export default function Users() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Clearance Code (Leave blank to keep current)</FormLabel>
+                    <FormLabel>New Password (Leave blank to keep current)</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="bg-background" />
+                      <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -347,16 +360,16 @@ export default function Users() {
                 name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Clearance Level</FormLabel>
+                    <FormLabel>Access Role</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="bg-background">
+                        <SelectTrigger>
                           <SelectValue placeholder="Select level" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="staff">Staff (Standard)</SelectItem>
-                        <SelectItem value="admin">Admin (Elevated)</SelectItem>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -364,8 +377,9 @@ export default function Users() {
                 )}
               />
               <DialogFooter className="pt-4">
-                <Button type="submit" disabled={updateMutation.isPending} className="font-mono uppercase w-full">
-                  {updateMutation.isPending ? "Updating..." : "Update Clearance"}
+                <Button type="submit" disabled={updateMutation.isPending} className="w-full">
+                  {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {updateMutation.isPending ? "Updating..." : "Save Changes"}
                 </Button>
               </DialogFooter>
             </form>
@@ -374,23 +388,20 @@ export default function Users() {
       </Dialog>
 
       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-        <AlertDialogContent className="bg-card border-destructive/20">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5" />
-              Revoke Clearance
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently revoke system access for this operator. They will be immediately disconnected from the grid.
+              Are you sure you want to remove this team member? They will lose access to the platform immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent">Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Revoke Access
+              Delete Account
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

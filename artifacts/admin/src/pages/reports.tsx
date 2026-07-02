@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,27 +21,27 @@ import type { AdminReport } from "@workspace/api-client-react";
 import { ReportsMap } from "@/components/reports-map";
 
 const TYPE_COLORS: Record<string, string> = {
-  camera:    "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  police:    "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  alcoblow:  "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  accident:  "bg-red-500/10 text-red-500 border-red-500/20",
-  traffic:   "bg-rose-500/10 text-rose-500 border-rose-500/20",
-  roadblock: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  roadworks: "bg-lime-600/10 text-lime-600 border-lime-600/20",
-  hazard:    "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  pothole:   "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  debris:    "bg-stone-500/10 text-stone-500 border-stone-500/20",
-  breakdown: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  weather:   "bg-slate-500/10 text-slate-500 border-slate-500/20",
-  closure:   "bg-pink-500/10 text-pink-500 border-pink-500/20",
-  clear:     "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  camera:    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
+  police:    "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+  alcoblow:  "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/20",
+  accident:  "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
+  traffic:   "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20",
+  roadblock: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20",
+  roadworks: "bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-600/10 dark:text-lime-500 dark:border-lime-600/20",
+  hazard:    "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20",
+  pothole:   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+  debris:    "bg-stone-50 text-stone-700 border-stone-200 dark:bg-stone-500/10 dark:text-stone-400 dark:border-stone-500/20",
+  breakdown: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/20",
+  weather:   "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20",
+  closure:   "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-500/20",
+  clear:     "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-primary/20 text-primary border-primary/30",
-  confirmed: "bg-emerald-500/20 text-emerald-500 border-emerald-500/30",
-  expired: "bg-muted text-muted-foreground border-muted-foreground/30",
-  denied: "bg-destructive/20 text-destructive border-destructive/30",
+  active: "bg-primary/10 text-primary border-primary/20",
+  confirmed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  expired: "bg-muted text-muted-foreground border-muted-foreground/20",
+  denied: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 const reportSchema = z.object({
@@ -78,7 +79,7 @@ export default function Reports() {
   const deleteMutation = useAdminDeleteReport({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Incident Archived", description: "The report has been permanently removed from the grid." });
+        toast({ title: "Incident removed", description: "The report has been permanently deleted." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
         setReportToDelete(null);
       },
@@ -92,7 +93,7 @@ export default function Reports() {
   const createMutation = useAdminCreateReport({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Incident Created", description: "New telemetry logged." });
+        toast({ title: "Incident created", description: "New report has been added to the system." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
         setIsAddOpen(false);
         setPendingCoords(null);
@@ -107,7 +108,7 @@ export default function Reports() {
   const updateMutation = useAdminUpdateReport({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Incident Updated", description: "Telemetry updated." });
+        toast({ title: "Incident updated", description: "Report details have been saved." });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
         setEditingReport(null);
       },
@@ -176,29 +177,30 @@ export default function Reports() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-4">
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight uppercase font-mono">Incident Log</h1>
-            <p className="text-muted-foreground mt-1">Live telemetry of all reported grid anomalies.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-page-title">Incident Reports</h1>
+            <p className="text-muted-foreground mt-1" data-testid="text-page-description">View and manage active incidents across the network.</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border border-border rounded-md overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="flex bg-muted/50 p-1 rounded-lg">
               <Button
-                variant="ghost"
+                variant={viewMode === "table" ? "secondary" : "ghost"}
                 size="sm"
-                className={`rounded-none gap-2 font-mono uppercase tracking-wider text-xs px-3 h-9 ${viewMode === "table" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                className="h-8 gap-2 px-3 shadow-none"
                 onClick={() => setViewMode("table")}
+                data-testid="btn-view-table"
               >
                 <List className="h-4 w-4" /> Table
               </Button>
-              <div className="w-px h-6 bg-border" />
               <Button
-                variant="ghost"
+                variant={viewMode === "map" ? "secondary" : "ghost"}
                 size="sm"
-                className={`rounded-none gap-2 font-mono uppercase tracking-wider text-xs px-3 h-9 ${viewMode === "map" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                className="h-8 gap-2 px-3 shadow-none"
                 onClick={() => setViewMode("map")}
+                data-testid="btn-view-map"
               >
                 <Map className="h-4 w-4" /> Map
               </Button>
@@ -206,14 +208,14 @@ export default function Reports() {
 
             <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setPendingCoords(null); }}>
               <DialogTrigger asChild>
-                <Button className="gap-2 font-mono uppercase tracking-wider">
+                <Button className="gap-2" data-testid="btn-add-report">
                   <Plus className="h-4 w-4" /> Add Incident
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-border sm:max-w-[425px]">
+              <DialogContent className="sm:max-w-[450px]">
                 <DialogHeader>
-                  <DialogTitle className="uppercase font-mono tracking-wider">Log New Incident</DialogTitle>
-                  <DialogDescription className="sr-only">Fill in the form to log a new incident report.</DialogDescription>
+                  <DialogTitle>Log New Incident</DialogTitle>
+                  <DialogDescription>Create a new incident report on the network.</DialogDescription>
                 </DialogHeader>
                 <Form {...createForm}>
                   <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 pt-4">
@@ -272,8 +274,9 @@ export default function Reports() {
                       </FormItem>
                     )} />
                     <DialogFooter className="pt-4">
-                      <Button type="submit" disabled={createMutation.isPending} className="font-mono uppercase w-full">
-                        {createMutation.isPending ? "Logging..." : "Log Incident"}
+                      <Button type="submit" disabled={createMutation.isPending} className="w-full">
+                        {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {createMutation.isPending ? "Saving..." : "Save Incident"}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -283,18 +286,19 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by road name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-card/50"
+              className="pl-9 bg-background"
+              data-testid="input-search"
             />
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[180px] bg-card/50">
+            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-type">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -305,7 +309,7 @@ export default function Reports() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] bg-card/50">
+            <SelectTrigger className="w-full sm:w-[160px] bg-background" data-testid="select-status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -319,110 +323,125 @@ export default function Reports() {
 
         {viewMode === "map" ? (
           isLoading ? (
-            <div className="border border-border/50 rounded-md bg-card/30 h-[520px] flex items-center justify-center text-muted-foreground">
-              Scanning grid for anomalies...
+            <div className="border rounded-xl bg-muted/10 h-[550px] flex items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Loading map data...
             </div>
           ) : (
-            <>
-              <div className="flex items-center justify-between -mb-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
                 {data && data.reports.length > 0 && (
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Plotting {data.reports.length} of {data.total} incidents — use filters to narrow the view.
-                  </p>
+                  <span className="text-muted-foreground">
+                    Displaying {data.reports.length} of {data.total} incidents
+                  </span>
                 )}
-                <p className="text-xs text-muted-foreground font-mono ml-auto">
-                  Click anywhere on the map to log a new incident at that location.
-                </p>
+                <span className="text-muted-foreground ml-auto">
+                  Tip: Click anywhere on the map to add an incident.
+                </span>
               </div>
-              <ReportsMap
-                reports={data?.reports ?? []}
-                onEdit={openEditDialog}
-                onDelete={(id) => setReportToDelete(id)}
-                onMapClick={handleMapClick}
-                pendingCoords={pendingCoords}
-              />
-            </>
+              <div className="rounded-xl overflow-hidden border shadow-sm">
+                <ReportsMap
+                  reports={data?.reports ?? []}
+                  onEdit={openEditDialog}
+                  onDelete={(id) => setReportToDelete(id)}
+                  onMapClick={handleMapClick}
+                  pendingCoords={pendingCoords}
+                />
+              </div>
+            </div>
           )
         ) : (
-          <>
-            <div className="border border-border/50 rounded-md bg-card/30 overflow-hidden">
+          <div className="space-y-4">
+            <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
               <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Type</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Location / Road</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Status</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Speed Limit</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Confidence</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider">Logged At</TableHead>
-                    <TableHead className="font-mono text-xs uppercase tracking-wider text-right">Actions</TableHead>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="w-[120px]">Type</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead className="w-[120px]">Status</TableHead>
+                    <TableHead className="w-[120px]">Speed Limit</TableHead>
+                    <TableHead className="w-[120px]">Confidence</TableHead>
+                    <TableHead className="w-[150px]">Reported</TableHead>
+                    <TableHead className="w-[70px] text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                        Scanning grid for anomalies...
+                      <TableCell colSpan={7} className="h-48 text-center text-muted-foreground">
+                        <Loader2 className="mx-auto h-6 w-6 animate-spin mb-2" />
+                        Loading reports...
                       </TableCell>
                     </TableRow>
                   ) : data?.reports.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-                        <p className="text-muted-foreground">No telemetry found matching parameters.</p>
+                      <TableCell colSpan={7} className="h-48 text-center">
+                        <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3 opacity-20" />
+                        <p className="text-muted-foreground font-medium">No incidents found</p>
+                        <p className="text-sm text-muted-foreground/70 mt-1">Try adjusting your search or filters.</p>
                       </TableCell>
                     </TableRow>
                   ) : (
                     data?.reports.map((report) => (
-                      <TableRow key={report.id} className="hover:bg-muted/50 transition-colors">
+                      <TableRow key={report.id} className="hover:bg-muted/30 transition-colors group" data-testid={`row-report-${report.id}`}>
                         <TableCell>
-                          <Badge variant="outline" className={`capitalize ${TYPE_COLORS[report.type] || "bg-secondary text-secondary-foreground"}`}>
+                          <Badge variant="outline" className={`capitalize font-medium shadow-none ${TYPE_COLORS[report.type] || "bg-secondary text-secondary-foreground"}`}>
                             {report.type}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-start gap-2">
+                          <div className="flex items-start gap-2.5">
                             <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                             <div>
-                              <div className="font-medium text-sm">{report.roadName || "Unknown Sector"}</div>
-                              <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                              <div className="font-medium text-sm text-foreground">{report.roadName || "Unknown Sector"}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5 font-mono">
                                 {report.lat.toFixed(5)}, {report.lng.toFixed(5)}
                               </div>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`capitalize font-mono text-xs ${STATUS_COLORS[report.status] || "bg-secondary"}`}>
+                          <Badge variant="outline" className={`capitalize shadow-none ${STATUS_COLORS[report.status] || "bg-secondary"}`}>
                             {report.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm font-mono">
-                          {report.speedLimit != null ? `${report.speedLimit} km/h` : <span className="text-muted-foreground/50">—</span>}
+                        <TableCell className="text-sm text-muted-foreground">
+                          {report.speedLimit != null ? <span className="font-medium text-foreground">{report.speedLimit} km/h</span> : <span>—</span>}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2 text-xs font-mono">
-                            <span className="text-emerald-500">+{report.confirmCount}</span>
-                            <span className="text-muted-foreground">/</span>
-                            <span className="text-destructive">-{report.denyCount}</span>
+                          <div className="flex items-center gap-1.5 text-sm font-medium">
+                            <span className="text-emerald-600 dark:text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 rounded">{report.confirmCount}</span>
+                            <span className="text-muted-foreground/30">/</span>
+                            <span className="text-destructive bg-destructive/10 px-1.5 rounded">{report.denyCount}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                           {format(new Date(report.createdAt), "MMM d, HH:mm")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(report)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setReportToDelete(report.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => openEditDialog(report)} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => setReportToDelete(report.id)} 
+                                className="text-destructive focus:text-destructive cursor-pointer"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Incident
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))
@@ -432,39 +451,43 @@ export default function Reports() {
             </div>
 
             {data && data.total > data.limit && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground font-mono">
-                  Showing {(page - 1) * data.limit + 1}-{Math.min(page * data.limit, data.total)} of {data.total}
+              <div className="flex items-center justify-between px-2">
+                <span className="text-sm text-muted-foreground">
+                  Showing <span className="font-medium text-foreground">{(page - 1) * data.limit + 1}</span> to <span className="font-medium text-foreground">{Math.min(page * data.limit, data.total)}</span> of <span className="font-medium text-foreground">{data.total}</span> entries
                 </span>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 shadow-none"
                     disabled={page === 1}
                     onClick={() => setPage(p => p - 1)}
+                    data-testid="btn-prev-page"
                   >
-                    Previous
+                    <ArrowLeft className="mr-2 h-3.5 w-3.5" /> Previous
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 shadow-none"
                     disabled={page * data.limit >= data.total}
                     onClick={() => setPage(p => p + 1)}
+                    data-testid="btn-next-page"
                   >
-                    Next
+                    Next <ArrowRight className="ml-2 h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
       <Dialog open={!!editingReport} onOpenChange={(open) => !open && setEditingReport(null)}>
-        <DialogContent className="bg-card border-border sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
-            <DialogTitle className="uppercase font-mono tracking-wider">Edit Incident</DialogTitle>
-            <DialogDescription className="sr-only">Edit the selected incident report.</DialogDescription>
+            <DialogTitle>Edit Incident</DialogTitle>
+            <DialogDescription>Update details for this incident report.</DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
@@ -523,8 +546,9 @@ export default function Reports() {
                 </FormItem>
               )} />
               <DialogFooter className="pt-4">
-                <Button type="submit" disabled={updateMutation.isPending} className="font-mono uppercase w-full">
-                  {updateMutation.isPending ? "Updating..." : "Update Incident"}
+                <Button type="submit" disabled={updateMutation.isPending} className="w-full">
+                  {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </DialogFooter>
             </form>
@@ -533,23 +557,20 @@ export default function Reports() {
       </Dialog>
 
       <AlertDialog open={!!reportToDelete} onOpenChange={(open) => !open && setReportToDelete(null)}>
-        <AlertDialogContent className="bg-card border-destructive/20">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Confirm Deletion
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete Incident</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently erase this incident report from the grid. This action cannot be reversed and may affect historical telemetry.
+              Are you sure you want to delete this incident report? This action cannot be undone and it will be removed from the public API immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent">Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Erase Record
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
