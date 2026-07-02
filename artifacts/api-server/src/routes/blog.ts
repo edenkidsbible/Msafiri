@@ -4,6 +4,14 @@ import { eq, and, desc, sql } from "drizzle-orm";
 
 const router = Router();
 
+/** Replace {{YEAR}} with the current calendar year so articles stay evergreen. */
+function injectYear<T extends Record<string, unknown>>(obj: T): T {
+  const year = new Date().getFullYear().toString();
+  const replace = (v: unknown): unknown =>
+    typeof v === "string" ? v.replaceAll("{{YEAR}}", year) : v;
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, replace(v)])) as T;
+}
+
 // GET /blog/posts
 router.get("/blog/posts", async (req: Request, res: Response) => {
   try {
@@ -36,7 +44,7 @@ router.get("/blog/posts", async (req: Request, res: Response) => {
       .where(eq(blogPostsTable.status, "published"));
 
     return res.json({
-      posts: posts.map((p) => ({ ...p, publishedAt: p.publishedAt?.toISOString() ?? null, createdAt: p.createdAt.toISOString() })),
+      posts: posts.map((p) => injectYear({ ...p, publishedAt: p.publishedAt?.toISOString() ?? null, createdAt: p.createdAt.toISOString() })),
       total: count,
       page,
       limit,
@@ -66,12 +74,12 @@ router.get("/blog/posts/:slug", async (req: Request, res: Response) => {
       .execute()
       .catch(() => {});
 
-    return res.json({
+    return res.json(injectYear({
       ...post,
       publishedAt: post.publishedAt?.toISOString() ?? null,
       createdAt: post.createdAt.toISOString(),
       updatedAt: post.updatedAt.toISOString(),
-    });
+    }));
   } catch (err) {
     console.error("GET /blog/posts/:slug error:", err);
     return res.status(500).json({ error: "Internal server error" });
