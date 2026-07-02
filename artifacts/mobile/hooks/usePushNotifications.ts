@@ -88,7 +88,7 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const router = useRouter();
-  const { communityReports, setPendingConfirmationReport, setPendingFocusCoords, currentLat, currentLng } = useApp();
+  const { communityReports, setPendingConfirmationReport, setPendingFocusCoords, currentLat, currentLng, markReportPrompted } = useApp();
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
@@ -138,6 +138,9 @@ export function usePushNotifications() {
           }
 
           if (reportId) {
+            // Mark this report as prompted so the proximity hook won't re-fire for it
+            markReportPrompted(reportId);
+
             // Try to find the report in the current in-memory cache first
             const report = communityReportsRef.current.find(
               (r) => r.serverId === reportId || r.id === reportId

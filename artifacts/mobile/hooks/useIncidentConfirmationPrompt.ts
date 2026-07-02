@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 
 const PROXIMITY_M = 200;
@@ -18,13 +18,12 @@ export function useIncidentConfirmationPrompt() {
     hasVotedOnReport,
     pendingConfirmationReport,
     setPendingConfirmationReport,
+    markReportPrompted,
+    isReportPrompted,
   } = useApp();
-
-  const promptedThisSession = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (currentLat == null || currentLng == null) return;
-    // Don't overwrite an active prompt — one at a time
     if (pendingConfirmationReport != null) return;
 
     for (const report of communityReports) {
@@ -33,12 +32,12 @@ export function useIncidentConfirmationPrompt() {
       if (report.type === "camera") continue;
 
       const id = report.serverId ?? report.id;
-      if (promptedThisSession.current.has(id)) continue;
+      if (isReportPrompted(id)) continue;
       if (hasVotedOnReport(id) || hasVotedOnReport(report.id)) continue;
 
       const dist = haversine(currentLat, currentLng, report.lat, report.lng);
       if (dist <= PROXIMITY_M) {
-        promptedThisSession.current.add(id);
+        markReportPrompted(id);
         setPendingConfirmationReport(report);
         break;
       }
@@ -46,7 +45,7 @@ export function useIncidentConfirmationPrompt() {
   }, [currentLat, currentLng, communityReports, pendingConfirmationReport]);
 
   const markDismissed = (reportId: string) => {
-    promptedThisSession.current.add(reportId);
+    markReportPrompted(reportId);
   };
 
   return { markDismissed };

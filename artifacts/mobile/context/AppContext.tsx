@@ -172,6 +172,8 @@ interface AppContextValue {
   hasVotedOnReport: (id: string) => boolean;
   pendingFocusCoords: { lat: number; lng: number } | null;
   setPendingFocusCoords: (coords: { lat: number; lng: number } | null) => void;
+  markReportPrompted: (id: string) => void;
+  isReportPrompted: (id: string) => boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -525,6 +527,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingFocusCoords, setPendingFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const votedReportIdsRef = useRef<Set<string>>(new Set());
   const hasVotedOnReport = useCallback((id: string) => votedReportIdsRef.current.has(id), []);
+
+  const sessionPromptedIdsRef = useRef<Set<string>>(new Set());
+  const markReportPrompted = useCallback((id: string) => { sessionPromptedIdsRef.current.add(id); }, []);
+  const isReportPrompted = useCallback((id: string) => sessionPromptedIdsRef.current.has(id), []);
 
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
@@ -1438,6 +1444,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pendingConfirmationReport, setPendingConfirmationReport,
       hasVotedOnReport,
       pendingFocusCoords, setPendingFocusCoords,
+      markReportPrompted, isReportPrompted,
     }}>
       {children}
     </AppContext.Provider>
