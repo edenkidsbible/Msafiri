@@ -235,7 +235,7 @@ export default function DriveMapView() {
               description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
             >
               <MarkerIcon
-                ioniconName={z.type === "camera" ? "camera" : z.type === "police" ? "shield-checkmark" : "speedometer"}
+                ioniconName={z.type === "camera" ? "camera" : z.type === "police" ? "person" : "speedometer"}
                 bg={z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"}
                 size={32}
               />
@@ -372,6 +372,9 @@ export default function DriveMapView() {
                             </View>
                           )}
                         </View>
+                        {r.roadName ? (
+                          <Text style={ms.incidentRoad}>{r.roadName}</Text>
+                        ) : null}
                         <Text style={ms.incidentMeta}>
                           {ageStr}
                           {r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
@@ -503,6 +506,7 @@ const ms = StyleSheet.create({
     backgroundColor: "#E3F2FD", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
   },
   ownTxt: { fontSize: 10, fontWeight: "700", color: "#1565C0" },
+  incidentRoad: { fontSize: 12, fontWeight: "600", color: "#1565C0", marginTop: 1 },
   incidentMeta: { fontSize: 12, color: "#888" },
   voteRow: { flexDirection: "row", gap: 8, marginTop: 4 },
   voteBtn: {

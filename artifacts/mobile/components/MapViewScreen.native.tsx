@@ -54,9 +54,9 @@ function MarkerIcon({
 }
 
 const ZONE_MARKER: Record<string, { ioniconName: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
-  camera: { ioniconName: "camera",          bg: "#E53935" },
-  police: { ioniconName: "shield-checkmark", bg: "#1565C0" },
-  zone:   { ioniconName: "speedometer",      bg: "#E65100" },
+  camera: { ioniconName: "camera",      bg: "#E53935" },
+  police: { ioniconName: "person",      bg: "#1565C0" },
+  zone:   { ioniconName: "speedometer", bg: "#E65100" },
 };
 
 // Legend: all 12 community-report types + static Zone entry
@@ -148,6 +148,7 @@ function CalloutContent({ group }: { group: ClusterGroup }) {
     return (
       <View style={calloutS.wrap}>
         <Text style={calloutS.title}>{def.emoji}  {def.label}</Text>
+        {r.roadName ? <Text style={calloutS.road}>{r.roadName}</Text> : null}
         <Text style={calloutS.sub}>{ageStr(r.timestamp)}</Text>
         {r.confirmCount != null && r.confirmCount > 1 && (
           <Text style={calloutS.sub}>Reported by {r.confirmCount} users</Text>
@@ -166,6 +167,7 @@ function CalloutContent({ group }: { group: ClusterGroup }) {
             <Text style={calloutS.rowEmoji}>{def.emoji}</Text>
             <View style={{ flex: 1 }}>
               <Text style={calloutS.rowLabel}>{def.label}</Text>
+              {r.roadName ? <Text style={calloutS.rowRoad}>{r.roadName}</Text> : null}
               <Text style={calloutS.rowAge}>{ageStr(r.timestamp)}</Text>
               {r.confirmCount != null && r.confirmCount > 1 && (
                 <Text style={calloutS.rowAge}>Reported by {r.confirmCount} users</Text>
@@ -455,10 +457,12 @@ const calloutS = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 8, elevation: 8,
   },
   title: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111", marginBottom: 2 },
+  road: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1565C0", marginBottom: 2 },
   sub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#666" },
   heading: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111", marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 6 },
   rowEmoji: { fontSize: 16, lineHeight: 20 },
   rowLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111" },
+  rowRoad: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#1565C0", marginTop: 1 },
   rowAge: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#666", marginTop: 1 },
 });

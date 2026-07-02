@@ -25,7 +25,7 @@ function distStr(m: number): string {
 type ZoneFilter = "all" | "camera" | "police" | "zone";
 
 const TYPE_COLOR: Record<string, string> = { camera: "#E53935", police: "#1565C0", zone: "#F57C00" };
-const TYPE_ICON: Record<string, string> = { camera: "camera", police: "shield", zone: "warning" };
+const TYPE_ICON: Record<string, string> = { camera: "camera", police: "person", zone: "warning" };
 
 function durationStr(s: number): string {
   const h = Math.floor(s / 3600);
