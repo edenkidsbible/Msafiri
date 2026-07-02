@@ -93,14 +93,16 @@
 </div>
 <script>
   const shots = {
-    onboarding: '/marketing/images/shot-onboarding.jpg',
-    drive:      '/marketing/images/shot-drive.jpg',
-    zones:      '/marketing/images/shot-zones.jpg',
-    browse:     '/marketing/images/shot-browse.jpg',
-    settings:   '/marketing/images/shot-settings.jpg',
+    nav:             '/marketing/images/shot-nav.jpg',
+    'route-incidents': '/marketing/images/shot-route-incidents.jpg',
+    map:             '/marketing/images/shot-map.jpg',
+    browse:          '/marketing/images/shot-browse.jpg',
+    fines:           '/marketing/images/shot-fines.jpg',
+    settings:        '/marketing/images/shot-settings.jpg',
+    report:          '/marketing/images/shot-report.jpg',
   };
-  const p = new URLSearchParams(location.search).get('s') || 'drive';
-  document.getElementById('shot').src = shots[p] || shots.drive;
+  const p = new URLSearchParams(location.search).get('s') || 'nav';
+  document.getElementById('shot').src = shots[p] || shots.nav;
 </script>
 </body>
 </html>

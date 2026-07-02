@@ -114,8 +114,8 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-primary/20 blur-[120px] rounded-full" />
             <img 
-              src={`${import.meta.env.BASE_URL}images/mockup-drive.jpg`} 
-              alt="Msafiri App Interface" 
+              src={`${import.meta.env.BASE_URL}images/mockup-nav.jpg`} 
+              alt="Msafiri Navigation Screen" 
               className="relative z-10 w-full max-w-[340px] mx-auto drop-shadow-[0_60px_80px_rgba(0,0,0,0.9)]"
             />
           </motion.div>
@@ -238,11 +238,13 @@ export default function Home() {
             style={{ scrollbarWidth: "none" }}
           >
             {[
-              { src: "mockup-onboarding.jpg", label: "Onboarding" },
-              { src: "mockup-drive.jpg",      label: "Drive Mode" },
-              { src: "mockup-zones.jpg",      label: "Speed Zones" },
-              { src: "mockup-browse.jpg",     label: "Nearby Places" },
-              { src: "mockup-settings.jpg",   label: "Settings" },
+              { src: "mockup-nav.jpg",              label: "Navigation" },
+              { src: "mockup-route-incidents.jpg",  label: "Route Safety" },
+              { src: "mockup-map.jpg",              label: "Hazard Map" },
+              { src: "mockup-browse.jpg",           label: "Nearby Places" },
+              { src: "mockup-fines.jpg",            label: "NTSA Fines" },
+              { src: "mockup-report.jpg",           label: "Report Incident" },
+              { src: "mockup-settings.jpg",         label: "Emergency SOS" },
             ].map((shot, i) => (
               <motion.div
                 key={i}
@@ -308,8 +310,8 @@ export default function Home() {
           
           <div className="relative flex justify-center md:justify-end">
             <img
-              src={`${import.meta.env.BASE_URL}images/mockup-zones.jpg`}
-              alt="Msafiri Speed Zones"
+              src={`${import.meta.env.BASE_URL}images/mockup-route-incidents.jpg`}
+              alt="Incidents on your route"
               className="w-full max-w-[300px] drop-shadow-[0_40px_80px_rgba(0,0,0,0.7)]"
             />
           </div>
