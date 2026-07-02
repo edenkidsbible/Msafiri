@@ -114,7 +114,7 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-primary/20 blur-[120px] rounded-full" />
             <img 
-              src={`${import.meta.env.BASE_URL}images/mockup-nav.jpg`} 
+              src={`${import.meta.env.BASE_URL}images/mockup-nav.png`} 
               alt="Msafiri Navigation Screen" 
               className="relative z-10 w-full max-w-[340px] mx-auto drop-shadow-[0_60px_80px_rgba(0,0,0,0.9)]"
             />
@@ -238,13 +238,13 @@ export default function Home() {
             style={{ scrollbarWidth: "none" }}
           >
             {[
-              { src: "mockup-nav.jpg",              label: "Navigation" },
-              { src: "mockup-route-incidents.jpg",  label: "Route Safety" },
-              { src: "mockup-map.jpg",              label: "Hazard Map" },
-              { src: "mockup-browse.jpg",           label: "Nearby Places" },
-              { src: "mockup-fines.jpg",            label: "NTSA Fines" },
-              { src: "mockup-report.jpg",           label: "Report Incident" },
-              { src: "mockup-settings.jpg",         label: "Emergency SOS" },
+              { src: "mockup-nav.png",              label: "Navigation" },
+              { src: "mockup-route-incidents.png",  label: "Route Safety" },
+              { src: "mockup-map.png",              label: "Hazard Map" },
+              { src: "mockup-browse.png",           label: "Nearby Places" },
+              { src: "mockup-fines.png",            label: "NTSA Fines" },
+              { src: "mockup-report.png",           label: "Report Incident" },
+              { src: "mockup-settings.png",         label: "Emergency SOS" },
             ].map((shot, i) => (
               <motion.div
                 key={i}
@@ -310,7 +310,7 @@ export default function Home() {
           
           <div className="relative flex justify-center md:justify-end">
             <img
-              src={`${import.meta.env.BASE_URL}images/mockup-route-incidents.jpg`}
+              src={`${import.meta.env.BASE_URL}images/mockup-route-incidents.png`}
               alt="Incidents on your route"
               className="w-full max-w-[300px] drop-shadow-[0_40px_80px_rgba(0,0,0,0.7)]"
             />
