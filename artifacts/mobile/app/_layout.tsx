@@ -3,12 +3,12 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts,
 } from "@expo-google-fonts/inter";
+import * as Font from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -122,17 +122,23 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  // Web: skip font loading entirely — fontfaceobserver fires a 6-second timeout
+  // as an uncaught rejection in sandboxed environments. The browser handles CSS
+  // fonts on its own so we don't need to wait for them.
+  // Native: load async and swallow errors so a CDN hiccup never hard-crashes the app.
+  const [ready, setReady] = useState(Platform.OS === "web");
 
-  // On web, fontfaceobserver blocks for 6 s then throws when the Google Fonts
-  // CDN is unreachable (common in sandboxed environments). The browser loads
-  // CSS fonts on its own — we don't need to gate rendering on them.
-  const ready = Platform.OS === "web" || fontsLoaded || !!fontError;
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    Font.loadAsync({
+      Inter_400Regular,
+      Inter_500Medium,
+      Inter_600SemiBold,
+      Inter_700Bold,
+    })
+      .catch(() => {})
+      .finally(() => setReady(true));
+  }, []);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
