@@ -31,9 +31,11 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz008", name: "Mombasa Entry Camera", road: "Mombasa Road (A109)", lat: -4.0435, lng: 39.6682, speedLimit: 50, type: "camera", description: "City entry camera. Limit: 50 km/h" },
 
   // --- Thika Superhighway (A2) ---
-  { id: "sz009", name: "Thika Road Camera – Githurai", road: "Thika Superhighway (A2)", lat: -1.22, lng: 36.89, speedLimit: 80, type: "camera", description: "ANPR camera. Limit: 80 km/h" },
-  { id: "sz010", name: "Thika Road Camera – Garden City", road: "Thika Superhighway (A2)", lat: -1.216, lng: 36.89, speedLimit: 80, type: "camera", description: "ANPR camera near Garden City Mall. Limit: 80 km/h" },
-  { id: "sz011", name: "Thika Town Speed Zone", road: "Thika Superhighway (A2)", lat: -1.0332, lng: 37.0693, speedLimit: 50, type: "zone", description: "Town limit: 50 km/h" },
+  // Coordinates verified/corrected against real-world geocoding (Photon) — these were
+  // previously placed several km off the actual Thika Rd corridor (up to ~12km for Thika Town).
+  { id: "sz009", name: "Thika Road Camera – Githurai", road: "Thika Superhighway (A2)", lat: -1.1903, lng: 36.9134, speedLimit: 80, type: "camera", description: "ANPR camera at Githurai. Limit: 80 km/h" },
+  { id: "sz010", name: "Thika Road Camera – Garden City", road: "Thika Superhighway (A2)", lat: -1.2210, lng: 36.8850, speedLimit: 80, type: "camera", description: "ANPR camera near Garden City Mall. Limit: 80 km/h" },
+  { id: "sz011", name: "Thika Town Speed Zone", road: "Thika Superhighway (A2)", lat: -1.0396, lng: 37.0870, speedLimit: 50, type: "zone", description: "Town limit: 50 km/h" },
 
   // --- Waiyaki Way ---
   { id: "sz012", name: "Waiyaki Way – Westlands Camera", road: "Waiyaki Way", lat: -1.2661, lng: 36.8109, speedLimit: 80, type: "camera", description: "Fixed camera near Westlands. Limit: 80 km/h" },
@@ -70,11 +72,11 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz027", name: "Expressway – After Nyayo Stadium Camera", road: "Nairobi Expressway", lat: -1.3064, lng: 36.8248, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on elevated expressway past Nyayo Stadium. Limit: 80 km/h" },
 
   // --- Thika Superhighway (A2) – additional corridor cameras ---
-  { id: "sz028", name: "Thika Road – Pangani/Muthaiga Interchange", road: "Thika Superhighway (A2)", lat: -1.2697, lng: 36.8393, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Pangani/Muthaiga interchange. Limit: 80 km/h" },
+  { id: "sz028", name: "Thika Road – Pangani/Muthaiga Interchange", road: "Thika Superhighway (A2)", lat: -1.2660, lng: 36.8380, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Pangani/Muthaiga interchange. Limit: 80 km/h" },
   { id: "sz029", name: "Thika Road – Allsops/GSU HQ", road: "Thika Superhighway (A2)", lat: -1.2447, lng: 36.8643, speedLimit: 80, type: "camera", description: "Fixed ANPR camera opposite GSU Headquarters at Allsops. Limit: 80 km/h" },
   { id: "sz030", name: "Thika Road – Roysambu/TRM", road: "Thika Superhighway (A2)", lat: -1.2189, lng: 36.8854, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Roysambu near TRM Mall. Limit: 80 km/h" },
-  { id: "sz031", name: "Thika Road – Safari Park", road: "Thika Superhighway (A2)", lat: -1.1944, lng: 36.9006, speedLimit: 110, type: "camera", description: "Fixed ANPR camera near Safari Park Hotel. Open highway: 110 km/h" },
-  { id: "sz032", name: "Thika Road – Jomoko Turnoff", road: "Thika Superhighway (A2)", lat: -1.1153, lng: 36.9600, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Jomoko turnoff near Ruiru. Limit: 80 km/h" },
+  { id: "sz031", name: "Thika Road – Safari Park", road: "Thika Superhighway (A2)", lat: -1.2252, lng: 36.8835, speedLimit: 100, type: "camera", description: "Mobile speed check near Safari Park Hotel heading towards Kasarani. Limit: 100 km/h" },
+  { id: "sz032", name: "Thika Road – Jomoko Turnoff", road: "Thika Superhighway (A2)", lat: -1.1400, lng: 36.9700, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Jomoko turnoff between Ruiru and Juja. Limit: 80 km/h" },
 
   // --- Southern & Northern Bypass ---
   { id: "sz033", name: "Southern Bypass – Virtual Weighbridge", road: "Southern Bypass", lat: -1.3194, lng: 36.7228, speedLimit: 80, type: "camera", description: "Virtual weighbridge enforcement point on Southern Bypass. Limit: 80 km/h" },
@@ -144,4 +146,22 @@ export const SPEED_ZONES: SpeedZone[] = [
   // --- Southern & Northern Bypass – additional points (NTSA city highway list) ---
   { id: "sz074", name: "Southern Bypass – Ngong Road Interchange", road: "Southern Bypass", lat: -1.3633, lng: 36.7375, speedLimit: 80, type: "camera", description: "NTSA-monitored interchange where the Southern Bypass meets Ngong Road. Limit: 80 km/h" },
   { id: "sz075", name: "Northern Bypass – Ruaka/Wangige Stretch", road: "Northern Bypass", lat: -1.2039, lng: 36.7806, speedLimit: 80, type: "camera", description: "NTSA-monitored stretch near Ruaka, on the Northern Bypass approach to Wangige. Limit: 80 km/h" },
+
+  // ── Sourced from speedcamke.com crowdsourced reports + Pulse.co.ke NTSA smart-camera
+  // coverage article (Jul 2026). Coordinates geocoded from named landmarks/junctions. ──
+  { id: "sz076", name: "Eastern Bypass – Opp. Nyayo/Embakasi Barracks", road: "Eastern Bypass", lat: -1.3040, lng: 36.9200, speedLimit: 80, type: "camera", description: "Mobile speed enforcement reported opposite Nyayo/Embakasi Barracks on the Eastern Bypass. Limit: 80 km/h" },
+  { id: "sz077", name: "Eastern Bypass – Magunas, Utawala Zone", road: "Eastern Bypass", lat: -1.2792, lng: 36.9659, speedLimit: 50, type: "zone", description: "Built-up area zone at Magunas, Utawala — enforced on both sides of the road. Limit: 50 km/h" },
+  { id: "sz078", name: "Gitaru Road – Kanyariri Camera", road: "Gitaru Road", lat: -1.2364, lng: 36.6923, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on Gitaru Road near Kanyariri, Kabete. Limit: 80 km/h" },
+  { id: "sz079", name: "Expressway – Syokimau Footbridge Camera", road: "Nairobi Expressway", lat: -1.3777, lng: 36.9285, speedLimit: 50, type: "camera", description: "Fixed camera under the Syokimau footbridge on the Nairobi Expressway. Limit: 50 km/h" },
+  { id: "sz080", name: "Expressway – Cabanas/Airtel Interchange Camera", road: "Nairobi Expressway", lat: -1.3351, lng: 36.8921, speedLimit: 80, type: "camera", description: "Fixed ANPR camera between Cabanas and Airtel interchange on the Expressway. Limit: 80 km/h" },
+  { id: "sz081", name: "Red Hill Road Speed Zone", road: "Red Hill Road", lat: -1.1688, lng: 36.7067, speedLimit: 50, type: "zone", description: "Signposted 50 km/h zone on Red Hill Road near the Limuru/Expressway approach. Limit: 50 km/h" },
+  { id: "sz082", name: "Lang'ata Road – T-Mall Flyover Camera", road: "Lang'ata Road", lat: -1.3122, lng: 36.8169, speedLimit: 50, type: "camera", description: "Fixed camera at the T-Mall flyover, towards Madaraka. Limit: 50 km/h" },
+  { id: "sz083", name: "Lang'ata Road – Uhuru Gardens Camera", road: "Lang'ata Road", lat: -1.3259, lng: 36.7993, speedLimit: 50, type: "camera", description: "Fixed camera opposite Uhuru Gardens on Lang'ata Road. Limit: 50 km/h" },
+  { id: "sz084", name: "Southern Bypass – Kikuyu Approach Camera", road: "Southern Bypass", lat: -1.2465, lng: 36.6645, speedLimit: 80, type: "camera", description: "Fixed camera on the Southern Bypass approaching Kikuyu. Limit: 80 km/h" },
+  { id: "sz085", name: "Western Bypass – Ruaka/Wangige Camera", road: "Western Bypass", lat: -1.2047, lng: 36.7871, speedLimit: 80, type: "camera", description: "Fixed camera on the Western Bypass near Ruaka, on the Wangige approach. Limit: 80 km/h" },
+  { id: "sz086", name: "Northern Bypass – Ruaka/Ruiru Stretch", road: "Northern Bypass", lat: -1.1900, lng: 36.8800, speedLimit: 80, type: "camera", description: "Fixed camera on the Northern Bypass between Ruaka and Ruiru. Limit: 80 km/h" },
+  { id: "sz087", name: "Northern Bypass – Grace Chapel Camera", road: "Northern Bypass", lat: -1.2033, lng: 36.8875, speedLimit: 50, type: "camera", description: "Fixed camera near Nairobi Grace Chapel on the Northern Bypass. Limit: 50 km/h" },
+  { id: "sz088", name: "Embu–Nairobi Highway – Makenji/Kabati Zone", road: "Embu–Nairobi Highway (A2/A3)", lat: -0.9530, lng: 37.1077, speedLimit: 50, type: "zone", description: "Built-up area zone at Makenji, Kabati on the Embu–Nairobi Highway. Limit: 50 km/h" },
+  { id: "sz089", name: "Kisii–Rongo Road – Suneka Camera", road: "Kisii–Rongo Road", lat: -0.6651, lng: 34.6653, speedLimit: 50, type: "camera", description: "Mobile speed check reported at Suneka on the Kisii–Rongo Road. Limit: 50 km/h" },
+  { id: "sz090", name: "Kisumu–Vihiga Road – Kona Mbaya Camera", road: "Kisumu–Vihiga Road", lat: -0.0926, lng: 34.7799, speedLimit: 50, type: "camera", description: "Mobile speed check reported towards Kona Mbaya on the Kisumu–Vihiga Road. Limit: 50 km/h" },
 ];
