@@ -354,15 +354,6 @@ export default function PaywallScreen() {
             : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
           Manage or cancel anytime in your App Store or Google Play account settings.
         </Text>
-        <View style={styles.legalLinks}>
-          <TouchableOpacity onPress={() => router.push("/terms")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.legalLink, { color: c.primary }]}>Terms of Service</Text>
-          </TouchableOpacity>
-          <Text style={[styles.legalLinkSep, { color: c.mutedForeground }]}>·</Text>
-          <TouchableOpacity onPress={() => router.push("/privacy")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.legalLink, { color: c.primary }]}>Privacy Policy</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Terms agreement checkbox */}
         <TouchableOpacity
@@ -504,13 +495,6 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: "Inter_400Regular",
     textAlign: "center", lineHeight: 16, marginTop: 4,
   },
-  legalLinks: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, marginTop: 10,
-  },
-  legalLink: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  legalLinkSep: { fontSize: 12 },
-
   agreeRow: {
     flexDirection: "row", alignItems: "flex-start", gap: 10,
     marginTop: 16, paddingHorizontal: 4,
