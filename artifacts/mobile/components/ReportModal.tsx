@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -74,7 +75,9 @@ export default function ReportModal({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [pickedLocation, setPickedLocation] = useState<ReportLocation | null>(null);
+  const [editingSearch, setEditingSearch] = useState(true);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<TextInput>(null);
 
   const selItem = TYPES.find((t) => t.type === sel);
 
@@ -86,6 +89,7 @@ export default function ReportModal({
     setSearchResults([]);
     setSearchError(false);
     setPickedLocation(null);
+    setEditingSearch(true);
   };
 
   const runSearch = async (text: string) => {
@@ -112,18 +116,29 @@ export default function ReportModal({
   };
 
   const pickResult = (r: GeoResult) => {
+    Keyboard.dismiss();
     setPickedLocation({ lat: r.lat, lng: r.lng, label: r.short });
     setSearchText(r.short);
     setSearchResults([]);
+    setEditingSearch(false);
+  };
+
+  const editSearch = () => {
+    setEditingSearch(true);
+    setTimeout(() => searchInputRef.current?.focus(), 50);
   };
 
   const selectMode = (mode: "current" | "search") => {
     setLocationMode(mode);
     if (mode === "current") {
+      Keyboard.dismiss();
       setSearchText("");
       setSearchResults([]);
       setPickedLocation(null);
       setSearchError(false);
+      setEditingSearch(true);
+    } else {
+      setEditingSearch(true);
     }
   };
 
@@ -213,79 +228,88 @@ export default function ReportModal({
 
             {locationMode === "search" && (
               <View>
-                <View style={[styles.searchInputWrap, { borderColor: c.border, backgroundColor: c.card }]}>
-                  <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
-                  <TextInput
-                    style={[styles.searchInput, { color: c.foreground }]}
-                    placeholder="Search road, area, or landmark…"
-                    placeholderTextColor={c.mutedForeground}
-                    value={searchText}
-                    onChangeText={handleSearchChange}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                    returnKeyType="search"
-                    onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
-                  />
-                  {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
-                  {!!searchText && !searchLoading && (
-                    <TouchableOpacity onPress={() => handleSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="close-circle" size={16} color={c.mutedForeground} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {pickedLocation && (
-                  <View style={[styles.pickedRow, { backgroundColor: c.primary + "12", borderColor: c.primary + "44" }]}>
-                    <Ionicons name="checkmark-circle" size={15} color={c.primary} />
-                    <Text style={[styles.pickedTxt, { color: c.foreground }]} numberOfLines={1}>
+                {pickedLocation && !editingSearch ? (
+                  <TouchableOpacity
+                    style={[styles.pickedSummary, { backgroundColor: c.primary + "12", borderColor: c.primary + "44" }]}
+                    onPress={editSearch}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color={c.primary} />
+                    <Text style={[styles.pickedSummaryTxt, { color: c.foreground }]} numberOfLines={1}>
                       {pickedLocation.label}
                     </Text>
-                  </View>
-                )}
+                    <Ionicons name="chevron-down" size={16} color={c.mutedForeground} />
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <View style={[styles.searchInputWrap, { borderColor: c.border, backgroundColor: c.card }]}>
+                      <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
+                      <TextInput
+                        ref={searchInputRef}
+                        style={[styles.searchInput, { color: c.foreground }]}
+                        placeholder="Search road, area, or landmark…"
+                        placeholderTextColor={c.mutedForeground}
+                        value={searchText}
+                        onChangeText={handleSearchChange}
+                        autoCorrect={false}
+                        autoCapitalize="none"
+                        returnKeyType="search"
+                        autoFocus={editingSearch}
+                        onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+                      />
+                      {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
+                      {!!searchText && !searchLoading && (
+                        <TouchableOpacity onPress={() => handleSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="close-circle" size={16} color={c.mutedForeground} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
 
-                {!pickedLocation && searchError && (
-                  <View style={styles.resultHint}>
-                    <Ionicons name="cloud-offline-outline" size={14} color="#F57C00" />
-                    <Text style={[styles.resultHintTxt, { color: c.mutedForeground }]}>
-                      Search unavailable — check your connection
-                    </Text>
-                  </View>
-                )}
+                    {searchError && (
+                      <View style={styles.resultHint}>
+                        <Ionicons name="cloud-offline-outline" size={14} color="#F57C00" />
+                        <Text style={[styles.resultHintTxt, { color: c.mutedForeground }]}>
+                          Search unavailable — check your connection
+                        </Text>
+                      </View>
+                    )}
 
-                {!pickedLocation && !searchError && searchResults.length === 0 && !searchLoading && searchText.length > 1 && (
-                  <View style={styles.resultHint}>
-                    <Ionicons name="location-outline" size={14} color={c.mutedForeground} />
-                    <Text style={[styles.resultHintTxt, { color: c.mutedForeground }]}>
-                      No places found for "{searchText}"
-                    </Text>
-                  </View>
-                )}
+                    {!searchError && searchResults.length === 0 && !searchLoading && searchText.length > 1 && (
+                      <View style={styles.resultHint}>
+                        <Ionicons name="location-outline" size={14} color={c.mutedForeground} />
+                        <Text style={[styles.resultHintTxt, { color: c.mutedForeground }]}>
+                          No places found for "{searchText}"
+                        </Text>
+                      </View>
+                    )}
 
-                {!pickedLocation && searchResults.length > 0 && (
-                  <View style={[styles.resultsList, { borderColor: c.border, backgroundColor: c.card }]}>
-                    {searchResults.map((item, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.resultRow,
-                          { borderBottomColor: c.border },
-                          index === searchResults.length - 1 && { borderBottomWidth: 0 },
-                        ]}
-                        onPress={() => pickResult(item)}
-                        activeOpacity={0.72}
-                      >
-                        <Ionicons name="location-outline" size={14} color={c.primary} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.resultName, { color: c.foreground }]} numberOfLines={1}>
-                            {item.short}
-                          </Text>
-                          <Text style={[styles.resultSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                            {item.display.split(",").slice(2).join(",").trim()}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                    {searchResults.length > 0 && (
+                      <View style={[styles.resultsList, { borderColor: c.border, backgroundColor: c.card }]}>
+                        {searchResults.map((item, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            style={[
+                              styles.resultRow,
+                              { borderBottomColor: c.border },
+                              index === searchResults.length - 1 && { borderBottomWidth: 0 },
+                            ]}
+                            onPress={() => pickResult(item)}
+                            activeOpacity={0.72}
+                          >
+                            <Ionicons name="location-outline" size={14} color={c.primary} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.resultName, { color: c.foreground }]} numberOfLines={1}>
+                                {item.short}
+                              </Text>
+                              <Text style={[styles.resultSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                                {item.display.split(",").slice(2).join(",").trim()}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
             )}
@@ -413,12 +437,12 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
 
-  pickedRow: {
+  pickedSummary: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    borderWidth: 1, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 9, marginTop: 8,
+    borderWidth: 1.5, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 12,
   },
-  pickedTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 1 },
+  pickedSummaryTxt: { fontSize: 13.5, fontFamily: "Inter_600SemiBold", flex: 1 },
 
   resultHint: {
     flexDirection: "row", alignItems: "center", gap: 6,
