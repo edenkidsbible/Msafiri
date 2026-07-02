@@ -36,6 +36,7 @@ export function PaywallModal({ visible, onClose }: Props) {
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
   const [confirmPkg, setConfirmPkg] = useState<any>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const currentOffering = offerings?.current;
   const weeklyPkg = currentOffering?.availablePackages.find(
@@ -53,7 +54,7 @@ export function PaywallModal({ visible, onClose }: Props) {
   const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
 
   async function handlePurchase() {
-    if (!chosenPkg) return;
+    if (!chosenPkg || !agreedToTerms) return;
     setConfirmPkg(chosenPkg);
   }
 
@@ -239,14 +240,51 @@ export function PaywallModal({ visible, onClose }: Props) {
               <Text style={[styles.legalLink, { color: c.primary }]}>Privacy Policy</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Terms agreement checkbox */}
+          <TouchableOpacity
+            style={styles.agreeRow}
+            onPress={() => setAgreedToTerms((v) => !v)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: agreedToTerms ? c.primary : c.border,
+                  backgroundColor: agreedToTerms ? c.primary : "transparent",
+                },
+              ]}
+            >
+              {agreedToTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
+            </View>
+            <Text style={[styles.agreeText, { color: c.mutedForeground }]}>
+              By starting my {trialEligible ? "free trial" : "subscription"}, I agree to the{" "}
+              <Text
+                style={[styles.agreeLink, { color: c.primary }]}
+                onPress={(e) => { e.stopPropagation(); onClose(); router.push("/terms"); }}
+              >
+                Terms of Service
+              </Text>{" "}
+              and{" "}
+              <Text
+                style={[styles.agreeLink, { color: c.primary }]}
+                onPress={(e) => { e.stopPropagation(); onClose(); router.push("/privacy"); }}
+              >
+                Privacy Policy
+              </Text>
+              .
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
 
         {/* CTA */}
         <View style={[styles.ctaWrap, { borderTopColor: c.border }]}>
           <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || isLoading ? 0.6 : 1 }]}
+            style={[styles.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || isLoading || !agreedToTerms ? 0.5 : 1 }]}
             onPress={handlePurchase}
-            disabled={isPurchasing || isLoading || !chosenPkg}
+            disabled={isPurchasing || isLoading || !chosenPkg || !agreedToTerms}
             activeOpacity={0.85}
           >
             {isPurchasing ? (
@@ -374,6 +412,17 @@ const styles = StyleSheet.create({
   },
   legalLink: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   legalLinkSep: { fontSize: 12 },
+
+  agreeRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    marginTop: 16, paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, borderWidth: 2,
+    alignItems: "center", justifyContent: "center", marginTop: 1,
+  },
+  agreeText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, flex: 1 },
+  agreeLink: { fontFamily: "Inter_600SemiBold" },
 
   ctaWrap: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, gap: 12 },
   ctaBtn: {
