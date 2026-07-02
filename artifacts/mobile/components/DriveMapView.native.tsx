@@ -146,6 +146,19 @@ export default function DriveMapView() {
   const now = Date.now();
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
+  const openedAtRef = useRef(0);
+
+  const openCluster = (group: ClusterGroup) => {
+    openedAtRef.current = Date.now();
+    setSelectedCluster(group);
+  };
+  const closeCluster = () => {
+    // Guard against the react-native-maps ghost-touch quirk where a Marker
+    // tap also delivers a press to whatever full-screen overlay mounts
+    // underneath it in the same gesture, closing the sheet instantly.
+    if (Date.now() - openedAtRef.current < 400) return;
+    setSelectedCluster(null);
+  };
 
   useEffect(() => {
     if (hasCenteredRef.current || navigationActive || currentLat == null || currentLng == null) return;
@@ -262,7 +275,7 @@ export default function DriveMapView() {
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}
-              onPress={() => setSelectedCluster(group)}
+              onPress={() => openCluster(group)}
               zIndex={10}
             >
               <ClusterMarker group={group} now={now} />
@@ -315,11 +328,11 @@ export default function DriveMapView() {
           visible
           transparent
           animationType="slide"
-          onRequestClose={() => setSelectedCluster(null)}
+          onRequestClose={closeCluster}
         >
           <TouchableOpacity
             style={ms.backdrop}
-            onPress={() => setSelectedCluster(null)}
+            onPress={closeCluster}
             activeOpacity={1}
           >
             <TouchableOpacity activeOpacity={1} style={ms.sheet}>
