@@ -8,6 +8,7 @@ import {
   listAppPublicApiKeys,
   listProducts,
   createProduct,
+  deleteProduct,
   listEntitlements,
   createEntitlement,
   attachProductsToEntitlement,
@@ -17,6 +18,8 @@ import {
   listPackages,
   createPackages,
   attachProductsToPackage,
+  detachProductsFromPackage,
+  getProductsFromPackage,
   type App,
   type Product,
   type Project,
@@ -205,6 +208,151 @@ async function seedRevenueCat() {
     return created;
   };
 
+  type TestStorePrice = { amount: number; amount_micros: number; currency: string };
+
+  const getTestStorePrices = async (productId: string): Promise<TestStorePrice[]> => {
+    const { data, error } = await client.get<TestStorePrice[]>({
+      url: "/projects/{project_id}/products/{product_id}/test_store_prices",
+      path: { project_id: project.id, product_id: productId },
+    });
+    if (error) throw new Error(`Failed to list test store prices: ${JSON.stringify(error)}`);
+    return data ?? [];
+  };
+
+  const addTestStorePrices = async (
+    productId: string,
+    prices: { amount_micros: number; currency: string }[],
+  ) => {
+    const { error } = await client.post<TestStorePricesResponse>({
+      url: "/projects/{project_id}/products/{product_id}/test_store_prices",
+      path: { project_id: project.id, product_id: productId },
+      body: { prices },
+    });
+    if (error) throw new Error(`Failed to add test store prices: ${JSON.stringify(error)}`);
+  };
+
+  /**
+   * RevenueCat's test_store_prices endpoint only supports POST (add) and GET (list) -
+   * there is no PATCH/PUT/DELETE to change an existing currency's amount. If a price
+   * for the currency already exists with a different amount, we must replace the
+   * underlying test-store product: detach it from its package, delete it (or, if it
+   * has transaction history and can't be deleted, leave it orphaned and mint a new
+   * product under a versioned identifier), then attach the replacement in its place.
+   * This avoids ever silently leaving a stale price live, which happened previously.
+   */
+  const ensureTestStorePrice = async (
+    testProduct: Product,
+    prod: (typeof PRODUCTS)[number],
+    packageId: string,
+  ): Promise<Product> => {
+    const desired = prod.prices[0];
+
+    // Deterministic fallback identifier used when the original test-store product
+    // can't be deleted (has transaction history). Stable across runs so we reuse
+    // the same replacement instead of minting a new one every time.
+    const fallbackIdentifier = `${prod.identifier}_fixed`;
+    const fallbackExisting = existingProducts.items?.find(
+      (p) => p.store_identifier === fallbackIdentifier && p.app_id === testProduct.app_id,
+    );
+
+    const activeProduct = fallbackExisting ?? testProduct;
+    const existingPrices = await getTestStorePrices(activeProduct.id);
+    const matching = existingPrices.find((p) => p.currency === desired.currency);
+
+    if (!matching) {
+      console.log("Adding test store prices:", JSON.stringify(prod.prices));
+      await addTestStorePrices(activeProduct.id, prod.prices);
+      console.log("Added test store prices");
+      return activeProduct;
+    }
+
+    if (matching.amount_micros === desired.amount_micros) {
+      console.log(
+        `Test store price already correct for ${prod.identifier}: ${matching.amount_micros} ${matching.currency}`,
+      );
+      return activeProduct;
+    }
+
+    console.log(
+      `Test store price for ${prod.identifier} is stale (${matching.amount_micros} ${matching.currency} != desired ${desired.amount_micros}). Replacing product.`,
+    );
+
+    const { data: attachedProducts, error: listAttachedError } = await getProductsFromPackage({
+      client,
+      path: { project_id: project.id, package_id: packageId },
+    });
+    if (listAttachedError) {
+      throw new Error(`Failed to list products attached to package: ${JSON.stringify(listAttachedError)}`);
+    }
+    const staleAttachedIds = (attachedProducts?.items ?? [])
+      .filter((item) => item.product.app_id === testProduct.app_id)
+      .map((item) => item.product.id);
+
+    if (staleAttachedIds.length > 0) {
+      const { error: detachError } = await detachProductsFromPackage({
+        client,
+        path: { project_id: project.id, package_id: packageId },
+        body: { product_ids: staleAttachedIds },
+      });
+      if (
+        detachError &&
+        !(typeof detachError === "object" && "message" in detachError && String((detachError as any).message).includes("not currently attached"))
+      ) {
+        throw new Error(`Failed to detach stale test store product: ${JSON.stringify(detachError)}`);
+      }
+      console.log(`Detached stale test store product(s) from package: ${staleAttachedIds.join(", ")}`);
+    }
+
+    const { error: deleteError } = await deleteProduct({
+      client,
+      path: { project_id: project.id, product_id: activeProduct.id },
+    });
+
+    let newIdentifier = prod.identifier;
+    let newDisplayName = prod.displayName;
+    let newTitle = prod.title;
+    if (deleteError) {
+      console.log(
+        `Could not delete stale test store product ${activeProduct.id} (likely has transaction history): ${JSON.stringify(deleteError)}. Creating a stable replacement under "${fallbackIdentifier}" instead.`,
+      );
+      newIdentifier = fallbackIdentifier;
+      newDisplayName = `${prod.displayName} (fixed price)`;
+      newTitle = `${prod.title} (fixed price)`;
+    }
+
+    const { data: replacement, error: createError } = await createProduct({
+      client,
+      path: { project_id: project.id },
+      body: {
+        store_identifier: newIdentifier,
+        app_id: testProduct.app_id,
+        type: "subscription",
+        display_name: newDisplayName,
+        title: newTitle,
+        subscription: { duration: prod.duration },
+      },
+    });
+    if (createError || !replacement) {
+      throw new Error(`Failed to create replacement test store product: ${JSON.stringify(createError)}`);
+    }
+    console.log(`Created replacement test store product: ${replacement.id} (${newIdentifier})`);
+
+    await addTestStorePrices(replacement.id, prod.prices);
+    console.log("Added correct test store prices to replacement product");
+
+    const { error: attachError } = await attachProductsToPackage({
+      client,
+      path: { project_id: project.id, package_id: packageId },
+      body: { products: [{ product_id: replacement.id, eligibility_criteria: "all" }] },
+    });
+    if (attachError) {
+      throw new Error(`Failed to attach replacement test store product: ${JSON.stringify(attachError)}`);
+    }
+    console.log(`Attached replacement product to package ${packageId}`);
+
+    return replacement;
+  };
+
   let entitlement: Entitlement | undefined;
   const { data: existingEntitlements, error: listEntitlementsError } = await listEntitlements({
     client,
@@ -304,29 +452,6 @@ async function seedRevenueCat() {
       prod.title,
     );
 
-    console.log("Adding test store prices:", JSON.stringify(prod.prices));
-    const { error: priceError } = await client.post<TestStorePricesResponse>({
-      url: "/projects/{project_id}/products/{product_id}/test_store_prices",
-      path: { project_id: project.id, product_id: testProduct.id },
-      body: { prices: prod.prices },
-    });
-
-    if (priceError) {
-      if (
-        typeof priceError === "object" &&
-        "type" in priceError &&
-        (priceError as any)["type"] === "resource_already_exists"
-      ) {
-        console.log("Test store prices already exist");
-      } else {
-        throw new Error("Failed to add test store prices: " + JSON.stringify(priceError));
-      }
-    } else {
-      console.log("Added test store prices");
-    }
-
-    allProductIds.push(testProduct.id, iosProduct.id, androidProduct.id);
-
     const { data: existingPkgs, error: listPkgsError } = await listPackages({
       client,
       path: { project_id: project.id, offering_id: offering.id },
@@ -352,12 +477,16 @@ async function seedRevenueCat() {
       pkg = newPkg;
     }
 
+    const syncedTestProduct = await ensureTestStorePrice(testProduct, prod, pkg.id);
+
+    allProductIds.push(syncedTestProduct.id, iosProduct.id, androidProduct.id);
+
     const { error: attachPkgError } = await attachProductsToPackage({
       client,
       path: { project_id: project.id, package_id: pkg.id },
       body: {
         products: [
-          { product_id: testProduct.id, eligibility_criteria: "all" },
+          { product_id: syncedTestProduct.id, eligibility_criteria: "all" },
           { product_id: iosProduct.id, eligibility_criteria: "all" },
           { product_id: androidProduct.id, eligibility_criteria: "all" },
         ],

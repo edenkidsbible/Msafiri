@@ -19,3 +19,4 @@
 - [Speed gauge stationary jitter](speed-gauge-stationary-jitter.md) — GPS phantom motion while parked; fix needs accuracy-based noise floor + dead-band + rolling median together, not just one.
 - [expo-audio in-app sound](expo-audio-inapp-sound.md) — createAudioPlayer (imperative) for a shared sound utility, not useAudioPlayer hook; unrelated to push notification sound (OS handles that).
 - [RevenueCat seed project pinning](revenuecat-seed-project-pinning.md) — never pick listProjects().items[0]; pin to existing REVENUECAT_PROJECT_ID or the wrong project silently gets seeded.
+- [RevenueCat test-store price replacement idempotency](revenuecat-price-replacement-idempotency.md) — no PATCH on prices; detach via package lookup not identifier match; use stable fallback id, not timestamp.\n
