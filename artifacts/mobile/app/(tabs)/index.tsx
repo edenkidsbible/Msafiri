@@ -23,7 +23,7 @@ import DriveMapView from "@/components/DriveMapView";
 import ReportModal from "@/components/ReportModal";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
-import { fetchWithTimeout } from "@/utils/fetchTimeout";
+import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -34,25 +34,6 @@ function durationStr(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   return h > 0 ? `${h}h ${m}min` : `${m} min`;
-}
-
-interface GeoResult { display: string; short: string; lat: number; lng: number }
-
-async function nominatimSearch(q: string): Promise<GeoResult[]> {
-  const url =
-    `https://nominatim.openstreetmap.org/search?format=json&limit=7&countrycodes=ke` +
-    `&q=${encodeURIComponent(q)}`;
-  const res = await fetchWithTimeout(
-    url,
-    { headers: { "User-Agent": "MsafiriKenya/1.0", "Accept-Language": "en" } },
-    9000
-  );
-  const data = await res.json();
-  return (data as any[]).map((r) => {
-    const parts = (r.display_name as string).split(",");
-    const short = parts.slice(0, 2).join(",").trim();
-    return { display: r.display_name as string, short, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
-  });
 }
 
 function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
@@ -733,8 +714,14 @@ export default function DriveScreen() {
       <ReportModal
         visible={showReport}
         onClose={() => setShowReport(false)}
-        onSubmit={(type, speedLimit) => {
-          if (currentLat !== null && currentLng !== null) addReport(type, currentLat, currentLng, speedLimit);
+        currentLat={currentLat}
+        currentLng={currentLng}
+        onSubmit={(type, speedLimit, location) => {
+          if (location) {
+            addReport(type, location.lat, location.lng, speedLimit);
+          } else if (currentLat !== null && currentLng !== null) {
+            addReport(type, currentLat, currentLng, speedLimit);
+          }
           setShowReport(false);
         }}
       />

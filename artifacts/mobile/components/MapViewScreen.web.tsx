@@ -55,8 +55,12 @@ export default function MapViewScreen() {
     .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
-  const handleReport = (type: CommunityReport["type"], speedLimit?: number) => {
-    if (currentLat && currentLng) addReport(type, currentLat, currentLng, speedLimit);
+  const handleReport = (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
+    if (location) {
+      addReport(type, location.lat, location.lng, speedLimit);
+    } else if (currentLat && currentLng) {
+      addReport(type, currentLat, currentLng, speedLimit);
+    }
     setShowReport(false);
   };
 
@@ -203,7 +207,13 @@ export default function MapViewScreen() {
         </View>
       )}
 
-      <ReportModal visible={showReport} onClose={() => setShowReport(false)} onSubmit={handleReport} />
+      <ReportModal
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        onSubmit={handleReport}
+        currentLat={currentLat}
+        currentLng={currentLng}
+      />
     </View>
   );
 }

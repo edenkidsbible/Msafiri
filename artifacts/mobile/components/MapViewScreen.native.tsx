@@ -199,8 +199,12 @@ export default function MapViewScreen() {
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
-  const handleReport = (type: CommunityReport["type"]) => {
-    if (currentLat && currentLng) addReport(type, currentLat, currentLng);
+  const handleReport = (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
+    if (location) {
+      addReport(type, location.lat, location.lng, speedLimit);
+    } else if (currentLat && currentLng) {
+      addReport(type, currentLat, currentLng, speedLimit);
+    }
     setShowReport(false);
   };
 
@@ -378,7 +382,13 @@ export default function MapViewScreen() {
         </View>
       )}
 
-      <ReportModal visible={showReport} onClose={() => setShowReport(false)} onSubmit={handleReport} />
+      <ReportModal
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        onSubmit={handleReport}
+        currentLat={currentLat}
+        currentLng={currentLng}
+      />
     </View>
   );
 }

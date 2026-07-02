@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,13 +15,22 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { CommunityReport } from "@/context/AppContext";
+import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 
 type ReportType = CommunityReport["type"];
+
+export interface ReportLocation {
+  lat: number;
+  lng: number;
+  label: string;
+}
 
 interface ReportModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (type: ReportType, speedLimit?: number) => void;
+  onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation) => void;
+  currentLat?: number | null;
+  currentLng?: number | null;
 }
 
 const TYPES: Array<{
@@ -43,23 +55,86 @@ const TYPES: Array<{
   { type: "clear",     label: "Road Clear",     emoji: "✅",  color: "#00C853" },
 ];
 
-export default function ReportModal({ visible, onClose, onSubmit }: ReportModalProps) {
+export default function ReportModal({
+  visible,
+  onClose,
+  onSubmit,
+  currentLat = null,
+  currentLng = null,
+}: ReportModalProps) {
   const c = useColors();
   const [sel, setSel] = useState<ReportType | null>(null);
   const [speedLimit, setSpeedLimit] = useState("");
+
+  const hasCurrentLocation = currentLat != null && currentLng != null;
+  const [locationMode, setLocationMode] = useState<"current" | "search">("current");
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [pickedLocation, setPickedLocation] = useState<ReportLocation | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const selItem = TYPES.find((t) => t.type === sel);
 
   const reset = () => {
     setSel(null);
     setSpeedLimit("");
+    setLocationMode("current");
+    setSearchText("");
+    setSearchResults([]);
+    setSearchError(false);
+    setPickedLocation(null);
   };
 
+  const runSearch = async (text: string) => {
+    if (text.length < 2) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    setSearchError(false);
+    try {
+      const results = await nominatimSearch(text);
+      setSearchResults(results);
+    } catch {
+      setSearchError(true);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearchChange = (text: string) => {
+    setSearchText(text);
+    setPickedLocation(null);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (text.length < 2) { setSearchResults([]); return; }
+    searchTimer.current = setTimeout(() => runSearch(text), 500);
+  };
+
+  const pickResult = (r: GeoResult) => {
+    Keyboard.dismiss();
+    setPickedLocation({ lat: r.lat, lng: r.lng, label: r.short });
+    setSearchText(r.short);
+    setSearchResults([]);
+  };
+
+  const selectMode = (mode: "current" | "search") => {
+    setLocationMode(mode);
+    if (mode === "current") {
+      setSearchText("");
+      setSearchResults([]);
+      setPickedLocation(null);
+    }
+  };
+
+  const canSubmit = !!sel && (locationMode === "current" ? hasCurrentLocation : !!pickedLocation);
+
   const submit = () => {
-    if (!sel) return;
+    if (!canSubmit || !sel) return;
     const limit = sel === "camera" && speedLimit.trim()
       ? parseInt(speedLimit.trim(), 10)
       : undefined;
-    onSubmit(sel, isNaN(limit as number) ? undefined : limit);
+    const location = locationMode === "search" && pickedLocation ? pickedLocation : undefined;
+    onSubmit(sel, isNaN(limit as number) ? undefined : limit, location);
     reset();
   };
 
@@ -79,8 +154,148 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
           <View style={[styles.handle, { backgroundColor: c.border }]} />
           <Text style={[styles.title, { color: c.foreground }]}>Report an Incident</Text>
           <Text style={[styles.sub, { color: c.mutedForeground }]}>
-            What do you see at your current location?
+            What do you see, and where?
           </Text>
+
+          {/* Location mode toggle */}
+          <View style={[styles.locToggle, { backgroundColor: c.muted }]}>
+            <TouchableOpacity
+              style={[
+                styles.locToggleBtn,
+                locationMode === "current" && { backgroundColor: c.card },
+              ]}
+              onPress={() => selectMode("current")}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="navigate"
+                size={14}
+                color={locationMode === "current" ? c.primary : c.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.locToggleTxt,
+                  { color: locationMode === "current" ? c.primary : c.mutedForeground },
+                ]}
+              >
+                Current Location
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.locToggleBtn,
+                locationMode === "search" && { backgroundColor: c.card },
+              ]}
+              onPress={() => selectMode("search")}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="search"
+                size={14}
+                color={locationMode === "search" ? c.primary : c.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.locToggleTxt,
+                  { color: locationMode === "search" ? c.primary : c.mutedForeground },
+                ]}
+              >
+                Search Location
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {locationMode === "current" && !hasCurrentLocation && (
+            <View style={[styles.locHint, { backgroundColor: "#F5730012", borderColor: "#F5730044" }]}>
+              <Ionicons name="alert-circle-outline" size={15} color="#F57300" />
+              <Text style={[styles.locHintTxt, { color: c.mutedForeground }]}>
+                Your current location isn't available yet — try "Search Location" instead.
+              </Text>
+            </View>
+          )}
+
+          {locationMode === "search" && (
+            <View style={styles.searchWrap}>
+              <View style={[styles.searchInputWrap, { borderColor: c.border, backgroundColor: c.background }]}>
+                <Ionicons name="search-outline" size={16} color={c.mutedForeground} />
+                <TextInput
+                  style={[styles.searchInput, { color: c.foreground }]}
+                  placeholder="Search road, area, or landmark…"
+                  placeholderTextColor={c.mutedForeground}
+                  value={searchText}
+                  onChangeText={handleSearchChange}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+                />
+                {searchLoading && <ActivityIndicator size="small" color={c.primary} />}
+                {!!searchText && !searchLoading && (
+                  <TouchableOpacity onPress={() => handleSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={16} color={c.mutedForeground} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {pickedLocation && (
+                <View style={[styles.pickedRow, { backgroundColor: c.primary + "12", borderColor: c.primary + "44" }]}>
+                  <Ionicons name="checkmark-circle" size={15} color={c.primary} />
+                  <Text style={[styles.pickedTxt, { color: c.foreground }]} numberOfLines={1}>
+                    {pickedLocation.label}
+                  </Text>
+                </View>
+              )}
+
+              {!pickedLocation && searchError && (
+                <View style={styles.resultHint}>
+                  <Ionicons name="cloud-offline-outline" size={14} color="#F57C00" />
+                  <Text style={[styles.resultHintTxt, { color: c.mutedForeground }]}>
+                    Search unavailable — check your connection
+                  </Text>
+                </View>
+              )}
+
+              {!pickedLocation && !searchError && searchResults.length === 0 && !searchLoading && searchText.length > 1 && (
+                <View style={styles.resultHint}>
+                  <Ionicons name="location-outline" size={14} color={c.mutedForeground} />
+                  <Text style={[styles.resultHintTxt, { color: c.mutedForeground }]}>
+                    No places found for "{searchText}"
+                  </Text>
+                </View>
+              )}
+
+              {!pickedLocation && searchResults.length > 0 && (
+                <FlatList
+                  data={searchResults}
+                  keyExtractor={(_, i) => String(i)}
+                  keyboardShouldPersistTaps="handled"
+                  style={styles.resultsList}
+                  nestedScrollEnabled
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.resultRow,
+                        { borderBottomColor: c.border },
+                        index === 0 && { borderTopColor: c.border, borderTopWidth: StyleSheet.hairlineWidth },
+                      ]}
+                      onPress={() => pickResult(item)}
+                      activeOpacity={0.72}
+                    >
+                      <Ionicons name="location-outline" size={14} color={c.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.resultName, { color: c.foreground }]} numberOfLines={1}>
+                          {item.short}
+                        </Text>
+                        <Text style={[styles.resultSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                          {item.display.split(",").slice(2).join(",").trim()}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+            </View>
+          )}
 
           {/* Type grid */}
           <View style={styles.grid}>
@@ -147,13 +362,17 @@ export default function ReportModal({ visible, onClose, onSubmit }: ReportModalP
               <Text style={[styles.cancelTxt, { color: c.mutedForeground }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: sel ? (selItem?.color ?? c.primary) : c.muted }]}
+              style={[styles.submitBtn, { backgroundColor: canSubmit ? (selItem?.color ?? c.primary) : c.muted }]}
               onPress={submit}
-              disabled={!sel}
+              disabled={!canSubmit}
             >
               {selItem && <Text style={styles.submitEmoji}>{selItem.emoji}</Text>}
-              <Text style={[styles.submitTxt, { color: sel ? "#FFF" : c.mutedForeground }]}>
-                {selItem ? `Report ${selItem.label}` : "Select one above"}
+              <Text style={[styles.submitTxt, { color: canSubmit ? "#FFF" : c.mutedForeground }]}>
+                {!sel
+                  ? "Select one above"
+                  : locationMode === "search" && !pickedLocation
+                    ? "Pick a location"
+                    : `Report ${selItem?.label}`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -168,7 +387,52 @@ const styles = StyleSheet.create({
   sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 48 },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  sub: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 20 },
+  sub: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 16 },
+
+  locToggle: {
+    flexDirection: "row", borderRadius: 12, padding: 3, marginBottom: 10, gap: 3,
+  },
+  locToggleBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 9, borderRadius: 10,
+  },
+  locToggleTxt: { fontSize: 12.5, fontFamily: "Inter_600SemiBold" },
+
+  locHint: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 14,
+  },
+  locHintTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 16 },
+
+  searchWrap: { marginBottom: 14 },
+  searchInputWrap: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1.5, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  pickedRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 9, marginTop: 8,
+  },
+  pickedTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 1 },
+
+  resultHint: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 10, paddingHorizontal: 4,
+  },
+  resultHintTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+
+  resultsList: { maxHeight: 160, marginTop: 6 },
+  resultRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  resultName: { fontSize: 13.5, fontFamily: "Inter_600SemiBold" },
+  resultSub: { fontSize: 11.5, fontFamily: "Inter_400Regular", marginTop: 1 },
+
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 10,
