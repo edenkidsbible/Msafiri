@@ -1294,11 +1294,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit }
       ).then((result) => {
         setCommunityReports((prev) => {
-          const u = prev.map((rep) =>
-            rep.id === localId
-              ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
-              : rep
-          );
+          let u: CommunityReport[];
+          if (result.action === "clustered") {
+            // Server merged into an existing report — update that row and drop the optimistic duplicate
+            u = prev
+              .filter((rep) => rep.id !== localId)
+              .map((rep) =>
+                rep.serverId === result.id
+                  ? { ...rep, confirmCount: result.confirmCount, status: result.status as CommunityReport["status"] }
+                  : rep
+              );
+          } else {
+            u = prev.map((rep) =>
+              rep.id === localId
+                ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
+                : rep
+            );
+          }
           AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
           return u;
         });
@@ -1360,13 +1372,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!deviceIdRef.current) return;
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
     const serverId = report?.serverId ?? id;
-    // Optimistic: bump count, remove if >= 3 denials
-    setCommunityReports((prev) => {
-      const updated = prev.map((r) =>
-        (r.id === id || r.serverId === id) ? { ...r, denyCount: (r.denyCount ?? 0) + 1 } : r
-      );
-      return updated.filter((r) => (r.denyCount ?? 0) < 3);
-    });
+    // Optimistic: immediately remove — server now denies on first vote
+    setCommunityReports((prev) => prev.filter((r) => r.id !== id && r.serverId !== id));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try { await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
   }, []);

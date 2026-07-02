@@ -121,14 +121,14 @@ router.post("/reports", async (req: Request, res: Response) => {
     const ttl = TTL_SECONDS[type] ?? null;
     const expiresAt = ttl ? new Date(Date.now() + ttl * 1000) : null;
 
-    // ── Camera clustering: find an existing active camera within 50 m ──────
-    if (type === "camera") {
+    // ── Deduplication: find an existing active report of the same type within 50 m ──
+    {
       const nearby = await db
         .select()
         .from(communityReportsTable)
         .where(
           and(
-            eq(communityReportsTable.type, "camera"),
+            eq(communityReportsTable.type, type),
             isActive(),
             gte(communityReportsTable.lat, lat - CLUSTER_LAT),
             sql`${communityReportsTable.lat} <= ${lat + CLUSTER_LAT}`,
@@ -138,16 +138,28 @@ router.post("/reports", async (req: Request, res: Response) => {
         );
 
       const cluster = nearby.find(
-        (r) => r.deviceId !== deviceId && haversine(lat, lng, r.lat, r.lng) < 50
+        (r) => haversine(lat, lng, r.lat, r.lng) < 50
       );
 
       if (cluster) {
+        // Original creator OR device that already confirmed → no-op, return existing report
+        const isCreator = cluster.deviceId === deviceId;
+        const alreadyConfirmed = isCreator || (cluster.confirmedBy as string[]).includes(deviceId);
+        if (alreadyConfirmed) {
+          return res.json({
+            id: cluster.id,
+            action: "clustered",
+            confirmCount: cluster.confirmCount,
+            status: cluster.status,
+          });
+        }
         const newCount = cluster.confirmCount + 1;
         const newStatus =
           newCount >= 2 && cluster.status === "active" ? "confirmed" : cluster.status;
+        const newConfirmedBy = [...(cluster.confirmedBy as string[]), deviceId];
         await db
           .update(communityReportsTable)
-          .set({ confirmCount: newCount, status: newStatus })
+          .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy })
           .where(eq(communityReportsTable.id, cluster.id));
         return res.json({
           id: cluster.id,
@@ -192,15 +204,19 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
     if (report.deviceId === deviceId)
       return res.status(403).json({ error: "Cannot confirm own report" });
 
+    const confirmedBy = report.confirmedBy as string[];
+    if (confirmedBy.includes(deviceId)) {
+      return res.json({ confirmCount: report.confirmCount, status: report.status });
+    }
+
     const newCount = report.confirmCount + 1;
     const newStatus =
-      report.type === "camera" && newCount >= 2 && report.status === "active"
-        ? "confirmed"
-        : report.status;
+      newCount >= 2 && report.status === "active" ? "confirmed" : report.status;
+    const newConfirmedBy = [...confirmedBy, deviceId];
 
     await db
       .update(communityReportsTable)
-      .set({ confirmCount: newCount, status: newStatus })
+      .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy })
       .where(eq(communityReportsTable.id, id));
 
     return res.json({ confirmCount: newCount, status: newStatus });
@@ -289,7 +305,7 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     if (!report) return res.status(404).json({ error: "Not found" });
 
     const newDenyCount = report.denyCount + 1;
-    const newStatus = newDenyCount >= 3 ? "denied" : report.status;
+    const newStatus = "denied";
 
     await db
       .update(communityReportsTable)

@@ -356,7 +356,7 @@ export default function DriveMapView() {
                         </View>
                         <Text style={ms.incidentMeta}>
                           {ageStr}
-                          {r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount} confirmed` : ""}
+                          {r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         {canVote && (

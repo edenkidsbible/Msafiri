@@ -149,6 +149,9 @@ function CalloutContent({ group }: { group: ClusterGroup }) {
       <View style={calloutS.wrap}>
         <Text style={calloutS.title}>{def.emoji}  {def.label}</Text>
         <Text style={calloutS.sub}>{ageStr(r.timestamp)}</Text>
+        {r.confirmCount != null && r.confirmCount > 1 && (
+          <Text style={calloutS.sub}>Reported by {r.confirmCount} users</Text>
+        )}
       </View>
     );
   }
@@ -164,6 +167,9 @@ function CalloutContent({ group }: { group: ClusterGroup }) {
             <View style={{ flex: 1 }}>
               <Text style={calloutS.rowLabel}>{def.label}</Text>
               <Text style={calloutS.rowAge}>{ageStr(r.timestamp)}</Text>
+              {r.confirmCount != null && r.confirmCount > 1 && (
+                <Text style={calloutS.rowAge}>Reported by {r.confirmCount} users</Text>
+              )}
             </View>
           </View>
         );

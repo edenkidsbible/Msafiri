@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, doublePrecision, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, doublePrecision, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const communityReportsTable = pgTable("community_reports", {
   deviceId:     text("device_id").notNull(),
   status:       text("status").notNull().default("active"), // active|confirmed|expired|denied
   confirmCount: integer("confirm_count").notNull().default(1),
+  confirmedBy:  jsonb("confirmed_by").notNull().$type<string[]>().default([]),
   denyCount:    integer("deny_count").notNull().default(0),
   speedLimit:   integer("speed_limit"),           // cameras only
   roadName:     text("road_name"),
