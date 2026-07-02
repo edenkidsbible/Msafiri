@@ -1,0 +1,62 @@
+import { Router, type Request, type Response } from "express";
+import { db, pushTokensTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
+const router = Router();
+
+// POST /push/register
+router.post("/push/register", async (req: Request, res: Response) => {
+  const { deviceId, token, platform } = req.body as {
+    deviceId: string;
+    token: string;
+    platform?: string;
+  };
+
+  if (!deviceId || !token) {
+    return res.status(400).json({ error: "deviceId and token are required" });
+  }
+
+  try {
+    await db
+      .insert(pushTokensTable)
+      .values({
+        deviceId,
+        token,
+        platform: platform ?? "unknown",
+        lastSeenAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: pushTokensTable.deviceId,
+        set: {
+          token,
+          platform: platform ?? "unknown",
+          lastSeenAt: new Date(),
+        },
+      });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("POST /push/register error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /push/deregister
+router.delete("/push/deregister", async (req: Request, res: Response) => {
+  const { deviceId } = req.body as { deviceId: string };
+
+  if (!deviceId) {
+    return res.status(400).json({ error: "deviceId is required" });
+  }
+
+  try {
+    await db
+      .delete(pushTokensTable)
+      .where(eq(pushTokensTable.deviceId, deviceId));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /push/deregister error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+export default router;

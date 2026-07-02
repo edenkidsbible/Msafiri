@@ -43,11 +43,18 @@ import type {
   AdminUserUpdate,
   AuditLogList,
   DeleteResult,
+  DeregisterPushTokenInput,
   HealthStatus,
   ListSpeedZonesParams,
+  PushCampaign,
+  PushCampaignInput,
+  PushCampaignList,
+  PushDeviceStats,
+  PushRegisterInput,
   SpeedZoneInput,
   SpeedZonePublicList,
-  SpeedZoneUpdate
+  SpeedZoneUpdate,
+  SuccessResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1864,5 +1871,439 @@ export const useAdminDeleteSpeedZone = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteSpeedZoneMutationOptions(options));
+    }
+
+export const getRegisterPushTokenUrl = () => {
+
+
+
+
+  return `/api/push/register`
+}
+
+/**
+ * @summary Register device push token
+ */
+export const registerPushToken = async (pushRegisterInput: PushRegisterInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getRegisterPushTokenUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pushRegisterInput)
+  }
+);}
+
+
+
+
+export const getRegisterPushTokenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerPushToken>>, TError,{data: BodyType<PushRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerPushToken>>, TError,{data: BodyType<PushRegisterInput>}, TContext> => {
+
+const mutationKey = ['registerPushToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerPushToken>>, {data: BodyType<PushRegisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerPushToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterPushTokenMutationResult = NonNullable<Awaited<ReturnType<typeof registerPushToken>>>
+    export type RegisterPushTokenMutationBody = BodyType<PushRegisterInput>
+    export type RegisterPushTokenMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Register device push token
+ */
+export const useRegisterPushToken = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerPushToken>>, TError,{data: BodyType<PushRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerPushToken>>,
+        TError,
+        {data: BodyType<PushRegisterInput>},
+        TContext
+      > => {
+      return useMutation(getRegisterPushTokenMutationOptions(options));
+    }
+
+export const getDeregisterPushTokenUrl = () => {
+
+
+
+
+  return `/api/push/deregister`
+}
+
+/**
+ * @summary Remove device push token
+ */
+export const deregisterPushToken = async (deregisterPushTokenInput: DeregisterPushTokenInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getDeregisterPushTokenUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deregisterPushTokenInput)
+  }
+);}
+
+
+
+
+export const getDeregisterPushTokenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deregisterPushToken>>, TError,{data: BodyType<DeregisterPushTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deregisterPushToken>>, TError,{data: BodyType<DeregisterPushTokenInput>}, TContext> => {
+
+const mutationKey = ['deregisterPushToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deregisterPushToken>>, {data: BodyType<DeregisterPushTokenInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  deregisterPushToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeregisterPushTokenMutationResult = NonNullable<Awaited<ReturnType<typeof deregisterPushToken>>>
+    export type DeregisterPushTokenMutationBody = BodyType<DeregisterPushTokenInput>
+    export type DeregisterPushTokenMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove device push token
+ */
+export const useDeregisterPushToken = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deregisterPushToken>>, TError,{data: BodyType<DeregisterPushTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deregisterPushToken>>,
+        TError,
+        {data: BodyType<DeregisterPushTokenInput>},
+        TContext
+      > => {
+      return useMutation(getDeregisterPushTokenMutationOptions(options));
+    }
+
+export const getAdminGetPushDeviceStatsUrl = () => {
+
+
+
+
+  return `/api/admin/push/devices`
+}
+
+/**
+ * @summary Get registered device statistics
+ */
+export const adminGetPushDeviceStats = async ( options?: RequestInit): Promise<PushDeviceStats> => {
+
+  return customFetch<PushDeviceStats>(getAdminGetPushDeviceStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetPushDeviceStatsQueryKey = () => {
+    return [
+    `/api/admin/push/devices`
+    ] as const;
+    }
+
+
+export const getAdminGetPushDeviceStatsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetPushDeviceStats>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetPushDeviceStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetPushDeviceStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetPushDeviceStats>>> = ({ signal }) => adminGetPushDeviceStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetPushDeviceStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetPushDeviceStatsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetPushDeviceStats>>>
+export type AdminGetPushDeviceStatsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get registered device statistics
+ */
+
+export function useAdminGetPushDeviceStats<TData = Awaited<ReturnType<typeof adminGetPushDeviceStats>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetPushDeviceStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetPushDeviceStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminListPushCampaignsUrl = () => {
+
+
+
+
+  return `/api/admin/push/campaigns`
+}
+
+/**
+ * @summary List push campaigns
+ */
+export const adminListPushCampaigns = async ( options?: RequestInit): Promise<PushCampaignList> => {
+
+  return customFetch<PushCampaignList>(getAdminListPushCampaignsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListPushCampaignsQueryKey = () => {
+    return [
+    `/api/admin/push/campaigns`
+    ] as const;
+    }
+
+
+export const getAdminListPushCampaignsQueryOptions = <TData = Awaited<ReturnType<typeof adminListPushCampaigns>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListPushCampaigns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListPushCampaignsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListPushCampaigns>>> = ({ signal }) => adminListPushCampaigns({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListPushCampaigns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListPushCampaignsQueryResult = NonNullable<Awaited<ReturnType<typeof adminListPushCampaigns>>>
+export type AdminListPushCampaignsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List push campaigns
+ */
+
+export function useAdminListPushCampaigns<TData = Awaited<ReturnType<typeof adminListPushCampaigns>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListPushCampaigns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListPushCampaignsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminCreatePushCampaignUrl = () => {
+
+
+
+
+  return `/api/admin/push/campaigns`
+}
+
+/**
+ * @summary Create and optionally send a push campaign
+ */
+export const adminCreatePushCampaign = async (pushCampaignInput: PushCampaignInput, options?: RequestInit): Promise<PushCampaign> => {
+
+  return customFetch<PushCampaign>(getAdminCreatePushCampaignUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pushCampaignInput)
+  }
+);}
+
+
+
+
+export const getAdminCreatePushCampaignMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreatePushCampaign>>, TError,{data: BodyType<PushCampaignInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreatePushCampaign>>, TError,{data: BodyType<PushCampaignInput>}, TContext> => {
+
+const mutationKey = ['adminCreatePushCampaign'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreatePushCampaign>>, {data: BodyType<PushCampaignInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreatePushCampaign(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreatePushCampaignMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreatePushCampaign>>>
+    export type AdminCreatePushCampaignMutationBody = BodyType<PushCampaignInput>
+    export type AdminCreatePushCampaignMutationError = ErrorType<void>
+
+    /**
+ * @summary Create and optionally send a push campaign
+ */
+export const useAdminCreatePushCampaign = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreatePushCampaign>>, TError,{data: BodyType<PushCampaignInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreatePushCampaign>>,
+        TError,
+        {data: BodyType<PushCampaignInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreatePushCampaignMutationOptions(options));
+    }
+
+export const getAdminDeletePushCampaignUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/push/campaigns/${id}`
+}
+
+/**
+ * @summary Delete a push campaign
+ */
+export const adminDeletePushCampaign = async (id: string, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminDeletePushCampaignUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeletePushCampaignMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeletePushCampaign>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeletePushCampaign>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminDeletePushCampaign'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeletePushCampaign>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminDeletePushCampaign(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeletePushCampaignMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeletePushCampaign>>>
+
+    export type AdminDeletePushCampaignMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a push campaign
+ */
+export const useAdminDeletePushCampaign = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeletePushCampaign>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeletePushCampaign>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeletePushCampaignMutationOptions(options));
     }
 

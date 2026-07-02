@@ -19,6 +19,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription } from "@/lib/revenuecat";
 
 try {
@@ -48,6 +49,7 @@ function RootLayoutNav() {
   const c = useColors();
   const router = useRouter();
   const checked = useRef(false);
+  usePushNotifications();
 
   useEffect(() => {
     // Wait until AppContext has hydrated from AsyncStorage and RevenueCat

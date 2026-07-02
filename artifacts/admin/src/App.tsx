@@ -15,6 +15,7 @@ import Users from "@/pages/users";
 import AuditLog from "@/pages/audit-log";
 import Notifications from "@/pages/notifications";
 import Subscribers from "@/pages/subscribers";
+import PushCampaigns from "@/pages/push-campaigns";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,7 @@ function Router() {
       <Route path="/audit-log"><ProtectedRoute component={AuditLog} adminOrModerator={true} /></Route>
       <Route path="/notifications"><ProtectedRoute component={Notifications} adminOrModerator={true} /></Route>
       <Route path="/subscribers"><ProtectedRoute component={Subscribers} adminOrModerator={true} /></Route>
+      <Route path="/push-campaigns"><ProtectedRoute component={PushCampaigns} adminOrModerator={true} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

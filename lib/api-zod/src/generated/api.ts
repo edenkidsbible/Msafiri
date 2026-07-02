@@ -523,3 +523,95 @@ export const AdminDeleteSpeedZoneResponse = zod.object({
 })
 
 
+/**
+ * @summary Register device push token
+ */
+export const RegisterPushTokenBody = zod.object({
+  "deviceId": zod.string(),
+  "token": zod.string(),
+  "platform": zod.string().optional()
+})
+
+export const RegisterPushTokenResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Remove device push token
+ */
+export const DeregisterPushTokenBody = zod.object({
+  "deviceId": zod.string()
+})
+
+export const DeregisterPushTokenResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get registered device statistics
+ */
+export const AdminGetPushDeviceStatsResponse = zod.object({
+  "total": zod.number(),
+  "byPlatform": zod.record(zod.string(), zod.number())
+})
+
+
+/**
+ * @summary List push campaigns
+ */
+export const AdminListPushCampaignsResponse = zod.object({
+  "campaigns": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "sentCount": zod.number(),
+  "failedCount": zod.number(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create and optionally send a push campaign
+ */
+export const AdminCreatePushCampaignBody = zod.object({
+  "title": zod.string(),
+  "body": zod.string(),
+  "scheduledAt": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const AdminCreatePushCampaignResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "sentCount": zod.number(),
+  "failedCount": zod.number(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a push campaign
+ */
+export const AdminDeletePushCampaignParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeletePushCampaignResponse = zod.object({
+  "success": zod.boolean()
+})
+
+

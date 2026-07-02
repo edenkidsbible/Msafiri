@@ -311,6 +311,56 @@ export interface SpeedZoneUpdate {
   status?: string;
 }
 
+export interface SuccessResult {
+  success: boolean;
+}
+
+export interface PushRegisterInput {
+  deviceId: string;
+  token: string;
+  platform?: string;
+}
+
+export interface DeregisterPushTokenInput {
+  deviceId: string;
+}
+
+export type PushDeviceStatsByPlatform = {[key: string]: number};
+
+export interface PushDeviceStats {
+  total: number;
+  byPlatform: PushDeviceStatsByPlatform;
+}
+
+export interface PushCampaign {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  status: string;
+  /** @nullable */
+  scheduledAt?: string | null;
+  /** @nullable */
+  sentAt?: string | null;
+  sentCount: number;
+  failedCount: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface PushCampaignList {
+  campaigns: PushCampaign[];
+}
+
+export type PushCampaignInputData = {[key: string]: unknown};
+
+export interface PushCampaignInput {
+  title: string;
+  body: string;
+  scheduledAt?: string;
+  data?: PushCampaignInputData;
+}
+
 export type AdminListReportsParams = {
 page?: number;
 limit?: number;

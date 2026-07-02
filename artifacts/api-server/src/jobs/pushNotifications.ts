@@ -1,0 +1,195 @@
+import { db, pushTokensTable, pushCampaignsTable } from "@workspace/db";
+import { and, eq, lte, gte } from "drizzle-orm";
+import { sendPushNotifications } from "../lib/expoPush.js";
+import { logger } from "../lib/logger.js";
+
+// ─── Rotating daily messages ─────────────────────────────────────────────────
+
+const MORNING_MESSAGES = [
+  { title: "🌅 Good morning, safe driver!", body: "Check live road hazards before heading out. Stay one step ahead on Kenyan roads." },
+  { title: "🚗 Morning road check!", body: "Traffic reports just updated. See what's ahead on your route today." },
+  { title: "☀️ Start your day safely", body: "Speed cameras and roadblocks refreshed. Tap to see today's road conditions." },
+  { title: "🛡️ Drive smart today", body: "New incidents reported overnight. Check conditions on your route before you go." },
+  { title: "🌄 Ready to drive?", body: "Msafiri has live alerts for your area. Stay informed, stay safe." },
+  { title: "🚦 Morning commute?", body: "See live hazards, speed cameras, and police checkpoints near you right now." },
+  { title: "📍 Know before you go", body: "Potholes, road works, and accidents flagged near you. Open Msafiri now." },
+];
+
+const EVENING_MESSAGES = [
+  { title: "🌆 Evening rush!", body: "Traffic building up? Check live hazards and cameras near you before heading home." },
+  { title: "🚦 Rush hour alert", body: "Accidents and congestion reported. Plan your route home with live Msafiri data." },
+  { title: "🌙 Heading home?", body: "Check the latest road conditions and beat the evening traffic." },
+  { title: "⚠️ Evening road updates", body: "New reports near you. Tap to see what's happening on the roads right now." },
+  { title: "🛣️ Know your route home", body: "Live speed zones and hazards updated for your evening drive." },
+  { title: "🏘️ Almost home!", body: "See police checkpoints and roadblocks near you before the last stretch home." },
+  { title: "🌛 Evening safety check", body: "Visibility dropping. Check for unlit hazards and road works near you." },
+];
+
+const ENGAGEMENT_MESSAGES = [
+  { title: "📍 Seen anything on the road?", body: "Report a hazard, camera, or pothole and help fellow drivers. Takes just 10 seconds!" },
+  { title: "🤝 Be the city's eyes", body: "Every report you add keeps Kenyan roads safer. Share what you see today!" },
+  { title: "🏆 Your reports matter", body: "Spot a pothole or roadblock? Add a quick report and earn community trust." },
+  { title: "📡 Help drivers near you", body: "Drivers are relying on live reports right now. See something? Say something." },
+];
+
+function getDayOfYear(): number {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function pickMessage<T extends { title: string; body: string }>(arr: T[]): T {
+  return arr[getDayOfYear() % arr.length]!;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function alreadySentToday(type: string): Promise<boolean> {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setUTCHours(23, 59, 59, 999);
+
+  const rows = await db
+    .select({ id: pushCampaignsTable.id })
+    .from(pushCampaignsTable)
+    .where(
+      and(
+        eq(pushCampaignsTable.type, type),
+        eq(pushCampaignsTable.status, "sent"),
+        gte(pushCampaignsTable.sentAt, todayStart),
+        lte(pushCampaignsTable.sentAt, todayEnd)
+      )
+    )
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+async function sendAutoCampaign(type: string, title: string, body: string): Promise<void> {
+  if (await alreadySentToday(type)) return;
+
+  const tokens = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable);
+
+  if (tokens.length === 0) {
+    logger.info({ type }, "No push tokens registered yet — skipping auto campaign");
+    return;
+  }
+
+  const [campaign] = await db
+    .insert(pushCampaignsTable)
+    .values({ title, body, type, status: "sending", createdBy: "system" })
+    .returning();
+
+  const { ok, failed } = await sendPushNotifications(
+    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, data: { type } }))
+  );
+
+  await db
+    .update(pushCampaignsTable)
+    .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed })
+    .where(eq(pushCampaignsTable.id, campaign.id));
+
+  logger.info({ type, ok, failed }, "Auto push campaign sent");
+}
+
+// ─── Scheduled campaign processor ────────────────────────────────────────────
+
+async function processScheduledCampaigns(): Promise<void> {
+  const now = new Date();
+
+  const due = await db
+    .select()
+    .from(pushCampaignsTable)
+    .where(
+      and(
+        eq(pushCampaignsTable.status, "scheduled"),
+        lte(pushCampaignsTable.scheduledAt, now)
+      )
+    );
+
+  for (const campaign of due) {
+    try {
+      await db
+        .update(pushCampaignsTable)
+        .set({ status: "sending" })
+        .where(eq(pushCampaignsTable.id, campaign.id));
+
+      const tokens = await db
+        .select({ token: pushTokensTable.token })
+        .from(pushTokensTable);
+
+      const messages = tokens.map((t) => ({
+        to: t.token,
+        title: campaign.title,
+        body: campaign.body,
+        sound: "default" as const,
+        data: campaign.dataJson ? (JSON.parse(campaign.dataJson) as Record<string, unknown>) : {},
+      }));
+
+      const { ok, failed } = await sendPushNotifications(messages);
+
+      await db
+        .update(pushCampaignsTable)
+        .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed })
+        .where(eq(pushCampaignsTable.id, campaign.id));
+
+      logger.info({ id: campaign.id, ok, failed }, "Scheduled push campaign sent");
+    } catch (err) {
+      await db
+        .update(pushCampaignsTable)
+        .set({ status: "failed" })
+        .where(eq(pushCampaignsTable.id, campaign.id));
+      logger.error({ err, id: campaign.id }, "Failed to send scheduled push campaign");
+    }
+  }
+}
+
+// ─── Daily time-based triggers (Kenya = UTC+3) ────────────────────────────────
+
+async function checkDailyTriggers(): Promise<void> {
+  const now = new Date();
+  const eatHour = (now.getUTCHours() + 3) % 24;
+  const min = now.getUTCMinutes();
+
+  // 7:00–7:05 AM EAT → morning reminder
+  if (eatHour === 7 && min < 5) {
+    const msg = pickMessage(MORNING_MESSAGES);
+    await sendAutoCampaign("daily_morning", msg.title, msg.body);
+  }
+
+  // 5:30–5:35 PM EAT → evening reminder
+  if (eatHour === 17 && min >= 30 && min < 35) {
+    const msg = pickMessage(EVENING_MESSAGES);
+    await sendAutoCampaign("daily_evening", msg.title, msg.body);
+  }
+
+  // Wednesday 12:00–12:05 PM EAT → weekly engagement nudge
+  if (now.getUTCDay() === 3 && eatHour === 12 && min < 5) {
+    const msg = pickMessage(ENGAGEMENT_MESSAGES);
+    await sendAutoCampaign("engagement", msg.title, msg.body);
+  }
+}
+
+// ─── Job entry point ──────────────────────────────────────────────────────────
+
+async function runJob(): Promise<void> {
+  await processScheduledCampaigns();
+  await checkDailyTriggers();
+}
+
+export function startPushNotificationsJob(): NodeJS.Timeout {
+  logger.info("pushNotifications job started");
+
+  runJob().catch((err) =>
+    logger.warn({ err }, "pushNotifications: initial run failed")
+  );
+
+  return setInterval(() => {
+    runJob().catch((err) =>
+      logger.warn({ err }, "pushNotifications: interval run failed")
+    );
+  }, 60 * 1000);
+}

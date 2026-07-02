@@ -24,6 +24,10 @@ tags:
     description: Admin notifications
   - name: admin-subscribers
     description: Admin subscriber management
+  - name: push
+    description: Device push token registration
+  - name: admin-push
+    description: Admin push notification campaigns
   - name: speed-zones
     description: Public speed zone lookup
   - name: admin-speed-zones
@@ -557,6 +561,127 @@ paths:
         "404":
           description: Not found
 
+  /push/register:
+    post:
+      operationId: registerPushToken
+      tags: [push]
+      summary: Register device push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushRegisterInput"
+      responses:
+        "200":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+
+  /push/deregister:
+    delete:
+      operationId: deregisterPushToken
+      tags: [push]
+      summary: Remove device push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeregisterPushTokenInput"
+      responses:
+        "200":
+          description: Deregistered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+
+  /admin/push/devices:
+    get:
+      operationId: adminGetPushDeviceStats
+      tags: [admin-push]
+      summary: Get registered device statistics
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Device stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushDeviceStats"
+        "401":
+          description: Unauthorized
+
+  /admin/push/campaigns:
+    get:
+      operationId: adminListPushCampaigns
+      tags: [admin-push]
+      summary: List push campaigns
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Campaign list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushCampaignList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: adminCreatePushCampaign
+      tags: [admin-push]
+      summary: Create and optionally send a push campaign
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushCampaignInput"
+      responses:
+        "200":
+          description: Sent immediately
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushCampaign"
+        "201":
+          description: Scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushCampaign"
+        "401":
+          description: Unauthorized
+
+  /admin/push/campaigns/{id}:
+    delete:
+      operationId: adminDeletePushCampaign
+      tags: [admin-push]
+      summary: Delete a push campaign
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "401":
+          description: Unauthorized
+
 components:
   schemas:
     HealthStatus:
@@ -896,3 +1021,68 @@ components:
         endLat:      { type: ["number", "null"] }
         endLng:      { type: ["number", "null"] }
         status:      { type: string }
+
+    SuccessResult:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+
+    PushRegisterInput:
+      type: object
+      required: [deviceId, token]
+      properties:
+        deviceId: { type: string }
+        token:    { type: string }
+        platform: { type: string }
+
+    DeregisterPushTokenInput:
+      type: object
+      required: [deviceId]
+      properties:
+        deviceId: { type: string }
+
+    PushDeviceStats:
+      type: object
+      required: [total, byPlatform]
+      properties:
+        total:      { type: integer }
+        byPlatform:
+          type: object
+          additionalProperties: { type: integer }
+
+    PushCampaign:
+      type: object
+      required: [id, title, body, type, status, sentCount, failedCount, createdBy, createdAt]
+      properties:
+        id:          { type: string }
+        title:       { type: string }
+        body:        { type: string }
+        type:        { type: string }
+        status:      { type: string }
+        scheduledAt: { type: ["string", "null"] }
+        sentAt:      { type: ["string", "null"] }
+        sentCount:   { type: integer }
+        failedCount: { type: integer }
+        createdBy:   { type: string }
+        createdAt:   { type: string }
+
+    PushCampaignList:
+      type: object
+      required: [campaigns]
+      properties:
+        campaigns:
+          type: array
+          items:
+            $ref: "#/components/schemas/PushCampaign"
+
+    PushCampaignInput:
+      type: object
+      required: [title, body]
+      properties:
+        title:       { type: string }
+        body:        { type: string }
+        scheduledAt: { type: string }
+        data:
+          type: object
+          additionalProperties: {}
