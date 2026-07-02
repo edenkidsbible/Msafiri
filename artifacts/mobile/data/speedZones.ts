@@ -164,4 +164,10 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz088", name: "Embu–Nairobi Highway – Makenji/Kabati Zone", road: "Embu–Nairobi Highway (A2/A3)", lat: -0.9530, lng: 37.1077, speedLimit: 50, type: "zone", description: "Built-up area zone at Makenji, Kabati on the Embu–Nairobi Highway. Limit: 50 km/h" },
   { id: "sz089", name: "Kisii–Rongo Road – Suneka Camera", road: "Kisii–Rongo Road", lat: -0.6651, lng: 34.6653, speedLimit: 50, type: "camera", description: "Mobile speed check reported at Suneka on the Kisii–Rongo Road. Limit: 50 km/h" },
   { id: "sz090", name: "Kisumu–Vihiga Road – Kona Mbaya Camera", road: "Kisumu–Vihiga Road", lat: -0.0926, lng: 34.7799, speedLimit: 50, type: "camera", description: "Mobile speed check reported towards Kona Mbaya on the Kisumu–Vihiga Road. Limit: 50 km/h" },
+
+  // ── Previously skipped speedcamke.com reports, resolved using user-supplied Plus Codes ──
+  { id: "sz091", name: "University Way Camera", road: "University Way", lat: -1.2809, lng: 36.8166, speedLimit: 50, type: "camera", description: "Fixed camera on University Way, Nairobi CBD, near the University of Nairobi Main Campus. Limit: 50 km/h" },
+  { id: "sz092", name: "Jamboni – Mayo Supermarket Camera", road: "A104 (Eldoret–Nakuru)", lat: 0.4729, lng: 35.2998, speedLimit: 100, type: "camera", description: "Mobile speed check near Mayo Supermarket at Jamboni, south of Eldoret. Limit: 100 km/h" },
+  { id: "sz093", name: "Eldoret–Nakuru Highway – Burnt Forest/Nabkoi Camera", road: "A104 (Eldoret–Nakuru)", lat: 0.1546, lng: 35.4698, speedLimit: 80, type: "camera", description: "Fixed camera just past Nabkoi shopping center, near Burnt Forest on the Eldoret–Nakuru Highway. Limit: 80 km/h" },
+  { id: "sz094", name: "Eldoret Southern Bypass Camera", road: "Eldoret Southern Bypass", lat: 0.4504, lng: 35.2438, speedLimit: 80, type: "camera", description: "Mobile speed check on the Eldoret Southern Bypass. Limit: 80 km/h" },
 ];
