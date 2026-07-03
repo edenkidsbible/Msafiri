@@ -26,7 +26,11 @@ export default function Login() {
   useEffect(() => {
     if (token) {
       const user = getUser();
-      setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
+      if (user?.mustChangePassword) {
+        setLocation("/change-password");
+      } else {
+        setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
+      }
     }
   }, [token, setLocation]);
 
@@ -43,6 +47,14 @@ export default function Login() {
       onSuccess: (data) => {
         setToken(data.token);
         const user = getUser();
+        if (user?.mustChangePassword) {
+          toast({
+            title: "Password change required",
+            description: "Please set a new password before continuing.",
+          });
+          setLocation("/change-password");
+          return;
+        }
         toast({
           title: "Sign in successful",
           description: "Welcome back to Msafiri Ops.",

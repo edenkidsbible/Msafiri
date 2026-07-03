@@ -1,5 +1,5 @@
 kind = "mobile"
-previewPath = "/"
+previewPath = "/mobile/"
 title = "SafeDrive Kenya"
 version = "1.0.0"
 id = "artifacts/mobile"
@@ -12,7 +12,7 @@ version = "1.0.0"
 [[services]]
 ensurePreviewReachable = "/status"
 name = "expo"
-paths = [ "/" ]
+paths = [ "/mobile/" ]
 localPort = 18115
 
 [services.development]
@@ -24,4 +24,4 @@ run = [ "pnpm", "--filter", "@workspace/mobile", "run", "serve" ]
 
 [services.env]
 PORT = "18115"
-BASE_PATH = "/"
+BASE_PATH = "/mobile/"

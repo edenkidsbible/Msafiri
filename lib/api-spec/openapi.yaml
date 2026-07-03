@@ -72,6 +72,31 @@ paths:
         "401":
           description: Invalid credentials
 
+  /admin/auth/change-password:
+    post:
+      operationId: adminChangePassword
+      tags: [admin-auth]
+      summary: Change the current admin user's password
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResult"
+        "400":
+          description: Invalid input
+        "401":
+          description: Invalid current password or unauthorized
+
   /admin/reports:
     get:
       operationId: adminListReports
@@ -1042,11 +1067,19 @@ components:
       type: object
       required: [id, email, name, role, createdAt]
       properties:
-        id:        { type: string }
-        email:     { type: string }
-        name:      { type: string }
-        role:      { type: string }
-        createdAt: { type: string }
+        id:                 { type: string }
+        email:               { type: string }
+        name:                { type: string }
+        role:                { type: string }
+        createdAt:           { type: string }
+        mustChangePassword:  { type: boolean }
+
+    AdminChangePasswordInput:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword:     { type: string, minLength: 8 }
 
     AdminUserList:
       type: object

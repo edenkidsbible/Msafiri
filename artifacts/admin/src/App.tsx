@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { getToken, getUser } from "@/lib/auth";
 
 import Login from "@/pages/login";
+import ChangePassword from "@/pages/change-password";
 import Dashboard from "@/pages/dashboard";
 import Reports from "@/pages/reports";
 import SpeedZones from "@/pages/speed-zones";
@@ -37,6 +38,8 @@ function ProtectedRoute({
   useEffect(() => {
     if (!token || !user) {
       setLocation("/login");
+    } else if (user.mustChangePassword) {
+      setLocation("/change-password");
     } else if (adminOnly && user.role !== "admin") {
       setLocation(user.role === "moderator" ? "/reports" : "/reports");
     } else if (adminOrModerator && !["admin", "moderator"].includes(user.role)) {
@@ -45,6 +48,7 @@ function ProtectedRoute({
   }, [token, user, setLocation, adminOnly, adminOrModerator]);
 
   if (!token || !user) return null;
+  if (user.mustChangePassword) return null;
   if (adminOnly && user.role !== "admin") return null;
   if (adminOrModerator && !["admin", "moderator"].includes(user.role)) return null;
 
@@ -58,7 +62,11 @@ function RootRedirect() {
 
   useEffect(() => {
     if (token && user) {
-      setLocation(user.role === "admin" ? "/dashboard" : "/reports");
+      if (user.mustChangePassword) {
+        setLocation("/change-password");
+      } else {
+        setLocation(user.role === "admin" ? "/dashboard" : "/reports");
+      }
     } else {
       setLocation("/login");
     }
@@ -72,6 +80,7 @@ function Router() {
     <Switch>
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
+      <Route path="/change-password" component={ChangePassword} />
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} adminOnly={true} /></Route>
       <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
       <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} /></Route>

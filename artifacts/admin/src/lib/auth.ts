@@ -14,7 +14,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-export function getUser(): { id: string; email: string; name: string; role: string } | null {
+export function getUser(): { id: string; email: string; name: string; role: string; mustChangePassword?: boolean } | null {
   const token = getToken();
   if (!token) return null;
   try {

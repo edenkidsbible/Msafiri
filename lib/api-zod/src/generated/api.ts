@@ -32,7 +32,33 @@ export const AdminLoginResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "mustChangePassword": zod.boolean().optional()
+})
+})
+
+
+/**
+ * @summary Change the current admin user's password
+ */
+export const adminChangePasswordBodyNewPasswordMin = 8;
+
+
+
+export const AdminChangePasswordBody = zod.object({
+  "currentPassword": zod.string(),
+  "newPassword": zod.string().min(adminChangePasswordBodyNewPasswordMin)
+})
+
+export const AdminChangePasswordResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "createdAt": zod.string(),
+  "mustChangePassword": zod.boolean().optional()
 })
 })
 
@@ -197,7 +223,8 @@ export const AdminListUsersResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "mustChangePassword": zod.boolean().optional()
 }))
 })
 
@@ -217,7 +244,8 @@ export const AdminCreateUserResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "mustChangePassword": zod.boolean().optional()
 })
 
 
@@ -240,7 +268,8 @@ export const AdminUpdateUserResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "mustChangePassword": zod.boolean().optional()
 })
 
 

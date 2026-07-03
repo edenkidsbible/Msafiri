@@ -12,4 +12,5 @@ export interface AdminUser {
   name: string;
   role: string;
   createdAt: string;
+  mustChangePassword?: boolean;
 }

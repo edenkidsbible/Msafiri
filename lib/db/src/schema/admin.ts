@@ -1,13 +1,15 @@
 import { pgTable, uuid, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const adminUsersTable = pgTable("admin_users", {
-  id:           uuid("id").primaryKey().defaultRandom(),
-  email:        text("email").notNull().unique(),
-  name:         text("name").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  role:         text("role").notNull().default("staff"), // admin | moderator | staff
-  permissions:  text("permissions"), // JSON array of feature keys, null = use role defaults
-  createdAt:    timestamp("created_at").notNull().defaultNow(),
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  email:              text("email").notNull().unique(),
+  name:               text("name").notNull(),
+  passwordHash:       text("password_hash").notNull(),
+  role:               text("role").notNull().default("staff"), // admin | moderator | staff
+  permissions:        text("permissions"), // JSON array of feature keys, null = use role defaults
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  passwordUpdatedAt:  timestamp("password_updated_at"),
+  createdAt:          timestamp("created_at").notNull().defaultNow(),
 });
 
 export const auditLogsTable = pgTable("audit_logs", {

@@ -41,8 +41,9 @@ async function seedDefaultAdmin() {
         name: "Super Admin",
         passwordHash,
         role: "admin",
+        mustChangePassword: true,
       });
-      logger.info("Default admin account created: admin@safedrive.co.ke");
+      logger.info("Default admin account created: admin@safedrive.co.ke (must change password on first login)");
     }
   } catch (err) {
     logger.warn({ err }, "Could not seed default admin — may already exist or DB unavailable");

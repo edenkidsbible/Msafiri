@@ -14,6 +14,7 @@ export interface AdminJwtPayload {
   email: string;
   name: string;
   role: string;
+  mustChangePassword?: boolean;
 }
 
 export function adminAuthMiddleware(req: Request, res: Response, next: NextFunction): void {

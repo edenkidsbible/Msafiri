@@ -20,11 +20,18 @@ export interface AdminUser {
   name: string;
   role: string;
   createdAt: string;
+  mustChangePassword?: boolean;
 }
 
 export interface AdminLoginResult {
   token: string;
   user: AdminUser;
+}
+
+export interface AdminChangePasswordInput {
+  currentPassword: string;
+  /** @minLength 8 */
+  newPassword: string;
 }
 
 export interface AdminUserList {

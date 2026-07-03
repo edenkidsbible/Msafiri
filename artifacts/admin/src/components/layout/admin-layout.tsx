@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -171,6 +171,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                   data-testid="btn-toggle-theme"
                 >
                   {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  title="Change password"
+                  data-testid="btn-change-password-nav"
+                >
+                  <Link href="/change-password">
+                    <KeyRound className="h-4 w-4" />
+                  </Link>
                 </Button>
                 <Button
                   variant="ghost"

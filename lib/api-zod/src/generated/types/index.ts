@@ -12,6 +12,7 @@ export * from './adminBlogPostList';
 export * from './adminBulkReportInput';
 export * from './adminBulkReportInputAction';
 export * from './adminBulkReportResult';
+export * from './adminChangePasswordInput';
 export * from './adminDeleteBlogPost200';
 export * from './adminExportReportsParams';
 export * from './adminListAuditLogsParams';
