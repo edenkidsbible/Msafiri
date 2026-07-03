@@ -490,6 +490,7 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
 const STEP_ANNOUNCE_DIST = 220; // m — announce next step when within this distance
 const STEP_ADVANCE_DIST = 35;  // m — advance step index when past maneuver
+const ARRIVAL_DIST = 60;       // m — wider than STEP_ADVANCE_DIST: tolerates GPS drift so the final "arrived" check doesn't get stuck
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
 // readout, so we only claim confidence in a posted limit when squarely
 // inside the admin-defined corridor — not just "somewhere nearby".
@@ -925,6 +926,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const idx = stepIdxRef.current;
       if (idx < steps.length) {
         const step = steps[idx];
+        const isLastStep = idx === steps.length - 1;
         const dist = haversine(lat, lng, step.location.latitude, step.location.longitude);
         setDistToNextM(Math.round(dist));
 
@@ -934,7 +936,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const distWord = dist > 100 ? `In ${Math.round(dist / 50) * 50} metres, ` : "";
           speakText(distWord + step.instruction.toLowerCase());
         }
-        if (dist < STEP_ADVANCE_DIST) {
+
+        // The final step gets a wider arrival radius than intermediate turns:
+        // urban GPS drift in dense areas can easily bias a fix by 30-40 m, and
+        // a driver who is visibly stopped at the destination but never quite
+        // crosses a tight 35 m ring would otherwise be stuck "still navigating"
+        // indefinitely with no further instruction to trigger a re-check.
+        const dest = navDestRef.current;
+        const distToDest = dest ? haversine(lat, lng, dest.lat, dest.lng) : dist;
+        const arrived = isLastStep
+          ? (dist < ARRIVAL_DIST || distToDest < ARRIVAL_DIST)
+          : dist < STEP_ADVANCE_DIST;
+
+        if (arrived) {
           const nextIdx = idx + 1;
           stepIdxRef.current = nextIdx;
           setCurrentStepIdx(nextIdx);
@@ -1375,6 +1389,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [activeRoute]);
 
   const stopNavigation = useCallback(() => {
+    // Silence the voice guide first and foremost — everything else is state
+    // cleanup. Some Android TTS engines race Speech.stop() if it lands right
+    // as a speak() call is still being dispatched to the native side, so a
+    // trailing follow-up stop a beat later catches any narrowly-missed
+    // utterance that slipped through the first call.
+    Speech.stop?.();
+    setTimeout(() => Speech.stop?.(), 60);
+
     navActiveRef.current = false;
     setNavigationActive(false);
     setDistToNextM(null);
@@ -1388,7 +1410,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
-    Speech.stop?.();
     setRouteIncidentsExpanded(false);
   }, []);
 
