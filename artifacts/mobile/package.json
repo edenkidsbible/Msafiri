@@ -58,12 +58,12 @@
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "11.4.1",
-    "expo-audio": "^57.0.0",
+    "expo-audio": "~1.1.1",
     "expo-keep-awake": "^15.0.8",
     "expo-notifications": "~0.32.17",
     "expo-sms": "^14.0.8",
     "expo-speech": "~14.0.8",
-    "react-native-maps": "1.18.0",
+    "react-native-maps": "1.20.1",
     "react-native-purchases": "^10.4.0"
   }
 }
