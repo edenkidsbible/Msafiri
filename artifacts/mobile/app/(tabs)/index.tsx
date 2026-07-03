@@ -326,16 +326,16 @@ export default function DriveScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.fab, { backgroundColor: isDark ? "#FFD60022" : fabBg }]}
+            style={[styles.fab, { backgroundColor: fabBg }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setThemeOverride(isDark ? "light" : "dark");
             }}
           >
             <Ionicons
-              name={isDark ? "sunny-outline" : "moon-outline"}
+              name={isDark ? "sunny" : "moon"}
               size={19}
-              color={isDark ? "#FFD600" : "#555"}
+              color={isDark ? "#FFC107" : "#3949AB"}
             />
           </TouchableOpacity>
         </View>
