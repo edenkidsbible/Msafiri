@@ -296,12 +296,16 @@ function projectOntoRoute(
   coords: RouteCoord[],
   cumDist: number[],
   lat: number,
-  lng: number
-): { offRouteM: number; alongRouteM: number } | null {
-  let best: { offRouteM: number; alongRouteM: number } | null = null;
-  for (let i = 0; i < coords.length; i++) {
+  lng: number,
+  searchFrom = 0,
+  searchTo = coords.length - 1
+): { offRouteM: number; alongRouteM: number; matchedIdx: number } | null {
+  let best: { offRouteM: number; alongRouteM: number; matchedIdx: number } | null = null;
+  const from = Math.max(0, searchFrom);
+  const to = Math.min(coords.length - 1, searchTo);
+  for (let i = from; i <= to; i++) {
     const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
-    if (!best || d < best.offRouteM) best = { offRouteM: d, alongRouteM: cumDist[i] };
+    if (!best || d < best.offRouteM) best = { offRouteM: d, alongRouteM: cumDist[i], matchedIdx: i };
   }
   return best;
 }
@@ -565,6 +569,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
   const speedHistoryRef = useRef<number[]>([]);
   const stationaryStreakRef = useRef(0);
+  // Last matched index into the active route's coordinate array, used to
+  // window the per-GPS-fix "where am I along the route" projection instead
+  // of rescanning every coordinate every second (see currentRouteDistanceM).
+  const routeProjIdxRef = useRef(0);
   // Proximity voice refs
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
@@ -1089,6 +1097,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     routeRef.current = null;
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
+    routeProjIdxRef.current = 0;
 
     fetchOSRM(currentLat, currentLng, navDestination.lat, navDestination.lng)
       .then((routes) => {
@@ -1245,7 +1254,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
-    const proj = projectOntoRoute(activeRoute.coords, routeCumDist, currentLat, currentLng);
+    // This recomputes on every single GPS fix (up to 1/s) while navigating,
+    // so scanning the *entire* route polyline every time — potentially
+    // thousands of haversine calls/sec on long routes — was a real source of
+    // main-thread jank that delayed everything downstream, including how
+    // promptly turn instructions actually got spoken relative to real
+    // position. Since the driver only ever moves forward a short distance
+    // between fixes, search a window around the last matched point instead
+    // of the whole array, falling back to a full scan only when we don't
+    // have a prior match yet (route just started/changed).
+    const coords = activeRoute.coords;
+    const hasPrior = routeProjIdxRef.current > 0 && routeProjIdxRef.current < coords.length;
+    const WINDOW = 40;
+    const proj = hasPrior
+      ? projectOntoRoute(
+          coords, routeCumDist, currentLat, currentLng,
+          routeProjIdxRef.current - 5, routeProjIdxRef.current + WINDOW
+        )
+      : projectOntoRoute(coords, routeCumDist, currentLat, currentLng);
+    if (proj) routeProjIdxRef.current = proj.matchedIdx;
     return proj ? proj.alongRouteM : null;
   }, [activeRoute, routeCumDist, currentLat, currentLng]);
 
@@ -1376,6 +1403,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
     setDistToNextM(null);
+    routeProjIdxRef.current = 0;
   }, [activeRoute]);
 
   const startNavigation = useCallback(() => {
@@ -1383,6 +1411,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
+    routeProjIdxRef.current = 0;
     navActiveRef.current = true;
     setNavigationActive(true);
     speakText("Navigation started. " + (activeRoute.steps[0]?.instruction ?? ""));
@@ -1410,6 +1439,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
+    routeProjIdxRef.current = 0;
     setRouteIncidentsExpanded(false);
   }, []);
 

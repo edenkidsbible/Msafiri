@@ -197,9 +197,17 @@ export default function DriveMapView() {
 
   useEffect(() => {
     if (!navigationActive || currentLat == null || currentLng == null) return;
+    // GPS fixes arrive up to once/sec while navigating, and each one used to
+    // kick off a fresh 900ms animateCamera call. On Android that's a heavy
+    // native operation (tilted 3D camera + GPU compositing), and back-to-back
+    // calls landing faster than the previous animation finished meant the
+    // camera never settled — this saturated the native bridge and caused the
+    // jank/lag the whole app (including voice instruction timing) suffered
+    // from during navigation. Using a duration shorter than the fix interval
+    // lets each animation actually complete before the next one starts.
     mapRef.current?.animateCamera(
       { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
-      { duration: 900 }
+      { duration: 500 }
     );
   }, [navigationActive, currentLat, currentLng]);
 
