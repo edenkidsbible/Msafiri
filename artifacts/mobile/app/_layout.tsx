@@ -29,6 +29,23 @@ try {
   console.warn("RevenueCat unavailable:", err?.message ?? err);
 }
 
+// @expo/vector-icons (Ionicons etc.) auto-loads its icon webfont on web via
+// expo-font, which internally uses `fontfaceobserver` with a hard 6-second
+// timeout. We don't call this ourselves, so we can't wrap it in try/catch —
+// if the font fetch is merely slow (common in sandboxed/proxied preview
+// environments) rather than actually broken, the rejection surfaces as an
+// uncaught-error dev overlay even though the icons render fine moments
+// later once the font does arrive. Swallow just that known-safe timeout
+// globally on web so it can't crash into the overlay.
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    const msg = String(event?.reason?.message ?? event?.reason ?? "");
+    if (/timeout exceeded/i.test(msg) && /fontfaceobserver|fontobserver/i.test(String(event?.reason?.stack ?? ""))) {
+      event.preventDefault();
+    }
+  });
+}
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
