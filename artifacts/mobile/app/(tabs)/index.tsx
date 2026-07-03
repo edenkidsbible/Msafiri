@@ -76,7 +76,7 @@ export default function DriveScreen() {
   const {
     locationGranted, requestLocationPermission,
     currentSpeed, currentSpeedLimit, activeAlert, dismissAlert, nearbyZones,
-    hudMode, setHudMode,
+    setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, selectRoute, routeLoading,
     navigationActive, startNavigation, stopNavigation,
@@ -90,6 +90,10 @@ export default function DriveScreen() {
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
+
+  // Drive-page dark/light state mirrors the app-wide Appearance setting exactly
+  // (Settings > Display > Appearance), so this FAB and that screen always agree.
+  const isDark = c.isDark;
 
   const topInset    = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -109,12 +113,12 @@ export default function DriveScreen() {
   const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
 
   // HUD-aware colours
-  const bg      = hudMode ? "#0A0A0AEF" : "#FFFFFFF0";
-  const fgMain  = hudMode ? "#F0F0F0"   : "#111111";
-  const fgMuted = hudMode ? "#777777"   : "#888888";
-  const divBg   = hudMode ? "#2A2A2A"   : "#E5E5E5";
-  const fabBg   = hudMode ? "#1A1A1AEE" : "#FFFFFFEE";
-  const speedClr = overLimit ? "#E53935" : (hudMode ? "#00E676" : "#1A237E");
+  const bg      = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
+  const fgMain  = isDark ? "#F0F0F0"   : "#111111";
+  const fgMuted = isDark ? "#777777"   : "#888888";
+  const divBg   = isDark ? "#2A2A2A"   : "#E5E5E5";
+  const fabBg   = isDark ? "#1A1A1AEE" : "#FFFFFFEE";
+  const speedClr = overLimit ? "#E53935" : (isDark ? "#00E676" : "#1A237E");
 
   // ── Search ────────────────────────────────────────────────────────────────
 
@@ -186,7 +190,7 @@ export default function DriveScreen() {
       {navigationActive && currentStep && (
         <View style={[styles.navCard, {
           top: topInset + (activeAlert ? 70 : 4),
-          backgroundColor: hudMode ? "#0F2040F5" : "#1565C0F5",
+          backgroundColor: isDark ? "#0F2040F5" : "#1565C0F5",
         }]}>
           <View style={styles.navCardIcon}>
             <Ionicons name={maneuverIcon(currentStep.instruction)} size={30} color="#FFF" />
@@ -233,7 +237,7 @@ export default function DriveScreen() {
                   ? navDestination?.name.split(",")[0] ?? "Change destination…"
                   : "Where to?"
               }
-              placeholderTextColor={isMapMode ? (hudMode ? "#FFFFFFBB" : "#333333") : fgMuted}
+              placeholderTextColor={isMapMode ? (isDark ? "#FFFFFFBB" : "#333333") : fgMuted}
               value={searchText}
               onChangeText={handleSearchChange}
               returnKeyType="search"
@@ -289,7 +293,7 @@ export default function DriveScreen() {
                     onPress={() => pickDestination(item)}
                     activeOpacity={0.72}
                   >
-                    <View style={[styles.resultIcon, { backgroundColor: hudMode ? "#222" : "#F2F2F2" }]}>
+                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}>
                       <Ionicons name="location-outline" size={15} color={c.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -318,17 +322,20 @@ export default function DriveScreen() {
             style={[styles.fab, { backgroundColor: showTraffic ? c.primary : fabBg }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTraffic(!showTraffic); }}
           >
-            <Ionicons name="car-outline" size={19} color={showTraffic ? "#FFF" : (hudMode ? "#CCC" : "#555")} />
+            <Ionicons name="car-outline" size={19} color={showTraffic ? "#FFF" : (isDark ? "#CCC" : "#555")} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.fab, { backgroundColor: hudMode ? "#FFD60022" : fabBg }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHudMode(!hudMode); }}
+            style={[styles.fab, { backgroundColor: isDark ? "#FFD60022" : fabBg }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setThemeOverride(isDark ? "light" : "dark");
+            }}
           >
             <Ionicons
-              name={hudMode ? "sunny-outline" : "moon-outline"}
+              name={isDark ? "sunny-outline" : "moon-outline"}
               size={19}
-              color={hudMode ? "#FFD600" : "#555"}
+              color={isDark ? "#FFD600" : "#555"}
             />
           </TouchableOpacity>
         </View>
@@ -362,7 +369,7 @@ export default function DriveScreen() {
 
           {/* Speed limit circle (like a real road sign) */}
           {currentSpeedLimit != null && (
-            <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (hudMode ? "#555" : "#1A1A1A") }]}>
+            <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A") }]}>
               <Text style={[styles.limitNum, { color: overLimit ? "#E53935" : fgMain }]}>
                 {currentSpeedLimit}
               </Text>
@@ -435,7 +442,7 @@ export default function DriveScreen() {
               const col = zoneColor(z.type);
               return (
                 <View key={z.id} style={[styles.zoneChip, {
-                  backgroundColor: hudMode ? "#111D" : "#FFFEEE",
+                  backgroundColor: isDark ? "#111D" : "#FFFEEE",
                   borderColor: col + "66",
                 }]}>
                   <ZoneIcon type={z.type} size={11} color={col} />
@@ -511,7 +518,7 @@ export default function DriveScreen() {
                 {altRoutes.map((r, i) => (
                   <TouchableOpacity
                     key={r.id}
-                    style={[styles.altPill, { backgroundColor: hudMode ? "#222" : "#F2F2F2" }]}
+                    style={[styles.altPill, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}
                     onPress={() => { selectRoute(r); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
                   >
                     <Text style={[styles.altPillTxt, { color: fgMain }]}>
@@ -536,7 +543,7 @@ export default function DriveScreen() {
           {/* Actions */}
           <View style={styles.actionRow}>
             <TouchableOpacity
-              style={[styles.cancelBtn, { backgroundColor: hudMode ? "#222" : "#EFEFEF" }]}
+              style={[styles.cancelBtn, { backgroundColor: isDark ? "#222" : "#EFEFEF" }]}
               onPress={() => { clearDestination(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
             >
               <Ionicons name="close" size={16} color={fgMain} />
@@ -563,15 +570,15 @@ export default function DriveScreen() {
           <View style={styles.navBarTopRow}>
             {/* Speed block */}
             <View style={[styles.navSpeedBlock, {
-              backgroundColor: overLimit ? "#E5393518" : (hudMode ? "#00E67618" : "#E8F5E9"),
+              backgroundColor: overLimit ? "#E5393518" : (isDark ? "#00E67618" : "#E8F5E9"),
             }]}>
-              <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (hudMode ? "#00E676" : "#2E7D32") }]}>
+              <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (isDark ? "#00E676" : "#2E7D32") }]}>
                 {Math.round(currentSpeed)}
               </Text>
               <Text style={[styles.navSpeedUnit, { color: fgMuted }]}>km/h</Text>
               {currentSpeedLimit != null && (
                 <View style={[styles.navLimitRing, {
-                  borderColor: overLimit ? "#E53935" : (hudMode ? "#555" : "#333"),
+                  borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#333"),
                   marginTop: 4,
                 }]}>
                   <Text style={[styles.navLimitNum, { color: overLimit ? "#E53935" : fgMain }]}>
@@ -608,8 +615,8 @@ export default function DriveScreen() {
           {routeIncidentsAhead.length > 0 && (
             <TouchableOpacity
               style={[styles.incidentsBar, {
-                backgroundColor: hudMode ? "#00E67614" : "#E5393512",
-                borderColor: hudMode ? "#00E67640" : "#E5393530",
+                backgroundColor: isDark ? "#00E67614" : "#E5393512",
+                borderColor: isDark ? "#00E67640" : "#E5393530",
               }]}
               onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
               activeOpacity={0.8}
@@ -617,7 +624,7 @@ export default function DriveScreen() {
               <Text style={styles.incidentsBarTxt} numberOfLines={1}>
                 {incidentSummaryParts(routeIncidentsAhead).map((p) => `${p.emoji} ${p.label}`).join("   ")}
               </Text>
-              <Ionicons name="chevron-forward" size={16} color={hudMode ? "#00E676" : "#E53935"} />
+              <Ionicons name="chevron-forward" size={16} color={isDark ? "#00E676" : "#E53935"} />
             </TouchableOpacity>
           )}
         </View>
