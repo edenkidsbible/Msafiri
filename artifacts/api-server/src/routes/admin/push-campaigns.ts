@@ -117,13 +117,11 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
         .where(eq(pushCampaignsTable.id, campaign.id));
 
       await logAudit({
-        actorId:    actor?.id ?? "system",
-        actorName:  actor?.name ?? "Admin",
-        actorRole:  actor?.role ?? "admin",
+        actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
         action:     "push_send",
         targetType: "push_campaign",
         targetId:   campaign.id,
-        details:    `Sent "${title}" to ${ok} devices (${failed} failed)`,
+        details:    { message: `Sent "${title}" to ${ok} devices (${failed} failed)` },
       });
 
       return res.json({
@@ -142,13 +140,11 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
     }
 
     await logAudit({
-      actorId:    actor?.id ?? "system",
-      actorName:  actor?.name ?? "Admin",
-      actorRole:  actor?.role ?? "admin",
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
       action:     "push_schedule",
       targetType: "push_campaign",
       targetId:   campaign.id,
-      details:    `Scheduled "${title}" for ${scheduledAt}`,
+      details:    { message: `Scheduled "${title}" for ${scheduledAt}` },
     });
 
     return res.status(201).json({

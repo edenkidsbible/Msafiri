@@ -16,7 +16,9 @@ function getIOSNativeTabs() {
   if (!isIOS) return null;
   try {
     return require("expo-router/unstable-native-tabs") as {
-      NativeTabs: React.ComponentType<{ children: React.ReactNode }>;
+      NativeTabs: React.ComponentType<{ children: React.ReactNode }> & {
+        Trigger: React.ComponentType<{ name: string; children: React.ReactNode }>;
+      };
       Icon: React.ComponentType<{ sf: { default: string; selected?: string } }>;
       Label: React.ComponentType<{ children: string }>;
     };

@@ -90,7 +90,13 @@ router.post("/posts", async (req: Request, res: Response) => {
       })
       .returning();
 
-    await logAudit(user?.id, "blog_post.create", { id: post.id, title: post.title });
+    await logAudit({
+      actor: { id: user?.id ?? "system", name: user?.name ?? "Admin", role: user?.role ?? "admin" },
+      action: "blog_post.create",
+      targetType: "blog_post",
+      targetId: post.id,
+      details: { title: post.title },
+    });
     return res.status(201).json(formatPost(post));
   } catch (err: any) {
     if (err?.code === "23505") return res.status(409).json({ error: "Slug already exists. Use a different title or slug." });
@@ -131,7 +137,13 @@ router.put("/posts/:id", async (req: Request, res: Response) => {
       .where(eq(blogPostsTable.id, id))
       .returning();
 
-    await logAudit(user?.id, "blog_post.update", { id: post.id, title: post.title, status: post.status });
+    await logAudit({
+      actor: { id: user?.id ?? "system", name: user?.name ?? "Admin", role: user?.role ?? "admin" },
+      action: "blog_post.update",
+      targetType: "blog_post",
+      targetId: post.id,
+      details: { title: post.title, status: post.status },
+    });
     return res.json(formatPost(post));
   } catch (err: any) {
     if (err?.code === "23505") return res.status(409).json({ error: "Slug already exists." });
@@ -147,7 +159,13 @@ router.delete("/posts/:id", async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
     const [post] = await db.delete(blogPostsTable).where(eq(blogPostsTable.id, id)).returning();
     if (!post) return res.status(404).json({ error: "Post not found" });
-    await logAudit(user?.id, "blog_post.delete", { id: post.id, title: post.title });
+    await logAudit({
+      actor: { id: user?.id ?? "system", name: user?.name ?? "Admin", role: user?.role ?? "admin" },
+      action: "blog_post.delete",
+      targetType: "blog_post",
+      targetId: post.id,
+      details: { title: post.title },
+    });
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: "Internal server error" });

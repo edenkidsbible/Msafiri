@@ -75,13 +75,11 @@ router.post("/releases", async (req: Request, res: Response) => {
       .returning();
 
     await logAudit({
-      actorId:    actor?.id ?? "system",
-      actorName:  actor?.name ?? "Admin",
-      actorRole:  actor?.role ?? "admin",
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
       action:     "release_create",
       targetType: "app_release",
       targetId:   release.id,
-      details:    `Created release v${version} (${platform ?? "all"}, ${releaseType ?? "patch"})`,
+      details:    { message: `Created release v${version} (${platform ?? "all"}, ${releaseType ?? "patch"})` },
     });
 
     return res.status(201).json({
@@ -130,13 +128,11 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
       .where(eq(appReleasesTable.id, id));
 
     await logAudit({
-      actorId:    actor?.id ?? "system",
-      actorName:  actor?.name ?? "Admin",
-      actorRole:  actor?.role ?? "admin",
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
       action:     "release_update",
       targetType: "app_release",
       targetId:   id,
-      details:    `Updated release fields: ${Object.keys(updateFields).join(", ")}`,
+      details:    { message: `Updated release fields: ${Object.keys(updateFields).join(", ")}` },
     });
 
     return res.json({ success: true });
@@ -159,13 +155,11 @@ router.post("/releases/:id/publish", async (req: Request, res: Response) => {
       .returning();
 
     await logAudit({
-      actorId:    actor?.id ?? "system",
-      actorName:  actor?.name ?? "Admin",
-      actorRole:  actor?.role ?? "admin",
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
       action:     "release_publish",
       targetType: "app_release",
       targetId:   id,
-      details:    `Published release v${release?.version}${release?.isForceUpdate ? " (FORCE UPDATE)" : ""}`,
+      details:    { message: `Published release v${release?.version}${release?.isForceUpdate ? " (FORCE UPDATE)" : ""}` },
     });
 
     return res.json({ success: true });
@@ -188,13 +182,11 @@ router.post("/releases/:id/deprecate", async (req: Request, res: Response) => {
       .returning();
 
     await logAudit({
-      actorId:    actor?.id ?? "system",
-      actorName:  actor?.name ?? "Admin",
-      actorRole:  actor?.role ?? "admin",
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
       action:     "release_deprecate",
       targetType: "app_release",
       targetId:   id,
-      details:    `Deprecated release v${release?.version}`,
+      details:    { message: `Deprecated release v${release?.version}` },
     });
 
     return res.json({ success: true });
@@ -213,13 +205,11 @@ router.delete("/releases/:id", async (req: Request, res: Response) => {
     await db.delete(appReleasesTable).where(eq(appReleasesTable.id, id));
 
     await logAudit({
-      actorId:    actor?.id ?? "system",
-      actorName:  actor?.name ?? "Admin",
-      actorRole:  actor?.role ?? "admin",
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
       action:     "release_delete",
       targetType: "app_release",
       targetId:   id,
-      details:    `Deleted release`,
+      details:    { message: `Deleted release` },
     });
 
     return res.json({ success: true });

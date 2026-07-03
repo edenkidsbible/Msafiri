@@ -1438,7 +1438,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const result = await apiPost<{ confirmCount: number; status: string }>(`/reports/${serverId}/confirm`, { deviceId: deviceIdRef.current });
       // Sync with authoritative server count
       setCommunityReports((prev) =>
-        prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: result.confirmCount, status: result.status } : r)
+        prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: result.confirmCount, status: result.status as CommunityReport["status"] } : r)
       );
     } catch {
       // Roll back optimistic update (e.g. 409 already confirmed, or network error)

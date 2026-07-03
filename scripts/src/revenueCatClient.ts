@@ -8,7 +8,7 @@ export async function getUncachableRevenueCatClient() {
     baseUrl: "https://api.revenuecat.com/v2",
     // @replit/revenuecat-sdk calls _fetch(request) with a single Request object,
     // so we must handle url as a Request instance and extract .url/.method/.body from it.
-    fetch: async (url: RequestInfo | URL, _options?: RequestInit): Promise<Response> => {
+    fetch: async (url: string | URL | Request, _options?: RequestInit): Promise<Response> => {
       let urlStr: string;
       let method: string;
       let body: string | undefined;

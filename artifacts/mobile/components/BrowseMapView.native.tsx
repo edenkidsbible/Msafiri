@@ -18,7 +18,7 @@ function distStr(m: number | undefined): string {
 }
 
 // Colored circular icon marker — works on all Android versions (no emoji dependency)
-function POIMarker({ type }: { type: "fuel" | "food" }) {
+function POIMarker({ type }: { type: "fuel" | "food" | "shopping" | "hospital" | "nightlife" }) {
   const bg = type === "fuel" ? "#2E7D32" : "#BF360C";
   return (
     <View style={[styles.markerCircle, { backgroundColor: bg }]}>

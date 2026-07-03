@@ -23,7 +23,13 @@ async function ensureAudioMode() {
   try {
     // Play alerts even if the phone's ringer is silenced (like nav apps do),
     // and mix with anything else already playing (e.g. music/podcasts).
-    await setAudioModeAsync({ playsInSilentMode: true, interruptionMode: "mixWithOthers" });
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: "mixWithOthers",
+      allowsRecording: false,
+      shouldPlayInBackground: false,
+      shouldRouteThroughEarpiece: false,
+    });
   } catch {
     // Non-critical — sounds still work with default audio mode
   }

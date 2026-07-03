@@ -60,7 +60,7 @@ export default function Notifications() {
             <Button
               variant="outline"
               className="gap-2 shadow-none"
-              onClick={() => markAllReadMutation.mutate({})}
+              onClick={() => markAllReadMutation.mutate()}
               disabled={markAllReadMutation.isPending}
             >
               {markAllReadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}

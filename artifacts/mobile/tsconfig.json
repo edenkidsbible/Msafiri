@@ -5,6 +5,7 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "baseUrl": ".",
     "strict": true,
+    "moduleSuffixes": [".native", ".web", ""],
     "paths": {
       "@/*": [
         "./*"
