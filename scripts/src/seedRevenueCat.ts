@@ -31,10 +31,10 @@ import {
 
 const PROJECT_NAME = "SafeDrive Kenya";
 
-const APP_STORE_APP_NAME = "SafeDrive Kenya iOS";
-const APP_STORE_BUNDLE_ID = "com.safedrive.kenya";
-const PLAY_STORE_APP_NAME = "SafeDrive Kenya Android";
-const PLAY_STORE_PACKAGE_NAME = "com.safedrive.kenya";
+const APP_STORE_APP_NAME = "Msafiri Kenya iOS";
+const APP_STORE_BUNDLE_ID = "com.msafirikenya.app";
+const PLAY_STORE_APP_NAME = "Msafiri Kenya Android";
+const PLAY_STORE_PACKAGE_NAME = "com.msafirikenya.app";
 
 const ENTITLEMENT_IDENTIFIER = "pro";
 const ENTITLEMENT_DISPLAY_NAME = "Pro Access";
@@ -119,9 +119,32 @@ async function seedRevenueCat() {
     throw new Error("No apps found");
   }
 
+  // This RevenueCat project is shared with other apps (e.g. a different game on this
+  // account), which each have their own app_store/play_store app entries. Blindly
+  // picking the first app of a given `type` previously caused this script to target
+  // the WRONG app's bundle id/package name. Always prefer matching by the pinned
+  // REVENUECAT_*_APP_ID env vars (or by bundle id/package name) over "first of type".
+  const pinnedAppStoreAppId = process.env.REVENUECAT_APPLE_APP_STORE_APP_ID;
+  const pinnedPlayStoreAppId = process.env.REVENUECAT_GOOGLE_PLAY_STORE_APP_ID;
+
   let testApp: App | undefined = apps.items.find((a) => a.type === "test_store");
-  let appStoreApp: App | undefined = apps.items.find((a) => a.type === "app_store");
-  let playStoreApp: App | undefined = apps.items.find((a) => a.type === "play_store");
+  let appStoreApp: App | undefined = pinnedAppStoreAppId
+    ? apps.items.find((a) => a.id === pinnedAppStoreAppId)
+    : apps.items.find((a) => a.type === "app_store" && (a as any).app_store?.bundle_id === APP_STORE_BUNDLE_ID);
+  let playStoreApp: App | undefined = pinnedPlayStoreAppId
+    ? apps.items.find((a) => a.id === pinnedPlayStoreAppId)
+    : apps.items.find((a) => a.type === "play_store" && (a as any).play_store?.package_name === PLAY_STORE_PACKAGE_NAME);
+
+  if (pinnedAppStoreAppId && !appStoreApp) {
+    throw new Error(
+      `REVENUECAT_APPLE_APP_STORE_APP_ID=${pinnedAppStoreAppId} is set but no matching app was found. Refusing to guess a different app store app.`,
+    );
+  }
+  if (pinnedPlayStoreAppId && !playStoreApp) {
+    throw new Error(
+      `REVENUECAT_GOOGLE_PLAY_STORE_APP_ID=${pinnedPlayStoreAppId} is set but no matching app was found. Refusing to guess a different play store app.`,
+    );
+  }
 
   if (!testApp) throw new Error("No test store app found");
   console.log("Test store app found:", testApp.id);

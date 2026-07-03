@@ -28,3 +28,4 @@
 - [lib/db composite build gotcha](db-package-composite-build.md) — new schema exports invisible to consumers until `tsc -b` regenerates dist/*.d.ts; drizzle-kit push alone doesn't do this.
 - [On-demand route status check](route-status-on-demand-check.md) — checkRouteStatus() reuses active-nav incident-matching for arbitrary destinations (Saved Places/Planned Trips) without touching navigation state.
 - [Modal refetch-storm from live GPS state](modal-refetch-gps-dependency.md) — never put a continuously-updating value (e.g. currentLat) straight in a useEffect dep array for a one-shot fetch; use a stable boolean/ref transition + manual refresh instead.
+- [RevenueCat shared-project app collision](revenuecat-shared-project-app-collision.md) — matching apps by `type` alone in a shared project can silently target another product's app entry; match by bundle id/package name instead.
