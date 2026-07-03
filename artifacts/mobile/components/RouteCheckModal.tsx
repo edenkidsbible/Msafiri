@@ -21,6 +21,14 @@ function durationStr(s: number): string {
   return `${h}h ${m}m`;
 }
 
+function timeAgoStr(ts: number, nowTs: number): string {
+  const s = Math.max(0, Math.round((nowTs - ts) / 1000));
+  if (s < 10) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  return `${m} min ago`;
+}
+
 export default function RouteCheckModal({
   visible,
   onClose,
@@ -42,19 +50,43 @@ export default function RouteCheckModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [result, setResult] = useState<RouteCheckResult | null>(null);
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  const hasLocation = currentLat != null;
 
   useEffect(() => {
-    if (!visible) { setResult(null); setError(false); return; }
-    if (!locationGranted || currentLat == null) return;
+    if (!visible || checkedAt == null) return;
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [visible, checkedAt]);
+
+  const runCheck = () => {
     let cancelled = false;
     setLoading(true);
     setError(false);
     checkRouteStatus(destLat, destLng)
-      .then((r) => { if (!cancelled) { setResult(r); if (!r) setError(true); } })
+      .then((r) => {
+        if (cancelled) return;
+        setResult(r);
+        setCheckedAt(Date.now());
+        if (!r) setError(true);
+      })
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [visible, destLat, destLng, locationGranted, currentLat]);
+  };
+
+  // Runs once per modal open (and again only if location wasn't ready yet
+  // when it opened). Deliberately NOT re-triggered by every GPS fix — a
+  // one-off snapshot is what "check this route" means here; the driver can
+  // pull to refresh if they want the latest picture.
+  useEffect(() => {
+    if (!visible) { setResult(null); setError(false); setCheckedAt(null); return; }
+    if (!locationGranted || !hasLocation) return;
+    return runCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, destLat, destLng, locationGranted, hasLocation]);
 
   const navigateNow = () => {
     setNavDestination({ name: destLabel, lat: destLat, lng: destLng });
@@ -101,10 +133,7 @@ export default function RouteCheckModal({
               <Text style={[styles.stateText, { color: c.mutedForeground }]}>
                 Couldn't check this route. Check your connection and try again.
               </Text>
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: c.primary }]}
-                onPress={() => { setError(false); setResult(null); checkRouteStatus(destLat, destLng).then(setResult).catch(() => setError(true)); }}
-              >
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: c.primary }]} onPress={runCheck}>
                 <Text style={styles.actionBtnText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -132,7 +161,15 @@ export default function RouteCheckModal({
                       Expect ~{delayMinutesLabel(result.trafficDelayS)} extra delay
                     </Text>
                   )}
+                  {checkedAt != null && (
+                    <Text style={[styles.statusSub, { color: c.mutedForeground }]}>
+                      Updated {timeAgoStr(checkedAt, now)}
+                    </Text>
+                  )}
                 </View>
+                <TouchableOpacity onPress={runCheck} hitSlop={10} style={styles.refreshBtn}>
+                  <Ionicons name="refresh" size={16} color={clear ? "#2E7D32" : "#E65100"} />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.metaRow}>
@@ -214,6 +251,7 @@ const styles = StyleSheet.create({
   },
   statusTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
   statusSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  refreshBtn: { padding: 6, borderRadius: 10 },
   metaRow: { flexDirection: "row", gap: 18, marginBottom: 10 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   metaText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
