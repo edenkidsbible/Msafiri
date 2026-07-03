@@ -20,9 +20,28 @@ interface Props {
 
 export default function IncidentConfirmationPrompt({ report, onDismiss }: Props) {
   const c = useColors();
-  const { confirmReport, denyReport } = useApp();
+  const { confirmReport, denyReport, pendingConfirmationSource, currentLat, currentLng } = useApp();
   const def = resolveIncidentType(report.type);
   const id = report.serverId ?? report.id;
+
+  const isRecent = pendingConfirmationSource === "recent";
+
+  const distanceLabel = (() => {
+    if (currentLat == null || currentLng == null) return null;
+    const R = 6371000;
+    const f1 = (currentLat * Math.PI) / 180, f2 = (report.lat * Math.PI) / 180;
+    const df = ((report.lat - currentLat) * Math.PI) / 180, dl = ((report.lng - currentLng) * Math.PI) / 180;
+    const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
+    const meters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (meters < 1000) return `${Math.round(meters / 10) * 10}m away`;
+    return `${(meters / 1000).toFixed(1)}km away`;
+  })();
+
+  const locationLabel = report.roadName
+    ? report.roadName
+    : isRecent
+      ? "a road you drove recently"
+      : "your current location";
 
   useEffect(() => {
     playSound("confirm");
@@ -56,14 +75,23 @@ export default function IncidentConfirmationPrompt({ report, onDismiss }: Props)
             Is {def.label} still there?
           </Text>
 
-          {report.roadName ? (
-            <Text style={[styles.road, { color: c.mutedForeground }]} numberOfLines={1}>
-              on {report.roadName}
+          <View style={[styles.locationChip, { backgroundColor: c.background, borderColor: c.border }]}>
+            <Ionicons name="location" size={14} color={def.color} />
+            <Text style={[styles.locationTxt, { color: c.foreground }]} numberOfLines={1}>
+              {locationLabel}
             </Text>
-          ) : null}
+            {distanceLabel ? (
+              <>
+                <Text style={[styles.locationDot, { color: c.mutedForeground }]}>·</Text>
+                <Text style={[styles.locationTxt, { color: c.mutedForeground }]}>{distanceLabel}</Text>
+              </>
+            ) : null}
+          </View>
 
           <Text style={[styles.sub, { color: c.mutedForeground }]}>
-            Your confirmation helps nearby drivers stay informed.
+            {isRecent
+              ? "You used this road recently. Help other drivers by confirming what you saw."
+              : "You're near this spot right now — your confirmation helps nearby drivers stay informed."}
           </Text>
 
           <View style={styles.btnRow}>
@@ -139,11 +167,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 6,
   },
-  road: {
-    fontSize: 14,
+  locationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  locationTxt: {
+    fontSize: 13,
     fontFamily: "Inter_500Medium",
-    textAlign: "center",
-    marginBottom: 6,
+    flexShrink: 1,
+  },
+  locationDot: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
   },
   sub: {
     fontSize: 13,

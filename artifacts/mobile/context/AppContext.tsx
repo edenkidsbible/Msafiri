@@ -170,6 +170,8 @@ interface AppContextValue {
   clearArrival: () => void;
   pendingConfirmationReport: CommunityReport | null;
   setPendingConfirmationReport: (r: CommunityReport | null) => void;
+  pendingConfirmationSource: "proximity" | "recent" | null;
+  setPendingConfirmationSource: (s: "proximity" | "recent" | null) => void;
   hasVotedOnReport: (id: string) => boolean;
   pendingFocusCoords: { lat: number; lng: number } | null;
   setPendingFocusCoords: (coords: { lat: number; lng: number } | null) => void;
@@ -525,6 +527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [arrivedInfo, setArrivedInfo] = useState<ArrivedInfo | null>(null);
   const [pendingConfirmationReport, setPendingConfirmationReport] = useState<CommunityReport | null>(null);
+  const [pendingConfirmationSource, setPendingConfirmationSource] = useState<"proximity" | "recent" | null>(null);
   const [pendingFocusCoords, setPendingFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const votedReportIdsRef = useRef<Set<string>>(new Set());
   const hasVotedOnReport = useCallback((id: string) => votedReportIdsRef.current.has(id), []);
@@ -1492,6 +1495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
       arrivedInfo, clearArrival,
       pendingConfirmationReport, setPendingConfirmationReport,
+      pendingConfirmationSource, setPendingConfirmationSource,
       hasVotedOnReport,
       pendingFocusCoords, setPendingFocusCoords,
       markReportPrompted, isReportPrompted,

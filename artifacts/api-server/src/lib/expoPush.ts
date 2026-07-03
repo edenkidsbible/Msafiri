@@ -5,7 +5,14 @@ export interface PushMessage {
   title: string;
   body: string;
   data?: Record<string, unknown>;
-  sound?: "default" | null;
+  // "default" plays the OS default tone; a filename (e.g. "alert_tone.mp3")
+  // plays the custom sound bundled via the expo-notifications config plugin
+  // on iOS. Android ignores this field entirely and instead uses whatever
+  // sound is attached to `channelId` on the device (see usePushNotifications.ts).
+  sound?: "default" | string | null;
+  // Must match a channel id created client-side via setNotificationChannelAsync,
+  // or Android falls back to the "default" channel (system default sound).
+  channelId?: string;
   badge?: number;
 }
 

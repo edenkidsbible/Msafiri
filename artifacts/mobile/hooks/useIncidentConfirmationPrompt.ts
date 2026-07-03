@@ -18,6 +18,7 @@ export function useIncidentConfirmationPrompt() {
     hasVotedOnReport,
     pendingConfirmationReport,
     setPendingConfirmationReport,
+    setPendingConfirmationSource,
     markReportPrompted,
     isReportPrompted,
   } = useApp();
@@ -38,6 +39,7 @@ export function useIncidentConfirmationPrompt() {
       const dist = haversine(currentLat, currentLng, report.lat, report.lng);
       if (dist <= PROXIMITY_M) {
         markReportPrompted(id);
+        setPendingConfirmationSource("proximity");
         setPendingConfirmationReport(report);
         break;
       }

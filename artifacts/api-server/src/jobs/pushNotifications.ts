@@ -300,7 +300,14 @@ async function checkIncidentConfirmations(): Promise<void> {
       .returning();
 
     const { ok, failed } = await sendPushNotifications(
-      nearbyTokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, data }))
+      nearbyTokens.map((t) => ({
+        to: t.token,
+        title,
+        body,
+        sound: "alert_tone.mp3",
+        channelId: "incident-alerts",
+        data,
+      }))
     );
 
     await db

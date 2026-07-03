@@ -86,6 +86,7 @@ export default function DriveScreen() {
     addReport, currentLat, currentLng,
     arrivedInfo, clearArrival,
     pendingConfirmationReport, setPendingConfirmationReport,
+    setPendingConfirmationSource,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -734,6 +735,7 @@ export default function DriveScreen() {
             const id = pendingConfirmationReport.serverId ?? pendingConfirmationReport.id;
             markDismissed(id);
             setPendingConfirmationReport(null);
+            setPendingConfirmationSource(null);
           }}
         />
       )}

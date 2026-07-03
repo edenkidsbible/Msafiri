@@ -21,9 +21,35 @@ async function getOrCreateDeviceId(): Promise<string> {
   return id;
 }
 
+// Android requires an explicit notification channel (API 26+) or notifications
+// may be silently suppressed or play no sound, regardless of the payload's
+// `sound` field. Channels must be created before the first notification arrives.
+async function ensureAndroidChannels(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  try {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "General",
+      importance: Notifications.AndroidImportance.DEFAULT,
+      sound: "default",
+      vibrationPattern: [0, 150, 100, 150],
+    });
+    await Notifications.setNotificationChannelAsync("incident-alerts", {
+      name: "Incident Alerts",
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: "alert_tone.mp3",
+      vibrationPattern: [0, 200, 100, 200],
+      lightColor: "#00C853",
+    });
+  } catch (err) {
+    console.warn("[usePushNotifications] Failed to set up Android channels:", err);
+  }
+}
+
 async function registerToken(lat?: number | null, lng?: number | null): Promise<void> {
   // Push notifications are not available on web or in Expo simulators
   if (Platform.OS === "web") return;
+
+  await ensureAndroidChannels();
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -88,7 +114,7 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const router = useRouter();
-  const { communityReports, setPendingConfirmationReport, setPendingFocusCoords, currentLat, currentLng, markReportPrompted } = useApp();
+  const { communityReports, setPendingConfirmationReport, setPendingConfirmationSource, setPendingFocusCoords, currentLat, currentLng, markReportPrompted } = useApp();
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
@@ -140,6 +166,9 @@ export function usePushNotifications() {
           if (reportId) {
             // Mark this report as prompted so the proximity hook won't re-fire for it
             markReportPrompted(reportId);
+            // This deep-link came from a push notification, which targets devices
+            // that were recently near the incident (not necessarily there right now)
+            setPendingConfirmationSource("recent");
 
             // Try to find the report in the current in-memory cache first
             const report = communityReportsRef.current.find(
