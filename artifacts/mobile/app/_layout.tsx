@@ -13,7 +13,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
@@ -29,20 +29,27 @@ try {
   console.warn("RevenueCat unavailable:", err?.message ?? err);
 }
 
-// @expo/vector-icons (Ionicons etc.) auto-loads its icon webfont on web via
-// expo-font, which internally uses `fontfaceobserver` with a hard 6-second
-// timeout. We don't call this ourselves, so we can't wrap it in try/catch —
-// if the font fetch is merely slow (common in sandboxed/proxied preview
-// environments) rather than actually broken, the rejection surfaces as an
-// uncaught-error dev overlay even though the icons render fine moments
-// later once the font does arrive. Swallow just that known-safe timeout
-// globally on web so it can't crash into the overlay.
-if (Platform.OS === "web" && typeof window !== "undefined") {
-  window.addEventListener("unhandledrejection", (event) => {
-    const msg = String(event?.reason?.message ?? event?.reason ?? "");
-    if (/timeout exceeded/i.test(msg) && /fontfaceobserver|fontobserver/i.test(String(event?.reason?.stack ?? ""))) {
-      event.preventDefault();
-    }
+// Every @expo/vector-icons component (Ionicons, MaterialCommunityIcons,
+// Feather — the three families this app uses) calls `Font.loadAsync()` for
+// itself, uncaught, inside its own `componentDidMount` the first time it
+// mounts on web. On web that call goes through `fontfaceobserver` with a
+// hard 6-second timeout, and if the font fetch is merely slow (common in
+// sandboxed/proxied preview environments) rather than actually broken, that
+// becomes a genuine unhandled promise rejection we can't wrap in try/catch
+// at the source. A global `unhandledrejection` listener added later (e.g.
+// inside a component) isn't reliable here because Expo's own web dev-error
+// overlay registers its listener first and shows the redbox regardless of
+// whether our handler calls preventDefault().
+//
+// The real fix is to never let that internal call be the one that rejects
+// unhandled: `Font.loadAsync()` synchronously registers the @font-face CSS
+// rule before it starts waiting for confirmation, so calling it ourselves
+// here — once, up front, with our own `.catch()` — makes `Font.isLoaded()`
+// true by the time any icon component mounts and constructs its state, so
+// the icon component's own internal loadAsync call never fires at all.
+if (Platform.OS === "web") {
+  [Ionicons, MaterialCommunityIcons, Feather].forEach((set) => {
+    set.loadFont().catch(() => {});
   });
 }
 
