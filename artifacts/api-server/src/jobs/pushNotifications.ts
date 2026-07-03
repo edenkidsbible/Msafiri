@@ -1,4 +1,4 @@
-import { db, pushTokensTable, pushCampaignsTable, communityReportsTable } from "@workspace/db";
+import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable } from "@workspace/db";
 import { and, eq, lte, gte, isNull, or, ne, isNotNull } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
@@ -327,6 +327,144 @@ async function checkIncidentConfirmations(): Promise<void> {
   }
 }
 
+// ─── Planned-trip departure advice ───────────────────────────────────────────
+
+// Types that meaningfully affect a drive — these are what we warn about ahead
+// of a planned departure. "camera" is excluded (not disruptive to a route).
+const DISRUPTIVE_TYPES = new Set([
+  "accident", "traffic", "roadblock", "hazard", "pothole",
+  "debris", "breakdown", "weather", "closure",
+]);
+
+const ROUTE_CORRIDOR_M = 300; // how close a report must be to the route line to count as "on route"
+const ADVICE_WINDOW_MIN_MS = 20 * 60 * 1000; // start of the notify window before plannedAt
+const ADVICE_WINDOW_MAX_MS = 35 * 60 * 1000; // end of the notify window before plannedAt
+
+interface OSRMRoute {
+  distanceM: number;
+  durationS: number;
+  coords: { lat: number; lng: number }[];
+}
+
+async function fetchOSRMRoute(fromLat: number, fromLng: number, toLat: number, toLng: number): Promise<OSRMRoute | null> {
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/` +
+    `${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const data = (await res.json()) as any;
+    if (data.code !== "Ok" || !data.routes?.length) return null;
+    const r = data.routes[0];
+    return {
+      distanceM: r.distance,
+      durationS: r.duration,
+      coords: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => ({ lat, lng })),
+    };
+  } catch (err) {
+    logger.warn({ err }, "Planned trip advice: OSRM route fetch failed");
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Returns true if any point of the route polyline is within `maxM` of (lat, lng). */
+function isNearRoute(route: OSRMRoute, lat: number, lng: number, maxM: number): boolean {
+  return route.coords.some((c) => haversineKm(c.lat, c.lng, lat, lng) * 1000 <= maxM);
+}
+
+function formatEatTime(d: Date): string {
+  return d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Nairobi" });
+}
+
+async function sendTripAdvice(deviceId: string, token: string, tripId: string, label: string, plannedAt: Date, route: OSRMRoute | null): Promise<void> {
+  let title: string;
+  let body: string;
+
+  if (!route) {
+    title = `🗺️ Trip to ${label} coming up`;
+    body = `You planned to leave around ${formatEatTime(plannedAt)}. Open Msafiri to check live road conditions before you go.`;
+  } else {
+    const reports = await db
+      .select()
+      .from(communityReportsTable)
+      .where(and(ne(communityReportsTable.status, "expired"), ne(communityReportsTable.status, "denied")));
+
+    const onRoute = reports.filter(
+      (r) => DISRUPTIVE_TYPES.has(r.type) && isNearRoute(route, r.lat, r.lng, ROUTE_CORRIDOR_M)
+    );
+
+    if (onRoute.length === 0) {
+      title = `✅ Good time to leave for ${label}`;
+      body = `The road ahead looks clear. Your planned ${formatEatTime(plannedAt)} departure looks like a good time to go.`;
+    } else {
+      const worst = onRoute[0];
+      const typeLabel = worst.type.charAt(0).toUpperCase() + worst.type.slice(1);
+      title = `⚠️ Heads up before you leave for ${label}`;
+      body = onRoute.length === 1
+        ? `${typeLabel} reported on your route to ${label}. Consider leaving a little earlier or checking for an alternative route.`
+        : `${onRoute.length} incidents (including ${typeLabel.toLowerCase()}) reported on your route to ${label}. Consider leaving earlier or an alternative route.`;
+    }
+  }
+
+  const data = { type: "trip_advice", tripId, lat: route?.coords[0]?.lat, lng: route?.coords[0]?.lng };
+
+  const { ok, failed } = await sendPushNotifications([
+    { to: token, title, body, sound: "default", channelId: "default", data },
+  ]);
+
+  await db
+    .update(plannedTripsTable)
+    .set({ status: "notified", notifiedAt: new Date() })
+    .where(eq(plannedTripsTable.id, tripId));
+
+  logger.info({ deviceId, tripId, ok, failed }, "Planned trip departure advice sent");
+}
+
+async function checkPlannedTrips(): Promise<void> {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() + ADVICE_WINDOW_MIN_MS);
+  const windowEnd = new Date(now.getTime() + ADVICE_WINDOW_MAX_MS);
+
+  const due = await db
+    .select()
+    .from(plannedTripsTable)
+    .where(
+      and(
+        eq(plannedTripsTable.status, "upcoming"),
+        gte(plannedTripsTable.plannedAt, windowStart),
+        lte(plannedTripsTable.plannedAt, windowEnd)
+      )
+    );
+
+  if (due.length === 0) return;
+
+  for (const trip of due) {
+    try {
+      const [tokenRow] = await db
+        .select()
+        .from(pushTokensTable)
+        .where(eq(pushTokensTable.deviceId, trip.deviceId));
+
+      if (!tokenRow) {
+        // No registered push token for this device — nothing we can send.
+        await db.update(plannedTripsTable).set({ status: "notified", notifiedAt: now }).where(eq(plannedTripsTable.id, trip.id));
+        continue;
+      }
+
+      const route = tokenRow.lastLat != null && tokenRow.lastLng != null
+        ? await fetchOSRMRoute(tokenRow.lastLat, tokenRow.lastLng, trip.destLat, trip.destLng)
+        : null;
+
+      await sendTripAdvice(trip.deviceId, tokenRow.token, trip.id, trip.label, trip.plannedAt, route);
+    } catch (err) {
+      logger.error({ err, tripId: trip.id }, "Failed to process planned trip advice");
+    }
+  }
+}
+
 // ─── Job entry point ──────────────────────────────────────────────────────────
 
 // Run incident checks every 15 minutes independently of the 1-minute main loop
@@ -336,6 +474,7 @@ const INCIDENT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 async function runJob(): Promise<void> {
   await processScheduledCampaigns();
   await checkDailyTriggers();
+  await checkPlannedTrips();
 
   const now = Date.now();
   if (now - lastIncidentCheckAt >= INCIDENT_CHECK_INTERVAL_MS) {

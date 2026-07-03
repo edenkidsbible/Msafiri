@@ -837,8 +837,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // ── Community report proximity voice alerts (1 km) ──────────────────────
+    // Only announce while actually driving (same moving threshold used for
+    // trip tracking below) — otherwise a driver parked/at home who merely has
+    // the app open with location permission would get spoken alerts for
+    // reports near their static position, which is exactly the annoyance we
+    // want to avoid. Reports aren't marked as announced while not driving, so
+    // they'll still be announced once the driver starts moving near them.
+    const isDriving = kmh > 5;
     const REPORT_ANNOUNCE_DIST = 1000;
-    for (const report of communityReportsRef.current) {
+    for (const report of isDriving ? communityReportsRef.current : []) {
       if (announcedReportsRef.current.has(report.id)) continue;
       if (now - report.timestamp > 7200000) continue; // ignore reports > 2 h old
       const distToReport = haversine(lat, lng, report.lat, report.lng);

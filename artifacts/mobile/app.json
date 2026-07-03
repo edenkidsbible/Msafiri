@@ -64,9 +64,12 @@
         {
           "icon": "./assets/images/adaptive-icon-foreground.png",
           "color": "#00C853",
-          "sounds": ["./assets/sounds/alert_tone.mp3"]
+          "sounds": [
+            "./assets/sounds/alert_tone.mp3"
+          ]
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

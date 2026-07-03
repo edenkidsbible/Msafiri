@@ -63,6 +63,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "location", selected: "location.fill" }} />
         <Label>Browse</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="trips">
+        <Icon sf={{ default: "calendar", selected: "calendar" }} />
+        <Label>Trips</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="fines">
         <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
         <Label>Fines</Label>
@@ -114,8 +118,8 @@ function ClassicTabLayout() {
       <Tabs.Screen name="index"   options={{ title: "Drive",   tabBarIcon: icon("activity",   "gauge") }} />
       <Tabs.Screen name="map"     options={{ title: "Map",     tabBarIcon: icon("map",        "map") }} />
       <Tabs.Screen name="browse"  options={{ title: "Browse",  tabBarIcon: icon("compass",    "location") }} />
+      <Tabs.Screen name="trips"  options={{ title: "Trips",   tabBarIcon: icon("calendar",   "calendar") }} />
       <Tabs.Screen name="fines"   options={{ title: "Fines",   tabBarIcon: icon("file-text",  "doc.text") }} />
-      <Tabs.Screen name="history" options={{ href: null }} />
       <Tabs.Screen name="settings"options={{ title: "Settings",tabBarIcon: icon("settings",   "gearshape") }} />
     </Tabs>
   );

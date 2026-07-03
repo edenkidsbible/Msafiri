@@ -24,3 +24,4 @@
 - [Expo tsconfig platform-file resolution](expo-tsconfig-platform-suffixes.md) — tsc can't resolve `@/components/Foo` when only Foo.native.tsx/Foo.web.tsx exist; add moduleSuffixes to tsconfig.
 - [logAudit call-site signature](audit-log-signature.md) — logAudit takes one options object with nested `actor: {id,name,role}` and object `details`; watch for call sites drifting to flat actorId/actorName or string details.
 - [Drive page theme vs HUD mode](drive-theme-vs-hudmode.md) — two separate booleans (themeOverride, hudMode) look similar; drive-page color theming must follow themeOverride/useColors, not the HUD/Night-Mode settings switch.
+- [lib/db composite build gotcha](db-package-composite-build.md) — new schema exports invisible to consumers until `tsc -b` regenerates dist/*.d.ts; drizzle-kit push alone doesn't do this.

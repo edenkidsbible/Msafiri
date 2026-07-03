@@ -366,7 +366,7 @@ export default function SettingsScreen() {
           <Row
             label="View Trip History"
             icon="time-outline"
-            onPress={() => router.push("/(tabs)/history")}
+            onPress={() => router.push("/(tabs)/trips")}
           />
         </View>
       </View>
