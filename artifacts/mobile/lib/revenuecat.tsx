@@ -8,6 +8,12 @@ const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
+// Test-only escape hatch: lets us hand out a sideloaded APK (via the "preview"
+// EAS build profile) that skips the paywall entirely, so the rest of the app
+// can be tested before Google Play Console subscription products exist.
+// Must NEVER be set in the "production" build profile — see eas.json.
+export const BYPASS_PAYWALL = process.env.EXPO_PUBLIC_BYPASS_PAYWALL === "true";
+
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro";
 
 function getRevenueCatApiKey() {
@@ -89,6 +95,7 @@ function useSubscriptionContext() {
   });
 
   const isSubscribed =
+    BYPASS_PAYWALL ||
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
   return {

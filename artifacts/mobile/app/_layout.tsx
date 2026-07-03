@@ -21,7 +21,7 @@ import { AppProvider, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
-import { initializeRevenueCat, SubscriptionProvider, useSubscription } from "@/lib/revenuecat";
+import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 
 try {
   initializeRevenueCat();
@@ -64,6 +64,16 @@ function OfflineBanner() {
     <View style={styles.offlineBanner}>
       <Ionicons name="cloud-offline-outline" size={14} color="#fff" />
       <Text style={styles.offlineText}>No internet — using offline data</Text>
+    </View>
+  );
+}
+
+function PaywallBypassBanner() {
+  if (!BYPASS_PAYWALL) return null;
+  return (
+    <View style={styles.bypassBanner}>
+      <Ionicons name="construct-outline" size={14} color="#fff" />
+      <Text style={styles.offlineText}>TEST BUILD — paywall bypassed, no real subscription</Text>
     </View>
   );
 }
@@ -116,6 +126,7 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }}>
+      <PaywallBypassBanner />
       <OfflineBanner />
       <RouteIncidentsPanel />
       <Stack
@@ -202,6 +213,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     backgroundColor: "#555",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    zIndex: 999,
+  },
+  bypassBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#C62828",
     paddingVertical: 6,
     paddingHorizontal: 16,
     zIndex: 999,

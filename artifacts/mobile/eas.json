@@ -17,7 +17,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "msafirikenya.com"
+        "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
+        "EXPO_PUBLIC_BYPASS_PAYWALL": "true"
       }
     },
     "production": {
