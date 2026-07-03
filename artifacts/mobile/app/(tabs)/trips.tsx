@@ -544,9 +544,9 @@ export default function TripsScreen() {
               {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
               {!placeSelected && placeResults.length > 0 && (
                 <View style={[styles.resultsBox, { borderColor: c.border }]}>
-                  {placeResults.map((r) => (
+                  {placeResults.map((r, idx) => (
                     <TouchableOpacity
-                      key={`${r.lat}-${r.lng}`}
+                      key={`${r.lat}-${r.lng}-${idx}`}
                       style={styles.resultRow}
                       onPress={() => {
                         setPlaceSelected(r);
@@ -607,9 +607,9 @@ export default function TripsScreen() {
               {tripSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
               {!tripDest && tripResults.length > 0 && (
                 <View style={[styles.resultsBox, { borderColor: c.border }]}>
-                  {tripResults.map((r) => (
+                  {tripResults.map((r, idx) => (
                     <TouchableOpacity
-                      key={`${r.lat}-${r.lng}`}
+                      key={`${r.lat}-${r.lng}-${idx}`}
                       style={styles.resultRow}
                       onPress={() => {
                         setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
