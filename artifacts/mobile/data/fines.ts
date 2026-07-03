@@ -47,7 +47,7 @@ export const FINE_CATEGORIES: FineCategory[] = [
         amount: 500,
         section: "LN 161/2016 – Schedule",
         points: 1,
-        note: "Instant fine. Pay within 7 days via eCitizen or M-Pesa.",
+        note: "Instant fine. Pay within 7 days at a KCB branch or authorized KCB agent.",
       },
       {
         id: "f003",
@@ -137,38 +137,24 @@ export const ENFORCEMENT_STEPS: EnforcementStep[] = [
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   {
-    name: "eCitizen Portal",
-    details: "Pay online via the official Kenya government platform",
+    name: "KCB Bank Branches",
+    details: "Pay directly at any Kenya Commercial Bank (KCB) branch",
     steps: [
-      "Visit ecitizen.go.ke in your browser",
-      "Log in or create a free account",
-      'Select "NTSA" → "Traffic Fines"',
-      "Enter your National ID or fine case number",
-      "Choose payment method: M-Pesa, credit/debit card",
-      "Complete payment and save the receipt",
+      "Wait for the official NTSA notification (SMS or email) with your offence and payment reference details",
+      "Visit any KCB branch nationwide",
+      "Present the payment reference and amount from the NTSA notification",
+      "Pay the fine in cash or via your KCB account at the counter",
+      "Collect your official payment receipt as proof of payment",
     ],
   },
   {
-    name: "M-Pesa Paybill",
-    details: "Pay directly via M-Pesa — no internet needed",
+    name: "Authorized KCB Agents",
+    details: "Pay through approved KCB banking agents using the details in your NTSA notification",
     steps: [
-      "Open M-Pesa on your phone",
-      'Go to "Lipa Na M-Pesa" → "Pay Bill"',
-      "Business Number: 222 222",
-      "Account Number: Your National ID Number",
-      "Enter the fine amount in Ksh",
-      "Confirm with your M-Pesa PIN and save the SMS",
-    ],
-  },
-  {
-    name: "NTSA Office / Huduma Centre",
-    details: "Pay in person at any NTSA office or Huduma Centre nationwide",
-    steps: [
-      "Visit the nearest NTSA office or Huduma Centre",
-      "Carry your National ID and vehicle documents",
-      "Present the fine notice or case number at the counter",
-      "Pay cash or use mobile money at the counter",
-      "Collect your official payment receipt",
+      "Locate an authorized KCB banking agent near you",
+      "Provide the payment reference and amount from your NTSA notification",
+      "Confirm the agent is an official KCB agent before paying",
+      "Complete the payment and keep the agent's receipt/confirmation",
     ],
   },
 ];

@@ -68,7 +68,7 @@ const articles = [
   <li><strong>11–20 km/h over:</strong> Ksh 3,000 fine</li>
   <li><strong>21 km/h+ over:</strong> Court appearance (no fixed fine)</li>
 </ul>
-<p>You have 7 days to pay any fixed fine via eCitizen before additional penalties apply.</p>
+<p>You have 7 days to pay any fixed fine before additional penalties apply. As of 2024, NTSA instant speeding fines are payable only at <strong>Kenya Commercial Bank (KCB)</strong> branches or through authorized KCB agents — they are no longer payable via eCitizen, M-Pesa PayBill, or card payment. Your official NTSA notification will include the payment reference to use at KCB.</p>
 
 <h2>Download Msafiri — Kenya's Road Safety App</h2>
 <p>Msafiri is the only navigation companion built specifically for Kenyan roads. It gives you:</p>
@@ -84,13 +84,13 @@ const articles = [
   {
     slug: "ntsa-speeding-fines-kenya-2024",
     title: "NTSA Speeding Fines Kenya 2024: How Much Do You Pay for Overspeeding?",
-    excerpt: "A complete breakdown of Kenya's official NTSA speeding fine amounts, how fines are calculated, and how to pay via eCitizen. Includes the LN 161/2016 penalty table.",
+    excerpt: "A complete breakdown of Kenya's official NTSA speeding fine amounts, how fines are calculated, and how to pay at KCB. Includes the LN 161/2016 penalty table.",
     author: "Msafiri Team",
     status: "published",
     publishedAt: new Date("2024-12-05"),
     metaTitle: "NTSA Speeding Fines Kenya 2024 — How Much Do You Pay? | Msafiri",
-    metaDescription: "Complete guide to NTSA speeding fines in Kenya. LN 161/2016 penalty brackets, eCitizen payment, and what happens if you miss the 7-day window.",
-    keywords: ["NTSA speeding fines Kenya 2024", "traffic fines Kenya", "overspeeding fine Kenya", "LN 161 2016 traffic fines", "eCitizen fine payment Kenya", "NTSA fine brackets Kenya", "speeding penalty Kenya"],
+    metaDescription: "Complete guide to NTSA speeding fines in Kenya. LN 161/2016 penalty brackets, how to pay at KCB, and what happens if you miss the 7-day window.",
+    keywords: ["NTSA speeding fines Kenya 2024", "traffic fines Kenya", "overspeeding fine Kenya", "LN 161 2016 traffic fines", "KCB NTSA fine payment Kenya", "NTSA fine brackets Kenya", "speeding penalty Kenya"],
     content: `
 <p>Getting caught by an NTSA speed camera in Kenya triggers a fine calculated under <strong>Legal Notice 161 of 2016</strong>. Understanding exactly how fines are structured can help you know what to expect — and why staying within the limit is always the smarter choice.</p>
 
@@ -109,16 +109,19 @@ const articles = [
   </tbody>
 </table>
 
-<p>The <strong>court appearance category</strong> (21+ km/h over) is critical — it means you cannot simply pay a fine via eCitizen and move on. You will receive a court summons, and magistrates can impose far heavier penalties including licence suspension or even a custodial sentence in serious cases.</p>
+<p>The <strong>court appearance category</strong> (21+ km/h over) is critical — it means you cannot simply pay a fine and move on. You will receive a court summons, and magistrates can impose far heavier penalties including licence suspension or even a custodial sentence in serious cases.</p>
 
-<h2>How to Pay Your NTSA Fine via eCitizen</h2>
+<h2>How to Pay Your NTSA Fine at KCB</h2>
+<p>As of 2024, NTSA instant speeding fines can <strong>only</strong> be paid through <strong>Kenya Commercial Bank (KCB)</strong> — they are no longer payable via eCitizen, M-Pesa PayBill, or card payment. NTSA says the change is intended to reduce fraud and fake payment scams.</p>
 <ol>
-  <li>Visit <a href="https://ecitizen.go.ke" target="_blank" rel="noopener">ecitizen.go.ke</a> and log in</li>
-  <li>Navigate to <strong>NTSA → Traffic Fine Payment</strong></li>
-  <li>Enter your licence number or vehicle registration</li>
-  <li>Review outstanding fines and select the one to pay</li>
-  <li>Pay via M-Pesa, credit card, or bank transfer</li>
+  <li>Wait for the official NTSA notification (SMS or email) — it includes your offence details (date, time, location, recorded speed), the amount due, and a payment reference</li>
+  <li>Visit any KCB branch nationwide, or an authorized KCB banking agent</li>
+  <li>Present the payment reference and amount from your NTSA notification</li>
+  <li>Pay the fine and collect your official receipt</li>
 </ol>
+<blockquote>
+  <p>⚠️ <strong>Watch out for scams:</strong> Do not pay anyone who sends you an unsolicited M-Pesa PayBill or Till number claiming to be NTSA, and don't expect to find these instant fines on eCitizen. If you're unsure whether a notification is genuine, verify it through official NTSA channels before paying.</p>
+</blockquote>
 
 <h2>The 7-Day Payment Window</h2>
 <p>Once a fine is issued, you have <strong>7 days</strong> to pay it before additional consequences can apply. If you miss this window:</p>
