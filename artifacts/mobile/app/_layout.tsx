@@ -135,6 +135,12 @@ export default function RootLayout() {
       Inter_500Medium,
       Inter_600SemiBold,
       Inter_700Bold,
+      // Bundled ourselves because some Android builds (emulators/devices
+      // without Google Play Services) lack the system Noto Color Emoji
+      // font — without it, Android falls back to a CJK font and our
+      // incident emoji render as random Chinese/Japanese characters.
+      // Subsetted to only the ~18 codepoints this app actually uses.
+      NotoColorEmoji: require("@/assets/fonts/NotoColorEmoji.ttf"),
     })
       .catch(() => {})
       .finally(() => setReady(true));

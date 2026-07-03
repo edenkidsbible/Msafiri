@@ -15,6 +15,7 @@ import type { CommunityReport } from "@/context/AppContext";
 import { POIS } from "@/data/pois";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
@@ -461,7 +462,7 @@ const ms = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.28, shadowRadius: 4, elevation: 5,
   },
-  emojiMarkerText: { fontSize: 18, lineHeight: 22 },
+  emojiMarkerText: { fontSize: 18, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
 
   // ── Speed-limit badge (road-stretch endpoints) ──────────────────────────────
   speedBadge: {
@@ -492,7 +493,7 @@ const ms = StyleSheet.create({
     width: 14, height: 14, borderRadius: 4,
     alignItems: "center", justifyContent: "center",
   },
-  clusterEmoji: { fontSize: 9 },
+  clusterEmoji: { fontSize: 9, fontFamily: EMOJI_FONT_FAMILY },
   clusterBadge: {
     position: "absolute", top: -7, right: -7,
     minWidth: 20, height: 20, borderRadius: 10,

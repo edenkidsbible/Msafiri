@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { CommunityReport } from "@/context/AppContext";
@@ -483,8 +484,8 @@ const styles = StyleSheet.create({
   speedInput: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center", minWidth: 52 },
   speedOptional: { fontSize: 11, fontFamily: "Inter_400Regular" },
 
-  chipEmoji: { fontSize: 17, lineHeight: 22 },
-  submitEmoji: { fontSize: 16, lineHeight: 20 },
+  chipEmoji: { fontSize: 17, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
+  submitEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
 
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 14 },
   submitBtn: {

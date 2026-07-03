@@ -12,6 +12,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, CommunityReport } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
 interface Props {
   report: CommunityReport;
@@ -160,6 +161,7 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 36,
+    fontFamily: EMOJI_FONT_FAMILY,
   },
   question: {
     fontSize: 22,

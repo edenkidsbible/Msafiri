@@ -18,6 +18,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import AlertBanner from "@/components/AlertBanner";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
 import DriveMapView from "@/components/DriveMapView";
 import ReportModal from "@/components/ReportModal";
@@ -500,7 +501,12 @@ export default function DriveScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.incidentsBarTxt} numberOfLines={1}>
-                {incidentSummaryParts(routeIncidentsAhead).map((p) => `${p.emoji} ${p.label}`).join("   ")}
+                {incidentSummaryParts(routeIncidentsAhead).map((p, i) => (
+                  <Text key={i}>
+                    {i > 0 ? "   " : ""}
+                    <Text style={{ fontFamily: EMOJI_FONT_FAMILY }}>{p.emoji}</Text> {p.label}
+                  </Text>
+                ))}
               </Text>
               <Ionicons name="chevron-forward" size={16} color="#E53935" />
             </TouchableOpacity>
@@ -622,7 +628,12 @@ export default function DriveScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.incidentsBarTxt} numberOfLines={1}>
-                {incidentSummaryParts(routeIncidentsAhead).map((p) => `${p.emoji} ${p.label}`).join("   ")}
+                {incidentSummaryParts(routeIncidentsAhead).map((p, i) => (
+                  <Text key={i}>
+                    {i > 0 ? "   " : ""}
+                    <Text style={{ fontFamily: EMOJI_FONT_FAMILY }}>{p.emoji}</Text> {p.label}
+                  </Text>
+                ))}
               </Text>
               <Ionicons name="chevron-forward" size={16} color={isDark ? "#00E676" : "#E53935"} />
             </TouchableOpacity>

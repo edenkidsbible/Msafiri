@@ -8,6 +8,7 @@ import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
@@ -429,9 +430,9 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.28, shadowRadius: 4, elevation: 5,
   },
-  emojiMarkerText: { fontSize: 18, lineHeight: 22 },
+  emojiMarkerText: { fontSize: 18, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  legendEmoji: { fontSize: 16, width: 22, textAlign: "center" },
+  legendEmoji: { fontSize: 16, width: 22, textAlign: "center", fontFamily: EMOJI_FONT_FAMILY },
   legendDot: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   legendText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   controls: { position: "absolute", right: 12, flexDirection: "column", gap: 10 },
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
   clusterWrap: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   clusterGrid: { width: 36, height: 36, flexWrap: "wrap", flexDirection: "row", gap: 2, borderRadius: 10, overflow: "hidden" },
   clusterCell: { width: 16, height: 16, alignItems: "center", justifyContent: "center", borderRadius: 4 },
-  clusterEmoji: { fontSize: 9 },
+  clusterEmoji: { fontSize: 9, fontFamily: EMOJI_FONT_FAMILY },
   clusterBadge: {
     position: "absolute", bottom: 0, right: 0,
     minWidth: 18, height: 18, borderRadius: 9,
@@ -488,7 +489,7 @@ const calloutS = StyleSheet.create({
   sub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#666" },
   heading: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111", marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 6 },
-  rowEmoji: { fontSize: 16, lineHeight: 20 },
+  rowEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
   rowLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111" },
   rowRoad: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#1565C0", marginTop: 1 },
   rowAge: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#666", marginTop: 1 },
