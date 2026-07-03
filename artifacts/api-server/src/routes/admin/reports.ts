@@ -173,6 +173,214 @@ router.post("/reports", async (req: Request, res: Response) => {
   }
 });
 
+const VALID_TYPES = new Set([
+  "camera", "police", "alcoblow", "accident", "traffic", "roadblock",
+  "roadworks", "hazard", "pothole", "debris", "breakdown", "weather",
+  "closure", "clear",
+]);
+const VALID_STATUSES = new Set(["active", "confirmed", "expired", "denied"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Minimal RFC-4180 CSV parser: handles quoted fields, embedded commas/newlines, and "" escaping.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let i = 0;
+  const len = text.length;
+
+  while (i < len) {
+    const char = text[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      field += char;
+      i++;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (char === ",") {
+      row.push(field);
+      field = "";
+      i++;
+      continue;
+    }
+    if (char === "\r") {
+      i++;
+      continue;
+    }
+    if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      i++;
+      continue;
+    }
+    field += char;
+    i++;
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows.filter((r) => !(r.length === 1 && r[0] === ""));
+}
+
+// POST /admin/reports/import — CSV upload (creates new rows, restores/updates existing rows by id)
+router.post("/reports/import", async (req: Request, res: Response) => {
+  try {
+    const { csv } = req.body as { csv?: string };
+    if (!csv || typeof csv !== "string" || !csv.trim()) {
+      return res.status(400).json({ error: "csv (string) is required" });
+    }
+
+    const rows = parseCsv(csv.trim());
+    if (rows.length === 0) {
+      return res.status(400).json({ error: "CSV is empty" });
+    }
+
+    const header = rows[0]!.map((h) => h.trim());
+    const dataRows = rows.slice(1);
+    if (dataRows.length === 0) {
+      return res.status(400).json({ error: "CSV has no data rows" });
+    }
+
+    const colIndex = (name: string) => header.indexOf(name);
+    const idx = {
+      id:           colIndex("id"),
+      type:         colIndex("type"),
+      status:       colIndex("status"),
+      roadName:     colIndex("roadName"),
+      lat:          colIndex("lat"),
+      lng:          colIndex("lng"),
+      speedLimit:   colIndex("speedLimit"),
+      confirmCount: colIndex("confirmCount"),
+      denyCount:    colIndex("denyCount"),
+      createdAt:    colIndex("createdAt"),
+      expiresAt:    colIndex("expiresAt"),
+    };
+
+    if (idx.type === -1 || idx.lat === -1 || idx.lng === -1) {
+      return res.status(400).json({ error: "CSV must include at least type, lat, lng columns" });
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: Array<{ row: number; message: string }> = [];
+
+    const existingIds = new Set(
+      (await db.select({ id: communityReportsTable.id }).from(communityReportsTable)).map((r) => r.id)
+    );
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const cols = dataRows[i]!;
+      const rowNum = i + 2; // account for header + 1-indexing
+
+      try {
+        const type = cols[idx.type]?.trim();
+        const lat = idx.lat >= 0 ? Number(cols[idx.lat]) : NaN;
+        const lng = idx.lng >= 0 ? Number(cols[idx.lng]) : NaN;
+
+        if (!type || !VALID_TYPES.has(type)) {
+          errors.push({ row: rowNum, message: `Invalid or missing type "${type ?? ""}"` });
+          skipped++;
+          continue;
+        }
+        if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+          errors.push({ row: rowNum, message: "Invalid or missing lat/lng" });
+          skipped++;
+          continue;
+        }
+
+        const rawStatus = idx.status >= 0 ? cols[idx.status]?.trim() : undefined;
+        const status = rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : "active";
+
+        const rawId = idx.id >= 0 ? cols[idx.id]?.trim() : undefined;
+        const validId = rawId && UUID_RE.test(rawId) ? rawId : undefined;
+
+        const roadName = idx.roadName >= 0 ? (cols[idx.roadName]?.trim() || null) : null;
+        const speedLimitRaw = idx.speedLimit >= 0 ? cols[idx.speedLimit]?.trim() : "";
+        const speedLimit = speedLimitRaw ? Number(speedLimitRaw) : null;
+        const confirmCountRaw = idx.confirmCount >= 0 ? cols[idx.confirmCount]?.trim() : "";
+        const confirmCount = confirmCountRaw && Number.isFinite(Number(confirmCountRaw)) ? Number(confirmCountRaw) : 1;
+        const denyCountRaw = idx.denyCount >= 0 ? cols[idx.denyCount]?.trim() : "";
+        const denyCount = denyCountRaw && Number.isFinite(Number(denyCountRaw)) ? Number(denyCountRaw) : 0;
+
+        const createdAtRaw = idx.createdAt >= 0 ? cols[idx.createdAt]?.trim() : "";
+        const createdAtDate = createdAtRaw ? new Date(createdAtRaw) : undefined;
+        const expiresAtRaw = idx.expiresAt >= 0 ? cols[idx.expiresAt]?.trim() : "";
+        const expiresAtDate = expiresAtRaw ? new Date(expiresAtRaw) : null;
+
+        const values = {
+          type,
+          lat,
+          lng,
+          status,
+          roadName,
+          speedLimit: speedLimit != null && Number.isFinite(speedLimit) ? speedLimit : null,
+          confirmCount,
+          denyCount,
+          expiresAt: expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) ? expiresAtDate : null,
+        };
+
+        if (validId && existingIds.has(validId)) {
+          await db
+            .update(communityReportsTable)
+            .set(values)
+            .where(eq(communityReportsTable.id, validId));
+          updated++;
+        } else {
+          await db.insert(communityReportsTable).values({
+            ...(validId ? { id: validId } : {}),
+            ...values,
+            deviceId: "csv-import",
+            ...(createdAtDate && !Number.isNaN(createdAtDate.getTime()) ? { createdAt: createdAtDate } : {}),
+          });
+          if (validId) existingIds.add(validId);
+          created++;
+        }
+      } catch (rowErr) {
+        errors.push({ row: rowNum, message: rowErr instanceof Error ? rowErr.message : "Unknown error" });
+        skipped++;
+      }
+    }
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({ actor, action: "report.import", details: { created, updated, skipped, errorCount: errors.length } });
+    if (created + updated > 0) {
+      await createNotification({
+        title:   `CSV import: ${created + updated} reports processed`,
+        message: `${actor.name} (${actor.role}) imported ${created} new and restored/updated ${updated} incident report${created + updated !== 1 ? "s" : ""}.`,
+        type:    "info",
+      });
+    }
+
+    return res.json({ success: true, created, updated, skipped, errors });
+  } catch (err) {
+    console.error("POST /admin/reports/import error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // POST /admin/reports/bulk — bulk action
 router.post("/reports/bulk", async (req: Request, res: Response) => {
   try {

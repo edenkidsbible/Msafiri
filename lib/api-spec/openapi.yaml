@@ -144,6 +144,29 @@ paths:
         "401":
           description: Unauthorized
 
+  /admin/reports/import:
+    post:
+      operationId: adminImportReports
+      tags: [admin-reports]
+      summary: Import reports from a CSV file (create new, restore/update existing by id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminReportImportInput"
+      responses:
+        "200":
+          description: Import result summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportImportResult"
+        "400":
+          description: Invalid CSV
+        "401":
+          description: Unauthorized
+
   /admin/reports/bulk:
     post:
       operationId: adminBulkReports
@@ -1121,6 +1144,32 @@ components:
       properties:
         success:  { type: boolean }
         affected: { type: integer }
+
+    AdminReportImportInput:
+      type: object
+      required: [csv]
+      properties:
+        csv: { type: string }
+
+    AdminReportImportResult:
+      type: object
+      required: [success, created, updated, skipped, errors]
+      properties:
+        success: { type: boolean }
+        created: { type: integer }
+        updated: { type: integer }
+        skipped: { type: integer }
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReportImportError"
+
+    AdminReportImportError:
+      type: object
+      required: [row, message]
+      properties:
+        row:     { type: integer }
+        message: { type: string }
 
     AdminStats:
       type: object

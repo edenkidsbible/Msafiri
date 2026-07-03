@@ -110,6 +110,25 @@ export const AdminExportReportsResponse = zod.unknown()
 
 
 /**
+ * @summary Import reports from a CSV file (create new, restore/update existing by id)
+ */
+export const AdminImportReportsBody = zod.object({
+  "csv": zod.string()
+})
+
+export const AdminImportReportsResponse = zod.object({
+  "success": zod.boolean(),
+  "created": zod.number(),
+  "updated": zod.number(),
+  "skipped": zod.number(),
+  "errors": zod.array(zod.object({
+  "row": zod.number(),
+  "message": zod.string()
+}))
+})
+
+
+/**
  * @summary Bulk action on reports (confirm, deny, delete)
  */
 export const AdminBulkReportsBody = zod.object({

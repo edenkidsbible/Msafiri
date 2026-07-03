@@ -35,6 +35,8 @@ import type {
   AdminLoginResult,
   AdminNotificationList,
   AdminReport,
+  AdminReportImportInput,
+  AdminReportImportResult,
   AdminReportInput,
   AdminReportList,
   AdminReportUpdate,
@@ -483,6 +485,76 @@ export function useAdminExportReports<TData = Awaited<ReturnType<typeof adminExp
 
 
 
+
+export const getAdminImportReportsUrl = () => {
+
+
+
+
+  return `/api/admin/reports/import`
+}
+
+/**
+ * @summary Import reports from a CSV file (create new, restore/update existing by id)
+ */
+export const adminImportReports = async (adminReportImportInput: AdminReportImportInput, options?: RequestInit): Promise<AdminReportImportResult> => {
+
+  return customFetch<AdminReportImportResult>(getAdminImportReportsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminReportImportInput)
+  }
+);}
+
+
+
+
+export const getAdminImportReportsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminImportReports>>, TError,{data: BodyType<AdminReportImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminImportReports>>, TError,{data: BodyType<AdminReportImportInput>}, TContext> => {
+
+const mutationKey = ['adminImportReports'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminImportReports>>, {data: BodyType<AdminReportImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminImportReports(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminImportReportsMutationResult = NonNullable<Awaited<ReturnType<typeof adminImportReports>>>
+    export type AdminImportReportsMutationBody = BodyType<AdminReportImportInput>
+    export type AdminImportReportsMutationError = ErrorType<void>
+
+    /**
+ * @summary Import reports from a CSV file (create new, restore/update existing by id)
+ */
+export const useAdminImportReports = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminImportReports>>, TError,{data: BodyType<AdminReportImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminImportReports>>,
+        TError,
+        {data: BodyType<AdminReportImportInput>},
+        TContext
+      > => {
+      return useMutation(getAdminImportReportsMutationOptions(options));
+    }
 
 export const getAdminBulkReportsUrl = () => {
 

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
-import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports } from "@workspace/api-client-react";
+import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -77,8 +77,18 @@ function handleExportCsv(type?: string, status?: string) {
     });
 }
 
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsText(file);
+  });
+}
+
 export default function Reports() {
   const [page, setPage] = useState(1);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -219,6 +229,27 @@ export default function Reports() {
     }
   });
 
+  const importMutation = useAdminImportReports({
+    mutation: {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+        const parts = [`${result.created} created`, `${result.updated} restored/updated`];
+        if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+        toast({
+          title: "CSV import complete",
+          description: parts.join(", ") + ".",
+          variant: result.skipped > 0 && result.created + result.updated === 0 ? "destructive" : "default",
+        });
+        if (result.errors.length > 0) {
+          console.warn("CSV import row errors:", result.errors);
+        }
+      },
+      onError: () => {
+        toast({ title: "Import failed", description: "Could not process the CSV file.", variant: "destructive" });
+      }
+    }
+  });
+
   const createForm = useForm<z.infer<typeof reportSchema>>({
     resolver: zodResolver(reportSchema),
     defaultValues: { type: "hazard", lat: 0, lng: 0, status: "active", roadName: "", speedLimit: 0 },
@@ -247,6 +278,28 @@ export default function Reports() {
     setPendingCoords({ lat, lng });
     createForm.reset({ type: "hazard", lat, lng, status: "active", roadName: "", speedLimit: 0 });
     setIsAddOpen(true);
+  };
+
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
+      toast({ title: "Invalid file", description: "Please select a .csv file.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const csv = await readFileAsText(file);
+      importMutation.mutate({ data: { csv } });
+    } catch {
+      toast({ title: "Could not read file", variant: "destructive" });
+    }
   };
 
   const reports = data?.reports ?? [];
@@ -278,6 +331,24 @@ export default function Reports() {
           </div>
 
           <div className="flex items-center gap-3">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportFileChange}
+              data-testid="input-import-csv"
+            />
+            <Button
+              variant="outline"
+              className="gap-2 shadow-none"
+              disabled={importMutation.isPending}
+              onClick={handleImportClick}
+              data-testid="btn-import-csv"
+            >
+              {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Import CSV
+            </Button>
             <Button
               variant="outline"
               className="gap-2 shadow-none"
@@ -285,6 +356,7 @@ export default function Reports() {
                 typeFilter !== "all" ? typeFilter : undefined,
                 statusFilter !== "all" ? statusFilter : undefined,
               )}
+              data-testid="btn-export-csv"
             >
               <Download className="h-4 w-4" /> Export CSV
             </Button>

@@ -114,6 +114,23 @@ export interface AdminBulkReportResult {
   affected: number;
 }
 
+export interface AdminReportImportInput {
+  csv: string;
+}
+
+export interface AdminReportImportError {
+  row: number;
+  message: string;
+}
+
+export interface AdminReportImportResult {
+  success: boolean;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: AdminReportImportError[];
+}
+
 export interface StatCount {
   label: string;
   count: number;
