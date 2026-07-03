@@ -309,16 +309,16 @@ export default function FinesScreen() {
               Law Society of Kenya (LSK)
             </Text>
             <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
-              📞 +254 20 3874481
+              Lavington, Opposite Valley Arcade, Gitanga Road
             </Text>
             <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
-              📞 +254 709 155 000
+              P.O Box 72219-00200, Nairobi, Kenya
             </Text>
             <Text style={{ color: c.mutedForeground, fontSize: 13, marginBottom: 2 }}>
-              ✉️  info@lsk.or.ke
+              📞 +254-799-595-800
             </Text>
             <Text style={{ color: c.mutedForeground, fontSize: 13 }}>
-              🌐 www.lsk.or.ke
+              ✉️  lsk@lsk.or.ke
             </Text>
           </View>
         </ScrollView>
