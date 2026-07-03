@@ -53,6 +53,17 @@ function MarkerIcon({
   );
 }
 
+// Speed-limit badge — shown at road-stretch endpoints so the driver can see
+// how the limit changes along the road (e.g. 50 → 80 → 110) at a glance.
+function SpeedLimitBadge({ speed, bg }: { speed: number; bg: string }) {
+  return (
+    <View collapsable={false} style={[styles.speedBadge, { borderColor: bg }]}>
+      <Text style={[styles.speedBadgeNum, { color: bg }]}>{speed}</Text>
+      <Text style={[styles.speedBadgeUnit, { color: bg }]}>km/h</Text>
+    </View>
+  );
+}
+
 const ZONE_MARKER: Record<string, { ioniconName: React.ComponentProps<typeof Ionicons>["name"]; bg: string }> = {
   camera: { ioniconName: "camera",      bg: "#E53935" },
   police: { ioniconName: "person",      bg: "#1565C0" },
@@ -189,7 +200,7 @@ export default function MapViewScreen() {
     activeRoute, altRoutes, selectRoute,
     navigationActive,
     showTraffic, setShowTraffic,
-    vehicleType, allZones, stretchZones,
+    vehicleType, allZones,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
 
@@ -241,20 +252,9 @@ export default function MapViewScreen() {
         showsCompass
         showsTraffic={showTraffic}
       >
-        {/* Admin-defined road-stretch corridors (continuous limits, e.g. open highway) */}
-        {stretchZones.map((s) => (
-          <Polyline
-            key={s.id}
-            coordinates={[
-              { latitude: s.startLat, longitude: s.startLng },
-              { latitude: s.endLat, longitude: s.endLng },
-            ]}
-            strokeColor={s.type === "camera" ? "#E53935AA" : s.type === "police" ? "#1565C0AA" : "#E65100AA"}
-            strokeWidth={5}
-          />
-        ))}
-
-        {/* Speed zone markers */}
+        {/* Speed zone markers — road-stretch corridors show their limit as a
+            badge at each end so you can see how the speed changes along the
+            road, instead of a straight line cutting across the map. */}
         {allZones.map((z) => {
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;
           return (
@@ -265,7 +265,11 @@ export default function MapViewScreen() {
                 title={z.name}
                 description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
               >
-                <MarkerIcon ioniconName={m.ioniconName} bg={m.bg} />
+                {z.isStretchEndpoint ? (
+                  <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={m.bg} />
+                ) : (
+                  <MarkerIcon ioniconName={m.ioniconName} bg={m.bg} />
+                )}
               </Marker>
               <Circle
                 center={{ latitude: z.lat, longitude: z.lng }}
@@ -401,6 +405,15 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
   },
+  speedBadge: {
+    minWidth: 44, paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 10, backgroundColor: "#FFF",
+    borderWidth: 2, alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
+  },
+  speedBadgeNum: { fontSize: 15, fontFamily: "Inter_700Bold", lineHeight: 17 },
+  speedBadgeUnit: { fontSize: 8, fontFamily: "Inter_600SemiBold", opacity: 0.85, lineHeight: 9 },
   legendWrap: {
     position: "absolute", left: 12,
     borderRadius: 12,

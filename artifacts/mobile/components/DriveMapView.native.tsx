@@ -87,6 +87,17 @@ function MarkerIcon({
   );
 }
 
+// Speed-limit badge — shown at road-stretch endpoints so the driver can see
+// how the limit changes along the road (e.g. 50 → 80 → 110) at a glance.
+function SpeedLimitBadge({ speed, bg }: { speed: number; bg: string }) {
+  return (
+    <View collapsable={false} style={[ms.speedBadge, { borderColor: bg }]}>
+      <Text style={[ms.speedBadgeNum, { color: bg }]}>{speed}</Text>
+      <Text style={[ms.speedBadgeUnit, { color: bg }]}>km/h</Text>
+    </View>
+  );
+}
+
 // ─── Cluster marker (2+ incidents at same location) ───────────────────────────
 
 function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
@@ -136,7 +147,7 @@ export default function DriveMapView() {
     activeRoute, altRoutes, selectRoute,
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport,
-    vehicleType, allZones, stretchZones,
+    vehicleType, allZones,
     pendingFocusCoords, setPendingFocusCoords,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
@@ -228,43 +239,39 @@ export default function DriveMapView() {
         showsCompass
         showsTraffic={showTraffic}
       >
-        {/* Admin-defined road-stretch corridors (continuous limits, e.g. open highway) */}
-        {stretchZones.map((s) => (
-          <Polyline
-            key={s.id}
-            coordinates={[
-              { latitude: s.startLat, longitude: s.startLng },
-              { latitude: s.endLat, longitude: s.endLng },
-            ]}
-            strokeColor={s.type === "camera" ? "#E53935AA" : s.type === "police" ? "#1565C0AA" : "#E65100AA"}
-            strokeWidth={5}
-          />
-        ))}
-
-        {/* Speed zone markers */}
-        {allZones.map((z) => (
-          <React.Fragment key={z.id}>
-            <Marker
-              coordinate={{ latitude: z.lat, longitude: z.lng }}
-              anchor={{ x: 0.5, y: 1 }}
-              title={z.name}
-              description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
-            >
-              <MarkerIcon
-                ioniconName={z.type === "camera" ? "camera" : z.type === "police" ? "person" : "speedometer"}
-                bg={z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100"}
-                size={32}
+        {/* Speed zone markers — road-stretch corridors show their limit as a
+            badge at each end so you can see how the speed changes along the
+            road, instead of a straight line cutting across the map. */}
+        {allZones.map((z) => {
+          const bg = z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100";
+          return (
+            <React.Fragment key={z.id}>
+              <Marker
+                coordinate={{ latitude: z.lat, longitude: z.lng }}
+                anchor={{ x: 0.5, y: 1 }}
+                title={z.name}
+                description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
+              >
+                {z.isStretchEndpoint ? (
+                  <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={bg} />
+                ) : (
+                  <MarkerIcon
+                    ioniconName={z.type === "camera" ? "camera" : z.type === "police" ? "person" : "speedometer"}
+                    bg={bg}
+                    size={32}
+                  />
+                )}
+              </Marker>
+              <Circle
+                center={{ latitude: z.lat, longitude: z.lng }}
+                radius={180}
+                strokeColor={z.type === "camera" ? "#E5393555" : "#1565C055"}
+                fillColor={z.type === "camera" ? "#E5393912" : "#1565C012"}
+                strokeWidth={1.5}
               />
-            </Marker>
-            <Circle
-              center={{ latitude: z.lat, longitude: z.lng }}
-              radius={180}
-              strokeColor={z.type === "camera" ? "#E5393555" : "#1565C055"}
-              fillColor={z.type === "camera" ? "#E5393912" : "#1565C012"}
-              strokeWidth={1.5}
-            />
-          </React.Fragment>
-        ))}
+            </React.Fragment>
+          );
+        })}
 
         {/* Community report clusters */}
         {clusters.map((group) => {
@@ -455,6 +462,17 @@ const ms = StyleSheet.create({
     shadowOpacity: 0.28, shadowRadius: 4, elevation: 5,
   },
   emojiMarkerText: { fontSize: 18, lineHeight: 22 },
+
+  // ── Speed-limit badge (road-stretch endpoints) ──────────────────────────────
+  speedBadge: {
+    minWidth: 44, paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 10, backgroundColor: "#FFF",
+    borderWidth: 2, alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
+  },
+  speedBadgeNum: { fontSize: 15, fontFamily: "Inter_700Bold", lineHeight: 17 },
+  speedBadgeUnit: { fontSize: 8, fontFamily: "Inter_600SemiBold", opacity: 0.85, lineHeight: 9 },
 
   // ── Cluster marker ──────────────────────────────────────────────────────────
   clusterWrap: {
