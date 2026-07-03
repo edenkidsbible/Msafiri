@@ -13,12 +13,12 @@ import { useColors } from "@/hooks/useColors";
 // there to avoid showing two redundant tap targets on the same screen.
 const DRIVE_TAB_PATH = "/";
 
-function distLabel(m: number): string {
+export function distLabel(m: number): string {
   const v = Math.max(0, m);
   return v >= 1000 ? `${(v / 1000).toFixed(1)} km ahead` : `${Math.round(v)} m ahead`;
 }
 
-function incidentVisual(inc: RouteIncident): { IconComp: typeof Ionicons | typeof MaterialCommunityIcons; icon: string; color: string } {
+export function incidentVisual(inc: RouteIncident): { IconComp: typeof Ionicons | typeof MaterialCommunityIcons; icon: string; color: string } {
   if (inc.source === "static") {
     if (inc.type === "camera") return { IconComp: Ionicons, icon: "camera", color: "#E53935" };
     if (inc.type === "police") return { IconComp: Ionicons, icon: "person", color: "#1565C0" };
@@ -40,7 +40,7 @@ function incidentVisual(inc: RouteIncident): { IconComp: typeof Ionicons | typeo
   }
 }
 
-function delayMinutesLabel(delayS: number): string {
+export function delayMinutesLabel(delayS: number): string {
   return `${Math.round(delayS / 60)} min`;
 }
 
@@ -49,7 +49,7 @@ const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
   closure: 15, accident: 12, roadblock: 10, traffic: 8, roadworks: 5, breakdown: 4, weather: 3,
 };
 
-function incidentDelayMin(inc: RouteIncident): number | null {
+export function incidentDelayMin(inc: RouteIncident): number | null {
   if (inc.source !== "report") return null;
   const base = TRAFFIC_DELAY_WEIGHTS_MIN[inc.type];
   if (!base) return null;

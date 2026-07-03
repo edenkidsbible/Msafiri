@@ -109,6 +109,13 @@ export interface RouteIncident {
   timestamp?: number;
 }
 
+export interface RouteCheckResult {
+  distanceM: number;
+  durationS: number;
+  trafficDelayS: number;
+  incidents: RouteIncident[];
+}
+
 interface AppContextValue {
   locationGranted: boolean;
   requestLocationPermission: () => Promise<void>;
@@ -164,6 +171,11 @@ interface AppContextValue {
   zonesOnRoute: SpeedZone[];
   routeIncidentsAhead: RouteIncident[];
   routeTrafficDelayS: number;
+  /** On-demand road-condition check from the driver's current location to an
+   *  arbitrary destination (used by Saved Places / Planned Trips), independent
+   *  of the active navigation route. Returns null if location isn't available
+   *  or no route could be found. */
+  checkRouteStatus: (destLat: number, destLng: number) => Promise<RouteCheckResult | null>;
   routeIncidentsExpanded: boolean;
   setRouteIncidentsExpanded: (v: boolean) => void;
   arrivedInfo: ArrivedInfo | null;
@@ -504,6 +516,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isOffline, setIsOffline] = useState(false);
   const [vehicleType, setVehicleTypeState] = useState<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   const vehicleTypeRef = useRef<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
+  const currentLatRef = useRef<number | null>(null);
+  const currentLngRef = useRef<number | null>(null);
   // Navigation
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
@@ -672,6 +686,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Keep voice refs in sync with state ───────────────────────────────────
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
+  useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
+  useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -1236,6 +1252,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [routeIncidentsAhead]
   );
 
+  // On-demand road check for an arbitrary destination (Saved Places / Planned
+  // Trips) — mirrors the routeIncidents logic above but works off a
+  // freshly-fetched route rather than the driver's active navigation route.
+  const checkRouteStatus = useCallback(async (destLat: number, destLng: number): Promise<RouteCheckResult | null> => {
+    const lat = currentLatRef.current;
+    const lng = currentLngRef.current;
+    if (lat == null || lng == null) return null;
+    const routes = await fetchOSRM(lat, lng, destLat, destLng);
+    if (!routes.length) return null;
+    const route = routes[0];
+    const cumDist = buildCumulativeDistances(route.coords);
+    const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+    const list: RouteIncident[] = [];
+    for (const z of allZonesRef.current) {
+      const proj = projectOntoRoute(route.coords, cumDist, z.lat, z.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        list.push({
+          id: `static-${z.id}`,
+          source: "static",
+          type: z.type,
+          label: staticZoneLabel(z.type),
+          name: z.name,
+          road: z.road,
+          description: z.description,
+          speedLimit: capSpeedLimit(z.speedLimit, vehicle),
+          lat: z.lat,
+          lng: z.lng,
+          distanceAlongRouteM: proj.alongRouteM,
+        });
+      }
+    }
+    for (const r of communityReportsRef.current) {
+      if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
+      const proj = projectOntoRoute(route.coords, cumDist, r.lat, r.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        const info = resolveIncidentType(r.type);
+        list.push({
+          id: `report-${r.id}`,
+          source: "report",
+          type: r.type,
+          label: info.label,
+          name: info.label,
+          road: r.roadName,
+          speedLimit: r.speedLimit != null ? capSpeedLimit(r.speedLimit, vehicle) : r.speedLimit,
+          lat: r.lat,
+          lng: r.lng,
+          distanceAlongRouteM: proj.alongRouteM,
+          confirmCount: r.confirmCount,
+          timestamp: r.timestamp,
+        });
+      }
+    }
+    list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
+    return {
+      distanceM: route.distanceM,
+      durationS: route.durationS,
+      trafficDelayS: estimateTrafficDelayS(list),
+      incidents: list,
+    };
+  }, []);
+
   // Live "distance/time remaining to destination" — recomputed every time
   // currentRouteDistanceM updates (i.e. every GPS fix), unlike the route's
   // static total distanceM/durationS which never change once fetched.
@@ -1499,7 +1576,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, routeLoading,
       showTraffic, setShowTraffic,
       zonesOnRoute,
-      routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
+      routeIncidentsAhead, routeTrafficDelayS, checkRouteStatus, routeIncidentsExpanded, setRouteIncidentsExpanded,
       arrivedInfo, clearArrival,
       pendingConfirmationReport, setPendingConfirmationReport,
       pendingConfirmationSource, setPendingConfirmationSource,

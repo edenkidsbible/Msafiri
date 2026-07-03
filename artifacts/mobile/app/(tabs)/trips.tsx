@@ -21,6 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import TripCard from "@/components/TripCard";
+import RouteCheckModal from "@/components/RouteCheckModal";
 import {
   SavedPlace,
   PlannedTrip,
@@ -92,6 +93,9 @@ export default function TripsScreen() {
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [tripSaving, setTripSaving] = useState(false);
   const tripTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Route check modal (road conditions for a saved place / planned trip)
+  const [routeCheck, setRouteCheck] = useState<{ label: string; lat: number; lng: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!deviceId) return;
@@ -353,13 +357,19 @@ export default function TripsScreen() {
                       <View style={[styles.placeIconWrap, { backgroundColor: c.primary + "18" }]}>
                         <Ionicons name={placeIcon(p.kind)} size={18} color={c.primary} />
                       </View>
-                      <TouchableOpacity style={{ flex: 1 }} onPress={() => openPlanTrip(p)}>
+                      <TouchableOpacity
+                        style={{ flex: 1 }}
+                        onPress={() => setRouteCheck({ label: p.label, lat: p.lat, lng: p.lng })}
+                      >
                         <Text style={[styles.placeLabel, { color: c.foreground }]}>{p.label}</Text>
                         {!!p.address && (
                           <Text style={[styles.placeAddr, { color: c.mutedForeground }]} numberOfLines={1}>
                             {p.address}
                           </Text>
                         )}
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => openPlanTrip(p)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 14 }}>
+                        <Ionicons name="calendar-outline" size={17} color={c.mutedForeground} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => openEditPlace(p)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 14 }}>
                         <Ionicons name="pencil-outline" size={17} color={c.mutedForeground} />
@@ -387,7 +397,11 @@ export default function TripsScreen() {
             </>
           }
           renderItem={({ item }) => (
-            <View style={[styles.tripRow, { backgroundColor: c.card, borderColor: c.border }]}>
+            <TouchableOpacity
+              style={[styles.tripRow, { backgroundColor: c.card, borderColor: c.border }]}
+              activeOpacity={0.75}
+              onPress={() => setRouteCheck({ label: item.label, lat: item.destLat, lng: item.destLng })}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={[styles.tripLabel, { color: c.foreground }]}>{item.label}</Text>
                 <Text style={[styles.tripTime, { color: c.mutedForeground }]}>{tripDateStr(item.plannedAt)}</Text>
@@ -398,10 +412,13 @@ export default function TripsScreen() {
                   </View>
                 )}
               </View>
-              <TouchableOpacity onPress={() => cancelTrip(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle-outline" size={22} color={c.mutedForeground} />
-              </TouchableOpacity>
-            </View>
+              <View style={styles.tripRowActions}>
+                <Ionicons name="shield-checkmark-outline" size={17} color={c.mutedForeground} style={{ marginRight: 12 }} />
+                <TouchableOpacity onPress={() => cancelTrip(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle-outline" size={22} color={c.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
           )}
           ListEmptyComponent={
             !loading ? (
@@ -680,6 +697,16 @@ export default function TripsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {routeCheck && (
+        <RouteCheckModal
+          visible={!!routeCheck}
+          onClose={() => setRouteCheck(null)}
+          destLabel={routeCheck.label}
+          destLat={routeCheck.lat}
+          destLng={routeCheck.lng}
+        />
+      )}
     </View>
   );
 }
@@ -723,6 +750,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14,
     paddingVertical: 12, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10,
   },
+  tripRowActions: { flexDirection: "row", alignItems: "center" },
   tripLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   tripTime: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   notifiedBadge: {
