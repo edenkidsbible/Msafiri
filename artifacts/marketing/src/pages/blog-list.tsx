@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Navigation, Calendar, Eye, ChevronRight, Rss } from "lucide-react";
+import { Calendar, Eye, ChevronRight, Rss } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
 
@@ -48,7 +49,7 @@ export default function BlogList() {
       <nav className="border-b border-border/30 py-4 px-6 sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Navigation className="w-5 h-5 text-primary fill-current" />
+            <img src={logo} alt="Msafiri" className="w-7 h-7" />
             <span className="font-bold text-lg tracking-tight">Msafiri</span>
           </Link>
           <div className="flex items-center gap-6 text-sm">
@@ -111,7 +112,7 @@ export default function BlogList() {
                     </div>
                   ) : (
                     <div className="md:w-2/5 h-52 md:h-auto bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                      <Navigation className="w-16 h-16 text-primary/30 fill-primary/10" />
+                      <img src={logo} alt="" className="w-16 h-16 opacity-30" />
                     </div>
                   )}
                   <div className="md:w-3/5 p-6 md:p-8 flex flex-col justify-center">
@@ -142,7 +143,7 @@ export default function BlogList() {
                         </div>
                       ) : (
                         <div className="h-40 bg-gradient-to-br from-primary/8 to-primary/3 flex items-center justify-center">
-                          <Navigation className="w-10 h-10 text-primary/25 fill-primary/8" />
+                          <img src={logo} alt="" className="w-10 h-10 opacity-25" />
                         </div>
                       )}
                       <div className="p-5 flex flex-col flex-1">
@@ -183,7 +184,7 @@ export default function BlogList() {
       {/* Footer */}
       <footer className="border-t border-border/30 py-8 px-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
-          <Navigation className="w-4 h-4 text-primary fill-current" />
+          <img src={logo} alt="Msafiri" className="w-6 h-6" />
           <span className="font-bold text-base">Msafiri</span>
         </div>
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-3">

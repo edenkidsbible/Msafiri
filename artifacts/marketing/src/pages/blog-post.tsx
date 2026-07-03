@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Navigation, Calendar, Eye, Clock, ArrowLeft, ChevronRight } from "lucide-react";
+import { Calendar, Eye, Clock, ArrowLeft, ChevronRight } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
 
@@ -130,7 +131,7 @@ export default function BlogPost() {
       <nav className="border-b border-border/30 py-4 px-6 sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Navigation className="w-5 h-5 text-primary fill-current" />
+            <img src={logo} alt="Msafiri" className="w-7 h-7" />
             <span className="font-bold text-lg tracking-tight">Msafiri</span>
           </Link>
           <div className="flex items-center gap-4 text-sm">
@@ -225,7 +226,7 @@ export default function BlogPost() {
             <div className="rounded-2xl bg-primary/5 border border-primary/20 p-6 md:p-8">
               <div className="flex items-start gap-4">
                 <div className="bg-primary/10 rounded-xl p-3 shrink-0">
-                  <Navigation className="w-6 h-6 text-primary fill-primary/20" />
+                  <img src={logo} alt="" className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-lg mb-1">Drive smarter with Msafiri</h3>
@@ -277,7 +278,7 @@ export default function BlogPost() {
       {/* Footer */}
       <footer className="border-t border-border/30 py-8 px-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
-          <Navigation className="w-4 h-4 text-primary fill-current" />
+          <img src={logo} alt="Msafiri" className="w-6 h-6" />
           <span className="font-bold text-base">Msafiri</span>
         </div>
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-3">

@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { Navigation, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 interface LegalLayoutProps {
   badge: string;
@@ -16,7 +17,7 @@ export function LegalLayout({ badge, title, effectiveDate, lastUpdated, children
       <nav className="border-b border-border/30 py-4 px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Navigation className="w-5 h-5 text-primary fill-current" />
+            <img src={logo} alt="Msafiri" className="w-7 h-7" />
             <span className="font-bold text-lg tracking-tight">Msafiri</span>
           </Link>
           <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -43,7 +44,7 @@ export function LegalLayout({ badge, title, effectiveDate, lastUpdated, children
       {/* Footer */}
       <footer className="border-t border-border/30 py-8 px-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
-          <Navigation className="w-4 h-4 text-primary fill-current" />
+          <img src={logo} alt="Msafiri" className="w-6 h-6" />
           <span className="font-bold text-base">Msafiri</span>
         </div>
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground mb-3">

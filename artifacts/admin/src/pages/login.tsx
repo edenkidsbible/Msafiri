@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { MapPin, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import logo from "@/assets/logo.png";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -68,7 +68,7 @@ export default function Login() {
       <div className="w-full max-w-[400px]">
         <div className="flex flex-col items-center mb-10">
           <div className="h-14 w-14 bg-white dark:bg-zinc-900 rounded-xl shadow-sm flex items-center justify-center mb-5 border border-border">
-            <MapPin className="h-7 w-7 text-primary" />
+            <img src={logo} alt="Msafiri" className="h-9 w-9" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Msafiri Operations</h1>
           <p className="text-muted-foreground text-sm mt-1.5">Internal safety management platform</p>

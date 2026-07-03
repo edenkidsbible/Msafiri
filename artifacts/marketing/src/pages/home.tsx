@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon, BookOpen, Calendar, ChevronRight, Camera, Shield, Flame, Car, Ban, CircleOff, Wrench, CloudRain, XCircle, CheckCircle2, Layers, Wine, Siren } from "lucide-react";
+import logo from "@/assets/logo.png";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
@@ -62,9 +63,7 @@ export default function Home() {
       <nav className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-              <Navigation className="w-4 h-4 text-primary-foreground fill-current" />
-            </div>
+            <img src={logo} alt="Msafiri" className="w-8 h-8" />
             <span className="font-bold text-lg tracking-tight">Msafiri</span>
           </div>
           <div className="flex items-center gap-4">
@@ -565,7 +564,7 @@ export default function Home() {
                   <Link href={`/blog/${post.slug}`}>
                     <div className="group bg-card border border-card-border rounded-3xl overflow-hidden hover:border-primary/30 transition-colors cursor-pointer h-full flex flex-col">
                       <div className="h-44 bg-primary/5 flex items-center justify-center">
-                        <Navigation className="w-12 h-12 text-primary/20 fill-current" />
+                        <img src={logo} alt="" className="w-12 h-12 opacity-20" />
                       </div>
                       <div className="p-6 flex flex-col flex-1">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
@@ -637,7 +636,7 @@ export default function Home() {
       <footer className="py-12 px-6 bg-background border-t border-border">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <Navigation className="w-5 h-5 text-primary fill-current" />
+            <img src={logo} alt="Msafiri" className="w-6 h-6" />
             <span className="font-bold text-xl tracking-tight">Msafiri</span>
           </div>
           

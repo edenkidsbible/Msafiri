@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, Map, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText } from "lucide-react";
+import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
@@ -67,8 +68,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen w-full bg-background selection:bg-primary/20">
         <Sidebar variant="sidebar" className="border-r border-sidebar-border shadow-sm">
           <SidebarHeader className="p-4 flex flex-row items-center gap-3">
-            <div className="bg-primary/10 text-primary p-2 rounded-lg">
-              <Map className="h-5 w-5" />
+            <div className="bg-primary/10 text-primary p-1.5 rounded-lg">
+              <img src={logo} alt="Msafiri" className="h-6 w-6" />
             </div>
             <div className="flex flex-col">
               <span className="font-semibold text-sm tracking-tight text-sidebar-foreground">Msafiri Ops</span>
