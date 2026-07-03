@@ -4,8 +4,10 @@ import {
   Alert,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -468,8 +470,12 @@ export default function TripsScreen() {
 
       {/* ── Add/Edit Saved Place modal ── */}
       <Modal visible={placeModal} animationType="slide" transparent onRequestClose={() => setPlaceModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: c.card, paddingBottom: bottomInset + 20 }]}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? topInset : 0}
+        >
+          <View style={[styles.modalCard, { backgroundColor: c.card }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: c.foreground }]}>
                 {editingPlace ? "Edit Saved Place" : "Add Saved Place"}
@@ -479,76 +485,86 @@ export default function TripsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.fieldLabel, { color: c.mutedForeground }]}>Name</Text>
-            <TextInput
-              style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
-              placeholder="e.g. Home, Office, Mum's house"
-              placeholderTextColor={c.mutedForeground}
-              value={placeLabel}
-              onChangeText={setPlaceLabel}
-            />
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: bottomInset + 20 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.fieldLabel, { color: c.mutedForeground }]}>Name</Text>
+              <TextInput
+                style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
+                placeholder="e.g. Home, Office, Mum's house"
+                placeholderTextColor={c.mutedForeground}
+                value={placeLabel}
+                onChangeText={setPlaceLabel}
+              />
 
-            <View style={styles.kindRow}>
-              {(["home", "work", "custom"] as const).map((k) => (
-                <TouchableOpacity
-                  key={k}
-                  style={[styles.kindChip, { borderColor: placeKind === k ? c.primary : c.border, backgroundColor: placeKind === k ? c.primary + "18" : "transparent" }]}
-                  onPress={() => setPlaceKind(k)}
-                >
-                  <Ionicons name={placeIcon(k)} size={14} color={placeKind === k ? c.primary : c.mutedForeground} />
-                  <Text style={[styles.kindChipText, { color: placeKind === k ? c.primary : c.mutedForeground }]}>
-                    {k === "custom" ? "Other" : k.charAt(0).toUpperCase() + k.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginTop: 14 }]}>Location</Text>
-            <TextInput
-              style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
-              placeholder="Search for an address…"
-              placeholderTextColor={c.mutedForeground}
-              value={placeSearch}
-              onChangeText={handlePlaceSearchChange}
-              autoCorrect={false}
-              autoCapitalize="none"
-            />
-            {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
-            {!placeSelected && placeResults.length > 0 && (
-              <View style={[styles.resultsBox, { borderColor: c.border }]}>
-                {placeResults.map((r) => (
+              <View style={styles.kindRow}>
+                {(["home", "work", "custom"] as const).map((k) => (
                   <TouchableOpacity
-                    key={`${r.lat}-${r.lng}`}
-                    style={styles.resultRow}
-                    onPress={() => {
-                      setPlaceSelected(r);
-                      setPlaceSearch(r.short);
-                      setPlaceResults([]);
-                      Keyboard.dismiss();
-                    }}
+                    key={k}
+                    style={[styles.kindChip, { borderColor: placeKind === k ? c.primary : c.border, backgroundColor: placeKind === k ? c.primary + "18" : "transparent" }]}
+                    onPress={() => setPlaceKind(k)}
                   >
-                    <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
-                    <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                    <Ionicons name={placeIcon(k)} size={14} color={placeKind === k ? c.primary : c.mutedForeground} />
+                    <Text style={[styles.kindChipText, { color: placeKind === k ? c.primary : c.mutedForeground }]}>
+                      {k === "custom" ? "Other" : k.charAt(0).toUpperCase() + k.slice(1)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            )}
 
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: c.primary, opacity: placeLabel.trim() && placeSelected && !placeSaving ? 1 : 0.5 }]}
-              onPress={savePlace}
-              disabled={!placeLabel.trim() || !placeSelected || placeSaving}
-            >
-              {placeSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Save</Text>}
-            </TouchableOpacity>
+              <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginTop: 14 }]}>Location</Text>
+              <TextInput
+                style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
+                placeholder="Search for an address…"
+                placeholderTextColor={c.mutedForeground}
+                value={placeSearch}
+                onChangeText={handlePlaceSearchChange}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
+              {!placeSelected && placeResults.length > 0 && (
+                <View style={[styles.resultsBox, { borderColor: c.border }]}>
+                  {placeResults.map((r) => (
+                    <TouchableOpacity
+                      key={`${r.lat}-${r.lng}`}
+                      style={styles.resultRow}
+                      onPress={() => {
+                        setPlaceSelected(r);
+                        setPlaceSearch(r.short);
+                        setPlaceResults([]);
+                        Keyboard.dismiss();
+                      }}
+                    >
+                      <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
+                      <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: c.primary, opacity: placeLabel.trim() && placeSelected && !placeSaving ? 1 : 0.5 }]}
+                onPress={savePlace}
+                disabled={!placeLabel.trim() || !placeSelected || placeSaving}
+              >
+                {placeSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Save</Text>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Plan a Trip modal ── */}
       <Modal visible={tripModal} animationType="slide" transparent onRequestClose={() => setTripModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: c.card, paddingBottom: bottomInset + 20 }]}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? topInset : 0}
+        >
+          <View style={[styles.modalCard, { backgroundColor: c.card }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: c.foreground }]}>Plan a Trip</Text>
               <TouchableOpacity onPress={() => setTripModal(false)}>
@@ -556,107 +572,113 @@ export default function TripsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.fieldLabel, { color: c.mutedForeground }]}>Destination</Text>
-            <TextInput
-              style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
-              placeholder="Search or pick a saved place"
-              placeholderTextColor={c.mutedForeground}
-              value={tripSearch}
-              onChangeText={handleTripSearchChange}
-              autoCorrect={false}
-              autoCapitalize="none"
-            />
-            {tripSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
-            {!tripDest && tripResults.length > 0 && (
-              <View style={[styles.resultsBox, { borderColor: c.border }]}>
-                {tripResults.map((r) => (
-                  <TouchableOpacity
-                    key={`${r.lat}-${r.lng}`}
-                    style={styles.resultRow}
-                    onPress={() => {
-                      setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
-                      setTripSearch(r.short);
-                      setTripResults([]);
-                      Keyboard.dismiss();
-                    }}
-                  >
-                    <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
-                    <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {!tripDest && places.length > 0 && tripSearch.length === 0 && (
-              <View style={{ marginTop: 10, gap: 6 }}>
-                {places.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={styles.savedPickRow}
-                    onPress={() => {
-                      setTripDest({ label: p.label, lat: p.lat, lng: p.lng, savedPlaceId: p.id });
-                      setTripSearch(p.label);
-                    }}
-                  >
-                    <Ionicons name={placeIcon(p.kind)} size={15} color={c.primary} />
-                    <Text style={[styles.resultText, { color: c.foreground }]}>{p.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginTop: 14 }]}>Departure</Text>
-            <View style={styles.dateRow}>
-              <TouchableOpacity
-                style={[styles.dateBtn, { borderColor: c.border, backgroundColor: c.background }]}
-                onPress={() => setShowPicker("date")}
-              >
-                <Ionicons name="calendar-outline" size={15} color={c.mutedForeground} />
-                <Text style={[styles.dateBtnText, { color: c.foreground }]}>
-                  {tripDate.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.dateBtn, { borderColor: c.border, backgroundColor: c.background }]}
-                onPress={() => setShowPicker("time")}
-              >
-                <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
-                <Text style={[styles.dateBtnText, { color: c.foreground }]}>
-                  {tripDate.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" })}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {showPicker && (
-              <DateTimePicker
-                value={tripDate}
-                mode={showPicker}
-                is24Hour={false}
-                minimumDate={new Date()}
-                onChange={(_, selected) => {
-                  if (Platform.OS === "android") setShowPicker(null);
-                  if (!selected) return;
-                  const next = new Date(tripDate);
-                  if (showPicker === "date") {
-                    next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
-                  } else {
-                    next.setHours(selected.getHours(), selected.getMinutes());
-                    setShowPicker(null);
-                  }
-                  setTripDate(next);
-                }}
-              />
-            )}
-
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: c.primary, opacity: tripDest && !tripSaving ? 1 : 0.5 }]}
-              onPress={savePlannedTrip}
-              disabled={!tripDest || tripSaving}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: bottomInset + 20 }}
+              showsVerticalScrollIndicator={false}
             >
-              {tripSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Save Trip</Text>}
-            </TouchableOpacity>
+              <Text style={[styles.fieldLabel, { color: c.mutedForeground }]}>Destination</Text>
+              <TextInput
+                style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
+                placeholder="Search or pick a saved place"
+                placeholderTextColor={c.mutedForeground}
+                value={tripSearch}
+                onChangeText={handleTripSearchChange}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {tripSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
+              {!tripDest && tripResults.length > 0 && (
+                <View style={[styles.resultsBox, { borderColor: c.border }]}>
+                  {tripResults.map((r) => (
+                    <TouchableOpacity
+                      key={`${r.lat}-${r.lng}`}
+                      style={styles.resultRow}
+                      onPress={() => {
+                        setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
+                        setTripSearch(r.short);
+                        setTripResults([]);
+                        Keyboard.dismiss();
+                      }}
+                    >
+                      <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
+                      <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {!tripDest && places.length > 0 && tripSearch.length === 0 && (
+                <View style={{ marginTop: 10, gap: 6 }}>
+                  {places.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.savedPickRow}
+                      onPress={() => {
+                        setTripDest({ label: p.label, lat: p.lat, lng: p.lng, savedPlaceId: p.id });
+                        setTripSearch(p.label);
+                      }}
+                    >
+                      <Ionicons name={placeIcon(p.kind)} size={15} color={c.primary} />
+                      <Text style={[styles.resultText, { color: c.foreground }]}>{p.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginTop: 14 }]}>Departure</Text>
+              <View style={styles.dateRow}>
+                <TouchableOpacity
+                  style={[styles.dateBtn, { borderColor: c.border, backgroundColor: c.background }]}
+                  onPress={() => setShowPicker("date")}
+                >
+                  <Ionicons name="calendar-outline" size={15} color={c.mutedForeground} />
+                  <Text style={[styles.dateBtnText, { color: c.foreground }]}>
+                    {tripDate.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.dateBtn, { borderColor: c.border, backgroundColor: c.background }]}
+                  onPress={() => setShowPicker("time")}
+                >
+                  <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
+                  <Text style={[styles.dateBtnText, { color: c.foreground }]}>
+                    {tripDate.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {showPicker && (
+                <DateTimePicker
+                  value={tripDate}
+                  mode={showPicker}
+                  is24Hour={false}
+                  minimumDate={new Date()}
+                  onChange={(_, selected) => {
+                    if (Platform.OS === "android") setShowPicker(null);
+                    if (!selected) return;
+                    const next = new Date(tripDate);
+                    if (showPicker === "date") {
+                      next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+                    } else {
+                      next.setHours(selected.getHours(), selected.getMinutes());
+                      setShowPicker(null);
+                    }
+                    setTripDate(next);
+                  }}
+                />
+              )}
+
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: c.primary, opacity: tripDest && !tripSaving ? 1 : 0.5 }]}
+                onPress={savePlannedTrip}
+                disabled={!tripDest || tripSaving}
+              >
+                {tripSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Save Trip</Text>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -727,7 +749,7 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
 
   modalOverlay: { flex: 1, backgroundColor: "#00000066", justifyContent: "flex-end" },
-  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "88%" },
+  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, maxHeight: "88%" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
   modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   fieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 6 },
