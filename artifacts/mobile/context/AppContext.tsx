@@ -578,6 +578,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const navDestRef = useRef<NavDestination | null>(null);
   const announcedReportsRef = useRef<Set<string>>(new Set());
   const destAnnouncedRef = useRef(false);
+  // When the current turn-by-turn session started — used to auto-end a
+  // navigation session that's run far longer than the route could ever
+  // reasonably take (see the staleness check in handleLocation below).
+  const navStartRef = useRef<number | null>(null);
+  // Forwards to the memoized `stopNavigation` below so handleLocation (a
+  // stable useCallback defined earlier in this component) can trigger a
+  // full stop without needing it in its dependency array.
+  const stopNavigationRef = useRef<() => void>(() => {});
 
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -928,6 +936,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Safety net: if a navigation session has been running far longer than
+    // the route could realistically take, silently end it instead of
+    // continuing to announce turns toward a trip abandoned long ago (e.g.
+    // the app stayed alive in the background for hours after the driver
+    // gave up or switched away without tapping the in-app "Stop" button).
+    if (navActiveRef.current && navStartRef.current && routeRef.current) {
+      const maxDurationMs = Math.min(
+        Math.max((routeRef.current.durationS ?? 0) * 1000 * 2.5, 45 * 60 * 1000),
+        4 * 60 * 60 * 1000,
+      );
+      if (Date.now() - navStartRef.current > maxDurationMs) {
+        stopNavigationRef.current();
+      }
+    }
+
     // Navigation step tracking
     if (navActiveRef.current && routeRef.current) {
       const steps = routeRef.current.steps;
@@ -963,6 +986,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (nextIdx >= steps.length) {
             speakText("You have arrived at your destination");
             navActiveRef.current = false;
+            navStartRef.current = null;
             setNavigationActive(false);
             const trip = tripRef.current;
             setArrivedInfo({
@@ -1384,6 +1408,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     setNavigationActive(false);
     navActiveRef.current = false;
+    navStartRef.current = null;
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
@@ -1413,6 +1438,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
     navActiveRef.current = true;
+    navStartRef.current = Date.now();
     setNavigationActive(true);
     speakText("Navigation started. " + (activeRoute.steps[0]?.instruction ?? ""));
   }, [activeRoute]);
@@ -1427,6 +1453,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => Speech.stop?.(), 60);
 
     navActiveRef.current = false;
+    navStartRef.current = null;
     setNavigationActive(false);
     setDistToNextM(null);
     setNavDestState(null);
@@ -1442,6 +1469,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     routeProjIdxRef.current = 0;
     setRouteIncidentsExpanded(false);
   }, []);
+
+  // Let handleLocation (defined earlier as a stable, empty-deps useCallback)
+  // reach the latest stopNavigation without needing it as a dependency.
+  useEffect(() => {
+    stopNavigationRef.current = stopNavigation;
+  }, [stopNavigation]);
 
   const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
 

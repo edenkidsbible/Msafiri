@@ -29,3 +29,4 @@
 - [On-demand route status check](route-status-on-demand-check.md) — checkRouteStatus() reuses active-nav incident-matching for arbitrary destinations (Saved Places/Planned Trips) without touching navigation state.
 - [Modal refetch-storm from live GPS state](modal-refetch-gps-dependency.md) — never put a continuously-updating value (e.g. currentLat) straight in a useEffect dep array for a one-shot fetch; use a stable boolean/ref transition + manual refresh instead.
 - [RevenueCat shared-project app collision](revenuecat-shared-project-app-collision.md) — matching apps by `type` alone in a shared project can silently target another product's app entry; match by bundle id/package name instead.
+- [Stale navigation session voice guidance](stale-navigation-session.md) — background app can keep navActive true for hours if driver never taps in-app Stop; bound worst case with a staleness timeout, don't rely only on explicit-stop paths.
