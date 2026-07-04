@@ -499,6 +499,14 @@ const ARRIVAL_DIST = 60;       // m — wider than STEP_ADVANCE_DIST: tolerates 
 // readout, so we only claim confidence in a posted limit when squarely
 // inside the admin-defined corridor — not just "somewhere nearby".
 const STRETCH_CORRIDOR_M = 80;
+// Minimum gap between spoken *supplementary* hazard alerts (zone/camera/
+// police-ahead, community reports, repeat speeding warning). On corridors
+// with several zones or reports packed close together this previously let
+// the voice guide talk almost continuously; the visual banner + haptic buzz
+// still fire immediately and unthrottled, only the voice is paced. Turn-by-
+// turn navigation instructions and the arrival announcement are core
+// wayfinding and are intentionally NOT subject to this cooldown.
+const GENERAL_ALERT_COOLDOWN_MS = 20000;
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -582,6 +590,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // navigation session that's run far longer than the route could ever
   // reasonably take (see the staleness check in handleLocation below).
   const navStartRef = useRef<number | null>(null);
+  // Shared cooldown gate for supplementary hazard voice alerts — see
+  // GENERAL_ALERT_COOLDOWN_MS above.
+  const lastGeneralAlertAtRef = useRef<number>(0);
   // Forwards to the memoized `stopNavigation` below so handleLocation (a
   // stable useCallback defined earlier in this component) can trigger a
   // full stop without needing it in its dependency array.
@@ -832,13 +843,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const activeLimitZone = inZone ?? stretchMatch;
     setCurrentSpeedLimit(activeLimitZone?.speedLimit ?? null);
 
+    // Supplementary hazard alerts (zone/camera/police-ahead, community
+    // reports, repeat speeding warning) share this cooldown so back-to-back
+    // triggers — e.g. several zones packed within a km on the same corridor
+    // — don't make the voice guide talk almost continuously. The visual
+    // banner and haptic buzz below are NOT gated by this — only the spoken
+    // line is paced.
+    const canSpeakGeneralAlert = () => Date.now() - lastGeneralAlertAtRef.current >= GENERAL_ALERT_COOLDOWN_MS;
+    const speakGeneralAlert = (text: string) => { lastGeneralAlertAtRef.current = Date.now(); speakText(text); };
+
     // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
     if (activeLimitZone && kmh > activeLimitZone.speedLimit) {
       const warnNow = Date.now();
       if (warnNow - lastSpeedingWarnRef.current > 25000) {
         lastSpeedingWarnRef.current = warnNow;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        speakText(`You are exceeding the speed limit. Please slow down to ${activeLimitZone.speedLimit} kilometres per hour.`);
+        if (canSpeakGeneralAlert()) {
+          speakGeneralAlert(`You are exceeding the speed limit. Please slow down to ${activeLimitZone.speedLimit} kilometres per hour.`);
+        }
       }
     } else {
       lastSpeedingWarnRef.current = 0;
@@ -851,15 +873,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertDismissed.current = false;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         if (notifGranted.current) void fireZoneNotification(alertCandidate, alertCandidate.distance);
-        const distWord = alertCandidate.distance > 600
-          ? `in ${Math.round(alertCandidate.distance / 100) * 100} metres, `
-          : "just ";
-        if (alertCandidate.type === "camera") {
-          speakText(`Speed camera ahead ${distWord}on ${alertCandidate.road}. Please reduce your speed to ${alertCandidate.speedLimit} kilometres per hour.`);
-        } else if (alertCandidate.type === "police") {
-          speakText(`Police checkpoint ahead ${distWord}on ${alertCandidate.road}. Please slow down to ${alertCandidate.speedLimit} kilometres per hour and have your documents ready.`);
-        } else {
-          speakText(`Speed zone ahead. Reduce to ${alertCandidate.speedLimit} kilometres per hour.`);
+        if (canSpeakGeneralAlert()) {
+          const distWord = alertCandidate.distance > 600
+            ? `in ${Math.round(alertCandidate.distance / 100) * 100} metres, `
+            : "just ";
+          if (alertCandidate.type === "camera") {
+            speakGeneralAlert(`Speed camera ahead ${distWord}on ${alertCandidate.road}. Please reduce your speed to ${alertCandidate.speedLimit} kilometres per hour.`);
+          } else if (alertCandidate.type === "police") {
+            speakGeneralAlert(`Police checkpoint ahead ${distWord}on ${alertCandidate.road}. Please slow down to ${alertCandidate.speedLimit} kilometres per hour and have your documents ready.`);
+          } else {
+            speakGeneralAlert(`Speed zone ahead. Reduce to ${alertCandidate.speedLimit} kilometres per hour.`);
+          }
         }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
@@ -914,7 +938,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else if (report.type === "closure") {
         msg = `Road closed ahead ${ageText}. Please find an alternative route.`;
       }
-      if (msg) speakText(msg);
+      if (msg && canSpeakGeneralAlert()) speakGeneralAlert(msg);
     }
 
     // ── POI destination proximity announcement ───────────────────────────────
