@@ -409,7 +409,7 @@ export default function PaywallScreen() {
           {isPurchasing ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.ctaBtnTxt}>{trialEligible ? "Start 2-Day Free Trial" : "Subscribe Now"}</Text>
+            <Text style={styles.ctaBtnTxt}>{trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}</Text>
           )}
         </TouchableOpacity>
 
