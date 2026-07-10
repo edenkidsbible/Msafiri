@@ -113,7 +113,7 @@ export function PaywallModal({ visible, onClose }: Props) {
             <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
               <Ionicons name="gift-outline" size={16} color={c.primary} />
               <Text style={[styles.trialText, { color: c.primary }]}>
-                2-day free trial — cancel anytime
+                3-day free trial — cancel anytime
               </Text>
             </View>
           ) : (
@@ -227,7 +227,7 @@ export function PaywallModal({ visible, onClose }: Props) {
           {/* Legal note */}
           <Text style={[styles.legal, { color: c.mutedForeground }]}>
             {chosenPkg && trialEligible
-              ? `Msafiri starts with a 2-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+              ? `Msafiri starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
               : chosenPkg
               ? `You'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
               : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}

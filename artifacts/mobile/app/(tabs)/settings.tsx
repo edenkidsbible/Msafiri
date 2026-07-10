@@ -177,7 +177,7 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Upgrade to Msafiri Pro</Text>
             <Text style={[styles.proBannerSub, { color: c.primaryForeground + "CC" }]}>
-              From KES 100/week · 2-day free trial
+              From KES 100/week · 3-day free trial
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.primaryForeground + "CC"} />
