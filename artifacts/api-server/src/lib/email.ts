@@ -1,37 +1,25 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { logger } from "./logger.js";
 
-function getTransporter() {
-  const host = process.env["SMTP_HOST"];
-  const port = Number(process.env["SMTP_PORT"] ?? "587");
-  const user = process.env["SMTP_USER"];
-  const pass = process.env["SMTP_PASS"];
-
-  if (!host || !user || !pass) {
+function getClient(): Resend | null {
+  const key = process.env["RESEND_API_KEY"];
+  if (!key) {
+    logger.warn("RESEND_API_KEY not set — email sending disabled");
     return null;
   }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
+  return new Resend(key);
 }
 
-const FROM = process.env["SMTP_FROM"] ?? "Msafiri Kenya <noreply@msafirikenya.com>";
+const FROM = process.env["RESEND_FROM"] ?? "Msafiri Kenya <noreply@msafirikenya.com>";
 
 export async function sendCreatorPromoCode(opts: {
-  toEmail: string;
-  toName:  string | null;
-  code:    string;
+  toEmail:  string;
+  toName:   string | null;
+  code:     string;
   platform: "ios" | "android";
 }): Promise<boolean> {
-  const transporter = getTransporter();
-  if (!transporter) {
-    logger.warn("SMTP not configured — skipping creator promo code email");
-    return false;
-  }
+  const client = getClient();
+  if (!client) return false;
 
   const greeting = opts.toName ? `Hi ${opts.toName},` : "Hi there,";
 
@@ -40,10 +28,10 @@ export async function sendCreatorPromoCode(opts: {
       ? "https://apps.apple.com/redeem"
       : "https://play.google.com/redeem";
 
-  const platformLabel = opts.platform === "ios" ? "Apple App Store" : "Google Play";
+  const platformLabel =
+    opts.platform === "ios" ? "Apple App Store" : "Google Play";
 
-  const html = `
-<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html>
 <body style="font-family:sans-serif;color:#111;max-width:520px;margin:0 auto;padding:24px;">
   <p style="font-size:22px;font-weight:700;margin-bottom:4px;">You're a Msafiri Creator! 🎉</p>
@@ -60,7 +48,8 @@ export async function sendCreatorPromoCode(opts: {
     <a href="${redeemUrl}" style="color:#0070f3;">${redeemUrl}</a>
   </p>
   <p>
-    Or open the Msafiri app, go to <strong>Settings → Msafiri Creator Program</strong> and tap <em>Redeem Promo Code</em>.
+    Or open the Msafiri app, go to <strong>Settings → Msafiri Creator Program</strong>
+    and tap <em>Redeem Promo Code</em>.
   </p>
   <hr style="border:none;border-top:1px solid #eee;margin:28px 0;"/>
   <p style="color:#666;font-size:13px;">
@@ -70,19 +59,36 @@ export async function sendCreatorPromoCode(opts: {
 </body>
 </html>`;
 
-  const text = `${greeting}\n\nYour Msafiri Creator application has been approved!\n\nYour promo code: ${opts.code}\n\nRedeem at: ${redeemUrl}\n\nThank you,\nThe Msafiri Team`;
+  const text = [
+    greeting,
+    "",
+    "Your Msafiri Creator application has been approved!",
+    "",
+    `Your promo code: ${opts.code}`,
+    "",
+    `Redeem at: ${redeemUrl}`,
+    "",
+    "Thank you,",
+    "The Msafiri Team",
+  ].join("\n");
 
   try {
-    await transporter.sendMail({
-      from: FROM,
-      to:   opts.toEmail,
+    const { error } = await client.emails.send({
+      from:    FROM,
+      to:      opts.toEmail,
       subject: "You're a Msafiri Creator — here's your free month",
       html,
       text,
     });
+
+    if (error) {
+      logger.error({ error }, "Resend returned an error sending creator promo code email");
+      return false;
+    }
+
     return true;
   } catch (err) {
-    logger.error({ err }, "Failed to send creator promo code email");
+    logger.error({ err }, "Failed to send creator promo code email via Resend");
     return false;
   }
 }

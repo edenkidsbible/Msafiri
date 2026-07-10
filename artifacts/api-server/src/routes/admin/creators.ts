@@ -168,19 +168,25 @@ router.patch("/creators/:id", async (req: Request, res: Response) => {
     if (status === "approved" && existing.status !== "approved") {
       // Detect the platform by OS hint in user-agent or just pick iOS first, Android second
       // Strategy: pick any available code for either platform (iOS first, then Android)
-      const [iosCode] = await db
+      // Prefer the platform the applicant chose; fall back to the other if none available
+      const preferredPlatform = existing.platform ?? "ios";
+      const fallbackPlatform  = preferredPlatform === "ios" ? "android" : "ios";
+
+      const [preferredCode] = await db
         .select()
         .from(promoCodesTable)
-        .where(sql`platform = 'ios' AND application_id IS NULL`)
+        .where(sql`platform = ${preferredPlatform} AND application_id IS NULL`)
         .limit(1);
 
-      const [androidCode] = await db
-        .select()
-        .from(promoCodesTable)
-        .where(sql`platform = 'android' AND application_id IS NULL`)
-        .limit(1);
+      const [fallbackCode] = !preferredCode
+        ? await db
+            .select()
+            .from(promoCodesTable)
+            .where(sql`platform = ${fallbackPlatform} AND application_id IS NULL`)
+            .limit(1)
+        : [undefined];
 
-      const chosen = iosCode ?? androidCode;
+      const chosen = preferredCode ?? fallbackCode;
 
       if (chosen) {
         await db
