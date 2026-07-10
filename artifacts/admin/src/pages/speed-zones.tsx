@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, Navigation2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -25,6 +25,23 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AdminSpeedZone } from "@workspace/api-client-react";
 import { SpeedZonesMap, type PendingZoneCoords } from "@/components/speed-zones-map";
+
+async function snapToRoad(lat: number, lng: number): Promise<{ lat: number; lng: number }> {
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`
+    );
+    if (!res.ok) return { lat, lng };
+    const data = await res.json();
+    if (data.code === "Ok" && data.waypoints?.[0]?.location) {
+      const [snappedLng, snappedLat] = data.waypoints[0].location as [number, number];
+      return { lat: snappedLat, lng: snappedLng };
+    }
+  } catch {
+    // network error — return original coords
+  }
+  return { lat, lng };
+}
 
 const TYPE_COLORS: Record<string, string> = {
   camera: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
@@ -67,6 +84,7 @@ export default function SpeedZones() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingZone, setEditingZone] = useState<AdminSpeedZone | null>(null);
   const [pendingCoords, setPendingCoords] = useState<PendingZoneCoords | null>(null);
+  const [isSnapping, setIsSnapping] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -199,7 +217,11 @@ export default function SpeedZones() {
     setEditingZone(zone);
   };
 
-  const handleMapClick = (lat: number, lng: number) => {
+  const handleMapClick = async (rawLat: number, rawLng: number) => {
+    setIsSnapping(true);
+    const { lat, lng } = await snapToRoad(rawLat, rawLng);
+    setIsSnapping(false);
+
     if (creationMode === "point") {
       setPendingCoords({ mode: "point", lat, lng });
       createForm.reset({ ...defaultValues, mode: "point", lat, lng });
@@ -223,6 +245,56 @@ export default function SpeedZones() {
       endLng: complete.endLng,
     });
     setIsAddOpen(true);
+  };
+
+  const handleSnapCreate = async () => {
+    const mode = createForm.getValues("mode");
+    setIsSnapping(true);
+    if (mode === "point") {
+      const lat = createForm.getValues("lat") ?? 0;
+      const lng = createForm.getValues("lng") ?? 0;
+      const snapped = await snapToRoad(lat, lng);
+      createForm.setValue("lat", snapped.lat, { shouldDirty: true });
+      createForm.setValue("lng", snapped.lng, { shouldDirty: true });
+      if (pendingCoords?.mode === "point") setPendingCoords({ mode: "point", lat: snapped.lat, lng: snapped.lng });
+    } else {
+      const [sLat, sLng, eLat, eLng] = [
+        createForm.getValues("startLat") ?? 0, createForm.getValues("startLng") ?? 0,
+        createForm.getValues("endLat") ?? 0,  createForm.getValues("endLng") ?? 0,
+      ];
+      const [start, end] = await Promise.all([snapToRoad(sLat, sLng), snapToRoad(eLat, eLng)]);
+      createForm.setValue("startLat", start.lat, { shouldDirty: true });
+      createForm.setValue("startLng", start.lng, { shouldDirty: true });
+      createForm.setValue("endLat", end.lat, { shouldDirty: true });
+      createForm.setValue("endLng", end.lng, { shouldDirty: true });
+      if (pendingCoords?.mode === "stretch") setPendingCoords({ mode: "stretch", startLat: start.lat, startLng: start.lng, endLat: end.lat, endLng: end.lng });
+    }
+    setIsSnapping(false);
+    toast({ title: "Snapped to road", description: "Coordinates adjusted to nearest road." });
+  };
+
+  const handleSnapEdit = async () => {
+    const mode = editForm.getValues("mode");
+    setIsSnapping(true);
+    if (mode === "point") {
+      const lat = editForm.getValues("lat") ?? 0;
+      const lng = editForm.getValues("lng") ?? 0;
+      const snapped = await snapToRoad(lat, lng);
+      editForm.setValue("lat", snapped.lat, { shouldDirty: true });
+      editForm.setValue("lng", snapped.lng, { shouldDirty: true });
+    } else {
+      const [sLat, sLng, eLat, eLng] = [
+        editForm.getValues("startLat") ?? 0, editForm.getValues("startLng") ?? 0,
+        editForm.getValues("endLat") ?? 0,  editForm.getValues("endLng") ?? 0,
+      ];
+      const [start, end] = await Promise.all([snapToRoad(sLat, sLng), snapToRoad(eLat, eLng)]);
+      editForm.setValue("startLat", start.lat, { shouldDirty: true });
+      editForm.setValue("startLng", start.lng, { shouldDirty: true });
+      editForm.setValue("endLat", end.lat, { shouldDirty: true });
+      editForm.setValue("endLng", end.lng, { shouldDirty: true });
+    }
+    setIsSnapping(false);
+    toast({ title: "Snapped to road", description: "Coordinates adjusted to nearest road." });
   };
 
   return (
@@ -341,6 +413,17 @@ export default function SpeedZones() {
                         )} />
                       </div>
                     )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2 text-xs"
+                      disabled={isSnapping}
+                      onClick={handleSnapCreate}
+                    >
+                      {isSnapping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation2 className="h-3.5 w-3.5" />}
+                      {isSnapping ? "Snapping to road..." : "Snap to Road"}
+                    </Button>
                     <FormField control={createForm.control} name="road" render={({ field }) => (
                       <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
                     )} />
@@ -456,7 +539,15 @@ export default function SpeedZones() {
                       : "Tip: Click to set start point, then click again for end point."}
                 </span>
               </div>
-              <div className="rounded-xl overflow-hidden border shadow-sm">
+              <div className="relative rounded-xl overflow-hidden border shadow-sm">
+                {isSnapping && (
+                  <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-background/60 backdrop-blur-sm">
+                    <div className="flex items-center gap-2 rounded-lg bg-card border px-4 py-2 shadow-lg text-sm font-medium">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      Snapping to nearest road…
+                    </div>
+                  </div>
+                )}
                 <SpeedZonesMap
                   zones={data?.zones ?? []}
                   onEdit={openEditDialog}
@@ -671,6 +762,17 @@ export default function SpeedZones() {
                   )} />
                 </div>
               )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 text-xs"
+                disabled={isSnapping}
+                onClick={handleSnapEdit}
+              >
+                {isSnapping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation2 className="h-3.5 w-3.5" />}
+                {isSnapping ? "Snapping to road..." : "Snap to Road"}
+              </Button>
               <FormField control={editForm.control} name="road" render={({ field }) => (
                 <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
               )} />
