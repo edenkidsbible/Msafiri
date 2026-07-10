@@ -72,7 +72,7 @@ function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
       `node["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});` +
       `way["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});`;
   }
-  return `[out:json][timeout:20];(${filters});out center 60;`;
+  return `[out:json][timeout:10];(${filters});out center 60;`;
 }
 
 // Multiple mirrors — fired in parallel; first success wins
@@ -81,6 +81,21 @@ const OVERPASS_MIRRORS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.openstreetmap.fr/api/interpreter",
 ];
+
+// ─── In-memory cache ─────────────────────────────────────────────────────────
+interface CacheEntry { items: POIItem[]; fetchedAt: number }
+const _cache = new Map<string, CacheEntry>();
+const CACHE_FRESH_MS  = 3 * 60 * 1000;   // < 3 min  → use instantly, skip re-fetch
+const CACHE_STALE_MS  = 10 * 60 * 1000;  // 3–10 min → use instantly, re-fetch in BG
+// > 10 min → show spinner, fetch fresh
+
+function poiCacheKey(type: Tab, lat: number, lng: number): string {
+  // ~1.1 km buckets (2 decimal places)
+  const bLat = Math.round(lat * 100) / 100;
+  const bLng = Math.round(lng * 100) / 100;
+  return `${type}:${bLat}:${bLng}`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIItem[]> {
   const query = buildOverpassQuery(type, lat, lng);
@@ -93,7 +108,7 @@ async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIIt
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `data=${encodeURIComponent(query)}`,
       },
-      18000
+      10000
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
@@ -152,6 +167,7 @@ export default function BrowseScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("fuel");
   const [pois, setPois] = useState<(POIItem & { distance?: number })[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
 
@@ -170,12 +186,78 @@ export default function BrowseScreen() {
   const fetchOriginRef = useRef<{ lat: number; lng: number } | null>(null);
   const activeTabRef = useRef<Tab>(activeTab);
 
+  const applyItems = useCallback((
+    items: POIItem[],
+    lat: number | null,
+    lng: number | null,
+    merge: boolean,
+  ) => {
+    const withDist = items
+      .map((p) => ({
+        ...p,
+        distance: lat !== null && lng !== null ? haversine(lat, lng, p.lat, p.lng) : undefined,
+      }))
+      .filter((p) => p.distance === undefined || p.distance <= MAX_DIST)
+      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+    if (merge && lat !== null && lng !== null) {
+      setPois((prev) => {
+        const existingInRange = prev
+          .map((p) => ({ ...p, distance: haversine(lat, lng, p.lat, p.lng) }))
+          .filter((p) => p.distance <= MAX_DIST);
+        const existingIds = new Set(existingInRange.map((p) => p.id));
+        const newItems = withDist.filter((p) => !existingIds.has(p.id));
+        return [...existingInRange, ...newItems]
+          .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+      });
+    } else {
+      setPois(withDist);
+    }
+  }, []);
+
   const loadPOIs = useCallback(async (
     t: Tab,
     lat: number | null,
     lng: number | null,
     incremental = false,
   ) => {
+    // ── Cache look-up ─────────────────────────────────────────────────────────
+    if (lat !== null && lng !== null) {
+      const key = poiCacheKey(t, lat, lng);
+      const cached = _cache.get(key);
+      const age = cached ? Date.now() - cached.fetchedAt : Infinity;
+
+      if (cached && age < CACHE_FRESH_MS) {
+        // Fresh hit — show instantly, no network call needed
+        applyItems(cached.items, lat, lng, incremental);
+        setIsLive(true);
+        setLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+
+      if (cached && age < CACHE_STALE_MS) {
+        // Stale hit — show instantly, then revalidate quietly in background
+        applyItems(cached.items, lat, lng, incremental);
+        setIsLive(true);
+        setLoading(false);
+        setIsRefreshing(true);
+        try {
+          const fresh = await fetchOverpass(t, lat, lng);
+          if (!isMounted.current) return;
+          _cache.set(key, { items: fresh, fetchedAt: Date.now() });
+          applyItems(fresh, lat, lng, incremental);
+          setIsLive(true);
+        } catch {
+          // Keep showing stale data silently — no error banner
+        } finally {
+          if (isMounted.current) setIsRefreshing(false);
+        }
+        return;
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (!incremental) {
       setLoading(true);
       setError(null);
@@ -189,6 +271,7 @@ export default function BrowseScreen() {
       try {
         items = await fetchOverpass(t, lat, lng);
         live = true;
+        _cache.set(poiCacheKey(t, lat, lng), { items, fetchedAt: Date.now() });
       } catch {
         if (!isMounted.current) return;
         if (!incremental) {
@@ -201,33 +284,10 @@ export default function BrowseScreen() {
     }
 
     if (!isMounted.current) return;
-
-    const withDist = items
-      .map((p) => ({
-        ...p,
-        distance: lat !== null && lng !== null ? haversine(lat, lng, p.lat, p.lng) : undefined,
-      }))
-      .filter((p) => p.distance === undefined || p.distance <= MAX_DIST)
-      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-
-    if (incremental && lat !== null && lng !== null) {
-      // Merge: keep existing POIs still in range + add genuinely new ones
-      setPois((prev) => {
-        const existingInRange = prev
-          .map((p) => ({ ...p, distance: haversine(lat, lng, p.lat, p.lng) }))
-          .filter((p) => p.distance <= MAX_DIST);
-        const existingIds = new Set(existingInRange.map((p) => p.id));
-        const newItems = withDist.filter((p) => !existingIds.has(p.id));
-        return [...existingInRange, ...newItems]
-          .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-      });
-    } else {
-      setPois(withDist);
-    }
-
+    applyItems(items, lat, lng, incremental);
     if (live) setIsLive(true);
     if (!incremental) setLoading(false);
-  }, []);
+  }, [applyItems]);
 
   // Tab change → always do a full reload and reset the fetch origin
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -288,7 +348,12 @@ export default function BrowseScreen() {
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: c.foreground }]}>Nearby Places</Text>
           <View style={styles.headerRight}>
-            {isLive ? (
+            {isRefreshing ? (
+              <View style={[styles.livePill, { backgroundColor: c.muted }]}>
+                <ActivityIndicator size={10} color={c.mutedForeground} style={{ marginRight: 2 }} />
+                <Text style={[styles.liveText, { color: c.mutedForeground }]}>Updating…</Text>
+              </View>
+            ) : isLive ? (
               <View style={[styles.livePill, { backgroundColor: "#00C85322" }]}>
                 <View style={[styles.liveDot, { backgroundColor: "#00C853" }]} />
                 <Text style={[styles.liveText, { color: "#00C853" }]}>Live</Text>
