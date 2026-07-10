@@ -8,8 +8,8 @@ router.post("/creator-application", async (req: Request, res: Response) => {
   try {
     const { deviceId, name, email, reason } = req.body;
 
-    if (!deviceId || !name || !email) {
-      return res.status(400).json({ error: "deviceId, name, and email are required" });
+    if (!deviceId || !email) {
+      return res.status(400).json({ error: "deviceId and email are required" });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

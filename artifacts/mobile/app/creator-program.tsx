@@ -22,7 +22,7 @@ import { apiPost, apiGet } from "@/utils/apiClient";
 const STORAGE_KEY = "creator_application_submitted";
 
 const PERKS = [
-  { icon: "gift-outline",    text: "1 month free Msafiri Pro subscription" },
+  { icon: "gift-outline",    text: "1 month free Msafiri Access" },
   { icon: "map-outline",     text: "Help make Kenya's roads safer for everyone" },
   { icon: "trending-up-outline", text: "Your reports shape the live map other drivers rely on" },
 ];
@@ -213,7 +213,7 @@ export default function CreatorProgramScreen() {
               {submitState === "already" ? "Application received!" : "You're in!"}
             </Text>
             <Text style={[styles.successBody, { color: c.mutedForeground }]}>
-              We'll review your application and send your promo code within 24 hours. Once you receive it, tap below to redeem.
+              We'll review your application and you'll hear back within 6 hours. If approved, we'll send your promo code by email.
             </Text>
           </View>
         )}
