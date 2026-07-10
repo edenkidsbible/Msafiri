@@ -22,10 +22,9 @@ import { apiPost, apiGet } from "@/utils/apiClient";
 const STORAGE_KEY = "creator_application_submitted";
 
 const PERKS = [
-  { icon: "gift-outline",           text: "1 month free subscription" },
-  { icon: "star-outline",           text: "Msafiri Creator badge" },
-  { icon: "shield-checkmark-outline", text: "Priority support" },
-  { icon: "people-outline",         text: "Join our Creators community" },
+  { icon: "gift-outline",    text: "1 month free Msafiri Pro subscription" },
+  { icon: "map-outline",     text: "Help make Kenya's roads safer for everyone" },
+  { icon: "trending-up-outline", text: "Your reports shape the live map other drivers rely on" },
 ];
 
 const DUTIES = [
@@ -54,8 +53,8 @@ export default function CreatorProgramScreen() {
   }, []);
 
   async function handleSubmit() {
-    if (!name.trim() || !email.trim()) {
-      setError("Please fill in your name and email.");
+    if (!email.trim()) {
+      setError("Please enter your email so we can send you the promo code.");
       return;
     }
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -153,7 +152,7 @@ export default function CreatorProgramScreen() {
           <View style={[styles.section, { backgroundColor: c.card, borderColor: c.border }]}>
             <Text style={[styles.sectionTitle, { color: c.foreground }]}>Apply to join</Text>
 
-            <Text style={[styles.label, { color: c.mutedForeground }]}>Full name *</Text>
+            <Text style={[styles.label, { color: c.mutedForeground }]}>Name (optional)</Text>
             <TextInput
               style={[styles.input, { borderColor: c.border, color: c.foreground, backgroundColor: c.background }]}
               placeholder="Your name"
