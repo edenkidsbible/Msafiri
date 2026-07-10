@@ -6,7 +6,7 @@ import { logger } from "../lib/logger.js";
 // ─── Rotating daily messages ─────────────────────────────────────────────────
 
 const MORNING_MESSAGES = [
-  { title: "🌅 Good morning, safe driver!", body: "Check live road hazards before heading out. Stay one step ahead on Kenyan roads." },
+  { title: "🌅 Good morning, Msafiri!", body: "Check live road hazards before heading out. Stay one step ahead on Kenyan roads." },
   { title: "🚗 Morning road check!", body: "Traffic reports just updated. See what's ahead on your route today." },
   { title: "☀️ Start your day safely", body: "Speed cameras and roadblocks refreshed. Tap to see today's road conditions." },
   { title: "🛡️ Drive smart today", body: "New incidents reported overnight. Check conditions on your route before you go." },

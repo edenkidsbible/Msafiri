@@ -73,7 +73,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </div>
             <div className="flex flex-col">
               <span className="font-semibold text-sm tracking-tight text-sidebar-foreground">Msafiri Ops</span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">SafeDrive</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Kenya</span>
             </div>
           </SidebarHeader>
           <SidebarContent>

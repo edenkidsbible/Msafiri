@@ -27,7 +27,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function seedDefaultAdmin() {
-  const ADMIN_EMAIL = "admin@safedrive.co.ke";
+  const ADMIN_EMAIL = "admin@msafirikenya.com";
   try {
     const [existing] = await db
       .select({ id: adminUsersTable.id })
@@ -35,7 +35,7 @@ async function seedDefaultAdmin() {
       .where(eq(adminUsersTable.email, ADMIN_EMAIL));
 
     if (!existing) {
-      const passwordHash = await bcrypt.hash("SafeDrive2024!", 12);
+      const passwordHash = await bcrypt.hash("Msafiri2024!", 12);
       await db.insert(adminUsersTable).values({
         email: ADMIN_EMAIL,
         name: "Super Admin",
@@ -43,7 +43,7 @@ async function seedDefaultAdmin() {
         role: "admin",
         mustChangePassword: true,
       });
-      logger.info("Default admin account created: admin@safedrive.co.ke (must change password on first login)");
+      logger.info("Default admin account created: admin@msafirikenya.com (must change password on first login)");
     }
   } catch (err) {
     logger.warn({ err }, "Could not seed default admin — may already exist or DB unavailable");

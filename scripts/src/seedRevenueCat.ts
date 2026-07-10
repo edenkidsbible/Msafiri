@@ -29,7 +29,7 @@ import {
   type CreateProductData,
 } from "@replit/revenuecat-sdk";
 
-const PROJECT_NAME = "SafeDrive Kenya";
+const PROJECT_NAME = "Msafiri Kenya";
 
 const APP_STORE_APP_NAME = "Msafiri Kenya iOS";
 const APP_STORE_BUNDLE_ID = "com.msafirikenya.app";
@@ -37,7 +37,7 @@ const PLAY_STORE_APP_NAME = "Msafiri Kenya Android";
 const PLAY_STORE_PACKAGE_NAME = "com.msafirikenya.app";
 
 const ENTITLEMENT_IDENTIFIER = "pro";
-const ENTITLEMENT_DISPLAY_NAME = "Pro Access";
+const ENTITLEMENT_DISPLAY_NAME = "Msafiri Access";
 
 const OFFERING_IDENTIFIER = "default";
 const OFFERING_DISPLAY_NAME = "Default Offering";
@@ -49,10 +49,10 @@ type TestStorePricesResponse = {
 
 const PRODUCTS = [
   {
-    identifier: "safedrive_weekly",
-    playStoreIdentifier: "safedrive_weekly:weekly",
-    displayName: "SafeDrive Pro Weekly",
-    title: "SafeDrive Pro Weekly",
+    identifier: "msafiri_weekly",
+    playStoreIdentifier: "msafiri_weekly:weekly",
+    displayName: "Msafiri Weekly",
+    title: "Msafiri Weekly",
     duration: "P1W" as const,
     packageIdentifier: "$rc_weekly",
     packageDisplayName: "Weekly Subscription",
@@ -61,10 +61,10 @@ const PRODUCTS = [
     ],
   },
   {
-    identifier: "safedrive_monthly",
-    playStoreIdentifier: "safedrive_monthly:monthly",
-    displayName: "SafeDrive Pro Monthly",
-    title: "SafeDrive Pro Monthly",
+    identifier: "msafiri_monthly",
+    playStoreIdentifier: "msafiri_monthly:monthly",
+    displayName: "Msafiri Monthly",
+    title: "Msafiri Monthly",
     duration: "P1M" as const,
     packageIdentifier: "$rc_monthly",
     packageDisplayName: "Monthly Subscription",
