@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
   FlatList,
@@ -412,6 +413,7 @@ export default function BrowseScreen() {
 
       ) : (
         <FlatList
+          {...FLAT_LIST_PROPS}
           data={pois}
           keyExtractor={(p) => p.id}
           renderItem={({ item }) => <POICard poi={item} distance={item.distance} />}

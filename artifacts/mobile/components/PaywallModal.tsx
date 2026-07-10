@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
   Modal,
@@ -89,6 +90,7 @@ export function PaywallModal({ visible, onClose }: Props) {
         </View>
 
         <ScrollView
+          {...SCROLL_PROPS}
           style={{ flex: 1 }}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}

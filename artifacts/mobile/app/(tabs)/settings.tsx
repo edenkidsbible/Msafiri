@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
   Platform,
@@ -142,6 +143,7 @@ export default function SettingsScreen() {
   return (
     <>
     <ScrollView
+      {...SCROLL_PROPS}
       style={[styles.screen, { backgroundColor: c.background }]}
       contentContainerStyle={{ paddingBottom: bottomInset + 40, paddingTop: topInset + 12 }}
       showsVerticalScrollIndicator={false}

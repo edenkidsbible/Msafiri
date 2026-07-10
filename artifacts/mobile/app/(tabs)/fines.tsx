@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import {
   FlatList,
   Platform,
@@ -157,6 +158,7 @@ export default function FinesScreen() {
           </View>
 
           <FlatList
+            {...FLAT_LIST_PROPS}
             data={fines}
             keyExtractor={(f) => f.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 100 }}

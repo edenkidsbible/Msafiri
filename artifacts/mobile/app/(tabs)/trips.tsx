@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
   Alert,
@@ -324,6 +325,7 @@ export default function TripsScreen() {
 
       {tab === "planned" ? (
         <FlatList
+          {...FLAT_LIST_PROPS}
           data={upcomingTrips}
           keyExtractor={(t) => t.id}
           contentContainerStyle={{ paddingBottom: bottomInset + 100 }}
@@ -434,6 +436,7 @@ export default function TripsScreen() {
         />
       ) : (
         <FlatList
+          {...FLAT_LIST_PROPS}
           data={tripHistory}
           keyExtractor={(t) => t.id}
           contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset + 100 }}

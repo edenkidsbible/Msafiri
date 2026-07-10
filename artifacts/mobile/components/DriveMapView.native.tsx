@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
   Modal,
@@ -373,7 +374,7 @@ export default function DriveMapView() {
               </View>
 
               {/* Incident list */}
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
+              <ScrollView {...SCROLL_PROPS} showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
                 {selectedCluster.members.map((r, i) => {
                   const def = resolveIncidentType(r.type);
                   const bg = def.color;

@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
   Keyboard,
@@ -181,6 +182,7 @@ export default function ReportModal({
           keyboardVerticalOffset={topInset}
         >
           <ScrollView
+            {...SCROLL_PROPS}
             style={{ flex: 1 }}
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { SCROLL_PROPS } from "@/lib/scrollProps";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -186,7 +187,7 @@ export default function RouteCheckModal({
               </View>
 
               {result.incidents.length > 0 && (
-                <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+                <ScrollView {...SCROLL_PROPS} style={styles.list} showsVerticalScrollIndicator={false}>
                   {result.incidents.map((inc) => {
                     const { IconComp, icon, color } = incidentVisual(inc);
                     const delayMin = incidentDelayMin(inc);

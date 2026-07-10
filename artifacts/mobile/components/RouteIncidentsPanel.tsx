@@ -1,4 +1,5 @@
 import React from "react";
+import { SCROLL_PROPS } from "@/lib/scrollProps";
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePathname } from "expo-router";
@@ -132,7 +133,7 @@ export default function RouteIncidentsPanel() {
             </Text>
           </View>
         ) : (
-          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+          <ScrollView {...SCROLL_PROPS} style={styles.list} showsVerticalScrollIndicator={false}>
             {routeIncidentsAhead.map((inc) => {
               const { IconComp, icon, color } = incidentVisual(inc);
               const delayMin = incidentDelayMin(inc);

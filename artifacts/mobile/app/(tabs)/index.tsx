@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
   FlatList,
@@ -281,6 +282,7 @@ export default function DriveScreen() {
                 </View>
               )}
               <FlatList
+                {...FLAT_LIST_PROPS}
                 data={geoResults}
                 keyExtractor={(_, i) => String(i)}
                 keyboardShouldPersistTaps="handled"
@@ -435,6 +437,7 @@ export default function DriveScreen() {
       {!isMapMode && !showResults && nearbyZones.length > 1 && (
         <View style={[styles.zonesBar, { bottom: bottomBase + 158 }]}>
           <ScrollView
+            {...SCROLL_PROPS}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 6, paddingHorizontal: 14 }}
@@ -514,7 +517,7 @@ export default function DriveScreen() {
 
           {/* Alt routes */}
           {altRoutes.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView {...SCROLL_PROPS} horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <View style={[styles.altPill, { backgroundColor: c.primary }]}>
                   <Text style={[styles.altPillTxt, { color: "#FFF" }]}>
