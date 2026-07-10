@@ -50,6 +50,14 @@ export default function PaywallScreen() {
   const monthlyPkg = currentOffering?.availablePackages.find((p) => p.identifier === "$rc_monthly");
   const chosenPkg  = selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
 
+  // Fallback display prices shown before/if RevenueCat hasn't loaded store prices yet.
+  // These must match the prices set in App Store Connect and Google Play Console exactly.
+  const FALLBACK_WEEKLY_PRICE  = "KES 100";
+  const FALLBACK_MONTHLY_PRICE = "KES 300";
+  const weeklyPriceString  = weeklyPkg?.product.priceString  || FALLBACK_WEEKLY_PRICE;
+  const monthlyPriceString = monthlyPkg?.product.priceString || FALLBACK_MONTHLY_PRICE;
+  const chosenPriceString  = selectedPkg === "$rc_weekly" ? weeklyPriceString : monthlyPriceString;
+
   // If this store account has already used its free trial (iOS only — Android/web
   // always report eligible), show regular pricing copy instead of trial copy.
   const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
@@ -280,78 +288,72 @@ export default function PaywallScreen() {
           <ActivityIndicator color={c.primary} style={{ marginVertical: 28 }} />
         ) : (
           <View style={styles.plans}>
-            {monthlyPkg && (
-              <TouchableOpacity
-                style={[
-                  styles.planCard,
-                  {
-                    borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border,
-                    backgroundColor: selectedPkg === "$rc_monthly" ? c.primary + "12" : c.card,
-                  },
-                ]}
-                onPress={() => setSelectedPkg("$rc_monthly")}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.bestBadge, { backgroundColor: c.primary }]}>
-                  <Text style={styles.bestText}>BEST VALUE</Text>
+            <TouchableOpacity
+              style={[
+                styles.planCard,
+                {
+                  borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border,
+                  backgroundColor: selectedPkg === "$rc_monthly" ? c.primary + "12" : c.card,
+                },
+              ]}
+              onPress={() => setSelectedPkg("$rc_monthly")}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.bestBadge, { backgroundColor: c.primary }]}>
+                <Text style={styles.bestText}>BEST VALUE</Text>
+              </View>
+              <View style={styles.planTop}>
+                <View style={[styles.radio, { borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border }]}>
+                  {selectedPkg === "$rc_monthly" && (
+                    <View style={[styles.radioDot, { backgroundColor: c.primary }]} />
+                  )}
                 </View>
-                <View style={styles.planTop}>
-                  <View style={[styles.radio, { borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border }]}>
-                    {selectedPkg === "$rc_monthly" && (
-                      <View style={[styles.radioDot, { backgroundColor: c.primary }]} />
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.planName, { color: c.foreground }]}>Monthly</Text>
-                    <Text style={[styles.planNote, { color: c.primary }]}>Save 25% vs weekly</Text>
-                  </View>
-                  <View style={styles.priceWrap}>
-                    <Text style={[styles.price, { color: c.foreground }]}>{monthlyPkg.product.priceString}</Text>
-                    <Text style={[styles.period, { color: c.mutedForeground }]}>/month</Text>
-                  </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.planName, { color: c.foreground }]}>Monthly</Text>
+                  <Text style={[styles.planNote, { color: c.primary }]}>Save 25% vs weekly</Text>
                 </View>
-              </TouchableOpacity>
-            )}
+                <View style={styles.priceWrap}>
+                  <Text style={[styles.price, { color: c.foreground }]}>{monthlyPriceString}</Text>
+                  <Text style={[styles.period, { color: c.mutedForeground }]}>/month</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
 
-            {weeklyPkg && (
-              <TouchableOpacity
-                style={[
-                  styles.planCard,
-                  {
-                    borderColor: selectedPkg === "$rc_weekly" ? c.primary : c.border,
-                    backgroundColor: selectedPkg === "$rc_weekly" ? c.primary + "12" : c.card,
-                  },
-                ]}
-                onPress={() => setSelectedPkg("$rc_weekly")}
-                activeOpacity={0.8}
-              >
-                <View style={styles.planTop}>
-                  <View style={[styles.radio, { borderColor: selectedPkg === "$rc_weekly" ? c.primary : c.border }]}>
-                    {selectedPkg === "$rc_weekly" && (
-                      <View style={[styles.radioDot, { backgroundColor: c.primary }]} />
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.planName, { color: c.foreground }]}>Weekly</Text>
-                    <Text style={[styles.planNote, { color: c.mutedForeground }]}>Flexible, cancel anytime</Text>
-                  </View>
-                  <View style={styles.priceWrap}>
-                    <Text style={[styles.price, { color: c.foreground }]}>{weeklyPkg.product.priceString}</Text>
-                    <Text style={[styles.period, { color: c.mutedForeground }]}>/week</Text>
-                  </View>
+            <TouchableOpacity
+              style={[
+                styles.planCard,
+                {
+                  borderColor: selectedPkg === "$rc_weekly" ? c.primary : c.border,
+                  backgroundColor: selectedPkg === "$rc_weekly" ? c.primary + "12" : c.card,
+                },
+              ]}
+              onPress={() => setSelectedPkg("$rc_weekly")}
+              activeOpacity={0.8}
+            >
+              <View style={styles.planTop}>
+                <View style={[styles.radio, { borderColor: selectedPkg === "$rc_weekly" ? c.primary : c.border }]}>
+                  {selectedPkg === "$rc_weekly" && (
+                    <View style={[styles.radioDot, { backgroundColor: c.primary }]} />
+                  )}
                 </View>
-              </TouchableOpacity>
-            )}
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.planName, { color: c.foreground }]}>Weekly</Text>
+                  <Text style={[styles.planNote, { color: c.mutedForeground }]}>Flexible, cancel anytime</Text>
+                </View>
+                <View style={styles.priceWrap}>
+                  <Text style={[styles.price, { color: c.foreground }]}>{weeklyPriceString}</Text>
+                  <Text style={[styles.period, { color: c.mutedForeground }]}>/week</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Legal */}
         <Text style={[styles.legal, { color: c.mutedForeground }]}>
-          {chosenPkg && trialEligible
-            ? `Msafiri Premium starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
-            : chosenPkg
-            ? `You'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
-            : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
+          {trialEligible
+            ? `Msafiri Premium starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
+            : `You'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `}
           Manage or cancel anytime in your App Store or Google Play account settings.
         </Text>
 
