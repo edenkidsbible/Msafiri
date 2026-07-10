@@ -150,7 +150,8 @@ function RootLayoutNav() {
         <Stack.Screen name="contact" options={{ title: "Contact Us" }} />
         <Stack.Screen name="privacy" options={{ title: "Privacy Policy" }} />
         <Stack.Screen name="terms"         options={{ title: "Terms of Service" }} />
-        <Stack.Screen name="force-update"  options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="force-update"     options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="creator-program" options={{ headerShown: false }} />
       </Stack>
     </View>
   );

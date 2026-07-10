@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/blog",           label: "Blog Posts",       icon: FileText },
     { href: "/audit-log",      label: "Activity Log",     icon: ClipboardList },
     { href: "/subscribers",    label: "Subscribers",      icon: CreditCard },
+    { href: "/creators",       label: "Creators",         icon: Star },
   ];
 
   const adminOnlyNav = [

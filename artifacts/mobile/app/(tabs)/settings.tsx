@@ -184,6 +184,22 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Creator Program */}
+      <TouchableOpacity
+        style={[styles.proBanner, { backgroundColor: c.card, borderColor: c.border }]}
+        onPress={() => router.push("/creator-program" as any)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="star-outline" size={20} color={c.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.proBannerTitle, { color: c.foreground }]}>Msafiri Creator Program</Text>
+          <Text style={[styles.proBannerSub, { color: c.mutedForeground }]}>
+            Report incidents · Get 1 month free
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+      </TouchableOpacity>
+
       {/* SOS Contact */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>EMERGENCY SOS</Text>

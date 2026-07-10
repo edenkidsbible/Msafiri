@@ -420,6 +420,19 @@ export default function PaywallScreen() {
             {isRestoring ? "Restoring…" : "Restore purchases"}
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.creatorBtn, { borderColor: c.border, backgroundColor: c.card }]}
+          onPress={() => router.push("/creator-program" as any)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="star-outline" size={15} color={c.primary} />
+          <Text style={[styles.creatorTxt, { color: c.foreground }]}>
+            Join as Msafiri Creator —{" "}
+            <Text style={{ color: c.primary, fontFamily: "Inter_600SemiBold" }}>get 1 month free</Text>
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -517,6 +530,12 @@ const styles = StyleSheet.create({
   ctaBtnTxt: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   restoreBtn: { alignItems: "center", paddingBottom: 4 },
   restoreTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  creatorBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14,
+    justifyContent: "center",
+  },
+  creatorTxt: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
 
   // Result screens
   resultBadge: {

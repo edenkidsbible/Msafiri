@@ -19,6 +19,7 @@ import Subscribers from "@/pages/subscribers";
 import PushCampaigns from "@/pages/push-campaigns";
 import Releases from "@/pages/releases";
 import Blog from "@/pages/blog";
+import Creators from "@/pages/creators";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,7 @@ function Router() {
       <Route path="/push-campaigns"><ProtectedRoute component={PushCampaigns} adminOrModerator={true} /></Route>
       <Route path="/releases"><ProtectedRoute component={Releases} adminOrModerator={true} /></Route>
       <Route path="/blog"><ProtectedRoute component={Blog} adminOrModerator={true} /></Route>
+      <Route path="/creators"><ProtectedRoute component={Creators} adminOrModerator={true} /></Route>
       <Route component={NotFound} />
     </Switch>
   );
