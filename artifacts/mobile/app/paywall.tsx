@@ -18,14 +18,14 @@ import { useApp } from "@/context/AppContext";
 type Result = "success" | "restored" | "error" | null;
 
 const FEATURES = [
-  { icon: "speedometer",      label: "Real-time GPS speed display" },
-  { icon: "shield-checkmark", label: "Speed camera & police alerts" },
-  { icon: "people",           label: "Community road reports" },
-  { icon: "mic",              label: "Voice announcements & haptic alerts" },
-  { icon: "alert-circle",     label: "SOS emergency button" },
-  { icon: "navigate",         label: "Turn-by-turn navigation" },
-  { icon: "time",             label: "Trip history & stats" },
-  { icon: "cloud-offline",    label: "Offline speed zone data" },
+  { icon: "speedometer",      label: "GPS speed display" },
+  { icon: "shield-checkmark", label: "Speed camera alerts" },
+  { icon: "people",           label: "Community reports" },
+  { icon: "mic",              label: "Voice & haptic alerts" },
+  { icon: "alert-circle",     label: "SOS button" },
+  { icon: "navigate",         label: "Navigation" },
+  { icon: "time",             label: "Trip history" },
+  { icon: "cloud-offline",    label: "Offline mode" },
 ];
 
 export default function PaywallScreen() {
@@ -243,42 +243,32 @@ export default function PaywallScreen() {
         {/* Hero */}
         <View style={styles.heroWrap}>
           <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
-            <Ionicons name="shield-checkmark" size={44} color={c.primary} />
+            <Ionicons name="shield-checkmark" size={28} color={c.primary} />
           </View>
-          <Text style={[styles.heroTitle, { color: c.foreground }]}>
-            Drive smarter.{"\n"}Stay protected.
-          </Text>
-          <Text style={[styles.heroSub, { color: c.mutedForeground }]}>
-            Join Kenyan drivers who arrive safely every day with real-time road alerts.
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.heroTitle, { color: c.foreground }]}>
+              Drive smarter. Stay protected.
+            </Text>
+            <Text style={[styles.heroSub, { color: c.mutedForeground }]}>
+              Real-time alerts for Kenyan roads
+            </Text>
+          </View>
         </View>
 
         {/* Free trial badge */}
-        {trialEligible ? (
-          <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
-            <Ionicons name="gift-outline" size={16} color={c.primary} />
-            <Text style={[styles.trialText, { color: c.primary }]}>
-              Start with a 3-day free trial — cancel anytime
-            </Text>
-          </View>
-        ) : (
-          <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
-            <Text style={[styles.trialText, { color: c.primary }]}>
-              Cancel anytime — no long-term commitment
-            </Text>
-          </View>
-        )}
+        <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+          <Ionicons name={trialEligible ? "gift-outline" : "shield-checkmark-outline"} size={15} color={c.primary} />
+          <Text style={[styles.trialText, { color: c.primary }]}>
+            {trialEligible ? "3-day free trial — cancel anytime" : "Cancel anytime — no long-term commitment"}
+          </Text>
+        </View>
 
-        {/* Feature list */}
-        <View style={[styles.featuresCard, { backgroundColor: c.card, borderColor: c.border }]}>
+        {/* Feature grid — 2 columns */}
+        <View style={[styles.featuresGrid, { borderColor: c.border }]}>
           {FEATURES.map((f) => (
-            <View key={f.label} style={styles.featureRow}>
-              <View style={[styles.featureIcon, { backgroundColor: c.primary + "18" }]}>
-                <Ionicons name={f.icon as any} size={16} color={c.primary} />
-              </View>
-              <Text style={[styles.featureLabel, { color: c.foreground }]}>{f.label}</Text>
-              <Ionicons name="checkmark-circle" size={18} color={c.primary} />
+            <View key={f.label} style={[styles.featureChip, { backgroundColor: c.card }]}>
+              <Ionicons name={f.icon as any} size={13} color={c.primary} />
+              <Text style={[styles.featureChipText, { color: c.foreground }]}>{f.label}</Text>
             </View>
           ))}
         </View>
@@ -450,42 +440,43 @@ const styles = StyleSheet.create({
 
   logoRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 14,
+    gap: 8, paddingVertical: 10,
   },
-  logoText: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  logoText: { fontSize: 18, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
 
-  scroll: { paddingHorizontal: 24, paddingTop: 8 },
+  scroll: { paddingHorizontal: 20, paddingTop: 4 },
 
-  heroWrap: { alignItems: "center", marginBottom: 20 },
+  heroWrap: {
+    flexDirection: "row", alignItems: "center",
+    gap: 14, marginBottom: 12,
+  },
   heroBadge: {
-    width: 88, height: 88, borderRadius: 28,
-    alignItems: "center", justifyContent: "center", marginBottom: 18,
+    width: 52, height: 52, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
   heroTitle: {
-    fontSize: 28, fontFamily: "Inter_700Bold",
-    textAlign: "center", lineHeight: 36, marginBottom: 10,
+    fontSize: 18, fontFamily: "Inter_700Bold", lineHeight: 24, marginBottom: 3,
   },
   heroSub: {
-    fontSize: 15, fontFamily: "Inter_400Regular",
-    textAlign: "center", lineHeight: 22,
+    fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18,
   },
 
   trialBadge: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    borderRadius: 12, borderWidth: 1,
-    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 20,
+    flexDirection: "row", alignItems: "center", gap: 7,
+    borderRadius: 10, borderWidth: 1,
+    paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12,
   },
   trialText: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 1 },
 
-  featuresCard: {
-    borderRadius: 16, borderWidth: 1, padding: 16, gap: 14, marginBottom: 20,
+  featuresGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14,
   },
-  featureRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  featureIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
+  featureChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    width: "47.5%", borderRadius: 10,
+    paddingVertical: 8, paddingHorizontal: 10,
   },
-  featureLabel: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+  featureChipText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1, lineHeight: 16 },
 
   plans: { gap: 12, marginBottom: 16 },
   planCard: { borderRadius: 16, borderWidth: 2, padding: 16, overflow: "hidden" },
