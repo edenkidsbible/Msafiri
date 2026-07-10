@@ -17,34 +17,38 @@ import Purchases from "react-native-purchases";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
-import { apiPost, apiGet } from "@/utils/apiClient";
+import { apiPost } from "@/utils/apiClient";
 
 const STORAGE_KEY = "creator_application_submitted";
 
 const PERKS = [
-  { icon: "gift-outline",    text: "1 month free Msafiri Access" },
-  { icon: "map-outline",     text: "Help make Kenya's roads safer for everyone" },
-  { icon: "trending-up-outline", text: "Your reports shape the live map other drivers rely on" },
+  { icon: "gift-outline",         text: "1 month free Msafiri Access" },
+  { icon: "map-outline",          text: "Help make Kenya's roads safer for everyone" },
+  { icon: "trending-up-outline",  text: "Your reports shape the live map other drivers rely on" },
 ];
 
 const DUTIES = [
-  { icon: "speedometer-outline", text: "Report speed cameras and their exact locations" },
-  { icon: "warning-outline",     text: "Flag police checkpoints and road hazards" },
-  { icon: "construct-outline",   text: "Report potholes, roadworks, and accidents" },
-  { icon: "thumbs-up-outline",   text: "Confirm or deny existing community reports" },
+  { icon: "speedometer-outline",  text: "Report speed cameras and their exact locations" },
+  { icon: "warning-outline",      text: "Flag police checkpoints and road hazards" },
+  { icon: "construct-outline",    text: "Report potholes, roadworks, and accidents" },
+  { icon: "thumbs-up-outline",    text: "Confirm or deny existing community reports" },
 ];
 
+type StoreOption = "ios" | "android";
 type SubmitState = "idle" | "submitting" | "success" | "already";
 
 export default function CreatorProgramScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
 
-  const [name, setName]         = useState("");
-  const [email, setEmail]       = useState("");
-  const [reason, setReason]     = useState("");
+  const [name, setName]               = useState("");
+  const [email, setEmail]             = useState("");
+  const [reason, setReason]           = useState("");
+  const [store, setStore]             = useState<StoreOption>(
+    Platform.OS === "android" ? "android" : "ios",
+  );
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
-  const [error, setError]       = useState<string | null>(null);
+  const [error, setError]             = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((val) => {
@@ -68,9 +72,10 @@ export default function CreatorProgramScreen() {
       const deviceId = await AsyncStorage.getItem("device_id") ?? "unknown";
       const result = await apiPost("/creator-application", {
         deviceId,
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        reason: reason.trim() || null,
+        name:     name.trim() || null,
+        email:    email.trim().toLowerCase(),
+        platform: store,
+        reason:   reason.trim() || null,
       });
       await AsyncStorage.setItem(STORAGE_KEY, "true");
       if ((result as any).alreadyApplied) {
@@ -174,6 +179,47 @@ export default function CreatorProgramScreen() {
               keyboardType="email-address"
               returnKeyType="next"
             />
+            <Text style={[styles.inputHint, { color: c.mutedForeground }]}>
+              We'll send your promo code here if approved.
+            </Text>
+
+            <Text style={[styles.label, { color: c.mutedForeground }]}>Where do you want to redeem your code? *</Text>
+            <View style={styles.storePicker}>
+              {(["ios", "android"] as StoreOption[]).map((s) => {
+                const selected = store === s;
+                return (
+                  <TouchableOpacity
+                    key={s}
+                    style={[
+                      styles.storeOption,
+                      {
+                        borderColor:     selected ? c.primary : c.border,
+                        backgroundColor: selected ? c.primary + "12" : c.background,
+                      },
+                    ]}
+                    onPress={() => setStore(s)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={s === "ios" ? "logo-apple" : "logo-google-playstore"}
+                      size={22}
+                      color={selected ? c.primary : c.mutedForeground}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.storeLabel, { color: selected ? c.primary : c.foreground }]}>
+                        {s === "ios" ? "Apple App Store" : "Google Play"}
+                      </Text>
+                      <Text style={[styles.storeHint, { color: c.mutedForeground }]}>
+                        {s === "ios" ? "iPhone / iPad" : "Android phone"}
+                      </Text>
+                    </View>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={18} color={c.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             <Text style={[styles.label, { color: c.mutedForeground }]}>Why do you want to be a creator? (optional)</Text>
             <TextInput
@@ -187,9 +233,7 @@ export default function CreatorProgramScreen() {
               returnKeyType="done"
             />
 
-            {error && (
-              <Text style={styles.errorText}>{error}</Text>
-            )}
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
             <TouchableOpacity
               style={[styles.submitBtn, { backgroundColor: c.primary, opacity: submitState === "submitting" ? 0.6 : 1 }]}
@@ -262,13 +306,22 @@ const styles = StyleSheet.create({
   iconWrap: { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   rowText:  { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
 
-  label: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 4, marginTop: 4 },
+  label:     { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 4, marginTop: 4 },
+  inputHint: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 3, marginBottom: 2 },
   input: {
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
     fontSize: 14, fontFamily: "Inter_400Regular",
   },
   textarea: { height: 80, textAlignVertical: "top", paddingTop: 10 },
   errorText: { color: "#E53935", fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  storePicker: { gap: 8, marginBottom: 4 },
+  storeOption: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderWidth: 1.5, borderRadius: 12, padding: 12,
+  },
+  storeLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  storeHint:  { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
 
   submitBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
   submitBtnTxt: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },

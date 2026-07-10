@@ -5,6 +5,7 @@ export const creatorApplicationsTable = pgTable("creator_applications", {
   deviceId:  text("device_id").notNull(),
   name:      text("name").notNull(),
   email:     text("email").notNull(),
+  platform:  text("platform"),           // ios | android — preferred store
   reason:    text("reason"),
   status:    text("status").notNull().default("pending"), // pending | approved | rejected
   createdAt: timestamp("created_at").notNull().defaultNow(),
