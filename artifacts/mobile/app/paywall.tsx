@@ -40,7 +40,6 @@ export default function PaywallScreen() {
   const [activePlanLabel, setActivePlanLabel] = useState("");
   const [activePlanPrice, setActivePlanPrice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const topPad = Platform.OS === "web" ? 20 : insets.top + 8;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom + 16;
@@ -63,7 +62,7 @@ export default function PaywallScreen() {
   const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
 
   async function handleSubscribe() {
-    if (!chosenPkg || !agreedToTerms) return;
+    if (!chosenPkg) return;
     try {
       await purchase(chosenPkg);
       setActivePlanLabel(selectedPkg === "$rc_weekly" ? "Weekly" : "Monthly");
@@ -342,58 +341,31 @@ export default function PaywallScreen() {
         {/* Legal */}
         <Text style={[styles.legal, { color: c.mutedForeground }]}>
           {trialEligible
-            ? `Msafiri Premium starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
-            : `You'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `}
-          Manage or cancel anytime in your App Store or Google Play account settings.
+            ? `Msafiri Premium starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew. `
+            : `You'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew. `}
+          By subscribing you agree to our{" "}
+          <Text style={[styles.agreeLink, { color: c.primary }]} onPress={() => router.push("/terms")}>Terms of Service</Text>
+          {" "}and{" "}
+          <Text style={[styles.agreeLink, { color: c.primary }]} onPress={() => router.push("/privacy")}>Privacy Policy</Text>
+          . Manage or cancel anytime in your App Store or Google Play settings.
         </Text>
-
-        {/* Terms agreement checkbox */}
-        <TouchableOpacity
-          style={styles.agreeRow}
-          onPress={() => setAgreedToTerms((v) => !v)}
-          activeOpacity={0.7}
-          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-        >
-          <View
-            style={[
-              styles.checkbox,
-              {
-                borderColor: agreedToTerms ? c.primary : c.border,
-                backgroundColor: agreedToTerms ? c.primary : "transparent",
-              },
-            ]}
-          >
-            {agreedToTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
-          </View>
-          <Text style={[styles.agreeText, { color: c.mutedForeground }]}>
-            By starting my {trialEligible ? "free trial" : "subscription"}, I agree to the{" "}
-            <Text
-              style={[styles.agreeLink, { color: c.primary }]}
-              onPress={(e) => { e.stopPropagation(); router.push("/terms"); }}
-            >
-              Terms of Service
-            </Text>{" "}
-            and{" "}
-            <Text
-              style={[styles.agreeLink, { color: c.primary }]}
-              onPress={(e) => { e.stopPropagation(); router.push("/privacy"); }}
-            >
-              Privacy Policy
-            </Text>
-            .
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Bottom CTA */}
       <View style={[styles.ctaWrap, { borderTopColor: c.border, paddingBottom: botPad }]}>
+        {!isLoading && !chosenPkg && (
+          <Text style={[styles.noProductsNote, { color: c.mutedForeground }]}>
+            Subscriptions unavailable in this build — store products not configured yet.
+          </Text>
+        )}
+
         <TouchableOpacity
           style={[
             styles.ctaBtn,
-            { backgroundColor: c.primary, opacity: isPurchasing || isLoading || !agreedToTerms ? 0.5 : 1 },
+            { backgroundColor: c.primary, opacity: isPurchasing || isLoading || !chosenPkg ? 0.5 : 1 },
           ]}
           onPress={handleSubscribe}
-          disabled={isPurchasing || isLoading || !chosenPkg || !agreedToTerms}
+          disabled={isPurchasing || isLoading || !chosenPkg}
           activeOpacity={0.85}
         >
           {isPurchasing ? (
@@ -501,16 +473,11 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: "Inter_400Regular",
     textAlign: "center", lineHeight: 16, marginTop: 4,
   },
-  agreeRow: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    marginTop: 16, paddingHorizontal: 4,
-  },
-  checkbox: {
-    width: 20, height: 20, borderRadius: 5, borderWidth: 2,
-    alignItems: "center", justifyContent: "center", marginTop: 1,
-  },
-  agreeText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, flex: 1 },
   agreeLink: { fontFamily: "Inter_600SemiBold" },
+  noProductsNote: {
+    fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center",
+    lineHeight: 15, marginBottom: 8,
+  },
 
   ctaWrap: {
     paddingHorizontal: 24, paddingTop: 16,
