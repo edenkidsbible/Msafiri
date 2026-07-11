@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
@@ -114,12 +115,18 @@ export default function CreatorProgramScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
       <ScrollView
         {...SCROLL_PROPS}
         style={{ flex: 1 }}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
       >
         <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
           <Ionicons name="star" size={36} color={c.primary} />
@@ -279,6 +286,7 @@ export default function CreatorProgramScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -31,7 +31,7 @@ router.post("/creator-application", async (req: Request, res: Response) => {
       .insert(creatorApplicationsTable)
       .values({
         deviceId,
-        name: name.trim(),
+        name: name?.trim() ?? null,
         email: email.trim().toLowerCase(),
         reason: reason?.trim() ?? null,
       })
