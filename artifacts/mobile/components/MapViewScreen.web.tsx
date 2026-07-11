@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
+import { snapToRoad } from "@/utils/snapToRoad";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -55,13 +56,14 @@ export default function MapViewScreen() {
     .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
-  const handleReport = (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
+  const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
+    setShowReport(false);
     if (location) {
       addReport(type, location.lat, location.lng, speedLimit);
     } else if (currentLat && currentLng) {
-      addReport(type, currentLat, currentLng, speedLimit);
+      const snapped = await snapToRoad(currentLat, currentLng);
+      addReport(type, snapped.lat, snapped.lng, speedLimit);
     }
-    setShowReport(false);
   };
 
   return (

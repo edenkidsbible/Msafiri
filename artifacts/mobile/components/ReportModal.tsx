@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { CommunityReport } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import { snapToRoad } from "@/utils/snapToRoad";
 
 type ReportType = CommunityReport["type"];
 
@@ -117,12 +118,16 @@ export default function ReportModal({
     searchTimer.current = setTimeout(() => runSearch(text), 500);
   };
 
-  const pickResult = (r: GeoResult) => {
+  const pickResult = async (r: GeoResult) => {
     Keyboard.dismiss();
-    setPickedLocation({ lat: r.lat, lng: r.lng, label: r.short });
     setSearchText(r.short);
     setSearchResults([]);
     setEditingSearch(false);
+    // Set geocoded coords immediately for responsiveness
+    setPickedLocation({ lat: r.lat, lng: r.lng, label: r.short });
+    // Silently snap to the nearest road centerline
+    const snapped = await snapToRoad(r.lat, r.lng);
+    setPickedLocation({ lat: snapped.lat, lng: snapped.lng, label: r.short });
   };
 
   const editSearch = () => {

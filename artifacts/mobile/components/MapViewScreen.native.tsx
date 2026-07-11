@@ -7,6 +7,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
+import { snapToRoad } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
@@ -211,13 +212,14 @@ export default function MapViewScreen() {
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
-  const handleReport = (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
+  const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
+    setShowReport(false);
     if (location) {
       addReport(type, location.lat, location.lng, speedLimit);
     } else if (currentLat && currentLng) {
-      addReport(type, currentLat, currentLng, speedLimit);
+      const snapped = await snapToRoad(currentLat, currentLng);
+      addReport(type, snapped.lat, snapped.lng, speedLimit);
     }
-    setShowReport(false);
   };
 
   const centerOnUser = () => {

@@ -26,6 +26,7 @@ import ReportModal from "@/components/ReportModal";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import { snapToRoad } from "@/utils/snapToRoad";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -738,13 +739,14 @@ export default function DriveScreen() {
         onClose={() => setShowReport(false)}
         currentLat={currentLat}
         currentLng={currentLng}
-        onSubmit={(type, speedLimit, location) => {
+        onSubmit={async (type, speedLimit, location) => {
+          setShowReport(false);
           if (location) {
             addReport(type, location.lat, location.lng, speedLimit);
           } else if (currentLat !== null && currentLng !== null) {
-            addReport(type, currentLat, currentLng, speedLimit);
+            const snapped = await snapToRoad(currentLat, currentLng);
+            addReport(type, snapped.lat, snapped.lng, speedLimit);
           }
-          setShowReport(false);
         }}
       />
 
