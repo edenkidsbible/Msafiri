@@ -171,14 +171,14 @@ async function checkDailyTriggers(): Promise<void> {
   const eatHour = (now.getUTCHours() + 3) % 24;
   const min = now.getUTCMinutes();
 
-  // 7:00–7:05 AM EAT → morning reminder
-  if (eatHour === 7 && min < 5) {
+  // 6:00–6:05 AM EAT → morning reminder
+  if (eatHour === 6 && min < 5) {
     const msg = pickMessage(MORNING_MESSAGES);
     await sendAutoCampaign("daily_morning", msg.title, msg.body);
   }
 
-  // 5:30–5:35 PM EAT → evening reminder
-  if (eatHour === 17 && min >= 30 && min < 35) {
+  // 4:30–4:35 PM EAT → evening reminder
+  if (eatHour === 16 && min >= 30 && min < 35) {
     const msg = pickMessage(EVENING_MESSAGES);
     await sendAutoCampaign("daily_evening", msg.title, msg.body);
   }
