@@ -16,6 +16,7 @@ import { useApp } from "@/context/AppContext";
 import { POIS } from "@/data/pois";
 import POICard, { POIItem } from "@/components/POICard";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
+import FinesContent from "@/components/FinesContent";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -28,6 +29,7 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 const MAX_DIST = 10000;
 
 type Tab = "fuel" | "food" | "shopping" | "hospital" | "nightlife";
+type ViewMode = "places" | "fines";
 
 const TABS: Array<{
   type: Tab;
@@ -43,7 +45,6 @@ const TABS: Array<{
   { type: "nightlife", label: "Night",    matIcon: "glass-cocktail",      color: "#6A1B9A" },
 ];
 
-// Live-only categories — no static fallback data
 const LIVE_ONLY_TABS: Tab[] = ["shopping", "hospital", "nightlife"];
 
 function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
@@ -75,45 +76,34 @@ function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
   return `[out:json][timeout:10];(${filters});out center 60;`;
 }
 
-// Multiple mirrors — fired in parallel; first success wins
 const OVERPASS_MIRRORS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.openstreetmap.fr/api/interpreter",
 ];
 
-// ─── In-memory cache ─────────────────────────────────────────────────────────
 interface CacheEntry { items: POIItem[]; fetchedAt: number }
 const _cache = new Map<string, CacheEntry>();
-const CACHE_FRESH_MS  = 3 * 60 * 1000;   // < 3 min  → use instantly, skip re-fetch
-const CACHE_STALE_MS  = 10 * 60 * 1000;  // 3–10 min → use instantly, re-fetch in BG
-// > 10 min → show spinner, fetch fresh
+const CACHE_FRESH_MS = 3 * 60 * 1000;
+const CACHE_STALE_MS = 10 * 60 * 1000;
 
 function poiCacheKey(type: Tab, lat: number, lng: number): string {
-  // ~1.1 km buckets (2 decimal places)
   const bLat = Math.round(lat * 100) / 100;
   const bLng = Math.round(lng * 100) / 100;
   return `${type}:${bLat}:${bLng}`;
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIItem[]> {
   const query = buildOverpassQuery(type, lat, lng);
-
   const tryMirror = async (mirror: string): Promise<any> => {
     const res = await fetchWithTimeout(
       mirror,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `data=${encodeURIComponent(query)}`,
-      },
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `data=${encodeURIComponent(query)}` },
       10000
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   };
-
   const data = await Promise.any(OVERPASS_MIRRORS.map(tryMirror));
   const defaultName =
     type === "fuel"      ? "Fuel Station" :
@@ -128,22 +118,11 @@ async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIIt
       const tags: Record<string, string> = el.tags ?? {};
       const name = tags.name || tags["name:en"] || tags.brand || tags.operator || defaultName;
       const address = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"] || tags["addr:suburb"]].filter(Boolean).join(", ");
-      return {
-        id: `osm-${el.type}-${el.id}`,
-        type,
-        name,
-        brand: tags.brand ?? tags.operator ?? "",
-        address,
-        hours: tags.opening_hours ?? "",
-        lat: plat,
-        lng: plng,
-        source: "live",
-      };
+      return { id: `osm-${el.type}-${el.id}`, type, name, brand: tags.brand ?? tags.operator ?? "", address, hours: tags.opening_hours ?? "", lat: plat, lng: plng, source: "live" };
     })
     .filter((p): p is POIItem => p !== null);
 }
 
-// Static fallback — fuel + food only
 const STATIC_POIS: POIItem[] = POIS
   .filter((p) => p.type === "fuel" || p.type === "food")
   .map((p: any) => ({
@@ -164,15 +143,16 @@ export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const { currentLat, currentLng } = useApp();
 
-  const [activeTab, setActiveTab] = useState<Tab>("fuel");
-  const [pois, setPois] = useState<(POIItem & { distance?: number })[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode]     = useState<ViewMode>("places");
+  const [activeTab, setActiveTab]   = useState<Tab>("fuel");
+  const [pois, setPois]             = useState<(POIItem & { distance?: number })[]>([]);
+  const [loading, setLoading]       = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isLive, setIsLive] = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [isLive, setIsLive]         = useState(false);
 
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const topInset     = Platform.OS === "web" ? 67 : insets.top;
+  const bottomInset  = Platform.OS === "web" ? 34 : insets.bottom;
   const tabBarHeight = Platform.OS === "web" ? 84 : 96;
 
   const isMounted = useRef(true);
@@ -181,22 +161,12 @@ export default function BrowseScreen() {
     return () => { isMounted.current = false; };
   }, []);
 
-  // Track where we last fetched from, so we only re-query when the user has
-  // moved far enough (2.5 km). Within that radius we just re-sort in place.
   const fetchOriginRef = useRef<{ lat: number; lng: number } | null>(null);
-  const activeTabRef = useRef<Tab>(activeTab);
+  const activeTabRef   = useRef<Tab>(activeTab);
 
-  const applyItems = useCallback((
-    items: POIItem[],
-    lat: number | null,
-    lng: number | null,
-    merge: boolean,
-  ) => {
+  const applyItems = useCallback((items: POIItem[], lat: number | null, lng: number | null, merge: boolean) => {
     const withDist = items
-      .map((p) => ({
-        ...p,
-        distance: lat !== null && lng !== null ? haversine(lat, lng, p.lat, p.lng) : undefined,
-      }))
+      .map((p) => ({ ...p, distance: lat !== null && lng !== null ? haversine(lat, lng, p.lat, p.lng) : undefined }))
       .filter((p) => p.distance === undefined || p.distance <= MAX_DIST)
       .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
@@ -207,62 +177,41 @@ export default function BrowseScreen() {
           .filter((p) => p.distance <= MAX_DIST);
         const existingIds = new Set(existingInRange.map((p) => p.id));
         const newItems = withDist.filter((p) => !existingIds.has(p.id));
-        return [...existingInRange, ...newItems]
-          .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+        return [...existingInRange, ...newItems].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
       });
     } else {
       setPois(withDist);
     }
   }, []);
 
-  const loadPOIs = useCallback(async (
-    t: Tab,
-    lat: number | null,
-    lng: number | null,
-    incremental = false,
-  ) => {
-    // ── Cache look-up ─────────────────────────────────────────────────────────
+  const loadPOIs = useCallback(async (t: Tab, lat: number | null, lng: number | null, incremental = false) => {
     if (lat !== null && lng !== null) {
-      const key = poiCacheKey(t, lat, lng);
+      const key    = poiCacheKey(t, lat, lng);
       const cached = _cache.get(key);
-      const age = cached ? Date.now() - cached.fetchedAt : Infinity;
+      const age    = cached ? Date.now() - cached.fetchedAt : Infinity;
 
       if (cached && age < CACHE_FRESH_MS) {
-        // Fresh hit — show instantly, no network call needed
         applyItems(cached.items, lat, lng, incremental);
-        setIsLive(true);
-        setLoading(false);
-        setIsRefreshing(false);
+        setIsLive(true); setLoading(false); setIsRefreshing(false);
         return;
       }
-
       if (cached && age < CACHE_STALE_MS) {
-        // Stale hit — show instantly, then revalidate quietly in background
         applyItems(cached.items, lat, lng, incremental);
-        setIsLive(true);
-        setLoading(false);
-        setIsRefreshing(true);
+        setIsLive(true); setLoading(false); setIsRefreshing(true);
         try {
           const fresh = await fetchOverpass(t, lat, lng);
           if (!isMounted.current) return;
           _cache.set(key, { items: fresh, fetchedAt: Date.now() });
           applyItems(fresh, lat, lng, incremental);
           setIsLive(true);
-        } catch {
-          // Keep showing stale data silently — no error banner
-        } finally {
+        } catch { /* keep stale silently */ } finally {
           if (isMounted.current) setIsRefreshing(false);
         }
         return;
       }
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    if (!incremental) {
-      setLoading(true);
-      setError(null);
-      setIsLive(false);
-    }
+    if (!incremental) { setLoading(true); setError(null); setIsLive(false); }
 
     let items: POIItem[] = [];
     let live = false;
@@ -274,10 +223,7 @@ export default function BrowseScreen() {
         _cache.set(poiCacheKey(t, lat, lng), { items, fetchedAt: Date.now() });
       } catch {
         if (!isMounted.current) return;
-        if (!incremental) {
-          setError("Live data unavailable. Showing cached results.");
-          items = STATIC_POIS.filter((p) => p.type === t);
-        }
+        if (!incremental) { setError("Live data unavailable. Showing cached results."); items = STATIC_POIS.filter((p) => p.type === t); }
       }
     } else {
       items = STATIC_POIS.filter((p) => p.type === t);
@@ -289,41 +235,27 @@ export default function BrowseScreen() {
     if (!incremental) setLoading(false);
   }, [applyItems]);
 
-  // Tab change → always do a full reload and reset the fetch origin
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     activeTabRef.current = activeTab;
-    fetchOriginRef.current =
-      currentLat !== null && currentLng !== null
-        ? { lat: currentLat, lng: currentLng }
-        : null;
-    setLoading(true);
-    setError(null);
-    setIsLive(false);
-    setPois([]);
+    fetchOriginRef.current = currentLat !== null && currentLng !== null ? { lat: currentLat, lng: currentLng } : null;
+    setLoading(true); setError(null); setIsLive(false); setPois([]);
     loadPOIs(activeTab, currentLat, currentLng, false);
   }, [activeTab]);
 
-  // Location update → incremental: re-sort if <2.5 km, re-fetch if farther
   useEffect(() => {
     if (currentLat === null || currentLng === null) return;
     const origin = fetchOriginRef.current;
-
     if (!origin) {
-      // First GPS fix after this tab was mounted — do the initial fetch now
       fetchOriginRef.current = { lat: currentLat, lng: currentLng };
       loadPOIs(activeTabRef.current, currentLat, currentLng, false);
       return;
     }
-
     const dist = haversine(currentLat, currentLng, origin.lat, origin.lng);
-
     if (dist > 2500) {
-      // Moved significantly — fetch fresh results, merge with existing
       fetchOriginRef.current = { lat: currentLat, lng: currentLng };
       loadPOIs(activeTabRef.current, currentLat, currentLng, true);
     } else {
-      // Still close — just recompute distances and drop anything now >10 km
       setPois((prev) =>
         prev
           .map((p) => ({ ...p, distance: haversine(currentLat, currentLng, p.lat, p.lng) }))
@@ -334,88 +266,116 @@ export default function BrowseScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLat, currentLng]);
 
-  const tabMeta = TABS.find((t) => t.type === activeTab)!;
+  const tabMeta    = TABS.find((t) => t.type === activeTab)!;
   const isLiveOnly = LIVE_ONLY_TABS.includes(activeTab);
-
-  // Distinct empty states for live-only tabs
   const needsLocation  = isLiveOnly && currentLat === null && !loading;
   const networkFailure = isLiveOnly && currentLat !== null && !isLive && pois.length === 0 && !loading;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
+
       {/* ─── Header ─── */}
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: c.background }]}>
+
+        {/* Top row: view toggle + (places only) live badge + refresh */}
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: c.foreground }]}>Nearby Places</Text>
-          <View style={styles.headerRight}>
-            {isRefreshing ? (
-              <View style={[styles.livePill, { backgroundColor: c.muted }]}>
-                <ActivityIndicator size={10} color={c.mutedForeground} style={{ marginRight: 2 }} />
-                <Text style={[styles.liveText, { color: c.mutedForeground }]}>Updating…</Text>
-              </View>
-            ) : isLive ? (
-              <View style={[styles.livePill, { backgroundColor: "#00C85322" }]}>
-                <View style={[styles.liveDot, { backgroundColor: "#00C853" }]} />
-                <Text style={[styles.liveText, { color: "#00C853" }]}>Live</Text>
-              </View>
-            ) : error ? (
-              <View style={[styles.livePill, { backgroundColor: c.muted }]}>
-                <Ionicons name="cloud-offline-outline" size={11} color={c.mutedForeground} />
-                <Text style={[styles.liveText, { color: c.mutedForeground }]}>Offline</Text>
-              </View>
-            ) : null}
+          <View style={[styles.viewToggle, { backgroundColor: c.muted }]}>
             <TouchableOpacity
-              onPress={() => loadPOIs(activeTab, currentLat, currentLng)}
-              style={[styles.refreshBtn, { backgroundColor: c.muted }]}
-              disabled={loading}
+              style={[styles.viewBtn, viewMode === "places" && { backgroundColor: c.card }]}
+              onPress={() => setViewMode("places")}
+              activeOpacity={0.8}
             >
-              <Ionicons
-                name="refresh-outline"
-                size={17}
-                color={loading ? c.mutedForeground : c.foreground}
-              />
+              <Ionicons name="location-outline" size={13} color={viewMode === "places" ? c.primary : c.mutedForeground} />
+              <Text style={[
+                styles.viewBtnLabel,
+                { color: viewMode === "places" ? c.primary : c.mutedForeground },
+                viewMode === "places" && { fontFamily: "Inter_600SemiBold" },
+              ]}>
+                Nearby Places
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewBtn, viewMode === "fines" && { backgroundColor: c.card }]}
+              onPress={() => setViewMode("fines")}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="document-text-outline" size={13} color={viewMode === "fines" ? c.primary : c.mutedForeground} />
+              <Text style={[
+                styles.viewBtnLabel,
+                { color: viewMode === "fines" ? c.primary : c.mutedForeground },
+                viewMode === "fines" && { fontFamily: "Inter_600SemiBold" },
+              ]}>
+                NTSA Fines
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        <Text style={[styles.sub, { color: c.mutedForeground }]}>
-          {currentLat
-            ? `${pois.length} place${pois.length !== 1 ? "s" : ""} within 10 km · tap Go to navigate`
-            : "Enable location for live nearby results"}
-        </Text>
-
-        {/* ─── Category tabs ─── */}
-        <View style={[styles.tabStrip, { backgroundColor: c.muted }]}>
-          {TABS.map((t) => {
-            const active = activeTab === t.type;
-            return (
+          {viewMode === "places" && (
+            <View style={styles.headerRight}>
+              {isRefreshing ? (
+                <View style={[styles.livePill, { backgroundColor: c.muted }]}>
+                  <ActivityIndicator size={10} color={c.mutedForeground} style={{ marginRight: 2 }} />
+                  <Text style={[styles.liveText, { color: c.mutedForeground }]}>Updating…</Text>
+                </View>
+              ) : isLive ? (
+                <View style={[styles.livePill, { backgroundColor: "#00C85322" }]}>
+                  <View style={[styles.liveDot, { backgroundColor: "#00C853" }]} />
+                  <Text style={[styles.liveText, { color: "#00C853" }]}>Live</Text>
+                </View>
+              ) : error ? (
+                <View style={[styles.livePill, { backgroundColor: c.muted }]}>
+                  <Ionicons name="cloud-offline-outline" size={11} color={c.mutedForeground} />
+                  <Text style={[styles.liveText, { color: c.mutedForeground }]}>Offline</Text>
+                </View>
+              ) : null}
               <TouchableOpacity
-                key={t.type}
-                style={[
-                  styles.tabBtn,
-                  active && { backgroundColor: c.card, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
-                ]}
-                onPress={() => setActiveTab(t.type)}
-                activeOpacity={0.75}
+                onPress={() => loadPOIs(activeTab, currentLat, currentLng)}
+                style={[styles.refreshBtn, { backgroundColor: c.muted }]}
+                disabled={loading}
               >
-                <TabIcon tab={t} active={active} />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    { color: active ? t.color : c.mutedForeground },
-                    active && { fontFamily: "Inter_600SemiBold" },
-                  ]}
-                >
-                  {t.label}
-                </Text>
+                <Ionicons name="refresh-outline" size={17} color={loading ? c.mutedForeground : c.foreground} />
               </TouchableOpacity>
-            );
-          })}
+            </View>
+          )}
         </View>
+
+        {/* Subtitle + category strip — only for Nearby Places */}
+        {viewMode === "places" && (
+          <>
+            <Text style={[styles.sub, { color: c.mutedForeground }]}>
+              {currentLat
+                ? `${pois.length} place${pois.length !== 1 ? "s" : ""} within 10 km · tap Go to navigate`
+                : "Enable location for live nearby results"}
+            </Text>
+            <View style={[styles.tabStrip, { backgroundColor: c.muted }]}>
+              {TABS.map((t) => {
+                const active = activeTab === t.type;
+                return (
+                  <TouchableOpacity
+                    key={t.type}
+                    style={[
+                      styles.tabBtn,
+                      active && { backgroundColor: c.card, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+                    ]}
+                    onPress={() => setActiveTab(t.type)}
+                    activeOpacity={0.75}
+                  >
+                    <TabIcon tab={t} active={active} />
+                    <Text style={[styles.tabLabel, { color: active ? t.color : c.mutedForeground }, active && { fontFamily: "Inter_600SemiBold" }]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
       </View>
 
       {/* ─── Content ─── */}
-      {loading ? (
+      {viewMode === "fines" ? (
+        <FinesContent />
+      ) : loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={tabMeta.color} />
           <Text style={[styles.loadingText, { color: c.mutedForeground }]}>
@@ -443,10 +403,7 @@ export default function BrowseScreen() {
           <Text style={[styles.emptyBody, { color: c.mutedForeground }]}>
             Could not reach the map server. Check your internet and try again.
           </Text>
-          <TouchableOpacity
-            style={[styles.retryBtn, { backgroundColor: tabMeta.color }]}
-            onPress={() => loadPOIs(activeTab, currentLat, currentLng)}
-          >
+          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: tabMeta.color }]} onPress={() => loadPOIs(activeTab, currentLat, currentLng)}>
             <Ionicons name="refresh-outline" size={16} color="#FFF" />
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
@@ -467,10 +424,7 @@ export default function BrowseScreen() {
           <Text style={[styles.emptyBody, { color: c.mutedForeground }]}>
             No {tabMeta.label.toLowerCase()} spots found within 10 km of your location.
           </Text>
-          <TouchableOpacity
-            style={[styles.retryBtn, { backgroundColor: tabMeta.color }]}
-            onPress={() => loadPOIs(activeTab, currentLat, currentLng)}
-          >
+          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: tabMeta.color }]} onPress={() => loadPOIs(activeTab, currentLat, currentLng)}>
             <Ionicons name="refresh-outline" size={16} color="#FFF" />
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
@@ -482,10 +436,7 @@ export default function BrowseScreen() {
           data={pois}
           keyExtractor={(p) => p.id}
           renderItem={({ item }) => <POICard poi={item} distance={item.distance} />}
-          contentContainerStyle={{
-            paddingTop: 10,
-            paddingBottom: bottomInset + tabBarHeight + 16,
-          }}
+          contentContainerStyle={{ paddingTop: 10, paddingBottom: bottomInset + tabBarHeight + 16 }}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={null}
           ListHeaderComponent={
@@ -507,29 +458,28 @@ export default function BrowseScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 12 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 },
-  title: { fontSize: 22, fontFamily: "Inter_700Bold" },
+
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+
+  viewToggle: { flexDirection: "row", borderRadius: 12, padding: 3, flex: 1, marginRight: 8 },
+  viewBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 9,
+  },
+  viewBtnLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
+
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   livePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   refreshBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+
   sub: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 10 },
 
-  tabStrip: {
-    flexDirection: "row",
-    borderRadius: 14,
-    padding: 4,
-    gap: 2,
-  },
+  tabStrip: { flexDirection: "row", borderRadius: 14, padding: 4, gap: 2 },
   tabBtn: {
-    flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-    paddingVertical: 8,
-    borderRadius: 10,
+    flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center",
+    gap: 3, paddingVertical: 8, borderRadius: 10,
   },
   tabLabel: { fontSize: 10, fontFamily: "Inter_500Medium" },
 
@@ -543,9 +493,6 @@ const styles = StyleSheet.create({
   retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   retryText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-  errorBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 10,
-  },
+  errorBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 10 },
   errorText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
 });
