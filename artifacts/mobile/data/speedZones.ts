@@ -45,7 +45,7 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz014", name: "Ngong Road Camera – Junction", road: "Ngong Road", lat: -1.3, lng: 36.77, speedLimit: 80, type: "camera", description: "Fixed ANPR camera. Limit: 80 km/h" },
 
   // --- Outer Ring Road ---
-  { id: "sz015", name: "Outer Ring Camera – Embakasi", road: "Outer Ring Road", lat: -1.26, lng: 36.89, speedLimit: 80, type: "camera", description: "Camera near Embakasi. Limit: 80 km/h" },
+  { id: "sz015", name: "Outer Ring Camera – Embakasi", road: "Outer Ring Road", lat: -1.2950, lng: 36.8800, speedLimit: 80, type: "camera", description: "Camera near Embakasi on Outer Ring Road. Limit: 80 km/h" },
 
   // --- Lang'ata Road ---
   { id: "sz016", name: "Lang'ata Road Camera", road: "Lang'ata Road", lat: -1.3593, lng: 36.7568, speedLimit: 80, type: "camera", description: "Fixed camera. Limit: 80 km/h" },
@@ -86,7 +86,7 @@ export const SPEED_ZONES: SpeedZone[] = [
   // sz035/sz035b: paired entries at BOTH ends so drivers approaching from either direction are warned
   { id: "sz035",  name: "Mombasa Rd Zone – Nyayo Stadium end",    road: "Mombasa Road (A109)", lat: -1.3100, lng: 36.8253, speedLimit: 80, type: "zone", description: "Speed zone: Nyayo Stadium → Sameer Business Park. Approaching from Nairobi CBD side. Limit: 80 km/h" },
   { id: "sz035b", name: "Mombasa Rd Zone – Sameer Business Park end", road: "Mombasa Road (A109)", lat: -1.3168, lng: 36.8760, speedLimit: 80, type: "zone", description: "Speed zone: Nyayo Stadium → Sameer Business Park. Approaching from Mlolongo/JKIA side. Limit: 80 km/h" },
-  { id: "sz036", name: "Mombasa Road – Cabanas/JKIA Camera", road: "Mombasa Road (A109)", lat: -1.3264, lng: 36.9142, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Cabanas near JKIA junction. Limit: 80 km/h" },
+  { id: "sz036", name: "Mombasa Road – Cabanas/JKIA Camera", road: "Mombasa Road (A109)", lat: -1.3193, lng: 36.9245, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Cabanas near JKIA junction. Limit: 80 km/h" },
 
   // --- Waiyaki Way – additional zone ---
   // sz037/sz037b: paired entries at BOTH ends of the Kangemi–Uthiru stretch
@@ -123,7 +123,7 @@ export const SPEED_ZONES: SpeedZone[] = [
   // ── Eastern Kenya / Mt Kenya region (OSM maxspeed data) ──
   { id: "sz057", name: "A9 Embu–Siakago Highway", road: "A9 (Embu–Siakago)", lat: -0.5590, lng: 37.5470, speedLimit: 80, type: "zone", description: "OSM-tagged 80 km/h trunk road — Embu to Siakago. Limit: 80 km/h" },
   { id: "sz058", name: "D490 Ruiri–Isiolo Road", road: "D490 (Ruiri–Isiolo)", lat: 0.2336, lng: 37.6128, speedLimit: 110, type: "zone", description: "Open semi-arid road — Ruiri to Isiolo. OSM-tagged high limit; drive to conditions. Limit: 110 km/h" },
-  { id: "sz059", name: "Airport North Road Zone", road: "Airport North Road", lat: -1.3185, lng: 36.9150, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h — Airport North Road near JKIA. Limit: 50 km/h" },
+  { id: "sz059", name: "Airport North Road Zone", road: "Airport North Road", lat: -1.3185, lng: 36.9210, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h — Airport North Road near JKIA. Limit: 50 km/h" },
 
   // ── A8 Eldoret corridor (OSM maxspeed data) ──
   { id: "sz060", name: "A8 Eldoret–Nakuru Open Highway", road: "A8 (Eldoret–Nakuru)", lat: 0.4518, lng: 35.3069, speedLimit: 110, type: "zone", description: "OSM-tagged 110 km/h open highway — Eldoret to Nakuru. Limit: 110 km/h" },
@@ -149,7 +149,7 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // ── Sourced from speedcamke.com crowdsourced reports + Pulse.co.ke NTSA smart-camera
   // coverage article (Jul 2026). Coordinates geocoded from named landmarks/junctions. ──
-  { id: "sz076", name: "Eastern Bypass – Opp. Nyayo/Embakasi Barracks", road: "Eastern Bypass", lat: -1.3040, lng: 36.9200, speedLimit: 80, type: "camera", description: "Mobile speed enforcement reported opposite Nyayo/Embakasi Barracks on the Eastern Bypass. Limit: 80 km/h" },
+  { id: "sz076", name: "Eastern Bypass – Opp. Nyayo/Embakasi Barracks", road: "Eastern Bypass", lat: -1.3020, lng: 36.9350, speedLimit: 80, type: "camera", description: "Mobile speed enforcement reported opposite Nyayo/Embakasi Barracks on the Eastern Bypass. Limit: 80 km/h" },
   { id: "sz077", name: "Eastern Bypass – Magunas, Utawala Zone", road: "Eastern Bypass", lat: -1.2792, lng: 36.9659, speedLimit: 50, type: "zone", description: "Built-up area zone at Magunas, Utawala — enforced on both sides of the road. Limit: 50 km/h" },
   { id: "sz078", name: "Gitaru Road – Kanyariri Camera", road: "Gitaru Road", lat: -1.2364, lng: 36.6923, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on Gitaru Road near Kanyariri, Kabete. Limit: 80 km/h" },
   { id: "sz079", name: "Expressway – Syokimau Footbridge Camera", road: "Nairobi Expressway", lat: -1.3777, lng: 36.9285, speedLimit: 50, type: "camera", description: "Fixed camera under the Syokimau footbridge on the Nairobi Expressway. Limit: 50 km/h" },
