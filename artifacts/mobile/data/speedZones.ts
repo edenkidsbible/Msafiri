@@ -57,15 +57,15 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // --- Eldoret / A104 north ---
   { id: "sz020", name: "Eldoret Entry Camera", road: "A104 (Nakuru–Eldoret)", lat: 0.51424, lng: 35.269842, speedLimit: 50, type: "camera", description: "Eldoret town entry. Limit: 50 km/h" },
-  { id: "sz021", name: "Nakuru–Eldoret Police Check", road: "A104 Highway", lat: 0.158125, lng: 35.621692, speedLimit: 100, type: "police", description: "Regular radar on highway. Limit: 100 km/h" },
+  { id: "sz021", name: "Nakuru–Eldoret Police Check", road: "A104 Highway", lat: 0.16344, lng: 35.621731, speedLimit: 100, type: "police", description: "Regular radar on highway. Limit: 100 km/h" },
 
   // --- Kisumu ---
-  { id: "sz022", name: "Kisumu City Camera", road: "Kisumu Road", lat: -0.1022, lng: 34.7617, speedLimit: 50, type: "camera", description: "City centre camera. Limit: 50 km/h" },
+  { id: "sz022", name: "Kisumu City Camera", road: "Kisumu Road", lat: -0.102181, lng: 34.761723, speedLimit: 50, type: "camera", description: "City centre camera. Limit: 50 km/h" },
   { id: "sz023", name: "Narok Police Check", road: "B3 Kisumu Highway", lat: -1.083439, lng: 35.866892, speedLimit: 80, type: "police", description: "Police radar on Kisumu highway" },
 
   // --- Nairobi CBD / Enterprise ---
-  { id: "sz024", name: "Enterprise Road Camera", road: "Enterprise Road", lat: -1.3110, lng: 36.8490, speedLimit: 50, type: "camera", description: "Industrial area camera. Limit: 50 km/h" },
-  { id: "sz025", name: "Karen Residential Zone", road: "Karen Road", lat: -1.36, lng: 36.71, speedLimit: 50, type: "zone", description: "Residential area. Limit: 50 km/h" },
+  { id: "sz024", name: "Enterprise Road Camera", road: "Enterprise Road", lat: -1.311087, lng: 36.848991, speedLimit: 50, type: "camera", description: "Industrial area camera. Limit: 50 km/h" },
+  { id: "sz025", name: "Karen Residential Zone", road: "Karen Road", lat: -1.36014, lng: 36.709936, speedLimit: 50, type: "zone", description: "Residential area. Limit: 50 km/h" },
 
   // --- Nairobi Expressway ---
   { id: "sz026", name: "Expressway – Museum Hill/Westlands Camera", road: "Nairobi Expressway", lat: -1.2711, lng: 36.821509, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on elevated expressway, Museum Hill–Westlands section. Limit: 80 km/h" },
@@ -101,15 +101,15 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz042", name: "Kanyonyo Weighbridge – Speed Camera", road: "Thika–Garissa Road (A3)", lat: -1.098222, lng: 37.668968, speedLimit: 50, type: "camera", description: "KeNHA static weighbridge at Kanyonyo on the A3, east of Matuu near the Machakos/Kitui border. Limit: 50 km/h" },
 
   // ── OSM-sourced speed cameras (tagged highway=speed_camera in OpenStreetMap) ──
-  { id: "sz043", name: "Museum Hill / Chiromo Camera", road: "Chiromo Road (A8)", lat: -1.2898, lng: 36.8188, speedLimit: 80, type: "camera", description: "OSM-tagged fixed camera at Museum Hill / Chiromo Road junction. Limit: 80 km/h" },
+  { id: "sz043", name: "Museum Hill / Chiromo Camera", road: "Chiromo Road (A8)", lat: -1.289792, lng: 36.818817, speedLimit: 80, type: "camera", description: "OSM-tagged fixed camera at Museum Hill / Chiromo Road junction. Limit: 80 km/h" },
   { id: "sz044", name: "Kapsabet / Turbo Camera", road: "Eldoret–Kapsabet Road", lat: 0.199944, lng: 35.100815, speedLimit: 80, type: "camera", description: "OSM-tagged fixed camera near Kapsabet / Turbo junction, west of Eldoret. Limit: 80 km/h" },
   { id: "sz045", name: "Mbagathi / Lang'ata Camera", road: "Lang'ata Road", lat: -1.325267, lng: 36.753195, speedLimit: 100, type: "camera", description: "OSM-tagged camera on Lang'ata Road near Mbagathi. Limit: 100 km/h" },
 
   // ── A7 Coastal Corridor – Mombasa to Malindi & beyond (OSM maxspeed data) ──
-  { id: "sz046", name: "Nyali Bridge Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -4.0429, lng: 39.6724, speedLimit: 50, type: "zone", description: "Controlled zone on Nyali Bridge – Mombasa approach. Limit: 50 km/h" },
-  { id: "sz047", name: "Mtwapa Bridge Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -3.9554, lng: 39.7415, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h zone at Mtwapa Bridge, north of Mombasa. Limit: 50 km/h" },
-  { id: "sz048", name: "Kilifi Bridge Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -3.6362, lng: 39.8485, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h zone at Kilifi Bridge. Limit: 50 km/h" },
-  { id: "sz049", name: "Malindi Town Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -3.2175, lng: 40.1191, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h built-up zone through Malindi town. Limit: 50 km/h" },
+  { id: "sz046", name: "Nyali Bridge Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -4.042851, lng: 39.672391, speedLimit: 50, type: "zone", description: "Controlled zone on Nyali Bridge – Mombasa approach. Limit: 50 km/h" },
+  { id: "sz047", name: "Mtwapa Bridge Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -3.955394, lng: 39.741492, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h zone at Mtwapa Bridge, north of Mombasa. Limit: 50 km/h" },
+  { id: "sz048", name: "Kilifi Bridge Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -3.636207, lng: 39.848478, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h zone at Kilifi Bridge. Limit: 50 km/h" },
+  { id: "sz049", name: "Malindi Town Speed Zone", road: "A7 (Mombasa–Malindi)", lat: -3.217514, lng: 40.119106, speedLimit: 50, type: "zone", description: "OSM-tagged 50 km/h built-up zone through Malindi town. Limit: 50 km/h" },
   { id: "sz050", name: "Malindi Open Road Zone", road: "A7 North of Malindi", lat: -3.113251, lng: 40.157361, speedLimit: 80, type: "zone", description: "Open highway section near Mambrui, north of Malindi towards Lamu – OSM maxspeed 80 km/h. Limit: 80 km/h" },
   { id: "sz051", name: "Lungalunga Border Zone", road: "A7 Lungalunga–Ramisi", lat: -4.537808, lng: 39.161664, speedLimit: 50, type: "zone", description: "Speed-controlled zone at Lungalunga border post. Limit: 50 km/h" },
 
@@ -117,8 +117,8 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz052", name: "A12 Kisumu–Busia Highway", road: "A12 (Kisumu–Busia)", lat: 0.21459, lng: 34.261288, speedLimit: 80, type: "zone", description: "OSM-tagged 80 km/h trunk highway — Kisumu to Busia corridor." },
   { id: "sz053", name: "A12 Kericho–Kisumu Highway", road: "A12 (Kericho–Kisumu)", lat: -0.264256, lng: 35.461105, speedLimit: 80, type: "zone", description: "OSM-tagged 80 km/h trunk road — Kericho to Kisumu. Regular radar checks." },
   { id: "sz054", name: "B1 Migori Highway Zone", road: "B1 (Kisii–Migori)", lat: -1.066695, lng: 34.466975, speedLimit: 100, type: "zone", description: "OSM-tagged 100 km/h trunk section on B1 near Migori. Limit: 100 km/h" },
-  { id: "sz055", name: "B17 Nakuru–Marigat Highway", road: "B17 (Nakuru–Marigat)", lat: -0.0126, lng: 35.9644, speedLimit: 100, type: "zone", description: "OSM-tagged 100 km/h primary road — Nakuru to Marigat. Limit: 100 km/h" },
-  { id: "sz056", name: "B18 Narok–Mau Narok–Njoro Zone", road: "B18 (Narok–Njoro)", lat: -0.7726, lng: 35.8958, speedLimit: 80, type: "zone", description: "OSM-tagged 80 km/h trunk road — Narok to Mau Narok to Njoro. Limit: 80 km/h" },
+  { id: "sz055", name: "B17 Nakuru–Marigat Highway", road: "B17 (Nakuru–Marigat)", lat: -0.012587, lng: 35.964274, speedLimit: 100, type: "zone", description: "OSM-tagged 100 km/h primary road — Nakuru to Marigat. Limit: 100 km/h" },
+  { id: "sz056", name: "B18 Narok–Mau Narok–Njoro Zone", road: "B18 (Narok–Njoro)", lat: -0.772617, lng: 35.895688, speedLimit: 80, type: "zone", description: "OSM-tagged 80 km/h trunk road — Narok to Mau Narok to Njoro. Limit: 80 km/h" },
 
   // ── Eastern Kenya / Mt Kenya region (OSM maxspeed data) ──
   { id: "sz057", name: "A9 Embu–Siakago Highway", road: "A9 (Embu–Siakago)", lat: -0.558203, lng: 37.546487, speedLimit: 80, type: "zone", description: "OSM-tagged 80 km/h trunk road — Embu to Siakago. Limit: 80 km/h" },
@@ -132,16 +132,16 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // ── Police checkpoint zones (sourced from OSM amenity=police near major corridors) ──
   { id: "sz063", name: "Langata Police Checkpoint Zone", road: "Lang'ata Road", lat: -1.33199, lng: 36.781995, speedLimit: 50, type: "police", description: "Langata Police Station — frequent radar stops on Langata Road. Limit: 50 km/h" },
-  { id: "sz064", name: "Karen Police Checkpoint Zone", road: "Karen Road / Ngong Road", lat: -1.3218, lng: 36.7061, speedLimit: 50, type: "police", description: "Karen Police Station — residential speed checks. Limit: 50 km/h" },
+  { id: "sz064", name: "Karen Police Checkpoint Zone", road: "Karen Road / Ngong Road", lat: -1.321809, lng: 36.706077, speedLimit: 50, type: "police", description: "Karen Police Station — residential speed checks. Limit: 50 km/h" },
   { id: "sz065", name: "Kilimani Police Checkpoint Zone", road: "Ngong Road", lat: -1.291798, lng: 36.79511, speedLimit: 80, type: "police", description: "Kilimani Divisional Police — radar on Ngong Road near Police Line. Limit: 80 km/h" },
   { id: "sz066", name: "Ngong Police Checkpoint", road: "Ngong Road", lat: -1.365336, lng: 36.653725, speedLimit: 50, type: "police", description: "Ngong Police Station — checkpoint at Ngong town entry. Limit: 50 km/h" },
-  { id: "sz067", name: "Rongai / Bomas Police Check", road: "Magadi Road / Bomas", lat: -1.3971, lng: 36.7569, speedLimit: 50, type: "police", description: "Rongai Police — frequent checkpoint near Bomas of Kenya junction. Limit: 50 km/h" },
-  { id: "sz068", name: "Muthaiga Police Checkpoint", road: "Thika Superhighway (A2)", lat: -1.259783, lng: 36.842744, speedLimit: 80, type: "police", description: "Muthaiga Police Station — radar stops near Thika Road Muthaiga junction. Limit: 80 km/h" },
+  { id: "sz067", name: "Rongai / Bomas Police Check", road: "Magadi Road / Bomas", lat: -1.397245, lng: 36.756893, speedLimit: 50, type: "police", description: "Rongai Police — frequent checkpoint near Bomas of Kenya junction. Limit: 50 km/h" },
+  { id: "sz068", name: "Muthaiga Police Checkpoint", road: "Thika Superhighway (A2)", lat: -1.2603, lng: 36.842997, speedLimit: 80, type: "police", description: "Muthaiga Police Station — radar stops near Thika Road Muthaiga junction. Limit: 80 km/h" },
   { id: "sz069", name: "Bamburi Police Checkpoint (Mombasa)", road: "A7 Malindi Road", lat: -3.999696, lng: 39.728051, speedLimit: 80, type: "police", description: "Bamburi Police — radar on Malindi Road north of Mombasa. Limit: 80 km/h" },
   { id: "sz070", name: "Diani Police Checkpoint (South Coast)", road: "Diani Beach Road", lat: -4.282796, lng: 39.566519, speedLimit: 50, type: "police", description: "Diani Police Station — checkpoint on South Coast road. Limit: 50 km/h" },
   { id: "sz071", name: "Nyali Police Checkpoint (Mombasa)", road: "A7 Nyali", lat: -4.052709, lng: 39.693324, speedLimit: 50, type: "police", description: "Nyali Police Station — speed checks near Nyali Bridge. Limit: 50 km/h" },
   { id: "sz072", name: "Kericho Police Checkpoint", road: "A12 / Kericho Town", lat: -0.367833, lng: 35.287581, speedLimit: 50, type: "police", description: "Kericho Police Station — checkpoint at town entry on A12. Limit: 50 km/h" },
-  { id: "sz073", name: "Naivasha Police Checkpoint", road: "A104 (Nakuru Road)", lat: -0.77428, lng: 36.426531, speedLimit: 50, type: "police", description: "Police post on Nakuru road near Naivasha — regular speed checks. Limit: 50 km/h" },
+  { id: "sz073", name: "Naivasha Police Checkpoint", road: "A104 (Nakuru Road)", lat: -0.767026, lng: 36.447915, speedLimit: 50, type: "police", description: "Police post on Nakuru road near Naivasha — regular speed checks. Limit: 50 km/h" },
 
   // --- Southern & Northern Bypass – additional points (NTSA city highway list) ---
   { id: "sz074", name: "Southern Bypass – Ngong Road Interchange", road: "Southern Bypass", lat: -1.3633, lng: 36.737619, speedLimit: 80, type: "camera", description: "NTSA-monitored interchange where the Southern Bypass meets Ngong Road. Limit: 80 km/h" },
@@ -154,20 +154,20 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz078", name: "Gitaru Road – Kanyariri Camera", road: "Gitaru Road", lat: -1.236009, lng: 36.692304, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on Gitaru Road near Kanyariri, Kabete. Limit: 80 km/h" },
   { id: "sz079", name: "Expressway – Syokimau Footbridge Camera", road: "Nairobi Expressway", lat: -1.37765, lng: 36.928444, speedLimit: 50, type: "camera", description: "Fixed camera under the Syokimau footbridge on the Nairobi Expressway. Limit: 50 km/h" },
   { id: "sz080", name: "Expressway – Cabanas/Airtel Interchange Camera", road: "Nairobi Expressway", lat: -1.335068, lng: 36.892129, speedLimit: 80, type: "camera", description: "Fixed ANPR camera between Cabanas and Airtel interchange on the Expressway. Limit: 80 km/h" },
-  { id: "sz081", name: "Red Hill Road Speed Zone", road: "Red Hill Road", lat: -1.1688, lng: 36.7067, speedLimit: 50, type: "zone", description: "Signposted 50 km/h zone on Red Hill Road near the Limuru/Expressway approach. Limit: 50 km/h" },
+  { id: "sz081", name: "Red Hill Road Speed Zone", road: "Red Hill Road", lat: -1.168804, lng: 36.706704, speedLimit: 50, type: "zone", description: "Signposted 50 km/h zone on Red Hill Road near the Limuru/Expressway approach. Limit: 50 km/h" },
   { id: "sz082", name: "Lang'ata Road – T-Mall Flyover Camera", road: "Lang'ata Road", lat: -1.312079, lng: 36.816718, speedLimit: 50, type: "camera", description: "Fixed camera at the T-Mall flyover, towards Madaraka. Limit: 50 km/h" },
   { id: "sz083", name: "Lang'ata Road – Uhuru Gardens Camera", road: "Lang'ata Road", lat: -1.325903, lng: 36.799471, speedLimit: 50, type: "camera", description: "Fixed camera opposite Uhuru Gardens on Lang'ata Road. Limit: 50 km/h" },
   { id: "sz084", name: "Southern Bypass – Kikuyu Approach Camera", road: "Southern Bypass", lat: -1.246534, lng: 36.664781, speedLimit: 80, type: "camera", description: "Fixed camera on the Southern Bypass approaching Kikuyu. Limit: 80 km/h" },
-  { id: "sz085", name: "Western Bypass – Ruaka/Wangige Camera", road: "Western Bypass", lat: -1.2047, lng: 36.7871, speedLimit: 80, type: "camera", description: "Fixed camera on the Western Bypass near Ruaka, on the Wangige approach. Limit: 80 km/h" },
+  { id: "sz085", name: "Western Bypass – Ruaka/Wangige Camera", road: "Western Bypass", lat: -1.204791, lng: 36.787081, speedLimit: 80, type: "camera", description: "Fixed camera on the Western Bypass near Ruaka, on the Wangige approach. Limit: 80 km/h" },
   { id: "sz086", name: "Northern Bypass – Ruaka/Ruiru Stretch", road: "Northern Bypass", lat: -1.187989, lng: 36.880918, speedLimit: 80, type: "camera", description: "Fixed camera on the Northern Bypass between Ruaka and Ruiru. Limit: 80 km/h" },
   { id: "sz087", name: "Northern Bypass – Grace Chapel Camera", road: "Northern Bypass", lat: -1.203462, lng: 36.887637, speedLimit: 50, type: "camera", description: "Fixed camera near Nairobi Grace Chapel on the Northern Bypass. Limit: 50 km/h" },
-  { id: "sz088", name: "Embu–Nairobi Highway – Makenji/Kabati Zone", road: "Embu–Nairobi Highway (A2/A3)", lat: -0.9530, lng: 37.1077, speedLimit: 50, type: "zone", description: "Built-up area zone at Makenji, Kabati on the Embu–Nairobi Highway. Limit: 50 km/h" },
+  { id: "sz088", name: "Embu–Nairobi Highway – Makenji/Kabati Zone", road: "Embu–Nairobi Highway (A2/A3)", lat: -0.952984, lng: 37.107709, speedLimit: 50, type: "zone", description: "Built-up area zone at Makenji, Kabati on the Embu–Nairobi Highway. Limit: 50 km/h" },
   { id: "sz089", name: "Kisii–Rongo Road – Suneka Camera", road: "Kisii–Rongo Road", lat: -0.664765, lng: 34.665106, speedLimit: 50, type: "camera", description: "Mobile speed check reported at Suneka on the Kisii–Rongo Road. Limit: 50 km/h" },
-  { id: "sz090", name: "Kisumu–Vihiga Road – Kona Mbaya Camera", road: "Kisumu–Vihiga Road", lat: -0.0926, lng: 34.7799, speedLimit: 50, type: "camera", description: "Mobile speed check reported towards Kona Mbaya on the Kisumu–Vihiga Road. Limit: 50 km/h" },
+  { id: "sz090", name: "Kisumu–Vihiga Road – Kona Mbaya Camera", road: "Kisumu–Vihiga Road", lat: -0.09258, lng: 34.779912, speedLimit: 50, type: "camera", description: "Mobile speed check reported towards Kona Mbaya on the Kisumu–Vihiga Road. Limit: 50 km/h" },
 
   // ── Previously skipped speedcamke.com reports, resolved using user-supplied Plus Codes ──
-  { id: "sz091", name: "University Way Camera", road: "University Way", lat: -1.2809, lng: 36.8166, speedLimit: 50, type: "camera", description: "Fixed camera on University Way, Nairobi CBD, near the University of Nairobi Main Campus. Limit: 50 km/h" },
-  { id: "sz092", name: "Jamboni – Mayo Supermarket Camera", road: "A104 (Eldoret–Nakuru)", lat: 0.4729, lng: 35.2998, speedLimit: 100, type: "camera", description: "Mobile speed check near Mayo Supermarket at Jamboni, south of Eldoret. Limit: 100 km/h" },
+  { id: "sz091", name: "University Way Camera", road: "University Way", lat: -1.280882, lng: 36.816591, speedLimit: 50, type: "camera", description: "Fixed camera on University Way, Nairobi CBD, near the University of Nairobi Main Campus. Limit: 50 km/h" },
+  { id: "sz092", name: "Jamboni – Mayo Supermarket Camera", road: "A104 (Eldoret–Nakuru)", lat: 0.472844, lng: 35.299776, speedLimit: 100, type: "camera", description: "Mobile speed check near Mayo Supermarket at Jamboni, south of Eldoret. Limit: 100 km/h" },
   { id: "sz093", name: "Eldoret–Nakuru Highway – Burnt Forest/Nabkoi Camera", road: "A104 (Eldoret–Nakuru)", lat: 0.154935, lng: 35.469728, speedLimit: 80, type: "camera", description: "Fixed camera just past Nabkoi shopping center, near Burnt Forest on the Eldoret–Nakuru Highway. Limit: 80 km/h" },
-  { id: "sz094", name: "Eldoret Southern Bypass Camera", road: "Eldoret Southern Bypass", lat: 0.4504, lng: 35.2438, speedLimit: 80, type: "camera", description: "Mobile speed check on the Eldoret Southern Bypass. Limit: 80 km/h" },
+  { id: "sz094", name: "Eldoret Southern Bypass Camera", road: "Eldoret Southern Bypass", lat: 0.450327, lng: 35.243721, speedLimit: 80, type: "camera", description: "Mobile speed check on the Eldoret Southern Bypass. Limit: 80 km/h" },
 ];
