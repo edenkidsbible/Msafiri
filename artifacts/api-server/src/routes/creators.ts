@@ -6,7 +6,7 @@ const router = Router();
 
 router.post("/creator-application", async (req: Request, res: Response) => {
   try {
-    const { deviceId, name, email, reason } = req.body;
+    const { deviceId, name, email, platform, reason } = req.body;
 
     if (!deviceId || !email) {
       return res.status(400).json({ error: "deviceId and email are required" });
@@ -31,9 +31,10 @@ router.post("/creator-application", async (req: Request, res: Response) => {
       .insert(creatorApplicationsTable)
       .values({
         deviceId,
-        name: name?.trim() ?? null,
+        name: name?.trim() || null,
         email: email.trim().toLowerCase(),
-        reason: reason?.trim() ?? null,
+        platform: platform ?? null,
+        reason: reason?.trim() || null,
       })
       .returning({ id: creatorApplicationsTable.id });
 
