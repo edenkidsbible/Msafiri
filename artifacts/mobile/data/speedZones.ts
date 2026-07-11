@@ -24,7 +24,7 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz001", name: "Mlolongo Speed Camera", road: "Mombasa Road (A109)", lat: -1.394615, lng: 36.942946, speedLimit: 50, type: "camera", description: "Fixed ANPR camera. Town limit: 50 km/h" },
   { id: "sz002", name: "Athi River Camera", road: "Mombasa Road (A109)", lat: -1.456056, lng: 36.987783, speedLimit: 50, type: "camera", description: "Fixed camera at Athi River town. Limit: 50 km/h" },
   { id: "sz003", name: "Machakos Junction Police", road: "Mombasa Road (A109)", lat: -1.484211, lng: 37.019028, speedLimit: 80, type: "police", description: "Frequent radar checks. Limit: 80 km/h" },
-  { id: "sz004", name: "EPZ Syokimau Camera", road: "Mombasa Road (A109)", lat: -1.324708, lng: 36.890792, speedLimit: 80, type: "camera", description: "ANPR camera – industrial section. Limit: 80 km/h" },
+  { id: "sz004", name: "EPZ Syokimau Camera", road: "Mombasa Road (A109)", lat: -1.322491, lng: 36.889358, speedLimit: 80, type: "camera", description: "ANPR camera – industrial section. Limit: 80 km/h" },
   { id: "sz005", name: "Sultan Hamud Camera", road: "Mombasa Road (A109)", lat: -2.01618, lng: 37.373908, speedLimit: 50, type: "camera", description: "Town camera. Limit: 50 km/h" },
   { id: "sz006", name: "Voi Speed Camera", road: "Mombasa Road (A109)", lat: -3.396404, lng: 38.558692, speedLimit: 50, type: "camera", description: "Voi town camera. Limit: 50 km/h" },
   { id: "sz007", name: "Mariakani Police Check", road: "Mombasa Road (A109)", lat: -3.863991, lng: 39.453984, speedLimit: 80, type: "police", description: "Regular radar checks at Mariakani" },
@@ -86,7 +86,7 @@ export const SPEED_ZONES: SpeedZone[] = [
   // sz035/sz035b: paired entries at BOTH ends so drivers approaching from either direction are warned
   { id: "sz035",  name: "Mombasa Rd Zone – Nyayo Stadium end",    road: "Mombasa Road (A109)", lat: -1.30875, lng: 36.828441, speedLimit: 80, type: "zone", description: "Speed zone: Nyayo Stadium → Sameer Business Park. Approaching from Nairobi CBD side. Limit: 80 km/h" },
   { id: "sz035b", name: "Mombasa Rd Zone – Sameer Business Park end", road: "Mombasa Road (A109)", lat: -1.322483, lng: 36.869734, speedLimit: 80, type: "zone", description: "Speed zone: Nyayo Stadium → Sameer Business Park. Approaching from Mlolongo/JKIA side. Limit: 80 km/h" },
-  { id: "sz036", name: "Mombasa Road – Cabanas/JKIA Camera", road: "Mombasa Road (A109)", lat: -1.317537, lng: 36.922413, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Cabanas near JKIA junction. Limit: 80 km/h" },
+  { id: "sz036", name: "Mombasa Road – Cabanas/JKIA Camera", road: "Mombasa Road (A109)", lat: -1.35575, lng: 36.906998, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Cabanas near JKIA junction. Limit: 80 km/h" },
 
   // --- Waiyaki Way – additional zone ---
   // sz037/sz037b: paired entries at BOTH ends of the Kangemi–Uthiru stretch
