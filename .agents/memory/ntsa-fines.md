@@ -1,33 +1,29 @@
 ---
-name: NTSA Minor Offences fine schedule
-description: Correct LN 161/2016 speeding brackets used in the fines page; 21+ km/h is a court case not a fine; 7-day resolution window
+name: NTSA speeding fine schedule
+description: NTSA 2025 speeding brackets (supersedes LN 161/2016); 7-day resolution window; isWarning field is no longer used in any fine entry
 ---
 
-## Correct NTSA speeding brackets (Legal Notice 161/2016)
+## NTSA 2025 speeding brackets (current)
 
-| Over limit | Penalty |
-|---|---|
-| 1–5 km/h | Official Warning — logged digitally to TIMS, no payment |
-| 6–10 km/h | KES 500 instant fine |
-| 11–15 km/h | KES 3,000 instant fine |
-| 16–20 km/h | KES 10,000 instant fine |
-| 21+ km/h | **Not a minor offence** — mandatory court appearance, risk of licence suspension and vehicle impoundment |
+| Over limit | Penalty | Demerit points |
+|---|---|---|
+| 1–10 km/h | KES 10,000 instant fine + warning on record | 0 |
+| 11–20 km/h | KES 20,000 instant fine | 3 |
+| 21–30 km/h | KES 30,000 instant fine | 6 |
+| 31+ km/h | KES 30,000 + mandatory court | court-determined |
+| School zone (any excess) | KES 30,000 minimum + mandatory court | court-determined |
+| Speeding causing accident | Court-determined + criminal | — |
+| Refusing to stop at checkpoint | KES 20,000 + immediate arrest | — |
 
-**Why this matters:** the original data had KES 5,000–50,000 brackets which were wrong. Always cite LN 161/2016 as the source for the 1–20 km/h brackets.
+**Why:** User provided NTSA 2025 authoritative schedule images (Jul 2026). Old LN 161/2016 brackets (warning/500/3k/10k/court) are superseded. Fine amounts in the app are now dramatically higher.
 
 ## Resolution window
-**7 days** from receiving the NTSA notice to either pay or file to dispute. (The app previously said 14 days for contesting and 30 days for payment — both wrong.)
-
-## Automated enforcement flow
-1. Smart camera captures plate + speed
-2. NTSA matches plate via TIMS/Aviator registry
-3. SMS or email Police Notification of Traffic Offence sent to owner
-4. 7-day window: admit liability & pay electronically, or dispute at Traffic Court
-5. Unpaid/recurrent offences accumulate demerit points → eventual automatic suspension
+**7 days** from receiving the NTSA notice to either pay or dispute. Payment via KCB branches or authorized KCB agents.
 
 ## Fine interface flags
-`isWarning: true` → show amber "Warning" badge (no amount)
-`isCourt: true` → show purple "Court" badge + purple left border
+`isCourt: true` → show purple "Court" badge + purple left border  
+`isWarning` field is no longer used — no current fine entry sets it. The UI gracefully handles absence (optional field).
 
 ## Data source
-Fine categories: `artifacts/mobile/data/fines.ts`
+Fine categories: `artifacts/mobile/data/fines.ts`  
+Fine UI: `artifacts/mobile/app/(tabs)/fines.tsx` and `artifacts/mobile/components/FinesContent.tsx`

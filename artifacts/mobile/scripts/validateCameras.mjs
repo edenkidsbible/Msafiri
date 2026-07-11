@@ -32,7 +32,10 @@ const FIX = process.argv.includes('--fix');
 // OSRM routes between them to extract the real road polyline.
 // When adding a new road: add anchor waypoints from Google Maps (copy coord → long-press on road).
 const ROAD_ANCHORS = {
-  A109:       [[36.8195,-1.3084],[36.8512,-1.3163],[36.8895,-1.3215],[36.9430,-1.3947],[36.9878,-1.4562],[37.0170,-1.4827],[38.5587,-3.3964],[39.4540,-3.8640],[39.6682,-4.0435]],
+  // Anchors are verified ON Mombasa Rd via geocoded landmarks (Mombasa Rd 16m, Mlolongo 123m,
+  // Syokimau 154m, Sameer 63m). Keep anchors FAR from cameras — never place one at a camera
+  // location or the route validates cameras against themselves (circular). See memory.
+  A109:       [[36.8280,-1.3088],[36.9430,-1.3947],[37.0170,-1.4827],[37.3739,-2.0162],[37.8340,-2.5470],[38.5587,-3.3964],[39.4540,-3.8640],[39.6682,-4.0435]],
   A2:         [[36.8380,-1.2660],[36.8643,-1.2447],[36.8854,-1.2189],[36.9134,-1.1903],[37.0870,-1.0396],[37.0708,-0.9136],[37.0989,-0.8803],[37.2103,-0.6711],[37.1247,-0.4808]],
   EXPR:       [[36.8219,-1.2706],[36.8248,-1.3064],[36.8921,-1.3351],[36.9285,-1.3777]],
   WAIYAKI:    [[36.7138,-1.2583],[36.7447,-1.2664],[36.7985,-1.2588],[36.8109,-1.2661]],
@@ -67,6 +70,9 @@ const ROAD_ANCHORS = {
   KISII:      [[34.4666,-1.0666],[34.6653,-0.6651]],
   KSM_VIG:    [[34.7617,-0.1022],[34.7799,-0.0926]],
   KAPSABET:   [[35.2698,0.5143],[35.1012,0.2005]],
+  LIMURU_RD:  [[36.8120,-1.2700],[36.8175,-1.2500],[36.6333,-1.1168]],
+  KIAMBU_RD:  [[36.8430,-1.2650],[36.8450,-1.2150],[36.8330,-1.1800]],
+  LANGATA2:   [[36.8169,-1.3122],[36.8230,-1.3180]],
 };
 
 // ── Camera → road mapping ──────────────────────────────────────────────────────
@@ -74,16 +80,22 @@ const ROAD_ANCHORS = {
 const CAM_ROAD_MAP = {
   sz001:'A109', sz002:'A109', sz003:'A109', sz004:'A109', sz005:'A109',
   sz006:'A109', sz007:'A109', sz008:'A109', sz035:'A109', sz035b:'A109', sz036:'A109',
+  sz095:'A109', sz096:'A109', sz097:'A109',
   sz009:'A2',   sz010:'A2',   sz011:'A2',   sz028:'A2',   sz029:'A2',
   sz030:'A2',   sz031:'A2',   sz032:'A2',   sz038:'A2',   sz039:'A2',
   sz040:'A2',   sz041:'A2',
   sz026:'EXPR', sz027:'EXPR', sz079:'EXPR', sz080:'EXPR',
+  sz099:'EXPR', sz100:'EXPR',
   sz012:'WAIYAKI', sz013:'WAIYAKI', sz037:'WAIYAKI', sz037b:'WAIYAKI',
-  sz014:'NGONG', sz065:'NGONG', sz066:'NGONG',
+  sz101:'WAIYAKI', sz102:'WAIYAKI',
+  sz014:'NGONG', sz065:'NGONG', sz066:'NGONG', sz103:'NGONG', sz104:'NGONG',
   sz016:'LANGATA', sz045:'LANGATA', sz063:'LANGATA', sz082:'LANGATA', sz083:'LANGATA',
+  sz098:'LANGATA',
   sz033:'SOUTH_BP', sz074:'SOUTH_BP', sz084:'SOUTH_BP',
   sz034:'NORTH_BP', sz075:'NORTH_BP', sz086:'NORTH_BP', sz087:'NORTH_BP',
-  sz015:'OUTER_RING', sz076:'EAST_BP', sz077:'EAST_BP',
+  sz015:'OUTER_RING', sz105:'OUTER_RING', sz106:'OUTER_RING',
+  sz076:'EAST_BP', sz077:'EAST_BP',
+  sz107:'LIMURU_RD', sz108:'KIAMBU_RD',
   sz068:'A2',
   sz017:'A104', sz018:'A104', sz019:'A104', sz020:'A104', sz021:'A104', sz073:'A104',
   sz092:'A104E', sz093:'A104E', sz094:'A104E',
