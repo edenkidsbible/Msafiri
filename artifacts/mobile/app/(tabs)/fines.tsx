@@ -68,7 +68,7 @@ export default function FinesScreen() {
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <Text style={[styles.title, { color: c.foreground }]}>NTSA Fines</Text>
         <Text style={[styles.sub, { color: c.mutedForeground }]}>
-          NTSA 2025 Schedule & Traffic Act
+          Minor Offences Rules (LN 161/2016) & Traffic Act
         </Text>
 
         {/* Section tabs */}
@@ -167,7 +167,7 @@ export default function FinesScreen() {
                 <View style={[styles.speedNote, { backgroundColor: "#E53935" + "12", borderColor: "#E53935" + "30" }]}>
                   <Ionicons name="information-circle-outline" size={15} color="#E53935" />
                   <Text style={[styles.speedNoteText, { color: "#E53935" }]}>
-                    NTSA 2025 instant-fine schedule. Fines are issued automatically via camera and matched to your plate through TIMS. Pay within 7 days to avoid court.
+                    NTSA graduated instant-fine system (LN 161/2016). Fines are issued automatically via camera and matched to your plate through TIMS.
                   </Text>
                 </View>
               ) : null
