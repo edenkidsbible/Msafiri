@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/admin/"
-title = "SafeDrive Kenya Admin"
+title = "Msafiri Kenya Admin"
 version = "1.0.0"
 id = "artifacts/admin"
 router = "path"
