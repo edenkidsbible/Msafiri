@@ -15,6 +15,15 @@ const MORNING_MESSAGES = [
   { title: "📍 Know before you go", body: "Potholes, road works, and accidents flagged near you. Open Msafiri now." },
 ];
 
+// Weekend mornings skew toward errands/road-trip framing instead of "commute".
+const MORNING_MESSAGES_WEEKEND = [
+  { title: "🌤️ Weekend plans?", body: "Check live road conditions before you head out for the day." },
+  { title: "🚙 Saturday road check", body: "Heading out today? See hazards, cameras, and checkpoints on your route first." },
+  { title: "☕ Good morning!", body: "Whatever's on today's plan, check the roads first. Msafiri has the latest reports." },
+  { title: "🧭 Weekend road trip?", body: "See live conditions before a longer drive. Stay safe out there." },
+  { title: "🏡 Errands today?", body: "Quick check of live hazards near you before you get going." },
+];
+
 const EVENING_MESSAGES = [
   { title: "🌆 Evening rush!", body: "Traffic building up? Check live hazards and cameras near you before heading home." },
   { title: "🚦 Rush hour alert", body: "Accidents and congestion reported. Plan your route home with live Msafiri data." },
@@ -23,6 +32,39 @@ const EVENING_MESSAGES = [
   { title: "🛣️ Know your route home", body: "Live speed zones and hazards updated for your evening drive." },
   { title: "🏘️ Almost home!", body: "See police checkpoints and roadblocks near you before the last stretch home." },
   { title: "🌛 Evening safety check", body: "Visibility dropping. Check for unlit hazards and road works near you." },
+];
+
+// Weekend evenings skew toward "heading out" rather than "rush hour home".
+const EVENING_MESSAGES_WEEKEND = [
+  { title: "🌇 Heading out tonight?", body: "Check live road conditions before your evening plans." },
+  { title: "🎉 Evening plans?", body: "See hazards and checkpoints near you before you leave for the night." },
+  { title: "🍽️ Dinner plans?", body: "Live traffic and hazard reports updated. Check your route before you go." },
+  { title: "🌆 Weekend evening check", body: "Roads getting busy for the weekend rush. See what's ahead before you leave." },
+];
+
+// New midday slot — the third daily notification.
+const MIDDAY_MESSAGES = [
+  { title: "🕐 Midday road check", body: "Quick look before you're back on the road — see new hazards reported near you." },
+  { title: "🍱 Lunch break?", body: "Check for fresh road works or accidents before you head back out." },
+  { title: "📡 Midday update", body: "New reports have come in this morning. Tap to see what's changed on your route." },
+  { title: "🚧 Afternoon ahead", body: "Road conditions can shift fast. Check live hazards before your next drive." },
+];
+
+const MIDDAY_MESSAGES_WEEKEND = [
+  { title: "🛍️ Out and about?", body: "Check live hazards and speed cameras before your next stop today." },
+  { title: "🚙 Midday check-in", body: "Roads busy today? See the latest reports before you continue your weekend plans." },
+  { title: "☀️ Halfway through your day", body: "Quick check of live road conditions before you head to your next spot." },
+];
+
+// Friday & Saturday night — the two big Kenyan going-out nights. Focused on
+// alcoblow checkpoints, hazards, and debris, which are far more common and
+// harder to spot after dark.
+const WEEKEND_NIGHT_MESSAGES = [
+  { title: "🚨 Heading out tonight?", body: "Alcohol checkpoints, hazards, and debris are more common late at night. Check live alerts before you drive." },
+  { title: "🍻 Driving after a night out?", body: "Police alcoblow checks are common tonight. See live checkpoint reports near you on Msafiri." },
+  { title: "🌃 Late-night safety check", body: "Debris and unlit hazards are harder to spot at night. Check your route before you go." },
+  { title: "🚔 Weekend night alert", body: "Checkpoints and hazards reported near you tonight. Stay safe — check Msafiri before hitting the road." },
+  { title: "🛑 Before you drive tonight", body: "Live alcoblow and roadblock reports just updated. Know what's ahead before you leave." },
 ];
 
 const ENGAGEMENT_MESSAGES = [
@@ -166,25 +208,60 @@ async function processScheduledCampaigns(): Promise<void> {
 
 // ─── Daily time-based triggers (Kenya = UTC+3) ────────────────────────────────
 
+// Shift `now` by the EAT offset so hour/day/minute reads are all in Kenya's
+// local time, including correct day-of-week rollover near UTC midnight
+// (a naive `now.getUTCDay()` reads the wrong day for ~3 hours a day).
+function toEat(now: Date): Date {
+  return new Date(now.getTime() + 3 * 60 * 60 * 1000);
+}
+
+// Saturday(6) & Sunday(0) get "weekend" content framing for the 3 daily sends.
+function isWeekendDay(eatDay: number): boolean {
+  return eatDay === 0 || eatDay === 6;
+}
+
+// Friday(5) & Saturday(6) nights are Kenya's two big going-out nights — the
+// ones where alcoblow checkpoints, hazards, and debris are most relevant.
+function isNightSafetyDay(eatDay: number): boolean {
+  return eatDay === 5 || eatDay === 6;
+}
+
 async function checkDailyTriggers(): Promise<void> {
   const now = new Date();
-  const eatHour = (now.getUTCHours() + 3) % 24;
-  const min = now.getUTCMinutes();
+  const eat = toEat(now);
+  const eatDay = eat.getUTCDay();
+  const eatHour = eat.getUTCHours();
+  const min = eat.getUTCMinutes();
+  const weekend = isWeekendDay(eatDay);
 
-  // 6:00–6:05 AM EAT → morning reminder
+  // 6:00–6:05 AM EAT → morning reminder (1 of 3 daily sends)
   if (eatHour === 6 && min < 5) {
-    const msg = pickMessage(MORNING_MESSAGES);
+    const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
     await sendAutoCampaign("daily_morning", msg.title, msg.body);
   }
 
-  // 4:30–4:35 PM EAT → evening reminder
+  // 1:00–1:05 PM EAT → midday reminder (2 of 3 daily sends — new)
+  if (eatHour === 13 && min < 5) {
+    const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
+    await sendAutoCampaign("daily_midday", msg.title, msg.body);
+  }
+
+  // 4:30–4:35 PM EAT → evening reminder (3 of 3 daily sends)
   if (eatHour === 16 && min >= 30 && min < 35) {
-    const msg = pickMessage(EVENING_MESSAGES);
+    const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
     await sendAutoCampaign("daily_evening", msg.title, msg.body);
   }
 
+  // 9:00–9:05 PM EAT, Friday & Saturday only → weekend night safety
+  // (alcoblow checkpoints, hazards, debris — a 4th send on the two nights
+  // it matters most).
+  if (isNightSafetyDay(eatDay) && eatHour === 21 && min < 5) {
+    const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
+    await sendAutoCampaign("weekend_night_safety", msg.title, msg.body);
+  }
+
   // Wednesday 12:00–12:05 PM EAT → weekly engagement nudge
-  if (now.getUTCDay() === 3 && eatHour === 12 && min < 5) {
+  if (eatDay === 3 && eatHour === 12 && min < 5) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
     await sendAutoCampaign("engagement", msg.title, msg.body);
   }
