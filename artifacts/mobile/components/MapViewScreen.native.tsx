@@ -7,6 +7,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
+import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
@@ -198,7 +199,7 @@ export default function MapViewScreen() {
   const insets = useSafeAreaInsets();
   const {
     currentLat, currentLng,
-    communityReports, addReport,
+    communityReports, addReport, deleteReport,
     activeRoute, altRoutes, selectRoute,
     navigationActive,
     showTraffic, setShowTraffic,
@@ -208,18 +209,26 @@ export default function MapViewScreen() {
 
   const [showReport, setShowReport] = useState(false);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
   const now = Date.now();
 
   const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
     setShowReport(false);
+    let id: string | undefined;
     if (location) {
-      addReport(type, location.lat, location.lng, speedLimit);
+      id = addReport(type, location.lat, location.lng, speedLimit);
     } else if (currentLat && currentLng) {
       const snapped = await snapToRoad(currentLat, currentLng);
-      addReport(type, snapped.lat, snapped.lng, speedLimit);
+      id = addReport(type, snapped.lat, snapped.lng, speedLimit);
     }
+    if (id) setUndoReport({ id, type });
+  };
+
+  const undoLastReport = () => {
+    if (undoReport) deleteReport(undoReport.id);
+    setUndoReport(null);
   };
 
   const centerOnUser = () => {
@@ -388,6 +397,13 @@ export default function MapViewScreen() {
           <Text style={[styles.trafficLabel, { color: "#FFF" }]}>Traffic On</Text>
         </View>
       )}
+
+      <ReportUndoToast
+        report={undoReport}
+        bottom={insets.bottom + 172}
+        onUndo={undoLastReport}
+        onDismiss={() => setUndoReport(null)}
+      />
 
       <ReportModal
         visible={showReport}

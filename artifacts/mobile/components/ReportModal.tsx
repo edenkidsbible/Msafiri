@@ -1,5 +1,6 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
+import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
   Keyboard,
@@ -84,6 +85,24 @@ export default function ReportModal({
 
   const selItem = TYPES.find((t) => t.type === sel);
 
+  // Auto-close if the modal is left open with no interaction — a driver who
+  // got distracted mid-report shouldn't come back to a stale screen blocking
+  // the map. Any tap/typing below resets the clock via bumpIdleTimer().
+  const IDLE_CLOSE_MS = 25000;
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearIdleTimer = () => {
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
+  };
+  const bumpIdleTimer = () => {
+    clearIdleTimer();
+    idleTimerRef.current = setTimeout(() => handleClose(), IDLE_CLOSE_MS);
+  };
+  useEffect(() => {
+    if (visible) bumpIdleTimer(); else clearIdleTimer();
+    return clearIdleTimer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   const reset = () => {
     setSel(null);
     setSpeedLimit("");
@@ -111,6 +130,7 @@ export default function ReportModal({
   };
 
   const handleSearchChange = (text: string) => {
+    bumpIdleTimer();
     setSearchText(text);
     setPickedLocation(null);
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -119,6 +139,7 @@ export default function ReportModal({
   };
 
   const pickResult = async (r: GeoResult) => {
+    bumpIdleTimer();
     Keyboard.dismiss();
     setSearchText(r.short);
     setSearchResults([]);
@@ -131,11 +152,13 @@ export default function ReportModal({
   };
 
   const editSearch = () => {
+    bumpIdleTimer();
     setEditingSearch(true);
     setTimeout(() => searchInputRef.current?.focus(), 50);
   };
 
   const selectMode = (mode: "current" | "search") => {
+    bumpIdleTimer();
     setLocationMode(mode);
     if (mode === "current") {
       Keyboard.dismiss();
@@ -151,15 +174,29 @@ export default function ReportModal({
 
   const canSubmit = !!sel && (locationMode === "current" ? hasCurrentLocation : !!pickedLocation);
 
+  const doSubmit = (type: ReportType, limit?: number, location?: ReportLocation) => {
+    clearIdleTimer();
+    onSubmit(type, limit, location);
+    reset();
+  };
+
   const submit = () => {
     if (!canSubmit || !sel) return;
     const limit = sel === "camera" && speedLimit.trim()
       ? parseInt(speedLimit.trim(), 10)
       : undefined;
     const location = locationMode === "search" && pickedLocation ? pickedLocation : undefined;
-    onSubmit(sel, isNaN(limit as number) ? undefined : limit, location);
-    reset();
+    doSubmit(sel, isNaN(limit as number) ? undefined : limit, location);
   };
+
+  // Most report types need nothing beyond "which one" and "where" — and
+  // "where" defaults to GPS. So when using current location and the type
+  // isn't the one case with an extra optional field (camera's speed limit),
+  // tapping the chip submits immediately instead of requiring a second tap
+  // on a footer button. Camera and "search a location" still need the extra
+  // step, so they fall back to select-then-submit.
+  const canOneTapSubmit = (type: ReportType) =>
+    type !== "camera" && locationMode === "current" && hasCurrentLocation;
 
   const handleClose = () => {
     reset();
@@ -337,7 +374,16 @@ export default function ReportModal({
                         borderColor: active ? t.color : c.border,
                       },
                     ]}
-                    onPress={() => { setSel(t.type); setSpeedLimit(""); }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      bumpIdleTimer();
+                      if (canOneTapSubmit(t.type)) {
+                        doSubmit(t.type);
+                        return;
+                      }
+                      setSel(t.type);
+                      setSpeedLimit("");
+                    }}
                     activeOpacity={0.75}
                   >
                     <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
@@ -367,7 +413,7 @@ export default function ReportModal({
                   <TextInput
                     style={[styles.speedInput, { color: c.foreground }]}
                     value={speedLimit}
-                    onChangeText={(v) => setSpeedLimit(v.replace(/[^0-9]/g, ""))}
+                    onChangeText={(v) => { bumpIdleTimer(); setSpeedLimit(v.replace(/[^0-9]/g, "")); }}
                     keyboardType="number-pad"
                     placeholder="km/h"
                     placeholderTextColor={c.mutedForeground}

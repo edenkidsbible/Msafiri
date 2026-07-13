@@ -137,7 +137,7 @@ interface AppContextValue {
   sosContact: SOSContact | null;
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
-  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void;
+  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => string;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<boolean>;
   deleteReport: (id: string) => Promise<void>;
@@ -597,6 +597,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // stable useCallback defined earlier in this component) can trigger a
   // full stop without needing it in its dependency array.
   const stopNavigationRef = useRef<() => void>(() => {});
+  // Forwards to syncReportToServer (defined later, alongside addReport) so
+  // the reconnect-retry sweep above can call it without an ordering issue.
+  const syncReportToServerRef = useRef<((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void) | null>(null);
 
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -718,18 +721,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
+  // Reports created while offline (or whose initial POST failed) stay local
+  // with no serverId. On reconnect, sweep and resend those so a driver who
+  // reported on a dead patch of road doesn't have to redo it once back online.
+  const retrySyncQueue = useCallback(() => {
+    if (!deviceIdRef.current) return;
+    for (const rep of communityReportsRef.current) {
+      if (rep.isOwn && !rep.serverId && deviceIdRef.current) {
+        syncReportToServerRef.current?.(rep.id, rep.type, rep.lat, rep.lng, rep.speedLimit);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (Platform.OS === "web") {
-      const on = () => setIsOffline(false);
+      const on = () => { setIsOffline(false); retrySyncQueue(); };
       const off = () => setIsOffline(true);
       window.addEventListener("online", on);
       window.addEventListener("offline", off);
       setIsOffline(!navigator.onLine);
       return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
     }
-    const unsub = NetInfo.addEventListener((s) => setIsOffline(!(s.isConnected ?? true)));
+    const unsub = NetInfo.addEventListener((s) => {
+      const nowOnline = s.isConnected ?? true;
+      if (nowOnline && isOfflineRef.current) retrySyncQueue();
+      setIsOffline(!nowOnline);
+    });
     return unsub;
-  }, []);
+  }, [retrySyncQueue]);
 
   // ── Location permission ───────────────────────────────────────────────────
   const requestLocationPermission = useCallback(async () => {
@@ -1538,6 +1557,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDeviceId(newId);
   }, []);
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
+  // Posts a locally-created (not-yet-synced) report to the API. Shared by
+  // addReport's initial attempt and the reconnect-triggered retry sweep below.
+  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
+    apiPost<{ id: string; status: string; confirmCount: number; action: string }>(
+      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit }
+    ).then((result) => {
+      setCommunityReports((prev) => {
+        let u: CommunityReport[];
+        if (result.action === "clustered") {
+          // Server merged into an existing report — update that row and drop the optimistic duplicate
+          u = prev
+            .filter((rep) => rep.id !== localId)
+            .map((rep) =>
+              rep.serverId === result.id
+                ? { ...rep, confirmCount: result.confirmCount, status: result.status as CommunityReport["status"] }
+                : rep
+            );
+        } else {
+          u = prev.map((rep) =>
+            rep.id === localId
+              ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
+              : rep
+          );
+        }
+        AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+        return u;
+      });
+    }).catch(() => { /* still offline / request failed — local copy remains, retried on reconnect */ });
+  }, []);
+  useEffect(() => { syncReportToServerRef.current = syncReportToServer; }, [syncReportToServer]);
+
   const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
     const localId = genId();
     const r: CommunityReport = {
@@ -1548,35 +1598,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCommunityReports((prev) => { const u = [r, ...prev]; AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u)); return u; });
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Submit to API; keep local copy as offline fallback
+    // Spoken confirmation so a driver doesn't need to glance at the screen —
+    // mirrors the tone used for turn-by-turn voice guidance.
+    speakText(`${resolveIncidentType(type).label} reported`);
+    // Submit to API; keep local copy as offline fallback (retried on reconnect)
     if (!isOfflineRef.current && deviceIdRef.current) {
-      apiPost<{ id: string; status: string; confirmCount: number; action: string }>(
-        "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit }
-      ).then((result) => {
-        setCommunityReports((prev) => {
-          let u: CommunityReport[];
-          if (result.action === "clustered") {
-            // Server merged into an existing report — update that row and drop the optimistic duplicate
-            u = prev
-              .filter((rep) => rep.id !== localId)
-              .map((rep) =>
-                rep.serverId === result.id
-                  ? { ...rep, confirmCount: result.confirmCount, status: result.status as CommunityReport["status"] }
-                  : rep
-              );
-          } else {
-            u = prev.map((rep) =>
-              rep.id === localId
-                ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
-                : rep
-            );
-          }
-          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
-          return u;
-        });
-      }).catch(() => { /* offline — local copy remains */ });
+      syncReportToServer(localId, type, lat, lng, speedLimit);
     }
-  }, []);
+    return localId;
+  }, [syncReportToServer]);
   const clearTripHistory = useCallback(() => { setTripHistory([]); AsyncStorage.removeItem(KEYS.TRIPS); }, []);
   const completeOnboarding = useCallback(() => { setOnboardingComplete(true); AsyncStorage.setItem(KEYS.ONBOARDING, "true"); }, []);
   const setShowTraffic = useCallback((v: boolean) => setShowTrafficState(v), []);
