@@ -116,6 +116,19 @@ export interface AdminBulkReportInput {
   ids: string[];
 }
 
+export interface AdminModerationQueue {
+  expired: AdminReport[];
+  pendingReview: AdminReport[];
+}
+
+export interface AdminModerationActionResult {
+  id: string;
+  type?: string;
+  status: string;
+  /** @nullable */
+  expiresAt?: string | null;
+}
+
 export interface AdminBulkReportResult {
   success: boolean;
   affected: number;

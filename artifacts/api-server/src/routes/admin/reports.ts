@@ -1,10 +1,145 @@
 import { Router, type Request, type Response } from "express";
 import { db, communityReportsTable } from "@workspace/db";
-import { eq, sql, ilike, or, desc, inArray } from "drizzle-orm";
+import { eq, sql, ilike, or, and, desc, inArray } from "drizzle-orm";
 import { logAudit, createNotification } from "../../lib/audit.js";
 import type { AdminJwtPayload } from "../../middleware/adminAuth.js";
+import { TTL_SECONDS } from "../reports.js";
 
 const router = Router();
+
+// ── GET /admin/reports/moderation-queue ────────────────────────────────────────
+// Two groups an operator needs to act on: reports that just expired (may be
+// worth restoring with one tap) and new camera/checkpoint reports still
+// awaiting first review before they reach drivers.
+router.get("/reports/moderation-queue", async (_req: Request, res: Response) => {
+  try {
+    const [expired, pendingReview] = await Promise.all([
+      db
+        .select()
+        .from(communityReportsTable)
+        .where(and(eq(communityReportsTable.status, "expired"), eq(communityReportsTable.moderationDismissed, false)))
+        .orderBy(desc(communityReportsTable.expiresAt))
+        .limit(200),
+      db
+        .select()
+        .from(communityReportsTable)
+        .where(eq(communityReportsTable.status, "pending_review"))
+        .orderBy(communityReportsTable.createdAt)
+        .limit(200),
+    ]);
+
+    const serialize = (r: typeof expired[number]) => ({
+      id:           r.id,
+      type:         r.type,
+      lat:          r.lat,
+      lng:          r.lng,
+      deviceId:     r.deviceId,
+      status:       r.status,
+      confirmCount: r.confirmCount,
+      denyCount:    r.denyCount,
+      speedLimit:   r.speedLimit,
+      roadName:     r.roadName,
+      createdAt:    r.createdAt.toISOString(),
+      expiresAt:    r.expiresAt?.toISOString() ?? null,
+    });
+
+    return res.json({
+      expired: expired.map(serialize),
+      pendingReview: pendingReview.map(serialize),
+    });
+  } catch (err) {
+    console.error("GET /admin/reports/moderation-queue error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/:id/approve — restore an expired report or publish a
+// pending-review submission; both cases bring the report back to "active"
+// with a freshly computed expiry. ───────────────────────────────────────────
+router.post("/reports/:id/approve", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.status !== "expired" && existing.status !== "pending_review") {
+      return res.status(400).json({ error: "Only expired or pending-review reports can be approved" });
+    }
+
+    const ttl = TTL_SECONDS[existing.type] ?? null;
+    const expiresAt = ttl ? new Date(Date.now() + ttl * 1000) : null;
+    const wasNew = existing.status === "pending_review";
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({ status: "active", expiresAt, moderationDismissed: false })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: wasNew ? "report.moderation_approve_new" : "report.moderation_restore_expired",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName },
+    });
+
+    return res.json({
+      id:           updated.id,
+      type:         updated.type,
+      status:       updated.status,
+      expiresAt:    updated.expiresAt?.toISOString() ?? null,
+    });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/approve error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/:id/reject — dismiss a queued report. A pending-review
+// submission is denied outright (never goes live); an expired report is just
+// dismissed from the queue (stays "expired"). ──────────────────────────────
+router.post("/reports/:id/reject", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.status !== "expired" && existing.status !== "pending_review") {
+      return res.status(400).json({ error: "Only expired or pending-review reports can be rejected" });
+    }
+
+    const wasNew = existing.status === "pending_review";
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set(wasNew ? { status: "denied" } : { moderationDismissed: true })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: wasNew ? "report.moderation_reject_new" : "report.moderation_dismiss_expired",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName },
+    });
+
+    return res.json({ id: updated.id, status: updated.status });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/reject error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // GET /admin/reports?page=&limit=&type=&status=&search=
 router.get("/reports", async (req: Request, res: Response) => {
@@ -178,7 +313,7 @@ const VALID_TYPES = new Set([
   "roadworks", "hazard", "pothole", "debris", "breakdown", "weather",
   "closure", "clear",
 ]);
-const VALID_STATUSES = new Set(["active", "confirmed", "expired", "denied"]);
+const VALID_STATUSES = new Set(["active", "confirmed", "expired", "denied", "pending_review"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Minimal RFC-4180 CSV parser: handles quoted fields, embedded commas/newlines, and "" escaping.

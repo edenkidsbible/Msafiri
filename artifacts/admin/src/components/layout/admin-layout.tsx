@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -45,8 +45,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   const coreNav = [
-    { href: "/reports",     label: "Incident Reports", icon: AlertCircle },
-    { href: "/speed-zones", label: "Speed Zones",       icon: Gauge },
+    { href: "/reports",            label: "Incident Reports",  icon: AlertCircle },
+    { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck },
+    { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge },
   ];
 
   const moderatorNav = [

@@ -1,11 +1,18 @@
 import { Router, type Request, type Response } from "express";
-import { db, communityReportsTable } from "@workspace/db";
-import { eq, and, lt, ne, gte, sql } from "drizzle-orm";
+import { db, communityReportsTable, pushTokensTable } from "@workspace/db";
+import { eq, and, or, lt, ne, gte, sql } from "drizzle-orm";
+import { sendPushNotifications } from "../lib/expoPush.js";
+import { logger } from "../lib/logger.js";
 
 const router: Router = Router();
 
+// Report types that must be reviewed by a moderator before they go live to
+// drivers. Kept small and deliberate — these are the types most likely to
+// cause real harm to drivers if a bad report goes live unreviewed.
+const MODERATED_TYPES = new Set(["camera", "police"]);
+
 // ── TTL per report type (seconds; null = never expires) ───────────────────────
-const TTL_SECONDS: Record<string, number | null> = {
+export const TTL_SECONDS: Record<string, number | null> = {
   camera:    null,        // permanent until denied
   police:    4 * 3600,    // 4 h
   accident:  2 * 3600,    // 2 h
@@ -33,9 +40,11 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Active status filter: not expired, not denied
+// Visible-to-drivers status filter — deliberately an allow-list (rather than
+// excluding "expired"/"denied") so any future status, including
+// "pending_review", is hidden from drivers by default until explicitly added here.
 function isActive() {
-  return and(ne(communityReportsTable.status, "expired"), ne(communityReportsTable.status, "denied"));
+  return or(eq(communityReportsTable.status, "active"), eq(communityReportsTable.status, "confirmed"));
 }
 
 // Lazily expire old reports before any read (no cron needed)
@@ -47,7 +56,10 @@ async function expireStale() {
       and(
         lt(communityReportsTable.expiresAt, new Date()),
         ne(communityReportsTable.status, "expired"),
-        ne(communityReportsTable.status, "denied")
+        ne(communityReportsTable.status, "denied"),
+        // Never auto-expire a report still awaiting its first moderator
+        // decision — it must stay in the moderation queue until acted on.
+        ne(communityReportsTable.status, "pending_review")
       )
     );
 }
@@ -172,10 +184,22 @@ router.post("/reports", async (req: Request, res: Response) => {
     }
 
     // ── Insert new report ────────────────────────────────────────────────────
+    // Camera/checkpoint reports hold for moderator review before they reach
+    // drivers; every other type keeps going live immediately as before.
+    const needsModeration = MODERATED_TYPES.has(type);
     const [inserted] = await db
       .insert(communityReportsTable)
-      .values({ type, lat, lng, deviceId, speedLimit, roadName, expiresAt })
+      .values({
+        type, lat, lng, deviceId, speedLimit, roadName, expiresAt,
+        status: needsModeration ? "pending_review" : "active",
+      })
       .returning();
+
+    if (needsModeration) {
+      notifyReporterUnderReview(deviceId, inserted.type).catch((err) =>
+        logger.warn({ err, reportId: inserted.id }, "Failed to send moderation push notice")
+      );
+    }
 
     return res.status(201).json({
       id: inserted.id,
@@ -188,6 +212,28 @@ router.post("/reports", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Best-effort push notice to the reporting device that their submission is
+// held for moderator review before it goes live to other drivers.
+async function notifyReporterUnderReview(deviceId: string, type: string): Promise<void> {
+  const [tokenRow] = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable)
+    .where(eq(pushTokensTable.deviceId, deviceId));
+
+  if (!tokenRow) return;
+
+  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+  await sendPushNotifications([
+    {
+      to: tokenRow.token,
+      title: "Report under review",
+      body: `Your ${typeLabel} report is being reviewed by our team and will go live once approved.`,
+      sound: "default",
+      data: { type: "moderation_pending" },
+    },
+  ]);
+}
 
 // ── POST /reports/:id/confirm — "Still there" ─────────────────────────────────
 router.post("/reports/:id/confirm", async (req: Request, res: Response) => {

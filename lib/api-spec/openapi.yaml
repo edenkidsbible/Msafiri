@@ -215,6 +215,69 @@ paths:
         "401":
           description: Unauthorized
 
+  /admin/reports/moderation-queue:
+    get:
+      operationId: adminGetModerationQueue
+      tags: [admin-reports]
+      summary: List reports awaiting moderation (recently expired, pending review)
+      responses:
+        "200":
+          description: Moderation queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModerationQueue"
+        "401":
+          description: Unauthorized
+
+  /admin/reports/{id}/approve:
+    post:
+      operationId: adminApproveReport
+      tags: [admin-reports]
+      summary: Approve a queued report (restore an expired report or publish a pending-review submission)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModerationActionResult"
+        "400":
+          description: Report is not in a queued state
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /admin/reports/{id}/reject:
+    post:
+      operationId: adminRejectReport
+      tags: [admin-reports]
+      summary: Reject a queued report (deny a pending-review submission, or dismiss an expired one from the queue)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModerationActionResult"
+        "400":
+          description: Report is not in a queued state
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
   /admin/reports/{id}:
     patch:
       operationId: adminUpdateReport
@@ -1170,6 +1233,28 @@ components:
         ids:
           type: array
           items: { type: string }
+
+    AdminModerationQueue:
+      type: object
+      required: [expired, pendingReview]
+      properties:
+        expired:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        pendingReview:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+
+    AdminModerationActionResult:
+      type: object
+      required: [id, status]
+      properties:
+        id:        { type: string }
+        type:      { type: string }
+        status:    { type: string }
+        expiresAt: { type: ["string", "null"] }
 
     AdminBulkReportResult:
       type: object

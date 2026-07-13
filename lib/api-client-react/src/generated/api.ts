@@ -34,6 +34,8 @@ import type {
   AdminListSpeedZonesParams,
   AdminLoginInput,
   AdminLoginResult,
+  AdminModerationActionResult,
+  AdminModerationQueue,
   AdminNotificationList,
   AdminReport,
   AdminReportImportInput,
@@ -695,6 +697,223 @@ export const useAdminBulkReports = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminBulkReportsMutationOptions(options));
+    }
+
+export const getAdminGetModerationQueueUrl = () => {
+
+
+
+
+  return `/api/admin/reports/moderation-queue`
+}
+
+/**
+ * @summary List reports awaiting moderation (recently expired, pending review)
+ */
+export const adminGetModerationQueue = async ( options?: RequestInit): Promise<AdminModerationQueue> => {
+
+  return customFetch<AdminModerationQueue>(getAdminGetModerationQueueUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetModerationQueueQueryKey = () => {
+    return [
+    `/api/admin/reports/moderation-queue`
+    ] as const;
+    }
+
+
+export const getAdminGetModerationQueueQueryOptions = <TData = Awaited<ReturnType<typeof adminGetModerationQueue>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetModerationQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetModerationQueueQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetModerationQueue>>> = ({ signal }) => adminGetModerationQueue({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetModerationQueue>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetModerationQueueQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetModerationQueue>>>
+export type AdminGetModerationQueueQueryError = ErrorType<void>
+
+
+/**
+ * @summary List reports awaiting moderation (recently expired, pending review)
+ */
+
+export function useAdminGetModerationQueue<TData = Awaited<ReturnType<typeof adminGetModerationQueue>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetModerationQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetModerationQueueQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminApproveReportUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/reports/${id}/approve`
+}
+
+/**
+ * @summary Approve a queued report (restore an expired report or publish a pending-review submission)
+ */
+export const adminApproveReport = async (id: string, options?: RequestInit): Promise<AdminModerationActionResult> => {
+
+  return customFetch<AdminModerationActionResult>(getAdminApproveReportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminApproveReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminApproveReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminApproveReport>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminApproveReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminApproveReport>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminApproveReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminApproveReportMutationResult = NonNullable<Awaited<ReturnType<typeof adminApproveReport>>>
+
+    export type AdminApproveReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a queued report (restore an expired report or publish a pending-review submission)
+ */
+export const useAdminApproveReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminApproveReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminApproveReport>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminApproveReportMutationOptions(options));
+    }
+
+export const getAdminRejectReportUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/reports/${id}/reject`
+}
+
+/**
+ * @summary Reject a queued report (deny a pending-review submission, or dismiss an expired one from the queue)
+ */
+export const adminRejectReport = async (id: string, options?: RequestInit): Promise<AdminModerationActionResult> => {
+
+  return customFetch<AdminModerationActionResult>(getAdminRejectReportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminRejectReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRejectReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRejectReport>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminRejectReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRejectReport>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminRejectReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRejectReportMutationResult = NonNullable<Awaited<ReturnType<typeof adminRejectReport>>>
+
+    export type AdminRejectReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject a queued report (deny a pending-review submission, or dismiss an expired one from the queue)
+ */
+export const useAdminRejectReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRejectReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRejectReport>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminRejectReportMutationOptions(options));
     }
 
 export const getAdminUpdateReportUrl = (id: string,) => {

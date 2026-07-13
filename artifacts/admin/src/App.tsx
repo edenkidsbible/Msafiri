@@ -11,6 +11,7 @@ import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
 import Dashboard from "@/pages/dashboard";
 import Reports from "@/pages/reports";
+import ModerationQueue from "@/pages/moderation-queue";
 import SpeedZones from "@/pages/speed-zones";
 import Users from "@/pages/users";
 import AuditLog from "@/pages/audit-log";
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/change-password" component={ChangePassword} />
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} adminOnly={true} /></Route>
       <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
+      <Route path="/moderation-queue"><ProtectedRoute component={ModerationQueue} /></Route>
       <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} /></Route>
       <Route path="/users"><ProtectedRoute component={Users} adminOnly={true} /></Route>
       <Route path="/audit-log"><ProtectedRoute component={AuditLog} adminOrModerator={true} /></Route>

@@ -12,7 +12,10 @@ async function runExpireReports(): Promise<void> {
       and(
         lt(communityReportsTable.expiresAt, new Date()),
         ne(communityReportsTable.status, "expired"),
-        ne(communityReportsTable.status, "denied")
+        ne(communityReportsTable.status, "denied"),
+        // Reports awaiting first moderator review must never auto-expire —
+        // they'd silently vanish from the moderation queue without a decision.
+        ne(communityReportsTable.status, "pending_review")
       )
     )
     .returning({ id: communityReportsTable.id });

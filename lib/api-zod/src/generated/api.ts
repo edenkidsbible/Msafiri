@@ -169,6 +169,71 @@ export const AdminBulkReportsResponse = zod.object({
 
 
 /**
+ * @summary List reports awaiting moderation (recently expired, pending review)
+ */
+export const AdminGetModerationQueueResponse = zod.object({
+  "expired": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "deviceId": zod.string(),
+  "status": zod.string(),
+  "confirmCount": zod.number(),
+  "denyCount": zod.number(),
+  "speedLimit": zod.number().nullish(),
+  "roadName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string().nullish()
+})),
+  "pendingReview": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "deviceId": zod.string(),
+  "status": zod.string(),
+  "confirmCount": zod.number(),
+  "denyCount": zod.number(),
+  "speedLimit": zod.number().nullish(),
+  "roadName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Approve a queued report (restore an expired report or publish a pending-review submission)
+ */
+export const AdminApproveReportParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminApproveReportResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string().optional(),
+  "status": zod.string(),
+  "expiresAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Reject a queued report (deny a pending-review submission, or dismiss an expired one from the queue)
+ */
+export const AdminRejectReportParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminRejectReportResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string().optional(),
+  "status": zod.string(),
+  "expiresAt": zod.string().nullish()
+})
+
+
+/**
  * @summary Update a report
  */
 export const AdminUpdateReportParams = zod.object({
