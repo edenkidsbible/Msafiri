@@ -12,6 +12,7 @@ import pushCampaignsRouter from "./push-campaigns.js";
 import releasesRouter from "./releases.js";
 import blogRouter from "./blog.js";
 import creatorsRouter from "./creators.js";
+import searchRouter from "./search.js";
 
 const router = Router();
 
@@ -20,6 +21,10 @@ router.use(authRouter);
 
 // All routes below require a valid admin JWT
 router.use(adminAuthMiddleware);
+
+// Global search: open to every role, but it checks req.adminUser.role itself
+// per section so it never leaks results from a section a role can't view.
+router.use(searchRouter);
 
 // Staff, moderator, and admin: reports and speed zones
 router.use(reportsRouter);

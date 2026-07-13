@@ -278,6 +278,26 @@ paths:
         "404":
           description: Not found
 
+  /admin/search:
+    get:
+      operationId: adminGlobalSearch
+      tags: [admin-search]
+      summary: Search reports, creator applications, subscribers, and team members in one query
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Grouped search results (sections a role can't view come back empty)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSearchResult"
+        "401":
+          description: Unauthorized
+
   /admin/reports/{id}:
     patch:
       operationId: adminUpdateReport
@@ -1233,6 +1253,52 @@ components:
         ids:
           type: array
           items: { type: string }
+
+    AdminSearchResult:
+      type: object
+      required: [reports, creators, subscribers, users]
+      properties:
+        reports:
+          type: array
+          items:
+            type: object
+            required: [id, type, status]
+            properties:
+              id:       { type: string }
+              type:     { type: string }
+              roadName: { type: ["string", "null"] }
+              status:   { type: string }
+              lat:      { type: number }
+              lng:      { type: number }
+        creators:
+          type: array
+          items:
+            type: object
+            required: [id, email, status]
+            properties:
+              id:     { type: string }
+              name:   { type: ["string", "null"] }
+              email:  { type: string }
+              status: { type: string }
+        subscribers:
+          type: array
+          items:
+            type: object
+            required: [id, appUserId, hasActiveEntitlement]
+            properties:
+              id:                   { type: string }
+              appUserId:            { type: string }
+              hasActiveEntitlement: { type: boolean }
+        users:
+          type: array
+          items:
+            type: object
+            required: [id, name, email, role]
+            properties:
+              id:    { type: string }
+              name:  { type: string }
+              email: { type: string }
+              role:  { type: string }
 
     AdminModerationQueue:
       type: object

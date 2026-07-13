@@ -158,7 +158,8 @@ router.get("/reports", async (req: Request, res: Response) => {
       conditions.push(
         or(
           ilike(communityReportsTable.roadName, `%${search}%`),
-          ilike(communityReportsTable.type, `%${search}%`)
+          ilike(communityReportsTable.type, `%${search}%`),
+          sql`${communityReportsTable.id}::text ILIKE ${`%${search}%`}`
         )
       );
     }

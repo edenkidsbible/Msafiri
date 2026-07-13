@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { useAdminListUsers, useAdminCreateUser, useAdminDeleteUser, useAdminUpdateUser } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -185,6 +186,10 @@ function FeatureChecklist({
 }
 
 export default function Users() {
+  const rawSearch = useSearch();
+  const highlightId = new URLSearchParams(rawSearch).get("highlight");
+  const highlightHandled = useRef(false);
+
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserWithPermissions | null>(null);
@@ -298,6 +303,17 @@ export default function Users() {
   const getRoleInfo = (role: string) => ROLES.find((r) => r.value === role) ?? ROLES[2];
 
   const users = (data?.users ?? []) as AdminUserWithPermissions[];
+
+  // Deep-link support from global search: ?highlight=<id> opens that user's
+  // edit dialog directly once the (unpaginated) list has loaded.
+  useEffect(() => {
+    if (!highlightId || highlightHandled.current) return;
+    const match = users.find((u) => u.id === highlightId);
+    if (match) {
+      openEditDialog(match);
+      highlightHandled.current = true;
+    }
+  }, [highlightId, users]);
 
   return (
     <AdminLayout>

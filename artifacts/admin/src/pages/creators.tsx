@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -166,6 +167,12 @@ function CodePoolCard({
 }
 
 export default function Creators() {
+  const rawSearch = useSearch();
+  const highlightId = new URLSearchParams(rawSearch).get("highlight");
+  const highlightHandled = useRef(false);
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
@@ -231,6 +238,22 @@ export default function Creators() {
   const filtered = (data?.applications ?? []).filter(
     (a) => filter === "all" || a.status === filter,
   );
+
+  // Deep-link support from global search: ?highlight=<id> switches to the
+  // "all" filter (so the record is guaranteed visible) and flashes its row.
+  useEffect(() => {
+    if (!highlightId || highlightHandled.current) return;
+    const match = (data?.applications ?? []).find((a) => a.id === highlightId);
+    if (match) {
+      highlightHandled.current = true;
+      setFilter("all");
+      setHighlightedRowId(match.id);
+      setTimeout(() => {
+        rowRefs.current[match.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      setTimeout(() => setHighlightedRowId(null), 2500);
+    }
+  }, [highlightId, data]);
 
   const defaultStats = { total: 0, used: 0, remaining: 0 };
 
@@ -389,7 +412,11 @@ export default function Creators() {
                       const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE["pending"];
                       const isPending = statusMutation.isPending && (statusMutation.variables as any)?.id === a.id;
                       return (
-                        <TableRow key={a.id}>
+                        <TableRow
+                          key={a.id}
+                          ref={(el) => { rowRefs.current[a.id] = el; }}
+                          className={highlightedRowId === a.id ? "bg-primary/10 transition-colors duration-1000" : ""}
+                        >
                           <TableCell className="font-medium">{a.name || <span className="italic text-muted-foreground">—</span>}</TableCell>
                           <TableCell className="text-muted-foreground">{a.email}</TableCell>
                           <TableCell className="max-w-xs text-sm text-muted-foreground">

@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { useAdminListSubscribers } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,9 +10,30 @@ import { Users, Crown, Globe, AlertTriangle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Subscribers() {
+  const rawSearch = useSearch();
+  const highlightId = new URLSearchParams(rawSearch).get("highlight");
+  const highlightHandled = useRef(false);
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+
   const { data, isLoading, isError } = useAdminListSubscribers({
     query: { queryKey: ["/api/admin/subscribers"], staleTime: 60000 },
   });
+
+  // Deep-link support from global search: ?highlight=<appUserId> flashes and
+  // scrolls to that subscriber's row once the list has loaded.
+  useEffect(() => {
+    if (!highlightId || highlightHandled.current) return;
+    const match = data?.subscribers.find((s) => s.appUserId === highlightId);
+    if (match) {
+      highlightHandled.current = true;
+      setHighlightedRowId(match.appUserId);
+      setTimeout(() => {
+        rowRefs.current[match.appUserId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      setTimeout(() => setHighlightedRowId(null), 2500);
+    }
+  }, [highlightId, data]);
 
   if (isLoading) {
     return (
@@ -123,7 +146,11 @@ export default function Subscribers() {
                 </TableRow>
               ) : (
                 data?.subscribers.map((s) => (
-                  <TableRow key={s.id} className="hover:bg-muted/30 transition-colors">
+                  <TableRow
+                    key={s.id}
+                    ref={(el) => { rowRefs.current[s.appUserId] = el; }}
+                    className={`hover:bg-muted/30 transition-colors ${highlightedRowId === s.appUserId ? "bg-primary/10" : ""}`}
+                  >
                     <TableCell className="font-mono text-sm text-foreground">{s.appUserId}</TableCell>
                     <TableCell>
                       {s.hasActiveEntitlement ? (

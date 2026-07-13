@@ -116,6 +116,44 @@ export interface AdminBulkReportInput {
   ids: string[];
 }
 
+export type AdminSearchResultReportsItem = {
+  id: string;
+  type: string;
+  /** @nullable */
+  roadName?: string | null;
+  status: string;
+  lat?: number;
+  lng?: number;
+};
+
+export type AdminSearchResultCreatorsItem = {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  email: string;
+  status: string;
+};
+
+export type AdminSearchResultSubscribersItem = {
+  id: string;
+  appUserId: string;
+  hasActiveEntitlement: boolean;
+};
+
+export type AdminSearchResultUsersItem = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
+export interface AdminSearchResult {
+  reports: AdminSearchResultReportsItem[];
+  creators: AdminSearchResultCreatorsItem[];
+  subscribers: AdminSearchResultSubscribersItem[];
+  users: AdminSearchResultUsersItem[];
+}
+
 export interface AdminModerationQueue {
   expired: AdminReport[];
   pendingReview: AdminReport[];
@@ -553,6 +591,10 @@ search?: string;
 export type AdminExportReportsParams = {
 type?: string;
 status?: string;
+};
+
+export type AdminGlobalSearchParams = {
+q: string;
 };
 
 export type AdminListAuditLogsParams = {

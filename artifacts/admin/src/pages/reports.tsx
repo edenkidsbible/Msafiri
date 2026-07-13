@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -85,9 +86,13 @@ function readFileAsText(file: File): Promise<string> {
 }
 
 export default function Reports() {
+  const rawSearch = useSearch();
+  const deepLinkParams = new URLSearchParams(rawSearch);
+  const highlightId = deepLinkParams.get("highlight");
+
   const [page, setPage] = useState(1);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(deepLinkParams.get("q") ?? "");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"table" | "map">("table");
@@ -271,6 +276,18 @@ export default function Reports() {
     editForm.reset({ type: report.type, lat: report.lat, lng: report.lng, status: report.status, roadName: report.roadName || "", speedLimit: report.speedLimit || 0 });
     setEditingReport(report);
   };
+
+  // Deep-link support from global search: ?highlight=<id> opens that report's
+  // edit dialog as soon as it shows up in the (search-filtered) list.
+  const highlightHandled = useRef(false);
+  useEffect(() => {
+    if (!highlightId || highlightHandled.current) return;
+    const match = data?.reports.find((r) => r.id === highlightId);
+    if (match) {
+      openEditDialog(match);
+      highlightHandled.current = true;
+    }
+  }, [highlightId, data]);
 
   const handleMapClick = (lat: number, lng: number) => {
     setPendingCoords({ lat, lng });

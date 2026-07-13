@@ -234,6 +234,42 @@ export const AdminRejectReportResponse = zod.object({
 
 
 /**
+ * @summary Search reports, creator applications, subscribers, and team members in one query
+ */
+export const AdminGlobalSearchQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const AdminGlobalSearchResponse = zod.object({
+  "reports": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "roadName": zod.string().nullish(),
+  "status": zod.string(),
+  "lat": zod.number().optional(),
+  "lng": zod.number().optional()
+})),
+  "creators": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string(),
+  "status": zod.string()
+})),
+  "subscribers": zod.array(zod.object({
+  "id": zod.string(),
+  "appUserId": zod.string(),
+  "hasActiveEntitlement": zod.boolean()
+})),
+  "users": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.string()
+}))
+})
+
+
+/**
  * @summary Update a report
  */
 export const AdminUpdateReportParams = zod.object({

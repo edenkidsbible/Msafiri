@@ -32,3 +32,4 @@
 - [RevenueCat shared-project app collision](revenuecat-shared-project-app-collision.md) — matching apps by `type` alone in a shared project can silently target another product's app entry; match by bundle id/package name instead.
 - [Stale navigation session voice guidance](stale-navigation-session.md) — background app can keep navActive true for hours if driver never taps in-app Stop; bound worst case with a staleness timeout, don't rely only on explicit-stop paths.
 - [Landmark geocoding for camera placement](landmark-geocoding-placement.md) — fix along-road offsets via landmark/two-point geocode biased to stored coord; off-road gate can't catch along-road errors; verify interchanges on OSRM polyline not coarse anchors.
+- [RevenueCat customer search limitations](revenuecat-customer-search-limits.md) — no bulk search/email field on RevenueCat customers, only exact app_user_id lookup; design subscriber search around that ceiling.

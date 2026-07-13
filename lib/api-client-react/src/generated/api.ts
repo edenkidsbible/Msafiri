@@ -28,6 +28,7 @@ import type {
   AdminChangePasswordInput,
   AdminDeleteBlogPost200,
   AdminExportReportsParams,
+  AdminGlobalSearchParams,
   AdminListAuditLogsParams,
   AdminListBlogPostsParams,
   AdminListReportsParams,
@@ -43,6 +44,7 @@ import type {
   AdminReportInput,
   AdminReportList,
   AdminReportUpdate,
+  AdminSearchResult,
   AdminSpeedZone,
   AdminSpeedZoneList,
   AdminStats,
@@ -915,6 +917,90 @@ export const useAdminRejectReport = <TError = ErrorType<void>,
       > => {
       return useMutation(getAdminRejectReportMutationOptions(options));
     }
+
+export const getAdminGlobalSearchUrl = (params: AdminGlobalSearchParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/search?${stringifiedParams}` : `/api/admin/search`
+}
+
+/**
+ * @summary Search reports, creator applications, subscribers, and team members in one query
+ */
+export const adminGlobalSearch = async (params: AdminGlobalSearchParams, options?: RequestInit): Promise<AdminSearchResult> => {
+
+  return customFetch<AdminSearchResult>(getAdminGlobalSearchUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGlobalSearchQueryKey = (params?: AdminGlobalSearchParams,) => {
+    return [
+    `/api/admin/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGlobalSearchQueryOptions = <TData = Awaited<ReturnType<typeof adminGlobalSearch>>, TError = ErrorType<void>>(params: AdminGlobalSearchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGlobalSearch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGlobalSearchQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGlobalSearch>>> = ({ signal }) => adminGlobalSearch(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGlobalSearch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGlobalSearchQueryResult = NonNullable<Awaited<ReturnType<typeof adminGlobalSearch>>>
+export type AdminGlobalSearchQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search reports, creator applications, subscribers, and team members in one query
+ */
+
+export function useAdminGlobalSearch<TData = Awaited<ReturnType<typeof adminGlobalSearch>>, TError = ErrorType<void>>(
+ params: AdminGlobalSearchParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGlobalSearch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGlobalSearchQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getAdminUpdateReportUrl = (id: string,) => {
 
