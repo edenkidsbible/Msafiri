@@ -641,11 +641,11 @@ export default function Home() {
           </div>
           
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground font-medium">
-            <a href="/marketing/about" className="hover:text-foreground transition-colors">About</a>
-            <a href="/marketing/blog" className="hover:text-foreground transition-colors">Blog</a>
-            <a href="/marketing/contact" className="hover:text-foreground transition-colors">Contact</a>
-            <a href="/marketing/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
-            <a href="/marketing/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
+            <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
+            <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
+            <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
           </div>
 
           <div className="text-sm text-muted-foreground">

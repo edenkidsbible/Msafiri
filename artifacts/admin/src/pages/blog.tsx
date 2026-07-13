@@ -366,7 +366,7 @@ export default function Blog() {
                           </DropdownMenuItem>
                           {post.status === "published" && (
                             <DropdownMenuItem asChild>
-                              <a href={`/marketing/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">
+                              <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">
                                 <Eye className="h-4 w-4 mr-2" /> View on site
                               </a>
                             </DropdownMenuItem>
