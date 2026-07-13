@@ -176,6 +176,9 @@ importers:
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21
+      '@workspace/permissions':
+        specifier: workspace:*
+        version: link:../../lib/permissions
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -387,6 +390,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/permissions':
+        specifier: workspace:*
+        version: link:../../lib/permissions
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -1035,6 +1041,8 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+
+  lib/permissions: {}
 
   scripts:
     dependencies:

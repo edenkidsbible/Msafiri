@@ -6,12 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AdminUser {
+export interface AdminMe {
   id: string;
   email: string;
   name: string;
   role: string;
-  createdAt: string;
   mustChangePassword?: boolean;
-  effectivePermissions?: string[];
+  effectivePermissions: string[];
 }

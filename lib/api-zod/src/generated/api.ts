@@ -33,7 +33,8 @@ export const AdminLoginResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string()).optional()
 })
 })
 
@@ -58,8 +59,22 @@ export const AdminChangePasswordResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string()).optional()
 })
+})
+
+
+/**
+ * @summary Get the current admin user, with freshly-resolved effective permissions
+ */
+export const AdminGetMeResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string())
 })
 
 
@@ -325,7 +340,8 @@ export const AdminListUsersResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string()).optional()
 }))
 })
 
@@ -346,7 +362,8 @@ export const AdminCreateUserResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string()).optional()
 })
 
 
@@ -370,7 +387,8 @@ export const AdminUpdateUserResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string()).optional()
 })
 
 

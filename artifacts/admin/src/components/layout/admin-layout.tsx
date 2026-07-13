@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAdminListNotifications } from "@workspace/api-client-react";
 import { GlobalSearch } from "@/components/global-search";
+import { usePermissions } from "@/hooks/use-permissions";
+import type { FeatureKey } from "@workspace/permissions";
 import {
   Sidebar,
   SidebarContent,
@@ -28,8 +30,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const user = getUser();
   const { resolvedTheme, toggle } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
-
-  const isAdminOrModerator = user?.role === "admin" || user?.role === "moderator";
+  const { can } = usePermissions();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -46,7 +47,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     query: {
       queryKey: ["/api/admin/notifications"],
       refetchInterval: 30000,
-      enabled: isAdminOrModerator,
+      enabled: can("notifications"),
     },
   });
 
@@ -57,26 +58,29 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     setLocation("/login");
   };
 
-  const coreNav = [
-    { href: "/reports",            label: "Incident Reports",  icon: AlertCircle },
-    { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck },
-    { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge },
+  const coreNavAll: Array<{ href: string; label: string; icon: typeof AlertCircle; feature: FeatureKey }> = [
+    { href: "/reports",            label: "Incident Reports",  icon: AlertCircle,  feature: "reports" },
+    { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck,  feature: "reports" },
+    { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge,        feature: "speed_zones" },
   ];
+  const coreNav = coreNavAll.filter((item) => can(item.feature));
 
-  const moderatorNav = [
-    { href: "/notifications",  label: "Notifications",    icon: Bell },
-    { href: "/push-campaigns", label: "Push Campaigns",   icon: Megaphone },
-    { href: "/releases",       label: "App Releases",     icon: Rocket },
-    { href: "/blog",           label: "Blog Posts",       icon: FileText },
-    { href: "/audit-log",      label: "Activity Log",     icon: ClipboardList },
-    { href: "/subscribers",    label: "Subscribers",      icon: CreditCard },
-    { href: "/creators",       label: "Creators",         icon: Star },
+  const moderatorNavAll: Array<{ href: string; label: string; icon: typeof Bell; feature: FeatureKey }> = [
+    { href: "/notifications",  label: "Notifications",    icon: Bell,          feature: "notifications" },
+    { href: "/push-campaigns", label: "Push Campaigns",   icon: Megaphone,     feature: "push_campaigns" },
+    { href: "/releases",       label: "App Releases",     icon: Rocket,        feature: "releases" },
+    { href: "/blog",           label: "Blog Posts",       icon: FileText,      feature: "blog" },
+    { href: "/audit-log",      label: "Activity Log",     icon: ClipboardList, feature: "audit_log" },
+    { href: "/subscribers",    label: "Subscribers",      icon: CreditCard,    feature: "subscribers" },
+    { href: "/creators",       label: "Creators",         icon: Star,          feature: "creators" },
   ];
+  const moderatorNav = moderatorNavAll.filter((item) => can(item.feature));
 
-  const adminOnlyNav = [
-    { href: "/dashboard", label: "Dashboard",     icon: LayoutDashboard },
-    { href: "/users",     label: "Team Members",  icon: Users },
+  const adminOnlyNavAll: Array<{ href: string; label: string; icon: typeof LayoutDashboard; feature: FeatureKey }> = [
+    { href: "/dashboard", label: "Dashboard",     icon: LayoutDashboard, feature: "dashboard" },
+    { href: "/users",     label: "Team Members",  icon: Users,           feature: "team" },
   ];
+  const adminOnlyNav = adminOnlyNavAll.filter((item) => can(item.feature));
 
   return (
     <SidebarProvider>
@@ -92,7 +96,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </SidebarHeader>
           <SidebarContent>
-            {user?.role === "admin" && (
+            {adminOnlyNav.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
                   Overview
@@ -140,7 +144,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {isAdminOrModerator && (
+            {moderatorNav.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
                   Operations

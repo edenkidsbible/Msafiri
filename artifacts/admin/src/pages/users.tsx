@@ -23,6 +23,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { getUser } from "@/lib/auth";
 import type { AdminUser } from "@workspace/api-client-react";
+import { FEATURE_GROUPS, ALL_FEATURE_KEYS, ROLE_DEFAULTS, type AdminRole } from "@workspace/permissions";
+
+function defaultsFor(role: string): string[] {
+  return ROLE_DEFAULTS[role as AdminRole] ?? [];
+}
 
 type AdminUserWithPermissions = AdminUser & { permissions?: string[] | null };
 
@@ -50,44 +55,6 @@ const ROLES = [
   },
 ];
 
-const FEATURE_GROUPS = [
-  {
-    group: "Content",
-    features: [
-      { key: "reports",        label: "Incident Reports (view / edit / create)" },
-      { key: "speed_zones",    label: "Speed Zones (view / edit / create)" },
-      { key: "blog",           label: "Blog Management" },
-    ],
-  },
-  {
-    group: "Operations",
-    features: [
-      { key: "reports_bulk",   label: "Bulk Report Actions" },
-      { key: "reports_export", label: "Export Reports CSV" },
-      { key: "push_campaigns", label: "Push Campaigns" },
-      { key: "releases",       label: "App Release Management" },
-    ],
-  },
-  {
-    group: "Management",
-    features: [
-      { key: "notifications",  label: "Notifications" },
-      { key: "subscribers",    label: "Subscriber & Billing" },
-      { key: "audit_log",      label: "Audit Log" },
-      { key: "dashboard",      label: "Analytics Dashboard" },
-      { key: "team",           label: "Team Member Management" },
-    ],
-  },
-];
-
-const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap((g) => g.features.map((f) => f.key));
-
-const ROLE_DEFAULTS: Record<string, string[]> = {
-  admin:     [...ALL_FEATURE_KEYS],
-  moderator: ["reports", "speed_zones", "blog", "reports_bulk", "reports_export", "push_campaigns", "releases", "notifications", "subscribers", "audit_log"],
-  staff:     ["reports", "speed_zones"],
-};
-
 const createUserSchema = z.object({
   name:     z.string().min(2, "Name is required"),
   email:    z.string().email("Invalid email"),
@@ -111,7 +78,7 @@ function FeatureChecklist({
   value: string[];
   onChange: (v: string[]) => void;
 }) {
-  const defaults = ROLE_DEFAULTS[role] ?? [];
+  const defaults = defaultsFor(role);
   const isDefault = (key: string) => defaults.includes(key);
 
   const toggle = (key: string) => {
@@ -195,7 +162,7 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<AdminUserWithPermissions | null>(null);
   const [showPermissions, setShowPermissions] = useState(false);
 
-  const [createPerms, setCreatePerms] = useState<string[]>(ROLE_DEFAULTS["staff"]!);
+  const [createPerms, setCreatePerms] = useState<string[]>(defaultsFor("staff"));
   const [editPerms, setEditPerms] = useState<string[]>([]);
 
   const { toast } = useToast();
@@ -225,7 +192,7 @@ export default function Users() {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         setIsAddOpen(false);
         form.reset();
-        setCreatePerms(ROLE_DEFAULTS["staff"]!);
+        setCreatePerms(defaultsFor("staff"));
       },
       onError: (error) => {
         toast({ title: "Creation Failed", description: error.message || "Could not create account.", variant: "destructive" });
@@ -259,12 +226,12 @@ export default function Users() {
   const watchEditRole = editForm.watch("role");
 
   useEffect(() => {
-    setCreatePerms(ROLE_DEFAULTS[watchCreateRole] ?? []);
+    setCreatePerms(defaultsFor(watchCreateRole));
   }, [watchCreateRole]);
 
   useEffect(() => {
     if (editingUser && watchEditRole) {
-      const defaults = ROLE_DEFAULTS[watchEditRole] ?? [];
+      const defaults = defaultsFor(watchEditRole);
       const stored = editingUser.permissions;
       if (stored) {
         setEditPerms(stored);
@@ -279,14 +246,14 @@ export default function Users() {
   };
 
   const onSubmit = (values: z.infer<typeof createUserSchema>) => {
-    const defaultPerms = ROLE_DEFAULTS[values.role] ?? [];
+    const defaultPerms = defaultsFor(values.role);
     const isDefault = JSON.stringify([...createPerms].sort()) === JSON.stringify([...defaultPerms].sort());
     createMutation.mutate({ data: { ...values, permissions: isDefault ? null : createPerms } as any });
   };
 
   const onEditSubmit = (values: z.infer<typeof editUserSchema>) => {
     if (!editingUser) return;
-    const defaultPerms = ROLE_DEFAULTS[values.role] ?? [];
+    const defaultPerms = defaultsFor(values.role);
     const isDefault = JSON.stringify([...editPerms].sort()) === JSON.stringify([...defaultPerms].sort());
     const dataToUpdate: any = { name: values.name, email: values.email, role: values.role, permissions: isDefault ? null : editPerms };
     if (values.password) dataToUpdate.password = values.password;
@@ -295,7 +262,7 @@ export default function Users() {
 
   const openEditDialog = (user: AdminUserWithPermissions) => {
     editForm.reset({ name: user.name, email: user.email, role: user.role as any, password: "" });
-    const defaults = ROLE_DEFAULTS[user.role] ?? [];
+    const defaults = defaultsFor(user.role);
     setEditPerms(user.permissions ?? defaults);
     setEditingUser(user);
   };
@@ -329,7 +296,7 @@ export default function Users() {
               {showPermissions ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               {showPermissions ? "Hide" : "View"} Permission Map
             </Button>
-            <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { form.reset(); setCreatePerms(ROLE_DEFAULTS["staff"]!); } }}>
+            <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { form.reset(); setCreatePerms(defaultsFor("staff")); } }}>
               <DialogTrigger asChild>
                 <Button className="gap-2" data-testid="btn-add-user">
                   <Plus className="h-4 w-4" /> Add Member
@@ -417,7 +384,7 @@ export default function Users() {
                           <td className="py-2 pr-6 text-foreground">{f.label}</td>
                           {ROLES.map((r) => (
                             <td key={r.value} className="py-2 px-4 text-center">
-                              {ROLE_DEFAULTS[r.value]?.includes(f.key)
+                              {defaultsFor(r.value).includes(f.key)
                                 ? <span className="text-emerald-500">✓</span>
                                 : <span className="text-muted-foreground/30">—</span>}
                             </td>
@@ -464,7 +431,7 @@ export default function Users() {
                 users.map((user) => {
                   const roleInfo = getRoleInfo(user.role);
                   const RoleIcon = roleInfo.icon;
-                  const effectivePerms = user.permissions ?? ROLE_DEFAULTS[user.role] ?? [];
+                  const effectivePerms = user.permissions ?? defaultsFor(user.role);
                   const hasCustomPerms = !!user.permissions;
                   return (
                     <TableRow key={user.id} className="hover:bg-muted/30 transition-colors group" data-testid={`row-user-${user.id}`}>

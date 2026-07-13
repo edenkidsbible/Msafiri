@@ -35,6 +35,7 @@ import type {
   AdminListSpeedZonesParams,
   AdminLoginInput,
   AdminLoginResult,
+  AdminMe,
   AdminModerationActionResult,
   AdminModerationQueue,
   AdminNotificationList,
@@ -322,6 +323,83 @@ export const useAdminChangePassword = <TError = ErrorType<void>,
       > => {
       return useMutation(getAdminChangePasswordMutationOptions(options));
     }
+
+export const getAdminGetMeUrl = () => {
+
+
+
+
+  return `/api/admin/auth/me`
+}
+
+/**
+ * @summary Get the current admin user, with freshly-resolved effective permissions
+ */
+export const adminGetMe = async ( options?: RequestInit): Promise<AdminMe> => {
+
+  return customFetch<AdminMe>(getAdminGetMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetMeQueryKey = () => {
+    return [
+    `/api/admin/auth/me`
+    ] as const;
+    }
+
+
+export const getAdminGetMeQueryOptions = <TData = Awaited<ReturnType<typeof adminGetMe>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetMe>>> = ({ signal }) => adminGetMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetMeQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetMe>>>
+export type AdminGetMeQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the current admin user, with freshly-resolved effective permissions
+ */
+
+export function useAdminGetMe<TData = Awaited<ReturnType<typeof adminGetMe>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getAdminListReportsUrl = (params?: AdminListReportsParams,) => {
   const normalizedParams = new URLSearchParams();

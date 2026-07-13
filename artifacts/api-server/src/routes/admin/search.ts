@@ -14,8 +14,7 @@ router.get("/search", async (req: Request, res: Response) => {
   try {
     const q = ((req.query.q as string) ?? "").trim();
     const actor = (req as any).adminUser as AdminJwtPayload;
-    const isAdmin = actor.role === "admin";
-    const isAdminOrModerator = isAdmin || actor.role === "moderator";
+    const can = (feature: string) => actor.effectivePermissions?.includes(feature as any) ?? false;
 
     if (q.length < 2) {
       return res.json({ reports: [], creators: [], subscribers: [], users: [] });
@@ -23,30 +22,31 @@ router.get("/search", async (req: Request, res: Response) => {
 
     const like = `%${q}%`;
 
-    // Staff, moderator, and admin can all see reports — same access as the
-    // Incident Reports page itself.
-    const reportsPromise = db
-      .select({
-        id: communityReportsTable.id,
-        type: communityReportsTable.type,
-        roadName: communityReportsTable.roadName,
-        status: communityReportsTable.status,
-        lat: communityReportsTable.lat,
-        lng: communityReportsTable.lng,
-      })
-      .from(communityReportsTable)
-      .where(
-        or(
-          ilike(communityReportsTable.roadName, like),
-          ilike(communityReportsTable.type, like),
-          sql`${communityReportsTable.id}::text ILIKE ${like}`
-        )
-      )
-      .limit(RESULT_LIMIT);
+    // Every section is gated on the same effective-permission set the caller's
+    // own pages are gated on — a custom grant/revoke in Team Members changes
+    // what shows up here too, not just the role default.
+    const reportsPromise = can("reports")
+      ? db
+          .select({
+            id: communityReportsTable.id,
+            type: communityReportsTable.type,
+            roadName: communityReportsTable.roadName,
+            status: communityReportsTable.status,
+            lat: communityReportsTable.lat,
+            lng: communityReportsTable.lng,
+          })
+          .from(communityReportsTable)
+          .where(
+            or(
+              ilike(communityReportsTable.roadName, like),
+              ilike(communityReportsTable.type, like),
+              sql`${communityReportsTable.id}::text ILIKE ${like}`
+            )
+          )
+          .limit(RESULT_LIMIT)
+      : Promise.resolve([]);
 
-    // Creator applications and team members are moderator/admin territory,
-    // matching the role gates on their own pages.
-    const creatorsPromise = isAdminOrModerator
+    const creatorsPromise = can("creators")
       ? db
           .select({
             id: creatorApplicationsTable.id,
@@ -68,11 +68,11 @@ router.get("/search", async (req: Request, res: Response) => {
     // Subscribers live in RevenueCat, not our DB — there's no bulk-search API
     // there, only exact app-user-id lookup, so we only attempt it when the
     // query looks like a plausible id (no spaces) and skip it otherwise.
-    const subscribersPromise = isAdminOrModerator && !/\s/.test(q)
+    const subscribersPromise = can("subscribers") && !/\s/.test(q)
       ? lookupSubscriberByAppUserId(q)
       : Promise.resolve([]);
 
-    const usersPromise = isAdmin
+    const usersPromise = can("team")
       ? db
           .select({
             id: adminUsersTable.id,

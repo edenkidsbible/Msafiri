@@ -21,11 +21,21 @@ export interface AdminUser {
   role: string;
   createdAt: string;
   mustChangePassword?: boolean;
+  effectivePermissions?: string[];
 }
 
 export interface AdminLoginResult {
   token: string;
   user: AdminUser;
+}
+
+export interface AdminMe {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  mustChangePassword?: boolean;
+  effectivePermissions: string[];
 }
 
 export interface AdminChangePasswordInput {

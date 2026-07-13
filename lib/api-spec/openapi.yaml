@@ -97,6 +97,23 @@ paths:
         "401":
           description: Invalid current password or unauthorized
 
+  /admin/auth/me:
+    get:
+      operationId: adminGetMe
+      tags: [admin-auth]
+      summary: Get the current admin user, with freshly-resolved effective permissions
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMe"
+        "401":
+          description: Unauthorized
+
   /admin/reports:
     get:
       operationId: adminListReports
@@ -1156,6 +1173,22 @@ components:
         role:                { type: string }
         createdAt:           { type: string }
         mustChangePassword:  { type: boolean }
+        effectivePermissions:
+          type: array
+          items: { type: string }
+
+    AdminMe:
+      type: object
+      required: [id, email, name, role, effectivePermissions]
+      properties:
+        id:                    { type: string }
+        email:                 { type: string }
+        name:                  { type: string }
+        role:                  { type: string }
+        mustChangePassword:    { type: boolean }
+        effectivePermissions:
+          type: array
+          items: { type: string }
 
     AdminChangePasswordInput:
       type: object

@@ -2,9 +2,25 @@ import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
 import { db, adminUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { signAdminToken, adminAuthMiddleware } from "../../middleware/adminAuth.js";
+import { signAdminToken, adminAuthMiddleware, loadAdminPermissionsMiddleware, type AdminJwtPayload } from "../../middleware/adminAuth.js";
+import { getEffectivePermissions, parseStoredPermissions } from "@workspace/permissions";
 
 const router = Router();
+
+// GET /admin/auth/me — the frontend calls this on load (and can re-poll it)
+// to get the caller's freshly-resolved effective permissions, so nav/route
+// gating always reflects the current database state rather than a stale JWT.
+router.get("/auth/me", adminAuthMiddleware, loadAdminPermissionsMiddleware, (req: Request, res: Response) => {
+  const user = (req as any).adminUser as AdminJwtPayload;
+  return res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    mustChangePassword: user.mustChangePassword ?? false,
+    effectivePermissions: user.effectivePermissions ?? [],
+  });
+});
 
 // POST /admin/auth/login
 router.post("/auth/login", async (req: Request, res: Response) => {
@@ -45,6 +61,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
         role: user.role,
         createdAt: user.createdAt.toISOString(),
         mustChangePassword: user.mustChangePassword,
+        effectivePermissions: getEffectivePermissions(user.role, parseStoredPermissions(user.permissions)),
       },
     });
   } catch (err) {
@@ -106,6 +123,7 @@ router.post("/auth/change-password", adminAuthMiddleware, async (req: Request, r
         role: user.role,
         createdAt: user.createdAt.toISOString(),
         mustChangePassword: false,
+        effectivePermissions: getEffectivePermissions(user.role, parseStoredPermissions(user.permissions)),
       },
     });
   } catch (err) {

@@ -6,6 +6,10 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { getToken, getUser } from "@/lib/auth";
+import { PermissionsProvider, usePermissions } from "@/hooks/use-permissions";
+import type { FeatureKey } from "@workspace/permissions";
+import { getDefaultRoute } from "@/lib/permission-routes";
+import { NoAccess } from "@/components/no-access";
 
 import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
@@ -26,33 +30,40 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({
   component: Component,
-  adminOnly = false,
-  adminOrModerator = false,
+  feature,
 }: {
   component: any;
-  adminOnly?: boolean;
-  adminOrModerator?: boolean;
+  // Omit to mean "any authenticated user" (e.g. the moderation queue, which
+  // rides along with the "reports" feature but has no distinct key of its
+  // own — every role that can see Incident Reports can see this too).
+  feature?: FeatureKey;
 }) {
   const [, setLocation] = useLocation();
   const token = getToken();
   const user = getUser();
+  const { effectivePermissions, isLoading } = usePermissions();
+
+  const denied = !isLoading && !!feature && !effectivePermissions.includes(feature);
+  // Only used once we know the current route is denied — points at the
+  // first route the caller's *actual* permissions allow, never a hardcoded
+  // guess, so a user with an unusual custom grant still lands somewhere
+  // valid instead of bouncing into another denied route.
+  const fallback = denied ? getDefaultRoute(effectivePermissions) : null;
 
   useEffect(() => {
     if (!token || !user) {
       setLocation("/login");
     } else if (user.mustChangePassword) {
       setLocation("/change-password");
-    } else if (adminOnly && user.role !== "admin") {
-      setLocation(user.role === "moderator" ? "/reports" : "/reports");
-    } else if (adminOrModerator && !["admin", "moderator"].includes(user.role)) {
-      setLocation("/reports");
+    } else if (denied && fallback) {
+      setLocation(fallback);
     }
-  }, [token, user, setLocation, adminOnly, adminOrModerator]);
+  }, [token, user, setLocation, denied, fallback]);
 
   if (!token || !user) return null;
   if (user.mustChangePassword) return null;
-  if (adminOnly && user.role !== "admin") return null;
-  if (adminOrModerator && !["admin", "moderator"].includes(user.role)) return null;
+  if (isLoading) return null;
+  if (denied) return fallback ? null : <NoAccess />;
 
   return <Component />;
 }
@@ -61,18 +72,26 @@ function RootRedirect() {
   const [, setLocation] = useLocation();
   const token = getToken();
   const user = getUser();
+  const { effectivePermissions, isLoading } = usePermissions();
 
   useEffect(() => {
-    if (token && user) {
-      if (user.mustChangePassword) {
-        setLocation("/change-password");
-      } else {
-        setLocation(user.role === "admin" ? "/dashboard" : "/reports");
-      }
-    } else {
+    if (!token || !user) {
       setLocation("/login");
+      return;
     }
-  }, [token, user, setLocation]);
+    if (user.mustChangePassword) {
+      setLocation("/change-password");
+      return;
+    }
+    if (isLoading) return;
+    const fallback = getDefaultRoute(effectivePermissions);
+    if (fallback) setLocation(fallback);
+  }, [token, user, setLocation, isLoading, effectivePermissions]);
+
+  if (!token || !user) return null;
+  if (user.mustChangePassword) return null;
+  if (isLoading) return null;
+  if (!getDefaultRoute(effectivePermissions)) return <NoAccess />;
 
   return null;
 }
@@ -83,18 +102,18 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
       <Route path="/change-password" component={ChangePassword} />
-      <Route path="/dashboard"><ProtectedRoute component={Dashboard} adminOnly={true} /></Route>
-      <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
-      <Route path="/moderation-queue"><ProtectedRoute component={ModerationQueue} /></Route>
-      <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} /></Route>
-      <Route path="/users"><ProtectedRoute component={Users} adminOnly={true} /></Route>
-      <Route path="/audit-log"><ProtectedRoute component={AuditLog} adminOrModerator={true} /></Route>
-      <Route path="/notifications"><ProtectedRoute component={Notifications} adminOrModerator={true} /></Route>
-      <Route path="/subscribers"><ProtectedRoute component={Subscribers} adminOrModerator={true} /></Route>
-      <Route path="/push-campaigns"><ProtectedRoute component={PushCampaigns} adminOrModerator={true} /></Route>
-      <Route path="/releases"><ProtectedRoute component={Releases} adminOrModerator={true} /></Route>
-      <Route path="/blog"><ProtectedRoute component={Blog} adminOrModerator={true} /></Route>
-      <Route path="/creators"><ProtectedRoute component={Creators} adminOrModerator={true} /></Route>
+      <Route path="/dashboard"><ProtectedRoute component={Dashboard} feature="dashboard" /></Route>
+      <Route path="/reports"><ProtectedRoute component={Reports} feature="reports" /></Route>
+      <Route path="/moderation-queue"><ProtectedRoute component={ModerationQueue} feature="reports" /></Route>
+      <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} feature="speed_zones" /></Route>
+      <Route path="/users"><ProtectedRoute component={Users} feature="team" /></Route>
+      <Route path="/audit-log"><ProtectedRoute component={AuditLog} feature="audit_log" /></Route>
+      <Route path="/notifications"><ProtectedRoute component={Notifications} feature="notifications" /></Route>
+      <Route path="/subscribers"><ProtectedRoute component={Subscribers} feature="subscribers" /></Route>
+      <Route path="/push-campaigns"><ProtectedRoute component={PushCampaigns} feature="push_campaigns" /></Route>
+      <Route path="/releases"><ProtectedRoute component={Releases} feature="releases" /></Route>
+      <Route path="/blog"><ProtectedRoute component={Blog} feature="blog" /></Route>
+      <Route path="/creators"><ProtectedRoute component={Creators} feature="creators" /></Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -104,12 +123,14 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
+        <PermissionsProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </PermissionsProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

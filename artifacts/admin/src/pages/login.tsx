@@ -4,7 +4,10 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAdminLogin } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { setToken, getToken, getUser } from "@/lib/auth";
+import { usePermissions } from "@/hooks/use-permissions";
+import { getDefaultRoute } from "@/lib/permission-routes";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,17 +25,20 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const token = getToken();
+  const queryClient = useQueryClient();
+  const { effectivePermissions, isLoading } = usePermissions();
 
   useEffect(() => {
-    if (token) {
-      const user = getUser();
-      if (user?.mustChangePassword) {
-        setLocation("/change-password");
-      } else {
-        setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
-      }
+    if (!token) return;
+    const user = getUser();
+    if (user?.mustChangePassword) {
+      setLocation("/change-password");
+      return;
     }
-  }, [token, setLocation]);
+    if (isLoading) return;
+    const fallback = getDefaultRoute(effectivePermissions);
+    if (fallback) setLocation(fallback);
+  }, [token, setLocation, isLoading, effectivePermissions]);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -46,8 +52,7 @@ export default function Login() {
     mutation: {
       onSuccess: (data) => {
         setToken(data.token);
-        const user = getUser();
-        if (user?.mustChangePassword) {
+        if (data.user.mustChangePassword) {
           toast({
             title: "Password change required",
             description: "Please set a new password before continuing.",
@@ -55,11 +60,28 @@ export default function Login() {
           setLocation("/change-password");
           return;
         }
+        // Prime the shared /admin/auth/me cache with what the login
+        // response already told us, so the redirect below (and the layout
+        // that mounts right after it) has real effectivePermissions on the
+        // very first render instead of waiting on a second network round
+        // trip or falling back to a hardcoded route guess.
+        queryClient.setQueryData(["/api/admin/auth/me"], {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name,
+          role: data.user.role,
+          mustChangePassword: data.user.mustChangePassword ?? false,
+          effectivePermissions: data.user.effectivePermissions ?? [],
+        });
         toast({
           title: "Sign in successful",
           description: "Welcome back to Msafiri Ops.",
         });
-        setLocation(user?.role === "admin" ? "/dashboard" : "/reports");
+        // "/" re-evaluates via RootRedirect, which shows a "no access"
+        // screen instead of bouncing into another denied route when the
+        // account has no accessible feature at all.
+        const fallback = getDefaultRoute((data.user.effectivePermissions ?? []) as any);
+        setLocation(fallback ?? "/");
       },
       onError: (error) => {
         toast({

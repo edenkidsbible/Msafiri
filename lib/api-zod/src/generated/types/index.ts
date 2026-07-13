@@ -22,6 +22,7 @@ export * from './adminListReportsParams';
 export * from './adminListSpeedZonesParams';
 export * from './adminLoginInput';
 export * from './adminLoginResult';
+export * from './adminMe';
 export * from './adminModerationActionResult';
 export * from './adminModerationQueue';
 export * from './adminNotification';

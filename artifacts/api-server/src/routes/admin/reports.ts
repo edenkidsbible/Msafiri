@@ -3,6 +3,7 @@ import { db, communityReportsTable } from "@workspace/db";
 import { eq, sql, ilike, or, and, desc, inArray } from "drizzle-orm";
 import { logAudit, createNotification } from "../../lib/audit.js";
 import type { AdminJwtPayload } from "../../middleware/adminAuth.js";
+import { requireFeature } from "../../middleware/adminAuth.js";
 import { TTL_SECONDS } from "../reports.js";
 
 const router = Router();
@@ -11,7 +12,7 @@ const router = Router();
 // Two groups an operator needs to act on: reports that just expired (may be
 // worth restoring with one tap) and new camera/checkpoint reports still
 // awaiting first review before they reach drivers.
-router.get("/reports/moderation-queue", async (_req: Request, res: Response) => {
+router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: Request, res: Response) => {
   try {
     const [expired, pendingReview] = await Promise.all([
       db
@@ -56,7 +57,7 @@ router.get("/reports/moderation-queue", async (_req: Request, res: Response) => 
 // ── POST /admin/reports/:id/approve — restore an expired report or publish a
 // pending-review submission; both cases bring the report back to "active"
 // with a freshly computed expiry. ───────────────────────────────────────────
-router.post("/reports/:id/approve", async (req: Request, res: Response) => {
+router.post("/reports/:id/approve", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
 
@@ -104,7 +105,7 @@ router.post("/reports/:id/approve", async (req: Request, res: Response) => {
 // ── POST /admin/reports/:id/reject — dismiss a queued report. A pending-review
 // submission is denied outright (never goes live); an expired report is just
 // dismissed from the queue (stays "expired"). ──────────────────────────────
-router.post("/reports/:id/reject", async (req: Request, res: Response) => {
+router.post("/reports/:id/reject", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
 
@@ -142,7 +143,7 @@ router.post("/reports/:id/reject", async (req: Request, res: Response) => {
 });
 
 // GET /admin/reports?page=&limit=&type=&status=&search=
-router.get("/reports", async (req: Request, res: Response) => {
+router.get("/reports", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const page  = Math.max(1, parseInt((req.query.page  as string) ?? "1"));
     const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "50")));
@@ -208,7 +209,7 @@ router.get("/reports", async (req: Request, res: Response) => {
 });
 
 // GET /admin/reports/export — CSV download
-router.get("/reports/export", async (req: Request, res: Response) => {
+router.get("/reports/export", requireFeature("reports_export"), async (req: Request, res: Response) => {
   try {
     const type   = req.query.type   as string | undefined;
     const status = req.query.status as string | undefined;
@@ -261,7 +262,7 @@ router.get("/reports/export", async (req: Request, res: Response) => {
 });
 
 // POST /admin/reports
-router.post("/reports", async (req: Request, res: Response) => {
+router.post("/reports", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const { type, lat, lng, deviceId, status, speedLimit, roadName } = req.body as {
       type: string; lat: number; lng: number;
@@ -381,7 +382,7 @@ function parseCsv(text: string): string[][] {
 }
 
 // POST /admin/reports/import — CSV upload (creates new rows, restores/updates existing rows by id)
-router.post("/reports/import", async (req: Request, res: Response) => {
+router.post("/reports/import", requireFeature("reports_bulk"), async (req: Request, res: Response) => {
   try {
     const { csv } = req.body as { csv?: string };
     if (!csv || typeof csv !== "string" || !csv.trim()) {
@@ -518,7 +519,7 @@ router.post("/reports/import", async (req: Request, res: Response) => {
 });
 
 // POST /admin/reports/bulk — bulk action
-router.post("/reports/bulk", async (req: Request, res: Response) => {
+router.post("/reports/bulk", requireFeature("reports_bulk"), async (req: Request, res: Response) => {
   try {
     const { action, ids } = req.body as { action: "confirm" | "deny" | "delete"; ids: string[] };
 
@@ -562,7 +563,7 @@ router.post("/reports/bulk", async (req: Request, res: Response) => {
 });
 
 // PATCH /admin/reports/:id
-router.patch("/reports/:id", async (req: Request, res: Response) => {
+router.patch("/reports/:id", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
     const { type, lat, lng, status, speedLimit, roadName, confirmCount, denyCount } = req.body as {
@@ -618,7 +619,7 @@ router.patch("/reports/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /admin/reports/:id
-router.delete("/reports/:id", async (req: Request, res: Response) => {
+router.delete("/reports/:id", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
 
