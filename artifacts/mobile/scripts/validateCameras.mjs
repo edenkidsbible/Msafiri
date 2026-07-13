@@ -6,6 +6,10 @@
  *   node artifacts/mobile/scripts/validateCameras.mjs           # report only
  *   node artifacts/mobile/scripts/validateCameras.mjs --fix     # report + write corrections
  *   node artifacts/mobile/scripts/validateCameras.mjs --threshold=100   # flag >100m (default 50m)
+ *   node artifacts/mobile/scripts/validateCameras.mjs --fix --maxfix=200 # only auto-apply corrections <=200m
+ *                                                                          (skips huge offsets caused by anchor
+ *                                                                          lines that don't reach the camera —
+ *                                                                          see console output for skipped ids)
  *
  * How it works:
  *   1. Reads speedZones.ts and extracts all camera coordinates.
@@ -26,6 +30,8 @@ const ZONES_FILE = path.resolve(__dir, '../data/speedZones.ts');
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 const THRESHOLD = parseInt(process.argv.find(a => a.startsWith('--threshold='))?.split('=')[1] ?? '50', 10);
 const FIX = process.argv.includes('--fix');
+const MAXFIX_ARG = process.argv.find(a => a.startsWith('--maxfix='))?.split('=')[1];
+const MAXFIX = MAXFIX_ARG != null ? parseInt(MAXFIX_ARG, 10) : Infinity;
 
 // ── Road anchor points ─────────────────────────────────────────────────────────
 // Each entry is an ordered list of [lng, lat] waypoints that lie ON the road.
@@ -197,10 +203,11 @@ async function main() {
 
     if (dist > THRESHOLD) {
       const flag = dist > 300 ? '🔴' : '🟡';
-      console.log(`${flag}  ${cam.id}  ${dist}m off ${road}`);
+      const skip = dist > MAXFIX;
+      console.log(`${flag}  ${cam.id}  ${dist}m off ${road}${skip ? '  (exceeds --maxfix, will NOT auto-apply — likely an anchor-coverage gap, not a real offset)' : ''}`);
       console.log(`      was  [${cam.lat}, ${cam.lng}]`);
       console.log(`      snap [${newLat}, ${newLng}]\n`);
-      corrections.push({ id: cam.id, newLat, newLng });
+      corrections.push({ id: cam.id, newLat, newLng, dist, skip });
     }
   }
 
@@ -217,9 +224,15 @@ async function main() {
     return;
   }
 
+  const toApply = corrections.filter(c => !c.skip);
+  const skipped = corrections.filter(c => c.skip);
+  if (skipped.length > 0) {
+    console.log(`\nSkipping ${skipped.length} camera(s) exceeding --maxfix=${MAXFIX}m (not applied): ${skipped.map(c => c.id).join(', ')}`);
+  }
+
   let fixed = 0;
   let out = src;
-  for (const { id, newLat, newLng } of corrections) {
+  for (const { id, newLat, newLng } of toApply) {
     const re = new RegExp(
       `(id:\\s*"${id}"[^}]*?lat:\\s*)-?[\\d.]+([^}]*?lng:\\s*)-?[\\d.]+`,
       's'
