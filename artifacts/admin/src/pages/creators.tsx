@@ -12,8 +12,6 @@ import { getToken } from "@/lib/auth";
 import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple } from "lucide-react";
 import { format } from "date-fns";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
 type Application = {
   id: string;
   name: string;
@@ -34,7 +32,7 @@ type CodeStats = {
 };
 
 async function fetchCreators(): Promise<CreatorsData> {
-  const res = await fetch(`${BASE}/api/admin/creators`, {
+  const res = await fetch(`/api/admin/creators`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!res.ok) throw new Error("Failed to fetch creator applications");
@@ -42,7 +40,7 @@ async function fetchCreators(): Promise<CreatorsData> {
 }
 
 async function fetchCodeStats(): Promise<CodeStats> {
-  const res = await fetch(`${BASE}/api/admin/creators/codes/stats`, {
+  const res = await fetch(`/api/admin/creators/codes/stats`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!res.ok) throw new Error("Failed to fetch code stats");
@@ -50,7 +48,7 @@ async function fetchCodeStats(): Promise<CodeStats> {
 }
 
 async function uploadCodes(platform: string, codes: string[]): Promise<{ inserted: number; attempted: number }> {
-  const res = await fetch(`${BASE}/api/admin/creators/codes`, {
+  const res = await fetch(`/api/admin/creators/codes`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -63,7 +61,7 @@ async function uploadCodes(platform: string, codes: string[]): Promise<{ inserte
 }
 
 async function updateStatus(id: string, status: string): Promise<{ codeAssigned: boolean; emailSent: boolean; noCodesLeft: boolean }> {
-  const res = await fetch(`${BASE}/api/admin/creators/${id}`, {
+  const res = await fetch(`/api/admin/creators/${id}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

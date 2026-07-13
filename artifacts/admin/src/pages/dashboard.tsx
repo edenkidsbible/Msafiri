@@ -16,14 +16,12 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 
-const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-
 function handleExport(type?: string, status?: string) {
   const token = getToken();
   const params = new URLSearchParams();
   if (type)   params.set("type", type);
   if (status) params.set("status", status);
-  const url = `${BASE_URL}/api/admin/reports/export${params.size ? "?" + params.toString() : ""}`;
+  const url = `/api/admin/reports/export${params.size ? "?" + params.toString() : ""}`;
   const a = document.createElement("a");
   a.href = url;
   a.setAttribute("download", "reports.csv");

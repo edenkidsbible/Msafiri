@@ -22,8 +22,6 @@ import type { AdminReport } from "@workspace/api-client-react";
 import { ReportsMap } from "@/components/reports-map";
 import { getToken } from "@/lib/auth";
 
-const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-
 const TYPE_COLORS: Record<string, string> = {
   camera:    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
   police:    "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
@@ -62,7 +60,7 @@ function handleExportCsv(type?: string, status?: string) {
   const params = new URLSearchParams();
   if (type)   params.set("type", type);
   if (status) params.set("status", status);
-  const url = `${BASE_URL}/api/admin/reports/export${params.size ? "?" + params.toString() : ""}`;
+  const url = `/api/admin/reports/export${params.size ? "?" + params.toString() : ""}`;
   fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     .then((r) => r.blob())
     .then((blob) => {
