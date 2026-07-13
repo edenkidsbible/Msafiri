@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { db, communityReportsTable, pushTokensTable } from "@workspace/db";
+import { db, communityReportsTable, pushTokensTable, blockedDevicesTable } from "@workspace/db";
 import { eq, and, or, lt, ne, gte, sql } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
@@ -45,6 +45,17 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 // "pending_review", is hidden from drivers by default until explicitly added here.
 function isActive() {
   return or(eq(communityReportsTable.status, "active"), eq(communityReportsTable.status, "confirmed"));
+}
+
+// A device blocked by an admin (report spamming/abuse) is rejected before
+// any mutation runs — submitting, confirming, and denying reports are all
+// gated on this so a blocked device can't affect other drivers' data.
+async function isDeviceBlocked(deviceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ deviceId: blockedDevicesTable.deviceId })
+    .from(blockedDevicesTable)
+    .where(eq(blockedDevicesTable.deviceId, deviceId));
+  return !!row;
 }
 
 // Lazily expire old reports before any read (no cron needed)
@@ -128,6 +139,10 @@ router.post("/reports", async (req: Request, res: Response) => {
 
     if (!type || lat == null || lng == null || !deviceId) {
       return res.status(400).json({ error: "type, lat, lng, deviceId required" });
+    }
+
+    if (await isDeviceBlocked(deviceId)) {
+      return res.status(403).json({ error: "This device has been blocked from submitting reports." });
     }
 
     const ttl = TTL_SECONDS[type] ?? null;
@@ -242,6 +257,10 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
     const { deviceId } = req.body as { deviceId: string };
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
+    if (await isDeviceBlocked(deviceId)) {
+      return res.status(403).json({ error: "This device has been blocked from voting on reports." });
+    }
+
     const [report] = await db
       .select()
       .from(communityReportsTable)
@@ -343,6 +362,10 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     const id = req.params["id"] as string;
     const { deviceId } = req.body as { deviceId: string };
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    if (await isDeviceBlocked(deviceId)) {
+      return res.status(403).json({ error: "This device has been blocked from voting on reports." });
+    }
 
     const [report] = await db
       .select()

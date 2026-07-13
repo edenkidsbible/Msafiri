@@ -29,3 +29,22 @@ export const insertReportSchema = createInsertSchema(communityReportsTable).omit
 
 export type InsertReport = z.infer<typeof insertReportSchema>;
 export type CommunityReportRow = typeof communityReportsTable.$inferSelect;
+
+// Device-level blocklist enforcing the "block a device for report
+// spamming/abuse" claim in the Terms of Service. Reporters are identified
+// only by a locally-generated device id (no accounts), so blocking happens
+// at that granularity. deviceId is the primary key — a device is either
+// blocked or not, no history of past blocks is kept.
+export const blockedDevicesTable = pgTable("blocked_devices", {
+  deviceId:  text("device_id").primaryKey(),
+  reason:    text("reason"),
+  blockedBy: text("blocked_by").notNull(), // admin display name at time of block
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertBlockedDeviceSchema = createInsertSchema(blockedDevicesTable).omit({
+  createdAt: true,
+});
+
+export type InsertBlockedDevice = z.infer<typeof insertBlockedDeviceSchema>;
+export type BlockedDeviceRow = typeof blockedDevicesTable.$inferSelect;

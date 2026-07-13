@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
-import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports } from "@workspace/api-client-react";
+import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports, useAdminListBlockedDevices, useAdminBlockDevice, useAdminUnblockDevice } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -103,6 +104,9 @@ export default function Reports() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [deviceToBlock, setDeviceToBlock] = useState<string | null>(null);
+  const [blockReason, setBlockReason] = useState("");
+  const [blockedDevicesOpen, setBlockedDevicesOpen] = useState(false);
 
   const [locationQuery, setLocationQuery] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
@@ -253,6 +257,37 @@ export default function Reports() {
     }
   });
 
+  const { data: blockedData } = useAdminListBlockedDevices({
+    query: { queryKey: ["/api/admin/reports/blocked-devices"] },
+  });
+  const blockedDeviceIds = new Set((blockedData?.devices ?? []).map((d) => d.deviceId));
+
+  const blockMutation = useAdminBlockDevice({
+    mutation: {
+      onSuccess: (result) => {
+        toast({ title: "Device blocked", description: `${result.deviceId.slice(0, 12)}… can no longer submit or vote on reports.` });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/blocked-devices"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/moderation-queue"] });
+        setDeviceToBlock(null);
+        setBlockReason("");
+      },
+      onError: () => toast({ title: "Failed to block device", variant: "destructive" }),
+    },
+  });
+
+  const unblockMutation = useAdminUnblockDevice({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Device unblocked" });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/blocked-devices"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/moderation-queue"] });
+      },
+      onError: () => toast({ title: "Failed to unblock device", variant: "destructive" }),
+    },
+  });
+
   const createForm = useForm<z.infer<typeof reportSchema>>({
     resolver: zodResolver(reportSchema),
     defaultValues: { type: "hazard", lat: 0, lng: 0, status: "active", roadName: "", speedLimit: 0 },
@@ -374,6 +409,15 @@ export default function Reports() {
               data-testid="btn-export-csv"
             >
               <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 shadow-none"
+              onClick={() => setBlockedDevicesOpen(true)}
+              data-testid="btn-blocked-devices"
+            >
+              <ShieldOff className="h-4 w-4" /> Blocked Devices
+              {blockedDeviceIds.size > 0 && <Badge className="ml-1">{blockedDeviceIds.size}</Badge>}
             </Button>
 
             <div className="flex bg-muted/50 p-1 rounded-lg">
@@ -640,9 +684,16 @@ export default function Reports() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`capitalize font-medium shadow-none ${TYPE_COLORS[report.type] || "bg-secondary text-secondary-foreground"}`}>
-                            {report.type}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={`capitalize font-medium shadow-none ${TYPE_COLORS[report.type] || "bg-secondary text-secondary-foreground"}`}>
+                              {report.type}
+                            </Badge>
+                            {report.deviceBlocked && (
+                              <Badge variant="outline" className="gap-1 shadow-none border-destructive/30 text-destructive bg-destructive/10" title="Reporting device is blocked">
+                                <ShieldAlert className="h-3 w-3" /> Blocked
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-start gap-2.5">
@@ -684,6 +735,24 @@ export default function Reports() {
                               <DropdownMenuItem onClick={() => openEditDialog(report)} className="cursor-pointer">
                                 <Edit className="mr-2 h-4 w-4" /> Edit Details
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {report.deviceBlocked ? (
+                                <DropdownMenuItem
+                                  onClick={() => unblockMutation.mutate({ deviceId: report.deviceId })}
+                                  className="cursor-pointer"
+                                  data-testid={`btn-unblock-device-${report.id}`}
+                                >
+                                  <ShieldOff className="mr-2 h-4 w-4" /> Unblock Device
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => { setDeviceToBlock(report.deviceId); setBlockReason(""); }}
+                                  className="cursor-pointer"
+                                  data-testid={`btn-block-device-${report.id}`}
+                                >
+                                  <ShieldOff className="mr-2 h-4 w-4" /> Block Device
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => setReportToDelete(report.id)} className="text-destructive focus:text-destructive cursor-pointer">
                                 <Trash2 className="mr-2 h-4 w-4" /> Delete Incident
@@ -780,6 +849,80 @@ export default function Reports() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Block device */}
+      <Dialog open={!!deviceToBlock} onOpenChange={(open) => { if (!open) { setDeviceToBlock(null); setBlockReason(""); } }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Block Device</DialogTitle>
+            <DialogDescription>
+              This device will no longer be able to submit new reports or vote (confirm/deny) on existing ones. You can unblock it later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="text-sm font-mono bg-muted/40 px-3 py-2 rounded-md break-all">{deviceToBlock}</div>
+            <div>
+              <label className="text-sm font-medium">Reason (optional)</label>
+              <Textarea
+                className="mt-1.5"
+                placeholder="e.g. Repeated spam/fake reports"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                data-testid="input-block-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="destructive"
+              className="w-full gap-2"
+              disabled={blockMutation.isPending}
+              onClick={() => deviceToBlock && blockMutation.mutate({ data: { deviceId: deviceToBlock, reason: blockReason || undefined } })}
+              data-testid="btn-confirm-block-device"
+            >
+              {blockMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
+              Block Device
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Blocked devices list */}
+      <Dialog open={blockedDevicesOpen} onOpenChange={setBlockedDevicesOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Blocked Devices</DialogTitle>
+            <DialogDescription>Devices currently blocked from submitting or voting on reports.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto space-y-2 pt-2">
+            {(blockedData?.devices ?? []).length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 text-center">No devices are currently blocked.</div>
+            ) : (
+              blockedData?.devices.map((d) => (
+                <div key={d.deviceId} className="flex items-start justify-between gap-3 border rounded-lg px-3 py-2.5" data-testid={`row-blocked-device-${d.deviceId}`}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-mono truncate">{d.deviceId}</div>
+                    {d.reason && <div className="text-xs text-muted-foreground mt-1">{d.reason}</div>}
+                    <div className="text-xs text-muted-foreground/70 mt-1">
+                      Blocked by {d.blockedBy} · {format(new Date(d.createdAt), "MMM d, yyyy HH:mm")}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 h-8 shrink-0 shadow-none"
+                    disabled={unblockMutation.isPending}
+                    onClick={() => unblockMutation.mutate({ deviceId: d.deviceId })}
+                    data-testid={`btn-unblock-${d.deviceId}`}
+                  >
+                    <ShieldOff className="h-3.5 w-3.5" /> Unblock
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk delete confirm */}
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>

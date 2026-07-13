@@ -59,6 +59,9 @@ import type {
   AppReleaseList,
   AppVersionInfo,
   AuditLogList,
+  BlockDeviceInput,
+  BlockedDevice,
+  BlockedDeviceList,
   BlogPostFull,
   BlogPostList,
   BlogStats,
@@ -777,6 +780,223 @@ export const useAdminBulkReports = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminBulkReportsMutationOptions(options));
+    }
+
+export const getAdminListBlockedDevicesUrl = () => {
+
+
+
+
+  return `/api/admin/reports/blocked-devices`
+}
+
+/**
+ * @summary List currently blocked devices
+ */
+export const adminListBlockedDevices = async ( options?: RequestInit): Promise<BlockedDeviceList> => {
+
+  return customFetch<BlockedDeviceList>(getAdminListBlockedDevicesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListBlockedDevicesQueryKey = () => {
+    return [
+    `/api/admin/reports/blocked-devices`
+    ] as const;
+    }
+
+
+export const getAdminListBlockedDevicesQueryOptions = <TData = Awaited<ReturnType<typeof adminListBlockedDevices>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListBlockedDevices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListBlockedDevicesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListBlockedDevices>>> = ({ signal }) => adminListBlockedDevices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListBlockedDevices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListBlockedDevicesQueryResult = NonNullable<Awaited<ReturnType<typeof adminListBlockedDevices>>>
+export type AdminListBlockedDevicesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List currently blocked devices
+ */
+
+export function useAdminListBlockedDevices<TData = Awaited<ReturnType<typeof adminListBlockedDevices>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListBlockedDevices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListBlockedDevicesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminBlockDeviceUrl = () => {
+
+
+
+
+  return `/api/admin/reports/blocked-devices`
+}
+
+/**
+ * @summary Block a device from submitting/voting on reports (with an optional reason)
+ */
+export const adminBlockDevice = async (blockDeviceInput: BlockDeviceInput, options?: RequestInit): Promise<BlockedDevice> => {
+
+  return customFetch<BlockedDevice>(getAdminBlockDeviceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(blockDeviceInput)
+  }
+);}
+
+
+
+
+export const getAdminBlockDeviceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminBlockDevice>>, TError,{data: BodyType<BlockDeviceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminBlockDevice>>, TError,{data: BodyType<BlockDeviceInput>}, TContext> => {
+
+const mutationKey = ['adminBlockDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminBlockDevice>>, {data: BodyType<BlockDeviceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminBlockDevice(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminBlockDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof adminBlockDevice>>>
+    export type AdminBlockDeviceMutationBody = BodyType<BlockDeviceInput>
+    export type AdminBlockDeviceMutationError = ErrorType<void>
+
+    /**
+ * @summary Block a device from submitting/voting on reports (with an optional reason)
+ */
+export const useAdminBlockDevice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminBlockDevice>>, TError,{data: BodyType<BlockDeviceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminBlockDevice>>,
+        TError,
+        {data: BodyType<BlockDeviceInput>},
+        TContext
+      > => {
+      return useMutation(getAdminBlockDeviceMutationOptions(options));
+    }
+
+export const getAdminUnblockDeviceUrl = (deviceId: string,) => {
+
+
+
+
+  return `/api/admin/reports/blocked-devices/${deviceId}`
+}
+
+/**
+ * @summary Unblock a previously blocked device
+ */
+export const adminUnblockDevice = async (deviceId: string, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminUnblockDeviceUrl(deviceId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminUnblockDeviceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUnblockDevice>>, TError,{deviceId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUnblockDevice>>, TError,{deviceId: string}, TContext> => {
+
+const mutationKey = ['adminUnblockDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUnblockDevice>>, {deviceId: string}> = (props) => {
+          const {deviceId} = props ?? {};
+
+          return  adminUnblockDevice(deviceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUnblockDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof adminUnblockDevice>>>
+
+    export type AdminUnblockDeviceMutationError = ErrorType<void>
+
+    /**
+ * @summary Unblock a previously blocked device
+ */
+export const useAdminUnblockDevice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUnblockDevice>>, TError,{deviceId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUnblockDevice>>,
+        TError,
+        {deviceId: string},
+        TContext
+      > => {
+      return useMutation(getAdminUnblockDeviceMutationOptions(options));
     }
 
 export const getAdminGetModerationQueueUrl = () => {

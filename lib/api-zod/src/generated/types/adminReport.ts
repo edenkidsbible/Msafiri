@@ -12,6 +12,7 @@ export interface AdminReport {
   lat: number;
   lng: number;
   deviceId: string;
+  deviceBlocked?: boolean;
   status: string;
   confirmCount: number;
   denyCount: number;

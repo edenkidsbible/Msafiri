@@ -34,3 +34,4 @@
 - [Landmark geocoding for camera placement](landmark-geocoding-placement.md) — fix along-road offsets via landmark/two-point geocode biased to stored coord; off-road gate can't catch along-road errors; verify interchanges on OSRM polyline not coarse anchors.
 - [RevenueCat customer search limitations](revenuecat-customer-search-limits.md) — no bulk search/email field on RevenueCat customers, only exact app_user_id lookup; design subscriber search around that ceiling.
 - [Admin API permission gating](admin-permission-gating.md) — resolve permissions live from DB not JWT; `router.use(featureCheck, subRouter)` with no path leaks the check onto unrelated later routers in the chain.
+- [OpenAPI-first admin endpoint flow](openapi-codegen-flow.md) — schema push → route → openapi.yaml → orval codegen (which typechecks) → admin UI, in that order, or generated hooks won't exist yet.

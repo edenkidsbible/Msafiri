@@ -68,6 +68,7 @@ export interface AdminReport {
   lat: number;
   lng: number;
   deviceId: string;
+  deviceBlocked?: boolean;
   status: string;
   confirmCount: number;
   denyCount: number;
@@ -78,6 +79,24 @@ export interface AdminReport {
   createdAt: string;
   /** @nullable */
   expiresAt?: string | null;
+}
+
+export interface BlockedDevice {
+  deviceId: string;
+  /** @nullable */
+  reason?: string | null;
+  blockedBy: string;
+  createdAt: string;
+}
+
+export interface BlockedDeviceList {
+  devices: BlockedDevice[];
+}
+
+export interface BlockDeviceInput {
+  deviceId: string;
+  /** @nullable */
+  reason?: string | null;
 }
 
 export interface AdminReportList {

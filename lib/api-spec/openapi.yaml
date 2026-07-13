@@ -232,6 +232,64 @@ paths:
         "401":
           description: Unauthorized
 
+  /admin/reports/blocked-devices:
+    get:
+      operationId: adminListBlockedDevices
+      tags: [admin-reports]
+      summary: List currently blocked devices
+      responses:
+        "200":
+          description: Blocked devices list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedDeviceList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: adminBlockDevice
+      tags: [admin-reports]
+      summary: Block a device from submitting/voting on reports (with an optional reason)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockDeviceInput"
+      responses:
+        "201":
+          description: Blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedDevice"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /admin/reports/blocked-devices/{deviceId}:
+    delete:
+      operationId: adminUnblockDevice
+      tags: [admin-reports]
+      summary: Unblock a previously blocked device
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Unblocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
   /admin/reports/moderation-queue:
     get:
       operationId: adminGetModerationQueue
@@ -1232,6 +1290,7 @@ components:
         lat:          { type: number }
         lng:          { type: number }
         deviceId:     { type: string }
+        deviceBlocked: { type: boolean }
         status:       { type: string }
         confirmCount: { type: integer }
         denyCount:    { type: integer }
@@ -1239,6 +1298,31 @@ components:
         roadName:     { type: ["string", "null"] }
         createdAt:    { type: string }
         expiresAt:    { type: ["string", "null"] }
+
+    BlockedDevice:
+      type: object
+      required: [deviceId, blockedBy, createdAt]
+      properties:
+        deviceId:  { type: string }
+        reason:    { type: ["string", "null"] }
+        blockedBy: { type: string }
+        createdAt: { type: string }
+
+    BlockedDeviceList:
+      type: object
+      required: [devices]
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockedDevice"
+
+    BlockDeviceInput:
+      type: object
+      required: [deviceId]
+      properties:
+        deviceId: { type: string }
+        reason:   { type: ["string", "null"] }
 
     AdminReportList:
       type: object

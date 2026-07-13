@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { db, communityReportsTable } from "@workspace/db";
+import { db, communityReportsTable, blockedDevicesTable } from "@workspace/db";
 import { eq, sql, ilike, or, and, desc, inArray } from "drizzle-orm";
 import { logAudit, createNotification } from "../../lib/audit.js";
 import type { AdminJwtPayload } from "../../middleware/adminAuth.js";
@@ -8,13 +8,105 @@ import { TTL_SECONDS } from "../reports.js";
 
 const router = Router();
 
+// Fetch the current blocklist as a Set for O(1) lookups when annotating a
+// page of reports with a "deviceBlocked" flag.
+async function getBlockedDeviceIds(): Promise<Set<string>> {
+  const rows = await db.select({ deviceId: blockedDevicesTable.deviceId }).from(blockedDevicesTable);
+  return new Set(rows.map((r) => r.deviceId));
+}
+
+// ── GET /admin/reports/blocked-devices — list currently blocked devices ────────
+router.get("/reports/blocked-devices", requireFeature("reports"), async (_req: Request, res: Response) => {
+  try {
+    const rows = await db
+      .select()
+      .from(blockedDevicesTable)
+      .orderBy(desc(blockedDevicesTable.createdAt));
+
+    return res.json({
+      devices: rows.map((r) => ({
+        deviceId:  r.deviceId,
+        reason:    r.reason,
+        blockedBy: r.blockedBy,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  } catch (err) {
+    console.error("GET /admin/reports/blocked-devices error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/blocked-devices — block a device (upsert) ──────────────
+router.post("/reports/blocked-devices", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const { deviceId, reason } = req.body as { deviceId?: string; reason?: string };
+    if (!deviceId || typeof deviceId !== "string" || !deviceId.trim()) {
+      return res.status(400).json({ error: "deviceId is required" });
+    }
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+
+    const [blocked] = await db
+      .insert(blockedDevicesTable)
+      .values({ deviceId: deviceId.trim(), reason: reason?.trim() || null, blockedBy: actor.name })
+      .onConflictDoUpdate({
+        target: blockedDevicesTable.deviceId,
+        set: { reason: reason?.trim() || null, blockedBy: actor.name },
+      })
+      .returning();
+
+    await logAudit({
+      actor,
+      action: "device.block",
+      targetType: "device",
+      targetId: blocked.deviceId,
+      details: { reason: blocked.reason },
+    });
+
+    return res.status(201).json({
+      deviceId:  blocked.deviceId,
+      reason:    blocked.reason,
+      blockedBy: blocked.blockedBy,
+      createdAt: blocked.createdAt.toISOString(),
+    });
+  } catch (err) {
+    console.error("POST /admin/reports/blocked-devices error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── DELETE /admin/reports/blocked-devices/:deviceId — unblock a device ─────────
+router.delete("/reports/blocked-devices/:deviceId", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const deviceId = req.params["deviceId"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(blockedDevicesTable)
+      .where(eq(blockedDevicesTable.deviceId, deviceId));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    await db.delete(blockedDevicesTable).where(eq(blockedDevicesTable.deviceId, deviceId));
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({ actor, action: "device.unblock", targetType: "device", targetId: deviceId });
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /admin/reports/blocked-devices/:deviceId error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── GET /admin/reports/moderation-queue ────────────────────────────────────────
 // Two groups an operator needs to act on: reports that just expired (may be
 // worth restoring with one tap) and new camera/checkpoint reports still
 // awaiting first review before they reach drivers.
 router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: Request, res: Response) => {
   try {
-    const [expired, pendingReview] = await Promise.all([
+    const [expired, pendingReview, blockedIds] = await Promise.all([
       db
         .select()
         .from(communityReportsTable)
@@ -27,6 +119,7 @@ router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: 
         .where(eq(communityReportsTable.status, "pending_review"))
         .orderBy(communityReportsTable.createdAt)
         .limit(200),
+      getBlockedDeviceIds(),
     ]);
 
     const serialize = (r: typeof expired[number]) => ({
@@ -35,6 +128,7 @@ router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: 
       lat:          r.lat,
       lng:          r.lng,
       deviceId:     r.deviceId,
+      deviceBlocked: blockedIds.has(r.deviceId),
       status:       r.status,
       confirmCount: r.confirmCount,
       denyCount:    r.denyCount,
@@ -169,7 +263,7 @@ router.get("/reports", requireFeature("reports"), async (req: Request, res: Resp
       ? sql`${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`
       : undefined;
 
-    const [countResult, rows] = await Promise.all([
+    const [countResult, rows, blockedIds] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` })
         .from(communityReportsTable)
         .where(where),
@@ -179,6 +273,7 @@ router.get("/reports", requireFeature("reports"), async (req: Request, res: Resp
         .orderBy(desc(communityReportsTable.createdAt))
         .limit(limit)
         .offset(offset),
+      getBlockedDeviceIds(),
     ]);
 
     const total = countResult[0]?.count ?? 0;
@@ -190,6 +285,7 @@ router.get("/reports", requireFeature("reports"), async (req: Request, res: Resp
         lat:          r.lat,
         lng:          r.lng,
         deviceId:     r.deviceId,
+        deviceBlocked: blockedIds.has(r.deviceId),
         status:       r.status,
         confirmCount: r.confirmCount,
         denyCount:    r.denyCount,

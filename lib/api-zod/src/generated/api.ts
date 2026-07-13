@@ -96,6 +96,7 @@ export const AdminListReportsResponse = zod.object({
   "lat": zod.number(),
   "lng": zod.number(),
   "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
   "status": zod.string(),
   "confirmCount": zod.number(),
   "denyCount": zod.number(),
@@ -129,6 +130,7 @@ export const AdminCreateReportResponse = zod.object({
   "lat": zod.number(),
   "lng": zod.number(),
   "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
   "status": zod.string(),
   "confirmCount": zod.number(),
   "denyCount": zod.number(),
@@ -184,6 +186,47 @@ export const AdminBulkReportsResponse = zod.object({
 
 
 /**
+ * @summary List currently blocked devices
+ */
+export const AdminListBlockedDevicesResponse = zod.object({
+  "devices": zod.array(zod.object({
+  "deviceId": zod.string(),
+  "reason": zod.string().nullish(),
+  "blockedBy": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Block a device from submitting/voting on reports (with an optional reason)
+ */
+export const AdminBlockDeviceBody = zod.object({
+  "deviceId": zod.string(),
+  "reason": zod.string().nullish()
+})
+
+export const AdminBlockDeviceResponse = zod.object({
+  "deviceId": zod.string(),
+  "reason": zod.string().nullish(),
+  "blockedBy": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Unblock a previously blocked device
+ */
+export const AdminUnblockDeviceParams = zod.object({
+  "deviceId": zod.coerce.string()
+})
+
+export const AdminUnblockDeviceResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary List reports awaiting moderation (recently expired, pending review)
  */
 export const AdminGetModerationQueueResponse = zod.object({
@@ -193,6 +236,7 @@ export const AdminGetModerationQueueResponse = zod.object({
   "lat": zod.number(),
   "lng": zod.number(),
   "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
   "status": zod.string(),
   "confirmCount": zod.number(),
   "denyCount": zod.number(),
@@ -207,6 +251,7 @@ export const AdminGetModerationQueueResponse = zod.object({
   "lat": zod.number(),
   "lng": zod.number(),
   "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
   "status": zod.string(),
   "confirmCount": zod.number(),
   "denyCount": zod.number(),
@@ -308,6 +353,7 @@ export const AdminUpdateReportResponse = zod.object({
   "lat": zod.number(),
   "lng": zod.number(),
   "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
   "status": zod.string(),
   "confirmCount": zod.number(),
   "denyCount": zod.number(),

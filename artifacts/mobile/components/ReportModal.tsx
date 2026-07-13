@@ -24,6 +24,10 @@ import { snapToRoad } from "@/utils/snapToRoad";
 
 type ReportType = CommunityReport["type"];
 
+// Fixed speed-limit choices for speed camera reports (30–110 km/h in the
+// same 10 km/h steps NTSA limits use) — replaces free-form numeric entry.
+const SPEED_LIMIT_OPTIONS = [30, 40, 50, 60, 70, 80, 90, 100, 110];
+
 export interface ReportLocation {
   lat: number;
   lng: number;
@@ -404,24 +408,41 @@ export default function ReportModal({
               })}
             </View>
 
-            {/* Speed limit field — appears when "Speed Camera" is selected */}
+            {/* Speed limit picker — appears when "Speed Camera" is selected. Fixed
+                choices (NTSA's common 10 km/h steps) replace free-form digit entry
+                so cameras are reported with standardized values. */}
             {sel === "camera" && (
-              <View style={[styles.speedRow, { backgroundColor: "#E5393512", borderColor: "#E5393544" }]}>
-                <Ionicons name="speedometer-outline" size={18} color="#E53935" />
-                <Text style={[styles.speedLabel, { color: "#E53935" }]}>Speed limit at this camera:</Text>
-                <View style={[styles.speedInputWrap, { borderColor: "#E5393566", backgroundColor: c.card }]}>
-                  <TextInput
-                    style={[styles.speedInput, { color: c.foreground }]}
-                    value={speedLimit}
-                    onChangeText={(v) => { bumpIdleTimer(); setSpeedLimit(v.replace(/[^0-9]/g, "")); }}
-                    keyboardType="number-pad"
-                    placeholder="km/h"
-                    placeholderTextColor={c.mutedForeground}
-                    maxLength={3}
-                    returnKeyType="done"
-                  />
+              <View style={[styles.speedSection, { backgroundColor: "#E5393512", borderColor: "#E5393544" }]}>
+                <View style={styles.speedSectionHeader}>
+                  <Ionicons name="speedometer-outline" size={18} color="#E53935" />
+                  <Text style={[styles.speedLabel, { color: "#E53935" }]}>Speed limit at this camera:</Text>
+                  <Text style={[styles.speedOptional, { color: c.mutedForeground }]}>optional</Text>
                 </View>
-                <Text style={[styles.speedOptional, { color: c.mutedForeground }]}>optional</Text>
+                <View style={styles.speedChipRow}>
+                  {SPEED_LIMIT_OPTIONS.map((limit) => {
+                    const active = speedLimit === String(limit);
+                    return (
+                      <TouchableOpacity
+                        key={limit}
+                        style={[
+                          styles.speedChip,
+                          {
+                            backgroundColor: active ? "#E53935" : c.card,
+                            borderColor: active ? "#E53935" : "#E5393566",
+                          },
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          bumpIdleTimer();
+                          setSpeedLimit((prev) => (prev === String(limit) ? "" : String(limit)));
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[styles.speedChipTxt, { color: active ? "#FFF" : c.foreground }]}>{limit}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             )}
           </ScrollView>
@@ -521,21 +542,23 @@ const styles = StyleSheet.create({
   chipIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 13, fontFamily: "Inter_500Medium", flexShrink: 1 },
 
-  speedRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
+  speedSection: {
     borderWidth: 1, borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 11,
+    paddingHorizontal: 14, paddingVertical: 12,
     marginTop: 16,
-    flexWrap: "wrap",
+  },
+  speedSectionHeader: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10,
   },
   speedLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 1 },
-  speedInputWrap: {
-    borderWidth: 1.5, borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 4,
-    minWidth: 68,
-  },
-  speedInput: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center", minWidth: 52 },
   speedOptional: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  speedChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  speedChip: {
+    borderWidth: 1.5, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 8,
+    minWidth: 56, alignItems: "center",
+  },
+  speedChipTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 
   chipEmoji: { fontSize: 17, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
   submitEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
