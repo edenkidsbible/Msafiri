@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Circle, Marker, Polyline } from "react-native-maps";
+import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
@@ -264,6 +264,11 @@ export default function DriveMapView() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
+        // PROVIDER_GOOGLE explicitly (rather than relying on the platform
+        // default) gets Android onto the same well-optimized Google Maps
+        // renderer/gesture pipeline that iOS's Apple Maps equivalent enjoys,
+        // and unlocks moveOnMarkerPress/toolbar tuning below.
+        provider={PROVIDER_GOOGLE}
         initialRegion={
           currentLat != null && currentLng != null
             ? { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
@@ -273,6 +278,11 @@ export default function DriveMapView() {
         showsMyLocationButton={false}
         showsCompass
         showsTraffic={showTraffic}
+        // Prevents the camera from re-centering/animating on marker tap —
+        // that auto-pan fights the user's own drag gesture and is the main
+        // source of "snap-back" jank when tapping a cluster mid-pan on Android.
+        moveOnMarkerPress={false}
+        toolbarEnabled={false}
       >
         {/* Speed zone markers — road-stretch corridors show their limit as a
             badge at each end so you can see how the speed changes along the
@@ -286,6 +296,12 @@ export default function DriveMapView() {
                 anchor={{ x: 0.5, y: 1 }}
                 title={z.name}
                 description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
+                // These icons never change after first paint. Without this,
+                // Android re-rasterizes every one of these ~100+ marker
+                // views on every map layout pass (including mid-pan), which
+                // is the single biggest cause of dropped frames while
+                // dragging the map — iOS doesn't have this cost at all.
+                tracksViewChanges={false}
               >
                 {z.isStretchEndpoint ? (
                   <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={bg} />
@@ -333,6 +349,7 @@ export default function DriveMapView() {
             anchor={{ x: 0.5, y: 1 }}
             title={p.name}
             description={p.address}
+            tracksViewChanges={false}
           >
             <MarkerIcon
               matIcon={p.type === "fuel" ? "gas-station" : undefined}
@@ -358,7 +375,7 @@ export default function DriveMapView() {
 
         {/* Destination pin */}
         {activeRoute && activeRoute.coords.length > 0 && (
-          <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
+          <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination" tracksViewChanges={false}>
             <MarkerIcon ioniconName="navigate" bg="#1565C0" size={36} />
           </Marker>
         )}
