@@ -3,6 +3,7 @@ import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -265,11 +266,13 @@ export default function DriveMapView() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        // PROVIDER_GOOGLE explicitly (rather than relying on the platform
-        // default) gets Android onto the same well-optimized Google Maps
-        // renderer/gesture pipeline that iOS's Apple Maps equivalent enjoys,
-        // and unlocks moveOnMarkerPress/toolbar tuning below.
-        provider={PROVIDER_GOOGLE}
+        // PROVIDER_GOOGLE explicitly on Android only — it gets Android onto
+        // the same well-optimized Google Maps renderer/gesture pipeline that
+        // iOS's Apple Maps equivalent enjoys, and unlocks
+        // moveOnMarkerPress/toolbar tuning below. iOS has no Google Maps SDK
+        // key configured, so it falls back to the platform default (Apple
+        // Maps), same as the browse map screen.
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         initialRegion={
           currentLat != null && currentLng != null
             ? { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
