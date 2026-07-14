@@ -70,7 +70,8 @@
           ]
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./plugins/withDisableUnusedAudioServices.js"
     ],
     "experiments": {
       "typedRoutes": true,
