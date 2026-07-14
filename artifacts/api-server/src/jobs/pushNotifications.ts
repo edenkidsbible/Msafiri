@@ -100,6 +100,12 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 const INCIDENT_NOTIFY_RADIUS_KM = 5;
+// Only ping a handful of nearby drivers per sweep instead of everyone in
+// radius — we just need enough eyes to get one confirmation, not a blast.
+// If nobody confirms, the next 2-hour sweep tries again (picking whichever
+// devices are nearest at that time, which naturally reaches new drivers as
+// they move through the area).
+const INCIDENT_NOTIFY_BATCH_SIZE = 5;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -291,11 +297,13 @@ async function checkIncidentConfirmations(): Promise<void> {
           isNull(communityReportsTable.lastNotifiedAt),
           lte(communityReportsTable.lastNotifiedAt, twoHoursAgo)
         ),
-        // Must not have received a vote in the last 30 minutes
-        or(
-          isNull(communityReportsTable.lastVotedAt),
-          lte(communityReportsTable.lastVotedAt, thirtyMinAgo)
-        )
+        // Once anyone has confirmed ("still there"), stop asking entirely —
+        // lastVotedAt only gets set here while status stays active/confirmed
+        // via a confirm vote (a deny vote flips status to "denied" and drops
+        // out of this query), so any vote at all means it's settled. This is
+        // what stops the job from pestering drivers hours later once the
+        // first few nearby drivers have already confirmed it.
+        isNull(communityReportsTable.lastVotedAt)
       )
     );
 
@@ -323,10 +331,19 @@ async function checkIncidentConfirmations(): Promise<void> {
     // Filter to only devices that are within 5 km of the incident.
     // Devices with no recorded location are excluded — they will be reached
     // by the proximity-triggered in-app prompt instead.
-    const nearbyTokens = allTokens.filter((t) => {
-      if (t.lastLat == null || t.lastLng == null) return false;
-      return haversineKm(t.lastLat, t.lastLng, report.lat, report.lng) <= INCIDENT_NOTIFY_RADIUS_KM;
-    });
+    const nearbyTokens = allTokens
+      .map((t) => ({
+        ...t,
+        distanceKm:
+          t.lastLat != null && t.lastLng != null
+            ? haversineKm(t.lastLat, t.lastLng, report.lat, report.lng)
+            : Infinity,
+      }))
+      .filter((t) => t.distanceKm <= INCIDENT_NOTIFY_RADIUS_KM)
+      // Closest drivers first, then cap to a small batch — we only need a
+      // few confirmations, not to notify everyone in the radius at once.
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, INCIDENT_NOTIFY_BATCH_SIZE);
 
     const totalDevices = allTokens.length;
     const targetDevices = nearbyTokens.length;
