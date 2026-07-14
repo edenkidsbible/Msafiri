@@ -21,6 +21,16 @@ export const communityReportsTable = pgTable("community_reports", {
   // Set true when a moderator dismisses an expired report from the moderation
   // queue so it stops showing up there; the report itself stays "expired".
   moderationDismissed: boolean("moderation_dismissed").notNull().default(false),
+  // Driver-submitted flags ("report inappropriate/inaccurate report to staff").
+  // Distinct from confirm/deny voting — regular users cannot remove reports
+  // themselves (own or others'); flagging routes the report to the admin
+  // moderation queue for a human decision instead.
+  flagCount:      integer("flag_count").notNull().default(0),
+  flaggedBy:      jsonb("flagged_by").notNull().$type<string[]>().default([]), // deviceIds, one flag per device
+  flagReasons:    jsonb("flag_reasons").notNull().$type<string[]>().default([]),
+  // Set true when a moderator reviews the flag(s) and decides to keep the
+  // report live; a fresh flag from a new device clears this so it resurfaces.
+  flagDismissed:  boolean("flag_dismissed").notNull().default(false),
 });
 
 export const insertReportSchema = createInsertSchema(communityReportsTable).omit({

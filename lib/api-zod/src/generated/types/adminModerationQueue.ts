@@ -10,4 +10,5 @@ import type { AdminReport } from './adminReport';
 export interface AdminModerationQueue {
   expired: AdminReport[];
   pendingReview: AdminReport[];
+  flagged: AdminReport[];
 }

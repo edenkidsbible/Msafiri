@@ -1,9 +1,15 @@
 import { AdminLayout } from "@/components/layout/admin-layout";
-import { useAdminGetModerationQueue, useAdminApproveReport, useAdminRejectReport } from "@workspace/api-client-react";
+import {
+  useAdminGetModerationQueue,
+  useAdminApproveReport,
+  useAdminRejectReport,
+  useAdminKeepFlaggedReport,
+  useAdminRemoveFlaggedReport,
+} from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, XCircle, Loader2, ShieldAlert, TimerReset, Camera } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ShieldAlert, TimerReset, Camera, Flag } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,6 +18,15 @@ import type { AdminReport } from "@workspace/api-client-react";
 const TYPE_LABELS: Record<string, string> = {
   camera: "Speed Camera",
   police: "Police Checkpoint",
+};
+
+const FLAG_REASON_LABELS: Record<string, string> = {
+  inaccurate_location: "Inaccurate location",
+  already_gone: "Already gone",
+  duplicate: "Duplicate",
+  spam: "Spam",
+  inappropriate: "Inappropriate",
+  other: "Other",
 };
 
 function QueueRow({
@@ -71,6 +86,68 @@ function QueueRow({
   );
 }
 
+function FlagRow({
+  report,
+  onKeep,
+  onRemove,
+  isBusy,
+}: {
+  report: AdminReport;
+  onKeep: () => void;
+  onRemove: () => void;
+  isBusy: boolean;
+}) {
+  const reasons = report.flagReasons ?? [];
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between border rounded-lg px-4 py-3 bg-background">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="capitalize">{TYPE_LABELS[report.type] ?? report.type}</Badge>
+          {report.speedLimit ? <span className="text-xs text-muted-foreground">{report.speedLimit} km/h</span> : null}
+          <Badge variant="destructive" className="gap-1">
+            <Flag className="h-3 w-3" /> {report.flagCount ?? reasons.length} flag{(report.flagCount ?? 0) !== 1 ? "s" : ""}
+          </Badge>
+        </div>
+        <div className="text-sm font-medium text-foreground mt-1 truncate">
+          {report.roadName || `${report.lat.toFixed(5)}, ${report.lng.toFixed(5)}`}
+        </div>
+        {reasons.length > 0 && (
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Reasons: {reasons.map((r) => FLAG_REASON_LABELS[r] ?? r).join(", ")}
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+          Submitted {format(new Date(report.createdAt), "MMM d, HH:mm")} · device {report.deviceId.slice(0, 12)}…
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2 h-8 shadow-none border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+          disabled={isBusy}
+          onClick={onKeep}
+          data-testid={`btn-keep-${report.id}`}
+        >
+          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+          Keep
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2 h-8 shadow-none border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          disabled={isBusy}
+          onClick={onRemove}
+          data-testid={`btn-remove-flagged-${report.id}`}
+        >
+          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+          Remove
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function ModerationQueue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -101,10 +178,32 @@ export default function ModerationQueue() {
     },
   });
 
+  const keepMutation = useAdminKeepFlaggedReport({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Report kept live" });
+        invalidate();
+      },
+      onError: () => toast({ title: "Action failed", variant: "destructive" }),
+    },
+  });
+
+  const removeMutation = useAdminRemoveFlaggedReport({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Report removed", description: "It is no longer visible to drivers." });
+        invalidate();
+      },
+      onError: () => toast({ title: "Remove failed", variant: "destructive" }),
+    },
+  });
+
   const busyId = approveMutation.isPending ? approveMutation.variables?.id : rejectMutation.isPending ? rejectMutation.variables?.id : undefined;
+  const flagBusyId = keepMutation.isPending ? keepMutation.variables?.id : removeMutation.isPending ? removeMutation.variables?.id : undefined;
 
   const expired = data?.expired ?? [];
   const pendingReview = data?.pendingReview ?? [];
+  const flagged = data?.flagged ?? [];
 
   return (
     <AdminLayout>
@@ -115,6 +214,35 @@ export default function ModerationQueue() {
             Review new camera/checkpoint submissions and decide whether to restore recently expired reports.
           </p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Flag className="h-4 w-4 text-primary" /> Flagged by Drivers
+              {flagged.length > 0 && <Badge className="ml-1">{flagged.length}</Badge>}
+            </CardTitle>
+            <CardDescription>
+              Reports drivers flagged as inaccurate or inappropriate. Drivers can't remove reports themselves — decide here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…</div>
+            ) : flagged.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-6 text-center">No flagged reports awaiting review.</div>
+            ) : (
+              flagged.map((r) => (
+                <FlagRow
+                  key={r.id}
+                  report={r}
+                  isBusy={flagBusyId === r.id}
+                  onKeep={() => keepMutation.mutate({ id: r.id })}
+                  onRemove={() => removeMutation.mutate({ id: r.id })}
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

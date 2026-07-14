@@ -29,6 +29,7 @@ import type {
   AdminDeleteBlogPost200,
   AdminExportReportsParams,
   AdminGlobalSearchParams,
+  AdminKeepFlaggedReport200,
   AdminListAuditLogsParams,
   AdminListBlogPostsParams,
   AdminListReportsParams,
@@ -1214,6 +1215,146 @@ export const useAdminRejectReport = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminRejectReportMutationOptions(options));
+    }
+
+export const getAdminKeepFlaggedReportUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/reports/${id}/flags/keep`
+}
+
+/**
+ * @summary Keep a flagged report live (dismiss the flag)
+ */
+export const adminKeepFlaggedReport = async (id: string, options?: RequestInit): Promise<AdminKeepFlaggedReport200> => {
+
+  return customFetch<AdminKeepFlaggedReport200>(getAdminKeepFlaggedReportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminKeepFlaggedReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminKeepFlaggedReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminKeepFlaggedReport>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminKeepFlaggedReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminKeepFlaggedReport>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminKeepFlaggedReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminKeepFlaggedReportMutationResult = NonNullable<Awaited<ReturnType<typeof adminKeepFlaggedReport>>>
+
+    export type AdminKeepFlaggedReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Keep a flagged report live (dismiss the flag)
+ */
+export const useAdminKeepFlaggedReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminKeepFlaggedReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminKeepFlaggedReport>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminKeepFlaggedReportMutationOptions(options));
+    }
+
+export const getAdminRemoveFlaggedReportUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/reports/${id}/flags/remove`
+}
+
+/**
+ * @summary Remove a flagged report from drivers' view
+ */
+export const adminRemoveFlaggedReport = async (id: string, options?: RequestInit): Promise<AdminModerationActionResult> => {
+
+  return customFetch<AdminModerationActionResult>(getAdminRemoveFlaggedReportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminRemoveFlaggedReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRemoveFlaggedReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRemoveFlaggedReport>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminRemoveFlaggedReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRemoveFlaggedReport>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminRemoveFlaggedReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRemoveFlaggedReportMutationResult = NonNullable<Awaited<ReturnType<typeof adminRemoveFlaggedReport>>>
+
+    export type AdminRemoveFlaggedReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a flagged report from drivers' view
+ */
+export const useAdminRemoveFlaggedReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRemoveFlaggedReport>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRemoveFlaggedReport>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminRemoveFlaggedReportMutationOptions(options));
     }
 
 export const getAdminGlobalSearchUrl = (params: AdminGlobalSearchParams,) => {

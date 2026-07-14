@@ -148,7 +148,7 @@ export default function DriveMapView() {
     currentLat, currentLng,
     activeRoute, altRoutes, selectRoute,
     navigationActive, communityReports, showTraffic,
-    confirmReport, denyReport,
+    confirmReport, denyReport, flagReport,
     vehicleType, allZones,
     pendingFocusCoords, setPendingFocusCoords,
   } = useApp();
@@ -159,6 +159,31 @@ export default function DriveMapView() {
   const now = Date.now();
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
+  const [flaggingId, setFlaggingId] = useState<string | null>(null);
+
+  const handleFlagReport = (id: string) => {
+    Alert.alert(
+      "Report to moderators",
+      "Only Msafiri Kenya moderators can remove a report. Tell us why this one should be reviewed:",
+      [
+        { text: "Inaccurate location", onPress: () => submitFlag(id, "inaccurate_location") },
+        { text: "Already gone", onPress: () => submitFlag(id, "already_gone") },
+        { text: "Inappropriate / spam", onPress: () => submitFlag(id, "inappropriate") },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
+
+  const submitFlag = async (id: string, reason: string) => {
+    setFlaggingId(id);
+    const ok = await flagReport(id, reason);
+    setFlaggingId(null);
+    if (ok) {
+      Alert.alert("Reported", "Thanks — our moderation team will review this report.");
+    } else {
+      Alert.alert("Couldn't send report", "Check your connection and try again.");
+    }
+  };
   const openedAtRef = useRef(0);
 
   const openCluster = (group: ClusterGroup) => {
@@ -436,13 +461,23 @@ export default function DriveMapView() {
                                 if (ok) {
                                   setSelectedCluster(null);
                                 } else {
-                                  Alert.alert("Couldn't remove", "Check your connection and try again.");
+                                  Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
                                 }
                               }}
                             >
                               <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
                               <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
-                                {denyingId === r.id ? "Removing…" : "Gone now"}
+                                {denyingId === r.id ? "Sending…" : "Gone now"}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
+                              disabled={flaggingId === r.id}
+                              onPress={() => handleFlagReport(r.id)}
+                            >
+                              <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
+                              <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
+                                {flaggingId === r.id ? "Sending…" : "Report"}
                               </Text>
                             </TouchableOpacity>
                           </View>

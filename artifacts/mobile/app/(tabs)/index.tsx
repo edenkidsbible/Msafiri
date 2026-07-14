@@ -368,7 +368,6 @@ export default function DriveScreen() {
             <Text style={[styles.speedNum, { color: speedClr }]}>
               {Math.round(currentSpeed)}
             </Text>
-            <Text style={[styles.speedUnit, { color: fgMuted }]}>km/h</Text>
           </View>
 
           {/* Speed limit circle (like a real road sign) */}
@@ -585,7 +584,6 @@ export default function DriveScreen() {
               <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (isDark ? "#00E676" : "#2E7D32") }]}>
                 {Math.round(currentSpeed)}
               </Text>
-              <Text style={[styles.navSpeedUnit, { color: fgMuted }]}>km/h</Text>
               {currentSpeedLimit != null && (
                 <View style={[styles.navLimitRing, {
                   borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#333"),
@@ -859,7 +857,6 @@ const styles = StyleSheet.create({
   },
   speedGroup: { alignItems: "center", minWidth: 64 },
   speedNum:   { fontSize: 72, fontFamily: "Inter_700Bold", lineHeight: 74 },
-  speedUnit:  { fontSize: 13, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -6 },
 
   limitRing: {
     width: 52, height: 52, borderRadius: 26, borderWidth: 3.5,
@@ -936,7 +933,6 @@ const styles = StyleSheet.create({
     alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
   },
   navSpeedNum:  { fontSize: 54, fontFamily: "Inter_700Bold", lineHeight: 56 },
-  navSpeedUnit: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, marginTop: -3 },
   navLimitRing: {
     width: 38, height: 38, borderRadius: 19, borderWidth: 2.5,
     alignItems: "center", justifyContent: "center",

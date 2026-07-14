@@ -106,7 +106,7 @@ router.delete("/reports/blocked-devices/:deviceId", requireFeature("reports"), a
 // awaiting first review before they reach drivers.
 router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: Request, res: Response) => {
   try {
-    const [expired, pendingReview, blockedIds] = await Promise.all([
+    const [expired, pendingReview, flagged, blockedIds] = await Promise.all([
       db
         .select()
         .from(communityReportsTable)
@@ -118,6 +118,15 @@ router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: 
         .from(communityReportsTable)
         .where(eq(communityReportsTable.status, "pending_review"))
         .orderBy(communityReportsTable.createdAt)
+        .limit(200),
+      // Reports drivers have flagged as inaccurate/inappropriate — regular
+      // users cannot remove reports themselves, so this is the queue that
+      // routes their concern to a human moderator.
+      db
+        .select()
+        .from(communityReportsTable)
+        .where(and(sql`${communityReportsTable.flagCount} > 0`, eq(communityReportsTable.flagDismissed, false)))
+        .orderBy(desc(communityReportsTable.flagCount))
         .limit(200),
       getBlockedDeviceIds(),
     ]);
@@ -136,14 +145,88 @@ router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: 
       roadName:     r.roadName,
       createdAt:    r.createdAt.toISOString(),
       expiresAt:    r.expiresAt?.toISOString() ?? null,
+      flagCount:    r.flagCount,
+      flagReasons:  r.flagReasons,
     });
 
     return res.json({
       expired: expired.map(serialize),
       pendingReview: pendingReview.map(serialize),
+      flagged: flagged.map(serialize),
     });
   } catch (err) {
     console.error("GET /admin/reports/moderation-queue error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/:id/flags/keep — moderator reviewed a flagged report
+// and decided to keep it live; clears it from the flagged queue until a new
+// flag arrives. ──────────────────────────────────────────────────────────────
+router.post("/reports/:id/flags/keep", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({ flagDismissed: true })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: "report.moderation_keep_flagged",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName, flagCount: existing.flagCount },
+    });
+
+    return res.json({ id: updated.id, flagDismissed: updated.flagDismissed });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/flags/keep error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/:id/flags/remove — moderator agrees with the flag(s)
+// and removes the report from drivers' view. ────────────────────────────────
+router.post("/reports/:id/flags/remove", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({ status: "denied", flagDismissed: true })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: "report.moderation_remove_flagged",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName, flagCount: existing.flagCount },
+    });
+
+    return res.json({ id: updated.id, status: updated.status });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/flags/remove error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -79,6 +79,8 @@ export interface AdminReport {
   createdAt: string;
   /** @nullable */
   expiresAt?: string | null;
+  flagCount?: number;
+  flagReasons?: string[];
 }
 
 export interface BlockedDevice {
@@ -186,6 +188,7 @@ export interface AdminSearchResult {
 export interface AdminModerationQueue {
   expired: AdminReport[];
   pendingReview: AdminReport[];
+  flagged: AdminReport[];
 }
 
 export interface AdminModerationActionResult {
@@ -620,6 +623,11 @@ search?: string;
 export type AdminExportReportsParams = {
 type?: string;
 status?: string;
+};
+
+export type AdminKeepFlaggedReport200 = {
+  id: string;
+  flagDismissed: boolean;
 };
 
 export type AdminGlobalSearchParams = {

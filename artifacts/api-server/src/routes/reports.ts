@@ -356,6 +356,65 @@ router.patch("/reports/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Reasons a driver can give when flagging a report to staff. Kept small and
+// user-friendly — this maps 1:1 to the reason picker shown in the app.
+export const FLAG_REASONS = new Set([
+  "inaccurate_location", "already_gone", "duplicate", "spam", "inappropriate", "other",
+]);
+
+// ── POST /reports/:id/flag — "Report to moderators" ────────────────────────────
+// Regular drivers cannot delete a report themselves (own or someone else's)
+// once it has real weight behind it — this is the escalation path instead:
+// flag it for a human moderator to review in the admin dashboard.
+router.post("/reports/:id/flag", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const { deviceId, reason } = req.body as { deviceId: string; reason?: string };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+    if (reason && !FLAG_REASONS.has(reason)) {
+      return res.status(400).json({ error: "Invalid reason" });
+    }
+
+    if (await isDeviceBlocked(deviceId)) {
+      return res.status(403).json({ error: "This device has been blocked from flagging reports." });
+    }
+
+    const [report] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!report) return res.status(404).json({ error: "Not found" });
+
+    // One flag per device — resubmitting the same flag is a no-op, but still
+    // reports success so the app can show its usual confirmation.
+    if (report.flaggedBy.includes(deviceId)) {
+      return res.json({ flagCount: report.flagCount, alreadyFlagged: true });
+    }
+
+    const newFlagCount = report.flagCount + 1;
+    const newFlaggedBy = [...report.flaggedBy, deviceId];
+    const newFlagReasons = reason ? [...report.flagReasons, reason] : report.flagReasons;
+
+    await db
+      .update(communityReportsTable)
+      .set({
+        flagCount: newFlagCount,
+        flaggedBy: newFlaggedBy,
+        flagReasons: newFlagReasons,
+        // A fresh flag resurfaces the report for review even if a moderator
+        // previously decided to keep it live.
+        flagDismissed: false,
+      })
+      .where(eq(communityReportsTable.id, id));
+
+    return res.json({ flagCount: newFlagCount, alreadyFlagged: false });
+  } catch (err) {
+    console.error("POST /reports/:id/flag error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── POST /reports/:id/deny — "Gone now" ───────────────────────────────────────
 router.post("/reports/:id/deny", async (req: Request, res: Response) => {
   try {

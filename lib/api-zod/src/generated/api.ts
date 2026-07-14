@@ -103,7 +103,9 @@ export const AdminListReportsResponse = zod.object({
   "speedLimit": zod.number().nullish(),
   "roadName": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string().nullish()
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -137,7 +139,9 @@ export const AdminCreateReportResponse = zod.object({
   "speedLimit": zod.number().nullish(),
   "roadName": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string().nullish()
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
 })
 
 
@@ -243,7 +247,9 @@ export const AdminGetModerationQueueResponse = zod.object({
   "speedLimit": zod.number().nullish(),
   "roadName": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string().nullish()
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
 })),
   "pendingReview": zod.array(zod.object({
   "id": zod.string(),
@@ -258,7 +264,26 @@ export const AdminGetModerationQueueResponse = zod.object({
   "speedLimit": zod.number().nullish(),
   "roadName": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string().nullish()
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
+})),
+  "flagged": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
+  "status": zod.string(),
+  "confirmCount": zod.number(),
+  "denyCount": zod.number(),
+  "speedLimit": zod.number().nullish(),
+  "roadName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
 }))
 })
 
@@ -286,6 +311,34 @@ export const AdminRejectReportParams = zod.object({
 })
 
 export const AdminRejectReportResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string().optional(),
+  "status": zod.string(),
+  "expiresAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Keep a flagged report live (dismiss the flag)
+ */
+export const AdminKeepFlaggedReportParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminKeepFlaggedReportResponse = zod.object({
+  "id": zod.string(),
+  "flagDismissed": zod.boolean()
+})
+
+
+/**
+ * @summary Remove a flagged report from drivers' view
+ */
+export const AdminRemoveFlaggedReportParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminRemoveFlaggedReportResponse = zod.object({
   "id": zod.string(),
   "type": zod.string().optional(),
   "status": zod.string(),
@@ -360,7 +413,9 @@ export const AdminUpdateReportResponse = zod.object({
   "speedLimit": zod.number().nullish(),
   "roadName": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string().nullish()
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
 })
 
 

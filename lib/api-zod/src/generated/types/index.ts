@@ -16,6 +16,7 @@ export * from './adminChangePasswordInput';
 export * from './adminDeleteBlogPost200';
 export * from './adminExportReportsParams';
 export * from './adminGlobalSearchParams';
+export * from './adminKeepFlaggedReport200';
 export * from './adminListAuditLogsParams';
 export * from './adminListBlogPostsParams';
 export * from './adminListReportsParams';

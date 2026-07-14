@@ -39,7 +39,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const {
     hudMode, setHudMode, sosContact, setSosContact, clearTripHistory,
-    communityReports, deleteReport, updateReport,
+    communityReports, deleteReport, updateReport, flagReport,
     themeOverride, setThemeOverride,
     vehicleType, setVehicleType,
     clearAllData,
@@ -53,6 +53,7 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSpeed, setEditSpeed] = useState("");
+  const [flaggingReportId, setFlaggingReportId] = useState<string | null>(null);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -107,6 +108,31 @@ export default function SettingsScreen() {
           onPress: () => deleteReport(report.id),
         },
       ]
+    );
+  };
+
+  // Once a report has been confirmed by other drivers it's protected — the
+  // reporting device can no longer remove it unilaterally, only a moderator
+  // can. This is the escalation path for "this is wrong, please review it".
+  const promptFlagOwnReport = (report: CommunityReport) => {
+    Alert.alert(
+      "Report to moderators",
+      "Other drivers have confirmed this report, so only our moderation team can remove it. Tell us why it should be reviewed:",
+      [
+        { text: "It's inaccurate", onPress: () => submitOwnFlag(report.id, "inaccurate_location") },
+        { text: "It's gone now", onPress: () => submitOwnFlag(report.id, "already_gone") },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
+
+  const submitOwnFlag = async (id: string, reason: string) => {
+    setFlaggingReportId(id);
+    const ok = await flagReport(id, reason);
+    setFlaggingReportId(null);
+    Alert.alert(
+      ok ? "Reported" : "Couldn't send report",
+      ok ? "Thanks — our moderation team will review this report." : "Check your connection and try again."
     );
   };
 
@@ -307,6 +333,11 @@ export default function SettingsScreen() {
                         </View>
                       )}
                     </View>
+                    {isProtected && (
+                      <Text style={[styles.protectedHint, { color: c.mutedForeground }]}>
+                        Confirmed by other drivers — only moderators can remove it. Tap the flag to report it.
+                      </Text>
+                    )}
                   </View>
 
                   {/* Action buttons */}
@@ -324,9 +355,13 @@ export default function SettingsScreen() {
                       </TouchableOpacity>
                     )}
                     {isProtected ? (
-                      <View style={[styles.actionBtn, { backgroundColor: c.muted, opacity: 0.5 }]}>
-                        <Ionicons name="lock-closed" size={14} color={c.mutedForeground} />
-                      </View>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: "#1565C014" }]}
+                        disabled={flaggingReportId === report.id}
+                        onPress={() => promptFlagOwnReport(report)}
+                      >
+                        <Ionicons name="flag-outline" size={14} color={flaggingReportId === report.id ? c.mutedForeground : "#1565C0"} />
+                      </TouchableOpacity>
                     ) : (
                       <TouchableOpacity
                         style={[styles.actionBtn, { backgroundColor: "#E5393514" }]}
@@ -710,6 +745,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   confirmTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  protectedHint: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   reportActions: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
   actionBtn: {
     width: 32,

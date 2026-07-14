@@ -141,6 +141,7 @@ interface AppContextValue {
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<boolean>;
   deleteReport: (id: string) => Promise<void>;
+  flagReport: (id: string, reason?: string) => Promise<boolean>;
   updateReport: (id: string, speedLimit: number) => Promise<void>;
   deviceId: string | null;
   currentTrip: Partial<TripData> | null;
@@ -1673,6 +1674,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // "Report to moderators" — the only way a regular driver can flag a report
+  // (their own or someone else's) for removal once it's beyond self-delete.
+  // Never removes anything locally; a human moderator decides in the admin
+  // dashboard's moderation queue.
+  const flagReport = useCallback(async (id: string, reason?: string): Promise<boolean> => {
+    if (!deviceIdRef.current) return false;
+    const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
+    if (!report) return false;
+    const serverId = report.serverId ?? id;
+    if (isOfflineRef.current) return false;
+    try {
+      await apiPost(`/reports/${serverId}/flag`, { deviceId: deviceIdRef.current, reason });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const denyReport = useCallback(async (id: string): Promise<boolean> => {
     if (!deviceIdRef.current) return false;
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
@@ -1703,7 +1723,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       themeOverride, setThemeOverride,
       clearAllData,
       sosContact, setSosContact,
-      communityReports, addReport, confirmReport, denyReport, deleteReport, updateReport, deviceId,
+      communityReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
       hydrated, onboardingComplete, completeOnboarding,
       isOffline,

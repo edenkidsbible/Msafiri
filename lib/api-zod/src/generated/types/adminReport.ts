@@ -23,4 +23,6 @@ export interface AdminReport {
   createdAt: string;
   /** @nullable */
   expiresAt?: string | null;
+  flagCount?: number;
+  flagReasons?: string[];
 }
