@@ -17,6 +17,7 @@ import { POIS } from "@/data/pois";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
+import { formatTimeAgo } from "@/lib/timeAgo";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
@@ -164,7 +165,7 @@ export default function DriveMapView() {
   const handleFlagReport = (id: string) => {
     Alert.alert(
       "Report to moderators",
-      "Only Msafiri Kenya moderators can remove a report. Tell us why this one should be reviewed:",
+      "Once 2 drivers report the same thing, it's hidden until a moderator reviews it. Tell us why this one should be reviewed:",
       [
         { text: "Inaccurate location", onPress: () => submitFlag(id, "inaccurate_location") },
         { text: "Already gone", onPress: () => submitFlag(id, "already_gone") },
@@ -421,11 +422,7 @@ export default function DriveMapView() {
                   const def = resolveIncidentType(r.type);
                   const bg = def.color;
                   const emoji = def.emoji;
-                  const ageMin = Math.round((now - r.timestamp) / 60000);
-                  const ageStr =
-                    ageMin < 1  ? "Just now" :
-                    ageMin < 60 ? `${ageMin} min ago` :
-                                  `${Math.floor(ageMin / 60)}h ago`;
+                  const ageStr = formatTimeAgo(r.timestamp, now);
                   const canVote = !r.isOwn;
                   const confirmed = r.status === "confirmed";
                   return (

@@ -8,7 +8,7 @@ export const communityReportsTable = pgTable("community_reports", {
   lat:          doublePrecision("lat").notNull(),
   lng:          doublePrecision("lng").notNull(),
   deviceId:     text("device_id").notNull(),
-  status:       text("status").notNull().default("active"), // active|confirmed|expired|denied|pending_review
+  status:       text("status").notNull().default("active"), // active|confirmed|expired|denied|pending_review|flagged
   confirmCount: integer("confirm_count").notNull().default(1),
   confirmedBy:  jsonb("confirmed_by").notNull().$type<string[]>().default([]),
   denyCount:    integer("deny_count").notNull().default(0),
@@ -29,7 +29,10 @@ export const communityReportsTable = pgTable("community_reports", {
   // Driver-submitted flags ("report inappropriate/inaccurate report to staff").
   // Distinct from confirm/deny voting — regular users cannot remove reports
   // themselves (own or others'); flagging routes the report to the admin
-  // moderation queue for a human decision instead.
+  // moderation queue for a human decision instead. Once 2 *different* devices
+  // flag the same report, status flips to "flagged" (hidden from drivers,
+  // same allow-list mechanism as any other non-active/confirmed status) until
+  // a moderator restores or deletes it.
   flagCount:      integer("flag_count").notNull().default(0),
   flaggedBy:      jsonb("flagged_by").notNull().$type<string[]>().default([]), // deviceIds, one flag per device
   flagReasons:    jsonb("flag_reasons").notNull().$type<string[]>().default([]),

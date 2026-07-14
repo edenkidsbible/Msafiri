@@ -362,6 +362,13 @@ export const FLAG_REASONS = new Set([
   "inaccurate_location", "already_gone", "duplicate", "spam", "inappropriate", "other",
 ]);
 
+// Once this many *different* devices flag the same report, it's pulled off
+// the map immediately (rather than waiting on a moderator to get to the
+// queue) and handed to an admin to restore or delete. This is what lets
+// drivers get a permanent report (e.g. a speed camera, which never expires
+// on its own) removed without giving any single user the power to do so.
+const FLAG_AUTO_HIDE_THRESHOLD = 2;
+
 // ── POST /reports/:id/flag — "Report to moderators" ────────────────────────────
 // Regular drivers cannot delete a report themselves (own or someone else's)
 // once it has real weight behind it — this is the escalation path instead:
@@ -396,19 +403,28 @@ router.post("/reports/:id/flag", async (req: Request, res: Response) => {
     const newFlaggedBy = [...report.flaggedBy, deviceId];
     const newFlagReasons = reason ? [...report.flagReasons, reason] : report.flagReasons;
 
+    // Hide it from drivers the moment a second distinct device flags it —
+    // don't wait for a moderator to notice. isActive() only shows
+    // active/confirmed reports, so flipping to "flagged" is enough.
+    const autoHide =
+      newFlagCount >= FLAG_AUTO_HIDE_THRESHOLD &&
+      (report.status === "active" || report.status === "confirmed");
+    const newStatus = autoHide ? "flagged" : report.status;
+
     await db
       .update(communityReportsTable)
       .set({
         flagCount: newFlagCount,
         flaggedBy: newFlaggedBy,
         flagReasons: newFlagReasons,
+        status: newStatus,
         // A fresh flag resurfaces the report for review even if a moderator
         // previously decided to keep it live.
         flagDismissed: false,
       })
       .where(eq(communityReportsTable.id, id));
 
-    return res.json({ flagCount: newFlagCount, alreadyFlagged: false });
+    return res.json({ flagCount: newFlagCount, alreadyFlagged: false, status: newStatus, autoHidden: autoHide });
   } catch (err) {
     console.error("POST /reports/:id/flag error:", err);
     return res.status(500).json({ error: "Internal server error" });

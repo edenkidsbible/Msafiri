@@ -112,6 +112,11 @@ function FlagRow({
           <Badge variant="destructive" className="gap-1">
             <Flag className="h-3 w-3" /> {report.flagCount ?? reasons.length} flag{(report.flagCount ?? 0) !== 1 ? "s" : ""}
           </Badge>
+          {report.status === "flagged" && (
+            <Badge variant="outline" className="gap-1 shadow-none border-amber-500/30 text-amber-600 bg-amber-500/10">
+              Hidden from drivers
+            </Badge>
+          )}
           {report.deviceBlocked && (
             <Badge variant="outline" className="gap-1 shadow-none border-destructive/30 text-destructive bg-destructive/10" title="Reporting device is blocked">
               <ShieldAlert className="h-3 w-3" /> Blocked
@@ -140,7 +145,7 @@ function FlagRow({
           data-testid={`btn-keep-${report.id}`}
         >
           {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-          Keep
+          {report.status === "flagged" ? "Restore" : "Keep"}
         </Button>
         <Button
           size="sm"
@@ -151,7 +156,7 @@ function FlagRow({
           data-testid={`btn-remove-flagged-${report.id}`}
         >
           {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
-          Remove
+          Delete
         </Button>
       </div>
     </div>

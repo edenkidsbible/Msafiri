@@ -22,17 +22,7 @@ import { useSubscription } from "@/lib/revenuecat";
 import { PaywallModal } from "@/components/PaywallModal";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
-
-function timeAgo(ts: number): string {
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "Just now";
-  if (m < 60) return `${m} min ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
+import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 
 export default function SettingsScreen() {
   const c = useColors();

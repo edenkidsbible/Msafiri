@@ -12,6 +12,7 @@ import { snapToRoad } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
+import { formatTimeAgo } from "@/lib/timeAgo";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 
@@ -149,12 +150,7 @@ function CalloutContent({ group }: { group: ClusterGroup }) {
   const now = Date.now();
   const { members } = group;
 
-  const ageStr = (timestamp: number) => {
-    const ageMin = Math.round((now - timestamp) / 60000);
-    if (ageMin < 1) return "Just now";
-    if (ageMin < 60) return `${ageMin} min ago`;
-    return `${Math.floor(ageMin / 60)}h ago`;
-  };
+  const ageStr = (timestamp: number) => formatTimeAgo(timestamp, now);
 
   if (members.length === 1) {
     const r = members[0];

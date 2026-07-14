@@ -38,3 +38,4 @@
 - [OpenAPI-first admin endpoint flow](openapi-codegen-flow.md) — schema push → route → openapi.yaml → orval codegen (which typechecks) → admin UI, in that order, or generated hooks won't exist yet.
 - [Speed gauge vs zones-bar overlap](speed-gauge-zonesbar-overlap.md) — pale pill above the drive-screen speed digit was the zones strip, not AlertBanner; digit clipping needs flexShrink:0 on its wrapper.
 - [Incident re-notify rotation](incident-renotify-rotation.md) — no device location history exists (only push_tokens.lastLat/lastLng latest fix), so "ask fresh drivers" = exclude cumulative notifiedTokens per report + tiebreak by lastSeenAt.
+- [Report flag auto-hide vs deny](report-flag-autohide-vs-deny.md) — flag route now auto-hides on 2 distinct-device flags (status "flagged"); kept separate from the pre-existing single-vote "deny"/Gone-now path.

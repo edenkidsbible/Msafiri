@@ -174,9 +174,14 @@ router.post("/reports/:id/flags/keep", requireFeature("reports"), async (req: Re
 
     if (!existing) return res.status(404).json({ error: "Not found" });
 
+    // If flags auto-hid the report (status "flagged"), restore it to
+    // "active" so it reappears for drivers; a report that only picked up a
+    // single flag and never left "active"/"confirmed" is left as-is.
+    const restoredStatus = existing.status === "flagged" ? "active" : existing.status;
+
     const [updated] = await db
       .update(communityReportsTable)
-      .set({ flagDismissed: true })
+      .set({ flagDismissed: true, status: restoredStatus })
       .where(eq(communityReportsTable.id, id))
       .returning();
 
@@ -186,10 +191,10 @@ router.post("/reports/:id/flags/keep", requireFeature("reports"), async (req: Re
       action: "report.moderation_keep_flagged",
       targetType: "report",
       targetId: id,
-      details: { type: existing.type, roadName: existing.roadName, flagCount: existing.flagCount },
+      details: { type: existing.type, roadName: existing.roadName, flagCount: existing.flagCount, restoredStatus },
     });
 
-    return res.json({ id: updated.id, flagDismissed: updated.flagDismissed });
+    return res.json({ id: updated.id, flagDismissed: updated.flagDismissed, status: updated.status });
   } catch (err) {
     console.error("POST /admin/reports/:id/flags/keep error:", err);
     return res.status(500).json({ error: "Internal server error" });
