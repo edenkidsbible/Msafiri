@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Appearance, Platform } from "react-native";
+import { Alert, Appearance, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -16,7 +16,7 @@ import * as Speech from "expo-speech";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
-import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
+import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/utils/apiClient";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
@@ -490,6 +490,18 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
     },
     trigger: null,
   });
+}
+
+// Surfaces the one-time explanation when the API rejects a report/vote
+// because this device has been blocked by a moderator, instead of leaving
+// the driver to wonder why their reports keep disappearing. Returns true if
+// the error was a device-block 403 (so callers can skip other error UI).
+function warnIfBlockedDevice(err: unknown): boolean {
+  if (err instanceof ApiError && err.status === 403 && /blocked/i.test(err.message)) {
+    Alert.alert("Account Restricted", err.message);
+    return true;
+  }
+  return false;
 }
 
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
@@ -1585,7 +1597,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
         return u;
       });
-    }).catch(() => { /* still offline / request failed — local copy remains, retried on reconnect */ });
+    }).catch((err) => {
+      // still offline / request failed — local copy remains, retried on reconnect,
+      // except when the device has been blocked, which is worth surfacing now.
+      warnIfBlockedDevice(err);
+    });
   }, []);
   useEffect(() => { syncReportToServerRef.current = syncReportToServer; }, [syncReportToServer]);
 
@@ -1666,11 +1682,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCommunityReports((prev) =>
         prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: result.confirmCount, status: result.status as CommunityReport["status"] } : r)
       );
-    } catch {
+    } catch (err) {
       // Roll back optimistic update (e.g. 409 already confirmed, or network error)
       setCommunityReports((prev) =>
         prev.map((r) => (r.id === id || r.serverId === id) ? { ...r, confirmCount: originalCount } : r)
       );
+      warnIfBlockedDevice(err);
     }
   }, []);
 
@@ -1707,9 +1724,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current });
       return true;
-    } catch {
+    } catch (err) {
       // Roll back — restore the report so it isn't silently lost
       setCommunityReports((prev) => [...prev, report]);
+      warnIfBlockedDevice(err);
       return false;
     }
   }, []);
