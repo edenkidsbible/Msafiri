@@ -47,9 +47,14 @@ function QueueRow({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between border rounded-lg px-4 py-3 bg-background">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className="capitalize">{TYPE_LABELS[report.type] ?? report.type}</Badge>
           {report.speedLimit ? <span className="text-xs text-muted-foreground">{report.speedLimit} km/h</span> : null}
+          {report.deviceBlocked && (
+            <Badge variant="outline" className="gap-1 shadow-none border-destructive/30 text-destructive bg-destructive/10" title="Reporting device is blocked">
+              <ShieldAlert className="h-3 w-3" /> Blocked
+            </Badge>
+          )}
         </div>
         <div className="text-sm font-medium text-foreground mt-1 truncate">
           {report.roadName || `${report.lat.toFixed(5)}, ${report.lng.toFixed(5)}`}
@@ -107,6 +112,11 @@ function FlagRow({
           <Badge variant="destructive" className="gap-1">
             <Flag className="h-3 w-3" /> {report.flagCount ?? reasons.length} flag{(report.flagCount ?? 0) !== 1 ? "s" : ""}
           </Badge>
+          {report.deviceBlocked && (
+            <Badge variant="outline" className="gap-1 shadow-none border-destructive/30 text-destructive bg-destructive/10" title="Reporting device is blocked">
+              <ShieldAlert className="h-3 w-3" /> Blocked
+            </Badge>
+          )}
         </div>
         <div className="text-sm font-medium text-foreground mt-1 truncate">
           {report.roadName || `${report.lat.toFixed(5)}, ${report.lng.toFixed(5)}`}
