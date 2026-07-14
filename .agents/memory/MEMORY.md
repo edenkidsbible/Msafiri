@@ -36,3 +36,5 @@
 - [RevenueCat customer search limitations](revenuecat-customer-search-limits.md) — no bulk search/email field on RevenueCat customers, only exact app_user_id lookup; design subscriber search around that ceiling.
 - [Admin API permission gating](admin-permission-gating.md) — resolve permissions live from DB not JWT; `router.use(featureCheck, subRouter)` with no path leaks the check onto unrelated later routers in the chain.
 - [OpenAPI-first admin endpoint flow](openapi-codegen-flow.md) — schema push → route → openapi.yaml → orval codegen (which typechecks) → admin UI, in that order, or generated hooks won't exist yet.
+- [Speed gauge vs zones-bar overlap](speed-gauge-zonesbar-overlap.md) — pale pill above the drive-screen speed digit was the zones strip, not AlertBanner; digit clipping needs flexShrink:0 on its wrapper.
+- [Incident re-notify rotation](incident-renotify-rotation.md) — no device location history exists (only push_tokens.lastLat/lastLng latest fix), so "ask fresh drivers" = exclude cumulative notifiedTokens per report + tiebreak by lastSeenAt.

@@ -292,18 +292,22 @@ async function checkIncidentConfirmations(): Promise<void> {
         ne(communityReportsTable.type, "camera"),
         // Report must be at least 30 minutes old
         lte(communityReportsTable.createdAt, thirtyMinAgo),
-        // Must not have had a notification in the last 2 hours
+        // Must not have had a notification in the last 2 hours — this is
+        // the "ask again after two hours" cadence, whether or not it's been
+        // confirmed. Confirmations keep the report fresh but don't retire it
+        // permanently; we just make sure we don't re-ask the same drivers
+        // (see notifiedTokens exclusion below).
         or(
           isNull(communityReportsTable.lastNotifiedAt),
           lte(communityReportsTable.lastNotifiedAt, twoHoursAgo)
         ),
-        // Once anyone has confirmed ("still there"), stop asking entirely —
-        // lastVotedAt only gets set here while status stays active/confirmed
-        // via a confirm vote (a deny vote flips status to "denied" and drops
-        // out of this query), so any vote at all means it's settled. This is
-        // what stops the job from pestering drivers hours later once the
-        // first few nearby drivers have already confirmed it.
-        isNull(communityReportsTable.lastVotedAt)
+        // Give a confirm/deny vote a short grace period before the next
+        // round fires, so a just-confirmed report doesn't immediately queue
+        // another push.
+        or(
+          isNull(communityReportsTable.lastVotedAt),
+          lte(communityReportsTable.lastVotedAt, thirtyMinAgo)
+        )
       )
     );
 
@@ -316,6 +320,7 @@ async function checkIncidentConfirmations(): Promise<void> {
       token: pushTokensTable.token,
       lastLat: pushTokensTable.lastLat,
       lastLng: pushTokensTable.lastLng,
+      lastSeenAt: pushTokensTable.lastSeenAt,
     })
     .from(pushTokensTable);
 
@@ -328,10 +333,16 @@ async function checkIncidentConfirmations(): Promise<void> {
     const body = `Is ${typeLabel}${road} still active? Help other drivers — tap to confirm.`;
     const data = { type: "incident_check", reportId: report.id, lat: report.lat, lng: report.lng };
 
+    // Devices already asked about this report in an earlier round — exclude
+    // them so each 2-hour sweep reaches fresh drivers instead of pestering
+    // the same handful every time.
+    const alreadyAsked = new Set(report.notifiedTokens ?? []);
+
     // Filter to only devices that are within 5 km of the incident.
     // Devices with no recorded location are excluded — they will be reached
     // by the proximity-triggered in-app prompt instead.
     const nearbyTokens = allTokens
+      .filter((t) => !alreadyAsked.has(t.token))
       .map((t) => ({
         ...t,
         distanceKm:
@@ -340,9 +351,16 @@ async function checkIncidentConfirmations(): Promise<void> {
             : Infinity,
       }))
       .filter((t) => t.distanceKm <= INCIDENT_NOTIFY_RADIUS_KM)
-      // Closest drivers first, then cap to a small batch — we only need a
-      // few confirmations, not to notify everyone in the radius at once.
-      .sort((a, b) => a.distanceKm - b.distanceKm)
+      // Closest drivers first; among drivers at roughly the same distance,
+      // prefer whoever was seen most recently (a proxy for "currently out
+      // driving" since we don't retain historical route/path data). Then
+      // cap to a small batch — we only need a few confirmations, not to
+      // notify everyone in the radius at once.
+      .sort((a, b) => {
+        const distDiff = a.distanceKm - b.distanceKm;
+        if (Math.abs(distDiff) > 0.5) return distDiff;
+        return b.lastSeenAt.getTime() - a.lastSeenAt.getTime();
+      })
       .slice(0, INCIDENT_NOTIFY_BATCH_SIZE);
 
     const totalDevices = allTokens.length;
@@ -411,7 +429,10 @@ async function checkIncidentConfirmations(): Promise<void> {
 
     await db
       .update(communityReportsTable)
-      .set({ lastNotifiedAt: now })
+      .set({
+        lastNotifiedAt: now,
+        notifiedTokens: [...alreadyAsked, ...nearbyTokens.map((t) => t.token)],
+      })
       .where(eq(communityReportsTable.id, report.id));
 
     logger.info(

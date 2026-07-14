@@ -18,6 +18,11 @@ export const communityReportsTable = pgTable("community_reports", {
   expiresAt:       timestamp("expires_at"),          // null = never expires (cameras)
   lastNotifiedAt:  timestamp("last_notified_at"),    // last time a confirmation push was sent for this report
   lastVotedAt:     timestamp("last_voted_at"),       // last time any device confirmed or denied this report
+  // Cumulative list of push tokens already asked "is this still here?" for
+  // this report, across every 2-hour sweep. Lets each round target fresh
+  // (next-closest / most-recently-active) drivers instead of re-pinging the
+  // same few people every cycle.
+  notifiedTokens:  jsonb("notified_tokens").notNull().$type<string[]>().default([]),
   // Set true when a moderator dismisses an expired report from the moderation
   // queue so it stops showing up there; the report itself stays "expired".
   moderationDismissed: boolean("moderation_dismissed").notNull().default(false),

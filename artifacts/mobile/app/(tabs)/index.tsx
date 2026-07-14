@@ -433,32 +433,6 @@ export default function DriveScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Additional zones strip — shown when 2+ zones are ahead */}
-      {!isMapMode && !showResults && nearbyZones.length > 1 && (
-        <View style={[styles.zonesBar, { bottom: bottomBase + 158 }]}>
-          <ScrollView
-            {...SCROLL_PROPS}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 6, paddingHorizontal: 14 }}
-          >
-            {nearbyZones.slice(1, 6).map((z) => {
-              const col = zoneColor(z.type);
-              return (
-                <View key={z.id} style={[styles.zoneChip, {
-                  backgroundColor: isDark ? "#111D" : "#FFFEEE",
-                  borderColor: col + "66",
-                }]}>
-                  <ZoneIcon type={z.type} size={11} color={col} />
-                  <Text style={[styles.zoneChipLmt, { color: fgMain }]}>{z.speedLimit}</Text>
-                  <Text style={[styles.zoneChipDst, { color: fgMuted }]}>{distStr(z.distance)}</Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Route preview sheet
       ══════════════════════════════════════════════════════════════════ */}
@@ -855,8 +829,13 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 12, elevation: 10,
   },
-  speedGroup: { alignItems: "center", minWidth: 64 },
-  speedNum:   { fontSize: 72, fontFamily: "Inter_700Bold", lineHeight: 74 },
+  // flexShrink: 0 is the key fix — without it, this group could be squeezed
+  // by its siblings (limit ring / divider / zone text) whenever the row ran
+  // tight on space, clipping the right edge of the digit. minWidth is sized
+  // generously above the Inter_700Bold glyph width at this font size so the
+  // number always renders in full.
+  speedGroup: { alignItems: "center", minWidth: 96, flexShrink: 0 },
+  speedNum:   { fontSize: 88, fontFamily: "Inter_700Bold", lineHeight: 92 },
 
   limitRing: {
     width: 52, height: 52, borderRadius: 26, borderWidth: 3.5,
@@ -872,15 +851,6 @@ const styles = StyleSheet.create({
   zoneName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   zoneDist: { fontSize: 12, fontFamily: "Inter_400Regular" },
   clearTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
-
-  // ── Zones horizon strip ───────────────────────────────────────────────────
-  zonesBar: { position: "absolute", left: 0, right: 0 },
-  zoneChip: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1,
-  },
-  zoneChipLmt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  zoneChipDst: { fontSize: 11, fontFamily: "Inter_400Regular" },
 
   // ── Route preview sheet ───────────────────────────────────────────────────
   routeSheet: {
