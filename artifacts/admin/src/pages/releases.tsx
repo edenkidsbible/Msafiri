@@ -44,7 +44,7 @@ import {
   XCircle, Smartphone, Zap, Globe, Apple, ChevronDown,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
+const API_BASE = "/api";
 
 async function authFetch(path: string, init?: RequestInit) {
   const token = getToken();

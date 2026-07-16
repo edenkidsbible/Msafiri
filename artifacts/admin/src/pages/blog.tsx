@@ -49,10 +49,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   FileText, Plus, MoreVertical, Eye, BookOpen,
-  Edit2, Trash2, TrendingUp, Globe, FileEdit,
+  Edit2, Trash2, TrendingUp, Globe, FileEdit, Download,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
+const API_BASE = "/api";
 
 async function authFetch(path: string, init?: RequestInit) {
   const token = getToken();
@@ -163,6 +163,19 @@ export default function Blog() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const seedMutation = useMutation({
+    mutationFn: () => authFetch("/admin/blog/seed", { method: "POST" }),
+    onSuccess: (result: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/blog/posts"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/blog/stats"] });
+      toast({
+        title: `Seeded ${result.inserted} post${result.inserted !== 1 ? "s" : ""}`,
+        description: result.skipped > 0 ? `${result.skipped} already existed and were skipped.` : undefined,
+      });
+    },
+    onError: (e: Error) => toast({ title: "Seed failed", description: e.message, variant: "destructive" }),
+  });
+
   function openCreate() {
     setEditPost(null);
     setForm(emptyForm);
@@ -229,9 +242,22 @@ export default function Blog() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Manage SEO-optimised articles for the Msafiri Kenya website</p>
         </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="h-4 w-4" /> New Post
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+            title="Import all standard Msafiri Kenya blog articles into this environment"
+          >
+            <Download className="h-4 w-4" />
+            {seedMutation.isPending ? "Seeding…" : "Seed Articles"}
+          </Button>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="h-4 w-4" /> New Post
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

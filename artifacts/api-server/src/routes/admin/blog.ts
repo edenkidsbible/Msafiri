@@ -2,6 +2,14 @@ import { Router, type Request, type Response } from "express";
 import { db, blogPostsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { logAudit } from "../../lib/audit.js";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const _require = createRequire(import.meta.url);
+const _dirname = dirname(fileURLToPath(import.meta.url));
+// blog-seed.json sits two levels up (routes/admin → src → data)
+const SEED_FILE = join(_dirname, "../../data/blog-seed.json");
 
 const router = Router();
 
@@ -210,6 +218,71 @@ router.get("/stats", async (_req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("GET /admin/blog/stats error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/blog/seed
+// One-shot endpoint: inserts all posts from blog-seed.json that don't already
+// exist (by slug). Safe to call multiple times — ON CONFLICT DO NOTHING.
+router.post("/seed", async (req: Request, res: Response) => {
+  try {
+    let seedPosts: any[];
+    try {
+      const raw = await import("fs").then((fs) =>
+        fs.readFileSync(SEED_FILE, "utf8")
+      );
+      seedPosts = JSON.parse(raw);
+    } catch {
+      return res.status(404).json({ error: "Seed file not found on this server." });
+    }
+
+    let inserted = 0;
+    let skipped = 0;
+
+    for (const p of seedPosts) {
+      const result = await db
+        .insert(blogPostsTable)
+        .values({
+          id:              p.id,
+          slug:            p.slug,
+          title:           p.title,
+          excerpt:         p.excerpt ?? null,
+          content:         p.content ?? "",
+          author:          p.author ?? "Msafiri Team",
+          status:          p.status ?? "published",
+          featuredImage:   p.featured_image ?? null,
+          metaTitle:       p.meta_title ?? null,
+          metaDescription: p.meta_description ?? null,
+          keywords:        Array.isArray(p.keywords)
+                             ? p.keywords
+                             : (p.keywords
+                                  ? JSON.parse(p.keywords.replace(/^\{/, "[").replace(/\}$/, "]"))
+                                  : []),
+          readCount:       p.read_count ?? 0,
+          publishedAt:     p.published_at ? new Date(p.published_at) : null,
+          createdAt:       p.created_at ? new Date(p.created_at) : new Date(),
+          updatedAt:       p.updated_at ? new Date(p.updated_at) : new Date(),
+        })
+        .onConflictDoNothing()
+        .returning({ id: blogPostsTable.id });
+
+      if (result.length > 0) inserted++;
+      else skipped++;
+    }
+
+    const actor = (req as any).adminUser;
+    await logAudit({
+      actor: { id: actor.id, name: actor.name, role: actor.role },
+      action: "blog_posts.seeded",
+      targetType: "blog_posts",
+      targetId: "seed",
+      details: { inserted, skipped, total: seedPosts.length },
+    });
+
+    return res.json({ success: true, inserted, skipped, total: seedPosts.length });
+  } catch (err) {
+    console.error("POST /admin/blog/seed error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
