@@ -109,7 +109,7 @@ router.post("/creators/codes", async (req: Request, res: Response) => {
       }
     }
 
-    const actor = (req as any).admin;
+    const actor = (req as any).adminUser;
     await logAudit({
       actor: { id: actor.id, name: actor.name, role: actor.role },
       action: "promo_codes_uploaded",
@@ -151,7 +151,7 @@ router.patch("/creators/:id", async (req: Request, res: Response) => {
       .where(eq(creatorApplicationsTable.id, id))
       .returning();
 
-    const actor = (req as any).admin;
+    const actor = (req as any).adminUser;
     await logAudit({
       actor: { id: actor.id, name: actor.name, role: actor.role },
       action: `creator_application_${status}`,
