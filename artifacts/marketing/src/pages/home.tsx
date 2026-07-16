@@ -611,7 +611,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <h2 className="text-4xl md:text-6xl font-bold mb-6">Download Kenya's Road Safety App — Free.</h2>
           <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-            Join over 50,000 Kenyan drivers who trust Msafiri every day for NTSA speed camera alerts, police checkpoint warnings, and alcoblow notifications. Download now.
+            Join thousands of Kenyan drivers who trust Msafiri every day for NTSA speed camera alerts, police checkpoint warnings, and alcoblow notifications. Download now.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
