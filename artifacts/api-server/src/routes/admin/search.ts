@@ -106,15 +106,23 @@ async function lookupSubscriberByAppUserId(
     const { ReplitConnectors } = await import("@replit/connectors-sdk");
     const connectors = new ReplitConnectors();
 
-    const projectsResp = await connectors.proxy("revenuecat", "/v2/projects?limit=10", { method: "GET" });
-    if (!projectsResp.ok) return [];
-    const projectsData = (await projectsResp.json()) as any;
-    const project = projectsData?.items?.[0];
-    if (!project) return [];
+    // Use pinned project ID — items[0] risks hitting a different project in a
+    // shared RevenueCat account. See REVENUECAT_PROJECT_ID env var.
+    const pinnedId = process.env["REVENUECAT_PROJECT_ID"];
+    let projectId: string | null = pinnedId ?? null;
+
+    if (!projectId) {
+      const projectsResp = await connectors.proxy("revenuecat", "/v2/projects?limit=10", { method: "GET" });
+      if (!projectsResp.ok) return [];
+      const projectsData = (await projectsResp.json()) as any;
+      projectId = projectsData?.items?.[0]?.id ?? null;
+    }
+
+    if (!projectId) return [];
 
     const customerResp = await connectors.proxy(
       "revenuecat",
-      `/v2/projects/${project.id}/customers/${encodeURIComponent(appUserId)}`,
+      `/v2/projects/${projectId}/customers/${encodeURIComponent(appUserId)}`,
       { method: "GET" }
     );
     if (!customerResp.ok) return [];

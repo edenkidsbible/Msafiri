@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
-import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple, Upload } from "lucide-react";
+import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple, Upload, Mail } from "lucide-react";
 import { format } from "date-fns";
 
 type Application = {
@@ -58,6 +58,15 @@ async function uploadCodes(platform: string, codes: string[]): Promise<{ inserte
     body: JSON.stringify({ platform, codes }),
   });
   if (!res.ok) throw new Error("Failed to upload codes");
+  return res.json();
+}
+
+async function resendEmail(id: string): Promise<{ emailSent: boolean }> {
+  const res = await fetch(`/api/admin/creators/${id}/resend-email`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Failed to resend email");
   return res.json();
 }
 
@@ -288,8 +297,8 @@ export default function Creators() {
           toast({ title: "Approved and promo code emailed to creator" });
         } else if (result.codeAssigned) {
           toast({
-            title: "Approved — code assigned but email not sent",
-            description: "Check that SMTP is configured on the server.",
+            title: "Approved — code assigned but email failed",
+            description: "The promo code was reserved. Use Resend Email to try again, and verify the sender domain in Resend.",
             variant: "destructive",
           });
         } else {
@@ -301,6 +310,24 @@ export default function Creators() {
     },
     onError: () => {
       toast({ title: "Failed to update", variant: "destructive" });
+    },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => resendEmail(id),
+    onSuccess: (result) => {
+      if (result.emailSent) {
+        toast({ title: "Promo code email resent successfully" });
+      } else {
+        toast({
+          title: "Email still failing",
+          description: "Resend returned an error. Check that noreply@msafirikenya.com is a verified sender domain in your Resend dashboard.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
+      toast({ title: "Failed to resend email", variant: "destructive" });
     },
   });
 
@@ -508,6 +535,19 @@ export default function Creators() {
                                   onClick={() => statusMutation.mutate({ id: a.id, status: "approved" })}
                                 >
                                   Approve
+                                </Button>
+                              )}
+                              {a.status === "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950"
+                                  disabled={resendMutation.isPending}
+                                  onClick={() => resendMutation.mutate(a.id)}
+                                  title="Resend promo code email to this creator"
+                                >
+                                  <Mail className="h-3.5 w-3.5 mr-1" />
+                                  Resend Email
                                 </Button>
                               )}
                               {a.status !== "rejected" && (

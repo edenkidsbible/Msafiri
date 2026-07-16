@@ -9,19 +9,26 @@ router.get("/subscribers", async (_req: Request, res: Response) => {
     const { ReplitConnectors } = await import("@replit/connectors-sdk");
     const connectors = new ReplitConnectors();
 
-    // List projects first to get the project ID
-    const projectsResp = await connectors.proxy("revenuecat", "/v2/projects?limit=10", {
-      method: "GET",
-    });
+    // Resolve the project ID from the pinned env var first.
+    // Falling back to items[0] from the projects list risks targeting a
+    // different product's project when the RevenueCat account is shared.
+    const pinnedId = process.env["REVENUECAT_PROJECT_ID"];
+    let project: { id: string; name: string } | null = null;
 
-    if (!projectsResp.ok) {
-      const text = await projectsResp.text();
-      console.error("RC projects error:", text);
-      return res.status(502).json({ error: "Failed to reach RevenueCat", detail: text });
+    if (pinnedId) {
+      project = { id: pinnedId, name: "Msafiri Kenya" };
+    } else {
+      const projectsResp = await connectors.proxy("revenuecat", "/v2/projects?limit=10", {
+        method: "GET",
+      });
+      if (!projectsResp.ok) {
+        const text = await projectsResp.text();
+        console.error("RC projects error:", text);
+        return res.status(502).json({ error: "Failed to reach RevenueCat", detail: text });
+      }
+      const projectsData = await projectsResp.json() as any;
+      project = projectsData?.items?.[0] ?? null;
     }
-
-    const projectsData = await projectsResp.json() as any;
-    const project = projectsData?.items?.[0];
 
     if (!project) {
       return res.json({ subscribers: [], total: 0, projectName: null, activeSubscribers: 0, trialSubscribers: 0 });

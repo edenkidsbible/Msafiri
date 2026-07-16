@@ -214,4 +214,58 @@ router.patch("/creators/:id", async (req: Request, res: Response) => {
   }
 });
 
+// POST /admin/creators/:id/resend-email
+// Re-sends the promo code email for an already-approved creator.
+// Safe to call multiple times — the code is already assigned; we just resend it.
+router.post("/creators/:id/resend-email", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [application] = await db
+      .select()
+      .from(creatorApplicationsTable)
+      .where(eq(creatorApplicationsTable.id, id))
+      .limit(1);
+
+    if (!application) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+    if (application.status !== "approved") {
+      return res.status(400).json({ error: "Application is not approved" });
+    }
+
+    // Find the promo code already assigned to this application
+    const [promoCode] = await db
+      .select()
+      .from(promoCodesTable)
+      .where(eq(promoCodesTable.applicationId, id))
+      .limit(1);
+
+    if (!promoCode) {
+      return res.status(404).json({ error: "No promo code assigned to this application" });
+    }
+
+    const emailSent = await sendCreatorPromoCode({
+      toEmail:  application.email,
+      toName:   application.name,
+      code:     promoCode.code,
+      platform: promoCode.platform as "ios" | "android",
+    });
+
+    const actor = (req as any).adminUser;
+    await logAudit({
+      actor: { id: actor.id, name: actor.name, role: actor.role },
+      action: "creator_promo_email_resent",
+      targetType: "creator_application",
+      targetId: id,
+      details: { applicantEmail: application.email, emailSent },
+    });
+
+    return res.json({ success: true, emailSent });
+  } catch (err) {
+    console.error("POST /admin/creators/:id/resend-email error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
