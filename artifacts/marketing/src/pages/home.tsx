@@ -40,7 +40,7 @@ export default function Home() {
   useEffect(() => {
     document.title = "Msafiri Kenya — Speed Camera & Police Checkpoint Alerts App";
     const desc = document.querySelector('meta[name="description"]');
-    if (desc) desc.setAttribute("content", "Msafiri is Kenya's #1 road safety app. Get real-time NTSA speed camera alerts, police checkpoint warnings, and speed zone notifications for Nairobi and all major Kenyan highways.");
+    if (desc) desc.setAttribute("content", "Msafiri is Kenya's road safety app. Get real-time NTSA speed camera alerts, police checkpoint warnings, and speed zone notifications for Nairobi and all major Kenyan highways.");
   }, []);
 
   const fadeUp = {
@@ -609,7 +609,7 @@ export default function Home() {
       <section className="py-24 px-6 relative overflow-hidden border-t border-border">
         <div className="absolute inset-0 bg-primary/5" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl md:text-6xl font-bold mb-6">Download Kenya's #1 Road Safety App — Free.</h2>
+          <h2 className="text-4xl md:text-6xl font-bold mb-6">Download Kenya's Road Safety App — Free.</h2>
           <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
             Join over 50,000 Kenyan drivers who trust Msafiri every day for NTSA speed camera alerts, police checkpoint warnings, and alcoblow notifications. Download now.
           </p>

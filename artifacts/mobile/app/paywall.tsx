@@ -49,12 +49,12 @@ export default function PaywallScreen() {
   const monthlyPkg = currentOffering?.availablePackages.find((p) => p.identifier === "$rc_monthly");
   const chosenPkg  = selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
 
-  // Fallback display prices shown before/if RevenueCat hasn't loaded store prices yet.
-  // These must match the prices set in App Store Connect and Google Play Console exactly.
-  const FALLBACK_WEEKLY_PRICE  = "KES 100";
-  const FALLBACK_MONTHLY_PRICE = "KES 300";
-  const weeklyPriceString  = weeklyPkg?.product.priceString  || FALLBACK_WEEKLY_PRICE;
-  const monthlyPriceString = monthlyPkg?.product.priceString || FALLBACK_MONTHLY_PRICE;
+  // Always use the authoritative priceString from the store via RevenueCat.
+  // Never show hardcoded fallback prices in the purchase UI — a mismatch between
+  // displayed and charged currency/amount violates store subscription policies.
+  // While loading, the plan cards show an ActivityIndicator (see isLoading guard below).
+  const weeklyPriceString  = weeklyPkg?.product.priceString  ?? "";
+  const monthlyPriceString = monthlyPkg?.product.priceString ?? "";
   const chosenPriceString  = selectedPkg === "$rc_weekly" ? weeklyPriceString : monthlyPriceString;
 
   // If this store account has already used its free trial (iOS only — Android/web
@@ -228,10 +228,24 @@ export default function PaywallScreen() {
   // ── Main paywall ─────────────────────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: c.background, paddingTop: topPad }]}>
-      {/* Logo header */}
+      {/* Logo header with dismiss button */}
       <View style={styles.logoRow}>
-        <Ionicons name="navigate" size={22} color={c.primary} />
-        <Text style={[styles.logoText, { color: c.foreground }]}>Msafiri</Text>
+        {/* Spacer so logo stays centred */}
+        <View style={styles.logoSide} />
+        <View style={styles.logoCenter}>
+          <Ionicons name="navigate" size={22} color={c.primary} />
+          <Text style={[styles.logoText, { color: c.foreground }]}>Msafiri</Text>
+        </View>
+        {/* Clearly visible dismiss button — required by store subscription policies */}
+        <TouchableOpacity
+          style={[styles.dismissBtn, { backgroundColor: c.card, borderColor: c.border }]}
+          onPress={handleEnterApp}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel="Close"
+          accessibilityRole="button"
+        >
+          <Ionicons name="close" size={18} color={c.mutedForeground} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -338,11 +352,16 @@ export default function PaywallScreen() {
           </View>
         )}
 
-        {/* Legal */}
+        {/* Legal — only show the specific price once the store has returned it,
+            so the displayed amount is always authoritative and matches the charge. */}
         <Text style={[styles.legal, { color: c.mutedForeground }]}>
-          {trialEligible
-            ? `Msafiri Premium starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew. `
-            : `You'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew. `}
+          {chosenPriceString
+            ? trialEligible
+              ? `Msafiri Premium starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew. `
+              : `You'll be charged ${chosenPriceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew. `
+            : trialEligible
+              ? "Msafiri Premium starts with a 3-day free trial that auto-renews unless cancelled. "
+              : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
           By subscribing you agree to our{" "}
           <Text style={[styles.agreeLink, { color: c.primary }]} onPress={() => router.push("/terms")}>Terms of Service</Text>
           {" "}and{" "}
@@ -397,6 +416,19 @@ export default function PaywallScreen() {
           </Text>
           <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
         </TouchableOpacity>
+
+        {/* Clearly labelled dismiss option — required by store subscription policies.
+            Tapping this enters the app with subscription features locked. */}
+        <TouchableOpacity
+          onPress={handleEnterApp}
+          style={styles.maybeLaterBtn}
+          accessibilityLabel="Continue without subscribing"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.maybeLaterTxt, { color: c.mutedForeground }]}>
+            Maybe later — some features require a subscription
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -411,10 +443,16 @@ const styles = StyleSheet.create({
   },
 
   logoRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 10, paddingHorizontal: 16,
   },
+  logoSide: { width: 36 },
+  logoCenter: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoText: { fontSize: 18, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  dismissBtn: {
+    width: 36, height: 36, borderRadius: 18, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
 
   scroll: { paddingHorizontal: 20, paddingTop: 4 },
 
@@ -496,6 +534,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   creatorTxt: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  maybeLaterBtn: { alignItems: "center", paddingVertical: 4 },
+  maybeLaterTxt: {
+    fontSize: 12, fontFamily: "Inter_400Regular",
+    textAlign: "center", lineHeight: 17,
+    textDecorationLine: "underline",
+  },
 
   // Result screens
   resultBadge: {

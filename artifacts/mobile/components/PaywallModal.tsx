@@ -284,7 +284,7 @@ export function PaywallModal({ visible, onClose }: Props) {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.ctaBtnTxt}>
-                {trialEligible ? "Start 2-Day Free Trial" : "Subscribe Now"}
+                {trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}
               </Text>
             )}
           </TouchableOpacity>
