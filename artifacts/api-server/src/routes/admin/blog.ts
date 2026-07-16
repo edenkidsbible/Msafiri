@@ -2,14 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { db, blogPostsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { logAudit } from "../../lib/audit.js";
-import { createRequire } from "module";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-
-const _require = createRequire(import.meta.url);
-const _dirname = dirname(fileURLToPath(import.meta.url));
-// blog-seed.json sits two levels up (routes/admin → src → data)
-const SEED_FILE = join(_dirname, "../../data/blog-seed.json");
+import blogSeedData from "../../data/blog-seed.json" with { type: "json" };
 
 const router = Router();
 
@@ -227,16 +220,7 @@ router.get("/stats", async (_req: Request, res: Response) => {
 // exist (by slug). Safe to call multiple times — ON CONFLICT DO NOTHING.
 router.post("/seed", async (req: Request, res: Response) => {
   try {
-    let seedPosts: any[];
-    try {
-      const raw = await import("fs").then((fs) =>
-        fs.readFileSync(SEED_FILE, "utf8")
-      );
-      seedPosts = JSON.parse(raw);
-    } catch {
-      return res.status(404).json({ error: "Seed file not found on this server." });
-    }
-
+    const seedPosts: any[] = blogSeedData as any[];
     let inserted = 0;
     let skipped = 0;
 
