@@ -459,7 +459,10 @@ export default function DriveMapView() {
                   const bg = def.color;
                   const emoji = def.emoji;
                   const ageStr = formatTimeAgo(r.timestamp, now);
-                  const canVote = !r.isOwn;
+                  // All reports get the interaction buttons — your own included.
+                  // A driver may want to mark their own report "Gone now" if the
+                  // situation resolved, or confirm it's "Still here" after circling back.
+                  const canVote = true;
                   const confirmed = r.status === "confirmed";
                   return (
                     <View

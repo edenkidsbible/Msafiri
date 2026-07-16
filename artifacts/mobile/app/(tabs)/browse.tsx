@@ -26,7 +26,11 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const MAX_DIST = 10000;
+// 5 km gives faster Overpass queries (smaller bounding box) and returns only
+// the results that are actually relevant to a driver. 10 km returned distant
+// results and, combined with the larger search area, was the single biggest
+// reason for query timeouts on the public Overpass servers.
+const MAX_DIST = 5000;
 
 type Tab = "fuel" | "food" | "shopping" | "hospital" | "nightlife";
 type ViewMode = "places" | "fines";
@@ -101,7 +105,10 @@ function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
       `way["amenity"="hospital"](around:${r},${lat},${lng});` +
       `way["amenity"="clinic"](around:${r},${lat},${lng});`;
   }
-  return `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_S}];(${filters});out center 60;`;
+  // Limit to 30 results: faster response, less data to parse, still enough for
+  // a driver choosing a nearby stop. (Previous 60 doubled transfer size with no
+  // practical benefit since most results beyond ~30 were already too far to be useful.)
+  return `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_S}];(${filters});out center 30;`;
 }
 
 const OVERPASS_MIRRORS = [
@@ -118,8 +125,11 @@ const OVERPASS_FETCH_TIMEOUT_MS = 15000; // 15 s × 3 mirrors = 45 s max total
 
 interface CacheEntry { items: POIItem[]; fetchedAt: number }
 const _cache = new Map<string, CacheEntry>();
+// Cache results for 3 minutes. Within that window we return immediately from
+// cache (no network call, instant load). After 3 minutes we always do a fresh
+// fetch — we never serve stale data silently, as that's the "showing cached
+// data" confusion the user reported.
 const CACHE_FRESH_MS = 3 * 60 * 1000;
-const CACHE_STALE_MS = 10 * 60 * 1000;
 
 function poiCacheKey(type: Tab, lat: number, lng: number): string {
   const bLat = Math.round(lat * 100) / 100;
@@ -231,28 +241,14 @@ export default function BrowseScreen() {
   }, []);
 
   const loadPOIs = useCallback(async (t: Tab, lat: number | null, lng: number | null, incremental = false) => {
+    // Return fresh cache immediately — no network call needed.
     if (lat !== null && lng !== null) {
       const key    = poiCacheKey(t, lat, lng);
       const cached = _cache.get(key);
       const age    = cached ? Date.now() - cached.fetchedAt : Infinity;
-
       if (cached && age < CACHE_FRESH_MS) {
         applyItems(cached.items, lat, lng, incremental);
         setIsLive(true); setLoading(false); setIsRefreshing(false);
-        return;
-      }
-      if (cached && age < CACHE_STALE_MS) {
-        applyItems(cached.items, lat, lng, incremental);
-        setIsLive(true); setLoading(false); setIsRefreshing(true);
-        try {
-          const fresh = await fetchOverpass(t, lat, lng);
-          if (!isMounted.current) return;
-          _cache.set(key, { items: fresh, fetchedAt: Date.now() });
-          applyItems(fresh, lat, lng, incremental);
-          setIsLive(true);
-        } catch { /* keep stale silently */ } finally {
-          if (isMounted.current) setIsRefreshing(false);
-        }
         return;
       }
     }
@@ -269,9 +265,15 @@ export default function BrowseScreen() {
         _cache.set(poiCacheKey(t, lat, lng), { items, fetchedAt: Date.now() });
       } catch {
         if (!isMounted.current) return;
-        if (!incremental) { setError("Live data unavailable. Showing cached results."); items = STATIC_POIS.filter((p) => p.type === t); }
+        // Never fall back to static/cached data on a network error. The driver
+        // needs to know they're offline so they can act on it — silently showing
+        // old data (especially for shopping/nightlife/hospital) is confusing and
+        // can lead to a driver navigating to a place that is not actually open.
+        if (!incremental) setError("no-connection");
       }
     } else {
+      // No GPS — fuel & food have offline static fallback; live-only tabs show
+      // the "Location needed" empty state via the needsLocation flag.
       items = STATIC_POIS.filter((p) => p.type === t);
     }
 
@@ -390,7 +392,7 @@ export default function BrowseScreen() {
           <>
             <Text style={[styles.sub, { color: c.mutedForeground }]}>
               {currentLat
-                ? `${pois.length} place${pois.length !== 1 ? "s" : ""} within 10 km · tap Go to navigate`
+                ? `${pois.length} place${pois.length !== 1 ? "s" : ""} within 5 km · tap Go to navigate`
                 : "Enable location for live nearby results"}
             </Text>
             <View style={[styles.tabStrip, { backgroundColor: c.muted }]}>
@@ -440,14 +442,14 @@ export default function BrowseScreen() {
           </Text>
         </View>
 
-      ) : networkFailure ? (
+      ) : (networkFailure || error === "no-connection") ? (
         <View style={styles.emptyWrap}>
           <View style={[styles.emptyIcon, { backgroundColor: "#F57C0018" }]}>
             <Ionicons name="cloud-offline-outline" size={32} color="#F57C00" />
           </View>
           <Text style={[styles.emptyTitle, { color: c.foreground }]}>No connection</Text>
           <Text style={[styles.emptyBody, { color: c.mutedForeground }]}>
-            Could not reach the map server. Check your internet and try again.
+            Could not reach the map server. Check your internet connection and try again.
           </Text>
           <TouchableOpacity style={[styles.retryBtn, { backgroundColor: tabMeta.color }]} onPress={() => loadPOIs(activeTab, currentLat, currentLng)}>
             <Ionicons name="refresh-outline" size={16} color="#FFF" />
@@ -468,7 +470,7 @@ export default function BrowseScreen() {
           ) : null}
           <Text style={[styles.emptyTitle, { color: c.foreground }]}>None found nearby</Text>
           <Text style={[styles.emptyBody, { color: c.mutedForeground }]}>
-            No {tabMeta.label.toLowerCase()} spots found within 10 km of your location.
+            No {tabMeta.label.toLowerCase()} spots found within 5 km of your location.
           </Text>
           <TouchableOpacity style={[styles.retryBtn, { backgroundColor: tabMeta.color }]} onPress={() => loadPOIs(activeTab, currentLat, currentLng)}>
             <Ionicons name="refresh-outline" size={16} color="#FFF" />

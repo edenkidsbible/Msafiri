@@ -358,35 +358,41 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM: Normal-mode compact speed strip (sits above report bar)
+          BOTTOM: Normal-mode speed card.
+          Left block: speed + LIMIT stacked (like the nav bar).
+          Right panel: NEARBY ALERT badge + type + "X km ahead".
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
         <View style={[styles.speedStrip, { bottom: bottomBase + 68, backgroundColor: bg }]}>
 
-          {/* Speed number + "Your Speed" label */}
-          <View style={styles.speedGroup}>
-            <Text style={[styles.speedLabel, { color: fgMuted }]}>YOUR SPEED</Text>
+          {/* Left: large speed digit + optional LIMIT ring below it */}
+          <View style={[styles.speedGroup, {
+            backgroundColor: overLimit ? "#E5393510" : (isDark ? "#FFFFFF08" : "#00000005"),
+            borderRadius: 16, paddingHorizontal: 10, paddingVertical: 8,
+          }]}>
+            <Text style={[styles.speedLabel, { color: overLimit ? "#E5393380" : fgMuted }]}>
+              YOUR SPEED
+            </Text>
             <Text style={[styles.speedNum, { color: speedClr }]}>
               {Math.round(currentSpeed)}
             </Text>
-            <Text style={[styles.speedUnit, { color: fgMuted }]}>km/h</Text>
-          </View>
-
-          {/* Speed limit circle (like a real road sign) — labelled "Limit" */}
-          {currentSpeedLimit != null && (
-            <View style={styles.limitGroup}>
-              <Text style={[styles.limitLabel, { color: fgMuted }]}>LIMIT</Text>
-              <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A") }]}>
-                <Text style={[styles.limitNum, { color: overLimit ? "#E53935" : fgMain }]}>
-                  {currentSpeedLimit}
-                </Text>
+            <Text style={[styles.speedUnit, { color: overLimit ? "#E5393380" : fgMuted }]}>km/h</Text>
+            {/* Limit ring — stacked below, same column as speed */}
+            {currentSpeedLimit != null && (
+              <View style={{ alignItems: "center", gap: 2, marginTop: 6 }}>
+                <Text style={[styles.limitLabel, { color: fgMuted }]}>LIMIT</Text>
+                <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A") }]}>
+                  <Text style={[styles.limitNum, { color: overLimit ? "#E53935" : fgMain }]}>
+                    {currentSpeedLimit}
+                  </Text>
+                </View>
               </View>
-            </View>
-          )}
+            )}
+          </View>
 
           <View style={[styles.vdivider, { backgroundColor: divBg }]} />
 
-          {/* Contextual centre content */}
+          {/* Right: contextual alert info */}
           {!locationGranted ? (
             <TouchableOpacity
               style={[styles.gpsBtn, { backgroundColor: c.primary }]}
@@ -396,9 +402,9 @@ export default function DriveScreen() {
               <Text style={styles.gpsBtnTxt}>Enable GPS</Text>
             </TouchableOpacity>
           ) : overLimit ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1 }}>
-              <Ionicons name="alert-circle" size={15} color="#E53935" />
-              <Text style={{ color: "#E53935", fontSize: 13, fontFamily: "Inter_700Bold" }}>Slow down!</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+              <Ionicons name="alert-circle" size={20} color="#E53935" />
+              <Text style={{ color: "#E53935", fontSize: 16, fontFamily: "Inter_700Bold" }}>Slow down!</Text>
             </View>
           ) : routeLoading ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flex: 1 }}>
@@ -406,20 +412,32 @@ export default function DriveScreen() {
               <Text style={[styles.clearTxt, { color: fgMuted }]}>Calculating route…</Text>
             </View>
           ) : nearbyZones.length > 0 ? (
-            <View style={{ flex: 1, gap: 2 }}>
-              {/* Context label so users know what the reading represents */}
-              <Text style={[styles.zoneContextLabel, { color: fgMuted }]}>
-                {nearbyZones[0].type === "camera" ? "Speed Camera" : nearbyZones[0].type === "police" ? "Police Check" : "Speed Zone"}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <ZoneIcon type={nearbyZones[0].type} size={13} color={zoneColor(nearbyZones[0].type)} />
-                <Text style={[styles.zoneName, { color: fgMain }]}>
-                  {nearbyZones[0].speedLimit} km/h limit
-                </Text>
-                <Text style={[styles.zoneDist, { color: fgMuted }]}>
-                  · {distStr(nearbyZones[0].distance)}
+            <View style={{ flex: 1, gap: 5 }}>
+              {/* Colour-coded "NEARBY ALERT" badge — immediately tells the driver
+                  something is coming up without needing to read the details first */}
+              <View style={[styles.nearbyAlertBadge, {
+                backgroundColor: zoneColor(nearbyZones[0].type) + "22",
+                borderColor:     zoneColor(nearbyZones[0].type) + "55",
+              }]}>
+                <Ionicons name="alert-circle" size={11} color={zoneColor(nearbyZones[0].type)} />
+                <Text style={[styles.nearbyAlertLabel, { color: zoneColor(nearbyZones[0].type) }]}>
+                  NEARBY ALERT
                 </Text>
               </View>
+              {/* Alert type */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <ZoneIcon type={nearbyZones[0].type} size={14} color={zoneColor(nearbyZones[0].type)} />
+                <Text style={[styles.zoneTypeName, { color: fgMain }]}>
+                  {nearbyZones[0].type === "camera" ? "Speed Camera"
+                    : nearbyZones[0].type === "police" ? "Police Check"
+                    : "Speed Zone"}
+                  {nearbyZones[0].speedLimit ? `  ·  ${nearbyZones[0].speedLimit} km/h` : ""}
+                </Text>
+              </View>
+              {/* "X km ahead" — "ahead" makes the spatial context explicit for drivers */}
+              <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
+                {distStr(nearbyZones[0].distance)} ahead
+              </Text>
             </View>
           ) : (
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1 }]}>Clear ahead</Text>
@@ -847,37 +865,47 @@ const styles = StyleSheet.create({
   speedStrip: {
     position: "absolute", left: 12, right: 12,
     flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 24, paddingHorizontal: 12, paddingVertical: 10,
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 12, elevation: 10,
   },
-  // flexShrink: 0 is the key fix — without it, this group could be squeezed
-  // by its siblings (limit ring / divider / zone text) whenever the row ran
-  // tight on space, clipping the right edge of the digit. minWidth is sized
-  // generously above the Inter_700Bold glyph width at this font size so the
-  // number always renders in full.
-  speedGroup: { alignItems: "center", minWidth: 96, flexShrink: 0 },
+  // Speed group: consolidates speed digit + optional LIMIT ring into one
+  // left-hand column (mirrors the nav bar's navSpeedBlock approach). Keeping
+  // the limit inside the speed column lets us use a much wider digit (72 px)
+  // without crowding the alert panel on the right.
+  speedGroup: { alignItems: "center", minWidth: 88, flexShrink: 0 },
   speedLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, marginBottom: 2 },
-  // fontSize 60 + minWidth 96 is the sweet spot: three Inter_700Bold digits
-  // ("120") measure ~90 px at this size so they always render in full without
-  // the right edge being clipped. The previous 88 px value needed ~156 px for
-  // three digits but the container was only 96 px — causing the clip.
-  speedNum:   { fontSize: 60, fontFamily: "Inter_700Bold", lineHeight: 64 },
+  // 72 px at Inter_700Bold: three digits ("120") measure ~108 px, safely inside
+  // the 130 px minWidth container. Large enough to read with one glance.
+  speedNum:   { fontSize: 72, fontFamily: "Inter_700Bold", lineHeight: 76 },
   speedUnit:  { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: -4 },
 
-  limitGroup: { alignItems: "center", gap: 3, flexShrink: 0 },
   limitLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
   limitRing: {
-    width: 52, height: 52, borderRadius: 26, borderWidth: 3.5,
+    width: 46, height: 46, borderRadius: 23, borderWidth: 3,
     alignItems: "center", justifyContent: "center",
   },
-  limitNum: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  limitNum: { fontSize: 16, fontFamily: "Inter_700Bold" },
 
-  vdivider: { width: 1, height: 36, borderRadius: 1 },
+  // Stretch the divider to match whatever height the left block reaches
+  // (which varies — limit ring is conditionally shown).
+  vdivider: { width: 1, alignSelf: "stretch", borderRadius: 1, marginVertical: 4 },
 
   gpsBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14 },
   gpsBtnTxt: { color: "#FFF", fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
+  // NEARBY ALERT badge — colour-coded pill above the alert type name
+  nearbyAlertBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 8, borderWidth: 1,
+  },
+  nearbyAlertLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.9 },
+  zoneTypeName:     { fontSize: 13, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
+  zoneDistAhead:    { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  // Legacy (kept to avoid tsc errors on any surviving references)
   zoneContextLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, textTransform: "uppercase" },
   zoneName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   zoneDist: { fontSize: 12, fontFamily: "Inter_400Regular" },
@@ -934,7 +962,7 @@ const styles = StyleSheet.create({
     alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
   },
   navSpeedLabel: { fontSize: 8, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
-  navSpeedNum:  { fontSize: 54, fontFamily: "Inter_700Bold", lineHeight: 56 },
+  navSpeedNum:  { fontSize: 70, fontFamily: "Inter_700Bold", lineHeight: 72 },
   navSpeedUnit: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: -2 },
   navLimitRing: {
     width: 38, height: 38, borderRadius: 19, borderWidth: 2.5,
