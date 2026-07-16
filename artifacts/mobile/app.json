@@ -71,7 +71,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "./plugins/withDisableUnusedAudioServices.js"
+      "./plugins/withDisableUnusedAudioServices.js",
+      "./plugins/withR8Optimization.js"
     ],
     "experiments": {
       "typedRoutes": true,
