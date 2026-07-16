@@ -84,6 +84,12 @@ function RootLayoutNav() {
   const c = useColors();
   const router = useRouter();
   const checked = useRef(false);
+  // Once we've confirmed a subscription, remember it across brief RevenueCat
+  // refresh windows. This prevents a transient isSubscribed=false (which can
+  // happen when the SDK re-validates entitlements in the background) from
+  // routing an active user back to the paywall if RootLayoutNav remounts.
+  const wasSubscribed = useRef(false);
+  if (isSubscribed) wasSubscribed.current = true;
   usePushNotifications();
   const versionCheck = useAppVersion();
 
@@ -117,7 +123,10 @@ function RootLayoutNav() {
     // Onboarding done — wait for RevenueCat to confirm subscription status
     if (subLoading) return;
     checked.current = true;
-    if (!isSubscribed) {
+    // Only route to paywall if we've never seen a valid subscription in this
+    // session. wasSubscribed guards against a transient isSubscribed=false that
+    // RevenueCat emits while re-validating entitlements after a background resume.
+    if (!isSubscribed && !wasSubscribed.current) {
       router.replace("/paywall");
     } else {
       requestLocationPermission();

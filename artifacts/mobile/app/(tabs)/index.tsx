@@ -363,19 +363,24 @@ export default function DriveScreen() {
       {!isMapMode && !showResults && (
         <View style={[styles.speedStrip, { bottom: bottomBase + 68, backgroundColor: bg }]}>
 
-          {/* Speed number */}
+          {/* Speed number + "Your Speed" label */}
           <View style={styles.speedGroup}>
+            <Text style={[styles.speedLabel, { color: fgMuted }]}>YOUR SPEED</Text>
             <Text style={[styles.speedNum, { color: speedClr }]}>
               {Math.round(currentSpeed)}
             </Text>
+            <Text style={[styles.speedUnit, { color: fgMuted }]}>km/h</Text>
           </View>
 
-          {/* Speed limit circle (like a real road sign) */}
+          {/* Speed limit circle (like a real road sign) — labelled "Limit" */}
           {currentSpeedLimit != null && (
-            <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A") }]}>
-              <Text style={[styles.limitNum, { color: overLimit ? "#E53935" : fgMain }]}>
-                {currentSpeedLimit}
-              </Text>
+            <View style={styles.limitGroup}>
+              <Text style={[styles.limitLabel, { color: fgMuted }]}>LIMIT</Text>
+              <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A") }]}>
+                <Text style={[styles.limitNum, { color: overLimit ? "#E53935" : fgMain }]}>
+                  {currentSpeedLimit}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -383,7 +388,10 @@ export default function DriveScreen() {
 
           {/* Contextual centre content */}
           {!locationGranted ? (
-            <TouchableOpacity style={[styles.gpsBtn, { backgroundColor: c.primary }]} onPress={requestLocationPermission}>
+            <TouchableOpacity
+              style={[styles.gpsBtn, { backgroundColor: c.primary }]}
+              onPress={requestLocationPermission}
+            >
               <Ionicons name="location-outline" size={15} color="#FFF" />
               <Text style={styles.gpsBtnTxt}>Enable GPS</Text>
             </TouchableOpacity>
@@ -398,14 +406,20 @@ export default function DriveScreen() {
               <Text style={[styles.clearTxt, { color: fgMuted }]}>Calculating route…</Text>
             </View>
           ) : nearbyZones.length > 0 ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1 }}>
-              <ZoneIcon type={nearbyZones[0].type} size={13} color={zoneColor(nearbyZones[0].type)} />
-              <Text style={[styles.zoneName, { color: fgMain }]}>
-                {nearbyZones[0].speedLimit} km/h
+            <View style={{ flex: 1, gap: 2 }}>
+              {/* Context label so users know what the reading represents */}
+              <Text style={[styles.zoneContextLabel, { color: fgMuted }]}>
+                {nearbyZones[0].type === "camera" ? "Speed Camera" : nearbyZones[0].type === "police" ? "Police Check" : "Speed Zone"}
               </Text>
-              <Text style={[styles.zoneDist, { color: fgMuted }]}>
-                · {distStr(nearbyZones[0].distance)}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <ZoneIcon type={nearbyZones[0].type} size={13} color={zoneColor(nearbyZones[0].type)} />
+                <Text style={[styles.zoneName, { color: fgMain }]}>
+                  {nearbyZones[0].speedLimit} km/h limit
+                </Text>
+                <Text style={[styles.zoneDist, { color: fgMuted }]}>
+                  · {distStr(nearbyZones[0].distance)}
+                </Text>
+              </View>
             </View>
           ) : (
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1 }]}>Clear ahead</Text>
@@ -555,17 +569,25 @@ export default function DriveScreen() {
             <View style={[styles.navSpeedBlock, {
               backgroundColor: overLimit ? "#E5393518" : (isDark ? "#00E67618" : "#E8F5E9"),
             }]}>
+              <Text style={[styles.navSpeedLabel, { color: overLimit ? "#E5393380" : (isDark ? "#00E67680" : "#2E7D3280") }]}>
+                YOUR SPEED
+              </Text>
               <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (isDark ? "#00E676" : "#2E7D32") }]}>
                 {Math.round(currentSpeed)}
               </Text>
+              <Text style={[styles.navSpeedUnit, { color: overLimit ? "#E5393380" : (isDark ? "#00E67680" : "#2E7D3280") }]}>
+                km/h
+              </Text>
               {currentSpeedLimit != null && (
-                <View style={[styles.navLimitRing, {
-                  borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#333"),
-                  marginTop: 4,
-                }]}>
-                  <Text style={[styles.navLimitNum, { color: overLimit ? "#E53935" : fgMain }]}>
-                    {currentSpeedLimit}
-                  </Text>
+                <View style={{ alignItems: "center", marginTop: 6, gap: 2 }}>
+                  <Text style={[styles.navSpeedLabel, { color: fgMuted }]}>LIMIT</Text>
+                  <View style={[styles.navLimitRing, {
+                    borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#333"),
+                  }]}>
+                    <Text style={[styles.navLimitNum, { color: overLimit ? "#E53935" : fgMain }]}>
+                      {currentSpeedLimit}
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -835,8 +857,12 @@ const styles = StyleSheet.create({
   // generously above the Inter_700Bold glyph width at this font size so the
   // number always renders in full.
   speedGroup: { alignItems: "center", minWidth: 96, flexShrink: 0 },
+  speedLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, marginBottom: 2 },
   speedNum:   { fontSize: 88, fontFamily: "Inter_700Bold", lineHeight: 92 },
+  speedUnit:  { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: -4 },
 
+  limitGroup: { alignItems: "center", gap: 3, flexShrink: 0 },
+  limitLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
   limitRing: {
     width: 52, height: 52, borderRadius: 26, borderWidth: 3.5,
     alignItems: "center", justifyContent: "center",
@@ -848,6 +874,7 @@ const styles = StyleSheet.create({
   gpsBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14 },
   gpsBtnTxt: { color: "#FFF", fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
+  zoneContextLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, textTransform: "uppercase" },
   zoneName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   zoneDist: { fontSize: 12, fontFamily: "Inter_400Regular" },
   clearTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
@@ -902,7 +929,9 @@ const styles = StyleSheet.create({
   navSpeedBlock: {
     alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
   },
+  navSpeedLabel: { fontSize: 8, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
   navSpeedNum:  { fontSize: 54, fontFamily: "Inter_700Bold", lineHeight: 56 },
+  navSpeedUnit: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: -2 },
   navLimitRing: {
     width: 38, height: 38, borderRadius: 19, borderWidth: 2.5,
     alignItems: "center", justifyContent: "center",

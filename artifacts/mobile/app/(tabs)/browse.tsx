@@ -73,7 +73,7 @@ function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
       `node["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});` +
       `way["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});`;
   }
-  return `[out:json][timeout:10];(${filters});out center 60;`;
+  return `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_S}];(${filters});out center 60;`;
 }
 
 const OVERPASS_MIRRORS = [
@@ -81,6 +81,10 @@ const OVERPASS_MIRRORS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.openstreetmap.fr/api/interpreter",
 ];
+// Overpass processing budget (inside the query) — the fetch timeout must be
+// longer than this so we don't abort a response that's just about to arrive.
+const OVERPASS_QUERY_TIMEOUT_S = 25;
+const OVERPASS_FETCH_TIMEOUT_MS = 32000;
 
 interface CacheEntry { items: POIItem[]; fetchedAt: number }
 const _cache = new Map<string, CacheEntry>();
@@ -95,16 +99,28 @@ function poiCacheKey(type: Tab, lat: number, lng: number): string {
 
 async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIItem[]> {
   const query = buildOverpassQuery(type, lat, lng);
-  const tryMirror = async (mirror: string): Promise<any> => {
-    const res = await fetchWithTimeout(
-      mirror,
-      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `data=${encodeURIComponent(query)}` },
-      10000
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  };
-  const data = await Promise.any(OVERPASS_MIRRORS.map(tryMirror));
+
+  // Try mirrors sequentially — racing all three simultaneously would trigger
+  // rate-limits on the public Overpass servers (which is why Promise.any
+  // failed ~90 % of the time). We stop at the first one that succeeds.
+  let lastErr: unknown;
+  let data: any;
+  for (const mirror of OVERPASS_MIRRORS) {
+    try {
+      const res = await fetchWithTimeout(
+        mirror,
+        { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `data=${encodeURIComponent(query)}` },
+        OVERPASS_FETCH_TIMEOUT_MS
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+      break; // success — stop trying mirrors
+    } catch (err) {
+      lastErr = err;
+      // try next mirror
+    }
+  }
+  if (data === undefined) throw lastErr ?? new Error("All Overpass mirrors failed");
   const defaultName =
     type === "fuel"      ? "Fuel Station" :
     type === "food"      ? "Restaurant"   :

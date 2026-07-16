@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
@@ -23,6 +23,10 @@ import { formatTimeAgo } from "@/lib/timeAgo";
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
 const CLUSTER_DIST_M = 35;
+// Only render speed-zone markers within this radius. Beyond it the icons are
+// too small to be useful anyway, and rendering 100+ custom views at once is
+// the single largest source of OOM crashes on low-end Android devices.
+const ZONE_RENDER_RADIUS_M = 15000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -163,6 +167,17 @@ export default function DriveMapView() {
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
 
+  // Android + PROVIDER_GOOGLE: custom marker views must go through at least one
+  // full render cycle with tracksViewChanges=true before the native layer
+  // captures their bitmap. Setting false immediately causes the marker to appear
+  // as a blank dot. We start true, then freeze after 1.5 s — long enough for
+  // all static zone icons to paint but short enough to avoid sustained jank.
+  const [markersFrozen, setMarkersFrozen] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMarkersFrozen(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   const handleFlagReport = (id: string) => {
     Alert.alert(
       "Report to moderators",
@@ -259,6 +274,17 @@ export default function DriveMapView() {
     return POIS.filter((p) => haversine(currentLat, currentLng, p.lat, p.lng) <= POI_RADIUS_M).slice(0, 25);
   }, [currentLat, currentLng]);
 
+  // Limit rendered zone markers to those within ZONE_RENDER_RADIUS_M of the
+  // user. Rendering all 100+ zones at once can trigger OOM crashes on
+  // low-end Android devices; zones further than 15 km are outside the
+  // useful drive-view zoom level anyway.
+  const visibleZones = useMemo(() => {
+    if (currentLat == null || currentLng == null) return allZones.slice(0, 60);
+    return allZones
+      .filter((z) => haversine(currentLat, currentLng, z.lat, z.lng) <= ZONE_RENDER_RADIUS_M)
+      .slice(0, 80);
+  }, [allZones, currentLat, currentLng]);
+
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
 
   return (
@@ -291,7 +317,7 @@ export default function DriveMapView() {
         {/* Speed zone markers — road-stretch corridors show their limit as a
             badge at each end so you can see how the speed changes along the
             road, instead of a straight line cutting across the map. */}
-        {allZones.map((z) => {
+        {visibleZones.map((z) => {
           const bg = z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100";
           return (
             <React.Fragment key={z.id}>
@@ -300,12 +326,12 @@ export default function DriveMapView() {
                 anchor={{ x: 0.5, y: 1 }}
                 title={z.name}
                 description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
-                // These icons never change after first paint. Without this,
-                // Android re-rasterizes every one of these ~100+ marker
-                // views on every map layout pass (including mid-pan), which
-                // is the single biggest cause of dropped frames while
-                // dragging the map — iOS doesn't have this cost at all.
-                tracksViewChanges={false}
+                // Start with tracksViewChanges=true so Android/PROVIDER_GOOGLE
+                // can capture the initial bitmap of each custom marker view.
+                // Switch to false after markersFrozen (1.5 s) to stop
+                // re-rasterising on every map layout pass — the biggest
+                // source of dropped frames while panning.
+                tracksViewChanges={!markersFrozen}
               >
                 {z.isStretchEndpoint ? (
                   <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={bg} />

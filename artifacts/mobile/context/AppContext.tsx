@@ -764,6 +764,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [retrySyncQueue]);
 
   // ── Location permission ───────────────────────────────────────────────────
+
+  // On every cold start, check silently whether the user already granted
+  // location permission in a previous session. If they did, start GPS
+  // immediately without waiting for a manual "Enable GPS" tap — the permission
+  // dialog is only shown when actually required (i.e. not yet granted).
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      if ("geolocation" in navigator) setLocationGranted(true);
+      return;
+    }
+    Location.getForegroundPermissionsAsync()
+      .then(({ status }) => { if (status === "granted") setLocationGranted(true); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const requestLocationPermission = useCallback(async () => {
     if (Platform.OS === "web") {
       if ("geolocation" in navigator) setLocationGranted(true);
