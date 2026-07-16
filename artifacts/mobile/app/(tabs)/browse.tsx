@@ -118,10 +118,11 @@ const OVERPASS_MIRRORS = [
 ];
 // Overpass processing budget (inside the query) — the fetch timeout must be
 // longer than this so we don't abort a response that's just about to arrive.
-// Per-mirror timeout is kept short so the sequential fallback loop doesn't
-// block the UI for an entire minute when all three mirrors are rate-limiting.
+// Android OkHttp cold-start TLS handshakes to EU servers from Kenya routinely
+// take 4–6 s before any bytes are transferred, so we give Android more runway.
 const OVERPASS_QUERY_TIMEOUT_S = 20;
-const OVERPASS_FETCH_TIMEOUT_MS = 15000; // 15 s × 3 mirrors = 45 s max total
+const OVERPASS_FETCH_TIMEOUT_MS         = 15_000; // iOS  — 15 s × 3 mirrors = 45 s max
+const OVERPASS_FETCH_TIMEOUT_MS_ANDROID = 22_000; // Android — extra headroom for OkHttp cold TLS
 
 interface CacheEntry { items: POIItem[]; fetchedAt: number }
 const _cache = new Map<string, CacheEntry>();
@@ -139,18 +140,40 @@ function poiCacheKey(type: Tab, lat: number, lng: number): string {
 
 async function fetchOverpass(type: Tab, lat: number, lng: number): Promise<POIItem[]> {
   const query = buildOverpassQuery(type, lat, lng);
+  // GET instead of POST for two Android-specific reasons:
+  //   1. OkHttp (Android) never retries a failed POST (avoids double-submission
+  //      by design), so a single transient TCP hiccup kills the whole request.
+  //      GET requests are retried automatically by OkHttp.
+  //   2. React Native New Architecture on Android has a known issue where
+  //      POST bodies with Content-Type: application/x-www-form-urlencoded are
+  //      not always flushed correctly through the JSI networking layer.
+  // All three Overpass mirrors support the identical GET ?data=<query> API.
+  // Query strings stay ~1 KB even for the longest tab — well within limits.
+  const encodedQuery = encodeURIComponent(query);
+  const reqInit: RequestInit = {
+    method: "GET",
+    headers: {
+      // An explicit UA avoids Overpass bot-detection. Android's OkHttp default
+      // ("okhttp/4.x.x") is fingerprinted and rate-limited by these servers;
+      // iOS NSURLSession passes because it looks browser-like.
+      "User-Agent": "MsafiriKenya/1.0 (Expo; mobile)",
+      "Accept": "application/json",
+    },
+  };
+  const perMirrorTimeout = Platform.OS === "android"
+    ? OVERPASS_FETCH_TIMEOUT_MS_ANDROID
+    : OVERPASS_FETCH_TIMEOUT_MS;
 
-  // Try mirrors sequentially — racing all three simultaneously would trigger
-  // rate-limits on the public Overpass servers (which is why Promise.any
-  // failed ~90 % of the time). We stop at the first one that succeeds.
+  // Try mirrors sequentially — racing all three simultaneously triggers
+  // rate-limits on the public servers. We stop at the first success.
   let lastErr: unknown;
   let data: any;
   for (const mirror of OVERPASS_MIRRORS) {
     try {
       const res = await fetchWithTimeout(
-        mirror,
-        { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `data=${encodeURIComponent(query)}` },
-        OVERPASS_FETCH_TIMEOUT_MS
+        `${mirror}?data=${encodedQuery}`,
+        reqInit,
+        perMirrorTimeout,
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       data = await res.json();
