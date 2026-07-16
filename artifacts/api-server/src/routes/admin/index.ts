@@ -46,6 +46,16 @@ router.use(adminAuthMiddleware);
 // immediately, without the affected user needing to log in again.
 router.use(loadAdminPermissionsMiddleware);
 
+// Admin endpoints must never be served from the browser's HTTP cache —
+// a stale 304 response would hide changes made by mobile users.
+// This middleware forces a fresh round-trip on every admin API request.
+router.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Global search: open to every authenticated role, but it checks
 // req.adminUser.effectivePermissions itself per section so it never leaks
 // results from a section the caller can't view.

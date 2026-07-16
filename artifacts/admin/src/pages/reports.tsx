@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -170,21 +170,13 @@ export default function Reports() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useAdminListReports(
-    {
-      page,
-      limit: viewMode === "map" ? 500 : 20,
-      search: search || undefined,
-      type:   typeFilter !== "all" ? typeFilter : undefined,
-      status: statusFilter !== "all" ? statusFilter : undefined,
-    },
-    // Poll every 30 s so vote-driven status changes (confirmed / denied / flagged)
-    // from mobile users appear without the admin having to manually refresh.
-    // Cast: orval requires the full UseQueryOptions shape but merges queryKey
-    // internally — only refetchInterval is needed here.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { query: { refetchInterval: 30_000 } as any },
-  );
+  const { data, isLoading, isFetching, refetch } = useAdminListReports({
+    page,
+    limit: viewMode === "map" ? 500 : 20,
+    search: search || undefined,
+    type:   typeFilter !== "all" ? typeFilter : undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+  });
 
   const deleteMutation = useAdminDeleteReport({
     mutation: {
@@ -390,6 +382,16 @@ export default function Reports() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              className="gap-2 shadow-none"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title="Fetch latest incidents from the server"
+            >
+              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
             <input
               ref={importInputRef}
               type="file"

@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, XCircle, Loader2, ShieldAlert, TimerReset, Camera, Flag } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ShieldAlert, TimerReset, Camera, Flag, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -167,9 +167,7 @@ export default function ModerationQueue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useAdminGetModerationQueue({
-    query: { queryKey: ["/api/admin/reports/moderation-queue"], refetchInterval: 30000 },
-  });
+  const { data, isLoading, isFetching, refetch } = useAdminGetModerationQueue();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/moderation-queue"] });
 
@@ -223,11 +221,23 @@ export default function ModerationQueue() {
   return (
     <AdminLayout>
       <div className="space-y-6 animate-in fade-in duration-500">
-        <div className="border-b pb-6">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-page-title">Moderation Queue</h1>
-          <p className="text-muted-foreground mt-1" data-testid="text-page-description">
-            Review new camera/checkpoint submissions and decide whether to restore recently expired reports.
-          </p>
+        <div className="border-b pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-page-title">Moderation Queue</h1>
+            <p className="text-muted-foreground mt-1" data-testid="text-page-description">
+              Review new camera/checkpoint submissions and decide whether to restore recently expired reports.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="gap-2 shadow-none shrink-0"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title="Fetch latest items from the server"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
 
         <Card>
