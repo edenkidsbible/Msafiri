@@ -121,13 +121,17 @@ export default function About() {
         </p>
         <div style={{ display: "flex", justifyContent: "center", gap: "1rem", flexWrap: "wrap" }}>
           <a
-            href="#"
+            href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{ display: "inline-block", padding: "0.625rem 1.25rem", background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", borderRadius: "0.5rem", fontWeight: 700, fontSize: "0.875rem", textDecoration: "none" }}
           >
             App Store
           </a>
           <a
-            href="#"
+            href="https://play.google.com/store/apps/details?id=com.msafirikenya.app"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{ display: "inline-block", padding: "0.625rem 1.25rem", background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", borderRadius: "0.5rem", fontWeight: 700, fontSize: "0.875rem", textDecoration: "none" }}
           >
             Google Play

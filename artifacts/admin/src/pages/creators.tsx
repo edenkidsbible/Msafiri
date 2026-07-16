@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
-import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple } from "lucide-react";
+import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple, Upload } from "lucide-react";
 import { format } from "date-fns";
 
 type Application = {
@@ -80,6 +80,33 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
   rejected: { label: "Rejected", variant: "destructive" },
 };
 
+function parseCsvCodes(csvText: string): string[] {
+  const lines = csvText.trim().split(/\r?\n/);
+  if (lines.length === 0) return [];
+
+  // Detect if first line is a header by checking whether it contains any
+  // digit (promo codes are always alphanumeric with digits; header labels rarely are)
+  const firstLine = lines[0];
+  const hasHeader = !/\d/.test(firstLine.replace(/[^a-zA-Z0-9]/g, ""));
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  // Determine which column holds the codes: prefer a column whose header
+  // contains "code" (case-insensitive), otherwise fall back to column 0.
+  let codeColIndex = 0;
+  if (hasHeader) {
+    const headers = firstLine.split(",").map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
+    const codeCol = headers.findIndex((h) => h.includes("code"));
+    if (codeCol !== -1) codeColIndex = codeCol;
+  }
+
+  return dataLines
+    .map((line) => {
+      const cells = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      return cells[codeColIndex] ?? "";
+    })
+    .filter(Boolean);
+}
+
 function CodePoolCard({
   platform,
   stats,
@@ -92,6 +119,8 @@ function CodePoolCard({
   isPending: boolean;
 }) {
   const [text, setText] = useState("");
+  const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isIos = platform === "ios";
   const Icon = isIos ? Apple : Smartphone;
   const label = isIos ? "iOS (App Store)" : "Android (Google Play)";
@@ -104,6 +133,24 @@ function CodePoolCard({
     if (codes.length === 0) return;
     onUpload(platform, codes);
     setText("");
+    setCsvFileName(null);
+  }
+
+  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const raw = ev.target?.result as string;
+      const codes = parseCsvCodes(raw);
+      if (codes.length === 0) return;
+      // Populate the textarea so the admin can review before submitting
+      setText(codes.join("\n"));
+      setCsvFileName(`${file.name} — ${codes.length} codes`);
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-selected if needed
+    e.target.value = "";
   }
 
   const lowStock = stats.remaining < 5;
@@ -145,13 +192,35 @@ function CodePoolCard({
           </div>
         )}
 
-        <Textarea
-          placeholder={`Paste ${label} promo codes here, one per line or comma-separated…`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4}
-          className="font-mono text-xs resize-none"
+        {/* CSV upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={handleCsvFile}
         />
+        <Button
+          size="sm"
+          variant="outline"
+          type="button"
+          className="w-full gap-2 border-dashed text-muted-foreground hover:text-foreground"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {csvFileName ?? "Upload CSV file"}
+        </Button>
+
+        <div className="relative">
+          <Textarea
+            placeholder={`Or paste ${label} promo codes here, one per line or comma-separated…`}
+            value={text}
+            onChange={(e) => { setText(e.target.value); setCsvFileName(null); }}
+            rows={4}
+            className="font-mono text-xs resize-none"
+          />
+        </div>
+
         <Button
           size="sm"
           variant="outline"

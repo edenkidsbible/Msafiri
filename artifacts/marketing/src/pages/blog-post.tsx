@@ -139,7 +139,7 @@ export default function BlogPost() {
               <ArrowLeft className="w-4 h-4" /> Blog
             </Link>
             <a
-              href="https://apps.apple.com/ke/app/msafiri-kenya/id6744402038"
+              href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors hidden sm:inline-block"
@@ -234,11 +234,11 @@ export default function BlogPost() {
                     Get real-time alerts for speed cameras, police checkpoints, alcoblow roadblocks, and road hazards across Kenya — all free to download.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <a href="https://apps.apple.com/ke/app/msafiri-kenya/id6744402038" target="_blank" rel="noopener noreferrer"
+                    <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
                       Download on App Store
                     </a>
-                    <a href="https://play.google.com/store/apps/details?id=com.msafiri.app" target="_blank" rel="noopener noreferrer"
+                    <a href="https://play.google.com/store/apps/details?id=com.msafirikenya.app" target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-2 border border-border bg-background px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-muted transition-colors">
                       Get it on Google Play
                     </a>

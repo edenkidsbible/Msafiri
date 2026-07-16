@@ -120,14 +120,14 @@ export default function Home() {
               Msafiri keeps you ahead of speed cameras, police checkpoints, and speed zones on Kenyan roads. Quiet awareness, exactly when you need it.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4 mb-8">
-              <a href="#" className="flex items-center justify-center gap-3 bg-foreground text-background px-6 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
+              <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-6 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
                 <Apple className="w-6 h-6 fill-current" />
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-background/60">Download on the</span>
                   <span>App Store</span>
                 </div>
               </a>
-              <a href="#" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-6 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
+              <a href="https://play.google.com/store/apps/details?id=com.msafirikenya.app" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-6 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
                 <Play className="w-6 h-6 fill-current" />
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Get it on</span>
@@ -614,14 +614,14 @@ export default function Home() {
             Join over 50,000 Kenyan drivers who trust Msafiri every day for NTSA speed camera alerts, police checkpoint warnings, and alcoblow notifications. Download now.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <a href="#" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
+            <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
               <Apple className="w-6 h-6 fill-current" />
               <div className="flex flex-col items-start leading-none">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-background/60">Download on the</span>
                 <span>App Store</span>
               </div>
             </a>
-            <a href="#" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-8 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
+            <a href="https://play.google.com/store/apps/details?id=com.msafirikenya.app" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-8 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
               <Play className="w-6 h-6 fill-current" />
               <div className="flex flex-col items-start leading-none">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Get it on</span>
