@@ -33,6 +33,14 @@ import { snapToRoad } from "@/utils/snapToRoad";
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const f1 = (lat1 * Math.PI) / 180, f2 = (lat2 * Math.PI) / 180;
+  const df = ((lat2 - lat1) * Math.PI) / 180, dl = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 function durationStr(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -107,7 +115,7 @@ export default function DriveScreen() {
   const insets = useSafeAreaInsets();
   const {
     locationGranted, requestLocationPermission,
-    currentSpeed, currentSpeedLimit, activeAlert, dismissAlert, nearbyZones,
+    currentSpeed, currentSpeedLimit, activeAlert, dismissAlert, nearbyZones, communityReports,
     setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, selectRoute, routeLoading,
@@ -144,33 +152,67 @@ export default function DriveScreen() {
   const isMapMode  = (hasRoute || navigationActive) && !showResults;
   const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
 
-  // Nearest incident ahead — when navigating use routeIncidentsAhead so
-  // community reports (accidents, potholes, police reports…) are included
-  // alongside static cameras/zones.  Outside navigation fall back to the
-  // proximity-only nearbyZones.
+  // Nearest incident ahead — considers BOTH static speed zones AND community
+  // reports so a just-reported broken-down vehicle beats a distant speed camera.
   const primaryAlert = useMemo(() => {
+    // While navigating, routeIncidentsAhead already merges zones + reports on
+    // the route and sorts by distance remaining — use it directly.
     if (navigationActive && routeIncidentsAhead.length > 0) {
       const inc = routeIncidentsAhead[0];
       return {
-        type:      inc.type,
-        typeName:  alertTypeName(inc.type),
+        type:       inc.type,
+        typeName:   alertTypeName(inc.type),
         speedLimit: inc.speedLimit,
-        distanceM: inc.aheadDistanceM ?? 0,
-        color:     alertColor(inc.type),
+        distanceM:  inc.aheadDistanceM ?? 0,
+        color:      alertColor(inc.type),
       };
     }
+
+    // Outside navigation: find the closest item from EITHER source and show
+    // whichever is nearer, so a freshly-reported incident beats a far camera.
+    type AlertCandidate = {
+      type: string; typeName: string; speedLimit?: number;
+      distanceM: number; color: string;
+    };
+    const candidates: AlertCandidate[] = [];
+
+    // Static speed zones (already proximity-sorted by AppContext)
     if (nearbyZones.length > 0) {
       const z = nearbyZones[0];
-      return {
-        type:      z.type,
-        typeName:  alertTypeName(z.type),
-        speedLimit: z.speedLimit,
-        distanceM: z.distance,
-        color:     alertColor(z.type),
-      };
+      candidates.push({
+        type: z.type, typeName: alertTypeName(z.type),
+        speedLimit: z.speedLimit, distanceM: z.distance, color: alertColor(z.type),
+      });
     }
-    return null;
-  }, [navigationActive, routeIncidentsAhead, nearbyZones]);
+
+    // Community reports within 3 km that are < 2 h old
+    if (currentLat != null && currentLng != null) {
+      const TWO_HOURS = 2 * 60 * 60 * 1000;
+      const REPORT_RADIUS_M = 3000;
+      const now = Date.now();
+      let nearestDist = Infinity;
+      let nearestReport: typeof communityReports[0] | null = null;
+      for (const r of communityReports) {
+        if (now - r.timestamp > TWO_HOURS) continue;
+        const d = haversineM(currentLat, currentLng, r.lat, r.lng);
+        if (d <= REPORT_RADIUS_M && d < nearestDist) {
+          nearestDist = d;
+          nearestReport = r;
+        }
+      }
+      if (nearestReport) {
+        candidates.push({
+          type: nearestReport.type, typeName: alertTypeName(nearestReport.type),
+          speedLimit: nearestReport.speedLimit ?? undefined,
+          distanceM: nearestDist, color: alertColor(nearestReport.type),
+        });
+      }
+    }
+
+    if (candidates.length === 0) return null;
+    // Pick the closest — a community report 200 m away wins over a camera 1 km away
+    return candidates.sort((a, b) => a.distanceM - b.distanceM)[0];
+  }, [navigationActive, routeIncidentsAhead, nearbyZones, communityReports, currentLat, currentLng]);
 
   // HUD-aware colours
   const bg      = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
