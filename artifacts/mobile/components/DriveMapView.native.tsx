@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
@@ -14,6 +15,7 @@ import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from "react-native
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
+import { useColors } from "@/hooks/useColors";
 import { POIS } from "@/data/pois";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
@@ -159,6 +161,7 @@ export default function DriveMapView() {
     pendingFocusCoords, setPendingFocusCoords,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
+  const { isDark } = useColors();
 
   const mapRef = useRef<MapView>(null);
   const hasCenteredRef = useRef(false);
@@ -299,6 +302,10 @@ export default function DriveMapView() {
         // key configured, so it falls back to the platform default (Apple
         // Maps), same as the browse map screen.
         provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+        // Night mode: apply the Google Maps dark style when the app is in dark
+        // mode. PROVIDER_GOOGLE on Android supports customMapStyle; iOS (Apple
+        // Maps) ignores the prop entirely so passing [] is safe on both.
+        customMapStyle={isDark ? DARK_MAP_STYLE : []}
         initialRegion={
           currentLat != null && currentLng != null
             ? { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.05, longitudeDelta: 0.05 }

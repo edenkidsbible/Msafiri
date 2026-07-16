@@ -858,7 +858,11 @@ const styles = StyleSheet.create({
   // number always renders in full.
   speedGroup: { alignItems: "center", minWidth: 96, flexShrink: 0 },
   speedLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, marginBottom: 2 },
-  speedNum:   { fontSize: 88, fontFamily: "Inter_700Bold", lineHeight: 92 },
+  // fontSize 60 + minWidth 96 is the sweet spot: three Inter_700Bold digits
+  // ("120") measure ~90 px at this size so they always render in full without
+  // the right edge being clipped. The previous 88 px value needed ~156 px for
+  // three digits but the container was only 96 px — causing the clip.
+  speedNum:   { fontSize: 60, fontFamily: "Inter_700Bold", lineHeight: 64 },
   speedUnit:  { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: -4 },
 
   limitGroup: { alignItems: "center", gap: 3, flexShrink: 0 },

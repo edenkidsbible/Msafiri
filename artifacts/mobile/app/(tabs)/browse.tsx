@@ -48,6 +48,11 @@ const TABS: Array<{
 const LIVE_ONLY_TABS: Tab[] = ["shopping", "hospital", "nightlife"];
 
 function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
+  // IMPORTANT: Do NOT use regex filters (~"^(a|b|c)$") in Overpass queries.
+  // Regex forces a full table scan on every node/way in the bounding area and
+  // reliably triggers the server timeout even for small radii. Use explicit
+  // equality conditions instead — Overpass can use its value index for those
+  // and returns in < 3 s where the regex version was timing out at 25 s.
   const r = MAX_DIST;
   let filters = "";
   if (type === "fuel") {
@@ -56,22 +61,45 @@ function buildOverpassQuery(type: Tab, lat: number, lng: number): string {
       `way["amenity"="fuel"](around:${r},${lat},${lng});`;
   } else if (type === "food") {
     filters =
-      `node["amenity"~"^(restaurant|fast_food|cafe|food_court)$"](around:${r},${lat},${lng});` +
-      `way["amenity"~"^(restaurant|fast_food|cafe|food_court)$"](around:${r},${lat},${lng});`;
+      `node["amenity"="restaurant"](around:${r},${lat},${lng});` +
+      `node["amenity"="fast_food"](around:${r},${lat},${lng});` +
+      `node["amenity"="cafe"](around:${r},${lat},${lng});` +
+      `node["amenity"="food_court"](around:${r},${lat},${lng});` +
+      `way["amenity"="restaurant"](around:${r},${lat},${lng});` +
+      `way["amenity"="fast_food"](around:${r},${lat},${lng});`;
   } else if (type === "shopping") {
+    // Use the most common OSM shop tags in Kenya + amenity=marketplace
+    // (open-air markets are very prevalent). Avoid building=mall — it tags
+    // the structure, not the retail function, and returns huge way geometries
+    // that have no useful name/address for the user.
     filters =
-      `node["shop"~"^(supermarket|mall|department_store|convenience|wholesale)$"](around:${r},${lat},${lng});` +
-      `way["shop"~"^(supermarket|mall|department_store|convenience|wholesale)$"](around:${r},${lat},${lng});` +
-      `way["building"~"^(mall|retail)$"](around:${r},${lat},${lng});`;
+      `node["shop"="supermarket"](around:${r},${lat},${lng});` +
+      `node["shop"="convenience"](around:${r},${lat},${lng});` +
+      `node["shop"="mall"](around:${r},${lat},${lng});` +
+      `node["shop"="department_store"](around:${r},${lat},${lng});` +
+      `node["amenity"="marketplace"](around:${r},${lat},${lng});` +
+      `way["shop"="supermarket"](around:${r},${lat},${lng});` +
+      `way["shop"="mall"](around:${r},${lat},${lng});` +
+      `way["amenity"="marketplace"](around:${r},${lat},${lng});`;
   } else if (type === "nightlife") {
     filters =
-      `node["amenity"~"^(bar|nightclub|pub|lounge)$"](around:${r},${lat},${lng});` +
-      `way["amenity"~"^(bar|nightclub|pub|lounge)$"](around:${r},${lat},${lng});` +
-      `node["leisure"="adult_gaming_centre"](around:${r},${lat},${lng});`;
+      `node["amenity"="bar"](around:${r},${lat},${lng});` +
+      `node["amenity"="nightclub"](around:${r},${lat},${lng});` +
+      `node["amenity"="pub"](around:${r},${lat},${lng});` +
+      `node["amenity"="lounge"](around:${r},${lat},${lng});` +
+      `node["leisure"="adult_gaming_centre"](around:${r},${lat},${lng});` +
+      `way["amenity"="bar"](around:${r},${lat},${lng});` +
+      `way["amenity"="nightclub"](around:${r},${lat},${lng});`;
   } else {
+    // hospital
     filters =
-      `node["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});` +
-      `way["amenity"~"^(hospital|clinic|doctors|pharmacy|health_centre)$"](around:${r},${lat},${lng});`;
+      `node["amenity"="hospital"](around:${r},${lat},${lng});` +
+      `node["amenity"="clinic"](around:${r},${lat},${lng});` +
+      `node["amenity"="doctors"](around:${r},${lat},${lng});` +
+      `node["amenity"="pharmacy"](around:${r},${lat},${lng});` +
+      `node["amenity"="health_centre"](around:${r},${lat},${lng});` +
+      `way["amenity"="hospital"](around:${r},${lat},${lng});` +
+      `way["amenity"="clinic"](around:${r},${lat},${lng});`;
   }
   return `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_S}];(${filters});out center 60;`;
 }
@@ -83,8 +111,10 @@ const OVERPASS_MIRRORS = [
 ];
 // Overpass processing budget (inside the query) — the fetch timeout must be
 // longer than this so we don't abort a response that's just about to arrive.
-const OVERPASS_QUERY_TIMEOUT_S = 25;
-const OVERPASS_FETCH_TIMEOUT_MS = 32000;
+// Per-mirror timeout is kept short so the sequential fallback loop doesn't
+// block the UI for an entire minute when all three mirrors are rate-limiting.
+const OVERPASS_QUERY_TIMEOUT_S = 20;
+const OVERPASS_FETCH_TIMEOUT_MS = 15000; // 15 s × 3 mirrors = 45 s max total
 
 interface CacheEntry { items: POIItem[]; fetchedAt: number }
 const _cache = new Map<string, CacheEntry>();

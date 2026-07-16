@@ -4,6 +4,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+import { StatusBar } from "expo-status-bar";
 import * as Font from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
@@ -135,6 +136,14 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Reactive status bar — icon colour must follow the effective theme, not
+          the system setting, so it stays in sync when the user overrides it
+          in Settings. On Android the background colour matches the app chrome. */}
+      <StatusBar
+        style={c.isDark ? "light" : "dark"}
+        backgroundColor={c.isDark ? "#000000" : "#ffffff"}
+        translucent
+      />
       <PaywallBypassBanner />
       <OfflineBanner />
       <RouteIncidentsPanel />

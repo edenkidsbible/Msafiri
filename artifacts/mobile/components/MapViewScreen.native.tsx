@@ -1,4 +1,5 @@
 import React, { useRef, useState, useMemo } from "react";
+import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -250,6 +251,7 @@ export default function MapViewScreen() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
+        customMapStyle={c.isDark ? DARK_MAP_STYLE : []}
         initialRegion={
           currentLat && currentLng
             ? { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.08, longitudeDelta: 0.08 }

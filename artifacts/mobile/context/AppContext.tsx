@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Alert, Appearance, Platform } from "react-native";
+import * as SystemUI from "expo-system-ui";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -1558,6 +1559,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(KEYS.THEME, v);
     if (Platform.OS !== "web") {
       Appearance.setColorScheme(v === "system" ? null : v);
+      // On Android, the OS navigation bar (software back/home buttons) must be
+      // updated explicitly — Appearance.setColorScheme does not touch it.
+      // expo-system-ui provides setBackgroundColorAsync for the nav bar and
+      // setButtonStyleAsync (light = white buttons on dark bg, dark = dark
+      // buttons on light bg).
+      if (Platform.OS === "android") {
+        const dark = v === "dark";
+        const bg = dark ? "#000000" : "#ffffff";
+        SystemUI.setBackgroundColorAsync(bg).catch(() => {});
+      }
     }
   }, []);
 
