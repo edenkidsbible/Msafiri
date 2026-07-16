@@ -204,7 +204,7 @@ export default function BlogPost() {
           {/* Article body */}
           <div className="max-w-3xl mx-auto px-6 py-10">
             <div
-              className="prose prose-sm sm:prose max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary prose-strong:text-foreground"
+              className="prose prose-sm sm:prose max-w-none dark:prose-invert prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-foreground prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-a:text-primary dark:prose-a:text-primary"
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
 

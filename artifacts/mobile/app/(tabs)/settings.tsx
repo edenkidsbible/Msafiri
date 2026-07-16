@@ -589,6 +589,7 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ABOUT</Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, padding: 0, overflow: "hidden" }]}>
           <Row label="About Msafiri"    icon="information-circle-outline" onPress={() => router.push("/about")} />
+          <Row label="Msafiri Blog"     icon="newspaper-outline"          onPress={() => router.push("/blogs")} />
           <Row label="Contact Us"       icon="mail-outline"               onPress={() => router.push("/contact")} />
           <Row label="Privacy Policy"   icon="shield-outline"             onPress={() => router.push("/privacy")} />
           <Row label="Terms of Service" icon="document-text-outline"      onPress={() => router.push("/terms")} />
