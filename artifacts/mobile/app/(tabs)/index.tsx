@@ -27,6 +27,7 @@ import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt"
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
+import { resolveIncidentType } from "@/constants/incidentTypes";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -78,12 +79,10 @@ function zoneColor(type: string) {
   return type === "camera" ? "#E53935" : type === "police" ? "#1565C0" : "#E65100";
 }
 
-/** Accent colour for any alert type — static zones or community reports. */
+/** Accent colour for any alert type — uses the canonical incidentTypes palette
+ *  so the badge and emoji marker always match the map markers exactly. */
 function alertColor(type: string): string {
-  if (type === "camera")                       return "#E53935";
-  if (type === "police" || type === "alcoblow") return "#1565C0";
-  if (type === "accident" || type === "roadblock") return "#E65100";
-  return "#F57C00"; // pothole, flooding, roadworks, traffic, landslide, etc.
+  return resolveIncidentType(type).color;
 }
 
 /** Human-readable label for any alert type. */
@@ -522,9 +521,13 @@ export default function DriveScreen() {
                   NEARBY ALERT
                 </Text>
               </View>
-              {/* Icon + type name on one line, speed on the next */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <ZoneIcon type={primaryAlert.type} size={14} color={primaryAlert.color} />
+              {/* Emoji marker (matches map) + type name + optional speed */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={[styles.alertMarker, { backgroundColor: primaryAlert.color }]}>
+                  <Text style={styles.alertMarkerEmoji}>
+                    {resolveIncidentType(primaryAlert.type).emoji}
+                  </Text>
+                </View>
                 <View>
                   <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
                     {primaryAlert.typeName}
@@ -1005,6 +1008,12 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1,
   },
   nearbyAlertLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.9 },
+  // Emoji marker — same rounded-square style as the map incident markers
+  alertMarker: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+  },
+  alertMarkerEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
   zoneTypeName:     { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   zoneSpeedLine:    { fontSize: 13, fontFamily: "Inter_700Bold" },
   zoneDistAhead:    { fontSize: 11, fontFamily: "Inter_400Regular" },
