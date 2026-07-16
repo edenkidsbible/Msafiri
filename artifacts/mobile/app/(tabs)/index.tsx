@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
@@ -52,12 +52,41 @@ function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
 
 function ZoneIcon({ type, size = 14, color }: { type: string; size?: number; color: string }) {
   const name: keyof typeof Ionicons.glyphMap =
-    type === "camera" ? "camera" : type === "police" ? "person" : "speedometer";
+    type === "camera"    ? "camera"      :
+    type === "police"    ? "person"      :
+    type === "accident"  ? "car-sport"   :
+    type === "pothole"   ? "warning"     :
+    type === "roadblock" ? "ban"         :
+    type === "roadworks" ? "construct"   :
+    type === "alcoblow"  ? "wine"        :
+    type === "flooding"  ? "water"       :
+    type === "traffic"   ? "car"         :
+    type === "landslide" ? "earth"       :
+                           "speedometer";
   return <Ionicons name={name} size={size} color={color} />;
 }
 
 function zoneColor(type: string) {
   return type === "camera" ? "#E53935" : type === "police" ? "#1565C0" : "#E65100";
+}
+
+/** Accent colour for any alert type — static zones or community reports. */
+function alertColor(type: string): string {
+  if (type === "camera")                       return "#E53935";
+  if (type === "police" || type === "alcoblow") return "#1565C0";
+  if (type === "accident" || type === "roadblock") return "#E65100";
+  return "#F57C00"; // pothole, flooding, roadworks, traffic, landslide, etc.
+}
+
+/** Human-readable label for any alert type. */
+function alertTypeName(type: string): string {
+  const MAP: Record<string, string> = {
+    camera: "Speed Camera", police: "Police Check", zone: "Speed Zone",
+    accident: "Accident", roadblock: "Road Block", pothole: "Pothole",
+    alcoblow: "Alcoblow", flooding: "Flooding", roadworks: "Road Works",
+    traffic: "Traffic Jam", landslide: "Landslide",
+  };
+  return MAP[type] ?? (type.charAt(0).toUpperCase() + type.slice(1));
 }
 
 function incidentSummaryParts(incidents: { type: string; source: string }[]): { emoji: string; label: string }[] {
@@ -114,6 +143,34 @@ export default function DriveScreen() {
   const hasRoute   = !!activeRoute;
   const isMapMode  = (hasRoute || navigationActive) && !showResults;
   const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
+
+  // Nearest incident ahead — when navigating use routeIncidentsAhead so
+  // community reports (accidents, potholes, police reports…) are included
+  // alongside static cameras/zones.  Outside navigation fall back to the
+  // proximity-only nearbyZones.
+  const primaryAlert = useMemo(() => {
+    if (navigationActive && routeIncidentsAhead.length > 0) {
+      const inc = routeIncidentsAhead[0];
+      return {
+        type:      inc.type,
+        typeName:  alertTypeName(inc.type),
+        speedLimit: inc.speedLimit,
+        distanceM: inc.aheadDistanceM ?? 0,
+        color:     alertColor(inc.type),
+      };
+    }
+    if (nearbyZones.length > 0) {
+      const z = nearbyZones[0];
+      return {
+        type:      z.type,
+        typeName:  alertTypeName(z.type),
+        speedLimit: z.speedLimit,
+        distanceM: z.distance,
+        color:     alertColor(z.type),
+      };
+    }
+    return null;
+  }, [navigationActive, routeIncidentsAhead, nearbyZones]);
 
   // HUD-aware colours
   const bg      = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
@@ -411,32 +468,35 @@ export default function DriveScreen() {
               <ActivityIndicator size="small" color={c.primary} />
               <Text style={[styles.clearTxt, { color: fgMuted }]}>Calculating route…</Text>
             </View>
-          ) : nearbyZones.length > 0 ? (
+          ) : primaryAlert ? (
             <View style={{ flex: 1, gap: 5 }}>
-              {/* Colour-coded "NEARBY ALERT" badge — immediately tells the driver
-                  something is coming up without needing to read the details first */}
+              {/* Colour-coded "NEARBY ALERT" badge */}
               <View style={[styles.nearbyAlertBadge, {
-                backgroundColor: zoneColor(nearbyZones[0].type) + "22",
-                borderColor:     zoneColor(nearbyZones[0].type) + "55",
+                backgroundColor: primaryAlert.color + "22",
+                borderColor:     primaryAlert.color + "55",
               }]}>
-                <Ionicons name="alert-circle" size={11} color={zoneColor(nearbyZones[0].type)} />
-                <Text style={[styles.nearbyAlertLabel, { color: zoneColor(nearbyZones[0].type) }]}>
+                <Ionicons name="alert-circle" size={11} color={primaryAlert.color} />
+                <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color }]}>
                   NEARBY ALERT
                 </Text>
               </View>
-              {/* Alert type */}
+              {/* Icon + type name on one line, speed on the next */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <ZoneIcon type={nearbyZones[0].type} size={14} color={zoneColor(nearbyZones[0].type)} />
-                <Text style={[styles.zoneTypeName, { color: fgMain }]}>
-                  {nearbyZones[0].type === "camera" ? "Speed Camera"
-                    : nearbyZones[0].type === "police" ? "Police Check"
-                    : "Speed Zone"}
-                  {nearbyZones[0].speedLimit ? `  ·  ${nearbyZones[0].speedLimit} km/h` : ""}
-                </Text>
+                <ZoneIcon type={primaryAlert.type} size={14} color={primaryAlert.color} />
+                <View>
+                  <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
+                    {primaryAlert.typeName}
+                  </Text>
+                  {primaryAlert.speedLimit ? (
+                    <Text style={[styles.zoneSpeedLine, { color: fgMain }]}>
+                      {primaryAlert.speedLimit} km/h
+                    </Text>
+                  ) : null}
+                </View>
               </View>
-              {/* "X km ahead" — "ahead" makes the spatial context explicit for drivers */}
+              {/* Distance */}
               <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
-                {distStr(nearbyZones[0].distance)} ahead
+                {distStr(primaryAlert.distanceM)} ahead
               </Text>
             </View>
           ) : (
@@ -874,11 +934,11 @@ const styles = StyleSheet.create({
   // the limit inside the speed column lets us use a much wider digit (72 px)
   // without crowding the alert panel on the right.
   // minWidth: 130 — with paddingHorizontal:10 on the wrapper, content area is
-  // 110 px. At Inter_700Bold 72 px, three digits ("130 km/h") measure ~108 px,
-  // safely inside that space. Single/double digits look fine centred in 130 px.
+  // 110 px. At Inter_700Bold 84 px, three digits ("130 km/h") still fit
+  // (~126 px glyph width), with the container expanding slightly for 3 digits.
   speedGroup: { alignItems: "center", minWidth: 130, flexShrink: 0 },
   speedLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, marginBottom: 2 },
-  speedNum:   { fontSize: 72, fontFamily: "Inter_700Bold", lineHeight: 76 },
+  speedNum:   { fontSize: 84, fontFamily: "Inter_700Bold", lineHeight: 88 },
   speedUnit:  { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: -4 },
 
   limitLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
@@ -903,7 +963,8 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1,
   },
   nearbyAlertLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.9 },
-  zoneTypeName:     { fontSize: 13, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
+  zoneTypeName:     { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  zoneSpeedLine:    { fontSize: 13, fontFamily: "Inter_700Bold" },
   zoneDistAhead:    { fontSize: 11, fontFamily: "Inter_400Regular" },
 
   // Legacy (kept to avoid tsc errors on any surviving references)
