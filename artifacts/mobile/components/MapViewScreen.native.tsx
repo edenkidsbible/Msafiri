@@ -1,9 +1,9 @@
 import React, { useRef, useState, useMemo } from "react";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import MapView, { Callout, Circle, Marker, Polyline } from "react-native-maps";
+import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
@@ -85,6 +85,10 @@ const LEGEND_ITEMS: Array<{ key: string; label: string; emoji: string }> = [
   { key: "zone", label: "Speed Zone", emoji: "⚡" },
 ];
 
+function reportLabel(type: string): string {
+  return resolveIncidentType(type).label;
+}
+
 // ─── Cluster grouping ─────────────────────────────────────────────────────────
 
 type ClusterGroup = { members: CommunityReport[]; lat: number; lng: number };
@@ -147,49 +151,6 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
   );
 }
 
-function CalloutContent({ group }: { group: ClusterGroup }) {
-  const now = Date.now();
-  const { members } = group;
-
-  const ageStr = (timestamp: number) => formatTimeAgo(timestamp, now);
-
-  if (members.length === 1) {
-    const r = members[0];
-    const def = resolveIncidentType(r.type);
-    return (
-      <View style={calloutS.wrap}>
-        <Text style={calloutS.title}>{def.emoji}  {def.label}</Text>
-        {r.roadName ? <Text style={calloutS.road}>{r.roadName}</Text> : null}
-        <Text style={calloutS.sub}>{ageStr(r.timestamp)}</Text>
-        {r.confirmCount != null && r.confirmCount > 1 && (
-          <Text style={calloutS.sub}>Reported by {r.confirmCount} users</Text>
-        )}
-      </View>
-    );
-  }
-
-  return (
-    <View style={calloutS.wrap}>
-      <Text style={calloutS.heading}>{members.length} incidents nearby</Text>
-      {members.map((r) => {
-        const def = resolveIncidentType(r.type);
-        return (
-          <View key={r.id} style={calloutS.row}>
-            <Text style={calloutS.rowEmoji}>{def.emoji}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={calloutS.rowLabel}>{def.label}</Text>
-              {r.roadName ? <Text style={calloutS.rowRoad}>{r.roadName}</Text> : null}
-              <Text style={calloutS.rowAge}>{ageStr(r.timestamp)}</Text>
-              {r.confirmCount != null && r.confirmCount > 1 && (
-                <Text style={calloutS.rowAge}>Reported by {r.confirmCount} users</Text>
-              )}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
 
 export default function MapViewScreen() {
   const c = useColors();
@@ -201,14 +162,19 @@ export default function MapViewScreen() {
     navigationActive,
     showTraffic, setShowTraffic,
     vehicleType, allZones,
+    confirmReport, denyReport, flagReport,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
 
   const [showReport, setShowReport] = useState(false);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
   const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
+  const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
+  const [denyingId, setDenyingId] = useState<string | null>(null);
+  const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
+  const openedAtRef = useRef(0);
   const now = Date.now();
 
   const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
@@ -226,6 +192,40 @@ export default function MapViewScreen() {
   const undoLastReport = () => {
     if (undoReport) deleteReport(undoReport.id);
     setUndoReport(null);
+  };
+
+  const openCluster = (group: ClusterGroup) => {
+    openedAtRef.current = Date.now();
+    setSelectedCluster(group);
+  };
+  const closeCluster = () => {
+    // Guard against the react-native-maps ghost-touch quirk where a Marker
+    // tap also fires a press on whatever full-screen overlay mounts underneath,
+    // closing the sheet instantly.
+    if (Date.now() - openedAtRef.current < 400) return;
+    setSelectedCluster(null);
+  };
+  const handleFlagReport = (id: string) => {
+    Alert.alert(
+      "Report to moderators",
+      "Once 2 drivers report the same thing, it's hidden until a moderator reviews it. Tell us why this one should be reviewed:",
+      [
+        { text: "Inaccurate location", onPress: () => submitFlag(id, "inaccurate_location") },
+        { text: "Already gone",        onPress: () => submitFlag(id, "already_gone") },
+        { text: "Inappropriate / spam", onPress: () => submitFlag(id, "inappropriate") },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
+  const submitFlag = async (id: string, reason: string) => {
+    setFlaggingId(id);
+    const ok = await flagReport(id, reason);
+    setFlaggingId(null);
+    if (ok) {
+      Alert.alert("Reported", "Thanks — our moderation team will review this report.");
+    } else {
+      Alert.alert("Couldn't send report", "Check your connection and try again.");
+    }
   };
 
   const centerOnUser = () => {
@@ -292,7 +292,7 @@ export default function MapViewScreen() {
           );
         })}
 
-        {/* Community report clusters — tap to show callout */}
+        {/* Community report clusters — tap opens the bottom-sheet modal */}
         {clusters.map((group) => {
           const clusterKey = group.members.map((m) => m.id).sort().join("-");
           return (
@@ -302,11 +302,9 @@ export default function MapViewScreen() {
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}
               zIndex={10}
+              onPress={() => openCluster(group)}
             >
               <MapClusterMarker group={group} now={now} />
-              <Callout tooltip={true} style={calloutS.callout}>
-                <CalloutContent group={group} />
-              </Callout>
             </Marker>
           );
         })}
@@ -410,6 +408,113 @@ export default function MapViewScreen() {
         currentLat={currentLat}
         currentLng={currentLng}
       />
+
+      {/* ── Incident detail sheet ─────────────────────────────────────────── */}
+      {selectedCluster && (
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={closeCluster}
+        >
+          <TouchableOpacity style={ms.backdrop} onPress={closeCluster} activeOpacity={1}>
+            <TouchableOpacity activeOpacity={1} style={ms.sheet}>
+              <View style={ms.handle} />
+
+              <View style={ms.headerRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={ms.sheetTitle}>
+                    {selectedCluster.members.length === 1
+                      ? reportLabel(selectedCluster.members[0].type)
+                      : `${selectedCluster.members.length} Incidents at this location`}
+                  </Text>
+                  {selectedCluster.members.length > 1 && (
+                    <Text style={ms.sheetSub}>Tap "Still here" or "Gone now" to help others</Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setSelectedCluster(null)} style={ms.closeBtn}>
+                  <Ionicons name="close" size={18} color="#555" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
+                {selectedCluster.members.map((r, i) => {
+                  const def = resolveIncidentType(r.type);
+                  const ageStr = formatTimeAgo(r.timestamp, now);
+                  const confirmed = r.status === "confirmed";
+                  return (
+                    <View key={r.id} style={[ms.incidentRow, i > 0 && ms.incidentDivider]}>
+                      <View style={[ms.incidentIcon, { backgroundColor: def.color + "22" }]}>
+                        <Text style={ms.incidentEmoji}>{def.emoji}</Text>
+                      </View>
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <View style={ms.incidentLabelRow}>
+                          <Text style={ms.incidentType}>{reportLabel(r.type)}</Text>
+                          {confirmed && (
+                            <View style={ms.verifiedBadge}>
+                              <Ionicons name="checkmark-circle" size={11} color="#2E7D32" />
+                              <Text style={ms.verifiedTxt}>Verified</Text>
+                            </View>
+                          )}
+                          {r.isOwn && (
+                            <View style={ms.ownBadge}>
+                              <Text style={ms.ownTxt}>Yours</Text>
+                            </View>
+                          )}
+                        </View>
+                        {r.roadName ? <Text style={ms.incidentRoad}>{r.roadName}</Text> : null}
+                        <Text style={ms.incidentMeta}>
+                          {ageStr}
+                          {r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
+                          {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
+                        </Text>
+                        <View style={ms.voteRow}>
+                          <TouchableOpacity
+                            style={[ms.voteBtn, { backgroundColor: "#388E3C18", borderColor: "#388E3C55" }]}
+                            onPress={() => { confirmReport(r.id); setSelectedCluster(null); }}
+                          >
+                            <Ionicons name="thumbs-up-outline" size={13} color="#388E3C" />
+                            <Text style={[ms.voteTxt, { color: "#388E3C" }]}>Still here</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }, denyingId === r.id && ms.voteBtnDisabled]}
+                            disabled={denyingId === r.id}
+                            onPress={async () => {
+                              setDenyingId(r.id);
+                              const ok = await denyReport(r.id);
+                              setDenyingId(null);
+                              if (ok) {
+                                setSelectedCluster(null);
+                              } else {
+                                Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
+                              }
+                            }}
+                          >
+                            <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
+                            <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
+                              {denyingId === r.id ? "Sending…" : "Gone now"}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
+                            disabled={flaggingId === r.id}
+                            onPress={() => handleFlagReport(r.id)}
+                          >
+                            <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
+                            <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
+                              {flaggingId === r.id ? "Sending…" : "Report"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -490,23 +595,48 @@ const styles = StyleSheet.create({
   trafficLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
 
-const calloutS = StyleSheet.create({
-  callout: { backgroundColor: "transparent" },
-  wrap: {
-    minWidth: 170, maxWidth: 260,
+const ms = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheet: {
     backgroundColor: "#FFF",
-    borderRadius: 12,
-    paddingVertical: 10, paddingHorizontal: 14,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18, shadowRadius: 8, elevation: 8,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 48,
   },
-  title: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111", marginBottom: 2 },
-  road: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1565C0", marginBottom: 2 },
-  sub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#666" },
-  heading: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111", marginBottom: 8 },
-  row: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 6 },
-  rowEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
-  rowLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111" },
-  rowRoad: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#1565C0", marginTop: 1 },
-  rowAge: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#666", marginTop: 1 },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: "#DDD", alignSelf: "center", marginBottom: 16,
+  },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 16 },
+  sheetTitle: { fontSize: 18, fontWeight: "700", color: "#212121" },
+  sheetSub: { fontSize: 12, color: "#888", marginTop: 2 },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#F2F2F2",
+    alignItems: "center", justifyContent: "center",
+  },
+  incidentRow: { flexDirection: "row", gap: 12, paddingVertical: 12, alignItems: "flex-start" },
+  incidentDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#EBEBEB" },
+  incidentIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center", marginTop: 2,
+  },
+  incidentEmoji: { fontSize: 20, lineHeight: 26, fontFamily: EMOJI_FONT_FAMILY },
+  incidentLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  incidentType: { fontSize: 15, fontWeight: "700", color: "#212121" },
+  verifiedBadge: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "#E8F5E9", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  verifiedTxt: { fontSize: 10, fontWeight: "700", color: "#2E7D32" },
+  ownBadge: { backgroundColor: "#E3F2FD", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  ownTxt: { fontSize: 10, fontWeight: "700", color: "#1565C0" },
+  incidentRoad: { fontSize: 12, fontWeight: "600", color: "#1565C0", marginTop: 1 },
+  incidentMeta: { fontSize: 12, color: "#888" },
+  voteRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  voteBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
+  },
+  voteBtnDisabled: { opacity: 0.5 },
+  voteTxt: { fontSize: 12, fontWeight: "600" },
 });

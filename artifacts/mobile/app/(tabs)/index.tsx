@@ -873,10 +873,11 @@ const styles = StyleSheet.create({
   // left-hand column (mirrors the nav bar's navSpeedBlock approach). Keeping
   // the limit inside the speed column lets us use a much wider digit (72 px)
   // without crowding the alert panel on the right.
-  speedGroup: { alignItems: "center", minWidth: 88, flexShrink: 0 },
+  // minWidth: 130 — with paddingHorizontal:10 on the wrapper, content area is
+  // 110 px. At Inter_700Bold 72 px, three digits ("130 km/h") measure ~108 px,
+  // safely inside that space. Single/double digits look fine centred in 130 px.
+  speedGroup: { alignItems: "center", minWidth: 130, flexShrink: 0 },
   speedLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, marginBottom: 2 },
-  // 72 px at Inter_700Bold: three digits ("120") measure ~108 px, safely inside
-  // the 130 px minWidth container. Large enough to read with one glance.
   speedNum:   { fontSize: 72, fontFamily: "Inter_700Bold", lineHeight: 76 },
   speedUnit:  { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: -4 },
 
