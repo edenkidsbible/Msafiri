@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  BackHandler,
   Platform,
   ScrollView,
   StyleSheet,
@@ -94,6 +96,38 @@ export default function PaywallScreen() {
   async function handleEnterApp() {
     await requestLocationPermission();
     router.replace("/(tabs)");
+  }
+
+  // Called by the X button and "Not now" link.
+  // All app features require a subscription, so dismissing doesn't grant access —
+  // but store policy requires a clearly visible way to dismiss the offer.
+  // We show an explanatory alert rather than routing anywhere (routing to tabs
+  // would just loop straight back here via _layout.tsx's subscription gate).
+  function handleDismiss() {
+    const buttons: any[] = [
+      {
+        text: trialEligible ? "Start Free Trial" : "Subscribe Now",
+        style: "default",
+        // No onPress — just dismisses the alert, leaving the user on the paywall
+      },
+    ];
+    // Android allows programmatic app exit; iOS does not.
+    if (Platform.OS === "android") {
+      buttons.push({
+        text: "Exit App",
+        style: "destructive",
+        onPress: () => BackHandler.exitApp(),
+      });
+    }
+    Alert.alert(
+      "Subscription Required",
+      "All Msafiri features require an active subscription.\n\n" +
+        (trialEligible
+          ? "Start your 3-day free trial — it's free to begin and you can cancel anytime before it ends."
+          : "Subscribe to get full access. You can cancel anytime from your App Store or Google Play settings."),
+      buttons,
+      { cancelable: true }
+    );
   }
 
   // ── Success screen ──────────────────────────────────────────────────────────
@@ -239,7 +273,7 @@ export default function PaywallScreen() {
         {/* Clearly visible dismiss button — required by store subscription policies */}
         <TouchableOpacity
           style={[styles.dismissBtn, { backgroundColor: c.card, borderColor: c.border }]}
-          onPress={handleEnterApp}
+          onPress={handleDismiss}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityLabel="Close"
           accessibilityRole="button"
@@ -417,16 +451,15 @@ export default function PaywallScreen() {
           <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
         </TouchableOpacity>
 
-        {/* Clearly labelled dismiss option — required by store subscription policies.
-            Tapping this enters the app with subscription features locked. */}
+        {/* Secondary dismiss option — required by store subscription policies */}
         <TouchableOpacity
-          onPress={handleEnterApp}
+          onPress={handleDismiss}
           style={styles.maybeLaterBtn}
-          accessibilityLabel="Continue without subscribing"
+          accessibilityLabel="Not now"
           accessibilityRole="button"
         >
           <Text style={[styles.maybeLaterTxt, { color: c.mutedForeground }]}>
-            Maybe later — some features require a subscription
+            Not now
           </Text>
         </TouchableOpacity>
       </View>
