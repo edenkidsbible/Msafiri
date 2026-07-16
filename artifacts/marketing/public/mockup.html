@@ -93,13 +93,13 @@
 </div>
 <script>
   const shots = {
-    nav:             '/marketing/images/shot-nav.jpg',
-    'route-incidents': '/marketing/images/shot-route-incidents.jpg',
-    map:             '/marketing/images/shot-map.jpg',
-    browse:          '/marketing/images/shot-browse.jpg',
-    fines:           '/marketing/images/shot-fines.jpg',
-    settings:        '/marketing/images/shot-settings.jpg',
-    report:          '/marketing/images/shot-report.jpg',
+    nav:             '/images/shot-nav.jpg',
+    'route-incidents': '/images/shot-route-incidents.jpg',
+    map:             '/images/shot-map.jpg',
+    browse:          '/images/shot-browse.jpg',
+    fines:           '/images/shot-fines.jpg',
+    settings:        '/images/shot-settings.jpg',
+    report:          '/images/shot-report.jpg',
   };
   const p = new URLSearchParams(location.search).get('s') || 'nav';
   document.getElementById('shot').src = shots[p] || shots.nav;

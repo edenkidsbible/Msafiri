@@ -66,7 +66,11 @@ async function resendEmail(id: string): Promise<{ emailSent: boolean }> {
     method: "POST",
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!res.ok) throw new Error("Failed to resend email");
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = (body as any).detail || (body as any).error || "Failed to resend email";
+    throw new Error(detail);
+  }
   return res.json();
 }
 
@@ -326,8 +330,15 @@ export default function Creators() {
         });
       }
     },
-    onError: () => {
-      toast({ title: "Failed to resend email", variant: "destructive" });
+    onError: (e: Error) => {
+      const isNoCode = e.message.toLowerCase().includes("no promo code") || e.message.toLowerCase().includes("upload promo");
+      toast({
+        title: "Email not sent",
+        description: isNoCode
+          ? "No promo codes in the pool. Upload codes first, then retry."
+          : e.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
     },
   });
 

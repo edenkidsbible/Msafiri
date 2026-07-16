@@ -216,7 +216,8 @@ router.patch("/creators/:id", async (req: Request, res: Response) => {
 
 // POST /admin/creators/:id/resend-email
 // Re-sends the promo code email for an already-approved creator.
-// Safe to call multiple times — the code is already assigned; we just resend it.
+// If no code was assigned yet (e.g. pool was empty at approval time), tries to
+// assign one now. Safe to call multiple times once a code is assigned.
 router.post("/creators/:id/resend-email", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
@@ -234,15 +235,47 @@ router.post("/creators/:id/resend-email", async (req: Request, res: Response) =>
       return res.status(400).json({ error: "Application is not approved" });
     }
 
-    // Find the promo code already assigned to this application
-    const [promoCode] = await db
+    // Find any promo code already assigned to this application
+    let [promoCode] = await db
       .select()
       .from(promoCodesTable)
       .where(eq(promoCodesTable.applicationId, id))
       .limit(1);
 
+    // If no code was assigned yet (pool was empty at approval time), try now
     if (!promoCode) {
-      return res.status(404).json({ error: "No promo code assigned to this application" });
+      const preferredPlatform = application.platform ?? "ios";
+      const fallbackPlatform  = preferredPlatform === "ios" ? "android" : "ios";
+
+      const [preferred] = await db
+        .select()
+        .from(promoCodesTable)
+        .where(sql`platform = ${preferredPlatform} AND application_id IS NULL`)
+        .limit(1);
+
+      const [fallback] = !preferred
+        ? await db
+            .select()
+            .from(promoCodesTable)
+            .where(sql`platform = ${fallbackPlatform} AND application_id IS NULL`)
+            .limit(1)
+        : [undefined];
+
+      const chosen = preferred ?? fallback;
+
+      if (!chosen) {
+        return res.status(400).json({
+          error: "No promo codes available",
+          detail: "Upload promo codes to the pool first, then retry.",
+        });
+      }
+
+      await db
+        .update(promoCodesTable)
+        .set({ applicationId: id, sentAt: new Date() })
+        .where(eq(promoCodesTable.id, chosen.id));
+
+      promoCode = { ...chosen, applicationId: id };
     }
 
     const emailSent = await sendCreatorPromoCode({
