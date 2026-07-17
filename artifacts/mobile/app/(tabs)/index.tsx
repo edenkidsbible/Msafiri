@@ -583,15 +583,12 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
         <TouchableOpacity
-          style={[styles.reportBar, { bottom: bottomBase }]}
+          style={[styles.reportBar, { bottom: bottomBase + 290, right: 16 }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <Ionicons name="camera" size={20} color="#FFF" />
-          <Text style={styles.reportBarTxt}>Report Camera/Incident</Text>
-          <View style={styles.reportBarBadge}>
-            <Ionicons name="add" size={16} color="#E65100" />
-          </View>
+          <Ionicons name="camera" size={16} color="#FFF" />
+          <Text style={styles.reportBarTxt}>Report Incident</Text>
         </TouchableOpacity>
       )}
 
@@ -995,21 +992,16 @@ const styles = StyleSheet.create({
 
   // ── Prominent Report button ───────────────────────────────────────────────
   reportBar: {
-    position: "absolute", left: 16, right: 16, zIndex: 11,
-    flexDirection: "row", alignItems: "center",
+    position: "absolute", zIndex: 11,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
     backgroundColor: "#E65100",
-    borderRadius: 20, paddingHorizontal: 20, paddingVertical: 15,
-    gap: 10,
-    shadowColor: "#E65100", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 10, elevation: 10,
+    borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11,
+    gap: 7,
+    shadowColor: "#E65100", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45, shadowRadius: 8, elevation: 10,
   },
   reportBarTxt: {
-    flex: 1, color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold",
-  },
-  reportBarBadge: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "#FFF",
-    alignItems: "center", justifyContent: "center",
+    color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold",
   },
 
   // ── FAB column ────────────────────────────────────────────────────────────
