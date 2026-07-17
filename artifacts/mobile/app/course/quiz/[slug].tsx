@@ -37,6 +37,15 @@ interface FullLesson {
 
 type Phase = "question" | "feedback" | "results";
 
+interface SavedProgress {
+  currentIndex: number;
+  answers: (number | null)[];
+}
+
+function progressKey(slug: string) {
+  return `quiz_progress_${slug}`;
+}
+
 // ── Answer option card ────────────────────────────────────────────────────────
 
 function OptionCard({
@@ -209,6 +218,69 @@ function ResultsScreen({
   );
 }
 
+// ── Resume prompt ─────────────────────────────────────────────────────────────
+
+function ResumePrompt({
+  currentIndex,
+  total,
+  colors,
+  insets,
+  onResume,
+  onStartFresh,
+}: {
+  currentIndex: number;
+  total: number;
+  colors: ReturnType<typeof useColors>;
+  insets: { top: number; bottom: number };
+  onResume: () => void;
+  onStartFresh: () => void;
+}) {
+  const topInset = insets.top;
+  const bottomInset = Platform.OS === "web" ? 24 : insets.bottom;
+
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <View style={[styles.topBar, { paddingTop: topInset + 8, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <View style={{ width: 38 }} />
+        <Text style={[styles.topBarTitle, { color: colors.foreground }]}>Lesson Quiz</Text>
+        <View style={{ width: 38 }} />
+      </View>
+
+      <View style={[styles.centerFill, { paddingBottom: bottomInset + 24 }]}>
+        <View style={[styles.resumeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.resumeIconWrap, { backgroundColor: colors.primary + "18" }]}>
+            <Feather name="bookmark" size={28} color={colors.primary} />
+          </View>
+          <Text style={[styles.resumeTitle, { color: colors.foreground }]}>
+            Resume your quiz?
+          </Text>
+          <Text style={[styles.resumeBody, { color: colors.mutedForeground }]}>
+            You were on question {currentIndex + 1} of {total}. Pick up where you left off, or start over.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.ctaBtn, { backgroundColor: colors.primary, marginTop: 8 }]}
+            onPress={onResume}
+            activeOpacity={0.85}
+          >
+            <Feather name="play" size={16} color="#fff" />
+            <Text style={styles.ctaBtnText}>Resume</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 0 }]}
+            onPress={onStartFresh}
+            activeOpacity={0.85}
+          >
+            <Feather name="refresh-cw" size={16} color={colors.foreground} />
+            <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Start fresh</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ── Main quiz screen ──────────────────────────────────────────────────────────
 
 export default function QuizScreen() {
@@ -232,15 +304,37 @@ export default function QuizScreen() {
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [submitted, setSubmitting] = useState(false);
 
-  // Load from AsyncStorage cache (questions were stored with lesson cache)
+  // Resume prompt state
+  const [savedProgress, setSavedProgress] = useState<SavedProgress | null>(null);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+
+  // Load lesson from AsyncStorage cache, then check for saved progress
   useEffect(() => {
     if (!slug) return;
     const cacheKey = `course_lesson_${slug}`;
     AsyncStorage.getItem(cacheKey)
-      .then((raw) => {
+      .then(async (raw) => {
         if (raw) {
           const parsed: FullLesson = JSON.parse(raw);
           setLesson(parsed);
+
+          // Check for saved in-progress session
+          try {
+            const savedRaw = await AsyncStorage.getItem(progressKey(slug));
+            if (savedRaw) {
+              const saved: SavedProgress = JSON.parse(savedRaw);
+              // Only offer resume if there's meaningful progress (answered at least one question)
+              if (saved.answers.some((a) => a !== null)) {
+                setSavedProgress(saved);
+                setShowResumePrompt(true);
+              } else {
+                // Stale/empty save — clear it silently
+                await AsyncStorage.removeItem(progressKey(slug));
+              }
+            }
+          } catch {
+            // Ignore errors reading saved progress
+          }
         } else {
           setError("Quiz not available offline. Please open the lesson first.");
         }
@@ -251,6 +345,30 @@ export default function QuizScreen() {
 
   const questions = useMemo(() => lesson?.quizQuestions ?? [], [lesson]);
   const currentQ = questions[currentIndex];
+
+  // Persist progress to AsyncStorage after each answer
+  const persistProgress = useCallback(
+    async (index: number, newAnswers: (number | null)[]) => {
+      if (!slug) return;
+      try {
+        const data: SavedProgress = { currentIndex: index, answers: newAnswers };
+        await AsyncStorage.setItem(progressKey(slug), JSON.stringify(data));
+      } catch {
+        // Non-critical — ignore storage errors
+      }
+    },
+    [slug]
+  );
+
+  // Clear persisted progress
+  const clearProgress = useCallback(async () => {
+    if (!slug) return;
+    try {
+      await AsyncStorage.removeItem(progressKey(slug));
+    } catch {
+      // Non-critical
+    }
+  }, [slug]);
 
   const handleSelectOption = (idx: number) => {
     if (phase !== "question") return;
@@ -264,7 +382,10 @@ export default function QuizScreen() {
     newAnswers[currentIndex] = selectedIndex;
     setAnswers(newAnswers);
     setPhase("feedback");
-  }, [selectedIndex, currentQ, answers, currentIndex]);
+
+    // Persist progress after each answer
+    persistProgress(currentIndex, newAnswers);
+  }, [selectedIndex, currentQ, answers, currentIndex, persistProgress]);
 
   const handleNext = useCallback(async () => {
     const isLast = currentIndex === questions.length - 1;
@@ -273,6 +394,9 @@ export default function QuizScreen() {
       // Compute score
       const score = answers.filter((a, i) => a === questions[i]?.correctIndex).length;
       const total = questions.length;
+
+      // Clear saved progress — quiz is complete
+      await clearProgress();
 
       // Submit to progress API (not for practice)
       if (!isPractice && deviceId && slug && !submitted) {
@@ -283,11 +407,15 @@ export default function QuizScreen() {
       }
       setPhase("results");
     } else {
-      setCurrentIndex((prev) => prev + 1);
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
       setSelectedIndex(null);
       setPhase("question");
+      // Persist the advanced index so a close on the new blank question
+      // doesn't reopen one question behind.
+      persistProgress(nextIndex, answers);
     }
-  }, [currentIndex, questions, answers, isPractice, deviceId, slug, submitted, markComplete]);
+  }, [currentIndex, questions, answers, isPractice, deviceId, slug, submitted, markComplete, clearProgress, persistProgress]);
 
   const handleRetake = () => {
     setCurrentIndex(0);
@@ -295,6 +423,29 @@ export default function QuizScreen() {
     setPhase("question");
     setAnswers([]);
     setSubmitting(false);
+    clearProgress();
+  };
+
+  // Resume from saved progress — land at first unanswered question so the
+  // driver never re-answers a question they already submitted, even if the
+  // app closed between Submit and Next.
+  const handleResume = () => {
+    if (!savedProgress) return;
+    const resumeIndex = savedProgress.answers.findIndex((a) => a === null);
+    setCurrentIndex(resumeIndex >= 0 ? resumeIndex : 0);
+    setAnswers(savedProgress.answers);
+    setSelectedIndex(null);
+    setPhase("question");
+    setShowResumePrompt(false);
+    setSavedProgress(null);
+  };
+
+  // Start fresh — discard saved progress
+  const handleStartFresh = async () => {
+    await clearProgress();
+    setSavedProgress(null);
+    setShowResumePrompt(false);
+    // State already initialised to defaults (index=0, answers=[], etc.)
   };
 
   const topInset = Platform.OS === "ios" ? insets.top : insets.top;
@@ -333,6 +484,20 @@ export default function QuizScreen() {
           </TouchableOpacity>
         </View>
       </View>
+    );
+  }
+
+  // ── Resume prompt ────────────────────────────────────────────────────────────
+  if (showResumePrompt && savedProgress) {
+    return (
+      <ResumePrompt
+        currentIndex={savedProgress.currentIndex}
+        total={questions.length}
+        colors={colors}
+        insets={{ top: insets.top, bottom: insets.bottom }}
+        onResume={handleResume}
+        onStartFresh={handleStartFresh}
+      />
     );
   }
 
@@ -616,6 +781,35 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
+  },
+  // Resume prompt card
+  resumeCard: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
+  },
+  resumeIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  resumeTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    textAlign: "center",
+  },
+  resumeBody: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 4,
   },
   // Results
   resultsContent: {
