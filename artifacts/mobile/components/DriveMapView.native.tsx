@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
+
+export type DriveMapViewHandle = { recenter: () => void };
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
@@ -151,7 +153,10 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
 // ─── Main map component ───────────────────────────────────────────────────────
 
-export default function DriveMapView() {
+const DriveMapView = forwardRef(function DriveMapView(
+  _: object,
+  ref: React.ForwardedRef<DriveMapViewHandle>,
+) {
   const {
     currentLat, currentLng,
     activeRoute, altRoutes, selectRoute,
@@ -289,6 +294,16 @@ export default function DriveMapView() {
   }, [allZones, currentLat, currentLng]);
 
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
+
+  const recenter = useCallback(() => {
+    if (currentLat == null || currentLng == null) return;
+    mapRef.current?.animateToRegion(
+      { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+      600
+    );
+  }, [currentLat, currentLng]);
+
+  useImperativeHandle(ref, () => ({ recenter }), [recenter]);
 
   return (
     <>
@@ -546,7 +561,9 @@ export default function DriveMapView() {
       )}
     </>
   );
-}
+});
+
+export default DriveMapView;
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 

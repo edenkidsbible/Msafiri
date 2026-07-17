@@ -1,9 +1,14 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
-export default function DriveMapView() {
+export type DriveMapViewHandle = { recenter: () => void };
+
+const DriveMapView = forwardRef(function DriveMapView(
+  _: object,
+  ref: React.ForwardedRef<DriveMapViewHandle>,
+) {
   const c = useColors();
   return (
     <View style={[styles.container, { backgroundColor: c.muted }]}>
@@ -13,7 +18,9 @@ export default function DriveMapView() {
       </Text>
     </View>
   );
-}
+});
+
+export default DriveMapView;
 
 const styles = StyleSheet.create({
   container: {

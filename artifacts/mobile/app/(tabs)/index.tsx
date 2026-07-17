@@ -22,7 +22,7 @@ import { useApp } from "@/context/AppContext";
 import AlertBanner from "@/components/AlertBanner";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
-import DriveMapView from "@/components/DriveMapView";
+import DriveMapView, { type DriveMapViewHandle } from "@/components/DriveMapView";
 import ReportModal from "@/components/ReportModal";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
@@ -149,6 +149,7 @@ export default function DriveScreen() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sharingLoading, setSharingLoading] = useState(false);
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
+  const driveMapRef = useRef<DriveMapViewHandle>(null);
 
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
@@ -301,7 +302,7 @@ export default function DriveScreen() {
 
       {/* ── Base layer: full-screen map ── */}
       <View style={StyleSheet.absoluteFillObject}>
-        <DriveMapView />
+        <DriveMapView ref={driveMapRef} />
       </View>
 
       {/* ── Speed/alert warning strip (over map, highest z, under header) ── */}
@@ -446,6 +447,13 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!showResults && !navigationActive && (
         <View style={[styles.fabCol, { top: topInset + 72, right: 12 }]}>
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: fabBg }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); driveMapRef.current?.recenter(); }}
+          >
+            <Ionicons name="locate" size={19} color={isDark ? "#CCC" : "#555"} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: showTraffic ? c.primary : fabBg }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTraffic(!showTraffic); }}
