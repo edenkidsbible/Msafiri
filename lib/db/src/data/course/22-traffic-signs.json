@@ -14,32 +14,64 @@
       "estimatedMinutes": 1,
       "content": [
         {
+          "type": "image",
+          "path": "page-072.png",
+          "caption": "Illustration"
+        },
+        {
           "type": "callout",
           "text": "TRAFFIC SIGNS"
         },
         {
           "type": "paragraph",
-          "text": "(a) Regulatory Signs Secondary Message Signs for use with Regulatory Signs (b) Warning Signs (c) Information Signs No through road on ahead No through road on right No through road on left (d) Guidance Signs"
+          "text": "(a) Regulatory Signs"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-073.png",
+          "caption": "Illustration"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-074.png",
+          "caption": "Illustration"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "paragraph",
+          "text": "Secondary Message Signs for use with Regulatory Signs (b) Warning Signs"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-075.png",
+          "caption": "Illustration"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-076.png",
+          "caption": "Illustration"
+        },
+        {
+          "type": "image",
+          "path": "page-077.png",
+          "caption": "Illustration"
+        },
+        {
+          "type": "image",
+          "path": "page-078.png",
+          "caption": "Illustration"
+        },
+        {
+          "type": "paragraph",
+          "text": "(c) Information Signs No through road on ahead No through road on right No through road on left"
+        },
+        {
+          "type": "image",
+          "path": "page-079.png",
+          "caption": "Illustration"
+        },
+        {
+          "type": "paragraph",
+          "text": "(d) Guidance Signs"
         },
         {
           "type": "callout",
@@ -47,7 +79,8 @@
         }
       ],
       "keyPoints": [
-        "(a) Regulatory Signs Secondary Message Signs for use with Regulatory Signs (b) Warning Signs (c) Information Signs No through road on ahead No through road on right No through road on left (d) Guidance Signs"
+        "Secondary Message Signs for use with Regulatory Signs (b) Warning Signs",
+        "(c) Information Signs No through road on ahead No through road on right No through road on left"
       ],
       "quiz": [
         {

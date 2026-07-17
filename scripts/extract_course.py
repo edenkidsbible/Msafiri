@@ -11,6 +11,13 @@ import os
 
 PDF_PATH = "attached_assets/0_KENYA-LEARNER-DRIVER-HANDBOOK-Light-Motor-Vehicle_1784300816964.pdf"
 OUT_DIR = "lib/db/src/data/course"
+OUT_IMG_DIR = "artifacts/api-server/public/course-images"
+
+# Visual-page detection thresholds
+IMG_SCALE = 2.0      # render at 2× (retina-friendly)
+IMG_BIG_AREA = 1000  # sq pts — minimum area for a "big" drawing element
+IMG_BIG_COUNT = 4    # minimum number of big drawing elements to flag a page
+IMG_AREA_MIN = 8000  # minimum total drawing area to flag a page as visual
 
 # ---------------------------------------------------------------------------
 # TOC — derived by inspection of page 4 (0-indexed: 3)
@@ -80,7 +87,8 @@ def extract_page_spans(page):
     blocks = page.get_text("dict", sort=True)["blocks"]
     for b in blocks:
         if b.get("type") != 0:
-            result.append(("image", "[Figure/Diagram]"))
+            # Tiny embedded raster icons — skipped in favour of full-page
+            # visual renders injected by the chapter loop via render_visual_pages().
             continue
         for line in b.get("lines", []):
             for span in line.get("spans", []):
@@ -90,11 +98,47 @@ def extract_page_spans(page):
     return result
 
 
+def render_visual_pages(doc):
+    """
+    Scan all PDF pages for significant vector drawing content (diagrams,
+    traffic sign grids, model-town illustrations). Render matching pages as
+    PNG files into OUT_IMG_DIR and return a mapping of
+    {1-indexed page number → filename}.
+    """
+    os.makedirs(OUT_IMG_DIR, exist_ok=True)
+    mat = fitz.Matrix(IMG_SCALE, IMG_SCALE)
+    visual = {}
+    for i in range(len(doc)):
+        page = doc[i]
+        drawings = page.get_drawings()
+        big = [
+            d for d in drawings
+            if d.get("rect") and d["rect"].width * d["rect"].height > IMG_BIG_AREA
+        ]
+        if len(big) < IMG_BIG_COUNT:
+            continue
+        total_area = sum(
+            d["rect"].width * d["rect"].height
+            for d in drawings if d.get("rect")
+        )
+        if total_area < IMG_AREA_MIN:
+            continue
+        pg_num = i + 1  # 1-indexed
+        filename = f"page-{pg_num:03d}.png"
+        out_path = os.path.join(OUT_IMG_DIR, filename)
+        pix = page.get_pixmap(matrix=mat)
+        pix.save(out_path)
+        visual[pg_num] = filename
+        print(f"  [image] Page {pg_num} → {filename} ({pix.width}×{pix.height})")
+    return visual
+
+
 def spans_to_lesson_content(spans):
     """
     Convert a flat span list into structured content blocks for a single lesson.
     heading_section becomes a callout block.
     Bullet sequences become list blocks.
+    image_page becomes an image block referencing a rendered PNG.
     """
     blocks = []
     current_list = []
@@ -137,10 +181,14 @@ def spans_to_lesson_content(spans):
             else:
                 current_para.append(text)
         elif kind == "image":
+            # Legacy tiny xref icons — now skipped at extraction; no-op.
+            pass
+        elif kind == "image_page":
+            # text = PNG filename (e.g. "page-073.png") set by the chapter loop
             flush_para()
             flush_list()
             bullet_pending = False
-            blocks.append({"type": "callout", "text": text})
+            blocks.append({"type": "image", "path": text, "caption": "Illustration"})
 
     flush_para()
     flush_list()
@@ -181,7 +229,7 @@ def split_by_lesson_headings(all_spans, chapter_title):
     pending_headings: list[str] = []
 
     for idx, (title, spans) in enumerate(raw):
-        has_content = any(k in ("body", "bullet_marker", "image") for k, _ in spans)
+        has_content = any(k in ("body", "bullet_marker", "image", "image_page") for k, _ in spans)
         is_last = (idx == len(raw) - 1)
 
         if not has_content and not is_last:
@@ -210,11 +258,13 @@ def split_by_lesson_headings(all_spans, chapter_title):
 
 
 def estimate_minutes(blocks):
-    words = sum(
-        len(b["text"].split()) if b["type"] in ("paragraph", "callout") else
-        sum(len(i.split()) for i in b["items"])
-        for b in blocks
-    )
+    words = 0
+    for b in blocks:
+        if b["type"] in ("paragraph", "callout") and "text" in b:
+            words += len(b["text"].split())
+        elif b["type"] == "list" and "items" in b:
+            words += sum(len(i.split()) for i in b["items"])
+        # "image" blocks have no word count
     return max(1, round(words / 200))
 
 
@@ -798,6 +848,10 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     doc = fitz.open(PDF_PATH)
 
+    print("Rendering visual pages…")
+    visual_pages = render_visual_pages(doc)
+    print(f"  → {len(visual_pages)} page(s) rendered\n")
+
     chapters_meta = []
     chapter_order = 0
 
@@ -815,6 +869,11 @@ def main():
         # empty-lesson detection in split_by_lesson_headings.
         all_spans = []
         for page_num in range(start_page - 1, min(end_page - 1, len(doc))):
+            pg_1indexed = page_num + 1
+            # Inject a visual-page image marker before the text spans of this
+            # page so it ends up in the correct lesson after lesson splitting.
+            if pg_1indexed in visual_pages:
+                all_spans.append(("image_page", visual_pages[pg_1indexed]))
             page = doc[page_num]
             for kind, text in extract_page_spans(page):
                 if kind == "body" and re.fullmatch(r"\d{1,3}", text):

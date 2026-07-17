@@ -474,7 +474,7 @@ export default function TripsScreen() {
               {
                 icon: "people-outline" as const,
                 title: "Family tracking",
-                body: "Know when your husband, wife, or child is safely on their way or has arrived.",
+                body: "Know when your loved one is safely on their way or has arrived.",
               },
               {
                 icon: "bicycle-outline" as const,

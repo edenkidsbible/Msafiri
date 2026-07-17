@@ -28,9 +28,11 @@ const __dirname = path.dirname(__filename);
 // ---------------------------------------------------------------------------
 
 interface ContentBlock {
-  type: "paragraph" | "list" | "callout";
+  type: "paragraph" | "list" | "callout" | "image";
   text?: string;
   items?: string[];
+  path?: string;
+  caption?: string;
 }
 
 interface QuizQuestion {

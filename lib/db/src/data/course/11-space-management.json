@@ -128,24 +128,15 @@
             "Signal so that the vehicles around you know that you intend to slow down",
             "Turn slowly to give yourself and other drivers more space to avoid problems",
             "Be aware of the size and weight of oncoming vehicles, give then room to pass but do not reverse as this will affect the vehicles behind you",
-            "Ensure that you have sufficient space to get across or join a lane"
+            "Ensure that you have sufficient space to get across or join a lane Proper position to see and to be seen by other drivers"
           ]
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "Proper position to see and to be seen by other drivers"
         }
       ],
       "keyPoints": [
         "When you realize that there is insufficient space in front of the vehicle.",
         "Signal so that the vehicles around you know that you intend to slow down",
         "Turn slowly to give yourself and other drivers more space to avoid problems",
-        "Be aware of the size and weight of oncoming vehicles, give then room to pass but do not reverse as this will affect the vehicles behind you",
-        "Proper position to see and to be seen by other drivers"
+        "Be aware of the size and weight of oncoming vehicles, give then room to pass but do not reverse as this will affect the vehicles behind you"
       ],
       "quiz": [
         {

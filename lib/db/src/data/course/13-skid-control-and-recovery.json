@@ -181,10 +181,6 @@
             "As your vehicle turns back in the correct direction, you may then need to steer in the opposite direction so as to stay on your desired path",
             "Continue to look at your path of travel down the road"
           ]
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
         }
       ],
       "keyPoints": [

@@ -14,6 +14,11 @@
       "estimatedMinutes": 5,
       "content": [
         {
+          "type": "image",
+          "path": "page-009.png",
+          "caption": "Illustration"
+        },
+        {
           "type": "callout",
           "text": "UNIT 3: MODEL TOWN"
         },
@@ -27,75 +32,16 @@
         },
         {
           "type": "paragraph",
-          "text": "1. One way traffic road 2. Two way traffic road 3. Roundabout 4. Parking zones 5. Yellow kerb 6. Pedestrian crossing 7. Stop sign 8. Give way sign 9. Exit from main road 10.\tExit from controlled parking zone 11.\tRoad markings – arrows, reflectors, and delta marks etc."
+          "text": "1. One way traffic road 2. Two way traffic road 3. Roundabout 4. Parking zones 5. Yellow kerb 6. Pedestrian crossing 7. Stop sign 8. Give way sign 9. Exit from main road 10.\tExit from controlled parking zone 11.\tRoad markings – arrows, reflectors, and delta marks etc. The model town board"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-010.png",
+          "caption": "Illustration"
         },
         {
           "type": "paragraph",
-          "text": "The model town board A."
+          "text": "A."
         },
         {
           "type": "callout",
@@ -124,8 +70,17 @@
             "This is a road where vehicles move in opposite direction. A road with single continuous or broken yellow line at the centre dividing the road into two equal parts",
             "Yellow continuous line means you stick to your side or no overtaking",
             "Yellow broken line means you can overtake if the road is clear. On a single carriageway, all drivers need to obey the rules of roads in Kenya (keep left unless overtaking)",
-            "There is a safe and marked area on the road known as a pedestrian crossing where the driver needs to slow down and stop so as to enable pedestrians to cross from one side of the road to another C."
+            "There is a safe and marked area on the road known as a pedestrian crossing where the driver needs to slow down and stop so as to enable pedestrians to cross from one side of the road to another"
           ]
+        },
+        {
+          "type": "image",
+          "path": "page-011.png",
+          "caption": "Illustration"
+        },
+        {
+          "type": "paragraph",
+          "text": "C."
         },
         {
           "type": "callout",

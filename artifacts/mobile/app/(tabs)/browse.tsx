@@ -275,7 +275,12 @@ function LearnBrowseView({ bottomInset, tabBarHeight }: { bottomInset: number; t
         return (
           <TouchableOpacity
             style={[styles.learnChapter, { backgroundColor: c.card, borderColor: c.border }]}
-            onPress={() => router.push(`/course/${ch.slug}` as any)}
+            onPress={() => {
+              const target =
+                ch.lessons.find((l) => !completedSlugs.has(l.slug)) ??
+                ch.lessons[0];
+              if (target) router.push(`/course/${target.slug}` as any);
+            }}
             activeOpacity={0.75}
           >
             <View style={[styles.learnChUnit, { backgroundColor: c.primary + "18" }]}>

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGet } from "@/utils/apiClient";
 
-const CACHE_KEY = "course_chapters_cache";
+const CACHE_KEY = "course_chapters_cache_v2";
 
 export interface CourseLesson {
   id: string;

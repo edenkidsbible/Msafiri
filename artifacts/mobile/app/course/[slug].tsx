@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,15 +18,17 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useCourseData } from "@/hooks/useCourseData";
 import { useCourseProgress } from "@/hooks/useCourseProgress";
-import { apiGet, apiPost, apiDelete } from "@/utils/apiClient";
+import { apiGet, apiPost, apiDelete, API_BASE } from "@/utils/apiClient";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 
 // ── Types matching the API response ─────────────────────────────────────────
 
 interface ContentBlock {
-  type: "paragraph" | "list" | "callout";
+  type: "paragraph" | "list" | "callout" | "image";
   text?: string;
   items?: string[];
+  path?: string;
+  caption?: string;
 }
 
 interface FullLesson {
@@ -70,6 +74,24 @@ function ContentBlocks({ blocks, colors }: { blocks: ContentBlock[]; colors: Ret
             <View key={i} style={[styles.callout, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
               <Feather name="info" size={16} color={colors.primary} style={{ marginTop: 2 }} />
               <Text style={[styles.calloutText, { color: colors.foreground }]}>{block.text}</Text>
+            </View>
+          );
+        }
+        if (block.type === "image" && block.path) {
+          const uri = `${API_BASE}/course-images/${block.path}`;
+          const screenWidth = Dimensions.get("window").width;
+          return (
+            <View key={i} style={styles.imageBlock}>
+              <Image
+                source={{ uri }}
+                style={[styles.lessonImage, { width: screenWidth - 48 }]}
+                resizeMode="contain"
+              />
+              {block.caption && block.caption !== "Illustration" && (
+                <Text style={[styles.imageCaption, { color: colors.mutedForeground }]}>
+                  {block.caption}
+                </Text>
+              )}
             </View>
           );
         }
@@ -506,6 +528,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     fontFamily: "Inter_400Regular",
+  },
+  imageBlock: {
+    alignItems: "center",
+    gap: 6,
+  },
+  lessonImage: {
+    height: 260,
+    borderRadius: 10,
+  },
+  imageCaption: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
   },
   keyPointsCard: {
     borderRadius: 14,

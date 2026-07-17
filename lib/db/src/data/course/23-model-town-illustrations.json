@@ -14,188 +14,27 @@
       "estimatedMinutes": 1,
       "content": [
         {
+          "type": "image",
+          "path": "page-080.png",
+          "caption": "Illustration"
+        },
+        {
           "type": "paragraph",
           "text": "Lane 1 has two options Stay on lane 1, Go straight, 0° Turn left at 90°"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-081.png",
+          "caption": "Illustration"
         },
         {
           "type": "paragraph",
           "text": "Lane 2 has one option Go straight only, 0°"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-082.png",
+          "caption": "Illustration"
         },
         {
           "type": "callout",
@@ -211,64 +50,9 @@
           ]
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-084.png",
+          "caption": "Illustration"
         },
         {
           "type": "paragraph",

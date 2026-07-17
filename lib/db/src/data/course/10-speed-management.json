@@ -103,8 +103,9 @@
           ]
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-044.png",
+          "caption": "Illustration"
         },
         {
           "type": "paragraph",

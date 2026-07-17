@@ -135,14 +135,6 @@
           "text": "4. Steering the vehicle"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
           "type": "list",
           "items": [
             "Hold the steering wheel correctly",
@@ -177,24 +169,8 @@
           "text": "Different types of parking."
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
           "type": "paragraph",
-          "text": "Angle parking                                                    Flash parking"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "Parallel parking"
+          "text": "Angle parking                                                    Flash parking Parallel parking"
         },
         {
           "type": "callout",
@@ -231,15 +207,7 @@
       "content": [
         {
           "type": "paragraph",
-          "text": "A J-turn is a driving manoeuvre in which a reversing vehicle turns 180 degrees and continues, facing forward, without changing direction of travel. Only a confident driver who has had a sufficient experience driving on different road surfaces should do this type of turn."
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "J-turns by reverse driving"
+          "text": "A J-turn is a driving manoeuvre in which a reversing vehicle turns 180 degrees and continues, facing forward, without changing direction of travel. Only a confident driver who has had a sufficient experience driving on different road surfaces should do this type of turn. J-turns by reverse driving"
         }
       ],
       "keyPoints": [
@@ -268,15 +236,7 @@
       "content": [
         {
           "type": "paragraph",
-          "text": "A U-turn is a driving manoeuvre in which a forward driving vehicle turns 180 degrees and continues, facing forward, but moving in the opposite direction. Before you make a U-turn, check to make sure that there is no sign that says you should not. To make a U-turn safely, you must be able to see well both sides."
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "U-Turn by forward driving"
+          "text": "A U-turn is a driving manoeuvre in which a forward driving vehicle turns 180 degrees and continues, facing forward, but moving in the opposite direction. Before you make a U-turn, check to make sure that there is no sign that says you should not. To make a U-turn safely, you must be able to see well both sides. U-Turn by forward driving"
         },
         {
           "type": "callout",

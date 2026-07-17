@@ -103,131 +103,21 @@
       "content": [
         {
           "type": "paragraph",
-          "text": "(a) Hand signals given by drivers"
+          "text": "(a) Hand signals given by drivers I intend to slow down I intend to turn to my left or I intend to move out to my left I intend to turn to my right or I intend to move out to my right (b) Hand signals given by drivers to traffic police I intend to move left                       I intend to move right                  I intend to go on straight (c) Light signals given by vehicles and motorists I want to turn left                                                     I want to turn right Iam applying the brakes                                                   I intend to reverse (d) Hand signals given by motorcyclists I intend to turn to my left               I intend to move out to my right                  I intend to slow down"
         },
         {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "I intend to slow down I intend to turn to my left or I intend to move out to my left I intend to turn to my right or I intend to move out to my right (b) Hand signals given by drivers to traffic police"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
+          "type": "image",
+          "path": "page-041.png",
+          "caption": "Illustration"
         },
         {
           "type": "paragraph",
-          "text": "I intend to move left                       I intend to move right                  I intend to go on straight (c) Light signals given by vehicles and motorists"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "I want to turn left                                                     I want to turn right"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "Iam applying the brakes                                                   I intend to reverse (d) Hand signals given by motorcyclists"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "I intend to turn to my left               I intend to move out to my right                  I intend to slow down (e) Hand signals given by cyclists"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "I intend to turn left I intend to slow down I intend to turn right (f) Hand signals given by traffic police officers"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "Come on STOP, traffic approaching from behind STOP, traffic approaching from both behind and in front"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "Come on Keep coming STOP, traffic approaching from front (g) Signals given by traffic marshals"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "All vehicles must stop Not ready to cross pedestrians Barrier to stop pedestrians crossing Ready to cross pedestrians, vehicles must be prepared to stop"
+          "text": "(e) Hand signals given by cyclists I intend to turn left I intend to slow down I intend to turn right (f) Hand signals given by traffic police officers Come on STOP, traffic approaching from behind STOP, traffic approaching from both behind and in front Come on Keep coming STOP, traffic approaching from front (g) Signals given by traffic marshals All vehicles must stop Not ready to cross pedestrians Barrier to stop pedestrians crossing Ready to cross pedestrians, vehicles must be prepared to stop"
         }
       ],
       "keyPoints": [
-        "I intend to slow down I intend to turn to my left or I intend to move out to my left I intend to turn to my right or I intend to move out to my right (b) Hand signals given by drivers to traffic police",
-        "I intend to move left                       I intend to move right                  I intend to go on straight (c) Light signals given by vehicles and motorists",
-        "I want to turn left                                                     I want to turn right",
-        "Iam applying the brakes                                                   I intend to reverse (d) Hand signals given by motorcyclists",
-        "I intend to turn to my left               I intend to move out to my right                  I intend to slow down (e) Hand signals given by cyclists"
+        "(a) Hand signals given by drivers I intend to slow down I intend to turn to my left or I intend to move out to my left I intend to turn to my right or I intend to move out to my right (b) Hand signals given by drivers to traffic police I intend to move left                       I intend to move right                  I intend to go on straight (c) Light signals given by vehicles and motorists I want to turn left                                                     I want to turn right Iam applying the brakes                                                   I intend to reverse (d) Hand signals given by motorcyclists I intend to turn to my left               I intend to move out to my right                  I intend to slow down",
+        "(e) Hand signals given by cyclists I intend to turn left I intend to slow down I intend to turn right (f) Hand signals given by traffic police officers Come on STOP, traffic approaching from behind STOP, traffic approaching from both behind and in front Come on Keep coming STOP, traffic approaching from front (g) Signals given by traffic marshals All vehicles must stop Not ready to cross pedestrians Barrier to stop pedestrians crossing Ready to cross pedestrians, vehicles must be prepared to stop"
       ],
       "quiz": [
         {
@@ -252,20 +142,11 @@
       "content": [
         {
           "type": "paragraph",
-          "text": "A: RED means STOP B: RED and AMBER also mean STOP They alert the driver to get ready C: GREEN means you may go on if the road is clear D: AMBER means STOP at the line"
-        },
-        {
-          "type": "callout",
-          "text": "[Figure/Diagram]"
-        },
-        {
-          "type": "paragraph",
-          "text": "A           B           C          D A GREEN arrow may be provided in addition to the full green signal if movement  in a certain direction is allowed before or after the full green light phase. If the way is clear you may go, but only in the direction shown"
+          "text": "A: RED means STOP B: RED and AMBER also mean STOP They alert the driver to get ready C: GREEN means you may go on if the road is clear D: AMBER means STOP at the line A           B           C          D A GREEN arrow may be provided in addition to the full green signal if movement  in a certain direction is allowed before or after the full green light phase. If the way is clear you may go, but only in the direction shown"
         }
       ],
       "keyPoints": [
-        "A: RED means STOP B: RED and AMBER also mean STOP They alert the driver to get ready C: GREEN means you may go on if the road is clear D: AMBER means STOP at the line",
-        "A           B           C          D A GREEN arrow may be provided in addition to the full green signal if movement  in a certain direction is allowed before or after the full green light phase."
+        "A: RED means STOP B: RED and AMBER also mean STOP They alert the driver to get ready C: GREEN means you may go on if the road is clear D: AMBER means STOP at the line A           B           C          D A GREEN arrow may be provided in addition to the full green signal if movement  in a certain direction is allowed before or after the full green light phase."
       ],
       "quiz": [
         {
