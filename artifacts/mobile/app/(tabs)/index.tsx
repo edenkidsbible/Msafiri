@@ -1143,10 +1143,10 @@ const styles = StyleSheet.create({
   },
   stopBtnTxt: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
   navShareBtn: {
-    flexDirection: "row", alignItems: "center",
-    gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 20,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14,
   },
-  navShareBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  navShareBtnTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 
   navReportBtn: {
     position: "absolute",
