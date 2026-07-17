@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -17,6 +18,8 @@ import { POIS } from "@/data/pois";
 import POICard, { POIItem } from "@/components/POICard";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 import FinesContent from "@/components/FinesContent";
+import { useCourseData } from "@/hooks/useCourseData";
+import { useCourseProgress } from "@/hooks/useCourseProgress";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -33,7 +36,7 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 const MAX_DIST = 5000;
 
 type Tab = "fuel" | "food" | "shopping" | "hospital" | "nightlife";
-type ViewMode = "places" | "fines";
+type ViewMode = "places" | "learn" | "fines";
 
 const TABS: Array<{
   type: Tab;
@@ -217,6 +220,88 @@ function TabIcon({ tab, active }: { tab: typeof TABS[number]; active: boolean })
   return null;
 }
 
+// ── Learn view embedded in Browse (iOS: Learn tab is hidden from the tab bar) ──
+function LearnBrowseView({ bottomInset, tabBarHeight }: { bottomInset: number; tabBarHeight: number }) {
+  const c = useColors();
+  const router = useRouter();
+  const { deviceId } = useApp();
+  const { chapters, loading: chaptersLoading } = useCourseData();
+  const { progress } = useCourseProgress(deviceId);
+
+  const completedSlugs = new Set(progress.map((p) => p.lessonSlug));
+  const totalLessons = chapters.reduce((s, ch) => s + ch.lessons.length, 0);
+  const completedLessons = chapters.reduce(
+    (s, ch) => s + ch.lessons.filter((l) => completedSlugs.has(l.slug)).length,
+    0
+  );
+  const overallPct = totalLessons > 0 ? completedLessons / totalLessons : 0;
+
+  if (chaptersLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={c.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      {...FLAT_LIST_PROPS}
+      data={chapters}
+      keyExtractor={(ch) => ch.id}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: bottomInset + tabBarHeight + 20 }}
+      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+      ListHeaderComponent={
+        <View style={[styles.learnHeader, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.learnHeaderTitle, { color: c.foreground }]}>Driving Course</Text>
+            <Text style={[styles.learnHeaderSub, { color: c.mutedForeground }]}>
+              {completedLessons} of {totalLessons} lessons complete
+            </Text>
+            {/* Overall progress bar */}
+            <View style={[styles.learnProgBg, { backgroundColor: c.muted, marginTop: 10 }]}>
+              <View style={[styles.learnProgFill, { backgroundColor: c.primary, width: `${Math.round(overallPct * 100)}%` as any }]} />
+            </View>
+          </View>
+          <Text style={[styles.learnOverallPct, { color: c.primary }]}>
+            {Math.round(overallPct * 100)}%
+          </Text>
+        </View>
+      }
+      renderItem={({ item: ch }) => {
+        const chDone = ch.lessons.filter((l) => completedSlugs.has(l.slug)).length;
+        const chPct = ch.lessons.length > 0 ? chDone / ch.lessons.length : 0;
+        const estMins = ch.lessons.reduce((s, l) => s + (l.estimatedMinutes ?? 0), 0);
+        return (
+          <TouchableOpacity
+            style={[styles.learnChapter, { backgroundColor: c.card, borderColor: c.border }]}
+            onPress={() => router.push(`/course/${ch.slug}` as any)}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.learnChUnit, { backgroundColor: c.primary + "18" }]}>
+              <Text style={[styles.learnChUnitTxt, { color: c.primary }]}>{ch.unitNumber}</Text>
+            </View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={[styles.learnChTitle, { color: c.foreground }]} numberOfLines={2}>
+                {ch.title}
+              </Text>
+              <View style={[styles.learnProgBg, { backgroundColor: c.muted }]}>
+                <View style={[styles.learnProgFill, { backgroundColor: chPct === 1 ? "#00C853" : c.primary, width: `${Math.round(chPct * 100)}%` as any }]} />
+              </View>
+              <Text style={[styles.learnChSub, { color: c.mutedForeground }]}>
+                {chDone}/{ch.lessons.length} lessons
+                {estMins > 0 ? ` · ${estMins} min` : ""}
+                {chPct === 1 ? " · ✓ Complete" : ""}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+          </TouchableOpacity>
+        );
+      }}
+    />
+  );
+}
+
 export default function BrowseScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -362,7 +447,21 @@ export default function BrowseScreen() {
                 { color: viewMode === "places" ? c.primary : c.mutedForeground },
                 viewMode === "places" && { fontFamily: "Inter_600SemiBold" },
               ]}>
-                Nearby Places
+                Nearby
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewBtn, viewMode === "learn" && { backgroundColor: c.card }]}
+              onPress={() => setViewMode("learn")}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="book-outline" size={13} color={viewMode === "learn" ? c.primary : c.mutedForeground} />
+              <Text style={[
+                styles.viewBtnLabel,
+                { color: viewMode === "learn" ? c.primary : c.mutedForeground },
+                viewMode === "learn" && { fontFamily: "Inter_600SemiBold" },
+              ]}>
+                Learn
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -376,7 +475,7 @@ export default function BrowseScreen() {
                 { color: viewMode === "fines" ? c.primary : c.mutedForeground },
                 viewMode === "fines" && { fontFamily: "Inter_600SemiBold" },
               ]}>
-                NTSA Fines
+                Fines
               </Text>
             </TouchableOpacity>
           </View>
@@ -446,6 +545,8 @@ export default function BrowseScreen() {
       {/* ─── Content ─── */}
       {viewMode === "fines" ? (
         <FinesContent />
+      ) : viewMode === "learn" ? (
+        <LearnBrowseView bottomInset={bottomInset} tabBarHeight={tabBarHeight} />
       ) : loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={tabMeta.color} />
@@ -566,4 +667,28 @@ const styles = StyleSheet.create({
 
   errorBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 10 },
   errorText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
+
+  // ── Learn section ─────────────────────────────────────────────────────────
+  learnHeader: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 10,
+  },
+  learnHeaderTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  learnHeaderSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  learnOverallPct: { fontSize: 22, fontFamily: "Inter_700Bold" },
+
+  learnChapter: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderWidth: 1, borderRadius: 16, padding: 16,
+  },
+  learnChUnit: {
+    width: 42, height: 42, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  learnChUnitTxt: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  learnChTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", lineHeight: 20 },
+  learnChSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  learnProgBg: { height: 5, borderRadius: 3, overflow: "hidden" },
+  learnProgFill: { height: 5, borderRadius: 3 },
 });

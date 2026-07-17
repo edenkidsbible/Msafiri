@@ -212,6 +212,22 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Driving Course / Learn */}
+      <TouchableOpacity
+        style={[styles.proBanner, { backgroundColor: c.card, borderColor: c.border }]}
+        onPress={() => router.push("/(tabs)/learn" as any)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="book-outline" size={20} color={c.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.proBannerTitle, { color: c.foreground }]}>Driving Course</Text>
+          <Text style={[styles.proBannerSub, { color: c.mutedForeground }]}>
+            Lessons, quizzes &amp; practice tests
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+      </TouchableOpacity>
+
       {/* Creator Program */}
       <TouchableOpacity
         style={[styles.proBanner, { backgroundColor: c.card, borderColor: c.border }]}

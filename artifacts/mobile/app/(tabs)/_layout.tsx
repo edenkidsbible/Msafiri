@@ -88,9 +88,9 @@ function ClassicTabLayout() {
   const icon = (featherName: React.ComponentProps<typeof Feather>["name"], sfName: string) =>
     ({ color }: { color: string }) =>
       isIOS && SymbolView ? (
-        <SymbolView name={sfName} tintColor={color} size={24} />
+        <SymbolView name={sfName} tintColor={color} size={28} />
       ) : (
-        <Feather name={featherName} size={22} color={color} />
+        <Feather name={featherName} size={24} color={color} />
       );
 
   return (
@@ -99,13 +99,18 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontFamily: "Inter_600SemiBold",
+          marginBottom: isIOS ? 0 : 3,
+        },
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
           borderTopWidth: isWeb ? 1 : 0,
           borderTopColor: colors.border,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          ...(isWeb ? { height: 84 } : { height: 92 }),
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -119,7 +124,7 @@ function ClassicTabLayout() {
       <Tabs.Screen name="map"     options={{ title: "Map",     tabBarIcon: icon("map",        "map") }} />
       <Tabs.Screen name="browse"  options={{ title: "Browse",  tabBarIcon: icon("compass",    "location") }} />
       <Tabs.Screen name="trips"   options={{ title: "Trips",    tabBarIcon: icon("calendar", "calendar") }} />
-      <Tabs.Screen name="learn"   options={{ title: "Learn",   tabBarIcon: icon("book-open", "book") }} />
+      <Tabs.Screen name="learn"   options={{ title: "Learn",   tabBarIcon: icon("book-open", "book"), href: isIOS ? null : undefined }} />
       <Tabs.Screen name="fines"   options={{ href: null }} />
       <Tabs.Screen name="settings"options={{ title: "Settings", tabBarIcon: icon("settings", "gearshape") }} />
     </Tabs>
