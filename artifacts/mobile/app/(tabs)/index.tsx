@@ -983,7 +983,7 @@ const styles = StyleSheet.create({
   // (~126 px glyph width), with the container expanding slightly for 3 digits.
   speedGroup: { alignItems: "center", minWidth: 130, flexShrink: 0 },
   speedLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, marginBottom: 2 },
-  speedNum:   { fontSize: 84, fontFamily: "Inter_700Bold", lineHeight: 88 },
+  speedNum:   { fontSize: 84, fontFamily: "Inter_700Bold", lineHeight: 100, includeFontPadding: false },
   speedUnit:  { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: -4 },
 
   limitLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
     alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
   },
   navSpeedLabel: { fontSize: 8, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
-  navSpeedNum:  { fontSize: 70, fontFamily: "Inter_700Bold", lineHeight: 72 },
+  navSpeedNum:  { fontSize: 70, fontFamily: "Inter_700Bold", lineHeight: 84, includeFontPadding: false },
   navSpeedUnit: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: -2 },
   navLimitRing: {
     width: 38, height: 38, borderRadius: 19, borderWidth: 2.5,
