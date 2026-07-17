@@ -163,6 +163,11 @@ interface AppContextValue {
   navigationActive: boolean;
   startNavigation: () => void;
   stopNavigation: () => void;
+  isSharingTrip: boolean;
+  shareToken: string | null;
+  shareLink: string | null;
+  startSharingTrip: () => Promise<string | null>;
+  stopSharingTrip: () => Promise<void>;
   currentStepIdx: number;
   distToNextM: number | null;
   distanceRemainingM: number | null;
@@ -545,6 +550,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const vehicleTypeRef = useRef<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   const currentLatRef = useRef<number | null>(null);
   const currentLngRef = useRef<number | null>(null);
+  // Extra navigation refs used by the share-trip ping interval so it can read
+  // fresh values inside setInterval without stale closure captures.
+  const currentSpeedRef    = useRef(0);
+  const durationRemainingRef = useRef<number | null>(null);
+  const distanceRemainingRef = useRef<number | null>(null);
+  // Share-trip
+  const shareTokenRef        = useRef<string | null>(null);
+  const sharePingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Navigation
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
@@ -565,6 +578,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isOfflineRef = useRef(false);
   const deviceIdRef = useRef<string | null>(null);
   const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
 
   const [arrivedInfo, setArrivedInfo] = useState<ArrivedInfo | null>(null);
   const [pendingConfirmationReport, setPendingConfirmationReport] = useState<CommunityReport | null>(null);
@@ -733,6 +747,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
+  useEffect(() => { currentSpeedRef.current = currentSpeed; }, [currentSpeed]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
   // Reports created while offline (or whose initial POST failed) stay local
@@ -1466,6 +1481,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (activeRoute.distanceM <= 0) return totalWithDelay;
     return Math.round((distanceRemainingM / activeRoute.distanceM) * totalWithDelay);
   }, [activeRoute, distanceRemainingM, routeTrafficDelayS]);
+  // Keep refs in sync so the share-trip ping interval always reads fresh values
+  useEffect(() => { durationRemainingRef.current = durationRemainingS; }, [durationRemainingS]);
+  useEffect(() => { distanceRemainingRef.current = distanceRemainingM; }, [distanceRemainingM]);
 
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
@@ -1504,6 +1522,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     routeProjIdxRef.current = 0;
   }, [activeRoute]);
 
+  // ── Trip sharing ─────────────────────────────────────────────────────────────
+
+  const stopSharingTrip = useCallback(async () => {
+    if (sharePingIntervalRef.current) {
+      clearInterval(sharePingIntervalRef.current);
+      sharePingIntervalRef.current = null;
+    }
+    const token = shareTokenRef.current;
+    shareTokenRef.current = null;
+    setShareToken(null);
+    if (token && deviceIdRef.current) {
+      try { await apiDelete(`/share/${token}`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
+    }
+  }, []);
+
+  const startSharingTrip = useCallback(async (): Promise<string | null> => {
+    if (!deviceIdRef.current) return null;
+    try {
+      const data = await apiPost<{ token: string }>("/share/session", {
+        deviceId:        deviceIdRef.current,
+        destinationName: navDestRef.current?.name ?? null,
+        destinationLat:  navDestRef.current?.lat  ?? null,
+        destinationLng:  navDestRef.current?.lng  ?? null,
+        lat:             currentLatRef.current,
+        lng:             currentLngRef.current,
+      });
+      shareTokenRef.current = data.token;
+      setShareToken(data.token);
+      // Start ping interval — reads fresh GPS values via refs so the closure
+      // never goes stale even as the driver moves for the next 8 hours.
+      if (sharePingIntervalRef.current) clearInterval(sharePingIntervalRef.current);
+      sharePingIntervalRef.current = setInterval(async () => {
+        const tk  = shareTokenRef.current;
+        const did = deviceIdRef.current;
+        const lat = currentLatRef.current;
+        const lng = currentLngRef.current;
+        if (!tk || !did || lat == null || lng == null) return;
+        try {
+          await apiPatch(`/share/${tk}/ping`, {
+            deviceId:           did,
+            lat,
+            lng,
+            speedKmh:           currentSpeedRef.current,
+            durationRemainingS: durationRemainingRef.current,
+            distanceRemainingM: distanceRemainingRef.current,
+          });
+        } catch { /* ignore ping failures — next interval will retry */ }
+      }, 8000);
+      return `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${data.token}`;
+    } catch (e) {
+      console.warn("startSharingTrip failed:", e);
+      return null;
+    }
+  }, []);
+
   const startNavigation = useCallback(() => {
     if (!activeRoute) return;
     stepIdxRef.current = 0;
@@ -1541,6 +1614,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
     setRouteIncidentsExpanded(false);
+    // Stop any active trip-sharing session when navigation ends
+    if (sharePingIntervalRef.current) {
+      clearInterval(sharePingIntervalRef.current);
+      sharePingIntervalRef.current = null;
+    }
+    const _tok = shareTokenRef.current;
+    shareTokenRef.current = null;
+    setShareToken(null);
+    if (_tok && deviceIdRef.current) {
+      apiDelete(`/share/${_tok}`, { deviceId: deviceIdRef.current }).catch(() => {});
+    }
   }, []);
 
   // Let handleLocation (defined earlier as a stable, empty-deps useCallback)
@@ -1791,6 +1875,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
       navigationActive, startNavigation, stopNavigation,
+      isSharingTrip: shareToken !== null,
+      shareToken,
+      shareLink: shareToken ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareToken}` : null,
+      startSharingTrip,
+      stopSharingTrip,
       currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, routeLoading,
       showTraffic, setShowTraffic,
       zonesOnRoute,

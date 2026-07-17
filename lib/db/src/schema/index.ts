@@ -7,3 +7,4 @@ export * from "./blog";
 export * from "./trips";
 export * from "./creators";
 export * from "./promoCodes";
+export * from "./sharingSessions";

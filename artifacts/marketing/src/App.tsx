@@ -11,6 +11,7 @@ import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
 import BlogList from "@/pages/blog-list";
 import BlogPost from "@/pages/blog-post";
+import LiveTracker from "@/pages/live-tracker";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/blog" component={BlogList} />
+      <Route path="/live/:token" component={LiveTracker} />
       <Route component={NotFound} />
     </Switch>
   );

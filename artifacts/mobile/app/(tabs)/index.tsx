@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useCallback } from "react";
 import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -126,6 +127,7 @@ export default function DriveScreen() {
     arrivedInfo, clearArrival,
     pendingConfirmationReport, setPendingConfirmationReport,
     setPendingConfirmationSource,
+    isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -145,6 +147,29 @@ export default function DriveScreen() {
   const [searchError, setSearchError] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sharingLoading, setSharingLoading] = useState(false);
+
+  const handleSharePress = useCallback(async () => {
+    if (isSharingTrip) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await stopSharingTrip();
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSharingLoading(true);
+    try {
+      const link = await startSharingTrip();
+      if (link) {
+        await Share.share({
+          message: `Follow my live trip 📍\n${link}`,
+          url: link,
+          title: "Track my trip — Msafiri Kenya",
+        });
+      }
+    } finally {
+      setSharingLoading(false);
+    }
+  }, [isSharingTrip, startSharingTrip, stopSharingTrip]);
 
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
@@ -728,6 +753,31 @@ export default function DriveScreen() {
               </Text>
             </View>
 
+            {/* Share trip — tap to broadcast a live-tracking link */}
+            <TouchableOpacity
+              style={[styles.shareBtn, {
+                backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#333" : "#EBEBEB"),
+              }]}
+              onPress={handleSharePress}
+              disabled={sharingLoading}
+              activeOpacity={0.75}
+            >
+              {sharingLoading ? (
+                <ActivityIndicator size="small" color={isDark ? "#aaa" : "#666"} />
+              ) : (
+                <>
+                  <Ionicons
+                    name={isSharingTrip ? "radio-outline" : "share-outline"}
+                    size={14}
+                    color={isSharingTrip ? "#fff" : fgMuted}
+                  />
+                  <Text style={[styles.shareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
+                    {isSharingTrip ? "Live" : "Share"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
             <SOSButton compact />
 
             <TouchableOpacity
@@ -1091,6 +1141,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
   },
   stopBtnTxt: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
+  shareBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 9,
+    borderRadius: 10, minWidth: 56, justifyContent: "center",
+  },
+  shareBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
   navReportBtn: {
     position: "absolute",
