@@ -67,6 +67,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>Trips</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="learn">
+        <Icon sf={{ default: "book", selected: "book.fill" }} />
+        <Label>Learn</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>Settings</Label>
@@ -115,6 +119,7 @@ function ClassicTabLayout() {
       <Tabs.Screen name="map"     options={{ title: "Map",     tabBarIcon: icon("map",        "map") }} />
       <Tabs.Screen name="browse"  options={{ title: "Browse",  tabBarIcon: icon("compass",    "location") }} />
       <Tabs.Screen name="trips"   options={{ title: "Trips",    tabBarIcon: icon("calendar", "calendar") }} />
+      <Tabs.Screen name="learn"   options={{ title: "Learn",   tabBarIcon: icon("book-open", "book") }} />
       <Tabs.Screen name="fines"   options={{ href: null }} />
       <Tabs.Screen name="settings"options={{ title: "Settings", tabBarIcon: icon("settings", "gearshape") }} />
     </Tabs>
