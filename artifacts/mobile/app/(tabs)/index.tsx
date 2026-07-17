@@ -742,51 +742,56 @@ export default function DriveScreen() {
 
             <View style={[styles.navDivider, { backgroundColor: divBg }]} />
 
-            {/* ETA + destination + share — right column only */}
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.navEta, { color: fgMain }]}>
-                {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
-              </Text>
-              <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
-                {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
-                {navDestination?.name.split(",")[0]}
-              </Text>
-              <TouchableOpacity
-                style={[styles.navShareBtn, {
-                  backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
-                  alignSelf: "flex-start",
-                  marginTop: 7,
-                }]}
-                onPress={handleSharePress}
-                disabled={sharingLoading}
-                activeOpacity={0.85}
-              >
-                {sharingLoading ? (
-                  <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={isSharingTrip ? "radio" : "share-social-outline"}
-                      size={13}
-                      color={isSharingTrip ? "#fff" : fgMuted}
-                    />
-                    <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                      {isSharingTrip ? "● Live" : "Share trip"}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
+            {/* Right column: ETA/dest on top, then Share + SOS + Stop on the same row below */}
+            <View style={{ flex: 1, justifyContent: "space-between" }}>
+              <View>
+                <Text style={[styles.navEta, { color: fgMain }]}>
+                  {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
+                </Text>
+                <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
+                  {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
+                  {navDestination?.name.split(",")[0]}
+                </Text>
+              </View>
+
+              {/* Share + SOS + Stop — all on one row, aligned together */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.navShareBtn, {
+                    backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
+                    flex: 1,
+                  }]}
+                  onPress={handleSharePress}
+                  disabled={sharingLoading}
+                  activeOpacity={0.85}
+                >
+                  {sharingLoading ? (
+                    <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name={isSharingTrip ? "radio" : "share-social-outline"}
+                        size={13}
+                        color={isSharingTrip ? "#fff" : fgMuted}
+                      />
+                      <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
+                        {isSharingTrip ? "● Live — tap to stop sharing" : "Share Trip"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <SOSButton compact />
+
+                <TouchableOpacity
+                  style={styles.stopBtn}
+                  onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                >
+                  <Ionicons name="stop-circle" size={15} color="#FFF" />
+                  <Text style={styles.stopBtnTxt}>Stop</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <SOSButton compact />
-
-            <TouchableOpacity
-              style={styles.stopBtn}
-              onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
-            >
-              <Ionicons name="stop-circle" size={15} color="#FFF" />
-              <Text style={styles.stopBtnTxt}>Stop</Text>
-            </TouchableOpacity>
           </View>
 
           {routeIncidentsAhead.length > 0 && (
