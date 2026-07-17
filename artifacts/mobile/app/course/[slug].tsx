@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useCourseData } from "@/hooks/useCourseData";
@@ -116,16 +117,42 @@ export default function LessonReaderScreen() {
     return chapters.find((ch) => ch.id === lesson.chapterId)?.title ?? "";
   }, [lesson, chapters]);
 
-  // ── Fetch full lesson ─────────────────────────────────────────────────────
+  // ── Fetch full lesson with offline cache ─────────────────────────────────
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
     setError(null);
     setLesson(null);
 
+    const cacheKey = `course_lesson_${slug}`;
+
+    // 1. Try cache first so the lesson renders instantly
+    AsyncStorage.getItem(cacheKey)
+      .then((raw) => {
+        if (raw) {
+          try {
+            const cached: FullLesson = JSON.parse(raw);
+            setLesson(cached);
+            setLoading(false);
+          } catch { /* ignore parse error */ }
+        }
+      })
+      .catch(() => {});
+
+    // 2. Fetch fresh from API; update cache and state
     apiGet<FullLesson>(`/course/lessons/${encodeURIComponent(slug)}`)
-      .then((data) => setLesson(data))
-      .catch((err) => setError(err?.message ?? "Failed to load lesson"))
+      .then((data) => {
+        setLesson(data);
+        // Write to cache (fire-and-forget)
+        AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
+      })
+      .catch((err) => {
+        // Only surface error if we didn't already load from cache
+        setLesson((prev) => {
+          if (!prev) setError(err?.message ?? "Failed to load lesson");
+          return prev;
+        });
+      })
       .finally(() => setLoading(false));
   }, [slug]);
 
@@ -294,39 +321,50 @@ export default function LessonReaderScreen() {
           </View>
         ) : null}
 
-        {/* Quiz prompt placeholder */}
-        {hasQuiz && (
-          <View style={[styles.quizPrompt, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Feather name="help-circle" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.quizPromptText, { color: colors.mutedForeground }]}>
-              This lesson has a quiz — complete it in the next task update.
-            </Text>
-          </View>
-        )}
-
-        {/* Complete CTA */}
+        {/* Complete CTA / Quiz CTA */}
         {!completed ? (
-          <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
-            onPress={handleComplete}
-            disabled={completing}
-            activeOpacity={0.85}
-          >
-            {completing ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Feather name="check-circle" size={18} color="#fff" />
-                <Text style={styles.ctaBtnText}>
-                  {hasQuiz ? "Start lesson quiz" : "Mark as complete"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+          hasQuiz ? (
+            <TouchableOpacity
+              style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
+              onPress={() => router.push(`/course/quiz/${slug}` as any)}
+              activeOpacity={0.85}
+            >
+              <Feather name="help-circle" size={18} color="#fff" />
+              <Text style={styles.ctaBtnText}>Start lesson quiz</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
+              onPress={handleComplete}
+              disabled={completing}
+              activeOpacity={0.85}
+            >
+              {completing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Feather name="check-circle" size={18} color="#fff" />
+                  <Text style={styles.ctaBtnText}>Mark as complete</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )
         ) : (
-          <View style={[styles.completedCta, { backgroundColor: "#00C85315", borderColor: "#00C85340" }]}>
-            <Feather name="check-circle" size={18} color="#00C853" />
-            <Text style={[styles.completedCtaText, { color: "#00C853" }]}>Lesson completed</Text>
+          <View style={{ gap: 10 }}>
+            <View style={[styles.completedCta, { backgroundColor: "#00C85315", borderColor: "#00C85340" }]}>
+              <Feather name="check-circle" size={18} color="#00C853" />
+              <Text style={[styles.completedCtaText, { color: "#00C853" }]}>Lesson completed</Text>
+            </View>
+            {hasQuiz && (
+              <TouchableOpacity
+                style={[styles.ctaBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+                onPress={() => router.push(`/course/quiz/${slug}` as any)}
+                activeOpacity={0.85}
+              >
+                <Feather name="refresh-cw" size={16} color={colors.foreground} />
+                <Text style={[styles.ctaBtnText, { color: colors.foreground }]}>Retake quiz</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
