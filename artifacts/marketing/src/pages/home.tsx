@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon, BookOpen, Calendar, ChevronRight, Camera, Shield, Flame, Car, Ban, CircleOff, Wrench, CloudRain, XCircle, CheckCircle2, Layers, Wine, Siren } from "lucide-react";
+import { ShieldAlert, Zap, Navigation, BellRing, Check, ShieldCheck, Apple, Play, Plus, MapPin, RadioTower, AlertTriangle, Sun, Moon, BookOpen, Calendar, ChevronRight, Camera, Shield, Flame, Car, Ban, CircleOff, Wrench, CloudRain, XCircle, CheckCircle2, Layers, Wine, Siren, Share2, Users } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useTheme } from "@/components/ThemeProvider";
@@ -120,14 +120,14 @@ export default function Home() {
               Msafiri keeps you ahead of speed cameras, police checkpoints, and speed zones on Kenyan roads. Quiet awareness, exactly when you need it.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4 mb-8">
-              <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-6 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
+              <a href="https://apps.apple.com/app/msafiri-kenya/id6744942860" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-6 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
                 <Apple className="w-6 h-6 fill-current" />
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-background/60">Download on the</span>
                   <span>App Store</span>
                 </div>
               </a>
-              <a href="https://play.google.com/store/apps/details?id=com.msafirikenya.app" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-6 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
+              <a href="https://play.google.com/store/apps/details?id=com.msafiri.kenya" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-6 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
                 <Play className="w-6 h-6 fill-current" />
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Get it on</span>
@@ -222,6 +222,21 @@ export default function Home() {
                 icon: <MapPin className="w-6 h-6 text-primary" />,
                 title: "Works with Google Maps & Waze",
                 desc: "Run Msafiri alongside Google Maps or Waze without interference. Your navigation, plus our safety layer."
+              },
+              {
+                icon: <Share2 className="w-6 h-6 text-primary" />,
+                title: "Live Trip Sharing",
+                desc: "One tap generates a short link so family or friends can watch your journey live in any browser — no app needed on their end."
+              },
+              {
+                icon: <Navigation className="w-6 h-6 text-primary" />,
+                title: "In-App Turn-by-Turn Navigation",
+                desc: "Full route guidance with real-time ETA, speed alerts, and hazard warnings built directly into every turn on Kenyan roads."
+              },
+              {
+                icon: <BookOpen className="w-6 h-6 text-primary" />,
+                title: "NTSA Driver Safety Course",
+                desc: "Interactive lessons, traffic sign guides, and NTSA fine references — all built into the app so you can learn on the go."
               }
             ].map((feature, i) => (
               <motion.div 
@@ -353,6 +368,86 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Live Trip Sharing Section */}
+      <section className="py-24 px-6 bg-muted/10 border-t border-border">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 items-center">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeUp}
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono text-primary mb-6">
+              <Share2 className="w-3 h-3" />
+              LIVE TRIP SHARING
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold leading-tight mb-6">
+              Let someone watch over you — in real time.
+            </h2>
+            <p className="text-xl text-muted-foreground mb-8">
+              Tap one button and Msafiri generates a short link your family can open in any browser. They see your position on a live map, your speed, and your ETA — no app download required.
+            </p>
+            <ul className="space-y-4">
+              {[
+                "Short branded link — works in any browser, no app needed",
+                "Live position updates every 5 seconds",
+                "Shows speed, ETA, and destination on the map",
+                "Session auto-ends when your drive completes",
+              ].map((item, i) => (
+                <li key={i} className="flex items-center gap-3 text-base font-medium text-foreground">
+                  <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="flex justify-center"
+          >
+            <div className="bg-card border border-border rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
+                </div>
+                <span className="text-sm font-bold text-foreground">Live Tracking</span>
+                <span className="ml-auto text-xs font-mono text-green-500 font-bold">LIVE</span>
+              </div>
+              <div className="bg-muted/60 rounded-2xl h-36 flex items-center justify-center mb-5 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/15" />
+                <div className="relative z-10 flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg">
+                    <Users className="w-5 h-5 text-primary-foreground" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-medium">Moving on Thika Road</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Speed", value: "78 km/h" },
+                  { label: "ETA", value: "23 min" },
+                  { label: "Distance left", value: "14.2 km" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className="text-sm font-bold font-mono">{value}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-border flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Share link</span>
+                  <span className="text-xs font-mono text-primary font-semibold">msafiri.app/live/A3X9K2</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Vibe / Storytelling Section */}
       <section className="py-24 px-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -453,6 +548,8 @@ export default function Home() {
                 "Live user-reported hazards",
                 "Ad-free experience",
                 "Background audio alerts",
+                "Live trip location sharing",
+                "NTSA driver safety course",
                 "Route history & insights",
                 "Priority support"
               ].map((feature, i) => (
@@ -490,6 +587,14 @@ export default function Home() {
 
           <Accordion type="single" collapsible className="w-full">
             {[
+              {
+                q: "Can I share my location with family while I drive?",
+                a: "Yes. The Share tab lets you generate a short live-tracking link in one tap. Whoever you send it to can open it in any browser and watch your position, speed, and ETA update in real time — no app download needed on their end."
+              },
+              {
+                q: "Is there a driving course inside the app?",
+                a: "Yes. The Browse tab includes an NTSA-aligned driver safety course with interactive lessons, traffic sign guides, and NTSA fine references — all free to access."
+              },
               {
                 q: "Does it work outside Nairobi?",
                 a: "Yes! Msafiri relies on a massive community of drivers across Kenya. We have active reports from Mombasa, Nakuru, Kisumu, Eldoret, and all major highways."
@@ -614,14 +719,14 @@ export default function Home() {
             Join thousands of Kenyan drivers who trust Msafiri every day for NTSA speed camera alerts, police checkpoint warnings, and alcoblow notifications. Download now.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
+            <a href="https://apps.apple.com/app/msafiri-kenya/id6744942860" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-foreground text-background px-8 py-4 rounded-xl font-bold text-lg hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95">
               <Apple className="w-6 h-6 fill-current" />
               <div className="flex flex-col items-start leading-none">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-background/60">Download on the</span>
                 <span>App Store</span>
               </div>
             </a>
-            <a href="https://play.google.com/store/apps/details?id=com.msafirikenya.app" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-8 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
+            <a href="https://play.google.com/store/apps/details?id=com.msafiri.kenya" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-secondary border border-border text-secondary-foreground px-8 py-4 rounded-xl font-bold text-lg hover:bg-secondary/80 transition-all hover:scale-105 active:scale-95">
               <Play className="w-6 h-6 fill-current" />
               <div className="flex flex-col items-start leading-none">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Get it on</span>

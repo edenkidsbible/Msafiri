@@ -209,6 +209,7 @@ const KEYS = {
   DEVICE_ID: "sdk_device_id",
   THEME: "sdk_theme",
   VEHICLE_TYPE: "sdk_vehicle_type",
+  SHARE: "sdk_share",  // active sharing session — persisted so it survives backgrounding
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -579,6 +580,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deviceIdRef = useRef<string | null>(null);
   const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareCode,  setShareCode]  = useState<string | null>(null); // short code for the public share URL
 
   const [arrivedInfo, setArrivedInfo] = useState<ArrivedInfo | null>(null);
   const [pendingConfirmationReport, setPendingConfirmationReport] = useState<CommunityReport | null>(null);
@@ -632,7 +634,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -641,6 +643,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(KEYS.DEVICE_ID),
         AsyncStorage.getItem(KEYS.THEME),
         AsyncStorage.getItem(KEYS.VEHICLE_TYPE),
+        AsyncStorage.getItem(KEYS.SHARE),
       ]);
       if (storedVehicleType) {
         const v = storedVehicleType as VehicleTypeId;
@@ -662,6 +665,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
       setOnboardingComplete(onboarded === "true");
+      // Restore any sharing session that survived backgrounding or an app restart
+      if (savedShare) {
+        try {
+          const s = JSON.parse(savedShare) as { token: string; shortCode: string; expiresAt: string };
+          if (new Date(s.expiresAt) > new Date()) {
+            shareTokenRef.current = s.token;
+            setShareToken(s.token);
+            setShareCode(s.shortCode ?? null);
+            // Restart the ping loop — it reads live GPS via refs so it's safe to start here
+            if (sharePingIntervalRef.current) clearInterval(sharePingIntervalRef.current);
+            sharePingIntervalRef.current = setInterval(async () => {
+              const tk  = shareTokenRef.current;
+              const did = deviceIdRef.current;
+              const lat = currentLatRef.current;
+              const lng = currentLngRef.current;
+              if (!tk || !did || lat == null || lng == null) return;
+              try {
+                await apiPatch(`/share/${tk}/ping`, {
+                  deviceId: did, lat, lng,
+                  speedKmh:           currentSpeedRef.current,
+                  durationRemainingS: durationRemainingRef.current,
+                  distanceRemainingM: distanceRemainingRef.current,
+                });
+              } catch { /* ignore */ }
+            }, 8000);
+          } else {
+            void AsyncStorage.removeItem(KEYS.SHARE);
+          }
+        } catch { void AsyncStorage.removeItem(KEYS.SHARE); }
+      }
       setHydrated(true);
       // Load or generate persistent device ID (used for deduplication on the server)
       const did = storedDeviceId ?? (genId() + genId());
@@ -1532,6 +1565,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const token = shareTokenRef.current;
     shareTokenRef.current = null;
     setShareToken(null);
+    setShareCode(null);
+    void AsyncStorage.removeItem(KEYS.SHARE);
     if (token && deviceIdRef.current) {
       try { await apiDelete(`/share/${token}`, { deviceId: deviceIdRef.current }); } catch { /* ignore */ }
     }
@@ -1540,7 +1575,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const startSharingTrip = useCallback(async (): Promise<string | null> => {
     if (!deviceIdRef.current) return null;
     try {
-      const data = await apiPost<{ token: string; shortCode: string | null }>("/share/session", {
+      const data = await apiPost<{ token: string; shortCode: string | null; expiresAt: string }>("/share/session", {
         deviceId:        deviceIdRef.current,
         destinationName: navDestRef.current?.name ?? null,
         destinationLat:  navDestRef.current?.lat  ?? null,
@@ -1550,6 +1585,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       shareTokenRef.current = data.token;
       setShareToken(data.token);
+      setShareCode(data.shortCode ?? null);
+      // Persist so the session survives the app being backgrounded or restarted
+      const _sessionCode = data.shortCode ?? data.token;
+      void AsyncStorage.setItem(KEYS.SHARE, JSON.stringify({
+        token:     data.token,
+        shortCode: _sessionCode,
+        expiresAt: data.expiresAt,
+      }));
       // Start ping interval — reads fresh GPS values via refs so the closure
       // never goes stale even as the driver moves for the next 8 hours.
       if (sharePingIntervalRef.current) clearInterval(sharePingIntervalRef.current);
@@ -1623,6 +1666,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const _tok = shareTokenRef.current;
     shareTokenRef.current = null;
     setShareToken(null);
+    setShareCode(null);
+    void AsyncStorage.removeItem(KEYS.SHARE);
     if (_tok && deviceIdRef.current) {
       apiDelete(`/share/${_tok}`, { deviceId: deviceIdRef.current }).catch(() => {});
     }
@@ -1878,7 +1923,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       navigationActive, startNavigation, stopNavigation,
       isSharingTrip: shareToken !== null,
       shareToken,
-      shareLink: shareToken ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareToken}` : null,
+      shareLink: (shareCode || shareToken) ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareCode ?? shareToken}` : null,
       startSharingTrip,
       stopSharingTrip,
       currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, routeLoading,
