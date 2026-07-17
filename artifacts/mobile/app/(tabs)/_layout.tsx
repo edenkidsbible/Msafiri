@@ -127,10 +127,10 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  // NativeTabLayout is iOS-only (Liquid Glass, SF Symbols)
-  // On Android/Web: always ClassicTabLayout with Feather icons (never foreign symbols)
-  if (isIOS && isLiquidGlass() && NativeTabsModule) {
-    return <NativeTabLayout />;
-  }
+  // ClassicTabLayout is used on all platforms.
+  // NativeTabLayout was removed because iOS UITabBarController auto-collapses
+  // any tab bar with 6+ items into 4 tabs + a "More" button — unavoidable with
+  // the native API. ClassicTabLayout (React Navigation + BlurView) renders all
+  // six tabs without this restriction and still uses SF Symbols on iOS.
   return <ClassicTabLayout />;
 }
