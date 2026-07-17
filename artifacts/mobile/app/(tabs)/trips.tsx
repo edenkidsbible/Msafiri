@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -62,12 +63,16 @@ function placeIcon(kind: SavedPlace["kind"]): React.ComponentProps<typeof Ionico
 export default function TripsScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { deviceId, tripHistory, clearTripHistory, currentTrip } = useApp();
+  const {
+    deviceId, tripHistory, clearTripHistory, currentTrip,
+    isSharingTrip, shareLink, startSharingTrip, stopSharingTrip, navigationActive,
+  } = useApp();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const [tab, setTab] = useState<"planned" | "past">("planned");
+  const [tab, setTab] = useState<"share" | "planned" | "past">("share");
+  const [sharingLoading, setSharingLoading] = useState(false);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [trips, setTrips] = useState<PlannedTrip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +99,26 @@ export default function TripsScreen() {
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [tripSaving, setTripSaving] = useState(false);
   const tripTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSharePress = useCallback(async () => {
+    if (isSharingTrip) {
+      await stopSharingTrip();
+      return;
+    }
+    setSharingLoading(true);
+    try {
+      const link = await startSharingTrip();
+      if (link) {
+        await Share.share({
+          message: `Follow my live trip 📍\n${link}`,
+          url: link,
+          title: "Track my trip — Msafiri Kenya",
+        });
+      }
+    } finally {
+      setSharingLoading(false);
+    }
+  }, [isSharingTrip, startSharingTrip, stopSharingTrip]);
 
   // Route check modal (road conditions for a saved place / planned trip)
   const [routeCheck, setRouteCheck] = useState<{ label: string; lat: number; lng: number } | null>(null);
@@ -304,26 +329,166 @@ export default function TripsScreen() {
         <Text style={[styles.title, { color: c.foreground }]}>Trips</Text>
 
         <View style={[styles.segment, { backgroundColor: c.muted }]}>
-          <TouchableOpacity
-            style={[styles.segmentBtn, tab === "planned" && { backgroundColor: c.card }]}
-            onPress={() => setTab("planned")}
-          >
-            <Text style={[styles.segmentText, { color: tab === "planned" ? c.primary : c.mutedForeground }]}>
-              Planned
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segmentBtn, tab === "past" && { backgroundColor: c.card }]}
-            onPress={() => setTab("past")}
-          >
-            <Text style={[styles.segmentText, { color: tab === "past" ? c.primary : c.mutedForeground }]}>
-              Past
-            </Text>
-          </TouchableOpacity>
+          {(["share", "planned", "past"] as const).map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.segmentBtn, tab === t && { backgroundColor: c.card }]}
+              onPress={() => setTab(t)}
+            >
+              <Text style={[styles.segmentText, { color: tab === t ? c.primary : c.mutedForeground }]}>
+                {t === "share" ? "Share" : t.charAt(0).toUpperCase() + t.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {tab === "planned" ? (
+      {tab === "share" ? (
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 100, paddingTop: 8 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Live status banner */}
+          {isSharingTrip && (
+            <View style={[styles.liveCard, { backgroundColor: "#00C85318", borderColor: "#00C85355" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveTxt}>Your location is live</Text>
+              </View>
+              <Text style={[styles.liveLink, { color: c.mutedForeground }]} numberOfLines={1}>{shareLink}</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={[styles.liveAction, { backgroundColor: "#00C853", flex: 1 }]}
+                  onPress={async () => {
+                    if (shareLink) await Share.share({ message: `Follow my live trip 📍\n${shareLink}`, url: shareLink });
+                  }}
+                >
+                  <Ionicons name="share-outline" size={15} color="#fff" />
+                  <Text style={styles.liveActionTxt}>Share link again</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.liveAction, { backgroundColor: c.muted, flex: 1 }]}
+                  onPress={() => stopSharingTrip()}
+                >
+                  <Ionicons name="stop-circle-outline" size={15} color={c.foreground} />
+                  <Text style={[styles.liveActionTxt, { color: c.foreground }]}>Stop sharing</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Hero */}
+          <View style={[styles.shareHero, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={[styles.shareHeroIcon, { backgroundColor: c.primary + "18" }]}>
+              <Ionicons name="radio-outline" size={36} color={c.primary} />
+            </View>
+            <Text style={[styles.shareHeroTitle, { color: c.foreground }]}>Share Your Live Location</Text>
+            <Text style={[styles.shareHeroSub, { color: c.mutedForeground }]}>
+              Let anyone track your trip in real time — no app needed. They just open your link in any browser.
+            </Text>
+          </View>
+
+          {/* CTA */}
+          {!isSharingTrip && (
+            navigationActive ? (
+              <TouchableOpacity
+                style={[styles.shareHeroCta, { backgroundColor: c.primary }]}
+                onPress={handleSharePress}
+                disabled={sharingLoading}
+                activeOpacity={0.85}
+              >
+                {sharingLoading ? <ActivityIndicator color="#fff" /> : (
+                  <>
+                    <Ionicons name="share-social" size={19} color="#fff" />
+                    <Text style={styles.shareHeroCtaTxt}>Share Trip Now</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.shareHeroNotice, { backgroundColor: c.muted }]}>
+                <Ionicons name="navigate-outline" size={18} color={c.mutedForeground} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.shareHeroNoticeTitle, { color: c.foreground }]}>Start navigation first</Text>
+                  <Text style={[styles.shareHeroNoticeSub, { color: c.mutedForeground }]}>
+                    Go to the Drive tab, enter a destination, and tap Start. The Share Trip button will appear.
+                  </Text>
+                </View>
+              </View>
+            )
+          )}
+
+          {/* How it works */}
+          <Text style={[styles.shareSection, { color: c.foreground }]}>How it works</Text>
+          {[
+            {
+              icon: "navigate-circle-outline" as const,
+              title: "Start navigation",
+              body: "Go to the Drive tab and enter your destination. Tap Start when you are ready.",
+            },
+            {
+              icon: "radio-outline" as const,
+              title: 'Tap "Share Trip"',
+              body: "A Share Trip button appears at the bottom of the screen while you're driving. Tap it once.",
+            },
+            {
+              icon: "link-outline" as const,
+              title: "Send the link",
+              body: "Share via WhatsApp, SMS, or any app. Anyone can open it on any phone or computer — no app needed.",
+            },
+          ].map((s) => (
+            <View key={s.title} style={[styles.stepRow, { backgroundColor: c.card, borderColor: c.border }]}>
+              <View style={[styles.stepIcon, { backgroundColor: c.primary + "18" }]}>
+                <Ionicons name={s.icon} size={22} color={c.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.stepTitle, { color: c.foreground }]}>{s.title}</Text>
+                <Text style={[styles.stepBody, { color: c.mutedForeground }]}>{s.body}</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* Who uses this */}
+          <Text style={[styles.shareSection, { color: c.foreground, marginTop: 8 }]}>Who uses this</Text>
+          <View style={styles.useCaseGrid}>
+            {[
+              {
+                icon: "people-outline" as const,
+                title: "Family tracking",
+                body: "Know when your husband, wife, or child is safely on their way or has arrived.",
+              },
+              {
+                icon: "bicycle-outline" as const,
+                title: "Delivery drivers",
+                body: "Customers see your exact ETA without calling. Fewer missed deliveries.",
+              },
+              {
+                icon: "business-outline" as const,
+                title: "Company vehicles",
+                body: "Operations teams track the fleet in real time from any device.",
+              },
+              {
+                icon: "moon-outline" as const,
+                title: "Night safety",
+                body: "Driving late? Share your location so someone knows you're safe.",
+              },
+            ].map((u) => (
+              <View key={u.title} style={[styles.useCaseCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <Ionicons name={u.icon} size={24} color={c.primary} />
+                <Text style={[styles.useCaseTitle, { color: c.foreground }]}>{u.title}</Text>
+                <Text style={[styles.useCaseBody, { color: c.mutedForeground }]}>{u.body}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Privacy note */}
+          <View style={[styles.privacyNote, { backgroundColor: c.muted, borderColor: c.border }]}>
+            <Ionicons name="lock-closed-outline" size={14} color={c.mutedForeground} style={{ marginTop: 1 }} />
+            <Text style={[styles.privacyText, { color: c.mutedForeground }]}>
+              Sharing stops automatically when you end navigation or after 8 hours. Only people with your link can see your location — it is never public.
+            </Text>
+          </View>
+        </ScrollView>
+      ) : tab === "planned" ? (
         <FlatList
           {...FLAT_LIST_PROPS}
           data={upcomingTrips}
@@ -803,4 +968,60 @@ const styles = StyleSheet.create({
   dateBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   saveBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 20 },
   saveBtnText: { color: "#FFF", fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  // ── Share tab ────────────────────────────────────────────────────────────────
+  liveCard: { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14 },
+  liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#00C853" },
+  liveTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#00C853", flex: 1 },
+  liveLink: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4 },
+  liveAction: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 10, borderRadius: 10,
+  },
+  liveActionTxt: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  shareHero: {
+    alignItems: "center", padding: 24, borderRadius: 20, borderWidth: 1, marginBottom: 14,
+  },
+  shareHeroIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    alignItems: "center", justifyContent: "center", marginBottom: 14,
+  },
+  shareHeroTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center", marginBottom: 8 },
+  shareHeroSub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 21 },
+  shareHeroCta: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, borderRadius: 16, paddingVertical: 16, marginBottom: 20,
+  },
+  shareHeroCtaTxt: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  shareHeroNotice: {
+    flexDirection: "row", alignItems: "flex-start", gap: 12,
+    borderRadius: 14, padding: 14, marginBottom: 20,
+  },
+  shareHeroNoticeTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
+  shareHeroNoticeSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+
+  shareSection: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 10, marginTop: 4 },
+
+  stepRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 14,
+    borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10,
+  },
+  stepIcon: {
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  stepTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
+  stepBody: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+
+  useCaseGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
+  useCaseCard: { width: "48%", padding: 14, borderRadius: 14, borderWidth: 1, gap: 6 },
+  useCaseTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  useCaseBody: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 15 },
+
+  privacyNote: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8,
+  },
+  privacyText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
 });
