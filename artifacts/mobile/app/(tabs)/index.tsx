@@ -148,6 +148,7 @@ export default function DriveScreen() {
   const [showReport, setShowReport] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sharingLoading, setSharingLoading] = useState(false);
+  const [speedStripHeight, setSpeedStripHeight] = useState(150);
 
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
@@ -486,7 +487,10 @@ export default function DriveScreen() {
           Right panel: NEARBY ALERT badge + type + "X km ahead".
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
-        <View style={[styles.speedStrip, { bottom: bottomBase + 8, backgroundColor: bg }]}>
+        <View
+          style={[styles.speedStrip, { bottom: bottomBase + 8, backgroundColor: bg }]}
+          onLayout={(e) => setSpeedStripHeight(e.nativeEvent.layout.height)}
+        >
 
           {/* Left: large speed digit + optional LIMIT ring below it */}
           <View style={[styles.speedGroup, {
@@ -583,7 +587,7 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
         <TouchableOpacity
-          style={[styles.reportBar, { bottom: bottomBase + 220, right: 16 }]}
+          style={[styles.reportBar, { bottom: bottomBase + 8 + speedStripHeight + 8, right: 16 }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
           activeOpacity={0.82}
         >

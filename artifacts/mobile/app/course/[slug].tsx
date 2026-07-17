@@ -3,8 +3,11 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -46,7 +49,7 @@ interface FullLesson {
 
 // ── Content block renderer ────────────────────────────────────────────────────
 
-function ContentBlocks({ blocks, colors }: { blocks: ContentBlock[]; colors: ReturnType<typeof useColors> }) {
+function ContentBlocks({ blocks, colors, onImagePress }: { blocks: ContentBlock[]; colors: ReturnType<typeof useColors>; onImagePress: (uri: string) => void }) {
   return (
     <View style={{ gap: 14 }}>
       {blocks.map((block, i) => {
@@ -81,7 +84,7 @@ function ContentBlocks({ blocks, colors }: { blocks: ContentBlock[]; colors: Ret
           const uri = `${API_BASE}/course-images/${block.path}`;
           const screenWidth = Dimensions.get("window").width;
           return (
-            <View key={i} style={styles.imageBlock}>
+            <TouchableOpacity key={i} style={styles.imageBlock} onPress={() => onImagePress(uri)} activeOpacity={0.88}>
               <Image
                 source={{ uri }}
                 style={[styles.lessonImage, { width: screenWidth - 48 }]}
@@ -92,7 +95,11 @@ function ContentBlocks({ blocks, colors }: { blocks: ContentBlock[]; colors: Ret
                   {block.caption}
                 </Text>
               )}
-            </View>
+              <View style={styles.expandHint}>
+                <Ionicons name="expand-outline" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.expandHintTxt, { color: colors.mutedForeground }]}>Tap to expand</Text>
+              </View>
+            </TouchableOpacity>
           );
         }
         return null;
@@ -119,6 +126,7 @@ export default function LessonReaderScreen() {
   const [completing, setCompleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   // ── Derive flat lesson list for prev/next navigation ─────────────────────
   const allLessons = useMemo(
@@ -320,7 +328,7 @@ export default function LessonReaderScreen() {
 
         {/* Content blocks */}
         {lesson.content?.length ? (
-          <ContentBlocks blocks={lesson.content} colors={colors} />
+          <ContentBlocks blocks={lesson.content} colors={colors} onImagePress={setExpandedImage} />
         ) : (
           <Text style={[styles.paragraph, { color: colors.mutedForeground }]}>
             No content available for this lesson.
@@ -425,6 +433,33 @@ export default function LessonReaderScreen() {
           ) : <View style={{ flex: 1 }} />}
         </View>
       </ScrollView>
+
+      {/* ── Full-screen image viewer ───────────────────────────────────── */}
+      <Modal visible={!!expandedImage} transparent animationType="fade" onRequestClose={() => setExpandedImage(null)}>
+        <StatusBar hidden />
+        <Pressable style={styles.imageModal} onPress={() => setExpandedImage(null)}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.imageModalInner}
+            maximumZoomScale={4}
+            minimumZoomScale={1}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            pinchGestureEnabled
+          >
+            {expandedImage && (
+              <Image
+                source={{ uri: expandedImage }}
+                style={styles.imageModalImg}
+                resizeMode="contain"
+              />
+            )}
+          </ScrollView>
+          <TouchableOpacity style={styles.imageModalClose} onPress={() => setExpandedImage(null)} activeOpacity={0.8}>
+            <Ionicons name="close" size={20} color="#FFF" />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -541,6 +576,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
+  },
+  expandHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  expandHintTxt: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+  },
+  imageModal: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  imageModalInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imageModalImg: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+  },
+  imageModalClose: {
+    position: "absolute",
+    top: 52,
+    right: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   keyPointsCard: {
     borderRadius: 14,
