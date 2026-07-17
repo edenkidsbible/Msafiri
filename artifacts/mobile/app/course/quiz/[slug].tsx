@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -448,6 +449,23 @@ export default function QuizScreen() {
     // State already initialised to defaults (index=0, answers=[], etc.)
   };
 
+  // Guard back navigation when meaningful progress exists
+  const handleBack = useCallback(() => {
+    const hasProgress = answers.some((a) => a !== null);
+    if (!hasProgress) {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      "Leave quiz?",
+      "Your progress will be saved. You can resume where you left off.",
+      [
+        { text: "Stay", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: () => router.back() },
+      ]
+    );
+  }, [answers, router]);
+
   const topInset = Platform.OS === "ios" ? insets.top : insets.top;
   const bottomInset = Platform.OS === "web" ? 24 : insets.bottom;
 
@@ -527,7 +545,7 @@ export default function QuizScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Top bar */}
       <View style={[styles.topBar, { paddingTop: topInset + 8, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: colors.foreground }]} numberOfLines={1}>
