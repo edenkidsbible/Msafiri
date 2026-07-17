@@ -164,7 +164,7 @@ export default function Home() {
               { label: "Active Drivers", value: "50K+" },
               { label: "Alerts Daily", value: "120K" },
               { label: "Coverage", value: "47 Counties" },
-              { label: "App Store Rating", value: "4.9/5" }
+              { label: "Rating", value: "4.9/5" }
             ].map((stat, i) => (
               <div key={i} className="text-center">
                 <div className="text-3xl md:text-4xl font-bold font-mono text-foreground mb-2">{stat.value}</div>
