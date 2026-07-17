@@ -1,0 +1,277 @@
+{
+  "id": "ch-06",
+  "slug": "unit-06-self-inspection-of-vehicle",
+  "title": "Self-Inspection of Vehicle",
+  "unitNumber": 6,
+  "order": 7,
+  "lessons": [
+    {
+      "id": "lesson-06-01",
+      "slug": "unit-06-self-inspection-of-vehicle-self-inspection-of-vehicle",
+      "chapterId": "ch-06",
+      "title": "Self-Inspection of Vehicle",
+      "order": 1,
+      "estimatedMinutes": 3,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 6: SELF - INSPECTION OF VEHICLE"
+        },
+        {
+          "type": "paragraph",
+          "text": "Before embarking on a journey, any responsible driver should ensure that  the vehicle is in the right condition for the journey. Self- inspection refers to checking on different aspects of the motor vehicle to ensure that it is safe to use.  Self – inspection allows the driver to know what maintenance or repair work ought to be done. Self-inspection should also be done at the end of the journey so that the driver or vehicle owner can plan for any repairs."
+        },
+        {
+          "type": "callout",
+          "text": "Self- inspection is divided into two parts."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Exterior inspection",
+            "Interior Inspection It is also important for the driver to know the common anomalies that may occur during long distance travel."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Exterior Inspection"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is the inspection that the driver of the vehicle undertakes before starting the journey. There are various vehicle components that should be inspected before driving off. These are 1. Tyres 2. Reflectors and lights 3. Mirrors 4. Windshield Wipers 5. Windows 6. The Body 7. Cleanliness 8. Safety Belts 9. Emergency equipment 10.\tPaperwork 1."
+        },
+        {
+          "type": "callout",
+          "text": "Tyres Safety Check"
+        },
+        {
+          "type": "paragraph",
+          "text": "It is important that the vehicle tyres are always in good condition. When tyres are in good condition, the driver is able to brake properly and to turn corners with ease."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Give your tyres a visual inspection before and after every journey",
+            "Small stones wedged in the tread can cause problems later",
+            "Ensure that tyre treads are in good condition. Replace aging tyres",
+            "Ensure that the tyres are securely fastened",
+            "Check the tyre pressure",
+            "Recognize the danger of underinflated and overinflated tyres. Both are harmful to the tyre",
+            "Ensure you have a spare tyre that is in good condition 2."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Reflectors and Lights"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Ensure that the headlights, turn signals, and hazard lights are operational",
+            "Where possible, ask for assistance in checking the reverse lights since this can only be done when the vehicle is reversing 3."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Mirrors"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Make sure that all your mirrors are present, properly adjusted and unobstructed before driving the vehicle 4."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Windshield Wipers"
+        },
+        {
+          "type": "list",
+          "items": [
+            "The windshield wipers must work at all setting",
+            "Make sure that you have wiper fluid 5."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Windows"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Check all the windows, ensure that they can open and shut without difficulty",
+            "Ensure that the roll up handle is functional 6."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "The Body"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Inspect the exterior body for any damage such as dents and scratches. 7."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Cleanliness"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Ensure that the vehicle is clean. Make sure that the windscreen, windows and mirrors are clean for ease of navigation",
+            "Ensure that your vehicle interior is clean and free of clutter to minimise distraction while driving and ensure that your passengers are as comfortable as possible 8."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Safety Belts and Car Seats"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Inspect the safety belts to ensure that they are still functional i.e. the clasps should work correctly and the safety belts should be able to",
+            "The safety belts should be clean",
+            "If using special child safety seats or booster seats ensure that they are also in good condition and that when in use, they are properly secured. 9."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Emergency Equipment"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Ensure that your emergency equipment is still in good working order. Emergency equipment includes the reflector triangle, a fire extinguisher, first aid kit, tools, spare tyre and survival gear 10."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Paperwork"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Ensure that you have all that you as the motorist have the appropriate licence that permits you to drive the car. Additionally, ensure that the vehicle is roadworthy and the correct registration and vehicle insurance"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Interior Inspection"
+        },
+        {
+          "type": "paragraph",
+          "text": "It is important to carry out the interior inspection to ensure that the vehicle is mechanically sound. The following are some of the parts that should be inspected 1. Brakes 2. Steering 3. Indicators 4. Vehicle transmission 5. Oil level 6. Coolant Check 7. Battery 8. Leaks"
+        },
+        {
+          "type": "callout",
+          "text": "1."
+        },
+        {
+          "type": "callout",
+          "text": "Brakes"
+        },
+        {
+          "type": "paragraph",
+          "text": "Ensure that the brakes are properly adjusted. To do this you may turn on the engine and do a few manoeuvres."
+        },
+        {
+          "type": "callout",
+          "text": "2."
+        },
+        {
+          "type": "callout",
+          "text": "Steering"
+        },
+        {
+          "type": "paragraph",
+          "text": "The steering wheel should have a full range of motion i.e. it should be able to turn at 360 degrees. It should also effectively turn the front wheels."
+        },
+        {
+          "type": "callout",
+          "text": "3."
+        },
+        {
+          "type": "callout",
+          "text": "Indicators"
+        },
+        {
+          "type": "paragraph",
+          "text": "Inspect all indicators to make sure that they are operational"
+        },
+        {
+          "type": "callout",
+          "text": "4."
+        },
+        {
+          "type": "callout",
+          "text": "Gears"
+        },
+        {
+          "type": "paragraph",
+          "text": "Ensure that the vehicle is capable of shifting into any gear"
+        }
+      ],
+      "keyPoints": [
+        "Before embarking on a journey, any responsible driver should ensure that  the vehicle is in the right condition for the journey.",
+        "Exterior inspection",
+        "Interior Inspection It is also important for the driver to know the common anomalies that may occur during long distance travel.",
+        "This is the inspection that the driver of the vehicle undertakes before starting the journey.",
+        "It is important that the vehicle tyres are always in good condition."
+      ],
+      "quiz": [
+        {
+          "question": "Which item should be checked BEFORE starting any journey?",
+          "options": [
+            "Tyre pressure and condition",
+            "The radio channel",
+            "Seat cover cleanliness",
+            "Dashboard light colours"
+          ],
+          "correctIndex": 0
+        },
+        {
+          "question": "Engine oil level should be checked:",
+          "options": [
+            "Only during annual service",
+            "Regularly — ideally before long trips",
+            "Every 10,000 km",
+            "Only when the warning light comes on"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A reflector triangle must be placed:",
+          "options": [
+            "Inside the boot",
+            "Behind the vehicle when broken down to warn drivers",
+            "On the dashboard when parking",
+            "Only required for trucks"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Worn brake pads typically produce:",
+          "options": [
+            "Engine overheating",
+            "Unusual squealing or grinding noise when braking",
+            "Increased fuel consumption",
+            "Steering wheel vibration"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The minimum legal tyre tread depth is:",
+          "options": [
+            "0.5 mm",
+            "1.0 mm",
+            "1.6 mm",
+            "3.0 mm"
+          ],
+          "correctIndex": 2
+        }
+      ]
+    }
+  ]
+}

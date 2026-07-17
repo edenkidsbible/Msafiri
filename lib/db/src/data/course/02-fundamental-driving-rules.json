@@ -1,0 +1,169 @@
+{
+  "id": "ch-02",
+  "slug": "unit-02-fundamental-driving-rules",
+  "title": "Fundamental Driving Rules",
+  "unitNumber": 2,
+  "order": 3,
+  "lessons": [
+    {
+      "id": "lesson-02-01",
+      "slug": "unit-02-fundamental-driving-rules-fundamental-driving-rules",
+      "chapterId": "ch-02",
+      "title": "Fundamental Driving Rules",
+      "order": 1,
+      "estimatedMinutes": 2,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 2: FUNDAMENTAL DRIVING RULES"
+        },
+        {
+          "type": "paragraph",
+          "text": "The road is governed by rules and regulations that ensure order is maintained on the roads at all times. These rules and regulations are derived from international, regional and Kenyan law.  As a road user, you should be knowledgeable of these rules as it is the initial step in ensuring that you and other road users are safe on the road."
+        },
+        {
+          "type": "callout",
+          "text": "These rules and regulations can be found in the following documents:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "The Traffic Act",
+            "The Highway Code"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "The Traffic Act"
+        },
+        {
+          "type": "paragraph",
+          "text": "The Traffic Act sets out the laws that govern the use of roads and the expected conduct of road users. It also includes some of the penalties and fines for road users who do not abide by these laws."
+        },
+        {
+          "type": "callout",
+          "text": "Highway Code"
+        },
+        {
+          "type": "paragraph",
+          "text": "The Highway Code is a set of information, advice, guides and mandatory rules for all road users in Kenya. It provides guidelines for animal, pedestrians, cyclists and motorcyclists. The purpose of the Highway Code is to promote safety, responsible behaviour and courtesy at all times. It is your responsibility as a road user to read the Traffic Act and Highway Code and learn the essential rules for safe driving or riding and the general rules of behaviour in traffic regarding safety, courtesy and responsibility. Below are some of the traffic regulations that can also be found in the Traffic Act and the Highway Code:"
+        },
+        {
+          "type": "callout",
+          "text": "Use of the horn, when necessary, to warn other road-users"
+        },
+        {
+          "type": "list",
+          "items": [
+            "You may only use your car horn while your vehicle is moving and you need to warn other road users of your presence",
+            "Do not use the horn when you are stationary on the road",
+            "Do not use the horn aggressively even when the other road users are at fault",
+            "Do not use your horn at places where the ‘No Hooting’ sign has been placed",
+            "Do not use your horn and at designated areas where hooting is always prohibited e.g. hospitals and schools"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Give right-of-way for specific vehicles, road users or in specific"
+        },
+        {
+          "type": "callout",
+          "text": "situations such as"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Police cars",
+            "Emergency vehicles such as fire engines and ambulances sounding the siren or with flashing lights",
+            "The presidential motorcade",
+            "When asked to do so by a police officer or traffic marshall"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Pedestrian range"
+        },
+        {
+          "type": "list",
+          "items": [
+            "You should not ride or drive in areas of the road designated for pedestrians and cyclists"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Traffic Signs and Signals"
+        },
+        {
+          "type": "paragraph",
+          "text": "Traffic signs and signals are used to communicate on the road."
+        },
+        {
+          "type": "list",
+          "items": [
+            "There are two types of traffic signals; hand signals and light signals",
+            "Traffic signs are used to guide, provide information and warn all road users. Most signs fall within three broad categories although there are exceptions. These are Triangle: Warning         Circle: Giving an order      Rectangle: Informing"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "The road is governed by rules and regulations that ensure order is maintained on the roads at all times.",
+        "The Traffic Act",
+        "The Highway Code",
+        "The Traffic Act sets out the laws that govern the use of roads and the expected conduct of road users.",
+        "The Highway Code is a set of information, advice, guides and mandatory rules for all road users in Kenya."
+      ],
+      "quiz": [
+        {
+          "question": "In Kenya, vehicles drive on which side of the road?",
+          "options": [
+            "Left side",
+            "Right side",
+            "Centre",
+            "Either side"
+          ],
+          "correctIndex": 0
+        },
+        {
+          "question": "Which vehicles must you always give right-of-way to?",
+          "options": [
+            "Buses and taxis",
+            "Emergency vehicles sounding their sirens",
+            "Vehicles carrying heavy loads",
+            "Vehicles with hazard lights on"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Traffic signs shaped as triangles generally:",
+          "options": [
+            "Give information",
+            "Give an order",
+            "Warn of a hazard",
+            "Mark a route"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Circular traffic signs are used to:",
+          "options": [
+            "Warn",
+            "Give an order",
+            "Provide information",
+            "Indicate distance"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "You should NOT use your horn:",
+          "options": [
+            "To warn road users of your presence",
+            "When moving in traffic",
+            "Aggressively when other road users are at fault",
+            "Before overtaking on a clear road"
+          ],
+          "correctIndex": 2
+        }
+      ]
+    }
+  ]
+}

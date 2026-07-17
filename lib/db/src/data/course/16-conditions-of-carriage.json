@@ -1,0 +1,151 @@
+{
+  "id": "ch-16",
+  "slug": "unit-16-conditions-of-carriage",
+  "title": "Conditions of Carriage",
+  "unitNumber": 16,
+  "order": 17,
+  "lessons": [
+    {
+      "id": "lesson-16-01",
+      "slug": "unit-16-conditions-of-carriage-conditions-of-carriage",
+      "chapterId": "ch-16",
+      "title": "Conditions of Carriage",
+      "order": 1,
+      "estimatedMinutes": 2,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Problem Symptom Solution"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Check and replace bulb",
+            "Check and replace fuse",
+            "Check and replace the unit",
+            "Bulb failure",
+            "Fuse failure Possible bulb failure",
+            "Part failure of unit Lights Lamp does not light Indicator flashing irregularly Main/dip not lit Engine Misfiring or won’t run Fails to start Starter does not operate Starter or solenoid clicks but does not operate Squealing noise from engine area Overheating",
+            "Fuel or electrical fault",
+            "Defective spark plugs",
+            "Out of fuel",
+            "Damp in electrical system",
+            "Battery flat Starter motor jammed Fan belt loose",
+            "Fuse blown on electric cooling fan",
+            "Loss of coolant Fan belt snapped",
+            "Examine connections",
+            "Seek assistance",
+            "Refuel",
+            "Examine and replace if necessary",
+            "Check gauge",
+            "Change battery",
+            "Jump start",
+            "Push start",
+            "Rock vehicle backwards forwards in gear.",
+            "Adjust and replace and replace fuse",
+            "Tape hose for temporary repair Replace belt"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "UNIT 16: CONDITIONS OF CARRIAGE"
+        },
+        {
+          "type": "callout",
+          "text": "Conditions of carriage"
+        },
+        {
+          "type": "paragraph",
+          "text": "refer to customers’ rights and the restrictions on these rights. It also refers to the driver’s obligation to customers and their obligations when handling cargo. The Traffic Act provides guidelines for conditions of carriage for different categories of goods and passengers."
+        },
+        {
+          "type": "callout",
+          "text": "A commercial vehicle"
+        },
+        {
+          "type": "paragraph",
+          "text": "is a motor vehicle constructed or adapted for the carriage of goods or burdens of any description in connection with any trade, business or agriculture. Therefore a light vehicle can be licenced as a commercial vehicle."
+        },
+        {
+          "type": "callout",
+          "text": "Light vehicles"
+        },
+        {
+          "type": "paragraph",
+          "text": "licenced to be Public Service Vehicles (PSV) should do the following"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Provide a statement of liability",
+            "State what fares or ticketing prices will be charged",
+            "Indicate if there are any exceptions with fare prices",
+            "Ensure that you abide by a code of conduct that customers can easily rely on as a guideline",
+            "Ensure that you address restricted items. Provide outlines for customers to know what items are restricted and which are",
+            "Lost property",
+            "Contact details of the owner or company that runs the service"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Check and replace bulb",
+        "Check and replace fuse",
+        "Check and replace the unit",
+        "refer to customers’ rights and the restrictions on these rights.",
+        "is a motor vehicle constructed or adapted for the carriage of goods or burdens of any description in connection with any trade, business or agriculture."
+      ],
+      "quiz": [
+        {
+          "question": "It is illegal to carry passengers in a vehicle if:",
+          "options": [
+            "You have fewer than 5 passengers",
+            "The number of passengers exceeds the vehicle's licensed capacity",
+            "Passengers do not have identification",
+            "The journey is under 5 km"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "All occupants of a vehicle must:",
+          "options": [
+            "Only sit in designated seating areas",
+            "Wear seatbelts at all times",
+            "Hold onto a handle",
+            "Remain silent to avoid distracting the driver"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A load on a vehicle must be secured so that it:",
+          "options": [
+            "Hangs slightly over the sides for easy access",
+            "Does not fall, shift, or pose danger to other road users",
+            "Is covered only when travelling on highways",
+            "Weighs at least 100 kg for stability"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Who is responsible for ensuring the vehicle is not overloaded?",
+          "options": [
+            "The vehicle owner only",
+            "The traffic police",
+            "The driver of the vehicle",
+            "The passengers collectively"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Children must use an appropriate child restraint until approximately:",
+          "options": [
+            "3 years",
+            "8 years",
+            "10 years",
+            "12 years"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

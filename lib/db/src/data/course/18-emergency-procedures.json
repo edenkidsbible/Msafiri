@@ -1,0 +1,253 @@
+{
+  "id": "ch-18",
+  "slug": "unit-18-emergency-procedures",
+  "title": "Emergency Procedures",
+  "unitNumber": 18,
+  "order": 19,
+  "lessons": [
+    {
+      "id": "lesson-18-01",
+      "slug": "unit-18-emergency-procedures-emergency-procedures",
+      "chapterId": "ch-18",
+      "title": "Emergency Procedures",
+      "order": 1,
+      "estimatedMinutes": 8,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 18: EMERGENCY PROCEDURES"
+        },
+        {
+          "type": "paragraph",
+          "text": "The driver should always be prepared to handle any emergencies that may occur within or outside the car. Many of these situations can be avoided by ensuring that the passengers and driver take the prescribed safety precautions before embarking on the journey. This section will address the most frequent emergencies."
+        },
+        {
+          "type": "callout",
+          "text": "Basic Responsibilities at a Scene of Crash"
+        },
+        {
+          "type": "paragraph",
+          "text": "Crashes frequently occur on the carriageway due to error or negligence by different road users.  If you are involved in an accident or if you witness an accident, you should stop and offer assistance where possible. These are the steps that should be taken in the event of an accident."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Set up the reflector triangles behind and in front of the crash site. The reflector triangles should each be 50 metres behind and ahead the vehicle.",
+            "Call for emergency services – the police, ambulance and fire brigade - immediately, providing full details of the incident location and any casualties",
+            "Move uninjured people away from the vehicles to safety.",
+            "DO NOT move injured people from their vehicles unless they are in immediate danger from fire or explosion",
+            "Do not remove a motorcyclist’s helmet unless it is essential to do so",
+            "Be prepared to give First Aid",
+            "Stay at the scene until the police arrive.",
+            "If you are involved in any other medical emergency on the road, you should contact the emergency services in the same way.",
+            "In the event of spillage, keep onlookers away from the scene of the accident and wait for police to handle the situation"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "First Aid"
+        },
+        {
+          "type": "paragraph",
+          "text": "Many road crash victims suffer unnecessarily, or even die, at the scene of the crash due to inadequate care. Someone with First Aid training can often prevent a victim’s condition from worsening and may save their life. The aims of First Aid are to: 1. Preserve life 2. Prevent a casualty’s injury or illness from getting any worse 3. Promote recovery You can get First Aid training at places such as Red Cross and St. John’s Ambulance. But even if you do not have First Aid training there are simple things you can do to help the injured, and these are described below."
+        },
+        {
+          "type": "callout",
+          "text": "1. Prevent further danger and make safe"
+        },
+        {
+          "type": "paragraph",
+          "text": "First of all assess the danger to yourself, the victims and others. Make the situation safe before approaching. You do not want to become a casualty yourself. For instance, warn and control approaching vehicles to prevent a second collision. Ask other people to help you with this. If there is a danger of fire, make sure no one smokes or uses lighters or matches."
+        },
+        {
+          "type": "callout",
+          "text": "2. Emergency treatment"
+        },
+        {
+          "type": "paragraph",
+          "text": "The most important thing is to preserve life. Remember “Dr A.B.C.” This stands for:"
+        },
+        {
+          "type": "callout",
+          "text": "D = Danger:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Is there continuing danger to the injured? Try to make safe. Protect the casualty and keep curious onlookers away."
+        },
+        {
+          "type": "callout",
+          "text": "R = Response:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Is there any response from the casualty? – Shake the casualty gently and talk to him. If there is no response check the airway (throat)."
+        },
+        {
+          "type": "callout",
+          "text": "A = Airway:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Is the airway (throat) clear?  Lay the casualty on his back, tilt the head to one side, and open the mouth; check that the tongue is not blocking the throat, and use your fingers to scoop out anything (food, dirt, artificial teeth, etc.) in the mouth; then gently move the head so that the chin is up and the mouth open and check for breathing."
+        },
+        {
+          "type": "callout",
+          "text": "B = Breathing:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Is the casualty breathing? Check by putting your ear close to the casualty’s mouth for at least 10 seconds to hear and feel the breath. Look to see whether the chest is rising and falling. If there is no breath, then immediately give artificial respiration by pinching closed the nostrils, taking a deep breath, and breathing slowly into the casualty’s mouth until you have emptied all the air in your lungs into his. Do this again. Check again for breathing. If there is still no breath, check for circulation."
+        },
+        {
+          "type": "callout",
+          "text": "C = Circulation:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Is there a pulse? Check the pulse by placing two fingers at the neck near the throat, and look at the casualty’s colour and pupils of the eyes. If there is no breath or circulation, call for emergency assistance immediately before continuing. Once help has been summoned, if you know the technique, then apply CPR (Cardio-Pulmonary Resuscitation) combining chest compressions with artificial respirations until expert help arrives, or the casualty starts breathing. If there is a pulse, but the casualty is still not breathing, continue with artificial respiration (a breath every five seconds). Do not give up - it may take some time for him to be able to breathe on his own. Once the casualty is breathing and talking again, lay him on his back and keep him warm. If he is breathing but does not answer questions, put him in the recovery position."
+        },
+        {
+          "type": "callout",
+          "text": "3. Get help"
+        },
+        {
+          "type": "paragraph",
+          "text": "Expert help must be summoned as quickly as possible, normally by dialing 999. Try not to leave the casualty alone, so ask others to phone or get help and to report back that they have done so. Many people have mobile phones so there may be no need to leave the scene. It is important to give the emergency services clear information on:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "What has happened",
+            "The location of the crash; street name, known landmarks or places",
+            "Site conditions and dangers",
+            "Number of people injured and severity of injuries.You should not end the call until you are told to do so – wait for the emergency service to confirm the details",
+            "If help is not quickly available you may have to transport the casualty to a medical facility. Ask the advice of the Police or local people about the best place to take the casualty. Small facilities like health posts and clinics may be able to stabilize the condition of the seriously injured so that they will survive a long trip to hospital. However some may not be open 24 hours"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "4. Moving casualties"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Do not move any casualties unless absolutely necessary. Injured persons still in vehicles should not be removed unless there is immediate danger of fire, additional damage, or further collisions. Persons suffering obvious bone fractures or possible internal or spinal injuries should not be moved unless it is essential for their safety.",
+            "If a casualty is unconscious but is breathing and not obviously badly injured, put them in the recovery position to prevent breathing problems"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "5. Bleeding and injury treatment"
+        },
+        {
+          "type": "list",
+          "items": [
+            "A person can bleed to death in five minutes, so it is vital that you try and stop heavy loss of blood. Reassure him, and, if possible, lay him flat on the ground. Find out where the bleeding is coming from. Then check for anything in the wound and remove it if is easy to do so. Apply firm pressure over the wound, preferably using a sterile dressing from a First Aid kit or any other",
+            "Clean padding - otherwise use your hands. If the bleeding does not reduce, press harder. You may be able to tie the padding over the wound, but be careful that you do not cut off circulation - release the pressure briefly every ten minutes. If there are no broken bones, raise a bleeding limb as high as possible to reduce the blood flow.",
+            "If there are broken bones, fractures or dislocations it is important to stabilize the limb and avoid movement so you don’t make the injury worse. If there are burns, immediately cool the area with cold running water and then cover with a clean dressing."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "6. Treat victims for shock"
+        },
+        {
+          "type": "list",
+          "items": [
+            "It is also very important to recognize, prevent, and treat the symptoms of shock, as these may cause even more serious deterioration than the original injury. The signs are: a cold, pale, damp skin; fast or weak pulse; rapid shallow breathing; feeling sick; yawning or sighing",
+            "The causes of shock are many, including: injury; drop in blood pressure; and reduction in the volume of any body fluid. As well as treating the cause, it is vital not to leave the person alone, and to make them more comfortable by: i. laying the person down ii. loosening any tight clothing particularly round the chest and airways iii. keeping the person warm by covering with a blanket iv. talking to the person to keep them calm v. raising the legs slightly to keep blood flowing to the head.",
+            "An accident casualty should never be given anything to eat or drink. If they are thirsty, moisten their lips with water. Never give a casualty any medicines or apply anything but clean water and dressings to wounds"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "7. Put the casualty in the recovery position"
+        },
+        {
+          "type": "list",
+          "items": [
+            "This is a stable position with the casualty on their side, to prevent choking on their tongue or vomit if unconscious.",
+            "The head is slightly tilted back, the lower arm is out at a right angle, the hand of the upper arm is under the cheek, the lower leg stretched out, and the upper leg bent in a right angle as shown in the illustration below"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Reporting the accident"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Report the accident as soon as possible to the police",
+            "If you are hired as a driver, also report the incident to your employer",
+            "Take a photo or sketch the accident scene if you can do so safely",
+            "Record the number plate of the vehicles involved in the accident"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "The driver should always be prepared to handle any emergencies that may occur within or outside the car.",
+        "Crashes frequently occur on the carriageway due to error or negligence by different road users.",
+        "Set up the reflector triangles behind and in front of the crash site. The reflector triangles should each be 50 metres behind and ahead the vehicle.",
+        "Call for emergency services – the police, ambulance and fire brigade - immediately, providing full details of the incident location and any casualties",
+        "Move uninjured people away from the vehicles to safety."
+      ],
+      "quiz": [
+        {
+          "question": "When approaching a road crash scene, the first action is to:",
+          "options": [
+            "Move injured people to the roadside immediately",
+            "Assess the scene for safety before approaching",
+            "Begin CPR on all casualties",
+            "Take photos for insurance purposes"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The emergency number to call after an accident in Kenya is:",
+          "options": [
+            "999",
+            "112",
+            "911",
+            "0800"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "You should NOT move an injured crash victim unless:",
+          "options": [
+            "They are unconscious",
+            "There is immediate danger such as fire or oncoming traffic",
+            "They are bleeding",
+            "They ask you to"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The recovery position is used for a casualty who is:",
+          "options": [
+            "Conscious and able to stand",
+            "Unconscious but breathing — to keep the airway clear",
+            "Suffering from a broken leg",
+            "In cardiac arrest"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Reflector triangles at a breakdown scene should be placed:",
+          "options": [
+            "Only in front of the vehicle",
+            "Behind and in front of the vehicle to warn approaching traffic",
+            "Inside the vehicle",
+            "On the vehicle roof"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

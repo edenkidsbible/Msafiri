@@ -1,0 +1,164 @@
+{
+  "id": "ch-17",
+  "slug": "unit-17-hazardous-materials",
+  "title": "Hazardous Materials",
+  "unitNumber": 17,
+  "order": 18,
+  "lessons": [
+    {
+      "id": "lesson-17-01",
+      "slug": "unit-17-hazardous-materials-hazardous-materials",
+      "chapterId": "ch-17",
+      "title": "Hazardous Materials",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 17: HAZARDOUS MATERIALS"
+        },
+        {
+          "type": "callout",
+          "text": "Hazardous Material"
+        },
+        {
+          "type": "paragraph",
+          "text": "is any material prescribed as such by any written law and includes explosives, petroleum products and any material involving high risk. Hazardous materials are solids, liquids, or gases that are harmful to people, other living organisms, property, or the environment. They are often subject to chemical regulations."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Characteristics of Hazardous Goods"
+        },
+        {
+          "type": "paragraph",
+          "text": "Hazardous goods are known for the following characteristics"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Flammable; something that can burn easily",
+            "Corrosive, something that rusts or decomposes",
+            "Reactive; something that can explode",
+            "Toxic; something that is poisonous Before handling hazardous material, the driver is required to get legal approval that requires special equipment and different alterations to the vehicle to make it suitable for transporting any of these materials."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Hazmat Endorsement Framework"
+        },
+        {
+          "type": "paragraph",
+          "text": "is an assessment process for any driver seeking to obtain, renew and transfer a hazardous materials endorsement on a commercial driver’s license."
+        },
+        {
+          "type": "callout",
+          "text": "Classification of Hazardous Materials"
+        },
+        {
+          "type": "paragraph",
+          "text": "There are 9 classes of hazardous materials. These are"
+        },
+        {
+          "type": "callout",
+          "text": "Explosives"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Gases",
+            "Flammable Liquids",
+            "Flammable Solids",
+            "Oxidizing Substances",
+            "Toxic & Infectious Substances",
+            "Radioactive Material",
+            "Corrosives",
+            "Miscellaneous Dangerous Goods Each class of hazardous material has a prescribed procedure for loading and offloading that the driver should adhere to. In Kenya, the Kenya Bureau of Standards (KBS), National Environmental Management Agency (NEMA) and NTSA coordinate licencing for transportation of hazardous goods."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Do not handle hazardous material unless you have the appropriate"
+        },
+        {
+          "type": "callout",
+          "text": "licencing to do so."
+        }
+      ],
+      "keyPoints": [
+        "is any material prescribed as such by any written law and includes explosives, petroleum products and any material involving high risk.",
+        "Hazardous goods are known for the following characteristics",
+        "Flammable; something that can burn easily",
+        "Corrosive, something that rusts or decomposes",
+        "Reactive; something that can explode"
+      ],
+      "quiz": [
+        {
+          "question": "Vehicles carrying hazardous materials must display:",
+          "options": [
+            "A red flag at the front",
+            "Approved hazard warning placards or panels",
+            "A yellow roof light",
+            "The driver's name on the windscreen"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "If you witness a vehicle leaking hazardous chemicals on the road, you should:",
+          "options": [
+            "Drive past quickly",
+            "Keep a safe distance and call emergency services",
+            "Try to plug the leak yourself",
+            "Park and direct traffic away"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Hazardous materials are classified using:",
+          "options": [
+            "IATA codes",
+            "UN hazard class numbers and labels",
+            "ISO 9001 standards",
+            "Colour-coded stickers only"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Smoking near a vehicle carrying flammable materials is:",
+          "options": [
+            "Permitted in open areas",
+            "Strictly prohibited",
+            "Allowed if windows are open",
+            "Only prohibited when refuelling"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A driver transporting hazardous goods must carry:",
+          "options": [
+            "Extra fuel only",
+            "Emergency response documentation, appropriate PPE, and spill containment equipment",
+            "A fire extinguisher only",
+            "A first aid kit only"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "id": "ch-21",
+  "slug": "unit-21-the-examination",
+  "title": "The Examination",
+  "unitNumber": 21,
+  "order": 22,
+  "lessons": [
+    {
+      "id": "lesson-21-01",
+      "slug": "unit-21-the-examination-the-examination",
+      "chapterId": "ch-21",
+      "title": "The Examination",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "Competitive Riding"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is when motorcyclists ride abreast at unreasonable speed.  No more than 2 riders are allowed to ride abreast."
+        },
+        {
+          "type": "callout",
+          "text": "Defensive riding is important when in the following condition"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Adverse weather conditions such as rain, fog or windy. In these cases, the road surface may change and so you need to apply different techniques to avoid danger",
+            "Different road conditions that may be difficult to manoeuvre such rough terrain, wet surface or sloping surfaces"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Defensive riding techniques"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Improving observation, anticipation and awareness consistent with the riding speed",
+            "Applying sound judgement of speed and distance",
+            "Don’t drive when you are tired, rest before any journey"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "UNIT 21: EXAMINATION FOR DRIVERS"
+        },
+        {
+          "type": "paragraph",
+          "text": "In order to get your riding licence, you should follow the exam registration procedure provided for by NTSA. Prepare adequately for both the practical and theory exam. On the day of the exam, go to the examination centre on time to avoid disappointment."
+        }
+      ],
+      "keyPoints": [
+        "This is when motorcyclists ride abreast at unreasonable speed.",
+        "Adverse weather conditions such as rain, fog or windy. In these cases, the road surface may change and so you need to apply different techniques to avoid danger",
+        "Different road conditions that may be difficult to manoeuvre such rough terrain, wet surface or sloping surfaces",
+        "Improving observation, anticipation and awareness consistent with the riding speed",
+        "Applying sound judgement of speed and distance"
+      ],
+      "quiz": [
+        {
+          "question": "The Kenya driving test consists of:",
+          "options": [
+            "A written theory test only",
+            "Theory test, eye test, and practical driving test",
+            "A practical driving test only",
+            "A medical examination and interview"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Before the practical test the examiner will check:",
+          "options": [
+            "Your mobile phone contacts",
+            "Vehicle roadworthiness and your identification documents",
+            "Your insurance history",
+            "Your vehicle purchase receipt"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "An immediate fail in the practical test is given for:",
+          "options": [
+            "Stalling the engine once",
+            "A dangerous fault causing actual or potential danger",
+            "Making a minor error at a junction",
+            "Checking mirrors too frequently"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "During the driving test you should:",
+          "options": [
+            "Ignore uncertain road signs and continue",
+            "Apply what you know and drive safely throughout",
+            "Stop and ask the examiner for guidance",
+            "Speed up to demonstrate confidence"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "After passing the driving test a new driver receives:",
+          "options": [
+            "A permanent licence immediately",
+            "A learner's permit extension",
+            "A licence valid for the class of vehicle tested",
+            "A digital certificate only"
+          ],
+          "correctIndex": 2
+        }
+      ]
+    }
+  ]
+}

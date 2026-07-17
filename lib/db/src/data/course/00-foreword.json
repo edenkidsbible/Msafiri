@@ -1,0 +1,82 @@
+{
+  "id": "ch-00",
+  "slug": "foreword",
+  "title": "Foreword",
+  "unitNumber": 0,
+  "order": 1,
+  "lessons": [
+    {
+      "id": "lesson-00-01",
+      "slug": "foreword-foreword",
+      "chapterId": "ch-00",
+      "title": "Foreword",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "FOREWORD"
+        },
+        {
+          "type": "paragraph",
+          "text": "This handbook is prepared as a guide for use by drivers. It is a comprehensive information source for the rules and regulations, information and advice that you need to drive safely on the Kenyan roads. It is important for every learner to get adequate training and practice before being issued with a rider’s licence. You can become a safe rider through acquiring the necessary skills and understanding of the road environment, by always being alert and defensive and by accepting that the prime responsibility for your safety on the road is yours. This book will help learners prepare for the rider licence exam and also enable experienced riders to refresh their skills from time to time. NTSA"
+        }
+      ],
+      "keyPoints": [
+        "This handbook is prepared as a guide for use by drivers."
+      ],
+      "quiz": [
+        {
+          "question": "What is the primary purpose of the Kenya Learner Driver Handbook?",
+          "options": [
+            "To replace the Traffic Act",
+            "To serve as a guide for safe driving on Kenyan roads",
+            "To outline licensing officer procedures",
+            "To provide a map of Kenyan roads"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Who bears prime responsibility for your safety on the road?",
+          "options": [
+            "The police",
+            "The traffic authority",
+            "Yourself",
+            "Your driving instructor"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Which legislation should every road user read alongside this handbook?",
+          "options": [
+            "The Penal Code",
+            "The Traffic Act and Highway Code",
+            "The Finance Act",
+            "The Environmental Act"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "When may you use your car horn while stationary?",
+          "options": [
+            "When another driver is at fault",
+            "To alert pedestrians at a crossing",
+            "You may not use the horn when stationary",
+            "Only in emergencies"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Safe driving requires which key personal qualities?",
+          "options": [
+            "Speed and confidence",
+            "Patience, courtesy, and responsibility",
+            "Aggression to assert rights",
+            "Experience only"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

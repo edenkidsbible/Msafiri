@@ -1,0 +1,697 @@
+{
+  "version": "1.0.0",
+  "source": "Kenya Learner Driver Handbook (Light Motor Vehicle)",
+  "generatedAt": "2026-07-17",
+  "totalChapters": 24,
+  "totalLessons": 64,
+  "chapters": [
+    {
+      "id": "ch-00",
+      "slug": "foreword",
+      "title": "Foreword",
+      "unitNumber": 0,
+      "order": 1,
+      "filename": "00-foreword.json",
+      "lessons": [
+        {
+          "id": "lesson-00-01",
+          "slug": "foreword-foreword",
+          "title": "Foreword",
+          "order": 1,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-01",
+      "slug": "unit-01-introduction-to-driving",
+      "title": "Introduction to Driving",
+      "unitNumber": 1,
+      "order": 2,
+      "filename": "01-introduction-to-driving.json",
+      "lessons": [
+        {
+          "id": "lesson-01-01",
+          "slug": "unit-01-introduction-to-driving-introduction-to-driving",
+          "title": "Introduction to Driving",
+          "order": 1,
+          "estimatedMinutes": 3
+        }
+      ]
+    },
+    {
+      "id": "ch-02",
+      "slug": "unit-02-fundamental-driving-rules",
+      "title": "Fundamental Driving Rules",
+      "unitNumber": 2,
+      "order": 3,
+      "filename": "02-fundamental-driving-rules.json",
+      "lessons": [
+        {
+          "id": "lesson-02-01",
+          "slug": "unit-02-fundamental-driving-rules-fundamental-driving-rules",
+          "title": "Fundamental Driving Rules",
+          "order": 1,
+          "estimatedMinutes": 2
+        }
+      ]
+    },
+    {
+      "id": "ch-03",
+      "slug": "unit-03-model-town",
+      "title": "Model Town",
+      "unitNumber": 3,
+      "order": 4,
+      "filename": "03-model-town.json",
+      "lessons": [
+        {
+          "id": "lesson-03-01",
+          "slug": "unit-03-model-town-model-town",
+          "title": "Model Town",
+          "order": 1,
+          "estimatedMinutes": 5
+        }
+      ]
+    },
+    {
+      "id": "ch-04",
+      "slug": "unit-04-human-factors-in-traffic",
+      "title": "Human Factors in Traffic",
+      "unitNumber": 4,
+      "order": 5,
+      "filename": "04-human-factors-in-traffic.json",
+      "lessons": [
+        {
+          "id": "lesson-04-01",
+          "slug": "unit-04-human-factors-in-traffic-human-factors-in-traffic",
+          "title": "Human Factors in Traffic",
+          "order": 1,
+          "estimatedMinutes": 8
+        }
+      ]
+    },
+    {
+      "id": "ch-05",
+      "slug": "unit-05-vehicle-constructions-and-controls",
+      "title": "Vehicle Constructions and Controls",
+      "unitNumber": 5,
+      "order": 6,
+      "filename": "05-vehicle-constructions-and-controls.json",
+      "lessons": [
+        {
+          "id": "lesson-05-01",
+          "slug": "unit-05-vehicle-constructions-and-controls-vehicle-constructions-and-controls",
+          "title": "Vehicle Constructions and Controls",
+          "order": 1,
+          "estimatedMinutes": 2
+        }
+      ]
+    },
+    {
+      "id": "ch-06",
+      "slug": "unit-06-self-inspection-of-vehicle",
+      "title": "Self-Inspection of Vehicle",
+      "unitNumber": 6,
+      "order": 7,
+      "filename": "06-self-inspection-of-vehicle.json",
+      "lessons": [
+        {
+          "id": "lesson-06-01",
+          "slug": "unit-06-self-inspection-of-vehicle-self-inspection-of-vehicle",
+          "title": "Self-Inspection of Vehicle",
+          "order": 1,
+          "estimatedMinutes": 3
+        }
+      ]
+    },
+    {
+      "id": "ch-07",
+      "slug": "unit-07-observation",
+      "title": "Observation",
+      "unitNumber": 7,
+      "order": 8,
+      "filename": "07-observation.json",
+      "lessons": [
+        {
+          "id": "lesson-07-01",
+          "slug": "unit-07-observation-observation",
+          "title": "Observation",
+          "order": 1,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-07-02",
+          "slug": "unit-07-observation-driver-visibility",
+          "title": "Driver visibility",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-07-03",
+          "slug": "unit-07-observation-the-blind-spot",
+          "title": "The blind spot",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-07-04",
+          "slug": "unit-07-observation-rear-view-mirror-interior-mirror",
+          "title": "Rear View Mirror (Interior mirror)",
+          "order": 4,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-07-05",
+          "slug": "unit-07-observation-exterior-mirror",
+          "title": "Exterior Mirror",
+          "order": 5,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-08",
+      "slug": "unit-08-vehicle-control",
+      "title": "Vehicle Control",
+      "unitNumber": 8,
+      "order": 9,
+      "filename": "08-vehicle-control.json",
+      "lessons": [
+        {
+          "id": "lesson-08-01",
+          "slug": "unit-08-vehicle-control-vehicle-control",
+          "title": "Vehicle Control",
+          "order": 1,
+          "estimatedMinutes": 5
+        },
+        {
+          "id": "lesson-08-02",
+          "slug": "unit-08-vehicle-control-j-turns",
+          "title": "J-turns",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-08-03",
+          "slug": "unit-08-vehicle-control-u-turn",
+          "title": "U-turn",
+          "order": 3,
+          "estimatedMinutes": 2
+        }
+      ]
+    },
+    {
+      "id": "ch-09",
+      "slug": "unit-09-communication-on-the-road",
+      "title": "Communication on the Road",
+      "unitNumber": 9,
+      "order": 10,
+      "filename": "09-communication-on-the-road.json",
+      "lessons": [
+        {
+          "id": "lesson-09-01",
+          "slug": "unit-09-communication-on-the-road-communication-on-the-road",
+          "title": "Communication on the Road",
+          "order": 1,
+          "estimatedMinutes": 3
+        },
+        {
+          "id": "lesson-09-02",
+          "slug": "unit-09-communication-on-the-road-signals-given-by-road-users",
+          "title": "Signals Given by Road Users",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-09-03",
+          "slug": "unit-09-communication-on-the-road-traffic-light-signals",
+          "title": "Traffic Light Signals",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-09-04",
+          "slug": "unit-09-communication-on-the-road-traffic-signal-blackout",
+          "title": "Traffic Signal Blackout",
+          "order": 4,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-10",
+      "slug": "unit-10-speed-management",
+      "title": "Speed Management",
+      "unitNumber": 10,
+      "order": 11,
+      "filename": "10-speed-management.json",
+      "lessons": [
+        {
+          "id": "lesson-10-01",
+          "slug": "unit-10-speed-management-speed-management",
+          "title": "Speed Management",
+          "order": 1,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-02",
+          "slug": "unit-10-speed-management-how-poor-speed-management-affects-driving",
+          "title": "How poor speed management affects driving",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-03",
+          "slug": "unit-10-speed-management-the-4-second-rule",
+          "title": "The 4 Second Rule",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-04",
+          "slug": "unit-10-speed-management-braking-distance",
+          "title": "Braking  Distance",
+          "order": 4,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-05",
+          "slug": "unit-10-speed-management-thinking-distance",
+          "title": "Thinking distance",
+          "order": 5,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-06",
+          "slug": "unit-10-speed-management-stopping-distance",
+          "title": "Stopping Distance",
+          "order": 6,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-07",
+          "slug": "unit-10-speed-management-braking-systems-and-techniques",
+          "title": "Braking Systems and Techniques",
+          "order": 7,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-08",
+          "slug": "unit-10-speed-management-freewheeling",
+          "title": "Freewheeling",
+          "order": 8,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-10-09",
+          "slug": "unit-10-speed-management-risks-of-freewheeling",
+          "title": "Risks of Freewheeling",
+          "order": 9,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-11",
+      "slug": "unit-11-space-management",
+      "title": "Space Management",
+      "unitNumber": 11,
+      "order": 12,
+      "filename": "11-space-management.json",
+      "lessons": [
+        {
+          "id": "lesson-11-01",
+          "slug": "unit-11-space-management-space-management",
+          "title": "Space Management",
+          "order": 1,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-11-02",
+          "slug": "unit-11-space-management-to-manage-space",
+          "title": "To manage space",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-11-03",
+          "slug": "unit-11-space-management-space-recovery",
+          "title": "Space Recovery",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-11-04",
+          "slug": "unit-11-space-management-position-to-see-and-be-seen",
+          "title": "Position to ‘See and be seen’",
+          "order": 4,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-12",
+      "slug": "unit-12-emergency-manoeuvres",
+      "title": "Emergency Manoeuvres",
+      "unitNumber": 12,
+      "order": 13,
+      "filename": "12-emergency-manoeuvres.json",
+      "lessons": [
+        {
+          "id": "lesson-12-01",
+          "slug": "unit-12-emergency-manoeuvres-emergency-manoeuvres",
+          "title": "Emergency Manoeuvres",
+          "order": 1,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-02",
+          "slug": "unit-12-emergency-manoeuvres-safely-performing-evasive-turns-on-the-road",
+          "title": "Safely performing evasive turns on the road",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-03",
+          "slug": "unit-12-emergency-manoeuvres-brake-failure",
+          "title": "Brake failure",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-04",
+          "slug": "unit-12-emergency-manoeuvres-blowouts",
+          "title": "Blowouts",
+          "order": 4,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-05",
+          "slug": "unit-12-emergency-manoeuvres-if-your-wheel-goes-off-the-pavement",
+          "title": "If your wheel goes off the pavement",
+          "order": 5,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-06",
+          "slug": "unit-12-emergency-manoeuvres-if-your-headlights-go-off",
+          "title": "If your headlights go off",
+          "order": 6,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-07",
+          "slug": "unit-12-emergency-manoeuvres-defensive-driving",
+          "title": "Defensive Driving",
+          "order": 7,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-08",
+          "slug": "unit-12-emergency-manoeuvres-importance-of-defensive-driving",
+          "title": "Importance of defensive driving",
+          "order": 8,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-09",
+          "slug": "unit-12-emergency-manoeuvres-defensive-driving-is-important-when-in-the-followin",
+          "title": "Defensive driving is important when in the following condition",
+          "order": 9,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-12-10",
+          "slug": "unit-12-emergency-manoeuvres-defensive-driving-techniques",
+          "title": "Defensive driving techniques",
+          "order": 10,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-13",
+      "slug": "unit-13-skid-control-and-recovery",
+      "title": "Skid Control and Recovery",
+      "unitNumber": 13,
+      "order": 14,
+      "filename": "13-skid-control-and-recovery.json",
+      "lessons": [
+        {
+          "id": "lesson-13-01",
+          "slug": "unit-13-skid-control-and-recovery-skid-control-and-recovery",
+          "title": "Skid Control and Recovery",
+          "order": 1,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-13-02",
+          "slug": "unit-13-skid-control-and-recovery-causes-of-skids",
+          "title": "Causes of Skids:",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-13-03",
+          "slug": "unit-13-skid-control-and-recovery-the-front-wheel-skid",
+          "title": "The Front Wheel Skid",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-13-04",
+          "slug": "unit-13-skid-control-and-recovery-the-rear-wheel-skid",
+          "title": "The Rear Wheel Skid",
+          "order": 4,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-13-05",
+          "slug": "unit-13-skid-control-and-recovery-aquaplaning",
+          "title": "Aquaplaning",
+          "order": 5,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-13-06",
+          "slug": "unit-13-skid-control-and-recovery-skid-recovery",
+          "title": "Skid recovery",
+          "order": 6,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-14",
+      "slug": "unit-14-adverse-driving-conditions",
+      "title": "Adverse Driving Conditions",
+      "unitNumber": 14,
+      "order": 15,
+      "filename": "14-adverse-driving-conditions.json",
+      "lessons": [
+        {
+          "id": "lesson-14-01",
+          "slug": "unit-14-adverse-driving-conditions-adverse-driving-conditions",
+          "title": "Adverse Driving Conditions",
+          "order": 1,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-14-02",
+          "slug": "unit-14-adverse-driving-conditions-night-driving",
+          "title": "Night Driving",
+          "order": 2,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-14-03",
+          "slug": "unit-14-adverse-driving-conditions-extreme-driving-conditions",
+          "title": "Extreme driving conditions",
+          "order": 3,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-14-04",
+          "slug": "unit-14-adverse-driving-conditions-fog",
+          "title": "Fog",
+          "order": 4,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-14-05",
+          "slug": "unit-14-adverse-driving-conditions-rain",
+          "title": "Rain",
+          "order": 5,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-14-06",
+          "slug": "unit-14-adverse-driving-conditions-stay-out-of-puddles",
+          "title": "Stay out of puddles",
+          "order": 6,
+          "estimatedMinutes": 1
+        },
+        {
+          "id": "lesson-14-07",
+          "slug": "unit-14-adverse-driving-conditions-driving-in-adverse-conditions",
+          "title": "Driving In Adverse Conditions",
+          "order": 7,
+          "estimatedMinutes": 5
+        }
+      ]
+    },
+    {
+      "id": "ch-15",
+      "slug": "unit-15-preventive-maintenance",
+      "title": "Preventive Maintenance",
+      "unitNumber": 15,
+      "order": 16,
+      "filename": "15-preventive-maintenance.json",
+      "lessons": [
+        {
+          "id": "lesson-15-01",
+          "slug": "unit-15-preventive-maintenance-preventive-maintenance",
+          "title": "Preventive Maintenance",
+          "order": 1,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-16",
+      "slug": "unit-16-conditions-of-carriage",
+      "title": "Conditions of Carriage",
+      "unitNumber": 16,
+      "order": 17,
+      "filename": "16-conditions-of-carriage.json",
+      "lessons": [
+        {
+          "id": "lesson-16-01",
+          "slug": "unit-16-conditions-of-carriage-conditions-of-carriage",
+          "title": "Conditions of Carriage",
+          "order": 1,
+          "estimatedMinutes": 2
+        }
+      ]
+    },
+    {
+      "id": "ch-17",
+      "slug": "unit-17-hazardous-materials",
+      "title": "Hazardous Materials",
+      "unitNumber": 17,
+      "order": 18,
+      "filename": "17-hazardous-materials.json",
+      "lessons": [
+        {
+          "id": "lesson-17-01",
+          "slug": "unit-17-hazardous-materials-hazardous-materials",
+          "title": "Hazardous Materials",
+          "order": 1,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-18",
+      "slug": "unit-18-emergency-procedures",
+      "title": "Emergency Procedures",
+      "unitNumber": 18,
+      "order": 19,
+      "filename": "18-emergency-procedures.json",
+      "lessons": [
+        {
+          "id": "lesson-18-01",
+          "slug": "unit-18-emergency-procedures-emergency-procedures",
+          "title": "Emergency Procedures",
+          "order": 1,
+          "estimatedMinutes": 8
+        }
+      ]
+    },
+    {
+      "id": "ch-19",
+      "slug": "unit-19-work-planning",
+      "title": "Work Planning",
+      "unitNumber": 19,
+      "order": 20,
+      "filename": "19-work-planning.json",
+      "lessons": [
+        {
+          "id": "lesson-19-01",
+          "slug": "unit-19-work-planning-work-planning",
+          "title": "Work Planning",
+          "order": 1,
+          "estimatedMinutes": 3
+        }
+      ]
+    },
+    {
+      "id": "ch-20",
+      "slug": "unit-20-customer-care",
+      "title": "Customer Care",
+      "unitNumber": 20,
+      "order": 21,
+      "filename": "20-customer-care.json",
+      "lessons": [
+        {
+          "id": "lesson-20-01",
+          "slug": "unit-20-customer-care-customer-care",
+          "title": "Customer Care",
+          "order": 1,
+          "estimatedMinutes": 5
+        }
+      ]
+    },
+    {
+      "id": "ch-21",
+      "slug": "unit-21-the-examination",
+      "title": "The Examination",
+      "unitNumber": 21,
+      "order": 22,
+      "filename": "21-the-examination.json",
+      "lessons": [
+        {
+          "id": "lesson-21-01",
+          "slug": "unit-21-the-examination-the-examination",
+          "title": "The Examination",
+          "order": 1,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-22",
+      "slug": "unit-22-traffic-signs",
+      "title": "Traffic Signs",
+      "unitNumber": 22,
+      "order": 23,
+      "filename": "22-traffic-signs.json",
+      "lessons": [
+        {
+          "id": "lesson-22-01",
+          "slug": "unit-22-traffic-signs-traffic-signs",
+          "title": "Traffic Signs",
+          "order": 1,
+          "estimatedMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "ch-23",
+      "slug": "unit-23-model-town-illustrations",
+      "title": "Model Town Illustrations",
+      "unitNumber": 23,
+      "order": 24,
+      "filename": "23-model-town-illustrations.json",
+      "lessons": [
+        {
+          "id": "lesson-23-01",
+          "slug": "unit-23-model-town-illustrations-model-town-illustrations",
+          "title": "Model Town Illustrations",
+          "order": 1,
+          "estimatedMinutes": 1
+        }
+      ]
+    }
+  ]
+}

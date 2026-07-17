@@ -1,0 +1,392 @@
+{
+  "id": "ch-10",
+  "slug": "unit-10-speed-management",
+  "title": "Speed Management",
+  "unitNumber": 10,
+  "order": 11,
+  "lessons": [
+    {
+      "id": "lesson-10-01",
+      "slug": "unit-10-speed-management-speed-management",
+      "chapterId": "ch-10",
+      "title": "Speed Management",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 10: SPEED MANAGEMENT"
+        },
+        {
+          "type": "paragraph",
+          "text": "A major cause of road accidents is reckless driving and over speeding. Before deciding what speed to drive at take into consideration the laws determining the speed limits of the particular road you are using and the road conditions. The higher the speed of a vehicle, the shorter the time a driver has to stop to avoid a crash. Overall, accidents are more severe when the driving speed is high.  The choice and ability drive at a high speed is influenced by"
+        },
+        {
+          "type": "list",
+          "items": [
+            "The driver’s choice to make responsible or irresponsible decision on the road",
+            "The road conditions",
+            "Traffic and the surrounding environment It is important to remember that pedestrians face great risk when vehicles are driven at high speeds."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "A major cause of road accidents is reckless driving and over speeding.",
+        "The driver’s choice to make responsible or irresponsible decision on the road",
+        "The road conditions",
+        "Traffic and the surrounding environment It is important to remember that pedestrians face great risk when vehicles are driven at high speeds."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Speed Management'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-02",
+      "slug": "unit-10-speed-management-how-poor-speed-management-affects-driving",
+      "chapterId": "ch-10",
+      "title": "How poor speed management affects driving",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "At high speeds it is more difficult for the driver to stay in the especially when negotiating corners",
+            "The driver will have less time to respond to poor or changing road conditions and any changes in the weather",
+            "The driver may not notice any new hazard warning signs or other traffic signs",
+            "The fuel consumption may increase due to poor efficiency Drive at a reasonable speed and within the designated speed limits."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "At high speeds it is more difficult for the driver to stay in the especially when negotiating corners",
+        "The driver will have less time to respond to poor or changing road conditions and any changes in the weather",
+        "The driver may not notice any new hazard warning signs or other traffic signs"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'How poor speed management affects driving'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-03",
+      "slug": "unit-10-speed-management-the-4-second-rule",
+      "chapterId": "ch-10",
+      "title": "The 4 Second Rule",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "The 4-second rule is a guideline that enables you to estimate the minimum distance you should travel behind the vehicle immediately in front in adverse weather conditions such as rain or fog.",
+            "The following distance is the distance between the driver and the vehicle ahead.",
+            "To apply the 4-second rule, when the vehicle in front of you passes a landmark such as a sign or a bridge, count one thousand and one, one thousand and two, one thousand and three, one thousand and four.",
+            "If you pass the landmark before you finish counting, then you are too close and you should increase your distance from the vehicle in front of you"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Keep a distance of approximately four seconds between you and the vehicle in front of you"
+        }
+      ],
+      "keyPoints": [
+        "The 4-second rule is a guideline that enables you to estimate the minimum distance you should travel behind the vehicle immediately in front in adverse weather conditions such as rain or fog.",
+        "The following distance is the distance between the driver and the vehicle ahead.",
+        "To apply the 4-second rule, when the vehicle in front of you passes a landmark such as a sign or a bridge, count one thousand and one, one thousand and two, one thousand and three, one thousand and four.",
+        "Keep a distance of approximately four seconds between you and the vehicle in front of you"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'The 4 Second Rule'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-04",
+      "slug": "unit-10-speed-management-braking-distance",
+      "chapterId": "ch-10",
+      "title": "Braking  Distance",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Braking distance is the distance the vehicle travels between hitting the brakes and coming to a stop",
+            "When on poor roads with wet or icy conditions, the braking distance increases",
+            "As the vehicle’s speed increases, so does the braking distance",
+            "If the vehicle is in poor condition due to worn out tyres, poor brakes or overloaded, the braking distance will increase."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Braking distance is the distance the vehicle travels between hitting the brakes and coming to a stop",
+        "When on poor roads with wet or icy conditions, the braking distance increases",
+        "As the vehicle’s speed increases, so does the braking distance"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Braking  Distance'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-05",
+      "slug": "unit-10-speed-management-thinking-distance",
+      "chapterId": "ch-10",
+      "title": "Thinking distance",
+      "order": 5,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Is the distance the vehicle travels after the driver decides to hit the brakes and when the driver actually brakes",
+            "Thinking distance is affected by speed, driver fatigue and distractions"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Is the distance the vehicle travels after the driver decides to hit the brakes and when the driver actually brakes",
+        "Thinking distance is affected by speed, driver fatigue and distractions"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Thinking distance'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-06",
+      "slug": "unit-10-speed-management-stopping-distance",
+      "chapterId": "ch-10",
+      "title": "Stopping Distance",
+      "order": 6,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Is both the thinking distance and the braking distance added together. 6m 6m 38m 15m 55m 18m 21m 75m Stopping distance"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Is both the thinking distance and the braking distance added together. 6m 6m 38m 15m 55m 18m 21m 75m Stopping distance"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Stopping Distance'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-07",
+      "slug": "unit-10-speed-management-braking-systems-and-techniques",
+      "chapterId": "ch-10",
+      "title": "Braking Systems and Techniques",
+      "order": 7,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "There are different types of brakes. These are: disc brakes, drum brakes, and handbrakes."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Brakes are located on all four wheels of the vehicle",
+            "Some vehicles have disc brakes on all four wheels while others have drum brakes on the back wheels",
+            "Braking pushes the weight of the vehicle forward, therefore the front brakes of the car play a more crucial role than the rear brakes.",
+            "The handbrake applies the two rear brakes"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "There are different types of brakes.",
+        "Brakes are located on all four wheels of the vehicle",
+        "Some vehicles have disc brakes on all four wheels while others have drum brakes on the back wheels",
+        "Braking pushes the weight of the vehicle forward, therefore the front brakes of the car play a more crucial role than the rear brakes."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Braking Systems and Techniques'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-08",
+      "slug": "unit-10-speed-management-freewheeling",
+      "chapterId": "ch-10",
+      "title": "Freewheeling",
+      "order": 8,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Freewheeling is moving the vehicle without using power. It is also known as coasting. In driving this is a technique achieved by depressing the clutch so as not to use the engine to move. Drivers most frequently freewheel in the following situations"
+        },
+        {
+          "type": "list",
+          "items": [
+            "When turning at junctions",
+            "Before making a stop",
+            "When changing gears",
+            "When keeping the gear in neutral to save petrol"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Freewheeling is moving the vehicle without using power.",
+        "When turning at junctions",
+        "Before making a stop",
+        "When changing gears"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Freewheeling'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding speed management concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-10-09",
+      "slug": "unit-10-speed-management-risks-of-freewheeling",
+      "chapterId": "ch-10",
+      "title": "Risks of Freewheeling",
+      "order": 9,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Freewheeling is reduces one’s control of the vehicle because the engine is not engaged. When the engine is engaged, the driver can brake with more ease.",
+            "Freewheeling is also risky because there are times when the driver needs to accelerate to prevent an accident but freewheeling prevents the use of the accelerator.",
+            "Freewheeling increases pressure on the brakes because the engine is not engaged in the process of slowing down the vehicle to a stop. This results in increase wear and tear of the brakes.",
+            "Fuel consumption in freewheeling is the same as fuel consumption for an idle engine. A small amount of fuel is needed to keep the engine active. As such freewheeling does not save petrol. When the driver needs to stop, progressive braking is safer than freewheeling because it reduces wear on the braking system and on the tyres and ensures that the driver maintains control of the vehicle."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Freewheeling is reduces one’s control of the vehicle because the engine is not engaged. When the engine is engaged, the driver can brake with more ease.",
+        "Freewheeling is also risky because there are times when the driver needs to accelerate to prevent an accident but freewheeling prevents the use of the accelerator.",
+        "Freewheeling increases pressure on the brakes because the engine is not engaged in the process of slowing down the vehicle to a stop. This results in increase wear and tear of the brakes."
+      ],
+      "quiz": [
+        {
+          "question": "The general urban speed limit in Kenya is:",
+          "options": [
+            "40 km/h",
+            "50 km/h",
+            "60 km/h",
+            "80 km/h"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Stopping distance increases when:",
+          "options": [
+            "Roads are dry and the vehicle is well maintained",
+            "Speed increases or the road surface is wet or slippery",
+            "It is daytime",
+            "The vehicle is lightly loaded"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "'Thinking distance' in total stopping distance refers to:",
+          "options": [
+            "The distance covered while brakes are applied",
+            "The distance travelled while the driver perceives and reacts to a hazard",
+            "The gap between your vehicle and the car ahead",
+            "The minimum following distance on a highway"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The 4-second rule is used to:",
+          "options": [
+            "Determine how long to signal before turning",
+            "Maintain a safe following distance from the vehicle ahead",
+            "Calculate a safe overtaking gap",
+            "Judge a safe parking space"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The maximum highway speed limit for light motor vehicles outside urban areas in Kenya is:",
+          "options": [
+            "80 km/h",
+            "100 km/h",
+            "110 km/h",
+            "120 km/h"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

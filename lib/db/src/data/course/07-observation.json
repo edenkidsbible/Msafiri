@@ -1,0 +1,243 @@
+{
+  "id": "ch-07",
+  "slug": "unit-07-observation",
+  "title": "Observation",
+  "unitNumber": 7,
+  "order": 8,
+  "lessons": [
+    {
+      "id": "lesson-07-01",
+      "slug": "unit-07-observation-observation",
+      "chapterId": "ch-07",
+      "title": "Observation",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 7:  OBSERVATION"
+        },
+        {
+          "type": "paragraph",
+          "text": "Observation is  essential for safe driving. Observation refers to using your sight and hearing ability to get a clear perception of what is around. The driver’s ability to observe effectively is influenced by driver visibility."
+        }
+      ],
+      "keyPoints": [
+        "Observation is  essential for safe driving."
+      ],
+      "quiz": [
+        {
+          "question": "What is a vehicle's 'blind spot'?",
+          "options": [
+            "The area directly in front of the vehicle",
+            "An area around the vehicle not visible through mirrors",
+            "The area illuminated by headlights at night",
+            "The space behind the vehicle when reversing"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-07-02",
+      "slug": "unit-07-observation-driver-visibility",
+      "chapterId": "ch-07",
+      "title": "Driver visibility",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "is the maximum distance at which a driver can clearly identify objects around the car.  Driver visibility varies for each driver depending on the type of vehicle, the traffic conditions and the individual’s own ability to see. To enhance driver visibilty it is important to make use of all the mirrors in your vehicle."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Check the mirrors by looking into the centre interior mirror, followed by the door mirror of the direction you are going.",
+            "Take one of what is reflected through the mirrors. Look for potential hazards such as vehicles driving closely behind you, vehicles approaching quickly from behind, motorcyclists and cyclists. Potential hazards may require further mirrors checks to eliminate the possibility of turning into actual hazards.",
+            "If approaching a situation where you need to stop or slow down, special actions may need to be taken. A vehicle driving too closely behind may require that you gently slow your car down earlier than usual to provide the driver behind with more reaction time to slow down",
+            "A vehicle approaching quickly behind may require that you slow down slightly later than usual (if possible) to allow the driver with a greater stopping distance.",
+            "Motorcyclists and cyclists are often in the habit of pushing forward past slowing vehicles to reach the front of a queue. Such potential hazards require that you use all the mirrors to establish their location and checking the blind spot is extremely important."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Mirrors in your car"
+        }
+      ],
+      "keyPoints": [
+        "is the maximum distance at which a driver can clearly identify objects around the car.",
+        "Check the mirrors by looking into the centre interior mirror, followed by the door mirror of the direction you are going.",
+        "Take one of what is reflected through the mirrors. Look for potential hazards such as vehicles driving closely behind you, vehicles approaching quickly from behind, motorcyclists and cyclists. Potential hazards may require further mirrors checks to eliminate the possibility of turning into actual hazards.",
+        "If approaching a situation where you need to stop or slow down, special actions may need to be taken. A vehicle driving too closely behind may require that you gently slow your car down earlier than usual to provide the driver behind with more reaction time to slow down"
+      ],
+      "quiz": [
+        {
+          "question": "Before changing lanes you should:",
+          "options": [
+            "Use mirrors only",
+            "Check mirrors AND look over your shoulder to cover blind spots",
+            "Only use door mirrors",
+            "Sound the horn and proceed"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-07-03",
+      "slug": "unit-07-observation-the-blind-spot",
+      "chapterId": "ch-07",
+      "title": "The blind spot",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "is the area around the vehicle that the driver cannot directly observe while driving. The blind spot varies according to the type of vehicle and the driver. Mirrors are placed at different parts of the vehicle to assist the driver to get a clearer view of what is around the vehicle. The mirrors eliminate or alleviate the vehicle blind spot."
+        },
+        {
+          "type": "list",
+          "items": [
+            "The blind spot should be checked before changing direction when:",
+            "There are motorcyclists or cyclists close by",
+            "You are overtaking on a dual carriageway",
+            "You wish to change lanes",
+            "You wish to change lanes or direction when there is a potential hazard"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "is the area around the vehicle that the driver cannot directly observe while driving.",
+        "The blind spot should be checked before changing direction when:",
+        "There are motorcyclists or cyclists close by",
+        "You are overtaking on a dual carriageway"
+      ],
+      "quiz": [
+        {
+          "question": "The MSM routine stands for:",
+          "options": [
+            "Mirror, Signal, Manoeuvre",
+            "Move, Slow, Merge",
+            "Mirror, Speed, Manage",
+            "Merge, Signal, Move"
+          ],
+          "correctIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "lesson-07-04",
+      "slug": "unit-07-observation-rear-view-mirror-interior-mirror",
+      "chapterId": "ch-07",
+      "title": "Rear View Mirror (Interior mirror)",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "Types of mirrors"
+        },
+        {
+          "type": "callout",
+          "text": "1."
+        },
+        {
+          "type": "list",
+          "items": [
+            "These are made with flat glass and do not give a distorted image of what is reflected. This makes it possible to judge the speed and distance of following traffic",
+            "You should only adjust this mirror when the vehicle is stationary",
+            "You should be able to view the whole of the rear window in the interior mirror"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "These are made with flat glass and do not give a distorted image of what is reflected. This makes it possible to judge the speed and distance of following traffic",
+        "You should only adjust this mirror when the vehicle is stationary",
+        "You should be able to view the whole of the rear window in the interior mirror"
+      ],
+      "quiz": [
+        {
+          "question": "You should use your vehicle's mirrors:",
+          "options": [
+            "Only when overtaking",
+            "Continuously and before every manoeuvre",
+            "Only when reversing",
+            "Only when parking"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-07-05",
+      "slug": "unit-07-observation-exterior-mirror",
+      "chapterId": "ch-07",
+      "title": "Exterior Mirror",
+      "order": 5,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "2."
+        },
+        {
+          "type": "list",
+          "items": [
+            "These are convex mirrors, which are made using curved glass",
+            "Convex mirrors give a wider field of vision but this make judging the speed and position of following traffic more difficult",
+            "Vehicles appear smaller and further away than they actually are. You should adjust the exterior mirrors so that you can get the best rear view with minimal head movements",
+            "The horizon should appear in the middle of the mirror"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "•"
+        },
+        {
+          "type": "callout",
+          "text": "Nearside Mirror."
+        },
+        {
+          "type": "paragraph",
+          "text": "This is the one that’s closest to the kerb"
+        },
+        {
+          "type": "callout",
+          "text": "•"
+        },
+        {
+          "type": "callout",
+          "text": "Offside Mirror"
+        },
+        {
+          "type": "paragraph",
+          "text": ". This is the one closest to the inner lane marker"
+        }
+      ],
+      "keyPoints": [
+        "These are convex mirrors, which are made using curved glass",
+        "Convex mirrors give a wider field of vision but this make judging the speed and position of following traffic more difficult",
+        "Vehicles appear smaller and further away than they actually are. You should adjust the exterior mirrors so that you can get the best rear view with minimal head movements",
+        "This is the one that’s closest to the kerb",
+        "."
+      ],
+      "quiz": [
+        {
+          "question": "Night driving visibility is mainly limited by:",
+          "options": [
+            "Wind speed",
+            "The range of the headlights",
+            "Road surface condition",
+            "Vehicle speed only"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

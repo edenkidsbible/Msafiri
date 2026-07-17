@@ -1,0 +1,391 @@
+{
+  "id": "ch-12",
+  "slug": "unit-12-emergency-manoeuvres",
+  "title": "Emergency Manoeuvres",
+  "unitNumber": 12,
+  "order": 13,
+  "lessons": [
+    {
+      "id": "lesson-12-01",
+      "slug": "unit-12-emergency-manoeuvres-emergency-manoeuvres",
+      "chapterId": "ch-12",
+      "title": "Emergency Manoeuvres",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 12: EMERGENCY MANOEUVRES"
+        },
+        {
+          "type": "paragraph",
+          "text": "When driving along the road, there driver may need to make sudden and unexpected manoeuvres so as to avoid accidents or any imminent danger. Emergency manoeuvres involves quick and efficient moves."
+        }
+      ],
+      "keyPoints": [
+        "When driving along the road, there driver may need to make sudden and unexpected manoeuvres so as to avoid accidents or any imminent danger."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Emergency Manoeuvres'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-02",
+      "slug": "unit-12-emergency-manoeuvres-safely-performing-evasive-turns-on-the-road",
+      "chapterId": "ch-12",
+      "title": "Safely performing evasive turns on the road",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Evasive manoeuvre driving is important in getting out of situations of danger. Some of the skills that you should learn include making J-turns and U-turns. This is addressed in Unit 8."
+        }
+      ],
+      "keyPoints": [
+        "Evasive manoeuvre driving is important in getting out of situations of danger."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Safely performing evasive turns on the road'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-03",
+      "slug": "unit-12-emergency-manoeuvres-brake-failure",
+      "chapterId": "ch-12",
+      "title": "Brake failure",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "If your brake fails, try pumping the brake pedal to temporarily restore hydraulic brake pressure. If this does not work, apply the parking brake (hand brake) gently but firmly while holding the release button.",
+            "Total brake failure is rare on modern vehicles but if your brakes fail and you manage to stop, do not drive again. Call for help from your mechanic"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "If your brake fails, try pumping the brake pedal to temporarily restore hydraulic brake pressure. If this does not work, apply the parking brake (hand brake) gently but firmly while holding the release button.",
+        "Total brake failure is rare on modern vehicles but if your brakes fail and you manage to stop, do not drive again. Call for help from your mechanic"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Brake failure'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-04",
+      "slug": "unit-12-emergency-manoeuvres-blowouts",
+      "chapterId": "ch-12",
+      "title": "Blowouts",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "In order to drive through a tyre blowout:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Keep a firm grip on the steering wheel.",
+            "Do not slam on the brakes.",
+            "Let your car slow down gradually.",
+            "Pull to the side of the road once you have slowed to a safe speed.",
+            "Activate your hazard lights"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "In order to drive through a tyre blowout:",
+        "Keep a firm grip on the steering wheel.",
+        "Do not slam on the brakes.",
+        "Let your car slow down gradually."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Blowouts'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-05",
+      "slug": "unit-12-emergency-manoeuvres-if-your-wheel-goes-off-the-pavement",
+      "chapterId": "ch-12",
+      "title": "If your wheel goes off the pavement",
+      "order": 5,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Hold the steering firmly",
+            "Take your foot off the accelerator pedal to slow down, avoid heavy braking.",
+            "When the vehicle is under control, steer towards the pavement."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Hold the steering firmly",
+        "Take your foot off the accelerator pedal to slow down, avoid heavy braking.",
+        "When the vehicle is under control, steer towards the pavement."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'If your wheel goes off the pavement'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-06",
+      "slug": "unit-12-emergency-manoeuvres-if-your-headlights-go-off",
+      "chapterId": "ch-12",
+      "title": "If your headlights go off",
+      "order": 6,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Check the switch immediately",
+            "If the lights remain off, keep to the left and bring your vehicle to a safe stop off the road.",
+            "It is dangerous and illegal to drive at night without lights"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Check the switch immediately",
+        "If the lights remain off, keep to the left and bring your vehicle to a safe stop off the road.",
+        "It is dangerous and illegal to drive at night without lights"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'If your headlights go off'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-07",
+      "slug": "unit-12-emergency-manoeuvres-defensive-driving",
+      "chapterId": "ch-12",
+      "title": "Defensive Driving",
+      "order": 7,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Defensive driving is safe driving or cautious driving in cases where the driver needs to be more vigilant particularly in an environment that could cause danger. It goes beyond mastering the rules of the road and basic mechanical skills and is taught to experienced drivers."
+        }
+      ],
+      "keyPoints": [
+        "Defensive driving is safe driving or cautious driving in cases where the driver needs to be more vigilant particularly in an environment that could cause danger."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Defensive Driving'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-08",
+      "slug": "unit-12-emergency-manoeuvres-importance-of-defensive-driving",
+      "chapterId": "ch-12",
+      "title": "Importance of defensive driving",
+      "order": 8,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "It allows you to be prepared to avoid accidents",
+            "It allows you to provide more protection to yourself and/or passengers",
+            "It is enables you to save lives in situations of danger",
+            "It enables you to save money by limiting wear and tear to your",
+            "motor vehicle and any unexpected damage",
+            "It prepares you to act accordingly in adverse riding conditions"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "It allows you to be prepared to avoid accidents",
+        "It allows you to provide more protection to yourself and/or passengers",
+        "It is enables you to save lives in situations of danger"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Importance of defensive driving'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-09",
+      "slug": "unit-12-emergency-manoeuvres-defensive-driving-is-important-when-in-the-followin",
+      "chapterId": "ch-12",
+      "title": "Defensive driving is important when in the following condition",
+      "order": 9,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Adverse weather conditions such as rain, fog or windy. In these cases, the road surface may change and so you need to apply different techniques to avoid danger",
+            "Different road conditions that may be difficult to manoeuvre such rough terrain, wet surface or sloping surfaces."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Adverse weather conditions such as rain, fog or windy. In these cases, the road surface may change and so you need to apply different techniques to avoid danger",
+        "Different road conditions that may be difficult to manoeuvre such rough terrain, wet surface or sloping surfaces."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Defensive driving is important when in the following condition'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding emergency manoeuvres concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-12-10",
+      "slug": "unit-12-emergency-manoeuvres-defensive-driving-techniques",
+      "chapterId": "ch-12",
+      "title": "Defensive driving techniques",
+      "order": 10,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Improving observation, anticipation and awareness consistent with the riding speed",
+            "Applying sound judgement of speed and distance",
+            "Don’t drive when you are tired, rest before any journey"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Improving observation, anticipation and awareness consistent with the riding speed",
+        "Applying sound judgement of speed and distance",
+        "Don’t drive when you are tired, rest before any journey"
+      ],
+      "quiz": [
+        {
+          "question": "When a tyre blows out at speed, you should first:",
+          "options": [
+            "Brake hard immediately",
+            "Grip the wheel firmly, steer straight, then slow gradually",
+            "Swerve to the hard shoulder immediately",
+            "Accelerate to maintain control"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A three-point turn is performed when:",
+          "options": [
+            "You want to overtake",
+            "You need to reverse direction in a narrow road",
+            "Parking in a bay",
+            "Joining a motorway"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Emergency braking on a vehicle without ABS should involve:",
+          "options": [
+            "Pressing the brake to the floor and holding",
+            "Threshold braking — firm pressure just before wheels lock, ease off slightly",
+            "Using only the handbrake",
+            "Pumping the brake rapidly"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A U-turn should only be performed when:",
+          "options": [
+            "You are in a hurry",
+            "It is safe, legal, and you have sufficient space",
+            "Traffic is light at night",
+            "Other road users signal you to do so"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Defensive driving means:",
+          "options": [
+            "Driving very slowly at all times",
+            "Anticipating and responding safely to hazards created by others",
+            "Using the horn frequently to warn others",
+            "Always driving in the left lane"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

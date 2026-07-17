@@ -1,0 +1,220 @@
+{
+  "id": "ch-19",
+  "slug": "unit-19-work-planning",
+  "title": "Work Planning",
+  "unitNumber": 19,
+  "order": 20,
+  "lessons": [
+    {
+      "id": "lesson-19-01",
+      "slug": "unit-19-work-planning-work-planning",
+      "chapterId": "ch-19",
+      "title": "Work Planning",
+      "order": 1,
+      "estimatedMinutes": 3,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 19: WORK PLANNING"
+        },
+        {
+          "type": "paragraph",
+          "text": "Work Planning ensures that the driver and the customers both get the best out of the service provided because it allows the driver to prepare both physically and psychologically before the journey, schedule maintenance work in advance, schedule any stoppages during the journey and arrive at the intended destination on time"
+        },
+        {
+          "type": "callout",
+          "text": "Preparing for the Journey (Trip Planning)"
+        },
+        {
+          "type": "paragraph",
+          "text": "If the journey involves transportation of goods, then the driver should pick up the goods and get all the appropriate documentation. This may include"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Name, address, phone and directions of the sender",
+            "Pick-up phone number",
+            "Appointment time for collecting and delivering the goods",
+            "Requirements for securing the load e.g. if it is fragile.",
+            "Other legal requirements if the goods are classified as Hazardous Material or if the goods are being transported outside the country of origin"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Managing the trip"
+        },
+        {
+          "type": "paragraph",
+          "text": "While travelling, the following are factors will affect your how you manage your trip"
+        },
+        {
+          "type": "callout",
+          "text": "1."
+        },
+        {
+          "type": "callout",
+          "text": "Distance to be travelled"
+        },
+        {
+          "type": "list",
+          "items": [
+            "The longer the distance you travel the more preparations you will need to make. You may need a co-driver to take over from you  if the distance being travelled is long"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "2."
+        },
+        {
+          "type": "callout",
+          "text": "Time/Traffic conditions during the journey"
+        },
+        {
+          "type": "list",
+          "items": [
+            "If you travel during peak traffic hours your journey is likely to be longer",
+            "Travelling at night or early in the morning when there is limited visibility also affects you travel",
+            "It is best to plan ahead and choose the most convenient travel time for you"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "3."
+        },
+        {
+          "type": "callout",
+          "text": "Meals"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Plan ahead for where you will stop for meals",
+            "If using familiar roads then go to place you are familiar with",
+            "If you are using an unfamiliar route, it is best to plan ahead by using maps which can assist you in planning for where to stop"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "4."
+        },
+        {
+          "type": "callout",
+          "text": "Fatigue"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Do not start a journey when you are tired",
+            "If you feel tired during the journey, stop the vehicle at a convenient stop and get some rest and fresh air before proceeding on your journey"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "5."
+        },
+        {
+          "type": "callout",
+          "text": "Adverse weather conditions"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Avoid driving in adverse weather conditions",
+            "Take the right precautions if you get caught up in these conditions"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Managing Time"
+        },
+        {
+          "type": "paragraph",
+          "text": "To get to the intended destination within the least possible amount of time get directions before starting the journey. You can do this by consulting maps, GPS units and other drivers. Ensure that you know alternative routes so that you have options in case of road restrictions."
+        },
+        {
+          "type": "callout",
+          "text": "Legal limits on Duty hours /Driving hours"
+        },
+        {
+          "type": "paragraph",
+          "text": "The driver is obligated to adhere to the rules in the Traffic Act.  It is illegal to force a public service driver work for more than the designated hours provided."
+        },
+        {
+          "type": "callout",
+          "text": "The Traffic Act indicates that"
+        },
+        {
+          "type": "paragraph",
+          "text": "“66A. ­ (1) No person shall drive a public service vehicle or a commercial vehicle for more than a total of eight hours in any period of twenty-four hours. (2) Any person who contravenes or fails to comply with subsection (1) shall be guilty of an offence and liable —…”"
+        },
+        {
+          "type": "callout",
+          "text": "Completing records of duty, work tickets or trip cards."
+        },
+        {
+          "type": "paragraph",
+          "text": "After completing the journey, the driver of a public service vehicle should pro- vide a summarized record of the trip."
+        }
+      ],
+      "keyPoints": [
+        "Work Planning ensures that the driver and the customers both get the best out of the service provided because it allows the driver to prepare both physically and psychologically before the journey, schedule maintenance work in advance, schedule any stoppages during the journey and arrive at the intended destination on time",
+        "If the journey involves transportation of goods, then the driver should pick up the goods and get all the appropriate documentation.",
+        "Name, address, phone and directions of the sender",
+        "Pick-up phone number",
+        "Appointment time for collecting and delivering the goods"
+      ],
+      "quiz": [
+        {
+          "question": "Effective journey planning includes:",
+          "options": [
+            "Only checking fuel level",
+            "Planning the route, checking vehicle condition, weather, and rest stops",
+            "Loading the vehicle to maximum capacity",
+            "Departing at the earliest time regardless of conditions"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Driver hours regulations exist primarily to:",
+          "options": [
+            "Increase productivity",
+            "Prevent driver fatigue and reduce road accidents",
+            "Meet fuel efficiency targets",
+            "Comply with vehicle warranty conditions"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A professional driver should take a rest break:",
+          "options": [
+            "Only at the destination",
+            "After every 2 hours of driving or when feeling fatigued",
+            "After every 8 hours regardless of how they feel",
+            "Only if required by a passenger"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Good vehicle trip documentation includes:",
+          "options": [
+            "Only the driver's name",
+            "Trip log recording mileage, stops, fuel, and any incidents",
+            "Passenger list only",
+            "Weather conditions only"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Planning rest stops on long journeys helps to:",
+          "options": [
+            "Increase overall journey time",
+            "Reduce fatigue and maintain alertness throughout the journey",
+            "Increase fuel consumption",
+            "Satisfy vehicle insurance requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

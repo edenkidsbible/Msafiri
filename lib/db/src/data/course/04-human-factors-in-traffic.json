@@ -1,0 +1,410 @@
+{
+  "id": "ch-04",
+  "slug": "unit-04-human-factors-in-traffic",
+  "title": "Human Factors in Traffic",
+  "unitNumber": 4,
+  "order": 5,
+  "lessons": [
+    {
+      "id": "lesson-04-01",
+      "slug": "unit-04-human-factors-in-traffic-human-factors-in-traffic",
+      "chapterId": "ch-04",
+      "title": "Human Factors in Traffic",
+      "order": 1,
+      "estimatedMinutes": 8,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 4: HUMAN FACTORS IN TRAFFIC"
+        },
+        {
+          "type": "callout",
+          "text": "Observation"
+        },
+        {
+          "type": "paragraph",
+          "text": "When using the road, pay attention to your surroundings and stay alert whether you are walking, cycling, riding or driving a motor vehicle.  Most accidents can be avoided when road users stay attentive."
+        },
+        {
+          "type": "callout",
+          "text": "Some rules for observation include:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Keep your eyes moving. Do not just focus on one angle",
+            "Get a wide view of what is ahead and behind you. This allows you to create enough room between you and the other road users",
+            "When driving or riding, make use of all mirrors; the rear view and wide view mirrors",
+            "Pay attention to the vehicle instruments",
+            "Ensure that other road users can see you",
+            "Watch other road users and in particular for cyclists, motorcyclists and pedestrians",
+            "When passing parked cars, watch out for opening doors and exiting passengers",
+            "Give special attention to vulnerable road users such as children, elderly people and persons with disabilities",
+            "Give special attention to users of non- motorized transportation such as horses, donkey carts, handcarts, bicycles and wheelchairs"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Health and Safety"
+        },
+        {
+          "type": "paragraph",
+          "text": "Health refers to your physical and mental wellbeing.  It is important that at all times you make choices that will not interfere with your wellbeing.  Any road user is more likely to make better judgment if they are in good health. The following are some of the issues that may interfere to ride safely"
+        },
+        {
+          "type": "callout",
+          "text": "Eyesight and vision"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Check your eyes. If you need spectacles to meet the required eyesight standard, ensure that you wear them before starting any journey",
+            "It is dangerous and risky to ride with incorrected defective vision",
+            "Do not wear sunglasses or tinted helmet visors at night or in conditions  of poor visibility"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Fatigue"
+        },
+        {
+          "type": "paragraph",
+          "text": "Fatigue is extreme tiredness as a result of mental or physical exertion. Do not start a journey if you feel tired"
+        },
+        {
+          "type": "callout",
+          "text": "The following may cause fatigue:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Insufficient sleep or rest",
+            "An extended length of time performing the same task",
+            "Sleep disorders and other illnesses",
+            "Driving at the time of day when you are usually resting or sleeping e.g. night driving, early morning driving"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Fatigue decreases your ability to make the right decisions, to avoid"
+        },
+        {
+          "type": "callout",
+          "text": "driver fatigue;"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Get quality sleep before driving",
+            "Take regular breaks when driving over long distances",
+            "Eat balanced meals at regular intervals",
+            "Keep fit and healthy",
+            "Avoid driving or riding your motorcycle at night. This is when you are likely to feel sleepy",
+            "If you feel tired, stop at a safe place and rest"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Distractions"
+        },
+        {
+          "type": "paragraph",
+          "text": "Distractions in driving can be described as anything that reduces your ability to respond as quickly as you should during an emergency.  For this reasons some of these ordinary activities are prohibited for drivers."
+        },
+        {
+          "type": "callout",
+          "text": "Using hand held devices"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Using a cell phone, whether talking or texting, your ability to be keen on the road. Statistics indicate that the accident rate is significantly reduced when motorists refrain from using hand held devices. As a safety precaution, it is best to switch of phones so that ringing phone is not a distraction. Alternatively, it is good to put the cell phone or other devices out of reach for the duration of the journey."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Radio"
+        },
+        {
+          "type": "list",
+          "items": [
+            "It is fine to listen to the radio while driving but refrain from adjusting the volume, changing CDs or Mp3’s while driving."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Grooming, smoking, and eating:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Though these may be seen as fairly simple tasks, they are distracting. Do these before or at the end of the journey."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Video devices:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Any of these can cause the motorist to lose focus.",
+            "These should not ever be placed in the driver’s area of vision. Passenger sitting in the rear can have these but the volume must always be controlled to ensure that it is not distracting you as the driver."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Communicating with passengers and other drivers:"
+        },
+        {
+          "type": "callout",
+          "text": "GPS units:"
+        },
+        {
+          "type": "paragraph",
+          "text": "It is always best to get directions for your destination before starting the journey. A GPS unit is an electronic device used to help the driver navigate through the road to the desired destination.  The driver should always set the device before starting the journey. Carbon monoxide poisoning: Carbon monoxide is an odourless gas emitted in the exhaust fumes. It can be lethal. For this reason, it is important to always check the exhaust system for any leakages. Never run the engine in an enclosed space and if you feel drowsy while driving, stop the car and get out for some fresh air."
+        },
+        {
+          "type": "callout",
+          "text": "Alcohol, Drugs and Medicine"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Alcohol and certain drugs will affect your ability to drive your vehicle",
+            "Do not drink and ride your motorcycle or drive.",
+            "Some of the effects of alcohol are ; i. Alcohol slows down your brain functions. This affects your ability to respond, make decisions or react quickly ii. Alcohol reduces your ability to judge how fast you are moving or your distance from other cars, people or objects iii. It gives you false confidence – you may take greater risks because you think your driving is better than it really is iv. It makes it harder for you to concentrate and pay attention to various details in traffic v. Alcohol also affects your sense of balance"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "list",
+          "items": [
+            "A Police Breathalyser (ALCOBLOW) can measure your Blood Alcohol Concentration (BAC) accurately. It is an offence to refuse, or fail to comply with, a direction of a police officer in relation to an alcohol test",
+            "Should you choose to drink alcohol, designate a non-drinking driver, take a taxi home or use public transport",
+            "Only accept a lift if you are certain the driver has not been drinking or using other drugs",
+            "Do not take medicine which causes drowsiness if you intend to use the road",
+            "Do not ride your motorcycle or drive if you are unwell"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Safety Belts"
+        },
+        {
+          "type": "list",
+          "items": [
+            "All passengers must wear safety belts at all times no matter how short the distance being travelled",
+            "You must fasten your safety belt correctly",
+            "Use appropriate child restraints for children e.g. a booster seat is recommended for children under 12. A booster seat is designed to enhance safety by ensuring that vehicle seat belt fits properly)."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Car seat Booster seat"
+        },
+        {
+          "type": "callout",
+          "text": "Litter"
+        },
+        {
+          "type": "list",
+          "items": [
+            "DO NOT discard litter on the roads",
+            "Litter can be a hazard to you and other road users",
+            "Always dispose off litter in the dustbin before or at the end of your journey",
+            "Be courteous on the road",
+            "If another road user provokes you do not retaliate"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Road Rage and other forms of aggression"
+        },
+        {
+          "type": "callout",
+          "text": "Prevention of theft"
+        },
+        {
+          "type": "paragraph",
+          "text": "When you leave your vehicle:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Switch off the ignition and remove the keys",
+            "When you park your vehicle ensure that it is appropriately secured to reduce the risk of theft",
+            "Lock all windows and the car boot"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Limitations in Number of Passengers and Quantity of Goods"
+        },
+        {
+          "type": "paragraph",
+          "text": "Do not carry more than the legally allowed number of passengers or weight of goods. Below is a table indicating the weight and the number of passenger allowed Category Maximum load Maximum Load Passengers Allowed Category B (Light Vehicle) Not more than seven passengers Gross Vehicle Weight (GVW) of maximum kg with one light trailer (not exceeding 750 kg) CATEGORY B Not more than seven passengers GVW of maximum 3, 500 kg with one light trailer (not exceeding 750 kg). Category B Automatic (Light Vehicle Automatic) Category B (Professional) Not more than seven passengers GVW of maximum 3,500 kg with one light trailer (not exceeding 750 kg)"
+        },
+        {
+          "type": "list",
+          "items": [
+            "When loading the vehicle items should be as low as possible and as close to the centre of the vehicle as possible",
+            "Do not put items on the roof unless you have a designated luggage compartment for this purpose.",
+            "Do not overload the vehicle.",
+            "Check the tyre pressure to ensure that the tyres can handle the weight of the vehicle. When tyre pressure is too high or too low the vehicle will be unstable."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Safety Equipment"
+        },
+        {
+          "type": "paragraph",
+          "text": "All motorists should have certain safety equipment that could be used in case of an emergency. Equipment Function Reflector Triangle All motor vehicles (excluding motorcycles) should   have   these at   all   times.   The reflector should be used when the motor vehicle for any given reason stops on the road. These should be placed 60 metres ahead and 60 metres behind a disabled vehicle."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "First aid kit"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "A fully equipped first aid kit should have the following items - gauze dressings, triangular bandages, rolled bandages, safety pins, disposable sterile gloves, tweezers, scissors, alcohol-free cleansing wipes, sticky tape, antiseptic cream, painkillers such as paracetamol, antihistamine tablets, distilled water for cleaning wounds, eye wash and eye bath Tools Box Tools such as a jack and spanner can be used to do minimal repair when the vehicle is disabled."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Fire Extinguisher This enables the motorist to deal with fire emergencies. Ensure that the fire extinguisher is inspected regularly to ensure that it is good working condition."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Fire Axe In the event of a fire, the fire axe is a handy tool to rescue passengers."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Equipment Function Tow ropes This rope is reinforced to handle the weight of the car and can be used to tow vehicles in case of a breakdown."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Spare tyre It is important to have an inflated spare tyre and restore the deflated tyre back as soon as possible This tyre should be inflated"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Jumpstart Cable The jumpstart cable is used to reignite the engine."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Survival Gear"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is particularly important for motorists operating in places with extreme conditions such as extreme cold, extreme heat and rough terrain that is likely to damage the car. Survival gear may include blankets, a torch, a small supply food and water."
+        }
+      ],
+      "keyPoints": [
+        "When using the road, pay attention to your surroundings and stay alert whether you are walking, cycling, riding or driving a motor vehicle.",
+        "Keep your eyes moving. Do not just focus on one angle",
+        "Get a wide view of what is ahead and behind you. This allows you to create enough room between you and the other road users",
+        "When driving or riding, make use of all mirrors; the rear view and wide view mirrors",
+        "Health refers to your physical and mental wellbeing."
+      ],
+      "quiz": [
+        {
+          "question": "Which human factor most significantly impairs driving ability?",
+          "options": [
+            "Hunger",
+            "Alcohol consumption",
+            "Mild fatigue",
+            "Listening to music"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "How does fatigue affect driving?",
+          "options": [
+            "It improves concentration",
+            "It reduces reaction time and awareness",
+            "It has no effect on safe driving",
+            "It makes drivers drive slower but safer"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The legal Blood Alcohol Concentration (BAC) limit for drivers in Kenya is:",
+          "options": [
+            "0.08%",
+            "0.05%",
+            "0.10%",
+            "0.00%"
+          ],
+          "correctIndex": 0
+        },
+        {
+          "question": "Which of the following is a sign of driver fatigue?",
+          "options": [
+            "Increased alertness",
+            "Frequent yawning and heavy eyelids",
+            "Faster reaction times",
+            "Improved night vision"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Wearing a seatbelt is:",
+          "options": [
+            "Only a recommendation",
+            "A legal requirement that saves lives",
+            "Only for front-seat passengers",
+            "Only required on highways"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

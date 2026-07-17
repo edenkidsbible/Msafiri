@@ -1,0 +1,249 @@
+{
+  "id": "ch-13",
+  "slug": "unit-13-skid-control-and-recovery",
+  "title": "Skid Control and Recovery",
+  "unitNumber": 13,
+  "order": 14,
+  "lessons": [
+    {
+      "id": "lesson-13-01",
+      "slug": "unit-13-skid-control-and-recovery-skid-control-and-recovery",
+      "chapterId": "ch-13",
+      "title": "Skid Control and Recovery",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 13: SKID CONTROL AND RECOVERY"
+        },
+        {
+          "type": "paragraph",
+          "text": "A skid happens when the vehicle’s wheel slides out of control on a slippery surface. Skids can involve the front, rear or all four wheels. Even careful drivers experience skids. You lose traction and your wheels spin or lock, usually when braking, turning or accelerating."
+        }
+      ],
+      "keyPoints": [
+        "A skid happens when the vehicle’s wheel slides out of control on a slippery surface."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Skid Control and Recovery'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding skid control and recovery concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-13-02",
+      "slug": "unit-13-skid-control-and-recovery-causes-of-skids",
+      "chapterId": "ch-13",
+      "title": "Causes of Skids:",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Driving faster than the road or traffic conditions allow",
+            "Sudden, hard braking.",
+            "Turning too fast or accelerating too quickly."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Driving faster than the road or traffic conditions allow",
+        "Sudden, hard braking.",
+        "Turning too fast or accelerating too quickly."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Causes of Skids:'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding skid control and recovery concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-13-03",
+      "slug": "unit-13-skid-control-and-recovery-the-front-wheel-skid",
+      "chapterId": "ch-13",
+      "title": "The Front Wheel Skid",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "Types of Skidding"
+        },
+        {
+          "type": "paragraph",
+          "text": "This happens when the vehicle goes off the intended course. It is caused by excess speed on entry at a corner or a bend.  It also occurs during sudden braking when negotiating a hazard."
+        }
+      ],
+      "keyPoints": [
+        "This happens when the vehicle goes off the intended course."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'The Front Wheel Skid'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding skid control and recovery concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-13-04",
+      "slug": "unit-13-skid-control-and-recovery-the-rear-wheel-skid",
+      "chapterId": "ch-13",
+      "title": "The Rear Wheel Skid",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "This occurs when the rear of the vehicle swings out of the line as if the vehicle is trying to overtake at the front. It is often caused excessive speed leading to sudden braking in a hazard situation."
+        }
+      ],
+      "keyPoints": [
+        "This occurs when the rear of the vehicle swings out of the line as if the vehicle is trying to overtake at the front."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'The Rear Wheel Skid'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding skid control and recovery concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-13-05",
+      "slug": "unit-13-skid-control-and-recovery-aquaplaning",
+      "chapterId": "ch-13",
+      "title": "Aquaplaning",
+      "order": 5,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Driving too fast or at an excessive or inappropriate speed on a wet road causes aquaplaning. When the tyre tread cannot channel away enough water, the tyre(s) lose contact with the road and the vehicle floats on a wedge of water. Aquaplaning can be avoided by reducing speed in wet conditions. Having the correct tyre pressure and tyre tread depth will maximise your tyres’ ability to maintain their road grip. If it happens, ease off the accelerator and brakes until your speed drops sufficiently for the car tyres to make contact with the road again"
+        }
+      ],
+      "keyPoints": [
+        "Driving too fast or at an excessive or inappropriate speed on a wet road causes aquaplaning."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Aquaplaning'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding skid control and recovery concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-13-06",
+      "slug": "unit-13-skid-control-and-recovery-skid-recovery",
+      "chapterId": "ch-13",
+      "title": "Skid recovery",
+      "order": 6,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Take your feet off the accelerator pedals",
+            "Release the brake pedal and reapply the brakes gently",
+            "Quickly turn the steering wheel in the direction you want to go",
+            "As your vehicle turns back in the correct direction, you may then need to steer in the opposite direction so as to stay on your desired path",
+            "Continue to look at your path of travel down the road"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        }
+      ],
+      "keyPoints": [
+        "Take your feet off the accelerator pedals",
+        "Release the brake pedal and reapply the brakes gently",
+        "Quickly turn the steering wheel in the direction you want to go"
+      ],
+      "quiz": [
+        {
+          "question": "The most common cause of skidding is:",
+          "options": [
+            "Strong crosswinds",
+            "Driving too fast for road conditions",
+            "Overinflated tyres",
+            "A full fuel tank"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "If your rear wheels skid to the right, you should steer:",
+          "options": [
+            "Hard left",
+            "Right (into the direction of the skid)",
+            "Straight ahead and brake",
+            "Left (into the skid)"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Aquaplaning occurs when:",
+          "options": [
+            "The engine overheats",
+            "A layer of water prevents tyre contact with the road",
+            "The road is covered with gravel",
+            "Driving through fog"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "To recover from a skid you should:",
+          "options": [
+            "Apply maximum braking",
+            "Steer in the direction you want to go and ease off the throttle",
+            "Turn the wheel sharply in the opposite direction",
+            "Use the handbrake"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A front-wheel skid is typically caused by:",
+          "options": [
+            "Too much acceleration",
+            "Braking too hard causing the front wheels to lock",
+            "Steering too slowly",
+            "Engine failure"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

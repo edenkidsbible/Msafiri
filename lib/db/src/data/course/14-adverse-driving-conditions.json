@@ -1,0 +1,404 @@
+{
+  "id": "ch-14",
+  "slug": "unit-14-adverse-driving-conditions",
+  "title": "Adverse Driving Conditions",
+  "unitNumber": 14,
+  "order": 15,
+  "lessons": [
+    {
+      "id": "lesson-14-01",
+      "slug": "unit-14-adverse-driving-conditions-adverse-driving-conditions",
+      "chapterId": "ch-14",
+      "title": "Adverse Driving Conditions",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 14: ADVERSE DRIVING CONDITIONS"
+        },
+        {
+          "type": "paragraph",
+          "text": "The first step in dealing with adverse driving conditions is to be prepared by training for these conditions and preparing the vehicle for these conditions. Ensure that the vehicle has good tyre tread, firm brakes and streak-free wipers. Situations that are considered adverse driving conditions are:"
+        }
+      ],
+      "keyPoints": [
+        "The first step in dealing with adverse driving conditions is to be prepared by training for these conditions and preparing the vehicle for these conditions."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Adverse Driving Conditions'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding adverse driving conditions concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-14-02",
+      "slug": "unit-14-adverse-driving-conditions-night-driving",
+      "chapterId": "ch-14",
+      "title": "Night Driving",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "In this case, the driver’s vision and visibility is greatly reduced by the absence of natural light."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Slow down when driving at night, especially on unlit roads.",
+            "Reflective roads can mislead you to believe that you can see further than you really can.",
+            "Do not over drive your headlights, that is, do not go so ast that your stopping distance is farther than you can see with your headlights.",
+            "Give yourself enough room to make a safe stop.",
+            "When meeting oncoming vehicles with bright headlights at night, look up and beyond and slightly to the left of the oncoming lights.",
+            "Cut down bright lights at night by following the rule of the road for vehicle lights.",
+            "Use your low beam headlights within 150 metres of an oncoming ve- hicle or when following a vehicle within 60 metres.",
+            "In rural areas, switch to low beams when you come to a curve or hilltop so you can see oncoming headlights and wont blind oncoming drivers. If you can’t see any headlights, switch to high beams."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "In this case, the driver’s vision and visibility is greatly reduced by the absence of natural light.",
+        "Slow down when driving at night, especially on unlit roads.",
+        "Reflective roads can mislead you to believe that you can see further than you really can.",
+        "Do not over drive your headlights, that is, do not go so ast that your stopping distance is farther than you can see with your headlights."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Night Driving'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding adverse driving conditions concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-14-03",
+      "slug": "unit-14-adverse-driving-conditions-extreme-driving-conditions",
+      "chapterId": "ch-14",
+      "title": "Extreme driving conditions",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "This exasperated by the combination of unfavourable weather or poor road conditions.",
+            "Fog",
+            "Windy condition",
+            "Heavy rain",
+            "Hot weather",
+            "Dusty"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "This exasperated by the combination of unfavourable weather or poor road conditions.",
+        "Fog",
+        "Windy condition"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Extreme driving conditions'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding adverse driving conditions concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-14-04",
+      "slug": "unit-14-adverse-driving-conditions-fog",
+      "chapterId": "ch-14",
+      "title": "Fog",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Slow down gradually and drive at a speed which suits the condition.",
+            "Make sure the full lighting system of your vehicle is turned on: use your low beam headlights as high beams reflect off the moisture droplets in the fog making it harder to see. Otherwise, use fog lights if your car has them.",
+            "Always be patient – avoid overtaking, changing lanes and crossing traffic. N/B: If visibility is decreasing rapidly, move off the road and into safe parking area and wait for fog to lift"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Slow down gradually and drive at a speed which suits the condition.",
+        "Make sure the full lighting system of your vehicle is turned on: use your low beam headlights as high beams reflect off the moisture droplets in the fog making it harder to see. Otherwise, use fog lights if your car has them.",
+        "Always be patient – avoid overtaking, changing lanes and crossing traffic. N/B: If visibility is decreasing rapidly, move off the road and into safe parking area and wait for fog to lift"
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Fog'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding adverse driving conditions concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-14-05",
+      "slug": "unit-14-adverse-driving-conditions-rain",
+      "chapterId": "ch-14",
+      "title": "Rain",
+      "order": 5,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Rain makes the road surface slippery and reduces visibility.",
+            "Ensure your windshield wiper blades are in good condition (no streak- ing while cleaning).",
+            "Try to drive in clear sections of the road, look ahead and plan your movements.",
+            "Smooth steering, braking and accelerating will reduces your chances of skidding.",
+            "Leave more space between you and the vehicle ahead of you."
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Rain makes the road surface slippery and reduces visibility.",
+        "Ensure your windshield wiper blades are in good condition (no streak- ing while cleaning).",
+        "Try to drive in clear sections of the road, look ahead and plan your movements."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Rain'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding adverse driving conditions concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-14-06",
+      "slug": "unit-14-adverse-driving-conditions-stay-out-of-puddles",
+      "chapterId": "ch-14",
+      "title": "Stay out of puddles",
+      "order": 6,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "– a puddle can hide a large pothole that can damage your vehicle or its suspension or flatten a tyre. The spray of water could splash nearby pedestrians or drown your engine, causing it to stall. Water can also make your brakes less effective. Under these conditions the driver has to deal with reduced visibility and traction, steering, braking and skid control. It is best to practice how to deal with this conditions in a safe, secluded area. The driver who knows what to do in an emergency is more likely to stay in control."
+        }
+      ],
+      "keyPoints": [
+        "– a puddle can hide a large pothole that can damage your vehicle or its suspension or flatten a tyre."
+      ],
+      "quiz": [
+        {
+          "question": "What is the main focus of this section on 'Stay out of puddles'?",
+          "options": [
+            "Vehicle maintenance procedures",
+            "Understanding adverse driving conditions concepts and safe practices",
+            "Traffic fine payment procedures",
+            "Vehicle registration requirements"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-14-07",
+      "slug": "unit-14-adverse-driving-conditions-driving-in-adverse-conditions",
+      "chapterId": "ch-14",
+      "title": "Driving In Adverse Conditions",
+      "order": 7,
+      "estimatedMinutes": 5,
+      "content": [
+        {
+          "type": "callout",
+          "text": "1."
+        },
+        {
+          "type": "callout",
+          "text": "Be Cautious"
+        },
+        {
+          "type": "paragraph",
+          "text": "Get in the right frame of mind before you start driving. Travel with another person so that the responsibility of driving is shared."
+        },
+        {
+          "type": "callout",
+          "text": "2."
+        },
+        {
+          "type": "callout",
+          "text": "In the driver’s seat"
+        },
+        {
+          "type": "paragraph",
+          "text": "Adjust your seat correctly to enable you to perform manoeuvres properly. This also reduced the risk of injury to fingers, elbows and the chest. Fasten your safety belt."
+        },
+        {
+          "type": "callout",
+          "text": "3."
+        },
+        {
+          "type": "callout",
+          "text": "Dress appropriately"
+        },
+        {
+          "type": "paragraph",
+          "text": "Wear clothes that are comfortable and also provide freedom of movement. Heavy garments can restrict movement behind the wheel. Stop in a safe spot before removing a coat or gloves."
+        },
+        {
+          "type": "callout",
+          "text": "Poor visibility"
+        },
+        {
+          "type": "paragraph",
+          "text": "Keep your windshield and windows clean. Clean the inside of your windows at least once a week. Use your defroster to keep front and rear windshields clear. On a cold day, move the heat control to “hot” and let the engine warm up before you turn on the defrosters and blowers. This will prevent moisture from collecting on the inside of the glass. When the glass gets foggy, open a window slightly and turn the defroster fan to a higher speed. Use your air conditioner to reduce humidity. Mud and dust on your headights can reduce the illumination by 90 percent. Stop periodically during long trips and clean your headlights. If your vehicle is not equipped with daytime running lights, drive with your low-beam headlights on at all times - especially on dark or overcast days. Use low beams and fog lights in fog."
+        },
+        {
+          "type": "callout",
+          "text": "Reduced Traction"
+        },
+        {
+          "type": "paragraph",
+          "text": "Wet roads mean poor traction. Conditions are most dangerous during the first 10 minutes of a heavy downpour as oil and debris first rise up, then wash away. Knowing how to handle poor traction reduces the potential for hydroplaning, skidding or getting stuck in the mud."
+        },
+        {
+          "type": "callout",
+          "text": "Getting out of a tough spot"
+        },
+        {
+          "type": "paragraph",
+          "text": "You need steady pulling and moderate power when traction is poor. The best remedy when wheels are stuck in the mud or a soft shoulder is to apply power slowly."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Keep the wheels pointed straight ahead so the vehicle can move in a straight line. If you can’t go forward, try backing out, steering in the vehicle’s tracks",
+            "With a manual transmission, start in second gear to prevent wheel spin. Accelerate carefully, giving enough fuel to prevent the engine from stalling and ease along gradually until traction improves",
+            "Rock your way out by using second gear in a manual transmission and low gear in automatic transmissions. Check your owner’s manual for recommended procedures. Move forward until the vehicle stops, then shift into reverse and move backwards until momentum stops. Repeat this process, moving ahead a little more each time. Use minimum power to keep the wheels from spinning and digging in deeper",
+            "If rocking doesn’t work and wheels simply spin, find a way to create traction. Traction mats, gravel or kitty litter work best, but you can also use salt, burlap, branches or even the vehicle’s floor mats. Shovel a space in front of the drive wheels and spread your materials there. Apply power slowly, using second or low gear"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Steering clear of collisions"
+        },
+        {
+          "type": "paragraph",
+          "text": "You may need to take evasive action in poor weather to avoid a collision. Steering around an obstacle is preferred to braking at speeds above 30 km/h because less distance is required to steer around an object than to brake to a stop. In wet weather, sudden braking often leads to skids."
+        },
+        {
+          "type": "callout",
+          "text": "There are two acceptable methods of emergency steering:"
+        },
+        {
+          "type": "paragraph",
+          "text": "1. The push-pull method of steering is performed by shuffling your hands, so that neither hand crosses over the imaginary line between 12 and 6 o’clock. Since the arms never cross, you are able to provide continuous adjustments in either direction. 2. The fixed-hand steering method allows rapid 180-degree steering to either direction, but it has one shortcoming. This method is confining in that your arms may get locked together as you attempt to steer past 180 degrees, leaving you in an awkward position to make further fine adjustments."
+        },
+        {
+          "type": "callout",
+          "text": "Braking"
+        },
+        {
+          "type": "paragraph",
+          "text": "Stopping on a slippery surface requires more distance, so increase your following distance. Focus your attention as far ahead as possible - at least 20 to 30 seconds. Anti-lock braking systems (ABS) are designed to prevent wheels from locking and to retain steering control during panic braking. Sensors located at wheels detect lock-up. The anti-lock system relieves pressure as needed, allowing all four wheels to continue to turn while maintaining steering control. You should use the “plant and steer” method with antilock brake systems. Do not remove your foot from the brake or pump the pedal. If you apply pressure and the wheels lock momentarily, you might feel the brake pedal pulse back against your foot. This is normal. Just hold the brake pedal down and steer. Pumping the pedal actually works against the system. The best way to stop on a slippery surface if your vehicle doesn’t have antilock brakes is to use threshold braking. Keep the heel of your foot on the floor and use the ball of your foot to apply firm, steady pressure on the brake pedal to the “threshold” of locking your brakes. If your heel leaves the floor, the wheels could lock because control of the brake pedal is transferred from your ankle muscles to your thigh muscles, which are not capable of the finer control required in this situation. Under the stress of trying to stop quickly, drivers almost inevitably use too much pressure, resulting in locked wheels (on non-ABS-equipped vehicles). If this happens, release pressure on the brake pedal by one or two degrees, then immediately reapply slight pressure. Continue this technique as needed until the vehicle comes to a stop."
+        },
+        {
+          "type": "callout",
+          "text": "Dealing with a crisis"
+        },
+        {
+          "type": "paragraph",
+          "text": "When visibility is so limited that you can’t see the edges of the road or other vehicles at a safe distance, it’s time to get off the road and wait for the rain to stop. It’s best to stop at a rest area or exit the freeway and go to a protected area. If the roadside is your only option, pull off the road as far as you can, preferably past the end of a guardrail. Vehicles parked at the side of the road are frequently struck by other drivers. Respect the limitations of reduced visibility and turn headlights off and hazard lights on to alert other drivers."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Set up the reflector triangles behind and in front of the crash site."
+        }
+      ],
+      "keyPoints": [
+        "Get in the right frame of mind before you start driving.",
+        "Adjust your seat correctly to enable you to perform manoeuvres properly.",
+        "Wear clothes that are comfortable and also provide freedom of movement.",
+        "Keep your windshield and windows clean.",
+        "Wet roads mean poor traction."
+      ],
+      "quiz": [
+        {
+          "question": "When driving in heavy rain, you should:",
+          "options": [
+            "Increase speed to get through quickly",
+            "Reduce speed and increase following distance",
+            "Drive with hazard lights on at all times",
+            "Switch to high-beam headlights"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "When driving through flood water, you should:",
+          "options": [
+            "Accelerate to cross quickly",
+            "Drive slowly and test brakes afterwards",
+            "Avoid it completely at all costs",
+            "Use a high gear to stay smooth"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "In fog you should use:",
+          "options": [
+            "High-beam headlights",
+            "Hazard lights only",
+            "Dipped headlights and fog lights if available",
+            "No lights — they reflect back and reduce visibility"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Night driving is more dangerous primarily because:",
+          "options": [
+            "Roads are busier",
+            "Visibility is reduced and hazards are harder to detect",
+            "Other drivers are more aggressive",
+            "Speed limits are lower"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "On a loose gravel road you should:",
+          "options": [
+            "Accelerate hard to avoid sliding",
+            "Drive at reduced speed and avoid sudden steering or braking inputs",
+            "Use high gears to reduce wheel spin",
+            "Inflate tyres to maximum pressure"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

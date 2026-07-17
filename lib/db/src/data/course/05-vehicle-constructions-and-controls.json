@@ -1,0 +1,370 @@
+{
+  "id": "ch-05",
+  "slug": "unit-05-vehicle-constructions-and-controls",
+  "title": "Vehicle Constructions and Controls",
+  "unitNumber": 5,
+  "order": 6,
+  "lessons": [
+    {
+      "id": "lesson-05-01",
+      "slug": "unit-05-vehicle-constructions-and-controls-vehicle-constructions-and-controls",
+      "chapterId": "ch-05",
+      "title": "Vehicle Constructions and Controls",
+      "order": 1,
+      "estimatedMinutes": 2,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 5: VEHICLE CONSTRUCTIONS AND CONTROLS"
+        },
+        {
+          "type": "paragraph",
+          "text": "This chapter gives an overview of the light motor vehicle construction and controls. You will also learn where these parts are situated in the light vehicle and how they function. This is the control panel placed at the front of the vehicle or dashboard. The dashboard has instruments and controls used to run the vehicle.  You should get to know the names and location of these controls. You should also know how these controls and instruments function and how to maintain them. There are slight differences in the dashboard depending on the make and model of the vehicle. Below is a table indicating some of the components of a vehicle and their functions"
+        },
+        {
+          "type": "callout",
+          "text": "Component"
+        },
+        {
+          "type": "callout",
+          "text": "Function"
+        },
+        {
+          "type": "paragraph",
+          "text": "Steering Wheel This is used to change direction, or maintain the one you’re driving in. Both hands should be on the steering wheel at all times except to change gears or to indicate."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Direction Indicator Used to indicate you wish to turn - signals turning left or right."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Gear Lever Used to change gears."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Component"
+        },
+        {
+          "type": "callout",
+          "text": "Function"
+        },
+        {
+          "type": "paragraph",
+          "text": "Hand Brake Used to keep your vehicle stationary, especially on inclines."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Brake pedal Used to slow your speed or to stop"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Accelerator Used to increase your speed."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Clutch pedal Used to change gears in a manual vehicle"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Rear-view Mirror Used to see other vehicles and hazards behind you for safety."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Component"
+        },
+        {
+          "type": "callout",
+          "text": "Function"
+        },
+        {
+          "type": "paragraph",
+          "text": "Side mirror Used to see vehicles behind and to your side for safety."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Windscreen Wipers Switch Used to turn your windscreen wipers on, off or to a higher or lower wiper setting for a clear view while driving in rain. Also used to try to clean your windscreen"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Speedometer Used to see at what speed you’re driving at."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Temperature Gauge Used to check the vehicle’s temperature to make sure the engine is not over- heating."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Components of a light vehicle"
+        },
+        {
+          "type": "paragraph",
+          "text": "Name Component Engine"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Ignition"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Accelerator"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Light Vehicle body"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Exhaust pipe"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Gear Box"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Name Component Radiator"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Chassis"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Windscreen"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Bumper bar"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Light vehicle accessories:"
+        },
+        {
+          "type": "paragraph",
+          "text": "Name Component Air-conditioning"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Name Component Antilock Braking System (ABS)"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Secondary Restrain System (SRS)"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "The light vehicle system"
+        },
+        {
+          "type": "paragraph",
+          "text": "Name Component Braking system"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Steering system"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Transmission"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Name Component Suspension System"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Rim and Tyres"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Lights and Reflectors"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        }
+      ],
+      "keyPoints": [
+        "This chapter gives an overview of the light motor vehicle construction and controls.",
+        "Steering Wheel This is used to change direction, or maintain the one you’re driving in.",
+        "Direction Indicator Used to indicate you wish to turn - signals turning left or right.",
+        "Hand Brake Used to keep your vehicle stationary, especially on inclines.",
+        "Brake pedal Used to slow your speed or to stop"
+      ],
+      "quiz": [
+        {
+          "question": "What is the function of the steering wheel?",
+          "options": [
+            "To control engine speed",
+            "To change direction or maintain a straight course",
+            "To operate the braking system",
+            "To regulate the fuel supply"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The clutch pedal is used to:",
+          "options": [
+            "Slow the vehicle down",
+            "Increase engine speed",
+            "Engage and disengage the engine from the gearbox",
+            "Control the air conditioning"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "The handbrake is primarily used to:",
+          "options": [
+            "Stop the vehicle quickly in an emergency",
+            "Keep the vehicle stationary when parked",
+            "Slow down on steep descents",
+            "Replace the footbrake"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The oil pressure warning light indicates:",
+          "options": [
+            "Low engine oil pressure — stop and investigate",
+            "Engine overheating",
+            "Low fuel level",
+            "Brakes need servicing"
+          ],
+          "correctIndex": 0
+        },
+        {
+          "question": "Category B (light motor vehicles) have a maximum permissible mass of:",
+          "options": [
+            "1,500 kg",
+            "2,500 kg",
+            "3,500 kg",
+            "5,000 kg"
+          ],
+          "correctIndex": 2
+        }
+      ]
+    }
+  ]
+}

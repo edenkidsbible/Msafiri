@@ -1,0 +1,332 @@
+{
+  "id": "ch-09",
+  "slug": "unit-09-communication-on-the-road",
+  "title": "Communication on the Road",
+  "unitNumber": 9,
+  "order": 10,
+  "lessons": [
+    {
+      "id": "lesson-09-01",
+      "slug": "unit-09-communication-on-the-road-communication-on-the-road",
+      "chapterId": "ch-09",
+      "title": "Communication on the Road",
+      "order": 1,
+      "estimatedMinutes": 3,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 9:  COMMUNICATION ON THE ROAD"
+        },
+        {
+          "type": "paragraph",
+          "text": "Road users communicate with each other using a prescribed set of signs and signals to avoid confusion and misunderstanding on the road. This is done using hand gestures, signal lights and responding to instructions from traffic marshalls and police."
+        },
+        {
+          "type": "callout",
+          "text": "MSM technique (Mirror, Signal and Manoeuvre)"
+        },
+        {
+          "type": "paragraph",
+          "text": "The MSM technique is a simple procedure that helps drivers communicate on the road. It is a routine that is convenient in many different situations. The MSM technique should be used:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Before moving off",
+            "Bust before signaling",
+            "Before any change of direction including turning left or right, overtaking other vehicles or cyclists and changing lanes",
+            "Before any changes in speed. This also includes an increase of speed as a vehicle may be trying to overtake you as you gain speed. More importantly however is when slowing or coming to a stop either in traffic or parking up"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Mirror"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Check the mirrors by looking into the center interior mirror, followed by the door mirror of the direction you are going.",
+            "Note of what is in the mirrors. Look for potential hazards such as vehicles driving closely behind you, vehicles approaching quickly from behind, motorcyclists and cyclists. Potential hazards may require further mirrors checks to eliminate the possibility of turning into actual hazards.",
+            "If approaching a situation where you need to stop or slow down, special actions may need to be taken. A vehicle driving too closely behind, may require that you gently slow your car down earlier than usual to provide the driver behind with more reaction time to slow down. A vehicle approaching quickly behind may require that you slow down slightly later than usual (if possible) to allow the driver with a greater stopping distance.",
+            "Motorcyclists and cyclists can often be in the habit of pushing forward past slowing vehicles to reach the front of a queue. Such potential hazards require that you use all the mirrors to establish their location and checking the blind spot is extremely important. The blind spot is often required after the mirror checks. The blind spot should be checked before changing direction when: 1. There are motorcyclists or cyclists close by 2. You are overtaking on a dual carriageway or motorway 3. You wish to change lanes 4. You wish to change lanes or direction when any potential hazard may be obscured by the blind spot"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Signal"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Signals should be applied to the direction you intend to take.",
+            "Signals depend on what you see in your mirrors.",
+            "If you notice a potential or actual hazard located in your mirrors may have to alter your intended route and not apply a signal. It’s therefore important that a signal is applied immediately after the mirrors. If there is a delay, the mirror sequence must be repeated.",
+            "Signaling must be applied in good time. Signaling too late may not provide vehicles behind with enough time to react if you are intending on slowing or stopping the car. Signaling too early can give the impression you are taking a turn sooner than the actual turn you intend, or that you are parking up, leading to confusion. If parking up, ensure you do not signal before a junction."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Manoeuvre"
+        },
+        {
+          "type": "paragraph",
+          "text": "1. The manoeuvre part of MSM applies at different situations such as roundabouts, junctions, changing lanes or parking 2. You should always be prepared to alter the MSM routine depending on circumstances. If driving in an area with potential hazards, pedestrians or cyclists for example, you may need to check the mirrors and blind spot once again before committing to the manoeuvre. 3. Be prepared to alter your speed or destination even at the very last moment. Cyclists, pedestrians and other vehicles can be unpredictable and a good driver should try to predict a potential hazard."
+        }
+      ],
+      "keyPoints": [
+        "Road users communicate with each other using a prescribed set of signs and signals to avoid confusion and misunderstanding on the road.",
+        "The MSM technique is a simple procedure that helps drivers communicate on the road.",
+        "Before moving off",
+        "Bust before signaling",
+        "Before any change of direction including turning left or right, overtaking other vehicles or cyclists and changing lanes"
+      ],
+      "quiz": [
+        {
+          "question": "Which hand signal indicates an intention to turn left?",
+          "options": [
+            "Right arm extended horizontally",
+            "Left arm extended horizontally",
+            "Left arm raised with elbow bent upward",
+            "Right arm waved forward"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-09-02",
+      "slug": "unit-09-communication-on-the-road-signals-given-by-road-users",
+      "chapterId": "ch-09",
+      "title": "Signals Given by Road Users",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "(a) Hand signals given by drivers"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "I intend to slow down I intend to turn to my left or I intend to move out to my left I intend to turn to my right or I intend to move out to my right (b) Hand signals given by drivers to traffic police"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "I intend to move left                       I intend to move right                  I intend to go on straight (c) Light signals given by vehicles and motorists"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "I want to turn left                                                     I want to turn right"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Iam applying the brakes                                                   I intend to reverse (d) Hand signals given by motorcyclists"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "I intend to turn to my left               I intend to move out to my right                  I intend to slow down (e) Hand signals given by cyclists"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "I intend to turn left I intend to slow down I intend to turn right (f) Hand signals given by traffic police officers"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Come on STOP, traffic approaching from behind STOP, traffic approaching from both behind and in front"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Come on Keep coming STOP, traffic approaching from front (g) Signals given by traffic marshals"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "All vehicles must stop Not ready to cross pedestrians Barrier to stop pedestrians crossing Ready to cross pedestrians, vehicles must be prepared to stop"
+        }
+      ],
+      "keyPoints": [
+        "I intend to slow down I intend to turn to my left or I intend to move out to my left I intend to turn to my right or I intend to move out to my right (b) Hand signals given by drivers to traffic police",
+        "I intend to move left                       I intend to move right                  I intend to go on straight (c) Light signals given by vehicles and motorists",
+        "I want to turn left                                                     I want to turn right",
+        "Iam applying the brakes                                                   I intend to reverse (d) Hand signals given by motorcyclists",
+        "I intend to turn to my left               I intend to move out to my right                  I intend to slow down (e) Hand signals given by cyclists"
+      ],
+      "quiz": [
+        {
+          "question": "Hazard lights should be used when:",
+          "options": [
+            "Driving in rain",
+            "The vehicle is stationary and poses a hazard to others",
+            "You are late and driving fast",
+            "Overtaking on a highway"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-09-03",
+      "slug": "unit-09-communication-on-the-road-traffic-light-signals",
+      "chapterId": "ch-09",
+      "title": "Traffic Light Signals",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "A: RED means STOP B: RED and AMBER also mean STOP They alert the driver to get ready C: GREEN means you may go on if the road is clear D: AMBER means STOP at the line"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "A           B           C          D A GREEN arrow may be provided in addition to the full green signal if movement  in a certain direction is allowed before or after the full green light phase. If the way is clear you may go, but only in the direction shown"
+        }
+      ],
+      "keyPoints": [
+        "A: RED means STOP B: RED and AMBER also mean STOP They alert the driver to get ready C: GREEN means you may go on if the road is clear D: AMBER means STOP at the line",
+        "A           B           C          D A GREEN arrow may be provided in addition to the full green signal if movement  in a certain direction is allowed before or after the full green light phase."
+      ],
+      "quiz": [
+        {
+          "question": "Flashing headlights generally serve as:",
+          "options": [
+            "A greeting between drivers",
+            "A warning or alert to other road users",
+            "Permission to overtake",
+            "Confirmation the road ahead is clear"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-09-04",
+      "slug": "unit-09-communication-on-the-road-traffic-signal-blackout",
+      "chapterId": "ch-09",
+      "title": "Traffic Signal Blackout",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "If traffic signal lights are not working because of an electrical power failure:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Stop at the intersection",
+            "Proceed when you know other turning and approaching vehicles, bicycles, or pedestrians have stopped"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "If traffic signal lights are not working because of an electrical power failure:",
+        "Stop at the intersection",
+        "Proceed when you know other turning and approaching vehicles, bicycles, or pedestrians have stopped"
+      ],
+      "quiz": [
+        {
+          "question": "Dipped (low-beam) headlights should be used:",
+          "options": [
+            "Only in fog",
+            "During bright daytime sunshine",
+            "At night or in poor visibility — especially when meeting oncoming traffic",
+            "Only on motorways"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "The primary purpose of a vehicle's horn is to:",
+          "options": [
+            "Express frustration at other drivers",
+            "Warn other road users of your presence",
+            "Signal turns at intersections",
+            "Alert passengers to board"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

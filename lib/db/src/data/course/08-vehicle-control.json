@@ -1,0 +1,355 @@
+{
+  "id": "ch-08",
+  "slug": "unit-08-vehicle-control",
+  "title": "Vehicle Control",
+  "unitNumber": 8,
+  "order": 9,
+  "lessons": [
+    {
+      "id": "lesson-08-01",
+      "slug": "unit-08-vehicle-control-vehicle-control",
+      "chapterId": "ch-08",
+      "title": "Vehicle Control",
+      "order": 1,
+      "estimatedMinutes": 5,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 8: VEHICLE CONTROL"
+        },
+        {
+          "type": "paragraph",
+          "text": "This section allows you to start putting your theoretical knowledge into practice. You will be asked to demonstrate certain aspects of your theoretical training at the manoeuvre yard. The manoeuvre yard also provides you with an opportunity to practice and gain confidence in driving before taking the car out to the road. These are some of the essential skills you must have before you are allowed to proceed to the road."
+        },
+        {
+          "type": "callout",
+          "text": "Driving Preparation"
+        },
+        {
+          "type": "paragraph",
+          "text": "As a learner you should be able to make the appropriate preparations before driving the car. These preparations include the vehicle self-inspection as explained in Unit 7 above. Once you are certain that your vehicle safe to drive."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Adjust your driving seat to ensure that it is suitable for you.",
+            "Adjust the mirrors if it is necessary",
+            "Check the doors to ensure that they shut properly",
+            "Fasten your seat belt and ensure that all passengers also do so",
+            "Sit in the correct driving position – your back should get adequate support and your feet should reach the pedals",
+            "Hold the steering wheel correctly – It should be held with both hands in the positions illustrated below. Your hands should hold the steering wheel naturally, not too stretched or too bent",
+            "From this position you should get a clear view of what is ahead of and around you. You should also comfortably operate the brakes and the accelerator",
+            "Check all the instruments at the dashboard and ensure that they are all in good working order",
+            "Once this is done you can turn on the ignition and start practicing your driving skills"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Car Movement and Control"
+        },
+        {
+          "type": "callout",
+          "text": "1. To start the vehicle"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Fully depress the clutch pedal and wait for three seconds",
+            "Start the engine as follows o Put the hand brake ON o Turn the ignition switch ON o Turn the motor switch ON o Start motor control by turning the ignition key and releasing it when the engine starts o Step lightly on the accelerator to warm the engine",
+            "Check rear view mirrors",
+            "Give the proper signal before moving",
+            "Select the appropriate gear",
+            "Increase the engine speed using the accelerator",
+            "Move the handbrake to the OFF position",
+            "Let the clutch pedal rise until the engine speed decreases slightly under the load. Keep your feet in this position – on the clutch and accelerator pedals"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "2. To stop the vehicle"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Check the rear view mirrors to ensure that it is safe to stop",
+            "Signal properly to alert other road users",
+            "Remove the foot from the accelerator",
+            "Apply pressure on the foot brake and maintain it as necessary",
+            "Depress the clutch pedal as the car comes to rest and maintain the pressure",
+            "Set the hand break at the ON position",
+            "Put the gear lever in the 1ST position",
+            "Switch off the engine",
+            "Remove your foot from the break clutch pedal and then from the brake pedal"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "3. Using the gears"
+        },
+        {
+          "type": "paragraph",
+          "text": "Most vehicles have five forward gears and one reverse gear. You should know the appropriate gear speed to be used when driving. You should learn to proficiently change from 1 st to 5 th gear without looking. The neutral position is where no gear is selected.  Before starting the engine, the gear should be in neutral position."
+        },
+        {
+          "type": "callout",
+          "text": "1st Gear –"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is used when moving off from a stationary position.  This gear is for travelling between 0 and 30 km/h"
+        },
+        {
+          "type": "callout",
+          "text": "2nd Gear –"
+        },
+        {
+          "type": "paragraph",
+          "text": "This allows you to move faster and is also applied in slow moving traffic because it is more economical.  It is also the ideal gear for moving downhill from a stationary position."
+        },
+        {
+          "type": "callout",
+          "text": "3rd Gear -"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is the appropriate gear for travelling between 35 and 70 km/h"
+        },
+        {
+          "type": "callout",
+          "text": "4th Gear –"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is the appropriate gear for travelling between 60 and 110 km/h. The 4 th gear provides more power and speed to the engine and can be used when overtaking another vehicle."
+        },
+        {
+          "type": "callout",
+          "text": "5th Gear  -"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is the appropriate gear for travelling between 80 and 110 km/h. This gear is used on highways where the speed limits are higher."
+        },
+        {
+          "type": "callout",
+          "text": "4. Steering the vehicle"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Hold the steering wheel correctly",
+            "To steer in a straight course position your hands in the 10-minutes-to-2 position and aim the car in the general desired direction. Lightly correct the vehicle’s tendency to turn from the neutral position",
+            "To avoid injury from the airbag position your hands in the 9 and 3 position",
+            "To change direction, pull the steering down in the direction you wish to turn. Bring it down to meet your other hand then push the steering wheel up until the turn has been executed"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "5.  Parking at the kerb"
+        },
+        {
+          "type": "paragraph",
+          "text": "You should always find a parking space that is legal and convenient to park.  To park you vehicle take the follow steps:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Look into your rear view mirror so that you can know what is around you. If there are no vehicles behind you, you may slow down to get a clearer picture of what is around you.",
+            "Locate a safe and convenient parking position",
+            "Use your indicator signals to inform other road users of your intention to slow down and park",
+            "Slow down the vehicle by covering the brake and the clutch",
+            "Gradually move a to a suitable distance from the kerb",
+            "Apply the brake gently and 5 metres from your intended stop, press the clutch as to avoid stalling the car",
+            "Stop. Apply the handbrake and select neutral to cancel the indicator",
+            "Remove feet from the pedals"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Different types of parking."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Angle parking                                                    Flash parking"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Parallel parking"
+        },
+        {
+          "type": "callout",
+          "text": "6. Turning"
+        }
+      ],
+      "keyPoints": [
+        "This section allows you to start putting your theoretical knowledge into practice.",
+        "As a learner you should be able to make the appropriate preparations before driving the car.",
+        "Adjust your driving seat to ensure that it is suitable for you.",
+        "Adjust the mirrors if it is necessary",
+        "Check the doors to ensure that they shut properly"
+      ],
+      "quiz": [
+        {
+          "question": "The correct technique for smooth braking is:",
+          "options": [
+            "Apply maximum force immediately",
+            "Apply firm progressive pressure, ease off as vehicle slows",
+            "Pump brakes rapidly",
+            "Use only the handbrake"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-08-02",
+      "slug": "unit-08-vehicle-control-j-turns",
+      "chapterId": "ch-08",
+      "title": "J-turns",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "A J-turn is a driving manoeuvre in which a reversing vehicle turns 180 degrees and continues, facing forward, without changing direction of travel. Only a confident driver who has had a sufficient experience driving on different road surfaces should do this type of turn."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "J-turns by reverse driving"
+        }
+      ],
+      "keyPoints": [
+        "A J-turn is a driving manoeuvre in which a reversing vehicle turns 180 degrees and continues, facing forward, without changing direction of travel."
+      ],
+      "quiz": [
+        {
+          "question": "When should you use the highest available gear?",
+          "options": [
+            "When driving slowly in traffic",
+            "When cruising at steady speed to save fuel",
+            "When going downhill",
+            "When the road is wet"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-08-03",
+      "slug": "unit-08-vehicle-control-u-turn",
+      "chapterId": "ch-08",
+      "title": "U-turn",
+      "order": 3,
+      "estimatedMinutes": 2,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "A U-turn is a driving manoeuvre in which a forward driving vehicle turns 180 degrees and continues, facing forward, but moving in the opposite direction. Before you make a U-turn, check to make sure that there is no sign that says you should not. To make a U-turn safely, you must be able to see well both sides."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "U-Turn by forward driving"
+        },
+        {
+          "type": "callout",
+          "text": "7.  Driving on Bends"
+        },
+        {
+          "type": "paragraph",
+          "text": "When approaching a bend, it is important to note how sharp the bend is. Look out for road signs and markings which would indicate the type of bend you are going to encounter. Adjust your speed accordingly. If you are too fast you are more likely to skid or lose control of your car. Surrounding trees, hedges, buildings and streetlights can give you a good indication of how sharp the bend is if there are no road signs. As you approach the bend, apply the MSM technique to communicate with other road users"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Slow down and select a lower gear",
+            "Do not brake as you steer round the bend",
+            "When leaving a bend, check your mirrors and gently accelerate to the speed appropriate for the traffic conditions"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "8.  Driving on Hills"
+        },
+        {
+          "type": "paragraph",
+          "text": "This requires you to anticipate what is ahead of you. While going downhill you have a clearer view but going uphill you see less of what is ahead of you. When driving downhill, switch to a lower gear so that the engine controls some of the braking. This protects your brakes from excessive wear and tear. It takes longer for the vehicle to stop therefore you need a greater stopping distance. When driving uphill, switch to a lower gear so as to maintain your speed."
+        },
+        {
+          "type": "callout",
+          "text": "9.   Reversing"
+        },
+        {
+          "type": "paragraph",
+          "text": "Use your mirrors to assist you in seeing what is behind you. When reversing, you may tilt your head so that you can see beyond the head restraint. Always reverse at slow speed so as to retain control of your steering. To steer the car in reverse, turn the wheel in the direction you want the rear of the car to go. Turning the wheel to the right steers the back of the car to the right. Turning the wheel to the left steers to the left."
+        }
+      ],
+      "keyPoints": [
+        "A U-turn is a driving manoeuvre in which a forward driving vehicle turns 180 degrees and continues, facing forward, but moving in the opposite direction.",
+        "When approaching a bend, it is important to note how sharp the bend is.",
+        "Slow down and select a lower gear",
+        "Do not brake as you steer round the bend",
+        "When leaving a bend, check your mirrors and gently accelerate to the speed appropriate for the traffic conditions"
+      ],
+      "quiz": [
+        {
+          "question": "A J-turn is best described as:",
+          "options": [
+            "A three-point turn at a junction",
+            "A reversing manoeuvre where the vehicle turns 180° then continues forward",
+            "An emergency stop technique",
+            "A way to join a roundabout"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "'Coasting' (clutch depressed while moving) is dangerous because:",
+          "options": [
+            "It wears out the engine faster",
+            "It reduces engine braking and overall vehicle control",
+            "It increases fuel consumption only",
+            "It is only dangerous on motorways"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Hill starts require balancing which two pedals?",
+          "options": [
+            "Accelerator and brake",
+            "Clutch and brake",
+            "Clutch and accelerator",
+            "Brake and handbrake"
+          ],
+          "correctIndex": 2
+        }
+      ]
+    }
+  ]
+}

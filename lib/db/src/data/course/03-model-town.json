@@ -1,0 +1,378 @@
+{
+  "id": "ch-03",
+  "slug": "unit-03-model-town",
+  "title": "Model Town",
+  "unitNumber": 3,
+  "order": 4,
+  "lessons": [
+    {
+      "id": "lesson-03-01",
+      "slug": "unit-03-model-town-model-town",
+      "chapterId": "ch-03",
+      "title": "Model Town",
+      "order": 1,
+      "estimatedMinutes": 5,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 3: MODEL TOWN"
+        },
+        {
+          "type": "paragraph",
+          "text": "The model town board is an example of a road network on a board. It is a simplified representation used to explain the types of roads found in major towns of Kenya and East Africa."
+        },
+        {
+          "type": "callout",
+          "text": "The model town board has several features.  These features are:"
+        },
+        {
+          "type": "paragraph",
+          "text": "1. One way traffic road 2. Two way traffic road 3. Roundabout 4. Parking zones 5. Yellow kerb 6. Pedestrian crossing 7. Stop sign 8. Give way sign 9. Exit from main road 10.\tExit from controlled parking zone 11.\tRoad markings – arrows, reflectors, and delta marks etc."
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "The model town board A."
+        },
+        {
+          "type": "callout",
+          "text": "One Way Traffic Road (Dual Carriage Way)"
+        },
+        {
+          "type": "list",
+          "items": [
+            "This is a road where all traffic vehicles move in one direction. A road with white continuous or broken lines dividing the lanes into equal parts",
+            "A white continuous line means no changing lanes or overtaking",
+            "A white dotted or broken lines means you can overtake or change lanes if the road is clear/safe",
+            "Land or field refers to the green part on the left side of the road. A yellow marking protects the field. This yellow marking is known as the yellow kerb",
+            "Yellow kerb means no overlapping, no parking, no waiting and no stopping.",
+            "The central reserve separates one-way traffic road",
+            "In between the central reserve, there is an exit from the main road or U-turn",
+            "A double yellow line separates a three-lane road or streets into equal parts. Vehicles in a street or an avenue move in one direction (Crossing Allowed) B."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Two Way Traffic Road/Single Carriageway"
+        },
+        {
+          "type": "list",
+          "items": [
+            "This is a road where vehicles move in opposite direction. A road with single continuous or broken yellow line at the centre dividing the road into two equal parts",
+            "Yellow continuous line means you stick to your side or no overtaking",
+            "Yellow broken line means you can overtake if the road is clear. On a single carriageway, all drivers need to obey the rules of roads in Kenya (keep left unless overtaking)",
+            "There is a safe and marked area on the road known as a pedestrian crossing where the driver needs to slow down and stop so as to enable pedestrians to cross from one side of the road to another C."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Roundabout"
+        },
+        {
+          "type": "list",
+          "items": [
+            "This is a meeting point of traffic where more than two roads meet at a point",
+            "The function of a roundabout is to facilitate the movement of vehicles in different directions without any obstruction or collision"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Rules of the roundabout:"
+        },
+        {
+          "type": "paragraph",
+          "text": "i. No stopping ii. No changing lanes iii. No parking iv. No overtaking v. No waiting"
+        },
+        {
+          "type": "callout",
+          "text": "The roundabout is divided into 3 parts."
+        },
+        {
+          "type": "paragraph",
+          "text": "i. Traffic Island: Green part at the centre of the roundabout used to control the movement of the vehicles. ii. Innermost lane (Lane 4): It is the only lane that allows the driver to go round and make a full circle or a 360° angle from a four lane road. The innermost lane is the only lane where a driver/rider is allowed to make a 270° angle from a three lane road. iii. Space (Lane 3, 2 and 1): Drives on these lanes are not allowed to make a full circle or a 360° angle."
+        },
+        {
+          "type": "list",
+          "items": [
+            "You are required to keep left and move in a clockwise direction on the roundabout",
+            "Lanes are counted/numbered from the outermost lane to the innermost lane"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Common mistakes made when approaching the roundabout:"
+        },
+        {
+          "type": "paragraph",
+          "text": "i. Approaching the roundabout in wrong lane. ii. Leaving/exiting the roundabout in the wrong lane. iii. Changing lanes on the roundabout. iv. Incorrectly observing the traffic lights. D."
+        },
+        {
+          "type": "callout",
+          "text": "Parking zones"
+        },
+        {
+          "type": "paragraph",
+          "text": "The model town board has two types of parking: i. Angle/ample/controlled parking zone. ii. Flush/parallel/uncontrolled parking zone."
+        },
+        {
+          "type": "callout",
+          "text": "Angle Parking:"
+        },
+        {
+          "type": "paragraph",
+          "text": "In angle parking, vehicles are designated to flow in one direction. The parking area has a designated entrance and exit from both sides. These are the rules for angle parking: i. Strictly for small cars only (Saloon). ii. Park from the farthest end (far end). iii. Park by forward gear (direct). iv. Leave/exit by reverse."
+        },
+        {
+          "type": "callout",
+          "text": "Flush parking:"
+        },
+        {
+          "type": "paragraph",
+          "text": "This kind of parking is found on the left side of road in the direction of traffic. It has no security thus it is an uncontrolled parking zone. The rules for flush parking are: i. All types of vehicles except tractors and trailers can park here. ii. It has an entry but you must leave space for the exit. iii. Park from the farthest end. iv. Park by reverse. v. Leave/exit by forward (direct) driving. E."
+        },
+        {
+          "type": "callout",
+          "text": "Stop Sign"
+        },
+        {
+          "type": "paragraph",
+          "text": "It is a red in colour and is an eight-sided figure (octagon) with white letters. It is positioned at a junction when joining a two-way traffic road. Traffic or vehicles are required to stop and look right, left and right again and only proceed if the road is clear. F."
+        },
+        {
+          "type": "callout",
+          "text": "Give Way/ Yield Sign"
+        },
+        {
+          "type": "paragraph",
+          "text": "This is a red triangular shape with the apex facing downward. It has a white border. Vehicles are required to slow down or stop if necessary and then only proceed if it is safe."
+        },
+        {
+          "type": "callout",
+          "text": "RULES OF THE MODEL TOWN BOARD"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Use the shortest and most correct route without using the parking",
+            "Use the longest and most correct route without using the parking",
+            "Only use the parking zone as a route as a last option (if there is no other route) (Further instructions on the model town are on page 78)"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Directions on a four-lane road when approaching a roundabout"
+        },
+        {
+          "type": "callout",
+          "text": "Lane 1 has two options"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Stay on lane 1, Go straight, 0°",
+            "Turn left at 90°"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Lane 2 has one option"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Go straight only, 0°"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Lane 3 has two options"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Stay on lane 3, go straight",
+            "Turn right at 90°"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Lane 4 has four options"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Turn right at 90°",
+            "Come back at 180°",
+            "Turn left 270°",
+            "Go straight 360° after going round the roundabout clockwise direction"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Directions on a three-lane road when approaching the roundabout"
+        },
+        {
+          "type": "callout",
+          "text": "The system is (2, 1, 5)"
+        },
+        {
+          "type": "callout",
+          "text": "Lane 1 has two options"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Go straight 0°",
+            "Turn left at 90°"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Lane 2 has one option"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Go straight only 0°"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Lane 3 has five options"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Go straight 0°",
+            "Turn right",
+            "Turn right, stay on lane 3, enter on lane 4 at 90°",
+            "Come back on lane 3, and enter 3 at 180°",
+            "Turn left on lane 3, enter on lane 3 at 270° and then shift to lane 4 on the broken line"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "The model town board is an example of a road network on a board.",
+        "1.",
+        "This is a road where all traffic vehicles move in one direction. A road with white continuous or broken lines dividing the lanes into equal parts",
+        "A white continuous line means no changing lanes or overtaking",
+        "A white dotted or broken lines means you can overtake or change lanes if the road is clear/safe"
+      ],
+      "quiz": [
+        {
+          "question": "What is the purpose of the model town in driver training?",
+          "options": [
+            "To simulate real traffic situations in a controlled environment",
+            "To test the vehicle's engine performance",
+            "To practice parking only",
+            "To learn road sign colours"
+          ],
+          "correctIndex": 0
+        },
+        {
+          "question": "At a T-junction, which vehicle has right of way?",
+          "options": [
+            "The vehicle on the minor road",
+            "The vehicle on the major road",
+            "The vehicle turning left",
+            "The vehicle that arrives first"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A zebra crossing is a designated area for:",
+          "options": [
+            "Cyclists",
+            "Pedestrians",
+            "Emergency vehicles",
+            "Motorcyclists"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "When approaching a roundabout, you must give way to traffic:",
+          "options": [
+            "On your left",
+            "On your right",
+            "Already in the roundabout",
+            "Coming from straight ahead"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "A continuous yellow centre line on the road means:",
+          "options": [
+            "Safe to overtake at any time",
+            "Overtaking is prohibited",
+            "The road is one-way",
+            "The road is a highway"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

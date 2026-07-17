@@ -1,0 +1,106 @@
+{
+  "id": "ch-22",
+  "slug": "unit-22-traffic-signs",
+  "title": "Traffic Signs",
+  "unitNumber": 22,
+  "order": 23,
+  "lessons": [
+    {
+      "id": "lesson-22-01",
+      "slug": "unit-22-traffic-signs-traffic-signs",
+      "chapterId": "ch-22",
+      "title": "Traffic Signs",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "TRAFFIC SIGNS"
+        },
+        {
+          "type": "paragraph",
+          "text": "(a) Regulatory Signs Secondary Message Signs for use with Regulatory Signs (b) Warning Signs (c) Information Signs No through road on ahead No through road on right No through road on left (d) Guidance Signs"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "callout",
+          "text": "Traffic Signals"
+        }
+      ],
+      "keyPoints": [
+        "(a) Regulatory Signs Secondary Message Signs for use with Regulatory Signs (b) Warning Signs (c) Information Signs No through road on ahead No through road on right No through road on left (d) Guidance Signs"
+      ],
+      "quiz": [
+        {
+          "question": "A red circle with a number (e.g. 50) on a road sign means:",
+          "options": [
+            "Minimum speed of 50 km/h",
+            "Maximum speed limit of 50 km/h",
+            "Distance to next town is 50 km",
+            "Road works ahead for 50 metres"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A triangular sign with a red border warns of:",
+          "options": [
+            "An instruction you must follow",
+            "A hazard or potential danger ahead",
+            "An information point",
+            "A priority road"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A blue rectangular sign typically provides:",
+          "options": [
+            "A mandatory instruction",
+            "Useful information or directions",
+            "A warning",
+            "A prohibition"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The 'Give Way' sign requires you to:",
+          "options": [
+            "Stop completely and wait for a police officer",
+            "Give right of way to traffic on the major road before proceeding",
+            "Continue at normal speed",
+            "Sound your horn and proceed"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A pedestrian figure inside a triangle means:",
+          "options": [
+            "No pedestrians allowed",
+            "Pedestrian crossing ahead — prepare to stop",
+            "School zone at all times",
+            "Pedestrian-only road"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

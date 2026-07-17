@@ -1,0 +1,203 @@
+{
+  "id": "ch-11",
+  "slug": "unit-11-space-management",
+  "title": "Space Management",
+  "unitNumber": 11,
+  "order": 12,
+  "lessons": [
+    {
+      "id": "lesson-11-01",
+      "slug": "unit-11-space-management-space-management",
+      "chapterId": "ch-11",
+      "title": "Space Management",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 11: SPACE MANAGEMENT"
+        },
+        {
+          "type": "paragraph",
+          "text": "To drive safely, it is important to manage the space around your vehicle. You do this by controlling your speed, the position of your vehicle in the lane and communicating on the road. In order to manage your space effectively you should be aware of the different road conditions when driving. These can be broadly divided into three categories"
+        },
+        {
+          "type": "callout",
+          "text": "1."
+        },
+        {
+          "type": "callout",
+          "text": "Open Condition"
+        },
+        {
+          "type": "paragraph",
+          "text": "– This is occurs in large areas where the driver can gets a clear broad view of the road and surroundings and there are no restrictions or obstacles blocking the view. In these conditions, it is easy to adjust speed and change lanes."
+        },
+        {
+          "type": "callout",
+          "text": "2."
+        },
+        {
+          "type": "callout",
+          "text": "Closed Conditions –"
+        },
+        {
+          "type": "paragraph",
+          "text": "In this case, there is limited space and the driver’s view is also restricted due to various obstructions such as trees, buildings and other vehicles blocking the view."
+        },
+        {
+          "type": "callout",
+          "text": "3."
+        },
+        {
+          "type": "callout",
+          "text": "Changing Conditions -"
+        },
+        {
+          "type": "paragraph",
+          "text": "This occurs where there are changes in the speed limit,  road surface conditions, the width of the lane, visibility influenced by the weather or the time of the day and the traffic flow. All these are conditions that may be unpredictable or may need specific actions by the driver. In all the above-mentioned conditions, the driver has to maintain an appropriate space around the vehicle for safe driving. This is the space envelope."
+        }
+      ],
+      "keyPoints": [
+        "To drive safely, it is important to manage the space around your vehicle.",
+        "– This is occurs in large areas where the driver can gets a clear broad view of the road and surroundings and there are no restrictions or obstacles blocking the view.",
+        "In this case, there is limited space and the driver’s view is also restricted due to various obstructions such as trees, buildings and other vehicles blocking the view.",
+        "This occurs where there are changes in the speed limit,  road surface conditions, the width of the lane, visibility influenced by the weather or the time of the day and the traffic flow."
+      ],
+      "quiz": [
+        {
+          "question": "The two-second (or four-second) following-distance rule helps you to:",
+          "options": [
+            "Determine how long to indicate before turning",
+            "Maintain a safe gap from the vehicle ahead",
+            "Calculate overtaking distance",
+            "Judge a safe parking gap"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-11-02",
+      "slug": "unit-11-space-management-to-manage-space",
+      "chapterId": "ch-11",
+      "title": "To manage space",
+      "order": 2,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "list",
+          "items": [
+            "Drive at the same speed as the vehicles around you in traffic",
+            "Maintain a safe following distance between your vehicle and the vehicle ahead of you (Discussed in UNIT 10 on speed management)"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Drive at the same speed as the vehicles around you in traffic",
+        "Maintain a safe following distance between your vehicle and the vehicle ahead of you (Discussed in UNIT 10 on speed management)"
+      ],
+      "quiz": [
+        {
+          "question": "On a wet road the recommended following distance should be:",
+          "options": [
+            "The same as on a dry road",
+            "At least doubled compared to a dry road",
+            "Reduced to save time",
+            "Eliminated if you have ABS"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-11-03",
+      "slug": "unit-11-space-management-space-recovery",
+      "chapterId": "ch-11",
+      "title": "Space Recovery",
+      "order": 3,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "When you realize that there is insufficient space in front of the vehicle."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Signal so that the vehicles around you know that you intend to slow down",
+            "Turn slowly to give yourself and other drivers more space to avoid problems",
+            "Be aware of the size and weight of oncoming vehicles, give then room to pass but do not reverse as this will affect the vehicles behind you",
+            "Ensure that you have sufficient space to get across or join a lane"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "[Figure/Diagram]"
+        },
+        {
+          "type": "paragraph",
+          "text": "Proper position to see and to be seen by other drivers"
+        }
+      ],
+      "keyPoints": [
+        "When you realize that there is insufficient space in front of the vehicle.",
+        "Signal so that the vehicles around you know that you intend to slow down",
+        "Turn slowly to give yourself and other drivers more space to avoid problems",
+        "Be aware of the size and weight of oncoming vehicles, give then room to pass but do not reverse as this will affect the vehicles behind you",
+        "Proper position to see and to be seen by other drivers"
+      ],
+      "quiz": [
+        {
+          "question": "It is safe to overtake only when:",
+          "options": [
+            "You are confident you are faster",
+            "The road ahead is clear and you have sufficient space",
+            "On blind corners if you drive quickly",
+            "The vehicle ahead is slow"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "lesson-11-04",
+      "slug": "unit-11-space-management-position-to-see-and-be-seen",
+      "chapterId": "ch-11",
+      "title": "Position to ‘See and be seen’",
+      "order": 4,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Position the vehicle as indicated above"
+        }
+      ],
+      "keyPoints": [
+        "Review the key concepts carefully."
+      ],
+      "quiz": [
+        {
+          "question": "You must not overtake within how many metres of a pedestrian crossing?",
+          "options": [
+            "5 m",
+            "10 m",
+            "15 m",
+            "30 m"
+          ],
+          "correctIndex": 2
+        },
+        {
+          "question": "Being in the correct 'see and be seen' position means:",
+          "options": [
+            "Driving in the centre of the road",
+            "Positioning so you can see ahead and be visible to others",
+            "Using full headlights at all times",
+            "Driving as close to the kerb as possible"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}

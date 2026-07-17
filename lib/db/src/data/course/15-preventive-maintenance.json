@@ -1,0 +1,145 @@
+{
+  "id": "ch-15",
+  "slug": "unit-15-preventive-maintenance",
+  "title": "Preventive Maintenance",
+  "unitNumber": 15,
+  "order": 16,
+  "lessons": [
+    {
+      "id": "lesson-15-01",
+      "slug": "unit-15-preventive-maintenance-preventive-maintenance",
+      "chapterId": "ch-15",
+      "title": "Preventive Maintenance",
+      "order": 1,
+      "estimatedMinutes": 1,
+      "content": [
+        {
+          "type": "callout",
+          "text": "UNIT 15: PREVENTIVE MAINTENANCE"
+        },
+        {
+          "type": "callout",
+          "text": "Preventive Maintenance (PM)"
+        },
+        {
+          "type": "paragraph",
+          "text": "Refers to the different types of work done to ensure that the vehicle is in good working condition and that any problems can be detected and fixed before they get out of hand. Preventive maintenance may include the following."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Vehicle inspection",
+            "Lubrication",
+            "Adjustment",
+            "Cleaning",
+            "Testing of certain parts",
+            "Repair and replacing worn out parts"
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Driver’s obligation:"
+        },
+        {
+          "type": "paragraph",
+          "text": "As the owner and/or driver of a vehicle it is important to carry out regular preventive maintenance as this increase the availability and safety of the vehicle"
+        },
+        {
+          "type": "list",
+          "items": [
+            "PM maintenance should be scheduled on a regular basis based on the specific part of the vehicle being maintained.",
+            "The driver of the vehicle should participate in this maintenance work as ultimately he or she is the one who makes the decision as to whether the vehicle is safe to drive, clean enough or if the vehicle needs further repair or maintenance work done.",
+            "To determine how regular PM should be undertaken the driver should also look at the vehicle manufacturer’s guidelines.",
+            "It is important for every driver to know some of the basic steps to take in the event that the vehicle malfunctions."
+          ]
+        },
+        {
+          "type": "callout",
+          "text": "Below is a table indicating common issues and how to resolve them."
+        },
+        {
+          "type": "paragraph",
+          "text": "Problem Symptom Solution Tyres/Steering Heavy steering Vibrations in steering at specific speeds"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Puncture",
+            "Power assisted steering fault",
+            "Bulge in tyre or front wheel out of balance",
+            "Change the wheel",
+            "Seek qualified assistance",
+            "Change the tyre or seek qualified assistance",
+            "Seek qualified assistance",
+            "Seek qualified assistance Brakes Vehicle pulls to one side when braking",
+            "Incorrect adjustment",
+            "Undue wear in pads System fault Warning light shows",
+            "Low brake fluid",
+            "Possible component failure",
+            "Check level",
+            "Seek qualified assistance Taken from https://www.bahamas.gov.bs/wps/wcm/connect/7628c56e-4a22-4b61- bb88-5ea243e87c38/A+Driver+Instructor’s+Manual+(FINAL).pdf?MOD=AJPERES)  We need to customize our own"
+          ]
+        }
+      ],
+      "keyPoints": [
+        "Refers to the different types of work done to ensure that the vehicle is in good working condition and that any problems can be detected and fixed before they get out of hand.",
+        "Vehicle inspection",
+        "Lubrication",
+        "Adjustment",
+        "As the owner and/or driver of a vehicle it is important to carry out regular preventive maintenance as this increase the availability and safety of the vehicle"
+      ],
+      "quiz": [
+        {
+          "question": "Engine oil should typically be changed:",
+          "options": [
+            "Every 500 km",
+            "As per the manufacturer's schedule — typically every 5,000–10,000 km",
+            "Every 50,000 km",
+            "Only when the oil pressure light comes on"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The temperature gauge rising into the red zone means:",
+          "options": [
+            "Normal operating condition",
+            "The engine is overheating — stop safely and investigate",
+            "The air conditioning is working too hard",
+            "The vehicle needs a gear change"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "A sign of a failing battery is:",
+          "options": [
+            "Engine runs roughly",
+            "Difficulty starting, especially in cold weather",
+            "Excessive tyre wear",
+            "High fuel consumption"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "Wheel alignment should be checked:",
+          "options": [
+            "Every 1,000 km regardless",
+            "After hitting a significant pothole or if the vehicle pulls to one side",
+            "Only at annual vehicle inspection",
+            "Only after replacing the engine"
+          ],
+          "correctIndex": 1
+        },
+        {
+          "question": "The purpose of the vehicle's cooling system is to:",
+          "options": [
+            "Lubricate engine parts",
+            "Maintain the engine at its optimal operating temperature",
+            "Filter fuel before combustion",
+            "Power the air conditioning"
+          ],
+          "correctIndex": 1
+        }
+      ]
+    }
+  ]
+}
