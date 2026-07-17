@@ -1600,7 +1600,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Posts a locally-created (not-yet-synced) report to the API. Shared by
   // addReport's initial attempt and the reconnect-triggered retry sweep below.
   const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
-    apiPost<{ id: string; status: string; confirmCount: number; action: string }>(
+    apiPost<{ id: string; status: string; confirmCount: number; action: string; clearedCount?: number }>(
       "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit }
     ).then((result) => {
       setCommunityReports((prev) => {
@@ -1620,6 +1620,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
               : rep
           );
+        }
+        // When the server accepted a new "road clear" and resolved nearby
+        // incidents, mirror that removal in local state so the map clears
+        // immediately without waiting for the next fetch.
+        // 0.001° ≈ 111 m — matches the 100 m server radius with a small margin.
+        if (type === "clear" && result.action === "created") {
+          const CLEAR_DEG = 0.001;
+          u = u.filter((rep) => {
+            if (rep.type === "camera" || rep.type === "clear") return true;
+            if (rep.id === localId || rep.serverId === result.id) return true;
+            const withinBox =
+              Math.abs(rep.lat - lat) <= CLEAR_DEG &&
+              Math.abs(rep.lng - lng) <= CLEAR_DEG;
+            return !withinBox;
+          });
         }
         AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
         return u;

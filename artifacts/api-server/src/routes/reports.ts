@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, communityReportsTable, pushTokensTable, blockedDevicesTable } from "@workspace/db";
-import { eq, and, or, lt, ne, gte, sql } from "drizzle-orm";
+import { eq, and, or, lt, ne, gte, sql, inArray } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -216,11 +216,53 @@ router.post("/reports", async (req: Request, res: Response) => {
       );
     }
 
+    // ── Auto-clear nearby incidents when a driver marks the road as clear ────
+    // A "clear" report is a positive signal that whatever was blocking or
+    // hazardous at this location is no longer present.  Expire every active /
+    // confirmed non-camera report within 100 m so drivers immediately see a
+    // clean map rather than stale warnings.  Cameras are permanent physical
+    // infrastructure and are never touched by a clear report.
+    let clearedCount = 0;
+    if (type === "clear") {
+      const CLEAR_RADIUS_M = 100;
+      const latD = CLEAR_RADIUS_M / 111320;
+      const lngD = CLEAR_RADIUS_M / (111320 * Math.cos((lat * Math.PI) / 180));
+
+      const nearbyRows = await db
+        .select({ id: communityReportsTable.id, lat: communityReportsTable.lat, lng: communityReportsTable.lng })
+        .from(communityReportsTable)
+        .where(
+          and(
+            isActive(),
+            ne(communityReportsTable.type, "clear"),
+            ne(communityReportsTable.type, "camera"),
+            ne(communityReportsTable.id, inserted.id),
+            gte(communityReportsTable.lat, lat - latD),
+            sql`${communityReportsTable.lat} <= ${lat + latD}`,
+            gte(communityReportsTable.lng, lng - lngD),
+            sql`${communityReportsTable.lng} <= ${lng + lngD}`
+          )
+        );
+
+      const toExpire = nearbyRows
+        .filter((r) => haversine(lat, lng, r.lat, r.lng) <= CLEAR_RADIUS_M)
+        .map((r) => r.id);
+
+      if (toExpire.length > 0) {
+        await db
+          .update(communityReportsTable)
+          .set({ status: "cleared" })
+          .where(inArray(communityReportsTable.id, toExpire));
+        clearedCount = toExpire.length;
+      }
+    }
+
     return res.status(201).json({
       id: inserted.id,
       action: "created",
       status: inserted.status,
       confirmCount: inserted.confirmCount,
+      clearedCount,
     });
   } catch (err) {
     console.error("POST /reports error:", err);
