@@ -132,48 +132,61 @@ async function main(): Promise<void> {
 
     const chapter = readJson<ChapterFile>(chapterFile);
 
-    // Upsert chapter
-    await pool.query(
-      `INSERT INTO course_chapters (id, slug, title, unit_number, "order", created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-       ON CONFLICT (id) DO UPDATE SET
-         slug         = EXCLUDED.slug,
-         title        = EXCLUDED.title,
-         unit_number  = EXCLUDED.unit_number,
-         "order"      = EXCLUDED."order",
-         updated_at   = NOW()`,
-      [chapter.id, chapter.slug, chapter.title, chapter.unitNumber, chapter.order],
+    // Upsert chapter — conflict on slug (unique); let DB own the UUID
+    const chapterRow = await pool.query<{ id: string }>(
+      `INSERT INTO course_chapters (id, slug, title, "order", created_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, NOW())
+       ON CONFLICT (slug) DO UPDATE SET
+         title   = EXCLUDED.title,
+         "order" = EXCLUDED."order"
+       RETURNING id`,
+      [chapter.slug, chapter.title, chapter.order],
     );
+    const chapterDbId = chapterRow.rows[0].id;
     chaptersUpserted++;
 
-    // Upsert lessons
+    // Upsert lessons + quiz questions
     for (const lesson of chapter.lessons) {
-      await pool.query(
+      const lessonRow = await pool.query<{ id: string }>(
         `INSERT INTO course_lessons
-           (id, slug, chapter_id, title, "order", estimated_minutes, content, key_points, quiz, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-         ON CONFLICT (id) DO UPDATE SET
-           slug              = EXCLUDED.slug,
+           (id, slug, chapter_id, title, "order", estimated_minutes, content, key_points, created_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, NOW())
+         ON CONFLICT (slug) DO UPDATE SET
            chapter_id        = EXCLUDED.chapter_id,
            title             = EXCLUDED.title,
            "order"           = EXCLUDED."order",
            estimated_minutes = EXCLUDED.estimated_minutes,
            content           = EXCLUDED.content,
-           key_points        = EXCLUDED.key_points,
-           quiz              = EXCLUDED.quiz,
-           updated_at        = NOW()`,
+           key_points        = EXCLUDED.key_points
+         RETURNING id`,
         [
-          lesson.id,
           lesson.slug,
-          lesson.chapterId,
+          chapterDbId,
           lesson.title,
           lesson.order,
-          lesson.estimatedMinutes,
-          JSON.stringify(lesson.content),
-          JSON.stringify(lesson.keyPoints),
-          JSON.stringify(lesson.quiz),
+          lesson.estimatedMinutes ?? 5,
+          JSON.stringify(lesson.content ?? []),
+          lesson.keyPoints ?? [],
         ],
       );
+      const lessonDbId = lessonRow.rows[0].id;
+
+      // Quiz questions: delete-and-reinsert for idempotency (JSON has no stable UUIDs)
+      if (lesson.quiz && lesson.quiz.length > 0) {
+        await pool.query(
+          `DELETE FROM course_quiz_questions WHERE lesson_id = $1`,
+          [lessonDbId],
+        );
+        for (let qi = 0; qi < lesson.quiz.length; qi++) {
+          const q = lesson.quiz[qi];
+          await pool.query(
+            `INSERT INTO course_quiz_questions (id, lesson_id, question, options, correct_index, "order")
+             VALUES (gen_random_uuid(), $1, $2, $3::text[], $4, $5)`,
+            [lessonDbId, q.question, q.options, q.correctIndex, qi],
+          );
+        }
+      }
+
       lessonsUpserted++;
     }
 

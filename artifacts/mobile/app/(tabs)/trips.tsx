@@ -384,7 +384,7 @@ export default function TripsScreen() {
             </View>
             <Text style={[styles.shareHeroTitle, { color: c.foreground }]}>Share Your Live Location</Text>
             <Text style={[styles.shareHeroSub, { color: c.mutedForeground }]}>
-              Let anyone track your trip in real time — no app needed. They just open your link in any browser.
+              This shares your real-time GPS position during an active drive — not a scheduled trip. Anyone with your link can watch you move on a map in any browser, no app needed.
             </Text>
           </View>
 
@@ -400,7 +400,7 @@ export default function TripsScreen() {
                 {sharingLoading ? <ActivityIndicator color="#fff" /> : (
                   <>
                     <Ionicons name="share-social" size={19} color="#fff" />
-                    <Text style={styles.shareHeroCtaTxt}>Share Trip Now</Text>
+                    <Text style={styles.shareHeroCtaTxt}>Share My Live Location</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -408,9 +408,9 @@ export default function TripsScreen() {
               <View style={[styles.shareHeroNotice, { backgroundColor: c.muted }]}>
                 <Ionicons name="navigate-outline" size={18} color={c.mutedForeground} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.shareHeroNoticeTitle, { color: c.foreground }]}>Start navigation first</Text>
+                  <Text style={[styles.shareHeroNoticeTitle, { color: c.foreground }]}>No active drive</Text>
                   <Text style={[styles.shareHeroNoticeSub, { color: c.mutedForeground }]}>
-                    Go to the Drive tab, enter a destination, and tap Start. The Share Trip button will appear.
+                    Go to the Drive tab, enter a destination, and tap Start. Once navigation begins, come back here to share your live location.
                   </Text>
                 </View>
               </View>
