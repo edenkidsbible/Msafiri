@@ -742,7 +742,7 @@ export default function DriveScreen() {
 
             <View style={[styles.navDivider, { backgroundColor: divBg }]} />
 
-            {/* ETA + destination — recomputed live from the current GPS fix */}
+            {/* ETA + destination + share — right column only */}
             <View style={{ flex: 1 }}>
               <Text style={[styles.navEta, { color: fgMain }]}>
                 {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
@@ -751,6 +751,31 @@ export default function DriveScreen() {
                 {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
                 {navDestination?.name.split(",")[0]}
               </Text>
+              <TouchableOpacity
+                style={[styles.navShareBtn, {
+                  backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
+                  alignSelf: "flex-start",
+                  marginTop: 7,
+                }]}
+                onPress={handleSharePress}
+                disabled={sharingLoading}
+                activeOpacity={0.85}
+              >
+                {sharingLoading ? (
+                  <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={isSharingTrip ? "radio" : "share-social-outline"}
+                      size={13}
+                      color={isSharingTrip ? "#fff" : fgMuted}
+                    />
+                    <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
+                      {isSharingTrip ? "● Live" : "Share trip"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
 
             <SOSButton compact />
@@ -763,31 +788,6 @@ export default function DriveScreen() {
               <Text style={styles.stopBtnTxt}>Stop</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Share Trip — full-width row so it's never squeezed */}
-          <TouchableOpacity
-            style={[styles.navShareBtn, {
-              backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
-            }]}
-            onPress={handleSharePress}
-            disabled={sharingLoading}
-            activeOpacity={0.85}
-          >
-            {sharingLoading ? (
-              <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
-            ) : (
-              <>
-                <Ionicons
-                  name={isSharingTrip ? "radio" : "share-social-outline"}
-                  size={17}
-                  color={isSharingTrip ? "#fff" : fgMuted}
-                />
-                <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                  {isSharingTrip ? "● Live — tap to stop sharing" : "Share Trip"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
 
           {routeIncidentsAhead.length > 0 && (
             <TouchableOpacity
@@ -1142,10 +1142,10 @@ const styles = StyleSheet.create({
   },
   stopBtnTxt: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
   navShareBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 11, borderRadius: 12,
+    flexDirection: "row", alignItems: "center",
+    gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 20,
   },
-  navShareBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  navShareBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
   navReportBtn: {
     position: "absolute",
