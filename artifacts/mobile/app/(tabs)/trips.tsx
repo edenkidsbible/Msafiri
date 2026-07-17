@@ -97,6 +97,7 @@ export default function TripsScreen() {
   const [tripSearching, setTripSearching] = useState(false);
   const [tripDate, setTripDate] = useState(new Date(Date.now() + 60 * 60 * 1000));
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
+  const [tempPickerDate, setTempPickerDate] = useState(new Date());
   const [tripSaving, setTripSaving] = useState(false);
   const tripTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -233,6 +234,25 @@ export default function TripsScreen() {
   };
 
   // ── Plan-a-trip modal helpers ───────────────────────────────────────────
+
+  const openDatePicker = () => {
+    setTempPickerDate(new Date(tripDate));
+    setShowPicker("date");
+  };
+  const openTimePicker = () => {
+    setTempPickerDate(new Date(tripDate));
+    setShowPicker("time");
+  };
+  const confirmPicker = () => {
+    const next = new Date(tripDate);
+    if (showPicker === "date") {
+      next.setFullYear(tempPickerDate.getFullYear(), tempPickerDate.getMonth(), tempPickerDate.getDate());
+    } else {
+      next.setHours(tempPickerDate.getHours(), tempPickerDate.getMinutes(), 0, 0);
+    }
+    setTripDate(next);
+    setShowPicker(null);
+  };
 
   const openPlanTrip = (place?: SavedPlace) => {
     if (place) {
@@ -814,45 +834,24 @@ export default function TripsScreen() {
               <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginTop: 14 }]}>Departure</Text>
               <View style={styles.dateRow}>
                 <TouchableOpacity
-                  style={[styles.dateBtn, { borderColor: c.border, backgroundColor: c.background }]}
-                  onPress={() => setShowPicker("date")}
+                  style={[styles.dateBtn, { borderColor: showPicker === "date" ? c.primary : c.border, backgroundColor: c.background }]}
+                  onPress={openDatePicker}
                 >
-                  <Ionicons name="calendar-outline" size={15} color={c.mutedForeground} />
+                  <Ionicons name="calendar-outline" size={15} color={showPicker === "date" ? c.primary : c.mutedForeground} />
                   <Text style={[styles.dateBtnText, { color: c.foreground }]}>
                     {tripDate.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.dateBtn, { borderColor: c.border, backgroundColor: c.background }]}
-                  onPress={() => setShowPicker("time")}
+                  style={[styles.dateBtn, { borderColor: showPicker === "time" ? c.primary : c.border, backgroundColor: c.background }]}
+                  onPress={openTimePicker}
                 >
-                  <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
+                  <Ionicons name="time-outline" size={15} color={showPicker === "time" ? c.primary : c.mutedForeground} />
                   <Text style={[styles.dateBtnText, { color: c.foreground }]}>
                     {tripDate.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" })}
                   </Text>
                 </TouchableOpacity>
               </View>
-
-              {showPicker && (
-                <DateTimePicker
-                  value={tripDate}
-                  mode={showPicker}
-                  is24Hour={false}
-                  minimumDate={new Date()}
-                  onChange={(_, selected) => {
-                    if (Platform.OS === "android") setShowPicker(null);
-                    if (!selected) return;
-                    const next = new Date(tripDate);
-                    if (showPicker === "date") {
-                      next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
-                    } else {
-                      next.setHours(selected.getHours(), selected.getMinutes());
-                      setShowPicker(null);
-                    }
-                    setTripDate(next);
-                  }}
-                />
-              )}
 
               <TouchableOpacity
                 style={[styles.saveBtn, { backgroundColor: c.primary, opacity: tripDest && !tripSaving ? 1 : 0.5 }]}
@@ -862,6 +861,46 @@ export default function TripsScreen() {
                 {tripSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Save Trip</Text>}
               </TouchableOpacity>
             </ScrollView>
+
+            {/* ── Date / Time picker panel — slides up inside the modal ── */}
+            {showPicker && (
+              <View style={[styles.pickerPanel, { backgroundColor: c.card, borderTopColor: c.border }]}>
+                <View style={[styles.pickerPanelHeader, { borderBottomColor: c.border }]}>
+                  <TouchableOpacity onPress={() => setShowPicker(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={[styles.pickerCancelTxt, { color: c.mutedForeground }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.pickerPanelTitle, { color: c.foreground }]}>
+                    {showPicker === "date" ? "Select Date" : "Select Time"}
+                  </Text>
+                  <TouchableOpacity onPress={confirmPicker} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={[styles.pickerDoneTxt, { color: c.primary }]}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempPickerDate}
+                  mode={showPicker}
+                  display="spinner"
+                  is24Hour={false}
+                  minimumDate={showPicker === "date" ? new Date() : undefined}
+                  onChange={(_, selected) => {
+                    if (!selected) return;
+                    if (Platform.OS === "android") {
+                      // Android: native dialog auto-dismisses — commit immediately
+                      const next = new Date(tripDate);
+                      if (showPicker === "date") {
+                        next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+                      } else {
+                        next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+                      }
+                      setTripDate(next);
+                      setShowPicker(null);
+                    } else {
+                      setTempPickerDate(selected);
+                    }
+                  }}
+                />
+              </View>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -968,6 +1007,18 @@ const styles = StyleSheet.create({
   dateBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   saveBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 20 },
   saveBtnText: { color: "#FFF", fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  // ── Date/time picker panel ────────────────────────────────────────────────
+  pickerPanel: {
+    borderTopWidth: 1, paddingBottom: 12,
+  },
+  pickerPanelHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  pickerPanelTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  pickerCancelTxt: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  pickerDoneTxt: { fontSize: 15, fontFamily: "Inter_700Bold" },
 
   // ── Share tab ────────────────────────────────────────────────────────────────
   liveCard: { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14 },

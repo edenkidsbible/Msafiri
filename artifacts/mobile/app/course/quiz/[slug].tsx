@@ -748,9 +748,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "stretch",
     gap: 8,
     borderRadius: 14,
     paddingVertical: 16,
+    paddingHorizontal: 20,
   },
   ctaBtnText: {
     color: "#fff",
@@ -761,9 +763,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "stretch",
     gap: 8,
     borderRadius: 14,
     paddingVertical: 14,
+    paddingHorizontal: 20,
     borderWidth: 1,
   },
   secondaryBtnText: {

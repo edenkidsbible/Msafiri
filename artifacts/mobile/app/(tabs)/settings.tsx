@@ -4,6 +4,7 @@ import {
   Alert,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -135,6 +136,17 @@ export default function SettingsScreen() {
     updateReport(report.id, val);
     setEditingId(null);
     setEditSpeed("");
+  };
+
+  const handleShareApp = () => {
+    Share.share({
+      title: "Msafiri Kenya — Drive Smarter",
+      message:
+        "Drive smarter with Msafiri Kenya 🚗\n\n" +
+        "Get real-time speed camera alerts, police checkpoint warnings, and live traffic incidents before you reach them.\n\n" +
+        "📱 iOS: https://apps.apple.com/app/msafiri-kenya/id6744942860\n" +
+        "🤖 Android: https://play.google.com/store/apps/details?id=com.msafiri.kenya",
+    });
   };
 
   const ownReports = communityReports.filter((r) => r.isOwn);
@@ -584,6 +596,27 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Share App */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>SHARE APP</Text>
+        <TouchableOpacity
+          style={[styles.shareAppBtn, { backgroundColor: c.card, borderColor: c.border }]}
+          onPress={handleShareApp}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.shareAppIcon, { backgroundColor: c.primary + "18" }]}>
+            <Ionicons name="share-social-outline" size={22} color={c.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.shareAppTitle, { color: c.foreground }]}>Share Msafiri</Text>
+            <Text style={[styles.shareAppSub, { color: c.mutedForeground }]}>
+              Send friends the iOS &amp; Android download links
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
       {/* About */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ABOUT</Text>
@@ -784,4 +817,17 @@ const styles = StyleSheet.create({
   },
   proBannerTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
   proBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+
+  // Share App
+  shareAppBtn: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16,
+    borderWidth: 1,
+  },
+  shareAppIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+  },
+  shareAppTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  shareAppSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });
