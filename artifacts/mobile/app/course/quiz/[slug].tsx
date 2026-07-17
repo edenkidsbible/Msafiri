@@ -41,6 +41,8 @@ type Phase = "question" | "feedback" | "results";
 interface SavedProgress {
   currentIndex: number;
   answers: (number | null)[];
+  savedAt?: number;       // Unix ms timestamp of when progress was last written
+  questionCount?: number; // Number of questions in the quiz at save time
 }
 
 function progressKey(slug: string) {
@@ -324,12 +326,28 @@ export default function QuizScreen() {
             const savedRaw = await AsyncStorage.getItem(progressKey(slug));
             if (savedRaw) {
               const saved: SavedProgress = JSON.parse(savedRaw);
-              // Only offer resume if there's meaningful progress (answered at least one question)
-              if (saved.answers.some((a) => a !== null)) {
+              const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+              const currentQuestionCount = parsed.quizQuestions.length;
+              // Treat missing savedAt as expired (legacy saves have no timestamp)
+              const isExpired =
+                saved.savedAt === undefined ||
+                Date.now() - saved.savedAt > SEVEN_DAYS_MS;
+              // Treat missing questionCount as mismatched (legacy saves have no count)
+              const isStaleCount =
+                saved.questionCount === undefined ||
+                saved.questionCount !== currentQuestionCount;
+              // Only offer resume if there's meaningful progress (answered at
+              // least one question), the save isn't older than 7 days, and the
+              // question count hasn't changed since the session was saved.
+              if (
+                saved.answers.some((a) => a !== null) &&
+                !isExpired &&
+                !isStaleCount
+              ) {
                 setSavedProgress(saved);
                 setShowResumePrompt(true);
               } else {
-                // Stale/empty save — clear it silently
+                // Stale/empty/mismatched save — clear it silently
                 await AsyncStorage.removeItem(progressKey(slug));
               }
             }
@@ -352,13 +370,18 @@ export default function QuizScreen() {
     async (index: number, newAnswers: (number | null)[]) => {
       if (!slug) return;
       try {
-        const data: SavedProgress = { currentIndex: index, answers: newAnswers };
+        const data: SavedProgress = {
+          currentIndex: index,
+          answers: newAnswers,
+          savedAt: Date.now(),
+          questionCount: questions.length,
+        };
         await AsyncStorage.setItem(progressKey(slug), JSON.stringify(data));
       } catch {
         // Non-critical — ignore storage errors
       }
     },
-    [slug]
+    [slug, questions.length]
   );
 
   // Clear persisted progress
