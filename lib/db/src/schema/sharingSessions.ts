@@ -2,10 +2,11 @@ import { pgTable, uuid, text, doublePrecision, integer, timestamp } from "drizzl
 
 // Live trip-sharing sessions. Created when a driver taps "Share Trip" and
 // receives GPS pings every ~8 s while navigation is active. The session token
-// is the public share ID embedded in the live-tracker URL — it is a random
-// UUID, not guessable from the deviceId or any other known value.
+// is the private UUID used by the driver for PATCH/DELETE. The shortCode is
+// an 8-char human-readable code used in the public share URL (/live/A3X9K2QP).
 export const sharingSessionsTable = pgTable("sharing_sessions", {
   token:              uuid("token").primaryKey().defaultRandom(),
+  shortCode:          text("short_code").unique(),  // e.g. "A3X9K2QP" — used in shared URLs
   deviceId:           text("device_id").notNull(),
   destinationName:    text("destination_name"),
   destinationLat:     doublePrecision("destination_lat"),

@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { db, sharingSessionsTable } from "@workspace/db";
 import { eq, and, isNull, lt } from "drizzle-orm";
+import { randomBytes } from "crypto";
 import { logger } from "../lib/logger.js";
 
 const router: Router = Router();
@@ -9,6 +10,13 @@ const router: Router = Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isValidUuid(s: string): boolean { return UUID_RE.test(s); }
+
+// 8 unambiguous chars (no I/O/0/1) — e.g. "A3X9K2QP"
+const SHORT_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function generateShortCode(): string {
+  const bytes = randomBytes(8);
+  return Array.from(bytes).map(b => SHORT_CHARS[b % SHORT_CHARS.length]).join("");
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +57,7 @@ router.post("/share/session", async (req: Request, res: Response) => {
       .insert(sharingSessionsTable)
       .values({
         deviceId,
+        shortCode:       generateShortCode(),
         destinationName: destinationName ?? null,
         destinationLat:  destinationLat  != null ? Number(destinationLat)  : null,
         destinationLng:  destinationLng  != null ? Number(destinationLng)  : null,
@@ -56,10 +65,14 @@ router.post("/share/session", async (req: Request, res: Response) => {
         lng: lng != null ? Number(lng) : null,
         expiresAt,
       })
-      .returning({ token: sharingSessionsTable.token, expiresAt: sharingSessionsTable.expiresAt });
+      .returning({
+        token:     sharingSessionsTable.token,
+        shortCode: sharingSessionsTable.shortCode,
+        expiresAt: sharingSessionsTable.expiresAt,
+      });
 
-    logger.info({ token: session.token }, "share session created");
-    res.json({ token: session.token, expiresAt: session.expiresAt });
+    logger.info({ token: session.token, shortCode: session.shortCode }, "share session created");
+    res.json({ token: session.token, shortCode: session.shortCode, expiresAt: session.expiresAt });
   } catch (err) {
     logger.error(err, "failed to create share session");
     res.status(500).json({ error: "failed to create session" });
@@ -142,31 +155,39 @@ router.delete("/share/:token", async (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-// ── GET /share/:token — viewer polls for the latest state ─────────────────────
+// ── GET /share/:code — viewer polls for the latest state ──────────────────────
+// Accepts either an 8-char shortCode (new) or a full UUID (backward compat).
 // Public — no auth required. Lazy-expires stale sessions before returning.
-router.get("/share/:token", async (req: Request, res: Response) => {
-  const token = req.params["token"] as string;
-  if (!isValidUuid(token)) { res.status(404).json({ error: "session not found" }); return; }
+router.get("/share/:code", async (req: Request, res: Response) => {
+  const code = (req.params["code"] as string).toUpperCase();
 
   await expireStale();
 
+  const selectFields = {
+    lat:                sharingSessionsTable.lat,
+    lng:                sharingSessionsTable.lng,
+    speedKmh:           sharingSessionsTable.speedKmh,
+    durationRemainingS: sharingSessionsTable.durationRemainingS,
+    distanceRemainingM: sharingSessionsTable.distanceRemainingM,
+    destinationName:    sharingSessionsTable.destinationName,
+    destinationLat:     sharingSessionsTable.destinationLat,
+    destinationLng:     sharingSessionsTable.destinationLng,
+    lastPingAt:         sharingSessionsTable.lastPingAt,
+    endedAt:            sharingSessionsTable.endedAt,
+    expiresAt:          sharingSessionsTable.expiresAt,
+    createdAt:          sharingSessionsTable.createdAt,
+  };
+
+  // Try short code first; fall back to UUID for backward compatibility
+  const isUuid = isValidUuid(code);
   const [session] = await db
-    .select({
-      lat:                sharingSessionsTable.lat,
-      lng:                sharingSessionsTable.lng,
-      speedKmh:           sharingSessionsTable.speedKmh,
-      durationRemainingS: sharingSessionsTable.durationRemainingS,
-      distanceRemainingM: sharingSessionsTable.distanceRemainingM,
-      destinationName:    sharingSessionsTable.destinationName,
-      destinationLat:     sharingSessionsTable.destinationLat,
-      destinationLng:     sharingSessionsTable.destinationLng,
-      lastPingAt:         sharingSessionsTable.lastPingAt,
-      endedAt:            sharingSessionsTable.endedAt,
-      expiresAt:          sharingSessionsTable.expiresAt,
-      createdAt:          sharingSessionsTable.createdAt,
-    })
+    .select(selectFields)
     .from(sharingSessionsTable)
-    .where(eq(sharingSessionsTable.token, token));
+    .where(
+      isUuid
+        ? eq(sharingSessionsTable.token, code.toLowerCase())
+        : eq(sharingSessionsTable.shortCode, code),
+    );
 
   if (!session) { res.status(404).json({ error: "session not found" }); return; }
 

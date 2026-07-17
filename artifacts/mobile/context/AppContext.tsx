@@ -1540,7 +1540,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const startSharingTrip = useCallback(async (): Promise<string | null> => {
     if (!deviceIdRef.current) return null;
     try {
-      const data = await apiPost<{ token: string }>("/share/session", {
+      const data = await apiPost<{ token: string; shortCode: string | null }>("/share/session", {
         deviceId:        deviceIdRef.current,
         destinationName: navDestRef.current?.name ?? null,
         destinationLat:  navDestRef.current?.lat  ?? null,
@@ -1570,7 +1570,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         } catch { /* ignore ping failures — next interval will retry */ }
       }, 8000);
-      return `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${data.token}`;
+      const code = data.shortCode ?? data.token;
+      return `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${code}`;
     } catch (e) {
       console.warn("startSharingTrip failed:", e);
       return null;
