@@ -1,7 +1,8 @@
+import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 // ─── iOS-only: all native-tab / SF-symbol imports are gated behind
@@ -80,6 +81,8 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const isWeb = Platform.OS === "web";
 
   const icon = (featherName: React.ComponentProps<typeof Feather>["name"], sfName: string) =>
@@ -103,12 +106,18 @@ function ClassicTabLayout() {
         },
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: "transparent",
-          borderTopWidth: 0,
+          backgroundColor: isIOS ? "transparent" : colors.background,
+          borderTopWidth: isWeb ? 1 : 0,
+          borderTopColor: colors.border,
           elevation: 0,
           ...(isWeb ? { height: 84 } : { height: 92 }),
         },
-        tabBarBackground: () => null,
+        tabBarBackground: () =>
+          isIOS ? (
+            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          ) : isWeb ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+          ) : null,
       }}
     >
       <Tabs.Screen name="index"   options={{ title: "Drive",   tabBarIcon: icon("activity",   "gauge") }} />
