@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Constants from "expo-constants";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -36,7 +37,7 @@ export default function SettingsScreen() {
     clearAllData,
   } = useApp();
 
-  const { isSubscribed } = useSubscription();
+  const { isSubscribed, reviewerMode, setReviewerMode } = useSubscription();
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [name, setName] = useState(sosContact?.name ?? "");
@@ -45,6 +46,34 @@ export default function SettingsScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSpeed, setEditSpeed] = useState("");
   const [flaggingReportId, setFlaggingReportId] = useState<string | null>(null);
+
+  // Hidden reviewer-mode tap counter — 7 rapid taps on the version number
+  const reviewerTapCount = useRef(0);
+  const reviewerTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleVersionTap = () => {
+    reviewerTapCount.current += 1;
+    if (reviewerTapTimer.current) clearTimeout(reviewerTapTimer.current);
+    if (reviewerTapCount.current >= 7) {
+      reviewerTapCount.current = 0;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const next = !reviewerMode;
+      Alert.alert(
+        next ? "Reviewer Mode" : "Reviewer Mode",
+        next
+          ? "Enable Reviewer Mode? All Pro features will be unlocked without a subscription. Tap the version 7 times again to disable."
+          : "Disable Reviewer Mode? The paywall will be restored.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: next ? "Enable" : "Disable",
+            onPress: () => setReviewerMode(next),
+          },
+        ]
+      );
+    } else {
+      reviewerTapTimer.current = setTimeout(() => { reviewerTapCount.current = 0; }, 1500);
+    }
+  };
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -643,6 +672,21 @@ export default function SettingsScreen() {
           <Row label="Privacy Policy"   icon="shield-outline"             onPress={() => router.push("/privacy")} />
           <Row label="Terms of Service" icon="document-text-outline"      onPress={() => router.push("/terms")} />
         </View>
+        {/* Version — hidden 7-tap gesture unlocks Reviewer Mode for store reviewers */}
+        <TouchableOpacity
+          onPress={handleVersionTap}
+          activeOpacity={0.6}
+          style={{ alignItems: "center", paddingVertical: 14 }}
+        >
+          <Text style={[styles.aboutVersion, { color: c.mutedForeground }]}>
+            Msafiri Kenya v{Constants.expoConfig?.version ?? "1.0.0"}
+          </Text>
+          {reviewerMode && (
+            <Text style={{ fontSize: 10, color: c.primary, fontFamily: "Inter_500Medium", marginTop: 3 }}>
+              ✦ Reviewer Mode Active
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
     </ScrollView>
 

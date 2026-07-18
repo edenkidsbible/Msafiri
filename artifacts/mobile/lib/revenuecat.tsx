@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import Purchases from "react-native-purchases";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
@@ -43,6 +44,8 @@ export function initializeRevenueCat() {
   Purchases.configure({ apiKey });
   console.log("RevenueCat configured");
 }
+
+const REVIEWER_MODE_KEY = "sdk_reviewer_mode";
 
 function useSubscriptionContext() {
   const customerInfoQuery = useQuery({
@@ -94,8 +97,26 @@ function useSubscriptionContext() {
     onSuccess: () => customerInfoQuery.refetch(),
   });
 
+  // Reviewer mode — toggled by a hidden 7-tap gesture in Settings.
+  // Persisted to AsyncStorage so it survives app restarts during store review.
+  const [reviewerMode, setReviewerModeState] = React.useState(false);
+  React.useEffect(() => {
+    AsyncStorage.getItem(REVIEWER_MODE_KEY)
+      .then(v => { if (v === "true") setReviewerModeState(true); })
+      .catch(() => {});
+  }, []);
+  const setReviewerMode = async (enabled: boolean) => {
+    setReviewerModeState(enabled);
+    if (enabled) {
+      await AsyncStorage.setItem(REVIEWER_MODE_KEY, "true");
+    } else {
+      await AsyncStorage.removeItem(REVIEWER_MODE_KEY);
+    }
+  };
+
   const isSubscribed =
     BYPASS_PAYWALL ||
+    reviewerMode ||
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
   return {
@@ -109,6 +130,8 @@ function useSubscriptionContext() {
     isRestoring: restoreMutation.isPending,
     isTrialEligible,
     error: customerInfoQuery.error ?? offeringsQuery.error ?? purchaseMutation.error ?? null,
+    reviewerMode,
+    setReviewerMode,
   };
 }
 
