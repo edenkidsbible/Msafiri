@@ -132,14 +132,10 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  // On iOS, use the native UITabBarController via expo-router/unstable-native-tabs.
-  // On iOS 18+ this automatically renders Apple's new floating tab bar (collapses
-  // to icons-only while scrolling). On iOS 17 and below it falls back to the
-  // standard UITabBarController — if you have 6 tabs that triggers the "More"
-  // button, but iOS 18 handles additional tabs without it.
-  // Android and web always use ClassicTabLayout (React Navigation + BlurView).
-  if (isIOS && NativeTabsModule) {
-    return <NativeTabLayout />;
-  }
+  // ClassicTabLayout is used on all platforms.
+  // NativeTabLayout was removed because iOS UITabBarController auto-collapses
+  // any tab bar with 6+ items into 4 tabs + a "More" button — unavoidable with
+  // the native API. ClassicTabLayout (React Navigation + BlurView) renders all
+  // six tabs without this restriction and still uses SF Symbols on iOS.
   return <ClassicTabLayout />;
 }
