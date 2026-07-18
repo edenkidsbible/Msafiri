@@ -82,24 +82,46 @@ function PaywallBypassBanner() {
 }
 
 /**
- * Parse a geo: URI or msafiri://navigate URL into a {name, lat, lng} object,
- * or return null if the URL is not a recognisable navigation link.
+ * Parse a navigation URL into a {name, lat, lng} object, or return null if
+ * the URL is not a recognisable navigation link.
  *
  * Supported formats:
- *   geo:lat,lng
- *   geo:lat,lng?q=lat,lng(Label)
- *   geo:0,0?q=lat,lng(Label)
- *   msafiri://navigate?lat=X&lng=Y&name=Label
+ *   geo:lat,lng                                (Android geo: intent)
+ *   geo:lat,lng?q=lat,lng(Label)               (Android geo: with label)
+ *   geo:0,0?q=lat,lng(Label)                   (WhatsApp Android format)
+ *   msafiri://navigate?lat=X&lng=Y&name=Label  (our own deep link)
+ *   msafiri://maps?daddr=lat,lng               (iOS Apple Maps handoff format)
+ *   msafiri://maps?daddr=lat,lng&saddr=...     (iOS with source — daddr only used)
  */
 function parseNavigationUrl(url: string): { name: string; lat: number; lng: number } | null {
   try {
-    // ── msafiri:// deep link ──────────────────────────────────────────────
+    // ── msafiri:// deep links ─────────────────────────────────────────────
     if (url.startsWith("msafiri://navigate")) {
       const parsed = Linking.parse(url);
       const lat = parseFloat((parsed.queryParams?.lat as string) ?? "");
       const lng = parseFloat((parsed.queryParams?.lng as string) ?? "");
       const name = (parsed.queryParams?.name as string) || "Shared location";
       if (!isNaN(lat) && !isNaN(lng)) return { name, lat, lng };
+    }
+
+    // ── iOS Apple Maps handoff format ─────────────────────────────────────
+    // When a user picks Msafiri from the iOS directions chooser (e.g. after
+    // tapping directions on a WhatsApp location), Apple Maps opens the app
+    // with: msafiri://maps?daddr=DESTINATION&saddr=SOURCE
+    // daddr can be "lat,lng" or a place name — we only handle the coord form.
+    if (url.startsWith("msafiri://maps")) {
+      const parsed = Linking.parse(url);
+      const daddr = (parsed.queryParams?.daddr as string) ?? "";
+      // daddr may be "lat,lng" or "lat,lng (Label)" or a plain address string
+      const coordMatch = daddr.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        // Label is anything in parentheses after the coords, or fallback
+        const labelMatch = daddr.match(/\((.+)\)$/);
+        const name = labelMatch ? labelMatch[1] : "Shared location";
+        if (!isNaN(lat) && !isNaN(lng)) return { name, lat, lng };
+      }
     }
 
     // ── geo: URI (Android intent, also valid on iOS) ──────────────────────
