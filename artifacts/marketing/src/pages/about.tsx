@@ -121,7 +121,7 @@ export default function About() {
         </p>
         <div style={{ display: "flex", justifyContent: "center", gap: "1rem", flexWrap: "wrap" }}>
           <a
-            href="https://apps.apple.com/app/msafiri-kenya/id6744942860"
+            href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834"
             target="_blank"
             rel="noopener noreferrer"
             style={{ display: "inline-block", padding: "0.625rem 1.25rem", background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", borderRadius: "0.5rem", fontWeight: 700, fontSize: "0.875rem", textDecoration: "none" }}

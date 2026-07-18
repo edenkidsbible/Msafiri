@@ -173,7 +173,7 @@ export default function SettingsScreen() {
       message:
         "Drive smarter with Msafiri Kenya 🚗\n\n" +
         "Get real-time speed camera alerts, police checkpoint warnings, and live traffic incidents before you reach them.\n\n" +
-        "📱 iOS: https://apps.apple.com/app/msafiri-kenya/id6744942860\n\n" +
+        "📱 iOS: https://apps.apple.com/us/app/msafiri-kenya/id6789483834\n\n" +
         "🤖 Android: https://play.google.com/store/apps/details?id=com.msafiri.kenya",
     });
   };
