@@ -1,6 +1,6 @@
 import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable } from "@workspace/db";
 import { and, eq, lte, gte, isNull, or, ne, isNotNull } from "drizzle-orm";
-import { sendPushNotifications } from "../lib/expoPush.js";
+import { sendPushNotifications, flushBadTokensFromReceipts } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
 // ─── Rotating daily messages ─────────────────────────────────────────────────
@@ -149,7 +149,7 @@ async function sendAutoCampaign(type: string, title: string, body: string): Prom
     .returning();
 
   const { ok, failed } = await sendPushNotifications(
-    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, data: { type } }))
+    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, channelId: "default", data: { type } }))
   );
 
   await db
@@ -191,6 +191,7 @@ async function processScheduledCampaigns(): Promise<void> {
         title: campaign.title,
         body: campaign.body,
         sound: "default" as const,
+        channelId: "default",
         data: campaign.dataJson ? (JSON.parse(campaign.dataJson) as Record<string, unknown>) : {},
       }));
 
@@ -598,12 +599,34 @@ async function runJob(): Promise<void> {
   }
 }
 
+// ── Receipt-based bad token purge ─────────────────────────────────────────────
+// Runs every 30 minutes (receipts are available ~15–30 min after send).
+// Deletes any push_tokens that APNs/FCM confirmed as permanently invalid.
+async function purgeDeadTokens(): Promise<void> {
+  try {
+    const badTokens = await flushBadTokensFromReceipts();
+    if (badTokens.length === 0) return;
+    for (const token of badTokens) {
+      await db.delete(pushTokensTable).where(eq(pushTokensTable.token, token));
+    }
+    logger.info({ count: badTokens.length }, "Purged dead push tokens via receipt check");
+  } catch (err) {
+    logger.warn({ err }, "purgeDeadTokens failed");
+  }
+}
+
 export function startPushNotificationsJob(): NodeJS.Timeout {
   logger.info("pushNotifications job started");
 
   runJob().catch((err) =>
     logger.warn({ err }, "pushNotifications: initial run failed")
   );
+
+  // Receipt purge — wait 30 min after startup for the first check, then every 30 min
+  setTimeout(() => {
+    purgeDeadTokens();
+    setInterval(purgeDeadTokens, 30 * 60 * 1000);
+  }, 30 * 60 * 1000);
 
   return setInterval(() => {
     runJob().catch((err) =>
