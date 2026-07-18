@@ -1,14 +1,15 @@
 /**
  * seedCourseIfEmpty — runs at API server startup.
  *
- * If course_chapters is empty (first deploy / fresh DB), reads the JSON
- * course files bundled in the monorepo and upserts all chapters, lessons,
- * and quiz questions. Safe to run repeatedly — all inserts are ON CONFLICT
- * DO UPDATE (idempotent).
+ * If course_chapters is empty (first deploy / fresh DB), upserts all chapters,
+ * lessons, and quiz questions from the data bundled at build time.
+ *
+ * The chapter JSON files are imported statically (see courseChapterFiles.ts)
+ * so esbuild inlines them into dist/index.mjs.  Runtime fs.readFileSync is
+ * intentionally NOT used — the source files don't exist on the production
+ * server; only the compiled bundle does.
  */
 
-import fs from "fs";
-import path from "path";
 import { db } from "@workspace/db";
 import {
   courseChaptersTable,
@@ -17,65 +18,7 @@ import {
 } from "@workspace/db";
 import { sql, eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
-
-// ---------------------------------------------------------------------------
-// JSON shape (mirrors lib/db/src/data/course/*.json)
-// ---------------------------------------------------------------------------
-
-interface ContentBlock {
-  type: string;
-  text?: string;
-  items?: string[];
-  path?: string;
-  caption?: string;
-}
-
-interface QuizQuestion {
-  question: string;
-  options: string[];
-  correctIndex: number;
-}
-
-interface LessonData {
-  slug: string;
-  title: string;
-  order: number;
-  estimatedMinutes?: number;
-  content: ContentBlock[];
-  keyPoints: string[];
-  quiz: QuizQuestion[];
-}
-
-interface ChapterFile {
-  slug: string;
-  title: string;
-  order: number;
-  lessons: LessonData[];
-}
-
-interface IndexEntry {
-  slug: string;
-  title: string;
-  order: number;
-  filename: string;
-}
-
-interface CourseIndex {
-  chapters: IndexEntry[];
-}
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
-/**
- * Path to the course JSON data directory.
- * The API server runs from artifacts/api-server/ so process.cwd() is that
- * directory; two levels up reaches the monorepo root.
- */
-function dataDir(): string {
-  return path.resolve(process.cwd(), "../../lib/db/src/data/course");
-}
+import { allChapterFiles } from "./courseChapterFiles";
 
 export async function seedCourseIfEmpty(): Promise<void> {
   try {
@@ -88,30 +31,15 @@ export async function seedCourseIfEmpty(): Promise<void> {
       return;
     }
 
-    logger.info("Course tables empty — seeding course content…");
-
-    const dir = dataDir();
-    const indexPath = path.join(dir, "index.json");
-
-    if (!fs.existsSync(indexPath)) {
-      logger.warn({ indexPath }, "Course index.json not found — skipping seed");
-      return;
-    }
-
-    const index: CourseIndex = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+    logger.info(
+      { chapters: allChapterFiles.length },
+      "Course tables empty — seeding course content…"
+    );
 
     let chaptersUpserted = 0;
     let lessonsUpserted = 0;
 
-    for (const entry of index.chapters) {
-      const filePath = path.join(dir, entry.filename);
-      if (!fs.existsSync(filePath)) {
-        logger.warn({ file: entry.filename }, "Missing chapter file — skipping");
-        continue;
-      }
-
-      const chapter: ChapterFile = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-
+    for (const chapter of allChapterFiles) {
       // Upsert chapter
       const [{ chapterId }] = await db
         .insert(courseChaptersTable)
@@ -173,6 +101,6 @@ export async function seedCourseIfEmpty(): Promise<void> {
 
     logger.info({ chaptersUpserted, lessonsUpserted }, "Course seed complete");
   } catch (err) {
-    logger.warn({ err }, "seedCourseIfEmpty failed — app will continue without course data");
+    logger.error({ err }, "seedCourseIfEmpty failed");
   }
 }
