@@ -94,9 +94,9 @@ export default function PaywallScreen() {
     }
   }
 
-  // Hidden reviewer bypass — tap the logo 7 times quickly.
-  // Unlocks Pro and routes straight into the app so store reviewers can
-  // evaluate the full experience without a real subscription.
+  // Hidden reviewer bypass — tap the logo 4 times quickly.
+  // Unlocks full access and routes straight into the app so store reviewers
+  // can evaluate the complete experience without a subscription.
   const logoTapCount = useRef(0);
   const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleLogoTap() {
@@ -107,7 +107,7 @@ export default function PaywallScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "Reviewer Mode",
-        "Enable Reviewer Mode? All Pro features will be unlocked so you can review the full app experience without a subscription.",
+        "Enable Reviewer Mode? Full app access will be unlocked so you can review the complete experience without a subscription.",
         [
           { text: "Cancel", style: "cancel" },
           {

@@ -60,7 +60,7 @@ export default function SettingsScreen() {
       Alert.alert(
         next ? "Reviewer Mode" : "Reviewer Mode",
         next
-          ? "Enable Reviewer Mode? All Pro features will be unlocked without a subscription. Tap the version 7 times again to disable."
+          ? "Enable Reviewer Mode? Full app access will be unlocked without a subscription. Tap the version number 4 times again to disable."
           : "Disable Reviewer Mode? The paywall will be restored.",
         [
           { text: "Cancel", style: "cancel" },
@@ -215,12 +215,12 @@ export default function SettingsScreen() {
         <Text style={[styles.pageTitle, { color: c.foreground }]}>Settings</Text>
       </View>
 
-      {/* Pro subscription banner */}
+      {/* Subscription banner */}
       {isSubscribed ? (
         <View style={[styles.proBanner, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
           <Ionicons name="shield-checkmark" size={20} color={c.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.proBannerTitle, { color: c.foreground }]}>Msafiri Pro</Text>
+            <Text style={[styles.proBannerTitle, { color: c.foreground }]}>Msafiri</Text>
             <Text style={[styles.proBannerSub, { color: c.mutedForeground }]}>Your subscription is active</Text>
           </View>
         </View>
@@ -232,7 +232,7 @@ export default function SettingsScreen() {
         >
           <Ionicons name="shield-checkmark-outline" size={20} color={c.primaryForeground} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Upgrade to Msafiri Pro</Text>
+            <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Subscribe to Msafiri</Text>
             <Text style={[styles.proBannerSub, { color: c.primaryForeground + "CC" }]}>
               From KES 100/week · 3-day free trial
             </Text>
