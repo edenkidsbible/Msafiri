@@ -26,6 +26,11 @@ interface ExpoPushTicket {
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const CHUNK_SIZE = 100;
 
+// When set, the Authorization header ties push requests to your Expo account
+// so Expo uses your project's registered APNs/FCM credentials and applies the
+// paid-tier rate limits instead of the anonymous (very low) free limit.
+const EXPO_ACCESS_TOKEN = process.env.EXPO_ACCESS_TOKEN ?? null;
+
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {
@@ -44,13 +49,18 @@ export async function sendPushNotifications(
 
   for (const chunk of chunkArray(messages, CHUNK_SIZE)) {
     try {
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      };
+      if (EXPO_ACCESS_TOKEN) {
+        headers["Authorization"] = `Bearer ${EXPO_ACCESS_TOKEN}`;
+      }
+
       const response = await fetch(EXPO_PUSH_URL, {
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Accept-Encoding": "gzip, deflate",
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(chunk),
       });
 

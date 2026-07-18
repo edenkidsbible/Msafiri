@@ -1,10 +1,17 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiGet } from "@/utils/apiClient";
 import { useApp, CommunityReport } from "@/context/AppContext";
+
+// Resolved at build time from app.json → extra.eas.projectId.
+// Expo requires this in production to route push tokens to the correct project.
+const EAS_PROJECT_ID =
+  (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
+    ?.eas?.projectId ?? "465586c3-648b-459e-b3c9-1983e1a62ffb";
 
 const DEVICE_ID_KEY = "@msafiri/deviceId";
 const TOKEN_KEY = "@msafiri/pushToken";
@@ -63,9 +70,13 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
 
   let tokenData: Notifications.ExpoPushToken;
   try {
-    tokenData = await Notifications.getExpoPushTokenAsync();
-  } catch {
-    // Not a physical device or projectId not set — skip silently
+    // projectId is required in production builds — without it the call throws
+    // and the catch block returns early, silently preventing all notifications.
+    tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: EAS_PROJECT_ID,
+    });
+  } catch (err) {
+    console.warn("[usePushNotifications] getExpoPushTokenAsync failed:", err);
     return;
   }
 
