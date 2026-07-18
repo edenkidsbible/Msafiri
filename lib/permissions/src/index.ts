@@ -32,6 +32,7 @@ export const FEATURE_GROUPS = [
       { key: "audit_log", label: "Audit Log" },
       { key: "dashboard", label: "Analytics Dashboard" },
       { key: "team", label: "Team Member Management" },
+      { key: "app_settings", label: "App Settings (reviewer mode, etc.)" },
     ],
   },
 ] as const;

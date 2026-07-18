@@ -14,6 +14,7 @@ import releasesRouter from "./releases.js";
 import blogRouter from "./blog.js";
 import creatorsRouter from "./creators.js";
 import searchRouter from "./search.js";
+import settingsRouter from "./settings.js";
 
 const router = Router();
 
@@ -75,5 +76,6 @@ router.use("/blog", requireFeature("blog"), blogRouter);
 router.use(scopedFeature("/creators", "creators"), creatorsRouter);
 router.use(scopedFeature("/stats", "dashboard"), statsRouter);
 router.use(scopedFeature("/users", "team"), usersRouter);
+router.use(scopedFeature("/settings", "app_settings"), settingsRouter);
 
 export default router;

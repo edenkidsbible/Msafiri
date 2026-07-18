@@ -97,13 +97,33 @@ function useSubscriptionContext() {
     onSuccess: () => customerInfoQuery.refetch(),
   });
 
-  // Reviewer mode — toggled by a hidden 7-tap gesture in Settings.
-  // Persisted to AsyncStorage so it survives app restarts during store review.
+  // Reviewer mode — toggled by a hidden 4-tap gesture on the paywall logo.
+  // Persisted to AsyncStorage so it survives restarts during store review.
+  // On each startup we check a public API endpoint: if an admin has disabled
+  // it from the dashboard, the local flag is cleared on all devices instantly.
   const [reviewerMode, setReviewerModeState] = React.useState(false);
   React.useEffect(() => {
-    AsyncStorage.getItem(REVIEWER_MODE_KEY)
-      .then(v => { if (v === "true") setReviewerModeState(true); })
-      .catch(() => {});
+    (async () => {
+      try {
+        const domain = process.env.EXPO_PUBLIC_DOMAIN;
+        if (domain) {
+          const res = await fetch(`https://${domain}/api/settings/reviewer-mode`);
+          if (res.ok) {
+            const { enabled } = (await res.json()) as { enabled: boolean };
+            if (!enabled) {
+              // Admin killed reviewer mode remotely — wipe the local flag
+              await AsyncStorage.removeItem(REVIEWER_MODE_KEY);
+              setReviewerModeState(false);
+              return;
+            }
+          }
+        }
+      } catch { /* network unavailable — fall back to local storage */ }
+      // Remote allows it (or unreachable) — restore from local storage
+      AsyncStorage.getItem(REVIEWER_MODE_KEY)
+        .then(v => { if (v === "true") setReviewerModeState(true); })
+        .catch(() => {});
+    })();
   }, []);
   const setReviewerMode = async (enabled: boolean) => {
     setReviewerModeState(enabled);

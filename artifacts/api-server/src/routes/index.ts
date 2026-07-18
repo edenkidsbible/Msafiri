@@ -10,6 +10,7 @@ import creatorsRouter from "./creators.js";
 import adminRouter from "./admin/index.js";
 import shareRouter from "./share.js";
 import courseRouter from "./course.js";
+import publicSettingsRouter from "./settings.js";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(creatorsRouter);
 router.use("/admin", adminRouter);
 router.use(shareRouter);
 router.use(courseRouter);
+router.use(publicSettingsRouter);
 
 export default router;
