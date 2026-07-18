@@ -297,7 +297,7 @@ export default function PaywallScreen() {
       <View style={styles.logoRow}>
         {/* Spacer so logo stays centred */}
         <View style={styles.logoSide} />
-        {/* Logo — hidden 7-tap gesture unlocks Reviewer Mode for store reviewers */}
+        {/* "Msafiri" text — hidden 4-tap gesture unlocks Reviewer Mode for store reviewers */}
         <TouchableOpacity
           style={styles.logoCenter}
           onPress={handleLogoTap}

@@ -83,7 +83,7 @@ export default function SettingsPage() {
                   ) : null}
                 </CardTitle>
                 <CardDescription className="mt-1.5">
-                  When enabled, store reviewers can tap the <strong>Msafiri logo 4 times</strong> on
+                  When enabled, store reviewers can tap the <strong>word "Msafiri" 4 times</strong> on
                   the paywall screen to unlock the full app without a subscription. Disable this
                   once your review is approved.
                 </CardDescription>
@@ -103,7 +103,7 @@ export default function SettingsPage() {
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-700 dark:text-amber-300 leading-relaxed">
                   The reviewer bypass is <strong>active</strong>. Any device can tap the paywall logo
-                  4 times to unlock full app access. Disable this as soon as your store review is approved.
+                  4 times (the word, not the icon) to unlock full app access. Disable this as soon as your store review is approved.
                 </p>
               </div>
             </CardContent>

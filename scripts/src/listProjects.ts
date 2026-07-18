@@ -1,41 +1,18 @@
 import { getUncachableRevenueCatClient } from "./revenueCatClient";
-import { listProjects, listApps, listAppPublicApiKeys } from "@replit/revenuecat-sdk";
+import { listProjects, listApps } from "@replit/revenuecat-sdk";
 
-async function main() {
+async function run() {
   const client = await getUncachableRevenueCatClient();
-
-  const { data: projects, error } = await listProjects({ client });
-  if (error) { console.error("Error:", JSON.stringify(error)); return; }
-
-  console.log(`Found ${projects.items.length} project(s):\n`);
-
-  for (const project of projects.items) {
-    console.log(`PROJECT: "${project.name}" id=${project.id}`);
-
-    const { data: apps } = await listApps({
-      client,
-      path: { project_id: project.id },
-    });
-
-    if (apps?.items) {
-      for (const app of apps.items) {
-        console.log(`  APP: "${app.name}" id=${app.id} type=${app.type}`);
-
-        const { data: keys } = await listAppPublicApiKeys({
-          client,
-          path: { project_id: project.id, app_id: app.id },
-        });
-        if (keys?.items?.length) {
-          for (const key of keys.items) {
-            // key object shape varies — print everything
-            const keyStr = JSON.stringify(key);
-            console.log(`    KEY: ${keyStr}`);
-          }
-        }
-      }
+  const { data, error } = await listProjects({ client, query: { limit: 20 } });
+  if (error) { console.error("listProjects error:", JSON.stringify(error)); return; }
+  console.log(`Found ${data.items?.length ?? 0} project(s):`);
+  for (const p of data.items ?? []) {
+    console.log(`  [${p.id}] "${p.name}"`);
+    const { data: apps } = await listApps({ client, path: { project_id: p.id }, query: { limit: 20 } });
+    for (const a of apps?.items ?? []) {
+      console.log(`    app [${a.id}] type=${a.type} name="${a.name}"`);
     }
-    console.log();
   }
 }
 
-main().catch(console.error);
+run().catch(console.error);
