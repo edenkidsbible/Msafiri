@@ -27,10 +27,6 @@ import { formatTimeAgo } from "@/lib/timeAgo";
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
 const CLUSTER_DIST_M = 35;
-// Only render speed-zone markers within this radius. Beyond it the icons are
-// too small to be useful anyway, and rendering 100+ custom views at once is
-// the single largest source of OOM crashes on low-end Android devices.
-const ZONE_RENDER_RADIUS_M = 15000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -282,16 +278,10 @@ const DriveMapView = forwardRef(function DriveMapView(
     return POIS.filter((p) => haversine(currentLat, currentLng, p.lat, p.lng) <= POI_RADIUS_M).slice(0, 25);
   }, [currentLat, currentLng]);
 
-  // Limit rendered zone markers to those within ZONE_RENDER_RADIUS_M of the
-  // user. Rendering all 100+ zones at once can trigger OOM crashes on
-  // low-end Android devices; zones further than 15 km are outside the
-  // useful drive-view zoom level anyway.
-  const visibleZones = useMemo(() => {
-    if (currentLat == null || currentLng == null) return allZones.slice(0, 60);
-    return allZones
-      .filter((z) => haversine(currentLat, currentLng, z.lat, z.lng) <= ZONE_RENDER_RADIUS_M)
-      .slice(0, 80);
-  }, [allZones, currentLat, currentLng]);
+  // Render all zones — no radius cap, no slice limit. The full dataset is
+  // small enough (few hundred markers) that react-native-maps handles it fine,
+  // and showing every camera/zone gives drivers the most complete picture.
+  const visibleZones = allZones;
 
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
 

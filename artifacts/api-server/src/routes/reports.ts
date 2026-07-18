@@ -75,18 +75,40 @@ async function expireStale() {
     );
 }
 
-// ── GET /reports?lat=&lng=&radius= ────────────────────────────────────────────
+// ── GET /reports — all active community reports ────────────────────────────────
+// No lat/lng = return all active reports so the map always shows the full
+// dataset. Optional lat/lng/radius params preserved for legacy callers.
 router.get("/reports", async (req: Request, res: Response) => {
   try {
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
     const radius = parseFloat((req.query.radius as string) ?? "20000");
 
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({ error: "lat and lng are required" });
-    }
-
     await expireStale();
+
+    const toReport = (r: typeof communityReportsTable.$inferSelect) => ({
+      id: r.id,
+      type: r.type,
+      lat: r.lat,
+      lng: r.lng,
+      status: r.status,
+      confirmCount: r.confirmCount,
+      denyCount: r.denyCount,
+      speedLimit: r.speedLimit,
+      roadName: r.roadName,
+      createdAt: r.createdAt.getTime(),
+      expiresAt: r.expiresAt?.getTime() ?? null,
+    });
+
+    // When no coordinates are supplied return all active reports so the
+    // mobile app can show every incident on the map regardless of location.
+    if (isNaN(lat) || isNaN(lng)) {
+      const rows = await db
+        .select()
+        .from(communityReportsTable)
+        .where(isActive());
+      return res.json({ reports: rows.map(toReport) });
+    }
 
     // Bounding box (degrees) for the requested radius
     const latDelta = radius / 111320;
@@ -108,19 +130,7 @@ router.get("/reports", async (req: Request, res: Response) => {
     // Precise haversine distance filter
     const result = rows
       .filter((r) => haversine(lat, lng, r.lat, r.lng) <= radius)
-      .map((r) => ({
-        id: r.id,
-        type: r.type,
-        lat: r.lat,
-        lng: r.lng,
-        status: r.status,
-        confirmCount: r.confirmCount,
-        denyCount: r.denyCount,
-        speedLimit: r.speedLimit,
-        roadName: r.roadName,
-        createdAt: r.createdAt.getTime(),
-        expiresAt: r.expiresAt?.getTime() ?? null,
-      }));
+      .map(toReport);
 
     return res.json({ reports: result });
   } catch (err) {

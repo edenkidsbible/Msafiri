@@ -33,24 +33,27 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
   };
 }
 
-// GET /speed-zones?lat=&lng=&radius= — active zones near a point (mobile app)
+// GET /speed-zones — all active zones (no lat/lng = full dataset; optional
+// lat/lng/radius params preserved for legacy callers and admin tools).
 router.get("/speed-zones", async (req: Request, res: Response) => {
   try {
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
     const radius = parseFloat((req.query.radius as string) ?? "50000");
 
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({ error: "lat and lng are required" });
-    }
-
-    const latDelta = radius / 111320;
-    const lngDelta = radius / (111320 * Math.cos((lat * Math.PI) / 180));
-
     const rows = await db
       .select()
       .from(speedZonesTable)
       .where(eq(speedZonesTable.status, "active"));
+
+    // When no coordinates are supplied return everything so the mobile app
+    // can show all cameras and speed zones regardless of the driver's location.
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.json({ zones: rows.map(toClient) });
+    }
+
+    const latDelta = radius / 111320;
+    const lngDelta = radius / (111320 * Math.cos((lat * Math.PI) / 180));
 
     const result = rows
       .filter((z) => {

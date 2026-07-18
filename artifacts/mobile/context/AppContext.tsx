@@ -1271,18 +1271,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentLat, currentLng]);
 
-  // Remote report polling — fetch nearby reports every 60 s when online
+  // Remote report polling — fetch all active reports every 60 s when online.
+  // No radius filter: show every incident on the map regardless of location.
   useEffect(() => {
     if (!locationGranted) return;
     const poll = async () => {
-      if (isOfflineRef.current || !pollLocationRef.current || !deviceIdRef.current) return;
-      const { lat, lng } = pollLocationRef.current;
+      if (isOfflineRef.current || !deviceIdRef.current) return;
       try {
         const data = await apiGet<{ reports: Array<{
           id: string; type: string; lat: number; lng: number;
           status: string; confirmCount: number; denyCount: number;
           createdAt: number; expiresAt: number | null;
-        }> }>(`/reports?lat=${lat}&lng=${lng}&radius=20000`);
+        }> }>(`/reports`);
         const remote: CommunityReport[] = data.reports.map((r) => ({
           id: r.id,
           type: r.type as CommunityReport["type"],
@@ -1317,15 +1317,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationGranted]);
 
-  // Admin-managed speed zones — fetch nearby DB zones every 5 min when online,
+  // Admin-managed speed zones — fetch ALL DB zones every 5 min when online,
   // merged with the built-in static list (see allZones below).
+  // No radius filter: show every camera and zone on the map regardless of location.
   useEffect(() => {
     if (!locationGranted) return;
     const poll = async () => {
-      if (isOfflineRef.current || !pollLocationRef.current) return;
-      const { lat, lng } = pollLocationRef.current;
+      if (isOfflineRef.current) return;
       try {
-        const data = await apiGet<{ zones: ApiSpeedZone[] }>(`/speed-zones?lat=${lat}&lng=${lng}&radius=100000`);
+        const data = await apiGet<{ zones: ApiSpeedZone[] }>(`/speed-zones`);
         setDbZones(data.zones.flatMap(apiZoneToStaticZones));
         setDbStretches(data.zones.map(apiZoneToStretch).filter((s): s is SpeedStretch => s !== null));
       } catch { /* network error — keep previous DB zones */ }
