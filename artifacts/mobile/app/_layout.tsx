@@ -22,6 +22,7 @@ import { AppProvider, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
+import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 
 try {
@@ -184,7 +185,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web") return;
-    Font.loadAsync({
+    // Run font loading and OTA update check in parallel behind the splash screen.
+    // If an OTA update is available, checkForOTAUpdate() calls Updates.reloadAsync()
+    // and returns true — in that case the app restarts and we must NOT hide the
+    // splash screen (setReady must not be called).
+    const fontPromise = Font.loadAsync({
       Inter_400Regular,
       Inter_500Medium,
       Inter_600SemiBold,
@@ -195,9 +200,11 @@ export default function RootLayout() {
       // incident emoji render as random Chinese/Japanese characters.
       // Subsetted to only the ~18 codepoints this app actually uses.
       NotoColorEmoji: require("@/assets/fonts/NotoColorEmoji.ttf"),
-    })
-      .catch(() => {})
-      .finally(() => setReady(true));
+    }).catch(() => {});
+    const updatePromise = checkForOTAUpdate();
+    Promise.all([fontPromise, updatePromise]).then(([, didReload]) => {
+      if (!didReload) setReady(true);
+    });
   }, []);
 
   useEffect(() => {
