@@ -53,7 +53,7 @@ export default function SettingsScreen() {
   const handleVersionTap = () => {
     reviewerTapCount.current += 1;
     if (reviewerTapTimer.current) clearTimeout(reviewerTapTimer.current);
-    if (reviewerTapCount.current >= 7) {
+    if (reviewerTapCount.current >= 4) {
       reviewerTapCount.current = 0;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const next = !reviewerMode;

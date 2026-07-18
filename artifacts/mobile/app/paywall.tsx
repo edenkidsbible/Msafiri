@@ -102,7 +102,7 @@ export default function PaywallScreen() {
   function handleLogoTap() {
     logoTapCount.current += 1;
     if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
-    if (logoTapCount.current >= 7) {
+    if (logoTapCount.current >= 4) {
       logoTapCount.current = 0;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
