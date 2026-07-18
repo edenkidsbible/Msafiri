@@ -115,15 +115,22 @@ async function alreadySentToday(type: string): Promise<boolean> {
   const todayEnd = new Date();
   todayEnd.setUTCHours(23, 59, 59, 999);
 
+  // Include "sending" so that a campaign already in-flight (inserted but not
+  // yet marked "sent") blocks a concurrent job tick from firing a duplicate.
+  // Without this, two ticks within the 5-minute daily window can both pass
+  // the guard before either finishes writing status = "sent".
   const rows = await db
     .select({ id: pushCampaignsTable.id })
     .from(pushCampaignsTable)
     .where(
       and(
         eq(pushCampaignsTable.type, type),
-        eq(pushCampaignsTable.status, "sent"),
-        gte(pushCampaignsTable.sentAt, todayStart),
-        lte(pushCampaignsTable.sentAt, todayEnd)
+        or(
+          eq(pushCampaignsTable.status, "sent"),
+          eq(pushCampaignsTable.status, "sending")
+        ),
+        gte(pushCampaignsTable.createdAt, todayStart),
+        lte(pushCampaignsTable.createdAt, todayEnd)
       )
     )
     .limit(1);

@@ -6,10 +6,11 @@ import {
 } from "@expo-google-fonts/inter";
 import { StatusBar } from "expo-status-bar";
 import * as Font from "expo-font";
+import * as Linking from "expo-linking";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -80,8 +81,82 @@ function PaywallBypassBanner() {
   );
 }
 
+/**
+ * Parse a geo: URI or msafiri://navigate URL into a {name, lat, lng} object,
+ * or return null if the URL is not a recognisable navigation link.
+ *
+ * Supported formats:
+ *   geo:lat,lng
+ *   geo:lat,lng?q=lat,lng(Label)
+ *   geo:0,0?q=lat,lng(Label)
+ *   msafiri://navigate?lat=X&lng=Y&name=Label
+ */
+function parseNavigationUrl(url: string): { name: string; lat: number; lng: number } | null {
+  try {
+    // ── msafiri:// deep link ──────────────────────────────────────────────
+    if (url.startsWith("msafiri://navigate")) {
+      const parsed = Linking.parse(url);
+      const lat = parseFloat((parsed.queryParams?.lat as string) ?? "");
+      const lng = parseFloat((parsed.queryParams?.lng as string) ?? "");
+      const name = (parsed.queryParams?.name as string) || "Shared location";
+      if (!isNaN(lat) && !isNaN(lng)) return { name, lat, lng };
+    }
+
+    // ── geo: URI (Android intent, also valid on iOS) ──────────────────────
+    if (url.startsWith("geo:")) {
+      const withoutScheme = url.slice(4); // e.g. "lat,lng?q=..."
+      const [coords, queryString] = withoutScheme.split("?");
+
+      // Parse optional label from q parameter: q=lat,lng(Label) or q=Label
+      let label = "Shared location";
+      let qLat: number | null = null;
+      let qLng: number | null = null;
+      if (queryString) {
+        const qMatch = queryString.match(/q=([^&]+)/);
+        if (qMatch) {
+          const qVal = decodeURIComponent(qMatch[1]);
+          // q=lat,lng(Label)
+          const coordLabel = qVal.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)\((.+)\)$/);
+          if (coordLabel) {
+            qLat = parseFloat(coordLabel[1]);
+            qLng = parseFloat(coordLabel[2]);
+            label = coordLabel[3];
+          } else {
+            // q=lat,lng (no label)
+            const coordOnly = qVal.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+            if (coordOnly) {
+              qLat = parseFloat(coordOnly[1]);
+              qLng = parseFloat(coordOnly[2]);
+            } else {
+              // q is a plain text label — no coords in q
+              label = qVal;
+            }
+          }
+        }
+      }
+
+      // The main coord pair in "geo:lat,lng" — used when q= has no coords
+      const baseParts = coords?.split(",");
+      const baseLat = baseParts ? parseFloat(baseParts[0] ?? "") : NaN;
+      const baseLng = baseParts ? parseFloat(baseParts[1] ?? "") : NaN;
+
+      // If q= had explicit coords, prefer them; otherwise fall back to base pair
+      // (geo:0,0?q=lat,lng pattern is common in WhatsApp)
+      const finalLat = qLat ?? baseLat;
+      const finalLng = qLng ?? baseLng;
+
+      if (!isNaN(finalLat) && !isNaN(finalLng)) {
+        return { name: label, lat: finalLat, lng: finalLng };
+      }
+    }
+  } catch {
+    // Malformed URL — ignore
+  }
+  return null;
+}
+
 function RootLayoutNav() {
-  const { hydrated, onboardingComplete, requestLocationPermission } = useApp();
+  const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination } = useApp();
   const { isSubscribed, isLoading: subLoading } = useSubscription();
   const c = useColors();
   const router = useRouter();
@@ -134,6 +209,35 @@ function RootLayoutNav() {
       requestLocationPermission();
     }
   }, [hydrated, onboardingComplete, isSubscribed, subLoading, versionCheck]);
+
+  // ── Deep link handler (geo: URIs and msafiri:// scheme) ────────────────────
+  // Handles both cold-start (app launched from a location tap) and warm-start
+  // (app already running in background when the user taps a location link).
+  // Only navigates when the user has finished onboarding and is subscribed,
+  // so the destination is never set before the main tab navigator is mounted.
+  const handleNavigationUrl = useCallback(
+    (url: string) => {
+      if (!hydrated || !onboardingComplete || (!isSubscribed && !wasSubscribed.current)) return;
+      const dest = parseNavigationUrl(url);
+      if (!dest) return;
+      setNavDestination(dest);
+      // Navigate to the Drive tab (index) where the map and navigation live
+      router.replace("/(tabs)");
+    },
+    [hydrated, onboardingComplete, isSubscribed, setNavDestination, router]
+  );
+
+  useEffect(() => {
+    // Cold start: app was launched by tapping a location link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleNavigationUrl(url);
+    });
+
+    // Warm start: app was already running when a location link was tapped
+    const sub = Linking.addEventListener("url", ({ url }) => handleNavigationUrl(url));
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleNavigationUrl]);
 
   return (
     <View style={{ flex: 1 }}>
