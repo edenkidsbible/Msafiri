@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { startExpireReportsJob } from "./jobs/expireReports";
 import { startPushNotificationsJob } from "./jobs/pushNotifications";
+import { seedCourseIfEmpty } from "./startup/seedCourse";
 
 const rawPort = process.env["PORT"];
 
@@ -58,6 +59,7 @@ app.listen(port, async (err) => {
 
   logger.info({ port }, "Server listening");
   await seedDefaultAdmin();
+  await seedCourseIfEmpty();
   startExpireReportsJob();
   startPushNotificationsJob();
 });
