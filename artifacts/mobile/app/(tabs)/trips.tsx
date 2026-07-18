@@ -112,7 +112,6 @@ export default function TripsScreen() {
       if (link) {
         await Share.share({
           message: `Follow my live trip 📍\n${link}`,
-          url: link,
           title: "Track my trip — Msafiri Kenya",
         });
       }
@@ -380,7 +379,7 @@ export default function TripsScreen() {
                 <TouchableOpacity
                   style={[styles.liveAction, { backgroundColor: "#00C853", flex: 1 }]}
                   onPress={async () => {
-                    if (shareLink) await Share.share({ message: `Follow my live trip 📍\n${shareLink}`, url: shareLink });
+                    if (shareLink) await Share.share({ message: `Follow my live trip 📍\n${shareLink}` });
                   }}
                 >
                   <Ionicons name="share-outline" size={15} color="#fff" />

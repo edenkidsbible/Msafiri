@@ -164,7 +164,6 @@ export default function DriveScreen() {
       if (link) {
         await Share.share({
           message: `Follow my live trip 📍\n${link}`,
-          url: link,
           title: "Track my trip — Msafiri Kenya",
         });
       }
