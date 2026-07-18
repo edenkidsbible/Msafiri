@@ -1,8 +1,7 @@
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 // ─── iOS-only: all native-tab / SF-symbol imports are gated behind
@@ -81,8 +80,6 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const isWeb = Platform.OS === "web";
 
   const icon = (featherName: React.ComponentProps<typeof Feather>["name"], sfName: string) =>
@@ -106,18 +103,12 @@ function ClassicTabLayout() {
         },
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
+          backgroundColor: "transparent",
+          borderTopWidth: 0,
           elevation: 0,
           ...(isWeb ? { height: 84 } : { height: 92 }),
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-          ) : null,
+        tabBarBackground: () => null,
       }}
     >
       <Tabs.Screen name="index"   options={{ title: "Drive",   tabBarIcon: icon("activity",   "gauge") }} />
@@ -135,7 +126,7 @@ export default function TabLayout() {
   // ClassicTabLayout is used on all platforms.
   // NativeTabLayout was removed because iOS UITabBarController auto-collapses
   // any tab bar with 6+ items into 4 tabs + a "More" button — unavoidable with
-  // the native API. ClassicTabLayout (React Navigation + BlurView) renders all
-  // six tabs without this restriction and still uses SF Symbols on iOS.
+  // the native API. ClassicTabLayout (React Navigation) renders all six tabs
+  // without this restriction and still uses SF Symbols on iOS.
   return <ClassicTabLayout />;
 }
