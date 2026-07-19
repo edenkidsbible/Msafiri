@@ -1,17 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
   FlatList,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { POIS } from "@/data/pois";
@@ -20,6 +22,7 @@ import { fetchWithTimeout } from "@/utils/fetchTimeout";
 import FinesContent from "@/components/FinesContent";
 import { useCourseData } from "@/hooks/useCourseData";
 import { useCourseProgress } from "@/hooks/useCourseProgress";
+import { useCourseSearch } from "@/hooks/useCourseSearch";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -228,7 +231,18 @@ function LearnBrowseView({ bottomInset, tabBarHeight }: { bottomInset: number; t
   const { chapters, loading: chaptersLoading } = useCourseData();
   const { progress } = useCourseProgress(deviceId);
 
-  const completedSlugs = new Set(progress.map((p) => p.lessonSlug));
+  const completedSlugs = useMemo(
+    () => new Set(progress.map((p) => p.lessonSlug)),
+    [progress]
+  );
+
+  const titleIndex = useMemo(
+    () => chapters.flatMap((ch) => ch.lessons.map((l) => ({ slug: l.slug, title: l.title }))),
+    [chapters]
+  );
+  const { query, setQuery, results: searchResults, searching } = useCourseSearch(titleIndex);
+  const isSearchActive = query.trim().length > 0;
+
   const totalLessons = chapters.reduce((s, ch) => s + ch.lessons.length, 0);
   const completedLessons = chapters.reduce(
     (s, ch) => s + ch.lessons.filter((l) => completedSlugs.has(l.slug)).length,
@@ -244,66 +258,143 @@ function LearnBrowseView({ bottomInset, tabBarHeight }: { bottomInset: number; t
     );
   }
 
+  const paddingBottom = bottomInset + tabBarHeight + 20;
+
   return (
-    <FlatList
-      {...FLAT_LIST_PROPS}
-      data={chapters}
-      keyExtractor={(ch) => ch.id}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: bottomInset + tabBarHeight + 20 }}
-      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-      ListHeaderComponent={
-        <View style={[styles.learnHeader, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.learnHeaderTitle, { color: c.foreground }]}>Driving Course</Text>
-            <Text style={[styles.learnHeaderSub, { color: c.mutedForeground }]}>
-              {completedLessons} of {totalLessons} lessons complete
-            </Text>
-            {/* Overall progress bar */}
-            <View style={[styles.learnProgBg, { backgroundColor: c.muted, marginTop: 10 }]}>
-              <View style={[styles.learnProgFill, { backgroundColor: c.primary, width: `${Math.round(overallPct * 100)}%` as any }]} />
-            </View>
-          </View>
-          <Text style={[styles.learnOverallPct, { color: c.primary }]}>
-            {Math.round(overallPct * 100)}%
-          </Text>
+    <View style={{ flex: 1 }}>
+      {/* ── Search bar ── */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 }}>
+        <View style={[styles.learnSearchBar, { backgroundColor: c.muted, borderColor: c.border }]}>
+          <Feather name="search" size={15} color={c.mutedForeground} />
+          <TextInput
+            style={[styles.learnSearchInput, { color: c.foreground }]}
+            placeholder="Search lessons…"
+            placeholderTextColor={c.mutedForeground}
+            value={query}
+            onChangeText={setQuery}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {searching && <ActivityIndicator size="small" color={c.mutedForeground} />}
+          {!searching && query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x" size={14} color={c.mutedForeground} />
+            </TouchableOpacity>
+          )}
         </View>
-      }
-      renderItem={({ item: ch }) => {
-        const chDone = ch.lessons.filter((l) => completedSlugs.has(l.slug)).length;
-        const chPct = ch.lessons.length > 0 ? chDone / ch.lessons.length : 0;
-        const estMins = ch.lessons.reduce((s, l) => s + (l.estimatedMinutes ?? 0), 0);
-        return (
-          <TouchableOpacity
-            style={[styles.learnChapter, { backgroundColor: c.card, borderColor: c.border }]}
-            onPress={() => {
-              const target =
-                ch.lessons.find((l) => !completedSlugs.has(l.slug)) ??
-                ch.lessons[0];
-              if (target) router.push(`/course/${target.slug}` as any);
-            }}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.learnChUnit, { backgroundColor: c.primary + "18" }]}>
-              <Text style={[styles.learnChUnitTxt, { color: c.primary }]}>{ch.unitNumber}</Text>
+      </View>
+
+      {/* ── Search results ── */}
+      {isSearchActive ? (
+        <ScrollView
+          {...SCROLL_PROPS}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom, gap: 8 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {searching ? (
+            <View style={{ alignItems: "center", paddingVertical: 32, gap: 10 }}>
+              <ActivityIndicator color={c.primary} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>Searching…</Text>
             </View>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={[styles.learnChTitle, { color: c.foreground }]} numberOfLines={2}>
-                {ch.title}
+          ) : searchResults.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 32, gap: 10 }}>
+              <Feather name="search" size={26} color={c.mutedForeground} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>No results for "{query}"</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: c.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
               </Text>
-              <View style={[styles.learnProgBg, { backgroundColor: c.muted }]}>
-                <View style={[styles.learnProgFill, { backgroundColor: chPct === 1 ? "#00C853" : c.primary, width: `${Math.round(chPct * 100)}%` as any }]} />
+              {searchResults.map((r) => (
+                <TouchableOpacity
+                  key={r.slug}
+                  style={[styles.learnSearchResult, { backgroundColor: c.card, borderColor: c.border }]}
+                  onPress={() => router.push(`/course/${r.slug}` as any)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[styles.learnSearchResultTitle, { color: c.foreground }]} numberOfLines={2}>{r.title}</Text>
+                    {r.excerpt ? (
+                      <Text style={[styles.learnSearchResultExcerpt, { color: c.mutedForeground }]} numberOfLines={2}>{r.excerpt}</Text>
+                    ) : null}
+                    {r.estimatedMinutes > 0 ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <Feather name="clock" size={10} color={c.mutedForeground} />
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>~{r.estimatedMinutes} min</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Feather name="chevron-right" size={15} color={c.mutedForeground} />
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+        </ScrollView>
+      ) : (
+        /* ── Chapter list ── */
+        <FlatList
+          {...FLAT_LIST_PROPS}
+          data={chapters}
+          keyExtractor={(ch) => ch.id}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom }}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          ListHeaderComponent={
+            <View style={[styles.learnHeader, { backgroundColor: c.card, borderColor: c.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.learnHeaderTitle, { color: c.foreground }]}>Driving Course</Text>
+                <Text style={[styles.learnHeaderSub, { color: c.mutedForeground }]}>
+                  {completedLessons} of {totalLessons} lessons complete
+                </Text>
+                <View style={[styles.learnProgBg, { backgroundColor: c.muted, marginTop: 10 }]}>
+                  <View style={[styles.learnProgFill, { backgroundColor: c.primary, width: `${Math.round(overallPct * 100)}%` as any }]} />
+                </View>
               </View>
-              <Text style={[styles.learnChSub, { color: c.mutedForeground }]}>
-                {chDone}/{ch.lessons.length} lessons
-                {estMins > 0 ? ` · ${estMins} min` : ""}
-                {chPct === 1 ? " · ✓ Complete" : ""}
+              <Text style={[styles.learnOverallPct, { color: c.primary }]}>
+                {Math.round(overallPct * 100)}%
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
-          </TouchableOpacity>
-        );
-      }}
-    />
+          }
+          renderItem={({ item: ch }) => {
+            const chDone = ch.lessons.filter((l) => completedSlugs.has(l.slug)).length;
+            const chPct = ch.lessons.length > 0 ? chDone / ch.lessons.length : 0;
+            const estMins = ch.lessons.reduce((s, l) => s + (l.estimatedMinutes ?? 0), 0);
+            return (
+              <TouchableOpacity
+                style={[styles.learnChapter, { backgroundColor: c.card, borderColor: c.border }]}
+                onPress={() => {
+                  const target =
+                    ch.lessons.find((l) => !completedSlugs.has(l.slug)) ??
+                    ch.lessons[0];
+                  if (target) router.push(`/course/${target.slug}` as any);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.learnChUnit, { backgroundColor: c.primary + "18" }]}>
+                  <Text style={[styles.learnChUnitTxt, { color: c.primary }]}>{ch.unitNumber}</Text>
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={[styles.learnChTitle, { color: c.foreground }]} numberOfLines={2}>
+                    {ch.title}
+                  </Text>
+                  <View style={[styles.learnProgBg, { backgroundColor: c.muted }]}>
+                    <View style={[styles.learnProgFill, { backgroundColor: chPct === 1 ? "#00C853" : c.primary, width: `${Math.round(chPct * 100)}%` as any }]} />
+                  </View>
+                  <Text style={[styles.learnChSub, { color: c.mutedForeground }]}>
+                    {chDone}/{ch.lessons.length} lessons
+                    {estMins > 0 ? ` · ${estMins} min` : ""}
+                    {chPct === 1 ? " · ✓ Complete" : ""}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+              </TouchableOpacity>
+            );
+          }}
+        />
+      )}
+    </View>
   );
 }
 
@@ -674,6 +765,39 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
 
   // ── Learn section ─────────────────────────────────────────────────────────
+  learnSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: Platform.OS === "ios" ? 9 : 7,
+    gap: 7,
+  },
+  learnSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    padding: 0,
+  },
+  learnSearchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 13,
+  },
+  learnSearchResultTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    lineHeight: 19,
+  },
+  learnSearchResultExcerpt: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 17,
+  },
   learnHeader: {
     flexDirection: "row", alignItems: "center", gap: 14,
     borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 10,
