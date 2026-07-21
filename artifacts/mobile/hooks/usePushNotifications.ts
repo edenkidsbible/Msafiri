@@ -36,7 +36,9 @@ async function ensureAndroidChannels(): Promise<void> {
   try {
     await Notifications.setNotificationChannelAsync("default", {
       name: "General",
-      importance: Notifications.AndroidImportance.DEFAULT,
+      // HIGH = heads-up banner + sound. DEFAULT only puts notifications
+      // silently in the tray — no banner, no sound, users never see them.
+      importance: Notifications.AndroidImportance.HIGH,
       sound: "default",
       vibrationPattern: [0, 150, 100, 150],
     });

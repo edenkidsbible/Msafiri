@@ -15,6 +15,11 @@ export interface PushMessage {
   // discarded on Android 8+ even when FCM returns a successful receipt.
   channelId?: string;
   badge?: number;
+  // "high" wakes the device immediately (bypasses FCM batching / Doze mode on
+  // Android, and maps to APNs priority 10 on iOS). Without this, FCM may hold
+  // the message for minutes or hours before delivering. Always "high" for user-
+  // visible alerts; only use "normal" for silent background syncs.
+  priority?: "default" | "normal" | "high";
 }
 
 interface ExpoPushTicket {
@@ -70,7 +75,12 @@ export async function sendPushNotifications(
   let ok = 0;
   let failed = 0;
 
-  for (const chunk of chunkArray(messages, CHUNK_SIZE)) {
+  // Default every message to priority "high" so FCM delivers immediately
+  // (bypasses Doze mode / batching) and APNs uses priority 10.
+  // Call sites can override by setting priority explicitly.
+  const normalized = messages.map((m) => ({ priority: "high" as const, ...m }));
+
+  for (const chunk of chunkArray(normalized, CHUNK_SIZE)) {
     try {
       const response = await fetch(EXPO_PUSH_URL, {
         method: "POST",
