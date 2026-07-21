@@ -504,29 +504,36 @@ async function seedRevenueCat() {
 
     allProductIds.push(syncedTestProduct.id, iosProduct.id, androidProduct.id);
 
-    const { error: attachPkgError } = await attachProductsToPackage({
+    // Fetch which products are already in the package so we only send the missing
+    // ones. The RevenueCat v2 API rejects the ENTIRE batch if any product in it is
+    // already attached, so a single-call approach silently drops products when the
+    // package is partially populated across seed re-runs.
+    const { data: alreadyAttached } = await getProductsFromPackage({
       client,
-      path: { project_id: project.id, package_id: pkg.id },
-      body: {
-        products: [
-          { product_id: syncedTestProduct.id, eligibility_criteria: "all" },
-          { product_id: iosProduct.id, eligibility_criteria: "all" },
-          { product_id: androidProduct.id, eligibility_criteria: "all" },
-        ],
-      },
+      path: { project_id: project.id, offering_id: offering.id, package_id: pkg.id },
+      query: { limit: 20 },
     });
+    const attachedIds = new Set((alreadyAttached?.items ?? []).map((item: any) => item.product?.id).filter(Boolean));
 
-    if (attachPkgError) {
-      if (
-        (attachPkgError as any).type === "unprocessable_entity_error" &&
-        (attachPkgError as any).message?.includes("Cannot attach product")
-      ) {
-        console.log("Skipping package attach — already has product");
-      } else {
+    const toAttach = [syncedTestProduct.id, iosProduct.id, androidProduct.id].filter(
+      (id) => !attachedIds.has(id),
+    );
+
+    if (toAttach.length === 0) {
+      console.log("All products already attached to package — skipping");
+    } else {
+      const { error: attachPkgError } = await attachProductsToPackage({
+        client,
+        path: { project_id: project.id, package_id: pkg.id },
+        body: {
+          products: toAttach.map((id) => ({ product_id: id, eligibility_criteria: "all" as const })),
+        },
+      });
+
+      if (attachPkgError) {
         throw new Error("Failed to attach products to package: " + JSON.stringify(attachPkgError));
       }
-    } else {
-      console.log("Attached products to package");
+      console.log(`Attached ${toAttach.length} product(s) to package`);
     }
   }
 
