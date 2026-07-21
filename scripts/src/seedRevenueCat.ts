@@ -62,7 +62,7 @@ const PRODUCTS = [
   },
   {
     identifier: "msafiri_monthly",
-    playStoreIdentifier: "msafiri_monthly:monthly",
+    playStoreIdentifier: "msafiri_monthly:free-monthly",
     displayName: "Msafiri Monthly",
     title: "Msafiri Monthly",
     duration: "P1M" as const,
