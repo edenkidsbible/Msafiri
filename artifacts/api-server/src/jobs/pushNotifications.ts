@@ -281,6 +281,53 @@ async function checkDailyTriggers(): Promise<void> {
   }
 }
 
+// ─── Startup catch-up ─────────────────────────────────────────────────────────
+// If the server was down during a scheduled window, the normal 5-minute guard
+// never fires and that notification is permanently skipped. On startup we check
+// every window that has already passed today and immediately send any that were
+// missed. alreadySentToday() still guards against duplicates, so this is safe
+// even if the server restarts multiple times in a day.
+async function catchUpMissedTriggers(): Promise<void> {
+  const now = new Date();
+  const eat = toEat(now);
+  const eatDay = eat.getUTCDay();
+  const eatHour = eat.getUTCHours();
+  const eatMin = eat.getUTCMinutes();
+  // Total EAT minutes since midnight — used to compare against window start times.
+  const eatTotalMin = eatHour * 60 + eatMin;
+  const weekend = isWeekendDay(eatDay);
+
+  // Morning window closed at 06:05 EAT
+  if (eatTotalMin > 6 * 60 + 5) {
+    const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
+    await sendAutoCampaign("daily_morning", msg.title, msg.body);
+  }
+
+  // Midday window closed at 13:05 EAT
+  if (eatTotalMin > 13 * 60 + 5) {
+    const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
+    await sendAutoCampaign("daily_midday", msg.title, msg.body);
+  }
+
+  // Evening window closed at 16:35 EAT
+  if (eatTotalMin > 16 * 60 + 35) {
+    const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
+    await sendAutoCampaign("daily_evening", msg.title, msg.body);
+  }
+
+  // Weekend night safety window closed at 21:05 EAT (Fri & Sat only)
+  if (isNightSafetyDay(eatDay) && eatTotalMin > 21 * 60 + 5) {
+    const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
+    await sendAutoCampaign("weekend_night_safety", msg.title, msg.body);
+  }
+
+  // Wednesday engagement window closed at 12:05 EAT
+  if (eatDay === 3 && eatTotalMin > 12 * 60 + 5) {
+    const msg = pickMessage(ENGAGEMENT_MESSAGES);
+    await sendAutoCampaign("engagement", msg.title, msg.body);
+  }
+}
+
 // ─── Incident confirmation notifications ─────────────────────────────────────
 
 async function checkIncidentConfirmations(): Promise<void> {
@@ -625,9 +672,15 @@ async function purgeDeadTokens(): Promise<void> {
 export function startPushNotificationsJob(): NodeJS.Timeout {
   logger.info("pushNotifications job started");
 
-  runJob().catch((err) =>
-    logger.warn({ err }, "pushNotifications: initial run failed")
-  );
+  // Fire catch-up first (sends any windows already passed today that were missed
+  // because the server was down), then immediately run the normal job tick.
+  catchUpMissedTriggers()
+    .catch((err) => logger.warn({ err }, "pushNotifications: catch-up failed"))
+    .finally(() => {
+      runJob().catch((err) =>
+        logger.warn({ err }, "pushNotifications: initial run failed")
+      );
+    });
 
   // Receipt purge — wait 30 min after startup for the first check, then every 30 min
   setTimeout(() => {
