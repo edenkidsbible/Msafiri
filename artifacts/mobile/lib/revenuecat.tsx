@@ -58,6 +58,7 @@ function useSubscriptionContext() {
     queryKey: ["revenuecat", "offerings"],
     queryFn: async () => Purchases.getOfferings(),
     staleTime: 300 * 1000,
+    retry: 2,
   });
 
   const productIdentifiers =
@@ -144,6 +145,8 @@ function useSubscriptionContext() {
     offerings: offeringsQuery.data,
     isSubscribed,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    offeringsError: offeringsQuery.error ?? null,
+    refetchOfferings: offeringsQuery.refetch,
     purchase: purchaseMutation.mutateAsync,
     restore: restoreMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,

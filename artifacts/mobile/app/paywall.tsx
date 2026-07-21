@@ -35,7 +35,7 @@ export default function PaywallScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { requestLocationPermission } = useApp();
-  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring, isTrialEligible, setReviewerMode } =
+  const { offerings, isLoading, offeringsError, refetchOfferings, purchase, isPurchasing, restore, isRestoring, isTrialEligible, setReviewerMode } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -360,6 +360,24 @@ export default function PaywallScreen() {
         {/* Plan picker */}
         {isLoading ? (
           <ActivityIndicator color={c.primary} style={{ marginVertical: 28 }} />
+        ) : offeringsError || (!monthlyPkg && !weeklyPkg) ? (
+          <View style={[styles.offeringsError, { borderColor: c.border, backgroundColor: c.card }]}>
+            <Ionicons name="cloud-offline-outline" size={28} color={c.mutedForeground} />
+            <Text style={[styles.offeringsErrorTitle, { color: c.foreground }]}>
+              Couldn't load plans
+            </Text>
+            <Text style={[styles.offeringsErrorSub, { color: c.mutedForeground }]}>
+              Check your connection and try again.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { borderColor: c.primary }]}
+              onPress={() => refetchOfferings()}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="refresh" size={15} color={c.primary} />
+              <Text style={[styles.retryTxt, { color: c.primary }]}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={styles.plans}>
             <TouchableOpacity
@@ -443,7 +461,7 @@ export default function PaywallScreen() {
 
       {/* Bottom CTA */}
       <View style={[styles.ctaWrap, { borderTopColor: c.border, paddingBottom: botPad }]}>
-        {!isLoading && !chosenPkg && (
+        {!isLoading && !offeringsError && !chosenPkg && (
           <Text style={[styles.noProductsNote, { color: c.mutedForeground }]}>
             Subscriptions unavailable in this build — store products not configured yet.
           </Text>
@@ -586,6 +604,23 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center",
     lineHeight: 15, marginBottom: 8,
   },
+  offeringsError: {
+    alignItems: "center", gap: 8,
+    borderRadius: 16, borderWidth: 1,
+    paddingVertical: 24, paddingHorizontal: 20, marginBottom: 16,
+  },
+  offeringsErrorTitle: {
+    fontSize: 15, fontFamily: "Inter_600SemiBold", textAlign: "center",
+  },
+  offeringsErrorSub: {
+    fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18,
+  },
+  retryBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    borderWidth: 1.5, borderRadius: 10,
+    paddingVertical: 8, paddingHorizontal: 18, marginTop: 4,
+  },
+  retryTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   ctaWrap: {
     paddingHorizontal: 24, paddingTop: 16,
