@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, pushTokensTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 const router = Router();
 
@@ -19,6 +19,15 @@ router.post("/push/register", async (req: Request, res: Response) => {
   }
 
   try {
+    // Remove any stale rows that share this token with a different deviceId.
+    // This happens when a user reinstalls — AsyncStorage is wiped so a new
+    // deviceId is generated, but APNs/FCM issues the same push token. Without
+    // this delete the same physical device accumulates multiple rows and
+    // receives one notification copy per row.
+    await db
+      .delete(pushTokensTable)
+      .where(and(eq(pushTokensTable.token, token), ne(pushTokensTable.deviceId, deviceId)));
+
     await db
       .insert(pushTokensTable)
       .values({

@@ -7,6 +7,7 @@ import { startExpireReportsJob } from "./jobs/expireReports";
 import { startPushNotificationsJob } from "./jobs/pushNotifications";
 import { seedCourseIfEmpty } from "./startup/seedCourse";
 import { backfillCourseAudio } from "./startup/backfillCourseAudio";
+import { dedupPushTokens } from "./startup/dedupPushTokens";
 
 const rawPort = process.env["PORT"];
 
@@ -62,6 +63,7 @@ app.listen(port, async (err) => {
   await seedDefaultAdmin();
   await seedCourseIfEmpty();
   await backfillCourseAudio();
+  await dedupPushTokens();
   startExpireReportsJob();
   startPushNotificationsJob();
 });
