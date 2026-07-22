@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import { startExpireReportsJob } from "./jobs/expireReports";
 import { startPushNotificationsJob } from "./jobs/pushNotifications";
 import { seedCourseIfEmpty } from "./startup/seedCourse";
+import { backfillCourseAudio } from "./startup/backfillCourseAudio";
 
 const rawPort = process.env["PORT"];
 
@@ -60,6 +61,7 @@ app.listen(port, async (err) => {
   logger.info({ port }, "Server listening");
   await seedDefaultAdmin();
   await seedCourseIfEmpty();
+  await backfillCourseAudio();
   startExpireReportsJob();
   startPushNotificationsJob();
 });
