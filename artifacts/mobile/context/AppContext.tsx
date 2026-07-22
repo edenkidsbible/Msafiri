@@ -78,6 +78,8 @@ export interface RouteStep {
   instruction: string;
   distanceM: number;
   location: RouteCoord;
+  /** Exit number for roundabout/rotary steps (1-based). Undefined for all other maneuvers. */
+  exitNumber?: number;
 }
 
 export interface AppRoute {
@@ -279,14 +281,19 @@ async function fetchOSRM(
       latitude: lat,
       longitude: lng,
     })),
-    steps: (r.legs?.[0]?.steps ?? []).map((s: any) => ({
-      instruction: buildInstruction(s.maneuver ?? {}, s.name ?? ""),
-      distanceM: s.distance ?? 0,
-      location: {
-        latitude: s.maneuver?.location?.[1] ?? toLat,
-        longitude: s.maneuver?.location?.[0] ?? toLng,
-      },
-    })),
+    steps: (r.legs?.[0]?.steps ?? []).map((s: any) => {
+      const maneuver = s.maneuver ?? {};
+      const isRoundabout = maneuver.type === "roundabout" || maneuver.type === "rotary";
+      return {
+        instruction: buildInstruction(maneuver, s.name ?? ""),
+        distanceM: s.distance ?? 0,
+        location: {
+          latitude: maneuver.location?.[1] ?? toLat,
+          longitude: maneuver.location?.[0] ?? toLng,
+        },
+        ...(isRoundabout && maneuver.exit != null ? { exitNumber: maneuver.exit as number } : {}),
+      };
+    }),
   }));
 }
 

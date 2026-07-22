@@ -321,6 +321,11 @@ export default function DriveScreen() {
         }]}>
           <View style={styles.navCardIcon}>
             <Ionicons name={maneuverIcon(currentStep.instruction)} size={30} color="#FFF" />
+            {currentStep.exitNumber != null && (
+              <View style={styles.exitBadge}>
+                <Text style={styles.exitBadgeTxt}>{currentStep.exitNumber}</Text>
+              </View>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.navInstruction} numberOfLines={2}>
@@ -965,6 +970,18 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: 18,
     backgroundColor: "#FFFFFF22",
     alignItems: "center", justifyContent: "center",
+    overflow: "visible",
+  },
+  exitBadge: {
+    position: "absolute", bottom: -5, right: -5,
+    backgroundColor: "#FFF", borderRadius: 10,
+    minWidth: 20, height: 20, paddingHorizontal: 4,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25, shadowRadius: 3, elevation: 4,
+  },
+  exitBadgeTxt: {
+    color: "#1565C0", fontSize: 11, fontFamily: "Inter_700Bold", lineHeight: 14,
   },
   navInstruction: {
     fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", lineHeight: 24,

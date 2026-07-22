@@ -131,7 +131,14 @@ export default function MapViewScreen() {
             {/* Current instruction (nav active) */}
             {navigationActive && activeRoute.steps[currentStepIdx] && (
               <View style={styles.instructionRow}>
-                <Ionicons name="arrow-forward-circle-outline" size={18} color="#FFF" />
+                <View style={{ position: "relative" }}>
+                  <Ionicons name="arrow-forward-circle-outline" size={18} color="#FFF" />
+                  {activeRoute.steps[currentStepIdx].exitNumber != null && (
+                    <View style={styles.exitBadge}>
+                      <Text style={styles.exitBadgeTxt}>{activeRoute.steps[currentStepIdx].exitNumber}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.instructionText} numberOfLines={2}>
                   {distToNextM != null ? `In ${distToNextM}m — ` : ""}{activeRoute.steps[currentStepIdx].instruction}
                 </Text>
@@ -257,6 +264,8 @@ const styles = StyleSheet.create({
   startBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   instructionRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
   instructionText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#FFF", lineHeight: 18 },
+  exitBadge: { position: "absolute", bottom: -4, right: -4, backgroundColor: "#FFF", borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: "center", justifyContent: "center" },
+  exitBadgeTxt: { color: "#1565C0", fontSize: 9, fontFamily: "Inter_700Bold", lineHeight: 14 },
   altRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 10, flexWrap: "wrap" },
   altChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
   altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
