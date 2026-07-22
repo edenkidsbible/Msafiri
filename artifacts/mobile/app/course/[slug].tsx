@@ -23,6 +23,7 @@ import { useCourseData } from "@/hooks/useCourseData";
 import { useCourseProgress } from "@/hooks/useCourseProgress";
 import { apiGet, apiPost, apiDelete, API_BASE } from "@/utils/apiClient";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
+import { AudioPlayer } from "@/components/AudioPlayer";
 
 // ── Types matching the API response ─────────────────────────────────────────
 
@@ -44,6 +45,7 @@ interface FullLesson {
   content: ContentBlock[];
   keyPoints: string[];
   quizQuestions: Array<{ id: string }>;
+  audioUrl?: string | null;
   createdAt: string;
 }
 
@@ -325,6 +327,11 @@ export default function LessonReaderScreen() {
             </View>
           )}
         </View>
+
+        {/* Audio player — shown only when audio is available for this lesson */}
+        {lesson.audioUrl ? (
+          <AudioPlayer audioUrl={`${API_BASE}${lesson.audioUrl}`} />
+        ) : null}
 
         {/* Content blocks */}
         {lesson.content?.length ? (

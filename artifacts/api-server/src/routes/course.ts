@@ -7,7 +7,8 @@ import {
   userCourseProgressTable,
   userCourseBookmarksTable,
 } from "@workspace/db";
-import { eq, asc, and, ilike, sql } from "drizzle-orm";
+import { eq, asc, and, sql } from "drizzle-orm";
+import { objectStorageClient } from "../lib/objectStorage.js";
 
 const router = Router();
 
@@ -69,10 +70,60 @@ router.get("/course/lessons/:slug", async (req: Request, res: Response) => {
       ...lesson,
       createdAt: lesson.createdAt.toISOString(),
       quizQuestions: questions,
+      // audioUrl is a relative path consumed as `${API_BASE}${audioUrl}` in the mobile app
+      audioUrl: lesson.audioUrl ? `/course/audio/${lesson.slug}` : null,
     });
   } catch (err) {
     console.error("GET /course/lessons/:slug error:", err);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /course/audio/:slug — stream lesson audio from GCS (no auth; course content is public)
+router.get("/course/audio/:slug", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params as { slug: string };
+
+    const [lesson] = await db
+      .select({ audioUrl: courseLessonsTable.audioUrl })
+      .from(courseLessonsTable)
+      .where(eq(courseLessonsTable.slug, slug));
+
+    if (!lesson?.audioUrl) {
+      return res.status(404).json({ error: "No audio for this lesson" });
+    }
+
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID!;
+    const file = objectStorageClient.bucket(bucketId).file(lesson.audioUrl);
+
+    const [metadata] = await file.getMetadata();
+    const fileSize = parseInt(String(metadata.size), 10);
+    const range = req.headers.range;
+
+    if (range) {
+      const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : fileSize - 1;
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": end - start + 1,
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "public, max-age=86400",
+      });
+      file.createReadStream({ start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        "Content-Length": fileSize,
+        "Content-Type": "audio/mpeg",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=86400",
+      });
+      file.createReadStream().pipe(res);
+    }
+  } catch (err) {
+    console.error("GET /course/audio/:slug error:", err);
+    return res.status(404).json({ error: "Audio file not found" });
   }
 });
 

@@ -101,3 +101,573 @@ id = "vWdKMcWpCGOv2JleYo_t1"
 uri = "file://attached_assets/generated_audio/intro_driving_keli_multilingual_v2.mp3"
 type = "audio"
 title = "Keli — African voice (Multilingual v2)"
+
+[[outputs]]
+id = "IleXnnU-H95Ebt26mSYp0"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-observation.mp3"
+type = "audio"
+title = "course unit-07-observation-observation"
+
+[[outputs]]
+id = "AqD_vwkVtWZ9DRUrDQhEx"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-rear-view-mirror-interior-mirror.mp3"
+type = "audio"
+title = "course unit-07-observation-rear-view-mirror-interior-mirror"
+
+[[outputs]]
+id = "lRCgoMIgRUTrUmG4fO1pr"
+uri = "file://attached_assets/generated_audio/course/unit-08-vehicle-control-j-turns.mp3"
+type = "audio"
+title = "course unit-08-vehicle-control-j-turns"
+
+[[outputs]]
+id = "mom8p11dl1wADwPqN7LLJ"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-exterior-mirror.mp3"
+type = "audio"
+title = "course unit-07-observation-exterior-mirror"
+
+[[outputs]]
+id = "sZYghDMDKj-FuxFZfT60F"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-the-blind-spot.mp3"
+type = "audio"
+title = "course unit-07-observation-the-blind-spot"
+
+[[outputs]]
+id = "4ohNZgwmhXGGj39tQLjFf"
+uri = "file://attached_assets/generated_audio/course/foreword-foreword.mp3"
+type = "audio"
+title = "course foreword-foreword"
+
+[[outputs]]
+id = "0m29lv9ta7EiWCcZhso0G"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-driver-visibility.mp3"
+type = "audio"
+title = "course unit-07-observation-driver-visibility"
+
+[[outputs]]
+id = "DJHL4nWvX3-DlA91p8zKh"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-how-poor-speed-management-affects-d.mp3"
+type = "audio"
+title = "course unit-10-speed-management-how-poor-speed-management-affects-driving"
+
+[[outputs]]
+id = "2wivo2empcbN-aWzoB5KG"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-stopping-distance.mp3"
+type = "audio"
+title = "course unit-10-speed-management-stopping-distance"
+
+[[outputs]]
+id = "4UonWlxrkXOo-AZ_7uN-y"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-thinking-distance.mp3"
+type = "audio"
+title = "course unit-10-speed-management-thinking-distance"
+
+[[outputs]]
+id = "AQZ5Jz-vtUWdc8kg7hWYB"
+uri = "file://attached_assets/generated_audio/course/unit-09-communication-on-the-road-traffic-signal-blackout.mp3"
+type = "audio"
+title = "course unit-09-communication-on-the-road-traffic-signal-blackout"
+
+[[outputs]]
+id = "wipM-LmmqLVsIrg9mfKkT"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-speed-management.mp3"
+type = "audio"
+title = "course unit-10-speed-management-speed-management"
+
+[[outputs]]
+id = "0vjeWNjjRx5S5bULCRY5u"
+uri = "file://attached_assets/generated_audio/course/unit-09-communication-on-the-road-signals-given-by-road-user.mp3"
+type = "audio"
+title = "course unit-09-communication-on-the-road-signals-given-by-road-users"
+
+[[outputs]]
+id = "nkzqCeI6ftZGDsCcv40xn"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-braking-systems-and-techniques.mp3"
+type = "audio"
+title = "course unit-10-speed-management-braking-systems-and-techniques"
+
+[[outputs]]
+id = "w5OZiSWNOgX1op_Hfw4cU"
+uri = "file://attached_assets/generated_audio/course/unit-11-space-management-position-to-see-and-be-seen.mp3"
+type = "audio"
+title = "course unit-11-space-management-position-to-see-and-be-seen"
+
+[[outputs]]
+id = "gkhRp4CDvdSnQDaisykfS"
+uri = "file://attached_assets/generated_audio/course/unit-05-vehicle-constructions-and-controls-vehicle-construct.mp3"
+type = "audio"
+title = "course unit-05-vehicle-constructions-and-controls-vehicle-constructions-and-controls"
+
+[[outputs]]
+id = "aZWhIzTsRujAINmsIEuEq"
+uri = "file://attached_assets/generated_audio/course/unit-02-fundamental-driving-rules-fundamental-driving-rules.mp3"
+type = "audio"
+title = "course unit-02-fundamental-driving-rules-fundamental-driving-rules"
+
+[[outputs]]
+id = "sXnjc4p9qOBlmqJQ0Vojg"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-safely-performing-evasive-turns.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-safely-performing-evasive-turns-on-the-road"
+
+[[outputs]]
+id = "Nvud1RnPW5uLykCcjws4A"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-emergency-manoeuvres.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-emergency-manoeuvres"
+
+[[outputs]]
+id = "WFHM-7UrtzrrC1hcMEnQS"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-braking-distance.mp3"
+type = "audio"
+title = "course unit-10-speed-management-braking-distance"
+
+[[outputs]]
+id = "uD9evQvkBnrDQKcQtfFXN"
+uri = "file://attached_assets/generated_audio/course/unit-11-space-management-to-manage-space.mp3"
+type = "audio"
+title = "course unit-11-space-management-to-manage-space"
+
+[[outputs]]
+id = "Qdq6AzRT55wuQkD6_XeQQ"
+uri = "file://attached_assets/generated_audio/course/unit-08-vehicle-control-u-turn.mp3"
+type = "audio"
+title = "course unit-08-vehicle-control-u-turn"
+
+[[outputs]]
+id = "uwPEeyr3DBI0HFxPYL7lT"
+uri = "file://attached_assets/generated_audio/course/unit-11-space-management-space-recovery.mp3"
+type = "audio"
+title = "course unit-11-space-management-space-recovery"
+
+[[outputs]]
+id = "jlUwJ7cFESbI22cNfEpcP"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-if-your-wheel-goes-off-the-pave.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-if-your-wheel-goes-off-the-pavement"
+
+[[outputs]]
+id = "BjplDKW9tvj9_hZHNFZUs"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-risks-of-freewheeling.mp3"
+type = "audio"
+title = "course unit-10-speed-management-risks-of-freewheeling"
+
+[[outputs]]
+id = "VLt-RvpYDWGAnDMR-edC5"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-if-your-headlights-go-off.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-if-your-headlights-go-off"
+
+[[outputs]]
+id = "NpKt_2Ip38mziU5J5aWyl"
+uri = "file://attached_assets/generated_audio/course/unit-01-introduction-to-driving-introduction-to-driving.mp3"
+type = "audio"
+title = "course unit-01-introduction-to-driving-introduction-to-driving"
+
+[[outputs]]
+id = "uR_u_6Iouy14jGy-Cy2YP"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-defensive-driving-techniques.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-defensive-driving-techniques"
+
+[[outputs]]
+id = "lEv2ChA76VLB9BTtRV3k2"
+uri = "file://attached_assets/generated_audio/course/unit-11-space-management-space-management.mp3"
+type = "audio"
+title = "course unit-11-space-management-space-management"
+
+[[outputs]]
+id = "yeLPm0LHl_RrJc9DhO6Y3"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-importance-of-defensive-driving.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-importance-of-defensive-driving"
+
+[[outputs]]
+id = "Kf2PYHAdcTazFP2XwS9a7"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-defensive-driving-is-important-.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-defensive-driving-is-important-when-in-the-followin"
+
+[[outputs]]
+id = "Qh-sEOqCl9N36pcv4rMzu"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-the-rear-wheel-skid.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-the-rear-wheel-skid"
+
+[[outputs]]
+id = "21OmfuHE-U09n9DYsQ_qI"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-skid-control-and-recovery.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-skid-control-and-recovery"
+
+[[outputs]]
+id = "66PgCueHK6m-s0ZUkup42"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-the-front-wheel-skid.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-the-front-wheel-skid"
+
+[[outputs]]
+id = "km6RLGrM2xlCzs-oya9tC"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-defensive-driving.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-defensive-driving"
+
+[[outputs]]
+id = "SqzzpIdu2s8pZ4v8zjgyA"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-skid-recovery.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-skid-recovery"
+
+[[outputs]]
+id = "yap6wZFUD5jF1bwwe4Bwa"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-adverse-driving-condition.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-adverse-driving-conditions"
+
+[[outputs]]
+id = "nHXZ62g9su66Zg1NQKlY9"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-fog.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-fog"
+
+[[outputs]]
+id = "gRscKfQt_Uf9rm6BIU6ay"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-rain.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-rain"
+
+[[outputs]]
+id = "CLw8Qz8DTfBob2RjTjWwt"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-stay-out-of-puddles.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-stay-out-of-puddles"
+
+[[outputs]]
+id = "saqQMfd1cNdwH-P3voenT"
+uri = "file://attached_assets/generated_audio/course/unit-06-self-inspection-of-vehicle-self-inspection-of-vehicl.mp3"
+type = "audio"
+title = "course unit-06-self-inspection-of-vehicle-self-inspection-of-vehicle"
+
+[[outputs]]
+id = "etqvfyZzKYwjlJILXBh3H"
+uri = "file://attached_assets/generated_audio/course/unit-09-communication-on-the-road-communication-on-the-road.mp3"
+type = "audio"
+title = "course unit-09-communication-on-the-road-communication-on-the-road"
+
+[[outputs]]
+id = "uhgtXH5mm4h5zLTQEOLix"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-night-driving.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-night-driving"
+
+[[outputs]]
+id = "G8T80dksQJMgpRTV83Olg"
+uri = "file://attached_assets/generated_audio/course/unit-22-traffic-signs-traffic-signs.mp3"
+type = "audio"
+title = "course unit-22-traffic-signs-traffic-signs"
+
+[[outputs]]
+id = "OcmT76jqn-YyDlYkKouAA"
+uri = "file://attached_assets/generated_audio/course/unit-08-vehicle-control-vehicle-control.mp3"
+type = "audio"
+title = "course unit-08-vehicle-control-vehicle-control"
+
+[[outputs]]
+id = "O_mndr6zpeuHNQCRnFskd"
+uri = "file://attached_assets/generated_audio/course/unit-23-model-town-illustrations-model-town-illustrations.mp3"
+type = "audio"
+title = "course unit-23-model-town-illustrations-model-town-illustrations"
+
+[[outputs]]
+id = "FBsJCqqO_WvTkryDyJzQt"
+uri = "file://attached_assets/generated_audio/course/unit-21-the-examination-the-examination.mp3"
+type = "audio"
+title = "course unit-21-the-examination-the-examination"
+
+[[outputs]]
+id = "1LFaoQBRmKQJ6mGhmLQ3i"
+uri = "file://attached_assets/generated_audio/course/unit-16-conditions-of-carriage-conditions-of-carriage.mp3"
+type = "audio"
+title = "course unit-16-conditions-of-carriage-conditions-of-carriage"
+
+[[outputs]]
+id = "FT98j9pknYuwBa4MTsIvS"
+uri = "file://attached_assets/generated_audio/course/unit-03-model-town-model-town.mp3"
+type = "audio"
+title = "course unit-03-model-town-model-town"
+
+[[outputs]]
+id = "8Jw0yBruZ1R1kHTFeT3Qq"
+uri = "file://attached_assets/generated_audio/course/unit-15-preventive-maintenance-preventive-maintenance.mp3"
+type = "audio"
+title = "course unit-15-preventive-maintenance-preventive-maintenance"
+
+[[outputs]]
+id = "-JLYV39HOpK3PwWE_N7do"
+uri = "file://attached_assets/generated_audio/course/unit-19-work-planning-work-planning.mp3"
+type = "audio"
+title = "course unit-19-work-planning-work-planning"
+
+[[outputs]]
+id = "kovNYXj_mru4xReXgPaGl"
+uri = "file://attached_assets/generated_audio/course/unit-04-human-factors-in-traffic-human-factors-in-traffic.mp3"
+type = "audio"
+title = "course unit-04-human-factors-in-traffic-human-factors-in-traffic"
+
+[[outputs]]
+id = "IKMF6lSzm5XlqJVk40zq0"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-driving-in-adverse-condit.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-driving-in-adverse-conditions"
+
+[[outputs]]
+id = "XkZax3CGFwtpJ5YC47bIF"
+uri = "file://attached_assets/generated_audio/course/unit-20-customer-care-customer-care.mp3"
+type = "audio"
+title = "course unit-20-customer-care-customer-care"
+
+[[outputs]]
+id = "3M-4u5eNRoBzGz1Uk4mu5"
+uri = "file://attached_assets/generated_audio/course/unit-18-emergency-procedures-emergency-procedures.mp3"
+type = "audio"
+title = "course unit-18-emergency-procedures-emergency-procedures"
+
+[[outputs]]
+id = "K9NDVkDb9N5WthHzJzzv9"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-adverse-driving-condition_2.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-adverse-driving-conditions"
+
+[[outputs]]
+id = "Un7514kdOgyANRH8K6KYL"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-the-4-second-rule_2.mp3"
+type = "audio"
+title = "course unit-10-speed-management-the-4-second-rule"
+
+[[outputs]]
+id = "AfEDNRQlMumuDDGYaRkpm"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-thinking-distance_2.mp3"
+type = "audio"
+title = "course unit-10-speed-management-thinking-distance"
+
+[[outputs]]
+id = "3TbZP9kq_FlVmN6Z4V40x"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-braking-distance_2.mp3"
+type = "audio"
+title = "course unit-10-speed-management-braking-distance"
+
+[[outputs]]
+id = "jtbht9m78ckgm5lMNvtku"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-blowouts_2.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-blowouts"
+
+[[outputs]]
+id = "DRsh2wG9mbf3W2ZXmtHOo"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-skid-control-and-recovery_2.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-skid-control-and-recovery"
+
+[[outputs]]
+id = "80K7wL4fAk9n6tEhLzoED"
+uri = "file://attached_assets/generated_audio/course/unit-21-the-examination-the-examination_2.mp3"
+type = "audio"
+title = "course unit-21-the-examination-the-examination"
+
+[[outputs]]
+id = "djrW4iqckO0yTGGm--oqd"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-braking-systems-and-techniques_2.mp3"
+type = "audio"
+title = "course unit-10-speed-management-braking-systems-and-techniques"
+
+[[outputs]]
+id = "zM_-KaC11fp1SzM8Cgcn9"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-stay-out-of-puddles_2.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-stay-out-of-puddles"
+
+[[outputs]]
+id = "xPyiS2gJurffijSp6P_9o"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-rain_2.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-rain"
+
+[[outputs]]
+id = "mAlvjtq0xtqwZfpXki6w2"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-speed-management_2.mp3"
+type = "audio"
+title = "course unit-10-speed-management-speed-management"
+
+[[outputs]]
+id = "hzKj44xiUiMOTC2ucSx42"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-the-blind-spot_2.mp3"
+type = "audio"
+title = "course unit-07-observation-the-blind-spot"
+
+[[outputs]]
+id = "38nzR7Fax6xCSfknesF65"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-the-front-wheel-skid_2.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-the-front-wheel-skid"
+
+[[outputs]]
+id = "8M1DdTiMzeb4Dn6QdINAT"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-defensive-driving-is-important-_2.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-defensive-driving-is-important-when-in-the-followin"
+
+[[outputs]]
+id = "_wwm-St_zoecNoxyvaJKz"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-rear-view-mirror-interior-mirror_2.mp3"
+type = "audio"
+title = "course unit-07-observation-rear-view-mirror-interior-mirror"
+
+[[outputs]]
+id = "IhcouYzIK6zXHNcNZdOJF"
+uri = "file://attached_assets/generated_audio/course/unit-10-speed-management-how-poor-speed-management-affects-d_2.mp3"
+type = "audio"
+title = "course unit-10-speed-management-how-poor-speed-management-affects-driving"
+
+[[outputs]]
+id = "0FEiDzwuG-Boxo9tRKBIX"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-night-driving_2.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-night-driving"
+
+[[outputs]]
+id = "2Vn7rTWWh8POaqxJUjqfE"
+uri = "file://attached_assets/generated_audio/course/unit-12-emergency-manoeuvres-defensive-driving_2.mp3"
+type = "audio"
+title = "course unit-12-emergency-manoeuvres-defensive-driving"
+
+[[outputs]]
+id = "Mdye975znMcKIYITOlBRe"
+uri = "file://attached_assets/generated_audio/course/unit-22-traffic-signs-traffic-signs_2.mp3"
+type = "audio"
+title = "course unit-22-traffic-signs-traffic-signs"
+
+[[outputs]]
+id = "VuU-lcvaE_FIVNfUNI03M"
+uri = "file://attached_assets/generated_audio/course/unit-11-space-management-to-manage-space_2.mp3"
+type = "audio"
+title = "course unit-11-space-management-to-manage-space"
+
+[[outputs]]
+id = "XqG9t4SRWOdQwj8N4uKOK"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-driver-visibility_2.mp3"
+type = "audio"
+title = "course unit-07-observation-driver-visibility"
+
+[[outputs]]
+id = "j2ET2b31Vtw2EpdokxDcL"
+uri = "file://attached_assets/generated_audio/course/unit-09-communication-on-the-road-traffic-light-signals_2.mp3"
+type = "audio"
+title = "course unit-09-communication-on-the-road-traffic-light-signals"
+
+[[outputs]]
+id = "n6f4tSlScKD2xqTrt8nUZ"
+uri = "file://attached_assets/generated_audio/course/unit-09-communication-on-the-road-traffic-signal-blackout_2.mp3"
+type = "audio"
+title = "course unit-09-communication-on-the-road-traffic-signal-blackout"
+
+[[outputs]]
+id = "yqFwaGwdhjfdpalAz49GE"
+uri = "file://attached_assets/generated_audio/course/unit-13-skid-control-and-recovery-the-rear-wheel-skid_2.mp3"
+type = "audio"
+title = "course unit-13-skid-control-and-recovery-the-rear-wheel-skid"
+
+[[outputs]]
+id = "7p1dVciEDWjv4oaZNGdmz"
+uri = "file://attached_assets/generated_audio/course/unit-01-introduction-to-driving-introduction-to-driving_2.mp3"
+type = "audio"
+title = "course unit-01-introduction-to-driving-introduction-to-driving"
+
+[[outputs]]
+id = "iLF2hhd6G6BKkTu63qata"
+uri = "file://attached_assets/generated_audio/course/unit-09-communication-on-the-road-communication-on-the-road_2.mp3"
+type = "audio"
+title = "course unit-09-communication-on-the-road-communication-on-the-road"
+
+[[outputs]]
+id = "oKKrm_Vn-96otdjeHkhpK"
+uri = "file://attached_assets/generated_audio/course/unit-15-preventive-maintenance-preventive-maintenance_2.mp3"
+type = "audio"
+title = "course unit-15-preventive-maintenance-preventive-maintenance"
+
+[[outputs]]
+id = "ei-BuixZHQGrNqQofTnEa"
+uri = "file://attached_assets/generated_audio/course/unit-08-vehicle-control-j-turns_2.mp3"
+type = "audio"
+title = "course unit-08-vehicle-control-j-turns"
+
+[[outputs]]
+id = "6vsI1DumUOjLsaK_ylJeG"
+uri = "file://attached_assets/generated_audio/course/unit-07-observation-observation_2.mp3"
+type = "audio"
+title = "course unit-07-observation-observation"
+
+[[outputs]]
+id = "xx7hHfExOfcfYmhHbgl8O"
+uri = "file://attached_assets/generated_audio/course/unit-11-space-management-position-to-see-and-be-seen_2.mp3"
+type = "audio"
+title = "course unit-11-space-management-position-to-see-and-be-seen"
+
+[[outputs]]
+id = "gzXzSPsHbVHXDzsmS9BDn"
+uri = "file://attached_assets/generated_audio/course/unit-02-fundamental-driving-rules-fundamental-driving-rules_2.mp3"
+type = "audio"
+title = "course unit-02-fundamental-driving-rules-fundamental-driving-rules"
+
+[[outputs]]
+id = "H3Qz2R3EawQlQFRJYofoS"
+uri = "file://attached_assets/generated_audio/course/unit-06-self-inspection-of-vehicle-self-inspection-of-vehicl_2.mp3"
+type = "audio"
+title = "course unit-06-self-inspection-of-vehicle-self-inspection-of-vehicle"
+
+[[outputs]]
+id = "6Lc7ZONCoPmplF5dnfWFw"
+uri = "file://attached_assets/generated_audio/course/unit-19-work-planning-work-planning_2.mp3"
+type = "audio"
+title = "course unit-19-work-planning-work-planning"
+
+[[outputs]]
+id = "yOcBLGRsmWvFTcJhOyITG"
+uri = "file://attached_assets/generated_audio/course/unit-05-vehicle-constructions-and-controls-vehicle-construct_2.mp3"
+type = "audio"
+title = "course unit-05-vehicle-constructions-and-controls-vehicle-constructions-and-controls"
+
+[[outputs]]
+id = "8kfmk78W2gQJhFxbzB5mk"
+uri = "file://attached_assets/generated_audio/course/unit-03-model-town-model-town_2.mp3"
+type = "audio"
+title = "course unit-03-model-town-model-town"
+
+[[outputs]]
+id = "17nJNDRMRI8XYZEHsId2h"
+uri = "file://attached_assets/generated_audio/course/unit-08-vehicle-control-u-turn_2.mp3"
+type = "audio"
+title = "course unit-08-vehicle-control-u-turn"
+
+[[outputs]]
+id = "I9OW4ytPKNwZBqr3A3JoS"
+uri = "file://attached_assets/generated_audio/course/unit-04-human-factors-in-traffic-human-factors-in-traffic_2.mp3"
+type = "audio"
+title = "course unit-04-human-factors-in-traffic-human-factors-in-traffic"
+
+[[outputs]]
+id = "gToDZhs_L2n5lqo9R3Iqj"
+uri = "file://attached_assets/generated_audio/course/unit-08-vehicle-control-vehicle-control_2.mp3"
+type = "audio"
+title = "course unit-08-vehicle-control-vehicle-control"
+
+[[outputs]]
+id = "mS9nRtIQMHxU7sTZVMhiZ"
+uri = "file://attached_assets/generated_audio/course/unit-14-adverse-driving-conditions-driving-in-adverse-condit_2.mp3"
+type = "audio"
+title = "course unit-14-adverse-driving-conditions-driving-in-adverse-conditions"
+
+[[outputs]]
+id = "UwdeVMTMjlUMzH0gkJJwj"
+uri = "file://attached_assets/generated_audio/course/unit-18-emergency-procedures-emergency-procedures_2.mp3"
+type = "audio"
+title = "course unit-18-emergency-procedures-emergency-procedures"

@@ -22,6 +22,7 @@ export const courseLessonsTable = pgTable("course_lessons", {
   estimatedMinutes: integer("estimated_minutes").notNull().default(5),
   content: jsonb("content").notNull().$type<Record<string, unknown>[]>().default([]),
   keyPoints: text("key_points").array().notNull().default([]),
+  audioUrl: text("audio_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

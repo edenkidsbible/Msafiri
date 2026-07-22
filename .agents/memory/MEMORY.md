@@ -1,3 +1,4 @@
+- [Course audio generation](course-audio-generation.md) — Keli/Flash v2.5 TTS, GCS upload (no public ACL), streamed via /api/course/audio/:slug, AudioPlayer component in mobile lesson screen.
 - [Community report "Gone now" single-vote quirk](report-deny-single-vote.md) — one deny vote denies a report instantly (no threshold); distinct from the 3-confirm protection on self-delete.
 - [expo-router react-native-maps web fix](expo-router-rnmaps-web.md) — .native.tsx files in app/ dir still bundled on web by require.context; move native-only components to components/ with platform extensions instead.
 - [Speed zone pairing rule](speed-zone-pairing.md) — stretch zones (X→Y roads) need TWO entries (one per end); point cameras need only one.
