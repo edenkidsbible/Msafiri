@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -9,6 +9,7 @@ import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { snapToRoad } from "@/utils/snapToRoad";
+import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -50,6 +51,17 @@ export default function MapViewScreen() {
   const [filter, setFilter] = useState<ZoneFilter>("all");
   const [showReport, setShowReport] = useState(false);
   const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
+
+  const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
+  const isRoundaboutStep = currentStep?.instruction?.toLowerCase().includes("roundabout") ?? false;
+
+  const { exitsPassed, targetExitIsNext } = useRoundaboutExitCounter({
+    currentLat,
+    currentLng,
+    currentStepIdx,
+    navigationActive,
+    targetExitNumber: isRoundaboutStep ? (currentStep?.exitNumber ?? null) : null,
+  });
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -129,19 +141,56 @@ export default function MapViewScreen() {
             </View>
 
             {/* Current instruction (nav active) */}
-            {navigationActive && activeRoute.steps[currentStepIdx] && (
-              <View style={styles.instructionRow}>
-                <View style={{ position: "relative" }}>
-                  <Ionicons name="arrow-forward-circle-outline" size={18} color="#FFF" />
-                  {activeRoute.steps[currentStepIdx].exitNumber != null && (
-                    <View style={styles.exitBadge}>
-                      <Text style={styles.exitBadgeTxt}>{activeRoute.steps[currentStepIdx].exitNumber}</Text>
-                    </View>
-                  )}
+            {navigationActive && currentStep && (
+              <View>
+                <View style={styles.instructionRow}>
+                  <View style={{ position: "relative" }}>
+                    <Ionicons name="arrow-forward-circle-outline" size={18} color="#FFF" />
+                    {currentStep.exitNumber != null && (
+                      <View style={[styles.exitBadge, {
+                        backgroundColor: targetExitIsNext ? "#FFC107" : "#FFF",
+                      }]}>
+                        <Text style={[styles.exitBadgeTxt, {
+                          color: targetExitIsNext ? "#7B3F00" : "#1565C0",
+                        }]}>
+                          {currentStep.exitNumber}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.instructionText} numberOfLines={2}>
+                    {!isRoundaboutStep && distToNextM != null ? `In ${distToNextM}m — ` : ""}
+                    {currentStep.instruction}
+                  </Text>
                 </View>
-                <Text style={styles.instructionText} numberOfLines={2}>
-                  {distToNextM != null ? `In ${distToNextM}m — ` : ""}{activeRoute.steps[currentStepIdx].instruction}
-                </Text>
+                {/* Roundabout exit counter strip */}
+                {isRoundaboutStep && currentStep.exitNumber != null && (
+                  <View style={styles.rabRow}>
+                    {Array.from({ length: currentStep.exitNumber }).map((_, i) => {
+                      const isPassed = i < exitsPassed;
+                      const isTarget = i === currentStep.exitNumber! - 1;
+                      const isNextUp = isTarget && targetExitIsNext;
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.rabDot,
+                            isPassed && styles.rabDotPassed,
+                            isTarget && !isPassed && styles.rabDotTarget,
+                            isNextUp && styles.rabDotNext,
+                          ]}
+                        />
+                      );
+                    })}
+                    <Text style={styles.rabLabel}>
+                      {targetExitIsNext
+                        ? "Exit now!"
+                        : exitsPassed > 0
+                          ? `${currentStep.exitNumber - exitsPassed} more`
+                          : `Exit ${currentStep.exitNumber}`}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -262,10 +311,16 @@ const styles = StyleSheet.create({
   stopBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   startBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   startBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  instructionRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
+  instructionRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
   instructionText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#FFF", lineHeight: 18 },
-  exitBadge: { position: "absolute", bottom: -4, right: -4, backgroundColor: "#FFF", borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: "center", justifyContent: "center" },
-  exitBadgeTxt: { color: "#1565C0", fontSize: 9, fontFamily: "Inter_700Bold", lineHeight: 14 },
+  exitBadge: { position: "absolute", bottom: -4, right: -4, borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: "center", justifyContent: "center" },
+  exitBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", lineHeight: 14 },
+  rabRow: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingBottom: 10, flexWrap: "wrap" },
+  rabDot: { width: 9, height: 9, borderRadius: 5, borderWidth: 1.5, borderColor: "#FFFFFF55", backgroundColor: "transparent" },
+  rabDotPassed: { backgroundColor: "#FFFFFF80", borderColor: "#FFFFFF80" },
+  rabDotTarget: { width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: "#FFC107", backgroundColor: "transparent" },
+  rabDotNext: { backgroundColor: "#FFC107", borderColor: "#FFC107" },
+  rabLabel: { marginLeft: 4, fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
   altRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 10, flexWrap: "wrap" },
   altChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
   altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },

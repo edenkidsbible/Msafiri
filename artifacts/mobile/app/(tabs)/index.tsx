@@ -1,7 +1,8 @@
-import React, { useRef, useState, useMemo, useCallback } from "react";
+import React, { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Keyboard,
   Modal,
@@ -29,6 +30,7 @@ import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPr
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
+import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -177,6 +179,41 @@ export default function DriveScreen() {
   const isMapMode  = (hasRoute || navigationActive) && !showResults;
   const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
 
+  // ── Roundabout exit counter ───────────────────────────────────────────────
+  const isRoundaboutStep = currentStep?.instruction?.toLowerCase().includes("roundabout") ?? false;
+  const { exitsPassed, targetExitIsNext } = useRoundaboutExitCounter({
+    currentLat,
+    currentLng,
+    currentStepIdx,
+    navigationActive,
+    targetExitNumber: isRoundaboutStep ? (currentStep?.exitNumber ?? null) : null,
+  });
+
+  // Pulse animation for the exit badge when the target exit is next
+  const exitBadgePulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (targetExitIsNext) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(exitBadgePulse, {
+            toValue: 1.35,
+            duration: 380,
+            useNativeDriver: Platform.OS !== "web",
+          }),
+          Animated.timing(exitBadgePulse, {
+            toValue: 1.0,
+            duration: 380,
+            useNativeDriver: Platform.OS !== "web",
+          }),
+        ]),
+      );
+      loop.start();
+      return () => { loop.stop(); exitBadgePulse.setValue(1); };
+    }
+    exitBadgePulse.setValue(1);
+    return undefined;
+  }, [targetExitIsNext, exitBadgePulse]);
+
   // Nearest incident ahead — considers BOTH static speed zones AND community
   // reports so a just-reported broken-down vehicle beats a distant speed camera.
   const primaryAlert = useMemo(() => {
@@ -320,17 +357,55 @@ export default function DriveScreen() {
           <View style={styles.navCardIcon}>
             <Ionicons name={maneuverIcon(currentStep.instruction)} size={30} color="#FFF" />
             {currentStep.exitNumber != null && (
-              <View style={styles.exitBadge}>
-                <Text style={styles.exitBadgeTxt}>{currentStep.exitNumber}</Text>
-              </View>
+              <Animated.View style={[styles.exitBadge, {
+                transform: [{ scale: exitBadgePulse }],
+                backgroundColor: targetExitIsNext ? "#FFC107" : "#FFF",
+              }]}>
+                <Text style={[styles.exitBadgeTxt, {
+                  color: targetExitIsNext ? "#7B3F00" : "#1565C0",
+                }]}>
+                  {currentStep.exitNumber}
+                </Text>
+              </Animated.View>
             )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.navInstruction} numberOfLines={2}>
               {currentStep.instruction}
             </Text>
-            {distToNextM != null && (
+            {distToNextM != null && !isRoundaboutStep && (
               <Text style={styles.navDist}>{distStr(distToNextM)}</Text>
+            )}
+            {/* Roundabout exit counter — shown instead of distance while in roundabout */}
+            {isRoundaboutStep && currentStep.exitNumber != null && (
+              <View style={styles.rabRow}>
+                {Array.from({ length: currentStep.exitNumber }).map((_, i) => {
+                  const isPassed = i < exitsPassed;
+                  const isTarget = i === currentStep.exitNumber! - 1;
+                  const isNextUp = isTarget && targetExitIsNext;
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.rabDot,
+                        isPassed  && styles.rabDotPassed,
+                        isTarget  && !isPassed && styles.rabDotTarget,
+                        isNextUp  && styles.rabDotNext,
+                      ]}
+                    />
+                  );
+                })}
+                <Text style={styles.rabLabel}>
+                  {targetExitIsNext
+                    ? "Exit now!"
+                    : exitsPassed > 0
+                      ? `${currentStep.exitNumber - exitsPassed} more`
+                      : `Exit ${currentStep.exitNumber}`}
+                </Text>
+              </View>
+            )}
+            {isRoundaboutStep && distToNextM != null && (
+              <Text style={[styles.navDist, { opacity: 0.7 }]}>{distStr(distToNextM)}</Text>
             )}
           </View>
         </View>
@@ -985,6 +1060,33 @@ const styles = StyleSheet.create({
   },
   navDist: {
     fontSize: 24, fontFamily: "Inter_700Bold", color: "#90CAF9", marginTop: 4,
+  },
+
+  // ── Roundabout exit counter ───────────────────────────────────────────────
+  rabRow: {
+    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap",
+  },
+  rabDot: {
+    width: 10, height: 10, borderRadius: 5,
+    borderWidth: 1.5, borderColor: "#FFFFFF55",
+    backgroundColor: "transparent",
+  },
+  rabDotPassed: {
+    backgroundColor: "#FFFFFF80",
+    borderColor: "#FFFFFF80",
+  },
+  rabDotTarget: {
+    width: 12, height: 12, borderRadius: 6,
+    borderWidth: 2, borderColor: "#FFC107",
+    backgroundColor: "transparent",
+  },
+  rabDotNext: {
+    backgroundColor: "#FFC107",
+    borderColor: "#FFC107",
+  },
+  rabLabel: {
+    marginLeft: 4,
+    fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF",
   },
 
   // ── Search bar + results ─────────────────────────────────────────────────
