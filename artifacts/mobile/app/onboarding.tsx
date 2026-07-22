@@ -3,7 +3,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  ImageSourcePropType,
   Platform,
   StyleSheet,
   Text,
@@ -15,105 +14,203 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
-// Phone mockup proportions
-const FRAME_W  = width * 0.74;
-const FRAME_H  = FRAME_W * 1.92;   // ~19.5:9 tall-phone ratio
+// ── Kenya flag palette ─────────────────────────────────────────────────────────
+const FLAG_RED   = "#BB0000";
+const FLAG_BLACK = "#1C1C1E";
+const FLAG_GREEN = "#006B3C";
 
-type ImageSlide = {
-  id: string;
-  image: ImageSourcePropType;
-  accentColor: string;
-  accentLabel: string;
-  headline: [string, string];
-  accentLine: 0 | 1;
-  body: string;
-  vehiclePicker?: false;
+// ── Types ─────────────────────────────────────────────────────────────────────
+type FeatureCard = {
+  icon: string;
+  iconSet: "Ionicons" | "MaterialCommunityIcons";
+  title: string;
+  sub: string;
 };
 
-type PickerSlide = {
+type BaseSlide = {
   id: string;
   accentColor: string;
   accentLabel: string;
   headline: [string, string];
   accentLine: 0 | 1;
   body: string;
-  vehiclePicker: true;
 };
 
-type Slide = ImageSlide | PickerSlide;
+type CardSlide    = BaseSlide & { kind: "card";     heroIcon: string; heroIconSet: "Ionicons" | "MaterialCommunityIcons"; features: FeatureCard[] };
+type IncidentSlide= BaseSlide & { kind: "incident"; heroIcon: string };
+type PickerSlide  = BaseSlide & { kind: "picker" };
+type Slide = CardSlide | IncidentSlide | PickerSlide;
 
+// ── Incident data ─────────────────────────────────────────────────────────────
+const INCIDENTS = [
+  { emoji: "📷", label: "Speed Camera",  color: FLAG_RED   },
+  { emoji: "👮", label: "Police",         color: "#1565C0" },
+  { emoji: "🍺", label: "Alcoblow",       color: "#E65100" },
+  { emoji: "💥", label: "Accident",       color: "#C62828" },
+  { emoji: "🚧", label: "Roadblock",      color: "#F57C00" },
+  { emoji: "🚦", label: "Traffic Jam",    color: FLAG_GREEN },
+];
+
+// ── Slide data ────────────────────────────────────────────────────────────────
 const SLIDES: Slide[] = [
   {
     id: "1",
-    image: require("@/assets/images/ob_drive.jpg"),
-    accentColor: "#BE0000",     // Kenya flag red
-    accentLabel: "LIVE ALERTS",
-    headline: ["Know Every Camera", "Before It Sees You"],
+    kind: "card",
+    accentColor: FLAG_RED,
+    accentLabel: "SPEED CAMERAS",
+    heroIcon: "camera",
+    heroIconSet: "Ionicons",
+    features: [
+      { icon: "location",     iconSet: "Ionicons", title: "Live Distance",   sub: "Updates every second"  },
+      { icon: "volume-high",  iconSet: "Ionicons", title: "Voice Alert",     sub: "Keli warns you early"  },
+      { icon: "flash",        iconSet: "Ionicons", title: "Instant Warning", sub: "Before you arrive"     },
+    ],
+    headline: ["Never Get Caught", "by a Speed Camera"],
     accentLine: 0,
-    body: "Speed cameras, police checkpoints, and alcoblows — all mapped and announced ahead of you, in real time.",
+    body: "Live distance warnings, Keli's voice alerts, and alarm sounds — all before you reach any camera.",
   },
   {
     id: "2",
-    image: require("@/assets/images/ob_route.jpg"),
-    accentColor: "#0277BD",     // deep sky blue
+    kind: "card",
+    accentColor: FLAG_BLACK,
     accentLabel: "NAVIGATION",
-    headline: ["Navigate Routes", "Camera-Aware"],
+    heroIcon: "navigate",
+    heroIconSet: "Ionicons",
+    features: [
+      { icon: "shield-checkmark", iconSet: "Ionicons", title: "Camera-Aware",  sub: "See every camera ahead" },
+      { icon: "time",             iconSet: "Ionicons", title: "ETA + Delays",  sub: "Traffic accounted for"  },
+      { icon: "git-branch",       iconSet: "Ionicons", title: "Alt Routes",    sub: "Pick the safest path"   },
+    ],
+    headline: ["Plan Every Route", "Around Cameras"],
     accentLine: 0,
-    body: "See every camera along your route before you even start moving. Pick the path that keeps you compliant.",
+    body: "See every camera ahead before you start. Pick the fastest route that keeps you compliant.",
   },
   {
     id: "3",
-    image: require("@/assets/images/ob_map.jpg"),
-    accentColor: "#1565C0",     // blue
+    kind: "incident",
+    accentColor: FLAG_GREEN,
     accentLabel: "COMMUNITY MAP",
-    headline: ["Every Hazard,", "Mapped Live"],
-    accentLine: 1,
-    body: "Accidents, traffic jams, road works, potholes — all reported live by Kenyan drivers around you.",
+    heroIcon: "people",
+    headline: ["Kenyan Drivers", "Are Watching for You"],
+    accentLine: 0,
+    body: "Police checkpoints, alcoblows, accidents, and road works — all reported live by drivers around you.",
   },
   {
     id: "4",
-    image: require("@/assets/images/ob_learn.jpg"),
-    accentColor: "#5B2D8E",     // purple
-    accentLabel: "LEARN",
-    headline: ["Master Kenya's", "Traffic Laws"],
-    accentLine: 1,
-    body: "64 lessons covering road signs, NTSA fines, and defensive driving — study at your own pace.",
+    kind: "card",
+    accentColor: FLAG_BLACK,
+    accentLabel: "DRIVE MODE",
+    heroIcon: "speedometer",
+    heroIconSet: "Ionicons",
+    features: [
+      { icon: "speedometer", iconSet: "Ionicons", title: "Live Speed",      sub: "Real GPS km/h"           },
+      { icon: "eye",         iconSet: "Ionicons", title: "Zone Limit",      sub: "Current road's limit"    },
+      { icon: "warning",     iconSet: "Ionicons", title: "Overspeed Alert", sub: "Red warning instantly"   },
+    ],
+    headline: ["Your Speed vs the Limit.", "Every Single Second."],
+    accentLine: 0,
+    body: "Real-time speed display, zone limits, and an instant red alert the moment you exceed the limit.",
   },
   {
     id: "5",
-    vehiclePicker: true,
-    accentColor: "#E65100",     // orange
+    kind: "picker",
+    accentColor: FLAG_RED,
     accentLabel: "YOUR VEHICLE",
     headline: ["Your Vehicle,", "Your Speed Limit"],
     accentLine: 0,
-    body: "Speed limits in Kenya vary by vehicle class. Tell us what you drive so we always show the right limit.",
+    body: "Speed limits vary by vehicle class in Kenya. Set yours once and we always show the right limit.",
   },
 ];
 
-// ── Phone mockup frame ────────────────────────────────────────────────────────
-function PhoneFrame({ image }: { image: ImageSourcePropType }) {
+// ── Hero icon box ─────────────────────────────────────────────────────────────
+function HeroIcon({ icon, iconSet, color }: { icon: string; iconSet: "Ionicons" | "MaterialCommunityIcons"; color: string }) {
+  const IconComp = iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
   return (
-    <View style={styles.phoneOuter}>
-      {/* Speaker pill */}
-      <View style={styles.phoneSpeaker} />
-      <View style={styles.phoneInner}>
-        <Image source={image} style={styles.phoneImage} resizeMode="cover" />
+    <View style={[styles.heroBox, { backgroundColor: color + "14" }]}>
+      <IconComp name={icon as any} size={64} color={color} />
+    </View>
+  );
+}
+
+// ── Three feature cards ───────────────────────────────────────────────────────
+function FeatureCards({ features, accent }: { features: FeatureCard[]; accent: string }) {
+  return (
+    <View style={styles.cardsRow}>
+      {features.map((f, i) => {
+        const IconComp = f.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
+        return (
+          <View key={i} style={styles.card}>
+            <IconComp name={f.icon as any} size={22} color={accent} />
+            <Text style={styles.cardTitle}>{f.title}</Text>
+            <Text style={styles.cardSub}>{f.sub}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ── Incident type grid ────────────────────────────────────────────────────────
+function IncidentGrid() {
+  const cellW = (width - 40 - 16) / 3;
+  return (
+    <View style={styles.incidentGrid}>
+      {INCIDENTS.map((inc, i) => (
+        <View key={i} style={[styles.incidentCell, { width: cellW, backgroundColor: inc.color + "12", borderColor: inc.color + "33" }]}>
+          <Text style={styles.incidentEmoji}>{inc.emoji}</Text>
+          <Text style={[styles.incidentLabel, { color: inc.color }]}>{inc.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── Vehicle picker ────────────────────────────────────────────────────────────
+function VehiclePicker({ accent, vehicleType, setVehicleType }: {
+  accent: string;
+  vehicleType: VehicleTypeId | null;
+  setVehicleType: (id: VehicleTypeId) => void;
+}) {
+  const cardW = (width - 40 - 16) / 3;
+  return (
+    <View style={styles.vehicleHero}>
+      <View style={[styles.heroBox, { backgroundColor: accent + "14" }]}>
+        <Ionicons name="car-sport" size={64} color={accent} />
       </View>
-      {/* Home bar */}
-      <View style={styles.phoneHomeBar} />
+      <View style={styles.vehicleGrid}>
+        {VEHICLE_TYPES.map((v) => {
+          const sel = vehicleType === v.id;
+          const IconComp = v.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
+          return (
+            <TouchableOpacity
+              key={v.id}
+              style={[styles.vehicleCard, {
+                width: cardW,
+                backgroundColor: sel ? accent + "14" : "#F5F5F5",
+                borderColor:     sel ? accent       : "#E0E0E0",
+              }]}
+              onPress={() => { setVehicleType(v.id as VehicleTypeId); Haptics.selectionAsync(); }}
+              activeOpacity={0.8}
+            >
+              <IconComp name={v.icon as any} size={26} color={sel ? accent : "#888"} />
+              <Text style={[styles.vehicleCardLabel, { color: sel ? accent : "#555" }]}>
+                {v.shortLabel}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
-  const c = useColors();
   const insets = useSafeAreaInsets();
   const {
     completeOnboarding,
@@ -155,7 +252,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: "#FFFFFF" }]}>
 
-      {/* ── Global header (sits above the FlatList) ── */}
+      {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <View style={styles.brandRow}>
           <Image
@@ -163,15 +260,16 @@ export default function OnboardingScreen() {
             style={styles.brandIcon}
           />
           <Text style={styles.brandName}>
-            Msafiri{" "}
-            <Text style={styles.brandKenya}>Kenya</Text>
+            Msafiri{" "}<Text style={styles.brandKenya}>Kenya</Text>
           </Text>
         </View>
-
         <TouchableOpacity onPress={finish} hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}>
           <Text style={styles.skipTxt}>Skip</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── Divider ── */}
+      <View style={styles.headerDivider} />
 
       {/* ── Slides ── */}
       <FlatList<Slide>
@@ -188,57 +286,43 @@ export default function OnboardingScreen() {
           <View style={[styles.slide, { width }]}>
 
             {/* Accent label chip */}
-            <View style={[styles.labelChip, { backgroundColor: item.accentColor + "18", borderColor: item.accentColor + "55" }]}>
+            <View style={[styles.labelChip, { backgroundColor: item.accentColor + "14", borderColor: item.accentColor + "44" }]}>
               <View style={[styles.labelDot, { backgroundColor: item.accentColor }]} />
               <Text style={[styles.labelTxt, { color: item.accentColor }]}>{item.accentLabel}</Text>
             </View>
 
-            {/* Hero: phone mockup OR vehicle picker */}
-            {item.vehiclePicker ? (
-              <View style={styles.vehicleHero}>
-                <View style={[styles.vehicleIconCircle, { borderColor: item.accentColor + "44" }]}>
-                  <Ionicons name="car-sport" size={72} color={item.accentColor} />
-                </View>
-                <View style={styles.vehicleGrid}>
-                  {VEHICLE_TYPES.map((v) => {
-                    const sel = vehicleType === v.id;
-                    const Icon = v.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
-                    return (
-                      <TouchableOpacity
-                        key={v.id}
-                        style={[
-                          styles.vehicleCard,
-                          {
-                            backgroundColor: sel ? item.accentColor + "18" : "#F5F5F5",
-                            borderColor: sel ? item.accentColor : "#E0E0E0",
-                          },
-                        ]}
-                        onPress={() => { setVehicleType(v.id as VehicleTypeId); Haptics.selectionAsync(); }}
-                        activeOpacity={0.8}
-                      >
-                        <Icon name={v.icon as any} size={28} color={sel ? item.accentColor : "#777"} />
-                        <Text style={[styles.vehicleCardLabel, { color: sel ? item.accentColor : "#444" }]}>
-                          {v.shortLabel}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : (
-              <PhoneFrame image={(item as ImageSlide).image} />
+            {/* Hero section */}
+            {item.kind === "card" && (
+              <>
+                <HeroIcon icon={item.heroIcon} iconSet={item.heroIconSet} color={item.accentColor} />
+                <FeatureCards features={item.features} accent={item.accentColor} />
+              </>
+            )}
+            {item.kind === "incident" && (
+              <>
+                <HeroIcon icon={item.heroIcon} iconSet="Ionicons" color={item.accentColor} />
+                <IncidentGrid />
+              </>
+            )}
+            {item.kind === "picker" && (
+              <VehiclePicker
+                accent={item.accentColor}
+                vehicleType={vehicleType}
+                setVehicleType={setVehicleType}
+              />
             )}
 
-            {/* Headline */}
+            {/* Text block */}
             <View style={styles.textBlock}>
-              <Text style={styles.headlineNormal}>
-                {item.headline[item.accentLine === 0 ? 1 : 0]}
-              </Text>
               <Text style={[styles.headlineAccent, { color: item.accentColor }]}>
                 {item.headline[item.accentLine]}
               </Text>
+              <Text style={styles.headlineNormal}>
+                {item.headline[item.accentLine === 0 ? 1 : 0]}
+              </Text>
               <Text style={styles.body}>{item.body}</Text>
             </View>
+
           </View>
         )}
       />
@@ -246,16 +330,15 @@ export default function OnboardingScreen() {
       {/* ── Dots ── */}
       <View style={styles.dots}>
         {SLIDES.map((s, i) => (
-          <TouchableOpacity key={s.id} onPress={() => flatRef.current?.scrollToIndex({ index: i })} activeOpacity={0.7}>
-            <View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: i === activeIdx ? accent : "#D0D0D0",
-                  width: i === activeIdx ? 28 : 8,
-                },
-              ]}
-            />
+          <TouchableOpacity
+            key={s.id}
+            onPress={() => flatRef.current?.scrollToIndex({ index: i })}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.dot, {
+              backgroundColor: i === activeIdx ? accent : "#D0D0D0",
+              width:           i === activeIdx ? 28     : 8,
+            }]} />
           </TouchableOpacity>
         ))}
       </View>
@@ -263,14 +346,19 @@ export default function OnboardingScreen() {
       {/* ── CTA ── */}
       <View style={[styles.actions, { paddingBottom: bottomInset + 16 }]}>
         <TouchableOpacity
-          style={[styles.ctaBtn, { backgroundColor: accent }]}
+          style={[styles.ctaBtn, { backgroundColor: accent, shadowColor: accent }]}
           onPress={next}
           activeOpacity={0.87}
         >
           <Text style={styles.ctaTxt}>{isLast ? "Get Started" : "Next"}</Text>
-          <Ionicons name={isLast ? "checkmark-circle" : "arrow-forward-circle"} size={22} color="#FFF" />
+          <Ionicons
+            name={isLast ? "checkmark-circle" : "arrow-forward-circle"}
+            size={22}
+            color="#FFF"
+          />
         </TouchableOpacity>
       </View>
+
     </View>
   );
 }
@@ -279,122 +367,142 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  // Header
   header: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    justifyContent:  "space-between",
+    flexDirection:     "row",
+    alignItems:        "center",
+    justifyContent:    "space-between",
     paddingHorizontal: 24,
-    paddingBottom:   12,
+    paddingBottom:     12,
+  },
+  headerDivider: {
+    height:           1,
+    backgroundColor:  "#F0F0F0",
+    marginHorizontal: 20,
+    marginBottom:     4,
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   brandIcon: { width: 28, height: 28, borderRadius: 6 },
   brandName: {
-    fontSize:   17,
-    fontFamily: "Inter_700Bold",
-    color:      "#0A0E1A",
+    fontSize:      17,
+    fontFamily:    "Inter_700Bold",
+    color:         "#0A0E1A",
     letterSpacing: -0.3,
   },
-  brandKenya: { color: "#BE0000" },
+  brandKenya: { color: FLAG_RED },
   skipTxt: {
     fontSize:   14,
     fontFamily: "Inter_500Medium",
     color:      "#888",
   },
 
-  // ── Slide ─────────────────────────────────────────────────────────────────
+  // Slide
   slide: {
-    alignItems: "center",
+    alignItems:        "center",
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop:        16,
   },
 
   // Accent label chip
   labelChip: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    gap:            6,
-    paddingVertical: 5,
+    flexDirection:     "row",
+    alignItems:        "center",
+    gap:               6,
+    paddingVertical:   5,
     paddingHorizontal: 12,
-    borderRadius:   20,
-    borderWidth:    1,
-    marginBottom:   16,
+    borderRadius:      20,
+    borderWidth:       1,
+    marginBottom:      20,
   },
-  labelDot:  { width: 6, height: 6, borderRadius: 3 },
-  labelTxt:  { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1.2 },
+  labelDot: { width: 6, height: 6, borderRadius: 3 },
+  labelTxt: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1.2 },
 
-  // ── Phone mockup ──────────────────────────────────────────────────────────
-  phoneOuter: {
-    width:           FRAME_W,
-    height:          FRAME_H,
-    backgroundColor: "#1A1A2E",
-    borderRadius:    44,
-    alignItems:      "center",
-    paddingVertical: 10,
-    shadowColor:     "#000",
-    shadowOffset:    { width: 0, height: 10 },
-    shadowOpacity:   0.28,
-    shadowRadius:    22,
-    elevation:       18,
-    marginBottom:    20,
+  // Hero icon box
+  heroBox: {
+    width:          112,
+    height:         112,
+    borderRadius:   28,
+    alignItems:     "center",
+    justifyContent: "center",
+    marginBottom:   20,
   },
-  phoneSpeaker: {
-    width:           48,
-    height:          5,
-    backgroundColor: "#3A3A5C",
-    borderRadius:    3,
-    marginBottom:    8,
+
+  // Feature cards
+  cardsRow: {
+    flexDirection: "row",
+    gap:           8,
+    marginBottom:  24,
+    width:         "100%",
   },
-  phoneInner: {
+  card: {
     flex:            1,
-    width:           "100%",
-    paddingHorizontal: 4,
-    overflow:        "hidden",
-    borderRadius:    36,
+    backgroundColor: "#F6F6F6",
+    borderRadius:    16,
+    borderWidth:     1,
+    borderColor:     "#EBEBEB",
+    paddingVertical:   12,
+    paddingHorizontal: 6,
+    alignItems:      "center",
+    gap:             4,
   },
-  phoneImage: {
-    width:           "100%",
-    height:          "100%",
-    borderRadius:    34,
+  cardTitle: {
+    fontSize:   12,
+    fontFamily: "Inter_600SemiBold",
+    color:      "#1a1a1a",
+    textAlign:  "center",
+    lineHeight: 16,
   },
-  phoneHomeBar: {
-    width:           48,
-    height:          5,
-    backgroundColor: "#3A3A5C",
-    borderRadius:    3,
-    marginTop:       8,
+  cardSub: {
+    fontSize:   10,
+    fontFamily: "Inter_400Regular",
+    color:      "#888",
+    textAlign:  "center",
+    lineHeight: 14,
   },
 
-  // ── Vehicle picker hero ───────────────────────────────────────────────────
+  // Incident grid
+  incidentGrid: {
+    flexDirection:  "row",
+    flexWrap:       "wrap",
+    gap:            8,
+    marginBottom:   24,
+    width:          "100%",
+    justifyContent: "center",
+  },
+  incidentCell: {
+    borderRadius:   14,
+    borderWidth:    1,
+    paddingVertical: 10,
+    alignItems:     "center",
+    gap:            4,
+  },
+  incidentEmoji: { fontSize: 22 },
+  incidentLabel: {
+    fontSize:   11,
+    fontFamily: "Inter_600SemiBold",
+    textAlign:  "center",
+    lineHeight: 14,
+  },
+
+  // Vehicle picker hero
   vehicleHero: {
     alignItems: "center",
     width:      "100%",
-    marginBottom: 20,
-  },
-  vehicleIconCircle: {
-    width:         110,
-    height:        110,
-    borderRadius:  55,
-    borderWidth:   2,
-    alignItems:    "center",
-    justifyContent: "center",
-    marginBottom:  20,
-    backgroundColor: "#FAFAFA",
   },
   vehicleGrid: {
-    flexDirection: "row",
-    flexWrap:      "wrap",
+    flexDirection:  "row",
+    flexWrap:       "wrap",
     justifyContent: "center",
-    gap:           10,
-    width:         "100%",
+    gap:            8,
+    width:          "100%",
+    marginBottom:   24,
   },
   vehicleCard: {
-    width:          width * 0.26,
-    paddingVertical: 14,
-    borderRadius:   14,
-    borderWidth:    1.5,
-    alignItems:     "center",
-    gap:            6,
+    paddingVertical: 12,
+    borderRadius:    14,
+    borderWidth:     1.5,
+    alignItems:      "center",
+    gap:             6,
   },
   vehicleCardLabel: {
     fontSize:   12,
@@ -402,25 +510,24 @@ const styles = StyleSheet.create({
     textAlign:  "center",
   },
 
-  // ── Text block ────────────────────────────────────────────────────────────
+  // Text block
   textBlock: {
-    alignItems: "center",
+    alignItems:        "center",
     paddingHorizontal: 8,
-    gap: 2,
-  },
-  headlineNormal: {
-    fontSize:      26,
-    fontFamily:    "Inter_700Bold",
-    color:         "#0A0E1A",
-    textAlign:     "center",
-    lineHeight:    32,
   },
   headlineAccent: {
-    fontSize:      26,
-    fontFamily:    "Inter_700Bold",
-    textAlign:     "center",
-    lineHeight:    32,
-    marginBottom:  10,
+    fontSize:   26,
+    fontFamily: "Inter_700Bold",
+    textAlign:  "center",
+    lineHeight: 32,
+  },
+  headlineNormal: {
+    fontSize:     26,
+    fontFamily:   "Inter_700Bold",
+    color:        "#0A0E1A",
+    textAlign:    "center",
+    lineHeight:   32,
+    marginBottom: 10,
   },
   body: {
     fontSize:   14,
@@ -430,29 +537,17 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
 
-  // ── Kenya stripe ──────────────────────────────────────────────────────────
-  kenyaStripe: {
-    flexDirection: "row",
-    height:        4,
-    marginHorizontal: 32,
-    borderRadius:  2,
-    overflow:      "hidden",
-    marginBottom:  16,
-    marginTop:     12,
-  },
-  stripeSeg: { flex: 1 },
-
-  // ── Dots ──────────────────────────────────────────────────────────────────
+  // Dots
   dots: {
-    flexDirection:   "row",
-    justifyContent:  "center",
-    alignItems:      "center",
-    gap:             6,
-    marginBottom:    18,
+    flexDirection:  "row",
+    justifyContent: "center",
+    alignItems:     "center",
+    gap:            6,
+    marginBottom:   18,
   },
   dot: { height: 8, borderRadius: 4 },
 
-  // ── CTA ───────────────────────────────────────────────────────────────────
+  // CTA
   actions: { paddingHorizontal: 24 },
   ctaBtn: {
     flexDirection:   "row",
@@ -461,10 +556,9 @@ const styles = StyleSheet.create({
     gap:             10,
     paddingVertical: 17,
     borderRadius:    18,
-    shadowColor:     "#000",
     shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.18,
-    shadowRadius:    10,
+    shadowOpacity:   0.22,
+    shadowRadius:    12,
     elevation:       6,
   },
   ctaTxt: {

@@ -1,7 +1,8 @@
 import { Car, Bike, Bus, Truck, CheckCircle2 } from "lucide-react";
+import iconPng from "/icon.png";
 
-const ACCENT = "#E65100";
-const ACCENT_LIGHT = "#E6510015";
+const ACCENT = "#BB0000";
+const ACCENT_LIGHT = "#BB000015";
 
 const VEHICLES = [
   { icon: <Car size={26} />, label: "Car / SUV", limit: "110 km/h" },
@@ -13,7 +14,7 @@ const VEHICLES = [
 ];
 
 export function Slide5Vehicle() {
-  const selected = 0; // Car selected by default
+  const selected = 0;
 
   return (
     <div className="w-[390px] h-[844px] bg-white flex flex-col overflow-hidden select-none">
@@ -36,16 +37,13 @@ export function Slide5Vehicle() {
       {/* Brand header */}
       <div className="flex items-center justify-between px-5 py-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#0f1923,#1a3040)" }}>
-            <span className="text-white font-black text-[11px]">M</span>
-          </div>
+          <img src={iconPng} className="w-8 h-8 rounded-xl object-cover" alt="Msafiri Kenya" />
           <span className="text-[15px] font-bold text-gray-900 tracking-tight">
-            Msafiri <span style={{ color: "#BE0000" }}>Kenya</span>
+            Msafiri <span style={{ color: "#BB0000" }}>Kenya</span>
           </span>
         </div>
         <span className="text-[13px] text-gray-400 font-medium">Skip</span>
       </div>
-
       <div className="mx-5 h-px bg-gray-100" />
 
       {/* Accent label */}
@@ -74,8 +72,8 @@ export function Slide5Vehicle() {
             <div key={i} className="rounded-2xl p-3 flex flex-col items-center gap-1 border transition-all"
               style={{
                 backgroundColor: isSel ? ACCENT + "12" : "#F8F8F8",
-                borderColor: isSel ? ACCENT + "88" : "#E8E8E8",
-                borderWidth: isSel ? 2 : 1,
+                borderColor:     isSel ? ACCENT + "88" : "#E8E8E8",
+                borderWidth:     isSel ? 2 : 1,
               }}>
               <span style={{ color: isSel ? ACCENT : "#777" }}>{v.icon}</span>
               <span className="text-[11px] font-bold text-center leading-tight" style={{ color: isSel ? ACCENT : "#333" }}>{v.label}</span>
@@ -88,21 +86,16 @@ export function Slide5Vehicle() {
       {/* Text content */}
       <div className="px-5 pt-4 flex-1 flex flex-col justify-end pb-6">
         <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3">
-          <span style={{ color: ACCENT }}>Your Vehicle,</span>
-          {"\n"}
+          <span style={{ color: ACCENT }}>Your Vehicle,</span>{"\n"}
           <span className="text-gray-900">Your Speed Limit</span>
         </h1>
         <p className="text-[14px] text-gray-500 leading-relaxed mb-5">
           Speed limits vary by vehicle class in Kenya. Set yours once and we always show the right limit.
         </p>
-
-        {/* Dots */}
         <div className="flex items-center gap-2 justify-center mb-5">
           {[0,1,2,3].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
           <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
         </div>
-
-        {/* CTA */}
         <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}44` }}>
           Get Started
           <CheckCircle2 size={20} color="white" strokeWidth={2.5} />

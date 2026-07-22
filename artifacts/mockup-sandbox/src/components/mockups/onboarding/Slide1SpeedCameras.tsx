@@ -1,7 +1,8 @@
 import { Camera, MapPin, Volume2, Zap } from "lucide-react";
+import iconPng from "/icon.png";
 
-const ACCENT = "#BE0000";
-const ACCENT_LIGHT = "#BE000015";
+const ACCENT = "#BB0000";
+const ACCENT_LIGHT = "#BB000015";
 
 export function Slide1SpeedCameras() {
   const features = [
@@ -31,17 +32,13 @@ export function Slide1SpeedCameras() {
       {/* Brand header */}
       <div className="flex items-center justify-between px-5 py-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center font-black text-sm" style={{ background: "linear-gradient(135deg,#0f1923,#1a3040)" }}>
-            <span className="text-white font-black text-[11px]">M</span>
-          </div>
+          <img src={iconPng} className="w-8 h-8 rounded-xl object-cover" alt="Msafiri Kenya" />
           <span className="text-[15px] font-bold text-gray-900 tracking-tight">
             Msafiri <span style={{ color: ACCENT }}>Kenya</span>
           </span>
         </div>
         <span className="text-[13px] text-gray-400 font-medium">Skip</span>
       </div>
-
-      {/* Divider */}
       <div className="mx-5 h-px bg-gray-100" />
 
       {/* Accent label */}
@@ -73,21 +70,16 @@ export function Slide1SpeedCameras() {
       {/* Text content */}
       <div className="px-5 pt-6 flex-1 flex flex-col justify-end pb-6">
         <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3">
-          <span style={{ color: ACCENT }}>Never Get Caught</span>
-          {"\n"}
+          <span style={{ color: ACCENT }}>Never Get Caught</span>{"\n"}
           <span className="text-gray-900">by a Speed Camera</span>
         </h1>
         <p className="text-[14px] text-gray-500 leading-relaxed mb-6">
           Live distance warnings, Keli's voice alerts, and alarm sounds — all before you reach any camera on the road.
         </p>
-
-        {/* Dots */}
         <div className="flex items-center gap-2 justify-center mb-5">
           <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
           {[1,2,3,4].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
         </div>
-
-        {/* CTA */}
         <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}44` }}>
           Next
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
