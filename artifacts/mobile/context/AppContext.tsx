@@ -527,15 +527,26 @@ function speakTurnAnnouncement(text: string) {
   //   → roundabout_exit clip → "the 3rd exit" clip → road clip
   const roundaboutExitMatch = ROUNDABOUT_ORDINAL_RE.exec(restLower);
   const roundaboutExitNum = roundaboutExitMatch ? parseInt(roundaboutExitMatch[1], 10) : null;
-  // Pre-generated clip key for exit 1–6; null means TTS fallback for the ordinal
   const exitPhraseKey = roundaboutExitNum != null
     ? (ROUNDABOUT_EXIT_CLIP_MAP[roundaboutExitNum] ?? null)
     : null;
-  // Text spoken by TTS when no pre-generated clip exists (exit > 6)
-  const exitTtsFallback = roundaboutExitNum != null && exitPhraseKey == null
-    ? `the ${toOrdinal(roundaboutExitNum)} exit`
-    : null;
 
+  // ── Pre-check: can Keli cover every part of this instruction? ──────────────
+  // Resolve the road key upfront so both the check and the play path share it.
+  const roadClipKey = roadSuffix ? resolveRoadClipKey(roadSuffix) : null;
+  const keliCanCoverAll =
+    !!maneuverMatch &&                                      // maneuver clip exists
+    (!roadSuffix || roadClipKey !== null) &&                // road clip exists (or no road suffix)
+    (roundaboutExitNum === null || exitPhraseKey !== null); // exit ordinal clip exists (or not a roundabout)
+
+  if (!keliCanCoverAll) {
+    // One or more parts have no Keli clip — use TTS for the whole instruction
+    // so the driver never hears two different voices in one announcement.
+    speakText(text);
+    return;
+  }
+
+  // ── All parts have Keli clips — play them in sequence ─────────────────────
   void (async () => {
     // 1. Distance clip (if present)
     if (distMatch) {
@@ -544,53 +555,27 @@ function speakTurnAnnouncement(text: string) {
       stopVoice();
     }
 
-    if (maneuverMatch) {
-      // 2a. Keli maneuver clip, chained after the distance clip
-      scheduleAfterClip(distMatch?.delayMs ?? 0, async () => {
-        await speakPhrase(maneuverMatch.key);
+    // 2. Maneuver clip (guaranteed non-null by pre-check above)
+    scheduleAfterClip(distMatch?.delayMs ?? 0, async () => {
+      await speakPhrase(maneuverMatch.key);
 
-        if (roundaboutExitNum != null) {
-          // 3-roundabout: chain exit-ordinal clip (or TTS) after roundabout_exit,
-          // then optionally chain the road clip after that.
-          scheduleAfterClip(maneuverMatch.delayMs, () => {
-            if (exitPhraseKey) {
-              void speakPhrase(exitPhraseKey);
-            } else if (exitTtsFallback) {
-              Speech.speak(exitTtsFallback, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
-            }
-            if (roadSuffix) {
-              const roadKey = resolveRoadClipKey(roadSuffix);
-              scheduleAfterClip(EXIT_ORDINAL_DELAY_MS, () => {
-                if (roadKey) {
-                  void speakRoadClip(roadKey);
-                } else {
-                  Speech.speak(roadSuffix, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
-                }
-              });
-            }
-          });
-        } else if (roadSuffix) {
-          // 3. TTS only the road name (dynamic) — skip if empty
-          // Resolve to a pre-generated Keli road-name clip first; TTS fallback
-          // for any road not in the library (estate roads, POI names, etc.).
-          const roadKey = resolveRoadClipKey(roadSuffix);
-          scheduleAfterClip(maneuverMatch.delayMs, () => {
-            if (roadKey) {
-              void speakRoadClip(roadKey);
-            } else {
-              Speech.speak(roadSuffix, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
-            }
-          });
-        }
-      });
-    } else {
-      // 2b. No maneuver clip matched — TTS the whole rest (fallback)
-      if (rest) {
-        scheduleAfterClip(distMatch?.delayMs ?? 0, () => {
-          Speech.speak(rest, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+      if (roundaboutExitNum != null) {
+        // 3-roundabout: exit ordinal clip (guaranteed non-null), then optional road clip
+        scheduleAfterClip(maneuverMatch.delayMs, () => {
+          void speakPhrase(exitPhraseKey!);
+          if (roadSuffix && roadClipKey) {
+            scheduleAfterClip(EXIT_ORDINAL_DELAY_MS, () => {
+              void speakRoadClip(roadClipKey);
+            });
+          }
+        });
+      } else if (roadSuffix && roadClipKey) {
+        // 3. Road clip (guaranteed non-null by pre-check above)
+        scheduleAfterClip(maneuverMatch.delayMs, () => {
+          void speakRoadClip(roadClipKey);
         });
       }
-    }
+    });
   })();
 }
 
@@ -1753,12 +1738,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navStartRef.current = Date.now();
     setNavigationActive(true);
     // Play the pre-generated "Navigation started." clip, then after a short
-    // gap TTS the first turn instruction (which contains a dynamic road name).
+    // gap announce the first turn instruction. speakTurnAnnouncement applies
+    // the same Keli-first / TTS-fallback logic as all subsequent steps, so
+    // the voice never changes mid-sentence on the very first instruction.
     void speakPhrase("nav_started");
     const firstInstruction = activeRoute.steps[0]?.instruction;
     if (firstInstruction) {
       scheduleAfterClip(1800, () => {
-        Speech.speak(firstInstruction, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+        speakTurnAnnouncement(firstInstruction);
       });
     }
   }, [activeRoute]);
