@@ -417,18 +417,14 @@ const ROAD_SOURCES = {
   bunyala_road:        require("@/assets/sounds/keli/roads/bunyala_road.mp3"),
   raphta_road:         require("@/assets/sounds/keli/roads/raphta_road.mp3"),
   riara_road:          require("@/assets/sounds/keli/roads/riara_road.mp3"),
-  // ── National highway route numbers (standalone OSRM labels on rural roads) ─
-  a1_highway:          require("@/assets/sounds/keli/roads/a1_highway.mp3"),
-  a3_highway:          require("@/assets/sounds/keli/roads/a3_highway.mp3"),
-  a7_highway:          require("@/assets/sounds/keli/roads/a7_highway.mp3"),
-  a9_highway:          require("@/assets/sounds/keli/roads/a9_highway.mp3"),
-  a12_highway:         require("@/assets/sounds/keli/roads/a12_highway.mp3"),
-  a104_highway:        require("@/assets/sounds/keli/roads/a104_highway.mp3"),
-  a109_highway:        require("@/assets/sounds/keli/roads/a109_highway.mp3"),
-  b1_highway:          require("@/assets/sounds/keli/roads/b1_highway.mp3"),
-  b3_highway:          require("@/assets/sounds/keli/roads/b3_highway.mp3"),
-  b17_highway:         require("@/assets/sounds/keli/roads/b17_highway.mp3"),
-  b18_highway:         require("@/assets/sounds/keli/roads/b18_highway.mp3"),
+  // ── Inter-city highways (named by the cities they connect) ───────────────
+  nakuru_kisumu_highway: require("@/assets/sounds/keli/roads/nakuru_kisumu_highway.mp3"),
+  nairobi_embu_highway:  require("@/assets/sounds/keli/roads/nairobi_embu_highway.mp3"),
+  kisumu_busia_road:     require("@/assets/sounds/keli/roads/kisumu_busia_road.mp3"),
+  kisii_migori_road:     require("@/assets/sounds/keli/roads/kisii_migori_road.mp3"),
+  nakuru_marigat_road:   require("@/assets/sounds/keli/roads/nakuru_marigat_road.mp3"),
+  nakuru_narok_road:     require("@/assets/sounds/keli/roads/nakuru_narok_road.mp3"),
+  mombasa_lamu_road:     require("@/assets/sounds/keli/roads/mombasa_lamu_road.mp3"),
 } as const;
 
 export type RoadClipKey = keyof typeof ROAD_SOURCES;
@@ -498,13 +494,13 @@ export function normalizeRoadName(raw: string): string {
  */
 export const ROAD_NORM_MAP: Array<{ norms: string[]; key: RoadClipKey }> = [
   // ── Speed-zone database roads ──────────────────────────────────────────────
-  { key: "mombasa_road",        norms: ["mombasa road"] },
+  { key: "mombasa_road",        norms: ["mombasa road", "nairobi mombasa highway", "a109 highway", "a109", "mombasa road (a109)"] },
   { key: "thika_superhighway",  norms: ["thika superhighway", "thika road"] },
   { key: "waiyaki_way",         norms: ["waiyaki way"] },
   { key: "ngong_road",          norms: ["ngong road"] },
   { key: "outer_ring_road",     norms: ["outer ring road", "outer ring"] },
   { key: "langata_road",        norms: ["langata road", "lang ata road"] },
-  { key: "nakuru_road",         norms: ["nakuru road"] },
+  { key: "nakuru_road",         norms: ["nakuru road", "a104 highway", "a104", "nakuru road (a104)"] },
   { key: "kisumu_road",         norms: ["kisumu road"] },
   { key: "nairobi_expressway",  norms: ["nairobi expressway", "expressway"] },
   { key: "southern_bypass",     norms: ["southern bypass"] },
@@ -514,12 +510,12 @@ export const ROAD_NORM_MAP: Array<{ norms: string[]; key: RoadClipKey }> = [
   { key: "enterprise_road",     norms: ["enterprise road"] },
   { key: "karen_road",          norms: ["karen road"] },
   { key: "chiromo_road",        norms: ["chiromo road"] },
-  { key: "garissa_road",        norms: ["garissa road", "thika garissa road"] },
+  { key: "garissa_road",        norms: ["garissa road", "thika garissa road", "a3 highway", "a3"] },
   { key: "airport_north_road",  norms: ["airport north road"] },
   { key: "eldoret_nakuru_hwy",  norms: ["eldoret nakuru highway", "eldoret nakuru"] },
   { key: "eldoret_malaba_hwy",  norms: ["eldoret malaba highway", "eldoret malaba"] },
   { key: "magadi_road",         norms: ["magadi road"] },
-  { key: "malindi_road",        norms: ["malindi road", "a7 malindi road", "mombasa malindi road"] },
+  { key: "malindi_road",        norms: ["malindi road", "a7 malindi road", "mombasa malindi road", "a7 highway", "a7"] },
   { key: "diani_beach_road",    norms: ["diani beach road"] },
   { key: "gitaru_road",         norms: ["gitaru road"] },
   { key: "red_hill_road",       norms: ["red hill road"] },
@@ -553,18 +549,14 @@ export const ROAD_NORM_MAP: Array<{ norms: string[]; key: RoadClipKey }> = [
   { key: "bunyala_road",        norms: ["bunyala road"] },
   { key: "raphta_road",         norms: ["raphta road"] },
   { key: "riara_road",          norms: ["riara road"] },
-  // ── National highway route numbers (last — named roads win above these) ───
-  { key: "a1_highway",          norms: ["a1 highway", "a1"] },
-  { key: "a3_highway",          norms: ["a3 highway", "a3"] },
-  { key: "a7_highway",          norms: ["a7 highway", "a7"] },
-  { key: "a9_highway",          norms: ["a9 highway", "a9"] },
-  { key: "a12_highway",         norms: ["a12 highway", "a12"] },
-  { key: "a104_highway",        norms: ["a104 highway", "a104"] },
-  { key: "a109_highway",        norms: ["a109 highway", "a109"] },
-  { key: "b1_highway",          norms: ["b1 highway", "b1"] },
-  { key: "b3_highway",          norms: ["b3 highway", "b3"] },
-  { key: "b17_highway",         norms: ["b17 highway", "b17"] },
-  { key: "b18_highway",         norms: ["b18 highway", "b18"] },
+  // ── Inter-city highways (named by cities) ─────────────────────────────────
+  { key: "nakuru_kisumu_highway", norms: ["nakuru kisumu highway", "b3 highway", "b3", "b3 kisumu highway"] },
+  { key: "nairobi_embu_highway",  norms: ["nairobi embu highway", "a9 highway", "a9", "a9 embu siakago", "embu siakago highway"] },
+  { key: "kisumu_busia_road",     norms: ["kisumu busia road", "a12 highway", "a12", "a12 kisumu busia", "a12 kericho kisumu"] },
+  { key: "kisii_migori_road",     norms: ["kisii migori road", "b1 highway", "b1", "b1 kisii migori"] },
+  { key: "nakuru_marigat_road",   norms: ["nakuru marigat road", "b17 highway", "b17", "b17 nakuru marigat"] },
+  { key: "nakuru_narok_road",     norms: ["nakuru narok road", "b18 highway", "b18", "b18 narok njoro"] },
+  { key: "mombasa_lamu_road",     norms: ["mombasa lamu road", "a1 highway", "a1"] },
 ];
 
 /**
