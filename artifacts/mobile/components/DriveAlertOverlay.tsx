@@ -152,6 +152,16 @@ export default function DriveAlertOverlay({ zone, onDismiss }: Props) {
           )}
         </Animated.View>
       </View>
+
+      {/* ── Dismiss button ── */}
+      <TouchableOpacity
+        onPress={onDismiss}
+        activeOpacity={0.75}
+        style={[styles.dismissBtn, { borderColor: bg }]}
+      >
+        <Ionicons name="checkmark-circle-outline" size={18} color={bg} />
+        <Text style={[styles.dismissTxt, { color: bg }]}>Got it — dismiss</Text>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -269,5 +279,22 @@ const styles = StyleSheet.create({
     borderRadius: 58,
     borderWidth:  2,
     opacity:      0.4,
+  },
+
+  // ── Dismiss button ───────────────────────────────────────────────────────
+  dismissBtn: {
+    flexDirection:   "row",
+    alignItems:      "center",
+    justifyContent:  "center",
+    gap:             8,
+    marginHorizontal: 16,
+    marginTop:       14,
+    paddingVertical: 13,
+    borderRadius:    14,
+    borderWidth:     1.5,
+  },
+  dismissTxt: {
+    fontSize:   15,
+    fontFamily: "Inter_600SemiBold",
   },
 });
