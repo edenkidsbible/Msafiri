@@ -196,8 +196,9 @@ function getKeliPlayer(key: PhraseKey): AudioPlayer | null {
 }
 
 /**
- * Stop any currently playing Keli clip and cancel any pending queued callback.
- * Call this whenever a new announcement pre-empts a previous one.
+ * Stop any currently playing Keli clip (phrase or road-name) and cancel any
+ * pending queued callback. Call whenever a new announcement pre-empts a
+ * previous one.
  */
 export function stopVoice() {
   if (voiceQueueTimer) {
@@ -206,6 +207,13 @@ export function stopVoice() {
   }
   for (const key of Object.keys(keliPlayers) as PhraseKey[]) {
     const p = keliPlayers[key];
+    if (p) {
+      try { p.pause(); p.seekTo(0); } catch { /* ignore */ }
+    }
+  }
+  // Also stop any road-name clip that may be playing
+  for (const key of Object.keys(roadPlayers) as RoadClipKey[]) {
+    const p = roadPlayers[key];
     if (p) {
       try { p.pause(); p.seekTo(0); } catch { /* ignore */ }
     }
@@ -307,3 +315,234 @@ export const DIST_PREFIX_MAP: Array<{ prefix: string; key: PhraseKey; delayMs: n
   { prefix: "In 900 metres, ",  key: "in_900m", delayMs: 1200 },
   { prefix: "In 1000 metres, ", key: "in_1km",  delayMs: 1300 },
 ];
+
+// ─── Keli road-name clips ─────────────────────────────────────────────────────
+//
+// Pre-generated "onto <Road Name>" clips covering:
+//   (a) every road in the speed-zone / camera database
+//   (b) major Nairobi streets commonly named by OSRM
+//   (c) Kenya's national highway route numbers (for rural OSRM segments)
+//
+// Metro bundler requires static string literals in require() — every asset is
+// listed explicitly.  Unknown roads fall back to TTS as before.
+
+const ROAD_SOURCES = {
+  // ── Speed-zone database roads ──────────────────────────────────────────────
+  mombasa_road:        require("@/assets/sounds/keli/roads/mombasa_road.mp3"),
+  thika_superhighway:  require("@/assets/sounds/keli/roads/thika_superhighway.mp3"),
+  waiyaki_way:         require("@/assets/sounds/keli/roads/waiyaki_way.mp3"),
+  ngong_road:          require("@/assets/sounds/keli/roads/ngong_road.mp3"),
+  outer_ring_road:     require("@/assets/sounds/keli/roads/outer_ring_road.mp3"),
+  langata_road:        require("@/assets/sounds/keli/roads/langata_road.mp3"),
+  nakuru_road:         require("@/assets/sounds/keli/roads/nakuru_road.mp3"),
+  kisumu_road:         require("@/assets/sounds/keli/roads/kisumu_road.mp3"),
+  nairobi_expressway:  require("@/assets/sounds/keli/roads/nairobi_expressway.mp3"),
+  southern_bypass:     require("@/assets/sounds/keli/roads/southern_bypass.mp3"),
+  northern_bypass:     require("@/assets/sounds/keli/roads/northern_bypass.mp3"),
+  eastern_bypass:      require("@/assets/sounds/keli/roads/eastern_bypass.mp3"),
+  western_bypass:      require("@/assets/sounds/keli/roads/western_bypass.mp3"),
+  enterprise_road:     require("@/assets/sounds/keli/roads/enterprise_road.mp3"),
+  karen_road:          require("@/assets/sounds/keli/roads/karen_road.mp3"),
+  chiromo_road:        require("@/assets/sounds/keli/roads/chiromo_road.mp3"),
+  garissa_road:        require("@/assets/sounds/keli/roads/garissa_road.mp3"),
+  airport_north_road:  require("@/assets/sounds/keli/roads/airport_north_road.mp3"),
+  eldoret_nakuru_hwy:  require("@/assets/sounds/keli/roads/eldoret_nakuru_hwy.mp3"),
+  eldoret_malaba_hwy:  require("@/assets/sounds/keli/roads/eldoret_malaba_hwy.mp3"),
+  magadi_road:         require("@/assets/sounds/keli/roads/magadi_road.mp3"),
+  malindi_road:        require("@/assets/sounds/keli/roads/malindi_road.mp3"),
+  diani_beach_road:    require("@/assets/sounds/keli/roads/diani_beach_road.mp3"),
+  gitaru_road:         require("@/assets/sounds/keli/roads/gitaru_road.mp3"),
+  red_hill_road:       require("@/assets/sounds/keli/roads/red_hill_road.mp3"),
+  limuru_road:         require("@/assets/sounds/keli/roads/limuru_road.mp3"),
+  kiambu_road:         require("@/assets/sounds/keli/roads/kiambu_road.mp3"),
+  university_way:      require("@/assets/sounds/keli/roads/university_way.mp3"),
+  kisii_rongo_road:    require("@/assets/sounds/keli/roads/kisii_rongo_road.mp3"),
+  kisumu_vihiga_road:  require("@/assets/sounds/keli/roads/kisumu_vihiga_road.mp3"),
+  // ── Major Nairobi roads (OSRM commonly names these) ───────────────────────
+  uhuru_highway:       require("@/assets/sounds/keli/roads/uhuru_highway.mp3"),
+  jogoo_road:          require("@/assets/sounds/keli/roads/jogoo_road.mp3"),
+  juja_road:           require("@/assets/sounds/keli/roads/juja_road.mp3"),
+  haile_selassie_ave:  require("@/assets/sounds/keli/roads/haile_selassie_ave.mp3"),
+  kenyatta_avenue:     require("@/assets/sounds/keli/roads/kenyatta_avenue.mp3"),
+  moi_avenue:          require("@/assets/sounds/keli/roads/moi_avenue.mp3"),
+  valley_road:         require("@/assets/sounds/keli/roads/valley_road.mp3"),
+  argwings_kodhek:     require("@/assets/sounds/keli/roads/argwings_kodhek.mp3"),
+  dennis_pritt:        require("@/assets/sounds/keli/roads/dennis_pritt.mp3"),
+  james_gichuru:       require("@/assets/sounds/keli/roads/james_gichuru.mp3"),
+  ring_road_westlands: require("@/assets/sounds/keli/roads/ring_road_westlands.mp3"),
+  ring_road_kilimani:  require("@/assets/sounds/keli/roads/ring_road_kilimani.mp3"),
+  riverside_drive:     require("@/assets/sounds/keli/roads/riverside_drive.mp3"),
+  peponi_road:         require("@/assets/sounds/keli/roads/peponi_road.mp3"),
+  lower_kabete_road:   require("@/assets/sounds/keli/roads/lower_kabete_road.mp3"),
+  upper_kabete_road:   require("@/assets/sounds/keli/roads/upper_kabete_road.mp3"),
+  gitanga_road:        require("@/assets/sounds/keli/roads/gitanga_road.mp3"),
+  muranga_road:        require("@/assets/sounds/keli/roads/muranga_road.mp3"),
+  museum_hill:         require("@/assets/sounds/keli/roads/museum_hill.mp3"),
+  mbagathi_way:        require("@/assets/sounds/keli/roads/mbagathi_way.mp3"),
+  lusaka_road:         require("@/assets/sounds/keli/roads/lusaka_road.mp3"),
+  bunyala_road:        require("@/assets/sounds/keli/roads/bunyala_road.mp3"),
+  raphta_road:         require("@/assets/sounds/keli/roads/raphta_road.mp3"),
+  riara_road:          require("@/assets/sounds/keli/roads/riara_road.mp3"),
+  // ── National highway route numbers (standalone OSRM labels on rural roads) ─
+  a1_highway:          require("@/assets/sounds/keli/roads/a1_highway.mp3"),
+  a3_highway:          require("@/assets/sounds/keli/roads/a3_highway.mp3"),
+  a7_highway:          require("@/assets/sounds/keli/roads/a7_highway.mp3"),
+  a9_highway:          require("@/assets/sounds/keli/roads/a9_highway.mp3"),
+  a12_highway:         require("@/assets/sounds/keli/roads/a12_highway.mp3"),
+  a104_highway:        require("@/assets/sounds/keli/roads/a104_highway.mp3"),
+  a109_highway:        require("@/assets/sounds/keli/roads/a109_highway.mp3"),
+  b1_highway:          require("@/assets/sounds/keli/roads/b1_highway.mp3"),
+  b3_highway:          require("@/assets/sounds/keli/roads/b3_highway.mp3"),
+  b17_highway:         require("@/assets/sounds/keli/roads/b17_highway.mp3"),
+  b18_highway:         require("@/assets/sounds/keli/roads/b18_highway.mp3"),
+} as const;
+
+export type RoadClipKey = keyof typeof ROAD_SOURCES;
+
+const roadPlayers: Partial<Record<RoadClipKey, AudioPlayer>> = {};
+
+function getRoadPlayer(key: RoadClipKey): AudioPlayer | null {
+  try {
+    if (!roadPlayers[key]) {
+      roadPlayers[key] = createAudioPlayer(ROAD_SOURCES[key]);
+    }
+    return roadPlayers[key]!;
+  } catch (e) {
+    console.warn(`[sound] Failed to load road clip "${key}":`, e);
+    return null;
+  }
+}
+
+/**
+ * Play a Keli road-name clip ("onto <Road>") immediately.
+ * Caller is responsible for sequencing via scheduleAfterClip.
+ * No-op when muted or on web.
+ */
+export async function speakRoadClip(key: RoadClipKey) {
+  if (soundsMuted || Platform.OS === "web") return;
+  await ensureAudioMode();
+  const player = getRoadPlayer(key);
+  if (!player) return;
+  try {
+    player.seekTo(0);
+    player.play();
+  } catch (e) {
+    console.warn(`[sound] Failed to play road clip "${key}":`, e);
+  }
+}
+
+/**
+ * Normalise a raw road-name string for lookup in ROAD_NORM_MAP:
+ *   1. Strip leading "onto " / "on to "
+ *   2. Remove parenthetical "(…)" blocks (route-number suffixes etc.)
+ *   3. Lowercase, remove apostrophes/commas
+ *   4. Replace en-dashes and hyphens with spaces
+ *   5. Collapse whitespace and trim
+ *
+ * Examples:
+ *   "onto Thika Superhighway (A2)" → "thika superhighway"
+ *   "onto Lang'ata Road"           → "langata road"
+ *   "onto A104 (Nakuru–Eldoret)"   → "a104"
+ */
+export function normalizeRoadName(raw: string): string {
+  return raw
+    .replace(/^on\s?to\s+/i, "")
+    .replace(/\([^)]*\)/g, "")
+    .toLowerCase()
+    .replace(/['\u2019]/g, "")
+    .replace(/[\u2013\u2014-]/g, " ")
+    .replace(/,/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Maps normalised road-name strings → RoadClipKey.
+ * Listed in priority order; more-specific entries first.
+ * Route-number-only entries (a104, a7 …) sit last so a named road
+ * like "Nakuru Road" always wins over the bare route number "A104".
+ */
+export const ROAD_NORM_MAP: Array<{ norms: string[]; key: RoadClipKey }> = [
+  // ── Speed-zone database roads ──────────────────────────────────────────────
+  { key: "mombasa_road",        norms: ["mombasa road"] },
+  { key: "thika_superhighway",  norms: ["thika superhighway", "thika road"] },
+  { key: "waiyaki_way",         norms: ["waiyaki way"] },
+  { key: "ngong_road",          norms: ["ngong road"] },
+  { key: "outer_ring_road",     norms: ["outer ring road", "outer ring"] },
+  { key: "langata_road",        norms: ["langata road", "lang ata road"] },
+  { key: "nakuru_road",         norms: ["nakuru road"] },
+  { key: "kisumu_road",         norms: ["kisumu road"] },
+  { key: "nairobi_expressway",  norms: ["nairobi expressway", "expressway"] },
+  { key: "southern_bypass",     norms: ["southern bypass"] },
+  { key: "northern_bypass",     norms: ["northern bypass"] },
+  { key: "eastern_bypass",      norms: ["eastern bypass"] },
+  { key: "western_bypass",      norms: ["western bypass"] },
+  { key: "enterprise_road",     norms: ["enterprise road"] },
+  { key: "karen_road",          norms: ["karen road"] },
+  { key: "chiromo_road",        norms: ["chiromo road"] },
+  { key: "garissa_road",        norms: ["garissa road", "thika garissa road"] },
+  { key: "airport_north_road",  norms: ["airport north road"] },
+  { key: "eldoret_nakuru_hwy",  norms: ["eldoret nakuru highway", "eldoret nakuru"] },
+  { key: "eldoret_malaba_hwy",  norms: ["eldoret malaba highway", "eldoret malaba"] },
+  { key: "magadi_road",         norms: ["magadi road"] },
+  { key: "malindi_road",        norms: ["malindi road", "a7 malindi road", "mombasa malindi road"] },
+  { key: "diani_beach_road",    norms: ["diani beach road"] },
+  { key: "gitaru_road",         norms: ["gitaru road"] },
+  { key: "red_hill_road",       norms: ["red hill road"] },
+  { key: "limuru_road",         norms: ["limuru road"] },
+  { key: "kiambu_road",         norms: ["kiambu road"] },
+  { key: "university_way",      norms: ["university way"] },
+  { key: "kisii_rongo_road",    norms: ["kisii rongo road", "kisii rongo"] },
+  { key: "kisumu_vihiga_road",  norms: ["kisumu vihiga road", "kisumu vihiga"] },
+  // ── Major Nairobi roads ────────────────────────────────────────────────────
+  { key: "uhuru_highway",       norms: ["uhuru highway"] },
+  { key: "jogoo_road",          norms: ["jogoo road"] },
+  { key: "juja_road",           norms: ["juja road"] },
+  { key: "haile_selassie_ave",  norms: ["haile selassie avenue", "haile selassie"] },
+  { key: "kenyatta_avenue",     norms: ["kenyatta avenue"] },
+  { key: "moi_avenue",          norms: ["moi avenue"] },
+  { key: "valley_road",         norms: ["valley road"] },
+  { key: "argwings_kodhek",     norms: ["argwings kodhek road", "argwings kodhek"] },
+  { key: "dennis_pritt",        norms: ["dennis pritt road", "dennis pritt"] },
+  { key: "james_gichuru",       norms: ["james gichuru road", "james gichuru"] },
+  { key: "ring_road_westlands", norms: ["ring road westlands"] },
+  { key: "ring_road_kilimani",  norms: ["ring road kilimani"] },
+  { key: "riverside_drive",     norms: ["riverside drive"] },
+  { key: "peponi_road",         norms: ["peponi road"] },
+  { key: "lower_kabete_road",   norms: ["lower kabete road", "lower kabete"] },
+  { key: "upper_kabete_road",   norms: ["upper kabete road", "upper kabete"] },
+  { key: "gitanga_road",        norms: ["gitanga road"] },
+  { key: "muranga_road",        norms: ["muranga road", "murangas road"] },
+  { key: "museum_hill",         norms: ["museum hill"] },
+  { key: "mbagathi_way",        norms: ["mbagathi way", "mbagathi road"] },
+  { key: "lusaka_road",         norms: ["lusaka road"] },
+  { key: "bunyala_road",        norms: ["bunyala road"] },
+  { key: "raphta_road",         norms: ["raphta road"] },
+  { key: "riara_road",          norms: ["riara road"] },
+  // ── National highway route numbers (last — named roads win above these) ───
+  { key: "a1_highway",          norms: ["a1 highway", "a1"] },
+  { key: "a3_highway",          norms: ["a3 highway", "a3"] },
+  { key: "a7_highway",          norms: ["a7 highway", "a7"] },
+  { key: "a9_highway",          norms: ["a9 highway", "a9"] },
+  { key: "a12_highway",         norms: ["a12 highway", "a12"] },
+  { key: "a104_highway",        norms: ["a104 highway", "a104"] },
+  { key: "a109_highway",        norms: ["a109 highway", "a109"] },
+  { key: "b1_highway",          norms: ["b1 highway", "b1"] },
+  { key: "b3_highway",          norms: ["b3 highway", "b3"] },
+  { key: "b17_highway",         norms: ["b17 highway", "b17"] },
+  { key: "b18_highway",         norms: ["b18 highway", "b18"] },
+];
+
+/**
+ * Resolve a raw road-suffix string (e.g. "onto Thika Superhighway (A2)") to a
+ * RoadClipKey, or null if no clip exists for this road.
+ */
+export function resolveRoadClipKey(rawSuffix: string): RoadClipKey | null {
+  const norm = normalizeRoadName(rawSuffix);
+  for (const entry of ROAD_NORM_MAP) {
+    if (entry.norms.some((n) => norm === n || norm.startsWith(n + " ") || norm.endsWith(" " + n))) {
+      return entry.key;
+    }
+  }
+  return null;
+}

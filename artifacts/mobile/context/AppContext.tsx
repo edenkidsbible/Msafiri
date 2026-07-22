@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
-import { speakPhrase, stopVoice, scheduleAfterClip, DIST_PREFIX_MAP, MANEUVER_PREFIX_MAP, type PhraseKey } from "@/utils/sound";
+import { speakPhrase, stopVoice, scheduleAfterClip, speakRoadClip, resolveRoadClipKey, DIST_PREFIX_MAP, MANEUVER_PREFIX_MAP, type PhraseKey } from "@/utils/sound";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -516,8 +516,15 @@ function speakTurnAnnouncement(text: string) {
         await speakPhrase(maneuverMatch.key);
         // 3. TTS only the road name (dynamic) — skip if empty
         if (roadSuffix) {
+          // Resolve to a pre-generated Keli road-name clip first; TTS fallback
+          // for any road not in the library (estate roads, POI names, etc.).
+          const roadKey = resolveRoadClipKey(roadSuffix);
           scheduleAfterClip(maneuverMatch.delayMs, () => {
-            Speech.speak(roadSuffix, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+            if (roadKey) {
+              void speakRoadClip(roadKey);
+            } else {
+              Speech.speak(roadSuffix, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+            }
           });
         }
       });
