@@ -28,21 +28,33 @@ async function getOrCreateDeviceId(): Promise<string> {
   return id;
 }
 
-// Android requires an explicit notification channel (API 26+) or notifications
-// may be silently suppressed or play no sound, regardless of the payload's
-// `sound` field. Channels must be created before the first notification arrives.
+// Android permanently caches notification channel importance after first creation —
+// calling setNotificationChannelAsync on an existing channel ID with a different
+// importance is silently ignored by the OS (Android 8+ behaviour, by design).
+//
+// expo-notifications also auto-creates a "default" channel at IMPORTANCE_DEFAULT
+// before JS runs, so updating that ID from JS is always a no-op.
+//
+// Fix: use channel IDs that have never existed on any device so Android creates
+// them fresh at IMPORTANCE_HIGH. Old channels (default / incident-alerts) are
+// cleaned up so they don't clutter the user's notification settings.
 async function ensureAndroidChannels(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "General",
-      // HIGH = heads-up banner + sound. DEFAULT only puts notifications
-      // silently in the tray — no banner, no sound, users never see them.
+    // Remove legacy channels that were created with DEFAULT importance.
+    // deleteNotificationChannelAsync is a no-op if the channel doesn't exist.
+    await Notifications.deleteNotificationChannelAsync("default").catch(() => {});
+    await Notifications.deleteNotificationChannelAsync("incident-alerts").catch(() => {});
+
+    // Create new channels that Android has never seen before — it will honour
+    // the requested importance because no cached entry exists for these IDs.
+    await Notifications.setNotificationChannelAsync("msafiri_general", {
+      name: "General Notifications",
       importance: Notifications.AndroidImportance.HIGH,
       sound: "default",
       vibrationPattern: [0, 150, 100, 150],
     });
-    await Notifications.setNotificationChannelAsync("incident-alerts", {
+    await Notifications.setNotificationChannelAsync("msafiri_alerts", {
       name: "Incident Alerts",
       importance: Notifications.AndroidImportance.HIGH,
       sound: "alert_tone.mp3",

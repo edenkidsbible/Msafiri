@@ -297,7 +297,7 @@ async function notifyReporterUnderReview(deviceId: string, type: string): Promis
       title: "Report under review",
       body: `Your ${typeLabel} report is being reviewed by our team and will go live once approved.`,
       sound: "default",
-      channelId: "default",
+      channelId: "msafiri_general",
       data: { type: "moderation_pending" },
     },
   ]);

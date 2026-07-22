@@ -101,7 +101,7 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
         title,
         body,
         sound: "default" as const,
-        channelId: "default",
+        channelId: "msafiri_general",
         data: data ?? {},
       }));
 

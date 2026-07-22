@@ -20,6 +20,7 @@
 - [Speed corridor confidence matching](speed-corridor-confidence-matching.md) — a stricter confidence check must exclude the data feeding a looser legacy check, not just be given fallback priority over it.
 - [Speed gauge stationary jitter](speed-gauge-stationary-jitter.md) — GPS phantom motion while parked; fix needs accuracy-based noise floor + dead-band + rolling median together, not just one.
 - [expo-audio in-app sound](expo-audio-inapp-sound.md) — createAudioPlayer (imperative) for a shared sound utility, not useAudioPlayer hook; unrelated to push notification sound (OS handles that).
+- [Android notification channels](android-notification-channels.md) — Android ignores importance updates on existing channel IDs; expo-notifications pre-creates "default" at DEFAULT importance; always use new IDs (msafiri_general, msafiri_alerts).
 - [Expo web icon font crash](expo-web-icon-font-crash.md) — vector-icons' internal loadAsync rejects uncaught on web timeout; reactive unhandledrejection listener too late, must preload fonts with own .catch() first.
 - [RevenueCat seed project pinning](revenuecat-seed-project-pinning.md) — never pick listProjects().items[0]; pin to existing REVENUECAT_PROJECT_ID or the wrong project silently gets seeded.
 - [RevenueCat package stale v1 cache](revenuecat-package-stale-cache.md) — management API correct but v1 customer API omits a package: delete & recreate the package, don't keep swapping products.

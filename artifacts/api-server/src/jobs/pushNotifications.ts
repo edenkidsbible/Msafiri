@@ -156,7 +156,7 @@ async function sendAutoCampaign(type: string, title: string, body: string): Prom
     .returning();
 
   const { ok, failed } = await sendPushNotifications(
-    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, channelId: "default", data: { type } }))
+    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, channelId: "msafiri_general", data: { type } }))
   );
 
   await db
@@ -198,7 +198,7 @@ async function processScheduledCampaigns(): Promise<void> {
         title: campaign.title,
         body: campaign.body,
         sound: "default" as const,
-        channelId: "default",
+        channelId: "msafiri_general",
         data: campaign.dataJson ? (JSON.parse(campaign.dataJson) as Record<string, unknown>) : {},
       }));
 
@@ -472,7 +472,7 @@ async function checkIncidentConfirmations(): Promise<void> {
         title,
         body,
         sound: "alert_tone.mp3",
-        channelId: "incident-alerts",
+        channelId: "msafiri_alerts",
         data,
       }))
     );
@@ -582,7 +582,7 @@ async function sendTripAdvice(deviceId: string, token: string, tripId: string, l
   const data = { type: "trip_advice", tripId, lat: route?.coords[0]?.lat, lng: route?.coords[0]?.lng };
 
   const { ok, failed } = await sendPushNotifications([
-    { to: token, title, body, sound: "default", channelId: "default", data },
+    { to: token, title, body, sound: "default", channelId: "msafiri_general", data },
   ]);
 
   await db
