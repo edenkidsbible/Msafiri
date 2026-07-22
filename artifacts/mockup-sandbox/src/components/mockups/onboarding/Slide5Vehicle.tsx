@@ -87,22 +87,24 @@ export function Slide5Vehicle() {
       </div>
 
       {/* Text content */}
-      <div className="px-5 pt-4 flex-1 flex flex-col justify-end pb-6">
-        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3 text-center">
+      <div className="flex flex-col flex-1 px-5 pt-4 pb-6">
+        <h1 className="text-[22px] font-black leading-tight tracking-tight mb-2 text-center">
           <span style={{ color: ACCENT }}>Your Vehicle,</span>{"\n"}
           <span className="text-gray-900">Your Speed Limit</span>
         </h1>
-        <p className="text-[14px] text-gray-500 leading-relaxed mb-5 text-center">
+        <p className="text-[13px] text-gray-500 leading-relaxed text-center">
           Speed limits vary by vehicle class in Kenya. Set yours once and we always show the right limit.
         </p>
-        <div className="flex items-center gap-2 justify-center mb-5">
-          {[0,1,2,3].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
-          <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
+        <div className="mt-auto">
+          <div className="flex items-center gap-2 justify-center mb-4">
+            {[0,1,2,3].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
+            <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
+          </div>
+          <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}44` }}>
+            Get Started
+            <CheckCircle2 size={20} color="white" strokeWidth={2.5} />
+          </button>
         </div>
-        <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}44` }}>
-          Get Started
-          <CheckCircle2 size={20} color="white" strokeWidth={2.5} />
-        </button>
       </div>
     </div>
   );

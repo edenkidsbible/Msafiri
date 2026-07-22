@@ -429,14 +429,14 @@ const styles = StyleSheet.create({
     borderRadius:   28,
     alignItems:     "center",
     justifyContent: "center",
-    marginBottom:   20,
+    marginBottom:   16,
   },
 
   // Feature cards
   cardsRow: {
     flexDirection: "row",
     gap:           8,
-    marginBottom:  24,
+    marginBottom:  18,
     width:         "100%",
   },
   card: {
@@ -522,25 +522,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   headlineAccent: {
-    fontSize:   26,
+    fontSize:   22,
     fontFamily: "Inter_700Bold",
     textAlign:  "center",
-    lineHeight: 32,
+    lineHeight: 28,
   },
   headlineNormal: {
-    fontSize:     26,
+    fontSize:     22,
     fontFamily:   "Inter_700Bold",
     color:        "#0A0E1A",
     textAlign:    "center",
-    lineHeight:   32,
-    marginBottom: 10,
+    lineHeight:   28,
+    marginBottom: 8,
   },
   body: {
-    fontSize:   14,
+    fontSize:   13,
     fontFamily: "Inter_400Regular",
     color:      "#666",
     textAlign:  "center",
-    lineHeight: 21,
+    lineHeight: 19,
   },
 
   // Dots

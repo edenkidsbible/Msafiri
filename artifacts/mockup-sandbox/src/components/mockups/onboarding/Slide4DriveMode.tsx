@@ -74,23 +74,25 @@ export function Slide4DriveMode() {
       </div>
 
       {/* Text content */}
-      <div className="px-5 pt-6 flex-1 flex flex-col justify-end pb-6">
-        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3 text-center">
+      <div className="flex flex-col flex-1 px-5 pt-4 pb-6">
+        <h1 className="text-[22px] font-black leading-tight tracking-tight mb-2 text-center">
           <span style={{ color: ACCENT }}>Your Speed vs the Limit.</span>{"\n"}
           <span className="text-gray-900">Every Single Second.</span>
         </h1>
-        <p className="text-[14px] text-gray-500 leading-relaxed mb-6 text-center">
+        <p className="text-[13px] text-gray-500 leading-relaxed text-center">
           Real-time speed display, zone limits ahead, and an instant red alert the moment you exceed the limit.
         </p>
-        <div className="flex items-center gap-2 justify-center mb-5">
-          {[0,1,2].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
-          <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
-          <div className="h-2 w-2 rounded-full bg-gray-200" />
+        <div className="mt-auto">
+          <div className="flex items-center gap-2 justify-center mb-4">
+            {[0,1,2].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
+            <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
+            <div className="h-2 w-2 rounded-full bg-gray-200" />
+          </div>
+          <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}33` }}>
+            Next
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
         </div>
-        <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}33` }}>
-          Next
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
       </div>
     </div>
   );
