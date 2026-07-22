@@ -3,7 +3,7 @@ module.exports = {
     name: "Msafiri",
     slug: "msafiri-kenya",
     owner: "edenkids-organization",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "msafiri",
@@ -22,7 +22,6 @@ module.exports = {
         NSLocationWhenInUseUsageDescription:
           "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",
         ITSAppUsesNonExemptEncryption: false,
-        MKDirectionsApplicationSupportedModes: ["MKDirectionsModeCar"],
       },
     },
     android: {

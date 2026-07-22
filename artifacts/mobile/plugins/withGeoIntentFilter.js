@@ -20,8 +20,8 @@ const { withAndroidManifest } = require("expo/config-plugins");
 // the same pattern used by Google Maps and Waze.
 //
 // No changes are needed for iOS: Apple Maps handles geo: links at the OS
-// level on iOS, and routing apps are surfaced through a separate mechanism
-// (MKDirectionsApplicationSupportedModes in Info.plist — see app.json).
+// level on iOS. We do not declare MKDirectionsApplicationSupportedModes
+// because Msafiri is not registered as a routing app in App Store Connect.
 
 function withGeoIntentFilter(config) {
   return withAndroidManifest(config, (config) => {
