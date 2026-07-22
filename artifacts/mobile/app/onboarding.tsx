@@ -411,6 +411,7 @@ const styles = StyleSheet.create({
   labelChip: {
     flexDirection:     "row",
     alignItems:        "center",
+    alignSelf:         "center",
     gap:               6,
     paddingVertical:   5,
     paddingHorizontal: 12,

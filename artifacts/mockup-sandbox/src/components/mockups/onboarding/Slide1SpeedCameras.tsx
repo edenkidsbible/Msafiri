@@ -45,7 +45,7 @@ export function Slide1SpeedCameras() {
       <div className="mx-5 h-px bg-gray-100" />
 
       {/* Accent label */}
-      <div className="px-5 pt-4 flex">
+      <div className="px-5 pt-4 flex justify-center">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ backgroundColor: ACCENT_LIGHT, borderColor: ACCENT + "44" }}>
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ACCENT }} />
           <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: ACCENT }}>Speed Cameras</span>
