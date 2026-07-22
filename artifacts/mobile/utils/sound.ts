@@ -161,14 +161,18 @@ const KELI_SOURCES = {
   nav_continue:    require("@/assets/sounds/keli/nav_continue.mp3"),
   continue_on:     require("@/assets/sounds/keli/continue_on.mp3"),
 
-  // Roundabout exit ordinals ("the 1st exit", …, "the 6th exit")
+  // Roundabout exit ordinals ("the 1st exit", …, "the 10th exit")
   // Chained after roundabout_exit when OSRM provides an exit number.
-  exit_1st: require("@/assets/sounds/keli/exit_1st.mp3"),
-  exit_2nd: require("@/assets/sounds/keli/exit_2nd.mp3"),
-  exit_3rd: require("@/assets/sounds/keli/exit_3rd.mp3"),
-  exit_4th: require("@/assets/sounds/keli/exit_4th.mp3"),
-  exit_5th: require("@/assets/sounds/keli/exit_5th.mp3"),
-  exit_6th: require("@/assets/sounds/keli/exit_6th.mp3"),
+  exit_1st:  require("@/assets/sounds/keli/exit_1st.mp3"),
+  exit_2nd:  require("@/assets/sounds/keli/exit_2nd.mp3"),
+  exit_3rd:  require("@/assets/sounds/keli/exit_3rd.mp3"),
+  exit_4th:  require("@/assets/sounds/keli/exit_4th.mp3"),
+  exit_5th:  require("@/assets/sounds/keli/exit_5th.mp3"),
+  exit_6th:  require("@/assets/sounds/keli/exit_6th.mp3"),
+  exit_7th:  require("@/assets/sounds/keli/exit_7th.mp3"),
+  exit_8th:  require("@/assets/sounds/keli/exit_8th.mp3"),
+  exit_9th:  require("@/assets/sounds/keli/exit_9th.mp3"),
+  exit_10th: require("@/assets/sounds/keli/exit_10th.mp3"),
 
   // Distance prefix clips for turn-by-turn announcements
   // ("In X metres," → clip, then Keli maneuver clip, then TTS road name if any)
@@ -321,12 +325,16 @@ export const MANEUVER_PREFIX_MAP: Array<{ prefix: string; key: PhraseKey; delayM
  * clip and fall back to TTS inside speakTurnAnnouncement.
  */
 export const ROUNDABOUT_EXIT_CLIP_MAP: Readonly<Record<number, PhraseKey>> = {
-  1: "exit_1st",
-  2: "exit_2nd",
-  3: "exit_3rd",
-  4: "exit_4th",
-  5: "exit_5th",
-  6: "exit_6th",
+  1:  "exit_1st",
+  2:  "exit_2nd",
+  3:  "exit_3rd",
+  4:  "exit_4th",
+  5:  "exit_5th",
+  6:  "exit_6th",
+  7:  "exit_7th",
+  8:  "exit_8th",
+  9:  "exit_9th",
+  10: "exit_10th",
 };
 
 /** Duration (ms) of each exit-ordinal clip ("the 3rd exit" ≈ 0.9 s). */
@@ -462,6 +470,8 @@ const ROAD_SOURCES = {
   bunyala_road:        require("@/assets/sounds/keli/roads/bunyala_road.mp3"),
   raphta_road:         require("@/assets/sounds/keli/roads/raphta_road.mp3"),
   riara_road:          require("@/assets/sounds/keli/roads/riara_road.mp3"),
+  // ── Generic road-suffix phrase (no specific name) ─────────────────────────
+  the_road: require("@/assets/sounds/keli/the_road.mp3"),
   // ── Inter-city highways (named by the cities they connect) ───────────────
   nakuru_kisumu_highway: require("@/assets/sounds/keli/roads/nakuru_kisumu_highway.mp3"),
   nairobi_embu_highway:  require("@/assets/sounds/keli/roads/nairobi_embu_highway.mp3"),
@@ -538,6 +548,8 @@ export function normalizeRoadName(raw: string): string {
  * like "Nakuru Road" always wins over the bare route number "A104".
  */
 export const ROAD_NORM_MAP: Array<{ norms: string[]; key: RoadClipKey }> = [
+  // ── Generic road-suffix phrase ─────────────────────────────────────────────
+  { key: "the_road",            norms: ["the road"] },
   // ── Speed-zone database roads ──────────────────────────────────────────────
   { key: "mombasa_road",        norms: ["mombasa road", "nairobi mombasa highway", "a109 highway", "a109", "mombasa road (a109)"] },
   { key: "thika_superhighway",  norms: ["thika superhighway", "thika road"] },
