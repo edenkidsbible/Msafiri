@@ -90,7 +90,16 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
       projectId: EAS_PROJECT_ID,
     });
   } catch (err) {
-    console.warn("[usePushNotifications] getExpoPushTokenAsync failed:", err);
+    // On Android standalone builds this almost always means google-services.json
+    // was missing from the EAS build or FCM V1 credentials were not uploaded to
+    // the EAS project. The error message from the native layer is the key clue.
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      "[usePushNotifications] getExpoPushTokenAsync FAILED — " +
+      "Android builds require google-services.json + FCM V1 credentials in EAS. " +
+      "iOS builds require APNs credentials in EAS. " +
+      `Raw error: ${msg}`
+    );
     return;
   }
 
