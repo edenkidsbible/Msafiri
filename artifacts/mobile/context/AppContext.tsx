@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
-import { speakPhrase, stopVoice, scheduleAfterClip, DIST_PREFIX_MAP, type PhraseKey } from "@/utils/sound";
+import { speakPhrase, stopVoice, scheduleAfterClip, DIST_PREFIX_MAP, MANEUVER_PREFIX_MAP, type PhraseKey } from "@/utils/sound";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -469,35 +469,67 @@ function speakText(text: string) {
 }
 
 /**
- * Hybrid speak for turn-by-turn step announcements.
- * When the text starts with a distance prefix ("In 200 metres, …"):
- *   1. Plays the pre-generated Keli distance clip immediately.
- *   2. After the clip finishes, TTS-speaks the remainder (turn instruction
- *      with road name) using the best on-device voice.
- * Otherwise falls back to plain TTS for the whole string.
- * Stops any currently playing voice (clip or TTS) before starting.
+ * Full-Keli turn-by-turn announcements.
+ *
+ * Sequence: [distance clip] → [maneuver clip] → [TTS road name only, if any]
+ *
+ * Examples:
+ *   "In 200 metres, turn left onto Ngong Road"
+ *     → Keli: "In 200 metres,"
+ *     → Keli: "Turn left."
+ *     → TTS:  "onto Ngong Road"        ← dynamic, can't pre-generate
+ *
+ *   "head right"  (no distance, no road)
+ *     → Keli: "Head right."
+ *
+ *   "In 50 metres, turn left"  (no road name)
+ *     → Keli: "In 50 metres,"
+ *     → Keli: "Turn left."             ← no TTS at all
  */
 function speakTurnAnnouncement(text: string) {
   if (Platform.OS === "web") return;
   Speech.stop();
-  const match = DIST_PREFIX_MAP.find((d) => text.startsWith(d.prefix));
-  if (match) {
-    // Await speakPhrase so its internal stopVoice() runs BEFORE we set the
-    // queue timer — otherwise stopVoice would clear the timer we just set.
-    void (async () => {
-      await speakPhrase(match.key);
-      const rest = text.slice(match.prefix.length).trim();
+
+  const distMatch = DIST_PREFIX_MAP.find((d) => text.startsWith(d.prefix));
+  const rest = distMatch ? text.slice(distMatch.prefix.length).trim() : text.trim();
+
+  // Find the Keli maneuver clip for the instruction (compare lower-cased)
+  const restLower = rest.toLowerCase();
+  const maneuverMatch = MANEUVER_PREFIX_MAP.find((m) => restLower.startsWith(m.prefix));
+
+  // Road-name suffix: everything after the matched maneuver prefix (case-preserved)
+  const roadSuffix = maneuverMatch
+    ? rest.slice(maneuverMatch.prefix.length).trim()
+    : "";
+
+  void (async () => {
+    // 1. Distance clip (if present)
+    if (distMatch) {
+      await speakPhrase(distMatch.key);
+    } else {
+      stopVoice();
+    }
+
+    if (maneuverMatch) {
+      // 2a. Keli maneuver clip, chained after the distance clip
+      scheduleAfterClip(distMatch?.delayMs ?? 0, async () => {
+        await speakPhrase(maneuverMatch.key);
+        // 3. TTS only the road name (dynamic) — skip if empty
+        if (roadSuffix) {
+          scheduleAfterClip(maneuverMatch.delayMs, () => {
+            Speech.speak(roadSuffix, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+          });
+        }
+      });
+    } else {
+      // 2b. No maneuver clip matched — TTS the whole rest (fallback)
       if (rest) {
-        scheduleAfterClip(match.delayMs, () => {
+        scheduleAfterClip(distMatch?.delayMs ?? 0, () => {
           Speech.speak(rest, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
         });
       }
-    })();
-    return;
-  }
-  // No distance prefix — stop any clip then TTS the whole instruction
-  stopVoice();
-  Speech.speak(text, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+    }
+  })();
 }
 
 // ─── Notification setup ───────────────────────────────────────────────────────

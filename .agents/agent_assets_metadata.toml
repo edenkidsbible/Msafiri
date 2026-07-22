@@ -671,3 +671,153 @@ id = "UwdeVMTMjlUMzH0gkJJwj"
 uri = "file://attached_assets/generated_audio/course/unit-18-emergency-procedures-emergency-procedures_2.mp3"
 type = "audio"
 title = "course unit-18-emergency-procedures-emergency-procedures"
+
+[[outputs]]
+id = "roedTuQVFigXvuVQSWjqj"
+uri = "file://artifacts/mobile/assets/sounds/keli/turn_slight_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "6tvzC4g_II-bcCydoz6qE"
+uri = "file://artifacts/mobile/assets/sounds/keli/turn_slight_right.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "Wbl0HP737P4JTEz12IhIF"
+uri = "file://artifacts/mobile/assets/sounds/keli/turn_sharp_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "Jgoz8GYoGsjyMfDIFkSmU"
+uri = "file://artifacts/mobile/assets/sounds/keli/turn_sharp_right.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "yxaEeakf2-sxN4F4oeziv"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "rYzDVKnlKVN-TbOUjyMHK"
+uri = "file://artifacts/mobile/assets/sounds/keli/turn_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "zSHtShJaLOWrCzBrmMUsW"
+uri = "file://artifacts/mobile/assets/sounds/keli/uturn.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "WA1Qa25b_A0sVnx0EVVmv"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_straight.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "LAEdmfhYjaPnK5vRB5rxR"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_north.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "PbRMx6M5JV7b6MUqbsZKW"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_forward.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "9li3UB_0xmgdRnNFll2BW"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_south.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "QFv4ID6O6EQcFTmrjld8N"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_west.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "UO6KO0YxVRAlnwR6b_KN4"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_northwest.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "2sBHjH0RqcM7ChBuAkUfT"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_east.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "tdzNC1eLCZdlwD9KPqF9z"
+uri = "file://artifacts/mobile/assets/sounds/keli/head_southeast.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "PJ_RoAVzYsW02NeLQutHP"
+uri = "file://artifacts/mobile/assets/sounds/keli/fork_straight.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "iQloAmmXBmiEyKOWEE9UY"
+uri = "file://artifacts/mobile/assets/sounds/keli/fork_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "Pvu-6UcFaZ7J5qwm7UzfI"
+uri = "file://artifacts/mobile/assets/sounds/keli/fork_right.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "V7g0aAwue24Au3yF2u_fi"
+uri = "file://artifacts/mobile/assets/sounds/keli/end_road_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "v4XDWR8n4wFQWJRXu8Re9"
+uri = "file://artifacts/mobile/assets/sounds/keli/end_road_right.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "y6bJL_H3NEGOs2LtKHs-W"
+uri = "file://artifacts/mobile/assets/sounds/keli/merge_right.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "WbRHU8mzYQgt7FJxiwjK5"
+uri = "file://artifacts/mobile/assets/sounds/keli/merge_left.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "QnChFEpMvYJkn-JHbbYa0"
+uri = "file://artifacts/mobile/assets/sounds/keli/continue_on.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "P3uNr8vFzuHkcU4HAy2cx"
+uri = "file://artifacts/mobile/assets/sounds/keli/nav_continue.mp3"
+type = "audio"
+title = "speech"
+
+[[outputs]]
+id = "fiux7fR7rPdRg7f3a0Wwt"
+uri = "file://artifacts/mobile/assets/sounds/keli/roundabout_exit.mp3"
+type = "audio"
+title = "speech"

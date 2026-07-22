@@ -119,8 +119,49 @@ const KELI_SOURCES = {
   // Report submission confirmation
   report_submitted:   require("@/assets/sounds/keli/report_submitted.mp3"),
 
+  // Turn maneuvers
+  turn_left:         require("@/assets/sounds/keli/turn_left.mp3"),
+  turn_right:        require("@/assets/sounds/keli/turn_right.mp3"),
+  turn_slight_left:  require("@/assets/sounds/keli/turn_slight_left.mp3"),
+  turn_slight_right: require("@/assets/sounds/keli/turn_slight_right.mp3"),
+  turn_sharp_left:   require("@/assets/sounds/keli/turn_sharp_left.mp3"),
+  turn_sharp_right:  require("@/assets/sounds/keli/turn_sharp_right.mp3"),
+  uturn:             require("@/assets/sounds/keli/uturn.mp3"),
+
+  // Head / depart
+  head_left:       require("@/assets/sounds/keli/head_left.mp3"),
+  head_right:      require("@/assets/sounds/keli/head_right.mp3"),
+  head_straight:   require("@/assets/sounds/keli/head_straight.mp3"),
+  head_forward:    require("@/assets/sounds/keli/head_forward.mp3"),
+  head_north:      require("@/assets/sounds/keli/head_north.mp3"),
+  head_south:      require("@/assets/sounds/keli/head_south.mp3"),
+  head_east:       require("@/assets/sounds/keli/head_east.mp3"),
+  head_west:       require("@/assets/sounds/keli/head_west.mp3"),
+  head_northeast:  require("@/assets/sounds/keli/head_northeast.mp3"),
+  head_northwest:  require("@/assets/sounds/keli/head_northwest.mp3"),
+  head_southeast:  require("@/assets/sounds/keli/head_southeast.mp3"),
+  head_southwest:  require("@/assets/sounds/keli/head_southwest.mp3"),
+
+  // Fork
+  fork_left:     require("@/assets/sounds/keli/fork_left.mp3"),
+  fork_right:    require("@/assets/sounds/keli/fork_right.mp3"),
+  fork_straight: require("@/assets/sounds/keli/fork_straight.mp3"),
+
+  // End of road
+  end_road_left:  require("@/assets/sounds/keli/end_road_left.mp3"),
+  end_road_right: require("@/assets/sounds/keli/end_road_right.mp3"),
+
+  // Merge
+  merge_left:  require("@/assets/sounds/keli/merge_left.mp3"),
+  merge_right: require("@/assets/sounds/keli/merge_right.mp3"),
+
+  // Roundabout / continue
+  roundabout_exit: require("@/assets/sounds/keli/roundabout_exit.mp3"),
+  nav_continue:    require("@/assets/sounds/keli/nav_continue.mp3"),
+  continue_on:     require("@/assets/sounds/keli/continue_on.mp3"),
+
   // Distance prefix clips for turn-by-turn announcements
-  // ("In X metres," → clip, then TTS the turn instruction)
+  // ("In X metres," → clip, then Keli maneuver clip, then TTS road name if any)
   in_50m:  require("@/assets/sounds/keli/in_50m.mp3"),
   in_100m: require("@/assets/sounds/keli/in_100m.mp3"),
   in_150m: require("@/assets/sounds/keli/in_150m.mp3"),
@@ -202,6 +243,51 @@ export function scheduleAfterClip(afterMs: number, callback: () => void) {
     callback();
   }, afterMs);
 }
+
+/**
+ * Maps the maneuver portion of a turn instruction (lower-cased, without road
+ * name) to the Keli clip that should play for it.  Entries are checked in
+ * order; list more-specific prefixes before shorter ones.
+ *
+ * How it works inside speakTurnAnnouncement:
+ *   full text  = "[distance prefix, ]<maneuver>[road suffix]"
+ *   After stripping the distance prefix we have:
+ *     "turn left onto ngong road" → key=turn_left, roadSuffix=" onto Ngong Road"
+ *     "head right"                → key=head_right, roadSuffix=""
+ *   The road suffix (dynamic) is TTS'd after the maneuver clip plays.
+ */
+export const MANEUVER_PREFIX_MAP: Array<{ prefix: string; key: PhraseKey; delayMs: number }> = [
+  // More-specific modifiers before shorter ones
+  { prefix: "turn slight left",             key: "turn_slight_left",  delayMs: 1300 },
+  { prefix: "turn slight right",            key: "turn_slight_right", delayMs: 1300 },
+  { prefix: "turn sharp left",              key: "turn_sharp_left",   delayMs: 1300 },
+  { prefix: "turn sharp right",            key: "turn_sharp_right",  delayMs: 1300 },
+  { prefix: "turn left",                    key: "turn_left",         delayMs: 1100 },
+  { prefix: "turn right",                   key: "turn_right",        delayMs: 1100 },
+  { prefix: "make a u-turn",                key: "uturn",             delayMs: 1400 },
+  { prefix: "head northeast",               key: "head_northeast",    delayMs: 1300 },
+  { prefix: "head northwest",               key: "head_northwest",    delayMs: 1300 },
+  { prefix: "head southeast",               key: "head_southeast",    delayMs: 1300 },
+  { prefix: "head southwest",               key: "head_southwest",    delayMs: 1300 },
+  { prefix: "head north",                   key: "head_north",        delayMs: 1100 },
+  { prefix: "head south",                   key: "head_south",        delayMs: 1100 },
+  { prefix: "head east",                    key: "head_east",         delayMs: 1100 },
+  { prefix: "head west",                    key: "head_west",         delayMs: 1100 },
+  { prefix: "head left",                    key: "head_left",         delayMs: 1100 },
+  { prefix: "head right",                   key: "head_right",        delayMs: 1100 },
+  { prefix: "head straight",                key: "head_straight",     delayMs: 1200 },
+  { prefix: "head forward",                 key: "head_forward",      delayMs: 1200 },
+  { prefix: "keep left at the fork",        key: "fork_left",         delayMs: 1800 },
+  { prefix: "keep right at the fork",       key: "fork_right",        delayMs: 1800 },
+  { prefix: "keep straight at the fork",    key: "fork_straight",     delayMs: 1900 },
+  { prefix: "turn left at the end of the road",  key: "end_road_left",  delayMs: 2200 },
+  { prefix: "turn right at the end of the road", key: "end_road_right", delayMs: 2200 },
+  { prefix: "merge left",                   key: "merge_left",        delayMs: 1200 },
+  { prefix: "merge right",                  key: "merge_right",       delayMs: 1200 },
+  { prefix: "at the roundabout, take the exit", key: "roundabout_exit", delayMs: 2000 },
+  { prefix: "continue on",                  key: "continue_on",       delayMs: 1300 },
+  { prefix: "continue",                     key: "nav_continue",      delayMs: 1100 },
+];
 
 /**
  * Maps "In X metres, " text prefixes to their PhraseKey so the speak layer
