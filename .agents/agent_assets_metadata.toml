@@ -83,3 +83,15 @@ id = "mgLBNOFQHJxPI9aFdnTXt"
 uri = "file://attached_assets/generated_audio/intro_driving_multilingual_v2.mp3"
 type = "audio"
 title = "Multilingual v2 — High quality (~$0.97)"
+
+[[outputs]]
+id = "6p5LQgJid2HOz5WiYMLcS"
+uri = "file://attached_assets/generated_audio/intro_driving_keli_flash.mp3"
+type = "audio"
+title = "Keli — Calm African voice (Flash v2.5)"
+
+[[outputs]]
+id = "eow_leyW7Afj6S3k0gveK"
+uri = "file://attached_assets/generated_audio/intro_driving_iraqueen_flash.mp3"
+type = "audio"
+title = "IraQueen — African female narrator (Flash v2.5)"
