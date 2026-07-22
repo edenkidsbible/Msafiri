@@ -821,3 +821,33 @@ id = "fiux7fR7rPdRg7f3a0Wwt"
 uri = "file://artifacts/mobile/assets/sounds/keli/roundabout_exit.mp3"
 type = "audio"
 title = "speech"
+
+[[outputs]]
+id = "G164RsZZTT0NsqGBvYGGU"
+uri = "file://artifacts/mobile/assets/sounds/keli/exit_1st.mp3"
+type = "audio"
+title = "exit_1st"
+
+[[outputs]]
+id = "HzKNw--2aOPLIf34BLCwK"
+uri = "file://artifacts/mobile/assets/sounds/keli/exit_3rd.mp3"
+type = "audio"
+title = "exit_3rd"
+
+[[outputs]]
+id = "I8nMMto8cMZX4iFp0UMbw"
+uri = "file://artifacts/mobile/assets/sounds/keli/exit_6th.mp3"
+type = "audio"
+title = "exit_6th"
+
+[[outputs]]
+id = "ajxEPnZgPe3MZ10vp5JhP"
+uri = "file://artifacts/mobile/assets/sounds/keli/exit_2nd.mp3"
+type = "audio"
+title = "exit_2nd"
+
+[[outputs]]
+id = "o0aErKjF_UwhmOLRhruUm"
+uri = "file://artifacts/mobile/assets/sounds/keli/exit_5th.mp3"
+type = "audio"
+title = "exit_5th"

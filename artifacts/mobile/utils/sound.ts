@@ -160,6 +160,15 @@ const KELI_SOURCES = {
   nav_continue:    require("@/assets/sounds/keli/nav_continue.mp3"),
   continue_on:     require("@/assets/sounds/keli/continue_on.mp3"),
 
+  // Roundabout exit ordinals ("the 1st exit", …, "the 6th exit")
+  // Chained after roundabout_exit when OSRM provides an exit number.
+  exit_1st: require("@/assets/sounds/keli/exit_1st.mp3"),
+  exit_2nd: require("@/assets/sounds/keli/exit_2nd.mp3"),
+  exit_3rd: require("@/assets/sounds/keli/exit_3rd.mp3"),
+  exit_4th: require("@/assets/sounds/keli/exit_4th.mp3"),
+  exit_5th: require("@/assets/sounds/keli/exit_5th.mp3"),
+  exit_6th: require("@/assets/sounds/keli/exit_6th.mp3"),
+
   // Distance prefix clips for turn-by-turn announcements
   // ("In X metres," → clip, then Keli maneuver clip, then TTS road name if any)
   in_50m:  require("@/assets/sounds/keli/in_50m.mp3"),
@@ -292,10 +301,35 @@ export const MANEUVER_PREFIX_MAP: Array<{ prefix: string; key: PhraseKey; delayM
   { prefix: "turn right at the end of the road", key: "end_road_right", delayMs: 2200 },
   { prefix: "merge left",                   key: "merge_left",        delayMs: 1200 },
   { prefix: "merge right",                  key: "merge_right",       delayMs: 1200 },
+  // Ordinal-specific roundabout entries come first (more specific wins)
+  { prefix: "at the roundabout, take the 1st exit", key: "roundabout_exit", delayMs: 2000 },
+  { prefix: "at the roundabout, take the 2nd exit", key: "roundabout_exit", delayMs: 2000 },
+  { prefix: "at the roundabout, take the 3rd exit", key: "roundabout_exit", delayMs: 2000 },
+  { prefix: "at the roundabout, take the 4th exit", key: "roundabout_exit", delayMs: 2000 },
+  { prefix: "at the roundabout, take the 5th exit", key: "roundabout_exit", delayMs: 2000 },
+  { prefix: "at the roundabout, take the 6th exit", key: "roundabout_exit", delayMs: 2000 },
+  // Generic fallback (no exit number in instruction)
   { prefix: "at the roundabout, take the exit", key: "roundabout_exit", delayMs: 2000 },
   { prefix: "continue on",                  key: "continue_on",       delayMs: 1300 },
   { prefix: "continue",                     key: "nav_continue",      delayMs: 1100 },
 ];
+
+/**
+ * Maps roundabout exit number (1–6) to the Keli ordinal clip that is chained
+ * after the `roundabout_exit` clip.  Exit counts > 6 have no pre-generated
+ * clip and fall back to TTS inside speakTurnAnnouncement.
+ */
+export const ROUNDABOUT_EXIT_CLIP_MAP: Readonly<Record<number, PhraseKey>> = {
+  1: "exit_1st",
+  2: "exit_2nd",
+  3: "exit_3rd",
+  4: "exit_4th",
+  5: "exit_5th",
+  6: "exit_6th",
+};
+
+/** Duration (ms) of each exit-ordinal clip ("the 3rd exit" ≈ 0.9 s). */
+export const EXIT_ORDINAL_DELAY_MS = 950;
 
 /**
  * Maps "In X metres, " text prefixes to their PhraseKey so the speak layer

@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
-import { speakPhrase, stopVoice, scheduleAfterClip, speakRoadClip, resolveRoadClipKey, DIST_PREFIX_MAP, MANEUVER_PREFIX_MAP, type PhraseKey } from "@/utils/sound";
+import { speakPhrase, stopVoice, scheduleAfterClip, speakRoadClip, resolveRoadClipKey, DIST_PREFIX_MAP, MANEUVER_PREFIX_MAP, ROUNDABOUT_EXIT_CLIP_MAP, EXIT_ORDINAL_DELAY_MS, type PhraseKey } from "@/utils/sound";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -227,7 +227,14 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
 
-function buildInstruction(maneuver: { type?: string; modifier?: string }, name: string): string {
+/** Returns the English ordinal suffix string for a positive integer, e.g. 1→"1st", 3→"3rd". */
+function toOrdinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: number }, name: string): string {
   const t = maneuver?.type ?? "";
   const mod = maneuver?.modifier ?? "";
   const road = name ? ` onto ${name}` : "";
@@ -236,7 +243,10 @@ function buildInstruction(maneuver: { type?: string; modifier?: string }, name: 
   if (t === "turn") return `Turn ${mod || "left"}${road}`;
   if (t === "new name") return `Continue${road}`;
   if (t === "continue") return `Continue on ${name || "the road"}`;
-  if (t === "roundabout" || t === "rotary") return `At the roundabout, take the exit${road}`;
+  if (t === "roundabout" || t === "rotary") {
+    const exitOrdinal = maneuver.exit ? ` ${toOrdinal(maneuver.exit)}` : "";
+    return `At the roundabout, take the${exitOrdinal} exit${road}`;
+  }
   if (t === "fork") return `Keep ${mod || "straight"} at the fork`;
   if (t === "end of road") return `Turn ${mod || "left"} at the end of the road`;
   if (t === "merge") return `Merge ${mod || ""}${road}`;
@@ -486,6 +496,9 @@ function speakText(text: string) {
  *     → Keli: "In 50 metres,"
  *     → Keli: "Turn left."             ← no TTS at all
  */
+// Detects "at the roundabout, take the 3rd exit" and extracts the exit number.
+const ROUNDABOUT_ORDINAL_RE = /at the roundabout, take the (\d+)(?:st|nd|rd|th) exit/i;
+
 function speakTurnAnnouncement(text: string) {
   if (Platform.OS === "web") return;
   Speech.stop();
@@ -502,6 +515,20 @@ function speakTurnAnnouncement(text: string) {
     ? rest.slice(maneuverMatch.prefix.length).trim()
     : "";
 
+  // Roundabout exit-number chaining:
+  //   "At the roundabout, take the 3rd exit onto Ngong Road"
+  //   → roundabout_exit clip → "the 3rd exit" clip → road clip
+  const roundaboutExitMatch = ROUNDABOUT_ORDINAL_RE.exec(restLower);
+  const roundaboutExitNum = roundaboutExitMatch ? parseInt(roundaboutExitMatch[1], 10) : null;
+  // Pre-generated clip key for exit 1–6; null means TTS fallback for the ordinal
+  const exitPhraseKey = roundaboutExitNum != null
+    ? (ROUNDABOUT_EXIT_CLIP_MAP[roundaboutExitNum] ?? null)
+    : null;
+  // Text spoken by TTS when no pre-generated clip exists (exit > 6)
+  const exitTtsFallback = roundaboutExitNum != null && exitPhraseKey == null
+    ? `the ${toOrdinal(roundaboutExitNum)} exit`
+    : null;
+
   void (async () => {
     // 1. Distance clip (if present)
     if (distMatch) {
@@ -514,8 +541,29 @@ function speakTurnAnnouncement(text: string) {
       // 2a. Keli maneuver clip, chained after the distance clip
       scheduleAfterClip(distMatch?.delayMs ?? 0, async () => {
         await speakPhrase(maneuverMatch.key);
-        // 3. TTS only the road name (dynamic) — skip if empty
-        if (roadSuffix) {
+
+        if (roundaboutExitNum != null) {
+          // 3-roundabout: chain exit-ordinal clip (or TTS) after roundabout_exit,
+          // then optionally chain the road clip after that.
+          scheduleAfterClip(maneuverMatch.delayMs, () => {
+            if (exitPhraseKey) {
+              void speakPhrase(exitPhraseKey);
+            } else if (exitTtsFallback) {
+              Speech.speak(exitTtsFallback, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+            }
+            if (roadSuffix) {
+              const roadKey = resolveRoadClipKey(roadSuffix);
+              scheduleAfterClip(EXIT_ORDINAL_DELAY_MS, () => {
+                if (roadKey) {
+                  void speakRoadClip(roadKey);
+                } else {
+                  Speech.speak(roadSuffix, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+                }
+              });
+            }
+          });
+        } else if (roadSuffix) {
+          // 3. TTS only the road name (dynamic) — skip if empty
           // Resolve to a pre-generated Keli road-name clip first; TTS fallback
           // for any road not in the library (estate roads, POI names, etc.).
           const roadKey = resolveRoadClipKey(roadSuffix);
