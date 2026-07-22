@@ -31,6 +31,7 @@ import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
+import { speakRoundaboutExitCue, speakTakeThisExit } from "@/utils/sound";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -213,6 +214,35 @@ export default function DriveScreen() {
     exitBadgePulse.setValue(1);
     return undefined;
   }, [targetExitIsNext, exitBadgePulse]);
+
+  // ── Roundabout voice cues ─────────────────────────────────────────────────
+  // Track the previous exitsPassed so we only speak on genuine increments,
+  // not on the reset back to 0 when the driver leaves the roundabout.
+  const prevExitsPassedRef = useRef(0);
+  useEffect(() => {
+    const prev = prevExitsPassedRef.current;
+    prevExitsPassedRef.current = exitsPassed;
+
+    // Only fire when the count genuinely increased
+    if (exitsPassed <= 0 || exitsPassed <= prev) return;
+
+    // If targetExitIsNext is already true for this render, the "take this exit"
+    // effect below will speak — skip the arm-count cue to avoid two overlapping clips.
+    if (targetExitIsNext) return;
+
+    void speakRoundaboutExitCue(exitsPassed);
+  }, [exitsPassed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const prevTargetExitIsNextRef = useRef(false);
+  useEffect(() => {
+    const prev = prevTargetExitIsNextRef.current;
+    prevTargetExitIsNextRef.current = targetExitIsNext;
+
+    // Only fire on the transition false → true
+    if (targetExitIsNext && !prev) {
+      void speakTakeThisExit();
+    }
+  }, [targetExitIsNext]);
 
   // Nearest incident ahead — considers BOTH static speed zones AND community
   // reports so a just-reported broken-down vehicle beats a distant speed camera.

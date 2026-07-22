@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import * as Speech from "expo-speech";
 
 // Central place for all short in-app notification sounds (not push-notification
 // sounds — those are handled by the OS via the `sound: "default"` field on the
@@ -330,6 +331,50 @@ export const ROUNDABOUT_EXIT_CLIP_MAP: Readonly<Record<number, PhraseKey>> = {
 
 /** Duration (ms) of each exit-ordinal clip ("the 3rd exit" ≈ 0.9 s). */
 export const EXIT_ORDINAL_DELAY_MS = 950;
+
+// ─── Roundabout arm-counting voice cues ───────────────────────────────────────
+
+/** Returns "1st", "2nd", "3rd", "4th", … for TTS fallback in exit counting. */
+function toOrdinalSuffix(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+/**
+ * Announce the arm that the driver just swept past while inside a roundabout.
+ *
+ * For exit counts 1–6 the pre-generated ordinal clip is played
+ * ("the 1st exit", "the 2nd exit", …).  For counts above 6 a brief TTS
+ * phrase is used as a fallback ("the 7th exit", …).
+ * No-op when muted or on web.
+ */
+export async function speakRoundaboutExitCue(n: number): Promise<void> {
+  const clipKey = ROUNDABOUT_EXIT_CLIP_MAP[n] as PhraseKey | undefined;
+  if (clipKey) {
+    await speakPhrase(clipKey);
+  } else {
+    // TTS fallback for counts beyond the pre-generated set
+    if (soundsMuted || Platform.OS === "web") return;
+    await ensureAudioMode();
+    stopVoice();
+    Speech.stop();
+    Speech.speak(`the ${toOrdinalSuffix(n)} exit`, {
+      language: "en-GB",
+      rate: 0.82,
+      pitch: 0.93,
+    });
+  }
+}
+
+/**
+ * Play the "take this exit" cue — reuses the `roundabout_exit` clip which
+ * Keli already uses for approach announcements.
+ * No-op when muted or on web.
+ */
+export async function speakTakeThisExit(): Promise<void> {
+  return speakPhrase("roundabout_exit");
+}
 
 /**
  * Maps "In X metres, " text prefixes to their PhraseKey so the speak layer
