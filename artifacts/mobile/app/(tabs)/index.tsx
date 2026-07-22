@@ -19,7 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import AlertBanner from "@/components/AlertBanner";
+import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
 import DriveMapView, { type DriveMapViewHandle } from "@/components/DriveMapView";
@@ -304,11 +304,9 @@ export default function DriveScreen() {
         <DriveMapView ref={driveMapRef} />
       </View>
 
-      {/* ── Speed/alert warning strip (over map, highest z, under header) ── */}
+      {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
       {activeAlert && (
-        <View style={[styles.alertLayer, { top: topInset + 4 }]} pointerEvents="box-none">
-          <AlertBanner zone={activeAlert} onDismiss={dismissAlert} />
-        </View>
+        <DriveAlertOverlay zone={activeAlert} onDismiss={dismissAlert} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -316,7 +314,7 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {navigationActive && currentStep && (
         <View style={[styles.navCard, {
-          top: topInset + (activeAlert ? 70 : 4),
+          top: topInset + 4,
           backgroundColor: isDark ? "#0F2040F5" : "#1565C0F5",
         }]}>
           <View style={styles.navCardIcon}>
@@ -343,7 +341,7 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!navigationActive && (
         <View
-          style={[styles.searchArea, { top: topInset + (activeAlert ? 70 : 4) }]}
+          style={[styles.searchArea, { top: topInset + 4 }]}
           pointerEvents="box-none"
         >
           {/* Search pill */}
@@ -956,7 +954,6 @@ export default function DriveScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#000" },
 
-  alertLayer: { position: "absolute", left: 12, right: 12, zIndex: 30 },
 
   // ── Navigation instruction card ───────────────────────────────────────────
   navCard: {
