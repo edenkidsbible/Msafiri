@@ -71,3 +71,15 @@ id = "b87oA31F78DP9VMTPMuxp"
 uri = "file://artifacts/mobile/assets/sounds/notify_pop.mp3"
 type = "audio"
 title = "notify_pop"
+
+[[outputs]]
+id = "rlbBUtoahe4rYCyKuO3Qh"
+uri = "file://attached_assets/generated_audio/intro_driving_flash_v2_5.mp3"
+type = "audio"
+title = "Flash v2.5 — Fast & cheap (~$0.16)"
+
+[[outputs]]
+id = "mgLBNOFQHJxPI9aFdnTXt"
+uri = "file://attached_assets/generated_audio/intro_driving_multilingual_v2.mp3"
+type = "audio"
+title = "Multilingual v2 — High quality (~$0.97)"
