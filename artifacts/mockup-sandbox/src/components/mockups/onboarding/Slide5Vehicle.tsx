@@ -85,11 +85,11 @@ export function Slide5Vehicle() {
 
       {/* Text content */}
       <div className="px-5 pt-4 flex-1 flex flex-col justify-end pb-6">
-        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3">
+        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3 text-center">
           <span style={{ color: ACCENT }}>Your Vehicle,</span>{"\n"}
           <span className="text-gray-900">Your Speed Limit</span>
         </h1>
-        <p className="text-[14px] text-gray-500 leading-relaxed mb-5">
+        <p className="text-[14px] text-gray-500 leading-relaxed mb-5 text-center">
           Speed limits vary by vehicle class in Kenya. Set yours once and we always show the right limit.
         </p>
         <div className="flex items-center gap-2 justify-center mb-5">

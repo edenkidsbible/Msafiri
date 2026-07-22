@@ -72,11 +72,11 @@ export function Slide4DriveMode() {
 
       {/* Text content */}
       <div className="px-5 pt-6 flex-1 flex flex-col justify-end pb-6">
-        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3">
+        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3 text-center">
           <span style={{ color: ACCENT }}>Your Speed vs the Limit.</span>{"\n"}
           <span className="text-gray-900">Every Single Second.</span>
         </h1>
-        <p className="text-[14px] text-gray-500 leading-relaxed mb-6">
+        <p className="text-[14px] text-gray-500 leading-relaxed mb-6 text-center">
           Real-time speed display, zone limits ahead, and an instant red alert the moment you exceed the limit.
         </p>
         <div className="flex items-center gap-2 justify-center mb-5">

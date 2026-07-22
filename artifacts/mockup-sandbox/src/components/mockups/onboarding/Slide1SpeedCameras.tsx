@@ -69,11 +69,11 @@ export function Slide1SpeedCameras() {
 
       {/* Text content */}
       <div className="px-5 pt-6 flex-1 flex flex-col justify-end pb-6">
-        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3">
+        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3 text-center">
           <span style={{ color: ACCENT }}>Never Get Caught</span>{"\n"}
           <span className="text-gray-900">by a Speed Camera</span>
         </h1>
-        <p className="text-[14px] text-gray-500 leading-relaxed mb-6">
+        <p className="text-[14px] text-gray-500 leading-relaxed mb-6 text-center">
           Live distance warnings, Keli's voice alerts, and alarm sounds — all before you reach any camera on the road.
         </p>
         <div className="flex items-center gap-2 justify-center mb-5">

@@ -71,11 +71,11 @@ export function Slide3Community() {
 
       {/* Text content */}
       <div className="px-5 pt-5 flex-1 flex flex-col justify-end pb-6">
-        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3">
+        <h1 className="text-[26px] font-black leading-[1.15] tracking-tight mb-3 text-center">
           <span style={{ color: ACCENT }}>Kenyan Drivers</span>{"\n"}
           <span className="text-gray-900">Are Watching for You</span>
         </h1>
-        <p className="text-[14px] text-gray-500 leading-relaxed mb-6">
+        <p className="text-[14px] text-gray-500 leading-relaxed mb-6 text-center">
           Police checkpoints, alcoblows, accidents, and road works — all reported live by drivers just like you.
         </p>
         <div className="flex items-center gap-2 justify-center mb-5">

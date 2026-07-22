@@ -512,6 +512,7 @@ const styles = StyleSheet.create({
 
   // Text block
   textBlock: {
+    width:             "100%",
     alignItems:        "center",
     paddingHorizontal: 8,
   },
