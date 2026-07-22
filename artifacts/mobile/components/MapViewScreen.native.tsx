@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -177,6 +177,18 @@ export default function MapViewScreen() {
   const openedAtRef = useRef(0);
   const now = Date.now();
 
+  // Android/PROVIDER_GOOGLE: cluster markers need tracksViewChanges=true for
+  // their first render so the native layer captures the custom view bitmap.
+  // Reset whenever clusters change so newly added markers are always captured.
+  const [clustersFrozen, setClustersFrozen] = useState(false);
+  const clusterFreezeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setClustersFrozen(false);
+    if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current);
+    clusterFreezeRef.current = setTimeout(() => setClustersFrozen(true), 1500);
+    return () => { if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current); };
+  }, [clusters]);
+
   const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
     setShowReport(false);
     let id: string | undefined;
@@ -300,7 +312,7 @@ export default function MapViewScreen() {
               key={clusterKey}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
+              tracksViewChanges={!clustersFrozen}
               zIndex={10}
               onPress={() => openCluster(group)}
             >

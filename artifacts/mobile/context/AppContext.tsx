@@ -1958,15 +1958,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Track that this device has voted on this report
     votedReportIdsRef.current.add(id);
     if (report.serverId) votedReportIdsRef.current.add(report.serverId);
-    // Optimistic: immediately remove — server now denies on first vote
-    setCommunityReports((prev) => prev.filter((r) => r.id !== id && r.serverId !== id));
+    // Optimistic: immediately remove AND persist so the report doesn't
+    // reappear on the next app reload before the next poll completes.
+    setCommunityReports((prev) => {
+      const u = prev.filter((r) => r.id !== id && r.serverId !== id);
+      AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+      return u;
+    });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current });
       return true;
     } catch (err) {
-      // Roll back — restore the report so it isn't silently lost
-      setCommunityReports((prev) => [...prev, report]);
+      // Roll back — restore the report and re-persist
+      setCommunityReports((prev) => {
+        const u = [...prev, report];
+        AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+        return u;
+      });
       warnIfBlockedDevice(err);
       return false;
     }

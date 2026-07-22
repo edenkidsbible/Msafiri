@@ -285,6 +285,20 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
 
+  // Community report clusters need their own separate freeze that RESETS
+  // whenever clusters change. On Android/PROVIDER_GOOGLE, a marker that starts
+  // life with tracksViewChanges=false never gets its bitmap captured and shows
+  // as invisible. Unfreezing briefly on every cluster update gives newly added
+  // markers their capture window before freezing again to avoid jank.
+  const [clustersFrozen, setClustersFrozen] = useState(false);
+  const clusterFreezeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setClustersFrozen(false);
+    if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current);
+    clusterFreezeRef.current = setTimeout(() => setClustersFrozen(true), 1500);
+    return () => { if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current); };
+  }, [clusters]);
+
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
     mapRef.current?.animateToRegion(
@@ -374,7 +388,7 @@ const DriveMapView = forwardRef(function DriveMapView(
               key={clusterKey}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
+              tracksViewChanges={!clustersFrozen}
               onPress={() => openCluster(group)}
               zIndex={10}
             >
