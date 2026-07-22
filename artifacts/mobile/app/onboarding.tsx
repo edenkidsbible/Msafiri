@@ -515,32 +515,35 @@ const styles = StyleSheet.create({
     textAlign:  "center",
   },
 
-  // Text block
+  // Text block — flex:1 so it fills the remaining slide height;
+  // justifyContent:"center" spreads the whitespace evenly above and below.
   textBlock: {
+    flex:              1,
     width:             "100%",
     alignItems:        "center",
+    justifyContent:    "center",
     paddingHorizontal: 8,
   },
   headlineAccent: {
-    fontSize:   22,
+    fontSize:   34,
     fontFamily: "Inter_700Bold",
     textAlign:  "center",
-    lineHeight: 28,
+    lineHeight: 40,
   },
   headlineNormal: {
-    fontSize:     22,
+    fontSize:     34,
     fontFamily:   "Inter_700Bold",
     color:        "#0A0E1A",
     textAlign:    "center",
-    lineHeight:   28,
-    marginBottom: 8,
+    lineHeight:   40,
+    marginBottom: 12,
   },
   body: {
-    fontSize:   13,
+    fontSize:   16,
     fontFamily: "Inter_400Regular",
     color:      "#666",
     textAlign:  "center",
-    lineHeight: 19,
+    lineHeight: 24,
   },
 
   // Dots

@@ -72,26 +72,27 @@ export function Slide3Community() {
         ))}
       </div>
 
-      {/* Text content */}
-      <div className="flex flex-col flex-1 px-5 pt-4 pb-6">
-        <h1 className="text-[22px] font-black leading-tight tracking-tight mb-2 text-center">
+      {/* Text — flex-1 so it fills remaining height; justify-center spreads space evenly */}
+      <div className="flex flex-col flex-1 px-5 items-center justify-center">
+        <h1 className="text-[34px] font-black leading-tight tracking-tight mb-3 text-center">
           <span style={{ color: ACCENT }}>Kenyan Drivers</span>{"\n"}
           <span className="text-gray-900">Are Watching for You</span>
         </h1>
-        <p className="text-[13px] text-gray-500 leading-relaxed text-center">
+        <p className="text-[16px] text-gray-500 leading-relaxed text-center">
           Police checkpoints, alcoblows, accidents, and road works — all reported live by drivers just like you.
         </p>
-        <div className="mt-auto">
-          <div className="flex items-center gap-2 justify-center mb-4">
-            {[0,1].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
-            <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
-            {[0,1].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
-          </div>
-          <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}44` }}>
-            Next
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
+      </div>
+      {/* Dots + CTA pinned to bottom */}
+      <div className="px-5 pb-6">
+        <div className="flex items-center gap-2 justify-center mb-4">
+          {[0,1].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
+          <div className="h-2 w-7 rounded-full" style={{ backgroundColor: ACCENT }} />
+          {[0,1].map(i => <div key={i} className="h-2 w-2 rounded-full bg-gray-200" />)}
         </div>
+        <button className="w-full py-4 rounded-2xl font-bold text-white text-[16px] flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}44` }}>
+          Next
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
       </div>
     </div>
   );
