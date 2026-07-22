@@ -254,6 +254,8 @@ export default function OnboardingScreen() {
 
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        {/* Left spacer balances the Skip button so brand stays truly centred */}
+        <View style={styles.headerSide} />
         <View style={styles.brandRow}>
           <Image
             source={require("@/assets/images/icon.png")}
@@ -263,9 +265,11 @@ export default function OnboardingScreen() {
             Msafiri{" "}<Text style={styles.brandKenya}>Kenya</Text>
           </Text>
         </View>
-        <TouchableOpacity onPress={finish} hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}>
-          <Text style={styles.skipTxt}>Skip</Text>
-        </TouchableOpacity>
+        <View style={[styles.headerSide, { alignItems: "flex-end" }]}>
+          <TouchableOpacity onPress={finish} hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}>
+            <Text style={styles.skipTxt}>Skip</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Divider ── */}
@@ -371,10 +375,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection:     "row",
     alignItems:        "center",
-    justifyContent:    "space-between",
     paddingHorizontal: 24,
     paddingBottom:     12,
   },
+  headerSide: { flex: 1 },
   headerDivider: {
     height:           1,
     backgroundColor:  "#F0F0F0",

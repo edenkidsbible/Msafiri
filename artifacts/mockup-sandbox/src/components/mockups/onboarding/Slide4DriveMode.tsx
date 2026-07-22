@@ -30,14 +30,17 @@ export function Slide4DriveMode() {
       </div>
 
       {/* Brand header */}
-      <div className="flex items-center justify-between px-5 py-2">
+      <div className="flex items-center px-5 py-2">
+        <div className="flex-1" />
         <div className="flex items-center gap-2">
           <img src={iconPng} className="w-8 h-8 rounded-xl object-cover" alt="Msafiri Kenya" />
           <span className="text-[15px] font-bold text-gray-900 tracking-tight">
             Msafiri <span style={{ color: "#BB0000" }}>Kenya</span>
           </span>
         </div>
-        <span className="text-[13px] text-gray-400 font-medium">Skip</span>
+        <div className="flex-1 flex justify-end">
+          <span className="text-[13px] text-gray-400 font-medium">Skip</span>
+        </div>
       </div>
       <div className="mx-5 h-px bg-gray-100" />
 
