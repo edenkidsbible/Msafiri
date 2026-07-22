@@ -11,6 +11,8 @@ import adminRouter from "./admin/index.js";
 import shareRouter from "./share.js";
 import courseRouter from "./course.js";
 import publicSettingsRouter from "./settings.js";
+import storageRouter from "./storage.js";
+
 const router: IRouter = Router();
 
 router.use(healthRouter);
@@ -25,5 +27,6 @@ router.use("/admin", adminRouter);
 router.use(shareRouter);
 router.use(courseRouter);
 router.use(publicSettingsRouter);
+router.use(storageRouter);
 
 export default router;

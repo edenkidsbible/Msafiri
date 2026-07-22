@@ -112,6 +112,7 @@ router.get("/course/audio/:slug", async (req: Request, res: Response) => {
         "Cache-Control": "public, max-age=86400",
       });
       file.createReadStream({ start, end }).pipe(res);
+      return;
     } else {
       res.writeHead(200, {
         "Content-Length": fileSize,
@@ -120,6 +121,7 @@ router.get("/course/audio/:slug", async (req: Request, res: Response) => {
         "Cache-Control": "public, max-age=86400",
       });
       file.createReadStream().pipe(res);
+      return;
     }
   } catch (err) {
     console.error("GET /course/audio/:slug error:", err);

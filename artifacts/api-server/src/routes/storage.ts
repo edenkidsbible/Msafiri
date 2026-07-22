@@ -113,32 +113,22 @@ router.get(
 /**
  * GET /storage/objects/*
  *
- * Serve object entities from PRIVATE_OBJECT_DIR.
- * These are served from a separate path from /public-objects and can optionally
- * be protected with authentication or ACL checks based on the use case.
+ * Serve private object entities from PRIVATE_OBJECT_DIR.
+ * Requires an authenticated session — unauthenticated callers receive 401.
  */
 router.get('/storage/objects/*path', async (req: Request, res: Response) => {
+  // Enforce authentication before serving any private object.
+  if (!hasAuthenticatedSession(req) || !req.isAuthenticated()) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join('/') : raw;
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile =
       await objectStorageService.getObjectEntityFile(objectPath);
-
-    // --- Protected route example (uncomment when using replit-auth) ---
-    // if (!req.isAuthenticated()) {
-    //   res.status(401).json({ error: "Unauthorized" });
-    //   return;
-    // }
-    // const canAccess = await objectStorageService.canAccessObjectEntity({
-    //   userId: req.user.id,
-    //   objectFile,
-    //   requestedPermission: ObjectPermission.READ,
-    // });
-    // if (!canAccess) {
-    //   res.status(403).json({ error: "Forbidden" });
-    //   return;
-    // }
 
     const response = await objectStorageService.downloadObject(objectFile);
 

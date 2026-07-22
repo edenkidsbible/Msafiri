@@ -14,6 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
+import { speakPhrase, stopVoice, scheduleAfterClip, DIST_PREFIX_MAP, type PhraseKey } from "@/utils/sound";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -454,6 +455,8 @@ function estimateTrafficDelayS(incidents: RouteIncident[]): number {
 // Best TTS voice — populated once at startup via getAvailableVoicesAsync()
 let _bestVoiceId: string | undefined;
 
+/** Pure TTS fallback — used when the text contains dynamic content (road names,
+ *  POI names) that can't be matched to a pre-generated Keli clip. */
 function speakText(text: string) {
   if (Platform.OS === "web") return;
   Speech.stop();
@@ -463,6 +466,38 @@ function speakText(text: string) {
     pitch: 0.93,  // slightly lower = warmer, more human
     voice: _bestVoiceId,
   });
+}
+
+/**
+ * Hybrid speak for turn-by-turn step announcements.
+ * When the text starts with a distance prefix ("In 200 metres, …"):
+ *   1. Plays the pre-generated Keli distance clip immediately.
+ *   2. After the clip finishes, TTS-speaks the remainder (turn instruction
+ *      with road name) using the best on-device voice.
+ * Otherwise falls back to plain TTS for the whole string.
+ * Stops any currently playing voice (clip or TTS) before starting.
+ */
+function speakTurnAnnouncement(text: string) {
+  if (Platform.OS === "web") return;
+  Speech.stop();
+  const match = DIST_PREFIX_MAP.find((d) => text.startsWith(d.prefix));
+  if (match) {
+    // Await speakPhrase so its internal stopVoice() runs BEFORE we set the
+    // queue timer — otherwise stopVoice would clear the timer we just set.
+    void (async () => {
+      await speakPhrase(match.key);
+      const rest = text.slice(match.prefix.length).trim();
+      if (rest) {
+        scheduleAfterClip(match.delayMs, () => {
+          Speech.speak(rest, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+        });
+      }
+    })();
+    return;
+  }
+  // No distance prefix — stop any clip then TTS the whole instruction
+  stopVoice();
+  Speech.speak(text, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
 }
 
 // ─── Notification setup ───────────────────────────────────────────────────────
@@ -948,6 +983,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // line is paced.
     const canSpeakGeneralAlert = () => Date.now() - lastGeneralAlertAtRef.current >= GENERAL_ALERT_COOLDOWN_MS;
     const speakGeneralAlert = (text: string) => { lastGeneralAlertAtRef.current = Date.now(); speakText(text); };
+    const speakGeneralAlertPhrase = (key: PhraseKey) => { lastGeneralAlertAtRef.current = Date.now(); void speakPhrase(key); };
 
     // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
     if (activeLimitZone && kmh > activeLimitZone.speedLimit) {
@@ -956,7 +992,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lastSpeedingWarnRef.current = warnNow;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         if (canSpeakGeneralAlert()) {
-          speakGeneralAlert(`You are exceeding the speed limit. Please slow down to ${activeLimitZone.speedLimit} kilometres per hour.`);
+          speakGeneralAlertPhrase("speeding");
         }
       }
     } else {
@@ -971,15 +1007,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         if (notifGranted.current) void fireZoneNotification(alertCandidate, alertCandidate.distance);
         if (canSpeakGeneralAlert()) {
-          const distWord = alertCandidate.distance > 600
-            ? `in ${Math.round(alertCandidate.distance / 100) * 100} metres, `
-            : "just ";
+          // Visual AlertBanner shows road name + limit; voice just calls the type.
+          // Use the "close" variant when the zone is within 600 m.
+          const isClose = alertCandidate.distance <= 600;
           if (alertCandidate.type === "camera") {
-            speakGeneralAlert(`Speed camera ahead ${distWord}on ${alertCandidate.road}. Please reduce your speed to ${alertCandidate.speedLimit} kilometres per hour.`);
+            speakGeneralAlertPhrase(isClose ? "camera_ahead_close" : "camera_ahead");
           } else if (alertCandidate.type === "police") {
-            speakGeneralAlert(`Police checkpoint ahead ${distWord}on ${alertCandidate.road}. Please slow down to ${alertCandidate.speedLimit} kilometres per hour and have your documents ready.`);
+            speakGeneralAlertPhrase(isClose ? "police_ahead_close" : "police_ahead");
           } else {
-            speakGeneralAlert(`Speed zone ahead. Reduce to ${alertCandidate.speedLimit} kilometres per hour.`);
+            speakGeneralAlertPhrase("zone_ahead");
           }
         }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
@@ -1005,37 +1041,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const distToReport = haversine(lat, lng, report.lat, report.lng);
       if (distToReport > REPORT_ANNOUNCE_DIST || distToReport <= IN_ZONE_DIST) continue;
       announcedReportsRef.current.add(report.id);
-      const ageMin = Math.round((now - report.timestamp) / 60000);
-      const ageText = ageMin < 2 ? "just now" : `${ageMin} minutes ago`;
-      let msg = "";
-      if (report.type === "accident") {
-        msg = `Caution! An accident was reported ${ageText} ahead. Please slow down and drive carefully.`;
-      } else if (report.type === "pothole") {
-        msg = `Warning! A pothole has been reported on the road ahead. Reduce speed and watch out.`;
-      } else if (report.type === "roadblock") {
-        msg = `Roadblock reported ahead ${ageText}. Be prepared to stop or find an alternative route.`;
-      } else if (report.type === "police") {
-        msg = `Police checkpoint reported ahead ${ageText}. Please slow down and have your documents ready.`;
-      } else if (report.type === "alcoblow") {
-        msg = `Alcoblow checkpoint reported ahead ${ageText}. Slow down and have your documents ready.`;
-      } else if (report.type === "roadworks") {
-        msg = `Road works reported ahead ${ageText}. Reduce speed and watch for workers and diversions.`;
-      } else if (report.type === "camera") {
-        msg = `Speed camera reported by other drivers ahead. Please maintain a safe speed.`;
-      } else if (report.type === "traffic") {
-        msg = `Heavy traffic reported ahead ${ageText}. Expect delays and consider an alternative route.`;
-      } else if (report.type === "hazard") {
-        msg = `Road hazard reported ahead ${ageText}. Reduce speed and proceed with caution.`;
-      } else if (report.type === "debris") {
-        msg = `Debris on the road reported ${ageText} ahead. Slow down and watch out for objects on the road.`;
-      } else if (report.type === "breakdown") {
-        msg = `Broken down vehicle reported on the road ahead ${ageText}. Slow down and give way.`;
-      } else if (report.type === "weather") {
-        msg = `Bad weather conditions reported ahead ${ageText}. Reduce speed and drive carefully.`;
-      } else if (report.type === "closure") {
-        msg = `Road closed ahead ${ageText}. Please find an alternative route.`;
+      // Pre-generated Keli clips cover all known report types. Visual cards
+      // already show the timestamp, so we drop the "X minutes ago" from voice.
+      const REPORT_PHRASE: Partial<Record<string, PhraseKey>> = {
+        accident:  "report_accident",
+        pothole:   "report_pothole",
+        roadblock: "report_roadblock",
+        police:    "report_police",
+        alcoblow:  "report_alcoblow",
+        roadworks: "report_roadworks",
+        camera:    "report_camera",
+        traffic:   "report_traffic",
+        hazard:    "report_hazard",
+        debris:    "report_debris",
+        breakdown: "report_breakdown",
+        weather:   "report_weather",
+        closure:   "report_closure",
+      };
+      const reportPhraseKey = REPORT_PHRASE[report.type];
+      if (reportPhraseKey && canSpeakGeneralAlert()) {
+        speakGeneralAlertPhrase(reportPhraseKey);
       }
-      if (msg && canSpeakGeneralAlert()) speakGeneralAlert(msg);
     }
 
     // ── POI destination proximity announcement ───────────────────────────────
@@ -1086,7 +1112,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (dist < STEP_ANNOUNCE_DIST && lastSpokenRef.current !== key) {
           lastSpokenRef.current = key;
           const distWord = dist > 100 ? `In ${Math.round(dist / 50) * 50} metres, ` : "";
-          speakText(distWord + step.instruction.toLowerCase());
+          // speakTurnAnnouncement: plays a Keli distance-prefix clip then TTS
+          // for the turn instruction (which contains a dynamic road name).
+          speakTurnAnnouncement(distWord + step.instruction.toLowerCase());
         }
 
         // The final step gets a wider arrival radius than intermediate turns:
@@ -1105,7 +1133,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stepIdxRef.current = nextIdx;
           setCurrentStepIdx(nextIdx);
           if (nextIdx >= steps.length) {
-            speakText("You have arrived at your destination");
+            void speakPhrase("arrived");
             navActiveRef.current = false;
             navStartRef.current = null;
             setNavigationActive(false);
@@ -1630,15 +1658,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navActiveRef.current = true;
     navStartRef.current = Date.now();
     setNavigationActive(true);
-    speakText("Navigation started. " + (activeRoute.steps[0]?.instruction ?? ""));
+    // Play the pre-generated "Navigation started." clip, then after a short
+    // gap TTS the first turn instruction (which contains a dynamic road name).
+    void speakPhrase("nav_started");
+    const firstInstruction = activeRoute.steps[0]?.instruction;
+    if (firstInstruction) {
+      scheduleAfterClip(1800, () => {
+        Speech.speak(firstInstruction, { language: "en-GB", rate: 0.82, pitch: 0.93, voice: _bestVoiceId });
+      });
+    }
   }, [activeRoute]);
 
   const stopNavigation = useCallback(() => {
     // Silence the voice guide first and foremost — everything else is state
-    // cleanup. Some Android TTS engines race Speech.stop() if it lands right
-    // as a speak() call is still being dispatched to the native side, so a
-    // trailing follow-up stop a beat later catches any narrowly-missed
-    // utterance that slipped through the first call.
+    // cleanup. Stop the Keli clip player and any queued TTS callback, then
+    // stop TTS (with a trailing follow-up to catch any narrowly-missed
+    // utterance that slipped through on some Android TTS engines).
+    stopVoice();
     Speech.stop?.();
     setTimeout(() => Speech.stop?.(), 60);
 
@@ -1788,8 +1824,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Spoken confirmation so a driver doesn't need to glance at the screen —
-    // mirrors the tone used for turn-by-turn voice guidance.
-    speakText(`${resolveIncidentType(type).label} reported`);
+    // uses the pre-generated Keli clip instead of on-device TTS.
+    void speakPhrase("report_submitted");
     // Submit to API; keep local copy as offline fallback (retried on reconnect)
     if (!isOfflineRef.current && deviceIdRef.current) {
       syncReportToServer(localId, type, lat, lng, speedLimit);

@@ -71,6 +71,7 @@ export interface ContentBlock {
   items?: string[];
   path?: string;
   caption?: string;
+  [key: string]: unknown;
 }
 
 export interface LessonData {
