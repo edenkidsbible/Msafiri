@@ -1,5 +1,5 @@
 import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable } from "@workspace/db";
-import { and, eq, lte, gte, isNull, or, ne, isNotNull } from "drizzle-orm";
+import { and, eq, lte, gte, isNull, or, ne, isNotNull, inArray } from "drizzle-orm";
 import { sendPushNotifications, flushBadTokensFromReceipts } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -67,12 +67,86 @@ const WEEKEND_NIGHT_MESSAGES = [
   { title: "🛑 Before you drive tonight", body: "Live alcoblow and roadblock reports just updated. Know what's ahead before you leave." },
 ];
 
+// ─── Re-engagement messages (3 tiers by inactivity duration) ─────────────────
+
+const REENGAGEMENT_3DAY = [
+  { title: "👀 Road conditions change daily", body: "See what's happening on Kenyan roads near you. New reports since your last visit." },
+  { title: "🚗 Miss anything on the roads?", body: "Live hazards, checkpoints, and cameras updated. Check in before your next drive." },
+  { title: "🛣️ Back on the road soon?", body: "Fresh reports are in from drivers near you. Tap to see what's changed." },
+];
+
+const REENGAGEMENT_7DAY = [
+  { title: "🚦 New road alerts near you", body: "Drivers near you have reported new road alerts this week. Stay ahead." },
+  { title: "📡 A week of road reports", body: "A lot has changed on Kenyan roads this week. Come back and see what's near you." },
+  { title: "📍 38 new alerts near you", body: "Community reports have been active this week. See what drivers are flagging near you." },
+];
+
+const REENGAGEMENT_14DAY = [
+  { title: "🛣️ We miss you, driver!", body: "Come back and stay ahead of traffic, speed cameras, and road hazards near you." },
+  { title: "🚗 Roads have changed since you left", body: "New hazards, cameras, and checkpoints reported near your area. Open Msafiri to catch up." },
+  { title: "🌍 Kenyan roads need your eyes", body: "Your reports help thousands of drivers. Come back and keep your community safe." },
+];
+
 const ENGAGEMENT_MESSAGES = [
   { title: "📍 Seen anything on the road?", body: "Report a hazard, camera, or pothole and help fellow drivers. Takes just 10 seconds!" },
   { title: "🤝 Be the city's eyes", body: "Every report you add keeps Kenyan roads safer. Share what you see today!" },
   { title: "🏆 Your reports matter", body: "Spot a pothole or roadblock? Add a quick report and earn community trust." },
   { title: "📡 Help drivers near you", body: "Drivers are relying on live reports right now. See something? Say something." },
 ];
+
+// ─── Re-engagement job ────────────────────────────────────────────────────────
+
+async function checkReengagement(): Promise<void> {
+  const now = new Date();
+  const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const fourDaysAgo  = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+
+  // Devices inactive for 3+ days that haven't had a re-engagement push in the
+  // last 4 days (prevents a fresh-returned user from being re-engaged again
+  // within the same dormancy window; the 4-day gap also spaces out the
+  // 3d → 7d → 14d tiers naturally as inactivity accumulates).
+  const eligible = await db
+    .select()
+    .from(pushTokensTable)
+    .where(
+      and(
+        lte(pushTokensTable.lastSeenAt, threeDaysAgo),
+        or(
+          isNull(pushTokensTable.lastReengagedAt),
+          lte(pushTokensTable.lastReengagedAt, fourDaysAgo)
+        )
+      )
+    );
+
+  if (eligible.length === 0) return;
+
+  const picks = eligible.map((row) => {
+    const inactiveDays = Math.floor((now.getTime() - row.lastSeenAt.getTime()) / 86400000);
+    const pool = inactiveDays >= 14 ? REENGAGEMENT_14DAY
+               : inactiveDays >= 7  ? REENGAGEMENT_7DAY
+               :                      REENGAGEMENT_3DAY;
+    return { row, msg: pool[getDayOfYear() % pool.length]! };
+  });
+
+  const { ok, failed } = await sendPushNotifications(
+    picks.map(({ row, msg }) => ({
+      to: row.token,
+      title: msg.title,
+      body: msg.body,
+      sound: "default" as const,
+      channelId: "msafiri_general",
+      data: { type: "re_engagement" },
+    }))
+  );
+
+  // Update lastReengagedAt for every targeted device so the cooldown resets
+  await db
+    .update(pushTokensTable)
+    .set({ lastReengagedAt: now })
+    .where(inArray(pushTokensTable.deviceId, eligible.map((r) => r.deviceId)));
+
+  logger.info({ count: eligible.length, ok, failed }, "Re-engagement notifications sent");
+}
 
 function getDayOfYear(): number {
   const now = new Date();
@@ -279,6 +353,13 @@ async function checkDailyTriggers(): Promise<void> {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
     await sendAutoCampaign("engagement", msg.title, msg.body);
   }
+
+  // 10:00–10:05 AM EAT daily → re-engagement for devices inactive 3+ days
+  // (per-device cooldown inside checkReengagement means this is safe to run
+  // every day — devices that were just re-engaged won't be hit again for 4 days)
+  if (eatHour === 10 && min < 5) {
+    await checkReengagement();
+  }
 }
 
 // ─── Startup catch-up ─────────────────────────────────────────────────────────
@@ -325,6 +406,11 @@ async function catchUpMissedTriggers(): Promise<void> {
   if (eatDay === 3 && eatTotalMin > 12 * 60 + 5) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
     await sendAutoCampaign("engagement", msg.title, msg.body);
+  }
+
+  // Re-engagement window closed at 10:05 EAT
+  if (eatTotalMin > 10 * 60 + 5) {
+    await checkReengagement();
   }
 }
 

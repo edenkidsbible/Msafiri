@@ -90,7 +90,24 @@ function useSubscriptionContext() {
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
       return customerInfo;
     },
-    onSuccess: () => customerInfoQuery.refetch(),
+    onSuccess: () => {
+      customerInfoQuery.refetch();
+      // Fire-and-forget welcome notification — server gates on welcomeSentAt
+      // so duplicate calls (e.g. restore purchases, refetch) are silently ignored.
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      if (domain) {
+        AsyncStorage.getItem("sdk_device_id")
+          .then((id) => {
+            if (!id) return;
+            fetch(`https://${domain}/api/push/welcome`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ deviceId: id }),
+            });
+          })
+          .catch(() => {});
+      }
+    },
   });
 
   const restoreMutation = useMutation({

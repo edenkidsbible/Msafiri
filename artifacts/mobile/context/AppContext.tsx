@@ -1224,6 +1224,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               maxSpeedKmh: trip?.maxSpeed ?? 0,
               alertsCount: trip?.alertsCount ?? 0,
             });
+            // Nudge the driver to file a road report after arriving.
+            // Fire-and-forget — server rate-limits to once per 24 h per device.
+            if (deviceIdRef.current) {
+              apiPost("/push/trip-complete", { deviceId: deviceIdRef.current }).catch(() => {});
+            }
           }
         }
       }

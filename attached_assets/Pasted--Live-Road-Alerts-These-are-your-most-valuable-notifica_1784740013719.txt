@@ -1,0 +1,121 @@
+🚨 Live Road Alerts
+
+These are your most valuable notifications.
+
+🚔 Speed camera reported 2 km ahead on Mombasa Road.
+🚧 Heavy traffic detected on Thika Road. Save 18 minutes by taking the Eastern Bypass.
+🚨 Accident reported ahead. Drive carefully.
+⚠️ Road closure detected. Tap for an alternate route.
+🌧️ Flooding reported near your route.
+👥 Community Reports
+
+Encourage users to contribute.
+
+📍5 drivers have confirmed a police checkpoint nearby.
+Thanks! Your traffic report helped 47 drivers today.
+A driver nearby reported a pothole. Can you confirm it?
+New road hazard reported close to your location.
+🏆 Gamification
+
+Reward participation.
+
+🎉 You've helped 500 drivers this month!
+🥇 You're now among the Top 10 contributors in Nairobi.
+🔥 7-day reporting streak! Keep it going.
+You've earned the "Road Hero" badge.
+⏰ Commute Reminders
+
+Based on user habits.
+
+Time to head home? Traffic is lighter than usual.
+Leave in the next 10 minutes to avoid heavy congestion.
+Morning commute is clear today.
+🛣 Route Intelligence
+
+Useful before users even open the app.
+
+Your usual route is busier today.
+Travel time to work is 12 minutes longer than yesterday.
+A faster route is available this morning.
+🚓 Speed Camera Notifications
+Permanent speed camera active ahead.
+Mobile speed camera reported 1 km ahead.
+Average speed enforcement zone begins ahead.
+Drive safely. Speed enforcement detected.
+⛽ Nearby Services
+Lowest fuel prices nearby.
+Parking available near your destination.
+EV charging station available ahead.
+Rest stop 5 minutes ahead.
+🌦 Weather Alerts
+Heavy rain expected on your route.
+Dense fog reported ahead.
+Strong winds affecting visibility.
+Slippery roads reported nearby.
+📈 Weekly Engagement
+This week you avoided 12 traffic delays.
+You saved approximately 48 minutes this week.
+Your reports helped over 200 drivers.
+Here's your driving summary for the week.
+📰 Local Road Updates
+Major highway reopened.
+New speed limit introduced on your route.
+Road construction starts tomorrow.
+Weekend event may affect traffic downtown.
+🎯 Personalized Notifications
+Your favorite route is currently clear.
+Your saved destination has lighter traffic now.
+School zone active in your area.
+Police activity reported near your usual commute.
+Re-engagement Notifications
+
+If someone hasn't opened the app recently:
+
+After 3 days
+
+Road conditions change every day. See what's happening nearby.
+
+After 7 days
+
+Drivers near you have reported 38 new road alerts this week.
+
+After 14 days
+
+Come back and stay ahead of traffic, speed cameras, and road hazards.
+Safety Notifications
+Eyes on the road. Notifications will be read aloud while driving.
+Drive safely. Reports indicate reduced visibility ahead.
+High accident zone approaching. Please slow down.
+Event-Based Notifications
+
+Trigger these automatically:
+
+Event	Notification
+New accident	Accident reported ahead. Expect delays.
+Speed camera	Speed camera detected 1.5 km ahead.
+Traffic jam	Heavy traffic on your route. Save 12 minutes by rerouting.
+User reaches destination	Hope you had a safe trip! Want to report road conditions?
+Police checkpoint	Community reports indicate a checkpoint ahead.
+Road closure	Your planned route is closed. Tap for a faster alternative.
+Rain begins	Rain detected along your route. Drive carefully.
+Wrong-way driving (if supported)	Warning: Potential wrong-way vehicle reported nearby.
+AI-Powered Smart Notifications
+
+These can make your app stand out:
+
+"Traffic is unusually light today. Leaving now could save you 15 minutes."
+"Your normal route has three new hazards. We've found a safer alternative."
+"Drivers are slowing unexpectedly 2 km ahead."
+"Community confidence is high for this police checkpoint (18 confirmations)."
+"You're likely heading to work. Traffic is building—consider leaving now."
+Best Practices
+
+Keep notifications:
+
+Relevant to the user's current location, route, or driving habits.
+Short (ideally under 60–80 characters for the title).
+Timely, especially while the user is driving.
+Configurable so users can opt in or out of categories like speed cameras, traffic, weather, police checkpoints, or promotions.
+Limited in frequency to avoid notification fatigue. High-priority safety alerts can be immediate, while summaries and engagement messages should be much less frequent.
+
+A combination of real-time road intelligence, personalized commute insights, community recognition, and weekly driving summaries tends to keep navigation app users engaged because the notifications consistently deliver practical value rather than generic reminders to open the app.

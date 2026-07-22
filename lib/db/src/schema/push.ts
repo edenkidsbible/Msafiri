@@ -1,14 +1,18 @@
 import { pgTable, uuid, text, timestamp, integer, real } from "drizzle-orm/pg-core";
 
 export const pushTokensTable = pgTable("push_tokens", {
-  id:         uuid("id").primaryKey().defaultRandom(),
-  deviceId:   text("device_id").notNull().unique(),
-  token:      text("token").notNull(),
-  platform:   text("platform").notNull().default("unknown"), // ios | android | web
-  lastLat:    real("last_lat"),
-  lastLng:    real("last_lng"),
-  createdAt:  timestamp("created_at").notNull().defaultNow(),
-  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  id:              uuid("id").primaryKey().defaultRandom(),
+  deviceId:        text("device_id").notNull().unique(),
+  token:           text("token").notNull(),
+  platform:        text("platform").notNull().default("unknown"), // ios | android | web
+  lastLat:         real("last_lat"),
+  lastLng:         real("last_lng"),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  lastSeenAt:      timestamp("last_seen_at").notNull().defaultNow(),
+  // Triggered notifications — nullable timestamps gate idempotency / rate-limits
+  welcomeSentAt:   timestamp("welcome_sent_at"),         // set once when the welcome push is delivered
+  lastReengagedAt: timestamp("last_reengaged_at"),       // updated each time a re-engagement push is sent
+  lastTripNotifAt: timestamp("last_trip_notif_at"),      // updated each time a post-trip nudge is sent
 });
 
 export const pushCampaignsTable = pgTable("push_campaigns", {

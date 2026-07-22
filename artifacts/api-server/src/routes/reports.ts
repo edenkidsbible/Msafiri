@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, communityReportsTable, pushTokensTable, blockedDevicesTable } from "@workspace/db";
-import { eq, and, or, lt, ne, gte, sql, inArray } from "drizzle-orm";
+import { eq, and, or, lt, ne, gte, sql, inArray, count } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -73,6 +73,44 @@ async function expireStale() {
         ne(communityReportsTable.status, "pending_review")
       )
     );
+}
+
+// ── Report milestone gamification notifications ───────────────────────────────
+
+const MILESTONE_MESSAGES: Record<number, { title: string; body: string }> = {
+  10:  { title: "📍 10 reports filed!", body: "You're starting to make a real difference on Kenyan roads. Keep it up!" },
+  50:  { title: "🏆 50 reports — impressive!", body: "You're a trusted road guardian. Drivers around you are safer because of you." },
+  100: { title: "⭐ Road Hero! 100 reports", body: "You've reached 100 reports. You've earned the Road Hero badge — thank you!" },
+  500: { title: "🎖️ 500 reports — legend.", body: "You're one of Msafiri Kenya's most valuable contributors. Incredible dedication!" },
+};
+
+async function checkReportMilestone(deviceId: string): Promise<void> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(communityReportsTable)
+    .where(eq(communityReportsTable.deviceId, deviceId));
+
+  const total = row?.total ?? 0;
+  const milestone = MILESTONE_MESSAGES[total];
+  if (!milestone) return;
+
+  const [tokenRow] = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable)
+    .where(eq(pushTokensTable.deviceId, deviceId));
+
+  if (!tokenRow) return;
+
+  await sendPushNotifications([{
+    to: tokenRow.token,
+    title: milestone.title,
+    body: milestone.body,
+    sound: "default",
+    channelId: "msafiri_general",
+    data: { type: "milestone", count: total },
+  }]);
+
+  logger.info({ deviceId, total }, "Report milestone notification sent");
 }
 
 // ── GET /reports — all active community reports ────────────────────────────────
@@ -225,6 +263,11 @@ router.post("/reports", async (req: Request, res: Response) => {
         logger.warn({ err, reportId: inserted.id }, "Failed to send moderation push notice")
       );
     }
+
+    // ── Gamification milestone check ──────────────────────────────────────────
+    void checkReportMilestone(deviceId).catch((err) =>
+      logger.warn({ err, deviceId }, "Milestone push check failed")
+    );
 
     // ── Auto-clear nearby incidents when a driver marks the road as clear ────
     // A "clear" report is a positive signal that whatever was blocking or
