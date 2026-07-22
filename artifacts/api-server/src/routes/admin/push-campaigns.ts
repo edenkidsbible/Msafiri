@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { db, pushTokensTable, pushCampaignsTable } from "@workspace/db";
 import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
-import { sendPushNotifications } from "../../lib/expoPush.js";
+import { sendPushNotifications, flushBadTokensFromReceipts } from "../../lib/expoPush.js";
 import { logAudit } from "../../lib/audit.js";
 
 const router = Router();
@@ -163,6 +163,22 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("POST /admin/push/campaigns error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/push/receipts — flush pending receipts and report bad tokens
+router.post("/push/receipts", async (_req: Request, res: Response) => {
+  try {
+    const badTokens = await flushBadTokensFromReceipts();
+    if (badTokens.length > 0) {
+      // Remove permanently-invalid tokens from the DB
+      const { inArray } = await import("drizzle-orm");
+      await db.delete(pushTokensTable).where(inArray(pushTokensTable.token, badTokens));
+    }
+    return res.json({ checked: true, badTokensPurged: badTokens.length, badTokens });
+  } catch (err) {
+    console.error("POST /admin/push/receipts error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
