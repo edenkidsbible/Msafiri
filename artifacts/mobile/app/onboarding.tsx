@@ -61,7 +61,7 @@ const SLIDES: Slide[] = [
   {
     id: "2",
     image: require("@/assets/images/ob_route.jpg"),
-    accentColor: "#006600",     // Kenya flag green
+    accentColor: "#0277BD",     // deep sky blue
     accentLabel: "NAVIGATION",
     headline: ["Navigate Routes", "Camera-Aware"],
     accentLine: 0,
@@ -242,13 +242,6 @@ export default function OnboardingScreen() {
           </View>
         )}
       />
-
-      {/* ── Kenya stripe accent ── */}
-      <View style={styles.kenyaStripe}>
-        <View style={[styles.stripeSeg, { backgroundColor: "#006600" }]} />
-        <View style={[styles.stripeSeg, { backgroundColor: "#000000" }]} />
-        <View style={[styles.stripeSeg, { backgroundColor: "#BE0000" }]} />
-      </View>
 
       {/* ── Dots ── */}
       <View style={styles.dots}>
