@@ -154,6 +154,32 @@ export default function DriveScreen() {
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
 
+  // ── Route overview mode ───────────────────────────────────────────────────
+  const [overviewMode, setOverviewMode] = useState(false);
+  const overviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-exit overview after 8 seconds so the driver doesn't have to tap again
+  const enterOverview = useCallback(() => {
+    if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
+    setOverviewMode(true);
+    overviewTimerRef.current = setTimeout(() => {
+      setOverviewMode(false);
+    }, 8000);
+  }, []);
+
+  const exitOverview = useCallback(() => {
+    if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
+    setOverviewMode(false);
+  }, []);
+
+  // Clear overview when navigation ends (e.g. driver taps Stop)
+  useEffect(() => {
+    if (!navigationActive) {
+      if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
+      setOverviewMode(false);
+    }
+  }, [navigationActive]);
+
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -368,7 +394,7 @@ export default function DriveScreen() {
 
       {/* ── Base layer: full-screen map ── */}
       <View style={StyleSheet.absoluteFillObject}>
-        <DriveMapView ref={driveMapRef} />
+        <DriveMapView ref={driveMapRef} overviewMode={overviewMode} />
       </View>
 
       {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
@@ -584,16 +610,42 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* Clear "Report Incident" button during navigation — replaces old triangle FAB */}
+      {/* Navigation right-side FABs: overview toggle + report incident */}
       {!showResults && navigationActive && (
-        <TouchableOpacity
-          style={[styles.navReportBtn, { top: topInset + 118, right: 12 }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="camera" size={14} color="#FFF" />
-          <Text style={styles.navReportTxt}>Report Incident</Text>
-        </TouchableOpacity>
+        <View style={[styles.navFabCol, { top: topInset + 118, right: 12 }]}>
+          {/* Route overview toggle — zooms out to show the full route */}
+          <TouchableOpacity
+            style={[
+              styles.overviewBtn,
+              overviewMode && styles.overviewBtnActive,
+              { backgroundColor: overviewMode ? "#1565C0" : fabBg },
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              overviewMode ? exitOverview() : enterOverview();
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="map-outline"
+              size={16}
+              color={overviewMode ? "#FFF" : (isDark ? "#CCC" : "#555")}
+            />
+            <Text style={[styles.overviewBtnTxt, { color: overviewMode ? "#FFF" : (isDark ? "#CCC" : "#555") }]}>
+              {overviewMode ? "Tracking" : "Overview"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Report incident */}
+          <TouchableOpacity
+            style={styles.navReportBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="camera" size={14} color="#FFF" />
+            <Text style={styles.navReportTxt}>Report Incident</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -1301,8 +1353,22 @@ const styles = StyleSheet.create({
   },
   navShareBtnTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 
+  // ── Nav-mode right-side FAB column (overview + report) ───────────────────
+  navFabCol: {
+    position: "absolute", zIndex: 14,
+    alignItems: "flex-end", gap: 8,
+  },
+  overviewBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 13, paddingVertical: 9, borderRadius: 22,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 7,
+  },
+  overviewBtnActive: {
+    shadowColor: "#1565C0", shadowOpacity: 0.45,
+  },
+  overviewBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold" },
   navReportBtn: {
-    position: "absolute",
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "#E65100",
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22,

@@ -150,7 +150,7 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 // ─── Main map component ───────────────────────────────────────────────────────
 
 const DriveMapView = forwardRef(function DriveMapView(
-  _: object,
+  { overviewMode = false }: { overviewMode?: boolean },
   ref: React.ForwardedRef<DriveMapViewHandle>,
 ) {
   const {
@@ -282,6 +282,12 @@ const DriveMapView = forwardRef(function DriveMapView(
       return;
     }
 
+    // While in overview mode the driver is panning/zooming freely — don't
+    // fight them by slamming the camera back to the first-person position.
+    // The overview effect below handles the zoom-out; this effect resumes
+    // auto-tracking only once the driver exits overview mode.
+    if (overviewMode) return;
+
     if (currentLat == null || currentLng == null) return;
 
     // GPS fixes arrive up to once/sec while navigating, and each one used to
@@ -301,7 +307,33 @@ const DriveMapView = forwardRef(function DriveMapView(
       { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
       { duration: justStarted ? 0 : 500 }
     );
-  }, [navigationActive, currentLat, currentLng]);
+  }, [navigationActive, currentLat, currentLng, overviewMode]);
+
+  // Overview mode — zoom out to show the full remaining route, then resume
+  // first-person tracking when the driver exits (or after the auto-timer fires).
+  useEffect(() => {
+    if (!navigationActive) return;
+
+    if (overviewMode) {
+      // Fit the full active route with comfortable padding so the driver can
+      // see both their current position and the destination at a glance.
+      if (activeRoute?.coords.length) {
+        mapRef.current?.fitToCoordinates(activeRoute.coords, {
+          edgePadding: { top: 120, right: 40, bottom: 260, left: 40 },
+          animated: true,
+        });
+      }
+    } else {
+      // Returning from overview — snap the camera back to the tight
+      // first-person view immediately so tracking resumes without a delay.
+      if (currentLat != null && currentLng != null) {
+        mapRef.current?.animateCamera(
+          { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
+          { duration: 600 }
+        );
+      }
+    }
+  }, [overviewMode, navigationActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deep-link focus: center map on a push-notification incident then clear
   useEffect(() => {
@@ -388,10 +420,12 @@ const DriveMapView = forwardRef(function DriveMapView(
         // allow the native layer to neither zoom nor scroll on its own.
         // Locks are lifted the moment navigation ends so the driver can freely
         // explore the map post-arrival.
-        zoomEnabled={!navigationActive}
-        scrollEnabled={!navigationActive}
+        // In overview mode the driver needs free pan/zoom to inspect the route,
+        // so we lift the locks temporarily until they tap back to first-person.
+        zoomEnabled={!navigationActive || overviewMode}
+        scrollEnabled={!navigationActive || overviewMode}
         cameraZoomRange={
-          navigationActive
+          navigationActive && !overviewMode
             ? { minCenterCoordinateDistance: 0, maxCenterCoordinateDistance: 0, animated: true }
             : undefined
         }
