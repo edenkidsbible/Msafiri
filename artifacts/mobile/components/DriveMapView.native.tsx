@@ -456,11 +456,6 @@ const DriveMapView = forwardRef(function DriveMapView(
         zoomEnabled={!navigationActive || overviewMode}
         scrollEnabled={!navigationActive || overviewMode}
         onRegionChangeComplete={handleRegionChangeComplete}
-        cameraZoomRange={
-          navigationActive && !overviewMode
-            ? { minCenterCoordinateDistance: 0, maxCenterCoordinateDistance: 0, animated: true }
-            : undefined
-        }
       >
         {/* Speed zone markers — road-stretch corridors show their limit as a
             badge at each end so you can see how the speed changes along the
