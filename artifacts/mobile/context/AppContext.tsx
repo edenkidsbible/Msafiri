@@ -225,6 +225,36 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** Initial bearing from point A → B in degrees (0–360°). */
+function bearingDeg(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
+  const f1 = (fromLat * Math.PI) / 180, f2 = (toLat * Math.PI) / 180;
+  const dl = ((toLng - fromLng) * Math.PI) / 180;
+  const y = Math.sin(dl) * Math.cos(f2);
+  const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+/** Shortest angular difference between two headings (0–180°). */
+function angleDiffDeg(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+/** Driver heading (0–360°) derived from the previous GPS fix.
+ *  Returns null when there is no previous fix or movement is below the noise
+ *  threshold (< 5 m), which means direction is indeterminate. */
+function driverHeadingDeg(
+  prevFix: { lat: number; lng: number; t: number } | null,
+  currentLat: number,
+  currentLng: number,
+): number | null {
+  if (!prevFix) return null;
+  const distM = haversine(prevFix.lat, prevFix.lng, currentLat, currentLng);
+  // Require at least 5 m of genuine movement; less than that is GPS noise.
+  if (distM < 5) return null;
+  return bearingDeg(prevFix.lat, prevFix.lng, currentLat, currentLng);
+}
+
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
@@ -709,6 +739,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
+  // Distance to the active alert zone at the last GPS fix — used to detect
+  // when the driver is moving away so we can dismiss the alert early.
+  const alertZoneLastDistRef = useRef<number | null>(null);
+  // Consecutive GPS fixes where distance to the active alert zone increased;
+  // when this reaches 2 we dismiss (driver has passed or turned away).
+  const alertZoneIncreasingCountRef = useRef(0);
   const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1078,10 +1114,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastSpeedingWarnRef.current = 0;
     }
 
-    const alertCandidate = withDist.find((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
+    // Driver heading derived from the displacement since the previous fix.
+    // Null when there is no prior fix or movement is below the noise threshold
+    // — in that case all direction checks degrade to distance-only behaviour.
+    const driverHeading = driverHeadingDeg(prevFix, lat, lng);
+
+    // ── Dismiss active alert when driver is moving away ───────────────────────
+    // Track consecutive fixes where the active alert zone is getting farther
+    // away. Two in a row means the driver has passed or turned — clear the
+    // banner so it doesn't linger after the hazard is behind them.
+    if (alertZoneRef.current) {
+      const activeZoneCurrent = withDist.find((z) => z.id === alertZoneRef.current);
+      if (activeZoneCurrent) {
+        const lastDist = alertZoneLastDistRef.current;
+        if (lastDist != null && activeZoneCurrent.distance > lastDist) {
+          alertZoneIncreasingCountRef.current += 1;
+          if (alertZoneIncreasingCountRef.current >= 2) {
+            alertZoneRef.current = null;
+            alertDismissed.current = false;
+            alertZoneLastDistRef.current = null;
+            alertZoneIncreasingCountRef.current = 0;
+            setActiveAlert(null);
+          }
+        } else {
+          alertZoneIncreasingCountRef.current = 0;
+          alertZoneLastDistRef.current = activeZoneCurrent.distance;
+        }
+      }
+    }
+
+    // Pick the nearest in-range zone that is in the driver's forward hemisphere.
+    // When heading is unknown (first fix, or GPS accuracy too low to derive
+    // direction) fall back to the nearest in-range zone regardless of bearing,
+    // preserving the pre-heading distance-only behaviour.
+    const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
+    const alertCandidate = driverHeading != null
+      ? (inRangeZones.find((z) => angleDiffDeg(driverHeading, bearingDeg(lat, lng, z.lat, z.lng)) <= 90) ?? null)
+      : (inRangeZones[0] ?? null);
+
     if (alertCandidate) {
       if (alertCandidate.id !== alertZoneRef.current) {
+        // alertCandidate is already direction-filtered above — fire unconditionally.
         alertZoneRef.current = alertCandidate.id;
+        alertZoneLastDistRef.current = alertCandidate.distance;
+        alertZoneIncreasingCountRef.current = 0;
         alertDismissed.current = false;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         if (notifGranted.current) void fireZoneNotification(alertCandidate, alertCandidate.distance);
@@ -1099,10 +1175,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
-      if (!alertDismissed.current) setActiveAlert(alertCandidate);
+      // Only show the banner for the zone that is the confirmed active alert;
+      // this prevents a stale/behind zone from appearing if alertZoneRef was
+      // already set to a different zone from a prior fix.
+      if (!alertDismissed.current && alertCandidate.id === alertZoneRef.current) {
+        setActiveAlert(alertCandidate);
+      }
     } else {
       const stillInRange = alertZoneRef.current && withDist.find((z) => z.id === alertZoneRef.current && z.distance <= ALERT_DIST);
-      if (!stillInRange) { alertZoneRef.current = null; alertDismissed.current = false; setActiveAlert(null); }
+      if (!stillInRange) {
+        alertZoneRef.current = null;
+        alertDismissed.current = false;
+        alertZoneLastDistRef.current = null;
+        alertZoneIncreasingCountRef.current = 0;
+        setActiveAlert(null);
+      }
     }
 
     // ── Community report proximity voice alerts (1 km) ──────────────────────
@@ -1119,6 +1206,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (now - report.timestamp > 7200000) continue; // ignore reports > 2 h old
       const distToReport = haversine(lat, lng, report.lat, report.lng);
       if (distToReport > REPORT_ANNOUNCE_DIST || distToReport <= IN_ZONE_DIST) continue;
+      // Only announce when the report is ahead of the driver. If heading is
+      // unknown (first fix) we fall back to distance-only and announce anyway.
+      // Do NOT add to announcedReportsRef when skipping direction: the driver
+      // may later turn toward the report and should hear the announcement then.
+      const bearingToReport = bearingDeg(lat, lng, report.lat, report.lng);
+      const reportIsAhead = driverHeading == null || angleDiffDeg(driverHeading, bearingToReport) <= 90;
+      if (!reportIsAhead) continue;
       announcedReportsRef.current.add(report.id);
       // Pre-generated Keli clips cover all known report types. Visual cards
       // already show the timestamp, so we drop the "X minutes ago" from voice.
