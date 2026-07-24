@@ -56,9 +56,25 @@ function useSubscriptionContext() {
 
   const offeringsQuery = useQuery({
     queryKey: ["revenuecat", "offerings"],
-    queryFn: async () => Purchases.getOfferings(),
+    queryFn: async () => {
+      const result = await Purchases.getOfferings();
+      // Treat an empty/null current offering as a retryable failure so the
+      // query engine keeps trying rather than settling on an empty state.
+      // This catches the case where RevenueCat returns successfully but App
+      // Store Connect products haven't propagated to the sandbox yet.
+      if (!result?.current) throw new Error("No current offering available");
+      return result;
+    },
     staleTime: 300 * 1000,
-    retry: 2,
+    // Up to 5 attempts (1 original + 4 retries) with exponential back-off
+    // capped at 15 s. This lets a transient sandbox / network hiccup self-heal
+    // within ~30 s without hammering the RevenueCat API.
+    retry: 4,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000),
+    // Always refetch when the paywall mounts or the app foregrounds, so a
+    // reviewer who retries after a network blip gets a fresh attempt.
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const productIdentifiers =
@@ -161,7 +177,12 @@ function useSubscriptionContext() {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     isSubscribed,
-    isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    // isLoading: subscription status only — used by _layout.tsx to gate routing.
+    // Offerings loading is intentionally excluded so the routing gate doesn't
+    // block for the full retry window when sandbox products are slow to resolve.
+    isLoading: customerInfoQuery.isLoading,
+    // offeringsLoading: used by the paywall to show a spinner and disable the CTA.
+    offeringsLoading: offeringsQuery.isLoading || offeringsQuery.isFetching,
     offeringsError: offeringsQuery.error ?? null,
     refetchOfferings: offeringsQuery.refetch,
     purchase: purchaseMutation.mutateAsync,

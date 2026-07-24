@@ -32,7 +32,7 @@ const FEATURES = [
 export function PaywallModal({ visible, onClose }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { offerings, isLoading, purchase, isPurchasing, restore, isRestoring, error, isTrialEligible } =
+  const { offerings, offeringsLoading, purchase, isPurchasing, restore, isRestoring, error, isTrialEligible } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -138,7 +138,7 @@ export function PaywallModal({ visible, onClose }: Props) {
           </View>
 
           {/* Plan picker */}
-          {isLoading ? (
+          {offeringsLoading ? (
             <ActivityIndicator color={c.primary} style={{ marginVertical: 24 }} />
           ) : (
             <View style={styles.plans}>
@@ -275,9 +275,9 @@ export function PaywallModal({ visible, onClose }: Props) {
         {/* CTA */}
         <View style={[styles.ctaWrap, { borderTopColor: c.border }]}>
           <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || isLoading || !agreedToTerms ? 0.5 : 1 }]}
+            style={[styles.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || offeringsLoading || !agreedToTerms ? 0.5 : 1 }]}
             onPress={handlePurchase}
-            disabled={isPurchasing || isLoading || !chosenPkg || !agreedToTerms}
+            disabled={isPurchasing || offeringsLoading || !chosenPkg || !agreedToTerms}
             activeOpacity={0.85}
           >
             {isPurchasing ? (

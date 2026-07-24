@@ -35,7 +35,7 @@ export default function PaywallScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { requestLocationPermission } = useApp();
-  const { offerings, isLoading, offeringsError, refetchOfferings, purchase, isPurchasing, restore, isRestoring, isTrialEligible, setReviewerMode } =
+  const { offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings, purchase, isPurchasing, restore, isRestoring, isTrialEligible, setReviewerMode } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -358,7 +358,7 @@ export default function PaywallScreen() {
         </View>
 
         {/* Plan picker */}
-        {isLoading ? (
+        {offeringsLoading ? (
           <ActivityIndicator color={c.primary} style={{ marginVertical: 28 }} />
         ) : offeringsError || (!monthlyPkg && !weeklyPkg) ? (
           <View style={[styles.offeringsError, { borderColor: c.border, backgroundColor: c.card }]}>
@@ -461,7 +461,7 @@ export default function PaywallScreen() {
 
       {/* Bottom CTA */}
       <View style={[styles.ctaWrap, { borderTopColor: c.border, paddingBottom: botPad }]}>
-        {!isLoading && !offeringsError && !chosenPkg && (
+        {!offeringsLoading && !offeringsError && !chosenPkg && (
           <Text style={[styles.noProductsNote, { color: c.mutedForeground }]}>
             Subscriptions unavailable in this build — store products not configured yet.
           </Text>
@@ -470,10 +470,10 @@ export default function PaywallScreen() {
         <TouchableOpacity
           style={[
             styles.ctaBtn,
-            { backgroundColor: c.primary, opacity: isPurchasing || isLoading || !chosenPkg ? 0.5 : 1 },
+            { backgroundColor: c.primary, opacity: isPurchasing || offeringsLoading || !chosenPkg ? 0.5 : 1 },
           ]}
           onPress={handleSubscribe}
-          disabled={isPurchasing || isLoading || !chosenPkg}
+          disabled={isPurchasing || offeringsLoading || !chosenPkg}
           activeOpacity={0.85}
         >
           {isPurchasing ? (
