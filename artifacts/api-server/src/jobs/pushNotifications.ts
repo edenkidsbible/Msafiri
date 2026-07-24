@@ -173,14 +173,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const INCIDENT_NOTIFY_RADIUS_KM = 5;
-// Only ping a handful of nearby drivers per sweep instead of everyone in
-// radius — we just need enough eyes to get one confirmation, not a blast.
-// If nobody confirms, the next 2-hour sweep tries again (picking whichever
-// devices are nearest at that time, which naturally reaches new drivers as
-// they move through the area).
-const INCIDENT_NOTIFY_BATCH_SIZE = 5;
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function alreadySentToday(type: string): Promise<boolean> {
@@ -414,175 +406,6 @@ async function catchUpMissedTriggers(): Promise<void> {
   }
 }
 
-// ─── Incident confirmation notifications ─────────────────────────────────────
-
-async function checkIncidentConfirmations(): Promise<void> {
-  const now = new Date();
-  const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000);
-  const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-
-  const qualifying = await db
-    .select()
-    .from(communityReportsTable)
-    .where(
-      and(
-        or(
-          eq(communityReportsTable.status, "active"),
-          eq(communityReportsTable.status, "confirmed")
-        ),
-        ne(communityReportsTable.type, "camera"),
-        // Report must be at least 30 minutes old
-        lte(communityReportsTable.createdAt, thirtyMinAgo),
-        // Must not have had a notification in the last 2 hours — this is
-        // the "ask again after two hours" cadence, whether or not it's been
-        // confirmed. Confirmations keep the report fresh but don't retire it
-        // permanently; we just make sure we don't re-ask the same drivers
-        // (see notifiedTokens exclusion below).
-        or(
-          isNull(communityReportsTable.lastNotifiedAt),
-          lte(communityReportsTable.lastNotifiedAt, twoHoursAgo)
-        ),
-        // Give a confirm/deny vote a short grace period before the next
-        // round fires, so a just-confirmed report doesn't immediately queue
-        // another push.
-        or(
-          isNull(communityReportsTable.lastVotedAt),
-          lte(communityReportsTable.lastVotedAt, thirtyMinAgo)
-        )
-      )
-    );
-
-  if (qualifying.length === 0) return;
-
-  // Fetch all tokens that have a known location (needed for proximity filtering).
-  // Also fetch tokens without a location so we can count the total pool.
-  const allTokens = await db
-    .select({
-      token: pushTokensTable.token,
-      lastLat: pushTokensTable.lastLat,
-      lastLng: pushTokensTable.lastLng,
-      lastSeenAt: pushTokensTable.lastSeenAt,
-    })
-    .from(pushTokensTable);
-
-  if (allTokens.length === 0) return;
-
-  for (const report of qualifying) {
-    const typeLabel = report.type.charAt(0).toUpperCase() + report.type.slice(1);
-    const road = report.roadName ? ` on ${report.roadName}` : "";
-    const title = `Is ${typeLabel} still there?`;
-    const body = `Is ${typeLabel}${road} still active? Help other drivers — tap to confirm.`;
-    const data = { type: "incident_check", reportId: report.id, lat: report.lat, lng: report.lng };
-
-    // Devices already asked about this report in an earlier round — exclude
-    // them so each 2-hour sweep reaches fresh drivers instead of pestering
-    // the same handful every time.
-    const alreadyAsked = new Set(report.notifiedTokens ?? []);
-
-    // Filter to only devices that are within 5 km of the incident.
-    // Devices with no recorded location are excluded — they will be reached
-    // by the proximity-triggered in-app prompt instead.
-    const nearbyTokens = allTokens
-      .filter((t) => !alreadyAsked.has(t.token))
-      .map((t) => ({
-        ...t,
-        distanceKm:
-          t.lastLat != null && t.lastLng != null
-            ? haversineKm(t.lastLat, t.lastLng, report.lat, report.lng)
-            : Infinity,
-      }))
-      .filter((t) => t.distanceKm <= INCIDENT_NOTIFY_RADIUS_KM)
-      // Closest drivers first; among drivers at roughly the same distance,
-      // prefer whoever was seen most recently (a proxy for "currently out
-      // driving" since we don't retain historical route/path data). Then
-      // cap to a small batch — we only need a few confirmations, not to
-      // notify everyone in the radius at once.
-      .sort((a, b) => {
-        const distDiff = a.distanceKm - b.distanceKm;
-        if (Math.abs(distDiff) > 0.5) return distDiff;
-        return b.lastSeenAt.getTime() - a.lastSeenAt.getTime();
-      })
-      .slice(0, INCIDENT_NOTIFY_BATCH_SIZE);
-
-    const totalDevices = allTokens.length;
-    const targetDevices = nearbyTokens.length;
-
-    logger.info(
-      { reportId: report.id, totalDevices, targetDevices },
-      "Incident confirmation: filtering push tokens by proximity"
-    );
-
-    if (nearbyTokens.length === 0) {
-      // No nearby devices with a known location — record a skipped campaign
-      // so the admin log shows the attempt.
-      await db
-        .insert(pushCampaignsTable)
-        .values({
-          title,
-          body,
-          type: "incident_check",
-          status: "sent",
-          sentAt: now,
-          sentCount: 0,
-          failedCount: 0,
-          targetCount: 0,
-          createdBy: "system",
-          dataJson: JSON.stringify(data),
-        });
-
-      await db
-        .update(communityReportsTable)
-        .set({ lastNotifiedAt: now })
-        .where(eq(communityReportsTable.id, report.id));
-
-      logger.info({ reportId: report.id }, "Incident confirmation: no nearby devices, skipped send");
-      continue;
-    }
-
-    const [campaign] = await db
-      .insert(pushCampaignsTable)
-      .values({
-        title,
-        body,
-        type: "incident_check",
-        status: "sending",
-        createdBy: "system",
-        dataJson: JSON.stringify(data),
-        targetCount: targetDevices,
-      })
-      .returning();
-
-    const { ok, failed } = await sendPushNotifications(
-      nearbyTokens.map((t) => ({
-        to: t.token,
-        title,
-        body,
-        sound: "alert_tone.mp3",
-        channelId: "msafiri_alerts",
-        data,
-      }))
-    );
-
-    await db
-      .update(pushCampaignsTable)
-      .set({ status: "sent", sentAt: now, sentCount: ok, failedCount: failed, targetCount: targetDevices })
-      .where(eq(pushCampaignsTable.id, campaign.id));
-
-    await db
-      .update(communityReportsTable)
-      .set({
-        lastNotifiedAt: now,
-        notifiedTokens: [...alreadyAsked, ...nearbyTokens.map((t) => t.token)],
-      })
-      .where(eq(communityReportsTable.id, report.id));
-
-    logger.info(
-      { reportId: report.id, ok, failed, targetDevices, totalDevices },
-      "Incident confirmation push sent to nearby drivers"
-    );
-  }
-}
-
 // ─── Planned-trip departure advice ───────────────────────────────────────────
 
 // Types that meaningfully affect a drive — these are what we warn about ahead
@@ -723,20 +546,10 @@ async function checkPlannedTrips(): Promise<void> {
 
 // ─── Job entry point ──────────────────────────────────────────────────────────
 
-// Run incident checks every 15 minutes independently of the 1-minute main loop
-let lastIncidentCheckAt = 0;
-const INCIDENT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
-
 async function runJob(): Promise<void> {
   await processScheduledCampaigns();
   await checkDailyTriggers();
   await checkPlannedTrips();
-
-  const now = Date.now();
-  if (now - lastIncidentCheckAt >= INCIDENT_CHECK_INTERVAL_MS) {
-    lastIncidentCheckAt = now;
-    await checkIncidentConfirmations();
-  }
 }
 
 // ── Receipt-based bad token purge ─────────────────────────────────────────────
