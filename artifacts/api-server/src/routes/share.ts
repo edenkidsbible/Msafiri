@@ -41,10 +41,10 @@ async function expireStale() {
 }
 
 // ── POST /share/session — create a new sharing session ────────────────────────
-// Body: { deviceId, destinationName?, destinationLat?, destinationLng?, lat?, lng? }
+// Body: { deviceId, driverName?, destinationName?, destinationLat?, destinationLng?, lat?, lng? }
 // Returns: { token, expiresAt }
 router.post("/share/session", async (req: Request, res: Response) => {
-  const { deviceId, destinationName, destinationLat, destinationLng, lat, lng } = req.body ?? {};
+  const { deviceId, driverName, destinationName, destinationLat, destinationLng, lat, lng } = req.body ?? {};
   if (!deviceId || typeof deviceId !== "string") {
     res.status(400).json({ error: "deviceId required" });
     return;
@@ -58,6 +58,7 @@ router.post("/share/session", async (req: Request, res: Response) => {
       .values({
         deviceId,
         shortCode:       generateShortCode(),
+        driverName:      typeof driverName === "string" && driverName.trim() ? driverName.trim() : null,
         destinationName: destinationName ?? null,
         destinationLat:  destinationLat  != null ? Number(destinationLat)  : null,
         destinationLng:  destinationLng  != null ? Number(destinationLng)  : null,
@@ -169,6 +170,7 @@ router.get("/share/:code", async (req: Request, res: Response) => {
     speedKmh:           sharingSessionsTable.speedKmh,
     durationRemainingS: sharingSessionsTable.durationRemainingS,
     distanceRemainingM: sharingSessionsTable.distanceRemainingM,
+    driverName:         sharingSessionsTable.driverName,
     destinationName:    sharingSessionsTable.destinationName,
     destinationLat:     sharingSessionsTable.destinationLat,
     destinationLng:     sharingSessionsTable.destinationLng,

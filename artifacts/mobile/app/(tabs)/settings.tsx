@@ -35,6 +35,7 @@ export default function SettingsScreen() {
     themeOverride, setThemeOverride,
     vehicleType, setVehicleType,
     clearAllData,
+    driverName, setDriverName,
   } = useApp();
 
   const { isSubscribed, reviewerMode, setReviewerMode } = useSubscription();
@@ -42,6 +43,8 @@ export default function SettingsScreen() {
 
   const [name, setName] = useState(sosContact?.name ?? "");
   const [phone, setPhone] = useState(sosContact?.phone ?? "");
+  const [driverNameInput, setDriverNameInput] = useState(driverName);
+  const [driverNameSaved, setDriverNameSaved] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSpeed, setEditSpeed] = useState("");
@@ -272,6 +275,42 @@ export default function SettingsScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
       </TouchableOpacity>
+
+      {/* Driver name for live sharing */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>LIVE SHARING</Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
+            Your name shown to people you share your live location with — e.g. "John is sharing their location".
+          </Text>
+          <View style={[styles.inputRow, { borderColor: c.border }]}>
+            <Ionicons name="person-circle-outline" size={18} color={c.mutedForeground} />
+            <TextInput
+              style={[styles.input, { color: c.foreground }]}
+              placeholder="Your first name (optional)"
+              placeholderTextColor={c.mutedForeground}
+              value={driverNameInput}
+              onChangeText={setDriverNameInput}
+              returnKeyType="done"
+              maxLength={40}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.saveBtn, { backgroundColor: driverNameSaved ? c.speedSafe : c.primary }]}
+            onPress={() => {
+              setDriverName(driverNameInput);
+              setDriverNameSaved(true);
+              setTimeout(() => setDriverNameSaved(false), 2000);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }}
+          >
+            <Ionicons name={driverNameSaved ? "checkmark" : "save-outline"} size={16} color={c.primaryForeground} />
+            <Text style={[styles.saveBtnText, { color: c.primaryForeground }]}>
+              {driverNameSaved ? "Saved!" : "Save Name"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {/* SOS Contact */}
       <View style={styles.section}>

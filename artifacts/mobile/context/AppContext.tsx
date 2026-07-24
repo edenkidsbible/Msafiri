@@ -169,6 +169,8 @@ interface AppContextValue {
   isSharingTrip: boolean;
   shareToken: string | null;
   shareLink: string | null;
+  driverName: string;
+  setDriverName: (name: string) => void;
   startSharingTrip: () => Promise<string | null>;
   stopSharingTrip: () => Promise<void>;
   currentStepIdx: number;
@@ -218,6 +220,7 @@ const KEYS = {
   THEME: "sdk_theme",
   VEHICLE_TYPE: "sdk_vehicle_type",
   SHARE: "sdk_share",  // active sharing session — persisted so it survives backgrounding
+  DRIVER_NAME: "sdk_driver_name",  // display name shown to live-share recipients
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -726,6 +729,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dbStretchesRef = useRef<SpeedStretch[]>([]);
 
   const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [driverName, setDriverNameState] = useState<string>("");
+  const driverNameRef = useRef<string>("");
   const isOfflineRef = useRef(false);
   const deviceIdRef = useRef<string | null>(null);
   const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -790,7 +795,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -800,6 +805,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(KEYS.THEME),
         AsyncStorage.getItem(KEYS.VEHICLE_TYPE),
         AsyncStorage.getItem(KEYS.SHARE),
+        AsyncStorage.getItem(KEYS.DRIVER_NAME),
       ]);
       if (storedVehicleType) {
         const v = storedVehicleType as VehicleTypeId;
@@ -819,6 +825,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (Platform.OS !== "web") {
           Appearance.setColorScheme(t === "system" ? null : t);
         }
+      }
+      if (storedDriverName) {
+        driverNameRef.current = storedDriverName;
+        setDriverNameState(storedDriverName);
       }
       setOnboardingComplete(onboarded === "true");
       // Restore any sharing session that survived backgrounding or an app restart
@@ -1790,6 +1800,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await apiPost<{ token: string; shortCode: string | null; expiresAt: string }>("/share/session", {
         deviceId:        deviceIdRef.current,
+        driverName:      driverNameRef.current.trim() || null,
         destinationName: navDestRef.current?.name ?? null,
         destinationLat:  navDestRef.current?.lat  ?? null,
         destinationLng:  navDestRef.current?.lng  ?? null,
@@ -2136,6 +2147,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setDriverName = useCallback((name: string) => {
+    const trimmed = name.trim();
+    driverNameRef.current = trimmed;
+    setDriverNameState(trimmed);
+    void AsyncStorage.setItem(KEYS.DRIVER_NAME, trimmed);
+  }, []);
+
   return (
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission, requestNotificationPermission,
@@ -2156,6 +2174,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSharingTrip: shareToken !== null,
       shareToken,
       shareLink: (shareCode || shareToken) ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareCode ?? shareToken}` : null,
+      driverName,
+      setDriverName,
       startSharingTrip,
       stopSharingTrip,
       currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, routeLoading,

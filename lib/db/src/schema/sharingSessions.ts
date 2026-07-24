@@ -8,6 +8,9 @@ export const sharingSessionsTable = pgTable("sharing_sessions", {
   token:              uuid("token").primaryKey().defaultRandom(),
   shortCode:          text("short_code").unique(),  // e.g. "A3X9K2QP" — used in shared URLs
   deviceId:           text("device_id").notNull(),
+  // Optional display name the driver sets — shown to the recipient so they
+  // know who is sharing ("John is sharing their location").
+  driverName:         text("driver_name"),
   destinationName:    text("destination_name"),
   destinationLat:     doublePrecision("destination_lat"),
   destinationLng:     doublePrecision("destination_lng"),

@@ -24,6 +24,7 @@ interface ShareSession {
   speedKmh: number | null;
   durationRemainingS: number | null;
   distanceRemainingM: number | null;
+  driverName: string | null;
   destinationName: string | null;
   destinationLat: number | null;
   destinationLng: number | null;
@@ -148,6 +149,10 @@ export default function LiveShareScreen() {
     }
   }, [code]);
 
+  const shareTitle = session?.driverName
+    ? `${session.driverName} is sharing their location`
+    : "Live Location";
+
   // ── Expired / not-found state ──────────────────────────────────────────────
   if (expired) {
     return (
@@ -156,7 +161,7 @@ export default function LiveShareScreen() {
           <Pressable onPress={handleBack} style={styles.backBtn} hitSlop={10}>
             <Ionicons name="close" size={22} color={colors.foreground} />
           </Pressable>
-          <Text style={[styles.topBarTitle, { color: colors.foreground }]}>Live Location</Text>
+          <Text style={[styles.topBarTitle, { color: colors.foreground }]} numberOfLines={1}>Live Location</Text>
           <View style={styles.backBtn} />
         </View>
         <View style={styles.center}>
@@ -186,7 +191,7 @@ export default function LiveShareScreen() {
           <Pressable onPress={handleBack} style={styles.backBtn} hitSlop={10}>
             <Ionicons name="close" size={22} color={colors.foreground} />
           </Pressable>
-          <Text style={[styles.topBarTitle, { color: colors.foreground }]}>Live Location</Text>
+          <Text style={[styles.topBarTitle, { color: colors.foreground }]} numberOfLines={1}>{shareTitle}</Text>
           <View style={styles.backBtn} />
         </View>
         <View style={styles.center}>
@@ -220,7 +225,7 @@ export default function LiveShareScreen() {
           <Ionicons name="close" size={22} color={colors.foreground} />
         </Pressable>
         <View style={styles.topBarInfo}>
-          <Text style={[styles.topBarTitle, { color: colors.foreground }]}>Live Location</Text>
+          <Text style={[styles.topBarTitle, { color: colors.foreground }]} numberOfLines={1}>{shareTitle}</Text>
           <Text style={[styles.topBarSub, { color: colors.muted }]}>Last seen {lastSeen}</Text>
         </View>
         <View style={styles.backBtn} />

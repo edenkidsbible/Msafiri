@@ -66,6 +66,7 @@ export default function TripsScreen() {
   const {
     deviceId, tripHistory, clearTripHistory, currentTrip,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip, navigationActive,
+    driverName,
   } = useApp();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
@@ -110,15 +111,16 @@ export default function TripsScreen() {
     try {
       const link = await startSharingTrip();
       if (link) {
+        const namePrefix = driverName.trim() ? `${driverName.trim()} is sharing their live location 📍` : "Follow my live trip 📍";
         await Share.share({
-          message: `Follow my live trip 📍\n${link}`,
+          message: `${namePrefix}\n${link}`,
           title: "Track my trip — Msafiri Kenya",
         });
       }
     } finally {
       setSharingLoading(false);
     }
-  }, [isSharingTrip, startSharingTrip, stopSharingTrip]);
+  }, [isSharingTrip, startSharingTrip, stopSharingTrip, driverName]);
 
   // Route check modal (road conditions for a saved place / planned trip)
   const [routeCheck, setRouteCheck] = useState<{ label: string; lat: number; lng: number } | null>(null);

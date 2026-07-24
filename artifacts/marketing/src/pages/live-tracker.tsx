@@ -26,6 +26,7 @@ interface SessionState {
   speedKmh: number | null;
   durationRemainingS: number | null;
   distanceRemainingM: number | null;
+  driverName: string | null;
   destinationName: string | null;
   destinationLat: number | null;
   destinationLng: number | null;
@@ -263,7 +264,11 @@ export default function LiveTracker() {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>
-            {ended ? "Trip Ended" : "Live Tracking"}
+            {ended
+              ? "Trip Ended"
+              : session?.driverName
+                ? `${session.driverName} is sharing their location`
+                : "Live Tracking"}
           </div>
           <div style={{ fontSize: 12, opacity: 0.85, marginTop: 1 }}>
             {ended

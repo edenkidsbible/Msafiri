@@ -131,6 +131,7 @@ export default function DriveScreen() {
     pendingConfirmationReport, setPendingConfirmationReport,
     setPendingConfirmationSource,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
+    driverName,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -213,15 +214,16 @@ export default function DriveScreen() {
     try {
       const link = await startSharingTrip();
       if (link) {
+        const namePrefix = driverName.trim() ? `${driverName.trim()} is sharing their live location 📍` : "Follow my live trip 📍";
         await Share.share({
-          message: `Follow my live trip 📍\n${link}`,
+          message: `${namePrefix}\n${link}`,
           title: "Track my trip — Msafiri Kenya",
         });
       }
     } finally {
       setSharingLoading(false);
     }
-  }, [isSharingTrip, startSharingTrip, stopSharingTrip]);
+  }, [isSharingTrip, startSharingTrip, stopSharingTrip, driverName]);
 
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
