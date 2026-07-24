@@ -158,6 +158,18 @@ export default function DriveScreen() {
   const [overviewMode, setOverviewMode] = useState(false);
   const overviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Toast shown when overview auto-exits due to approaching turn
+  const overviewToastOpacity = useRef(new Animated.Value(0)).current;
+  const overviewToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showOverviewToast = useCallback(() => {
+    if (overviewToastTimerRef.current) clearTimeout(overviewToastTimerRef.current);
+    Animated.timing(overviewToastOpacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    overviewToastTimerRef.current = setTimeout(() => {
+      Animated.timing(overviewToastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }).start();
+    }, 2200);
+  }, [overviewToastOpacity]);
+
   // Auto-exit overview after 8 seconds so the driver doesn't have to tap again
   const enterOverview = useCallback(() => {
     if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
@@ -172,10 +184,20 @@ export default function DriveScreen() {
     setOverviewMode(false);
   }, []);
 
+  // Auto-exit overview when approaching the next turn (within 500 m)
+  useEffect(() => {
+    if (!overviewMode || distToNextM == null) return;
+    if (distToNextM < 500) {
+      exitOverview();
+      showOverviewToast();
+    }
+  }, [overviewMode, distToNextM, exitOverview, showOverviewToast]);
+
   // Clear overview when navigation ends (e.g. driver taps Stop)
   useEffect(() => {
     if (!navigationActive) {
       if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
+      if (overviewToastTimerRef.current) clearTimeout(overviewToastTimerRef.current);
       setOverviewMode(false);
     }
   }, [navigationActive]);
@@ -1090,6 +1112,15 @@ export default function DriveScreen() {
         }}
       />
 
+      {/* ── Overview auto-exit toast ─────────────────────────────────────────── */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.overviewToast, { opacity: overviewToastOpacity }]}
+      >
+        <Ionicons name="navigate" size={14} color="#FFF" />
+        <Text style={styles.overviewToastTxt}>Returning to tracking</Text>
+      </Animated.View>
+
       {/* Incident confirmation prompt — proximity-triggered or push-notification deep-link */}
       {pendingConfirmationReport && (
         <IncidentConfirmationPrompt
@@ -1376,6 +1407,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 6, elevation: 8,
   },
   navReportTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  // ── Overview auto-exit toast ──────────────────────────────────────────────
+  overviewToast: {
+    position: "absolute", zIndex: 30,
+    alignSelf: "center", top: "35%",
+    flexDirection: "row", alignItems: "center", gap: 7,
+    backgroundColor: "#1565C0EE",
+    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 10, elevation: 12,
+  },
+  overviewToastTxt: {
+    color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold",
+  },
 
   // ── Arrival card ────────────────────────────────────────────────────────
   arrivalOverlay: {
