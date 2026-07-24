@@ -309,23 +309,31 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     if (currentLat == null || currentLng == null) return;
 
-    // GPS fixes arrive up to once/sec while navigating, and each one used to
-    // kick off a fresh 900ms animateCamera call. On Android that's a heavy
-    // native operation (tilted 3D camera + GPU compositing), and back-to-back
-    // calls landing faster than the previous animation finished meant the
-    // camera never settled — this saturated the native bridge and caused the
-    // jank/lag the whole app (including voice instruction timing) suffered
-    // from during navigation. Using a duration shorter than the fix interval
-    // lets each animation actually complete before the next one starts.
+    // When navigation first starts, zoom in to a tight street-level view using
+    // animateToRegion (latitudeDelta/longitudeDelta works reliably on both iOS
+    // Apple Maps and Android Google Maps). We deliberately avoid animateCamera
+    // with a `zoom` value here: on iOS Apple Maps, `zoom` is not a native
+    // concept and react-native-maps' altitude conversion can drift on each
+    // successive call, causing the map to progressively zoom out to world-level.
     //
-    // When navigation just started (false→true), use duration 0 to assert the
-    // tight first-person view immediately — before any stale fitToCoordinates
-    // timer that slipped through the 350 ms window can land and zoom out.
+    // For subsequent GPS fixes we call animateCamera with ONLY `center` — no
+    // zoom, no pitch. This just pans the camera to follow the driver's position
+    // without touching the zoom level at all, so any zoom the driver has set
+    // manually via pinch is preserved.
     const justStarted = !wasActive;
-    mapRef.current?.animateCamera(
-      { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
-      { duration: justStarted ? 0 : 500 }
-    );
+    if (justStarted) {
+      mapRef.current?.animateToRegion(
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+        300
+      );
+    } else {
+      // Pan only — duration slightly under 1 s so each animation finishes before
+      // the next GPS fix arrives, preventing native bridge saturation.
+      mapRef.current?.animateCamera(
+        { center: { latitude: currentLat, longitude: currentLng } },
+        { duration: 500 }
+      );
+    }
   }, [navigationActive, currentLat, currentLng, overviewMode]);
 
   // Overview mode — show the full remaining route (or the driver's saved zoom).
@@ -447,14 +455,10 @@ const DriveMapView = forwardRef(function DriveMapView(
         // source of "snap-back" jank when tapping a cluster mid-pan on Android.
         moveOnMarkerPress={false}
         toolbarEnabled={false}
-        // During navigation the camera is fully controlled by animateCamera —
-        // allow the native layer to neither zoom nor scroll on its own.
-        // Locks are lifted the moment navigation ends so the driver can freely
-        // explore the map post-arrival.
-        // In overview mode the driver needs free pan/zoom to inspect the route,
-        // so we lift the locks temporarily until they tap back to first-person.
-        zoomEnabled={!navigationActive || overviewMode}
-        scrollEnabled={!navigationActive || overviewMode}
+        // Zoom and scroll are always enabled so the driver can pinch-zoom at any
+        // time. The camera effects only update the center (pan) during
+        // navigation — they deliberately leave the zoom level alone after the
+        // initial zoom-in on nav start, so the driver's manual zoom is respected.
         onRegionChangeComplete={handleRegionChangeComplete}
       >
         {/* Speed zone markers — road-stretch corridors show their limit as a
