@@ -167,6 +167,15 @@ const DriveMapView = forwardRef(function DriveMapView(
   const mapRef = useRef<MapView>(null);
   const hasCenteredRef = useRef(false);
   const now = Date.now();
+
+  // Always-current mirror of navigationActive — read inside deferred callbacks
+  // to avoid stale-closure bugs where a setTimeout captures the wrong value.
+  const navActiveRef = useRef(navigationActive);
+  useEffect(() => { navActiveRef.current = navigationActive; });
+
+  // Tracks the previous value of navigationActive so camera effects can detect
+  // the false→true (nav start) and true→false (nav end) transitions.
+  const prevNavActiveRef = useRef(navigationActive);
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
@@ -231,10 +240,14 @@ const DriveMapView = forwardRef(function DriveMapView(
     return () => clearTimeout(t);
   }, [currentLat, currentLng, navigationActive]);
 
+  // Step 1 — hardened route-fit: re-check navActiveRef inside the timer so
+  // that if navigation started during the 350 ms delay the fit is suppressed.
   useEffect(() => {
     if (navigationActive || !activeRoute?.coords.length) return;
+    const coords = activeRoute.coords;
     const t = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(activeRoute.coords, {
+      if (navActiveRef.current) return; // nav started during the delay — abort
+      mapRef.current?.fitToCoordinates(coords, {
         edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
         animated: true,
       });
@@ -242,8 +255,35 @@ const DriveMapView = forwardRef(function DriveMapView(
     return () => clearTimeout(t);
   }, [activeRoute?.id, navigationActive]);
 
+  // Steps 2 & 4 — navigation camera + post-nav restore.
   useEffect(() => {
-    if (!navigationActive || currentLat == null || currentLng == null) return;
+    const wasActive = prevNavActiveRef.current;
+    prevNavActiveRef.current = navigationActive;
+
+    if (!navigationActive) {
+      if (wasActive) {
+        // Navigation just ended — restore free-map view so the driver can
+        // see where they are after arriving.
+        if (activeRoute?.coords.length) {
+          const coords = activeRoute.coords;
+          setTimeout(() => {
+            mapRef.current?.fitToCoordinates(coords, {
+              edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
+              animated: true,
+            });
+          }, 300);
+        } else if (currentLat != null && currentLng != null) {
+          mapRef.current?.animateToRegion(
+            { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.05, longitudeDelta: 0.05 },
+            600
+          );
+        }
+      }
+      return;
+    }
+
+    if (currentLat == null || currentLng == null) return;
+
     // GPS fixes arrive up to once/sec while navigating, and each one used to
     // kick off a fresh 900ms animateCamera call. On Android that's a heavy
     // native operation (tilted 3D camera + GPU compositing), and back-to-back
@@ -252,9 +292,14 @@ const DriveMapView = forwardRef(function DriveMapView(
     // jank/lag the whole app (including voice instruction timing) suffered
     // from during navigation. Using a duration shorter than the fix interval
     // lets each animation actually complete before the next one starts.
+    //
+    // When navigation just started (false→true), use duration 0 to assert the
+    // tight first-person view immediately — before any stale fitToCoordinates
+    // timer that slipped through the 350 ms window can land and zoom out.
+    const justStarted = !wasActive;
     mapRef.current?.animateCamera(
       { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
-      { duration: 500 }
+      { duration: justStarted ? 0 : 500 }
     );
   }, [navigationActive, currentLat, currentLng]);
 
@@ -339,6 +384,17 @@ const DriveMapView = forwardRef(function DriveMapView(
         // source of "snap-back" jank when tapping a cluster mid-pan on Android.
         moveOnMarkerPress={false}
         toolbarEnabled={false}
+        // During navigation the camera is fully controlled by animateCamera —
+        // allow the native layer to neither zoom nor scroll on its own.
+        // Locks are lifted the moment navigation ends so the driver can freely
+        // explore the map post-arrival.
+        zoomEnabled={!navigationActive}
+        scrollEnabled={!navigationActive}
+        cameraZoomRange={
+          navigationActive
+            ? { minCenterCoordinateDistance: 0, maxCenterCoordinateDistance: 0, animated: true }
+            : undefined
+        }
       >
         {/* Speed zone markers — road-stretch corridors show their limit as a
             badge at each end so you can see how the speed changes along the
