@@ -309,29 +309,18 @@ const DriveMapView = forwardRef(function DriveMapView(
     );
   }, [navigationActive, currentLat, currentLng, overviewMode]);
 
-  // Overview mode — zoom out to show the full remaining route, then resume
-  // first-person tracking when the driver exits (or after the auto-timer fires).
+  // Overview mode — zoom out to show the full remaining route.
+  // Exiting overview (overviewMode → false) is handled by the main camera
+  // effect above, which already fires on overviewMode changes and calls
+  // animateCamera back to first-person. Duplicating that call here caused
+  // three conflicting native map operations on nav-start → blank map → crash.
   useEffect(() => {
-    if (!navigationActive) return;
-
-    if (overviewMode) {
-      // Fit the full active route with comfortable padding so the driver can
-      // see both their current position and the destination at a glance.
-      if (activeRoute?.coords.length) {
-        mapRef.current?.fitToCoordinates(activeRoute.coords, {
-          edgePadding: { top: 120, right: 40, bottom: 260, left: 40 },
-          animated: true,
-        });
-      }
-    } else {
-      // Returning from overview — snap the camera back to the tight
-      // first-person view immediately so tracking resumes without a delay.
-      if (currentLat != null && currentLng != null) {
-        mapRef.current?.animateCamera(
-          { center: { latitude: currentLat, longitude: currentLng }, zoom: 17, pitch: 40 },
-          { duration: 600 }
-        );
-      }
+    if (!navigationActive || !overviewMode) return;
+    if (activeRoute?.coords.length) {
+      mapRef.current?.fitToCoordinates(activeRoute.coords, {
+        edgePadding: { top: 120, right: 40, bottom: 260, left: 40 },
+        animated: true,
+      });
     }
   }, [overviewMode, navigationActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
