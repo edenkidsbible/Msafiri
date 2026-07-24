@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
@@ -168,6 +168,25 @@ const DriveMapView = forwardRef(function DriveMapView(
   const hasCenteredRef = useRef(false);
   const now = Date.now();
 
+  // Persists the driver's last manual zoom level during overview so returning to
+  // overview snaps back to the same zoom instead of re-fitting the full polyline.
+  // Stored as a Region (lat + deltas) captured from an actual gesture.
+  const savedOverviewRegionRef = useRef<Region | null>(null);
+
+  // Mirror overviewMode in a ref so the onRegionChangeComplete callback can read
+  // the current value without recreating itself on every mode toggle.
+  const overviewModeRef = useRef(overviewMode);
+  useEffect(() => { overviewModeRef.current = overviewMode; }, [overviewMode]);
+
+  // Reset saved zoom whenever the active route changes (new destination chosen).
+  const prevRouteIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (activeRoute?.id !== prevRouteIdRef.current) {
+      prevRouteIdRef.current = activeRoute?.id;
+      savedOverviewRegionRef.current = null;
+    }
+  }, [activeRoute?.id]);
+
   // Always-current mirror of navigationActive — read inside deferred callbacks
   // to avoid stale-closure bugs where a setTimeout captures the wrong value.
   const navActiveRef = useRef(navigationActive);
@@ -309,20 +328,43 @@ const DriveMapView = forwardRef(function DriveMapView(
     );
   }, [navigationActive, currentLat, currentLng, overviewMode]);
 
-  // Overview mode — zoom out to show the full remaining route.
+  // Overview mode — show the full remaining route (or the driver's saved zoom).
+  // First entry fits the whole polyline; subsequent entries restore the zoom
+  // level the driver last chose by pinching during overview.
   // Exiting overview (overviewMode → false) is handled by the main camera
   // effect above, which already fires on overviewMode changes and calls
   // animateCamera back to first-person. Duplicating that call here caused
   // three conflicting native map operations on nav-start → blank map → crash.
   useEffect(() => {
     if (!navigationActive || !overviewMode) return;
-    if (activeRoute?.coords.length) {
+    if (!activeRoute?.coords.length) return;
+
+    const saved = savedOverviewRegionRef.current;
+    if (saved) {
+      // Return to the zoom the driver chose last time — much more useful than
+      // always re-fitting the entire remaining polyline from scratch.
+      mapRef.current?.animateToRegion(saved, 600);
+    } else {
+      // First overview tap on this route — fit the full polyline so the driver
+      // gets a complete picture before deciding how far to zoom back in.
       mapRef.current?.fitToCoordinates(activeRoute.coords, {
         edgePadding: { top: 120, right: 40, bottom: 260, left: 40 },
         animated: true,
       });
     }
   }, [overviewMode, navigationActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Capture the driver's manual zoom during overview. react-native-maps passes
+  // `details.isGesture = true` only for user-initiated region changes, so we
+  // can safely ignore programmatic animateCamera / fitToCoordinates completions.
+  const handleRegionChangeComplete = useCallback(
+    (region: Region, details: { isGesture?: boolean }) => {
+      if (overviewModeRef.current && details?.isGesture) {
+        savedOverviewRegionRef.current = region;
+      }
+    },
+    [],
+  );
 
   // Deep-link focus: center map on a push-notification incident then clear
   useEffect(() => {
@@ -413,6 +455,7 @@ const DriveMapView = forwardRef(function DriveMapView(
         // so we lift the locks temporarily until they tap back to first-person.
         zoomEnabled={!navigationActive || overviewMode}
         scrollEnabled={!navigationActive || overviewMode}
+        onRegionChangeComplete={handleRegionChangeComplete}
         cameraZoomRange={
           navigationActive && !overviewMode
             ? { minCenterCoordinateDistance: 0, maxCenterCoordinateDistance: 0, animated: true }
