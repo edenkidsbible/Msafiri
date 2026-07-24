@@ -297,6 +297,7 @@ function RootLayoutNav() {
         <Stack.Screen name="terms"         options={{ title: "Terms of Service" }} />
         <Stack.Screen name="force-update"     options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="creator-program" options={{ headerShown: false }} />
+        <Stack.Screen name="live/[code]"     options={{ headerShown: false }} />
       </Stack>
     </View>
   );
