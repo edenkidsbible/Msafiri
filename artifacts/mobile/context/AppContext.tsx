@@ -199,6 +199,11 @@ interface AppContextValue {
   setPendingFocusCoords: (coords: { lat: number; lng: number } | null) => void;
   markReportPrompted: (id: string) => void;
   isReportPrompted: (id: string) => boolean;
+  /** Driver heading in degrees (0–360°), derived from consecutive GPS fixes.
+   *  Null until at least two fixes are available or if movement is below the
+   *  noise threshold (< 5 m). Used by the map to fade pins that are behind
+   *  the driver (angle > 90° from the heading vector). */
+  driverHeading: number | null;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -716,6 +721,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
+  const [driverHeading, setDriverHeading] = useState<number | null>(null);
   const allZonesRef = useRef<SpeedZone[]>(SPEED_ZONES);
   const dbStretchesRef = useRef<SpeedStretch[]>([]);
 
@@ -1118,6 +1124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Null when there is no prior fix or movement is below the noise threshold
     // — in that case all direction checks degrade to distance-only behaviour.
     const driverHeading = driverHeadingDeg(prevFix, lat, lng);
+    setDriverHeading(driverHeading);
 
     // ── Dismiss active alert when driver is moving away ───────────────────────
     // Track consecutive fixes where the active alert zone is getting farther
@@ -2161,6 +2168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hasVotedOnReport,
       pendingFocusCoords, setPendingFocusCoords,
       markReportPrompted, isReportPrompted,
+      driverHeading,
     }}>
       {children}
     </AppContext.Provider>

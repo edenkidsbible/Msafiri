@@ -163,7 +163,25 @@ export default function MapViewScreen() {
     showTraffic, setShowTraffic,
     vehicleType, allZones,
     confirmReport, denyReport, flagReport,
+    driverHeading,
   } = useApp();
+
+  /** Returns true when the marker at (lat, lng) is behind the driver
+   *  (angle from heading > 90°). When heading is unknown, all markers are
+   *  treated as "ahead" so the map is never unexpectedly faded on first load. */
+  const isPinBehind = (lat: number, lng: number): boolean => {
+    if (driverHeading == null || currentLat == null || currentLng == null) return false;
+    const bearing = Math.atan2(
+      Math.sin(((lng - currentLng) * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180),
+      Math.cos((currentLat * Math.PI) / 180) * Math.sin((lat * Math.PI) / 180) -
+        Math.sin((currentLat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) *
+        Math.cos(((lng - currentLng) * Math.PI) / 180)
+    ) * 180 / Math.PI;
+    const bearing360 = (bearing + 360) % 360;
+    const diff = Math.abs(driverHeading - bearing360) % 360;
+    const angleDiff = diff > 180 ? 360 - diff : diff;
+    return angleDiff > 90;
+  };
   const vehicle = getVehicleTypeDef(vehicleType);
 
   const [showReport, setShowReport] = useState(false);
@@ -279,6 +297,7 @@ export default function MapViewScreen() {
             road, instead of a straight line cutting across the map. */}
         {allZones.map((z) => {
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;
+          const behind = isPinBehind(z.lat, z.lng);
           return (
             <React.Fragment key={z.id}>
               <Marker
@@ -286,6 +305,7 @@ export default function MapViewScreen() {
                 anchor={{ x: 0.5, y: 1 }}
                 title={z.name}
                 description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
+                opacity={behind ? 0.3 : 1}
               >
                 {z.isStretchEndpoint ? (
                   <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={m.bg} />
@@ -307,6 +327,7 @@ export default function MapViewScreen() {
         {/* Community report clusters — tap opens the bottom-sheet modal */}
         {clusters.map((group) => {
           const clusterKey = group.members.map((m) => m.id).sort().join("-");
+          const behind = isPinBehind(group.lat, group.lng);
           return (
             <Marker
               key={clusterKey}
@@ -314,6 +335,7 @@ export default function MapViewScreen() {
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={!clustersFrozen}
               zIndex={10}
+              opacity={behind ? 0.3 : 1}
               onPress={() => openCluster(group)}
             >
               <MapClusterMarker group={group} now={now} />
