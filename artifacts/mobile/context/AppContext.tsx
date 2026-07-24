@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert, Appearance, Platform } from "react-native";
+import { Alert, AppState, AppStateStatus, Appearance, Platform } from "react-native";
 import * as SystemUI from "expo-system-ui";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
@@ -19,6 +19,11 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
 import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/utils/apiClient";
+import {
+  startBackgroundShareTask,
+  stopBackgroundShareTask,
+  requestBackgroundLocationPermission,
+} from "@/utils/backgroundShare";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
@@ -1785,6 +1790,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(sharePingIntervalRef.current);
       sharePingIntervalRef.current = null;
     }
+    // Also stop any active background location task
+    void stopBackgroundShareTask();
     const token = shareTokenRef.current;
     shareTokenRef.current = null;
     setShareToken(null);
@@ -1838,6 +1845,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch { /* ignore ping failures — next interval will retry */ }
       }, 8000);
       const code = data.shortCode ?? data.token;
+      // Eagerly request background location permission while the driver is
+      // looking at the app — so the OS dialog appears in-context ("you're
+      // starting to share your trip") rather than unexpectedly later.
+      // This is best-effort: if the driver denies or dismisses, the
+      // foreground interval still works; the background task just won't start
+      // when they switch away (the AppState watcher re-checks the permission
+      // at that point and skips the task gracefully).
+      void requestBackgroundLocationPermission();
       return `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${code}`;
     } catch (e) {
       console.warn("startSharingTrip failed:", e);
@@ -1897,6 +1912,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(sharePingIntervalRef.current);
       sharePingIntervalRef.current = null;
     }
+    void stopBackgroundShareTask();
     const _tok = shareTokenRef.current;
     shareTokenRef.current = null;
     setShareToken(null);
@@ -1912,6 +1928,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     stopNavigationRef.current = stopNavigation;
   }, [stopNavigation]);
+
+  // ── Background share: keep pings alive when the app is backgrounded ────────
+  // When a live-share session is active and the driver backgrounds the app
+  // (switches away, locks the screen), the setInterval in startSharingTrip
+  // stops firing. We hand off to a TaskManager background location task that
+  // pings the API on every location update instead.
+  //
+  // On return to foreground we stop the background task — the existing
+  // setInterval is still registered and resumes immediately once JS ticks.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      const isSharing = shareTokenRef.current != null;
+      if (!isSharing) return;
+
+      if (nextState === "background" || nextState === "inactive") {
+        // App leaving foreground — hand off location pings to the bg task.
+        // First ensure we have "always" / background location permission;
+        // if the driver hasn't granted it yet, silently request it now
+        // (the OS shows the prompt; if denied we skip the bg task and the
+        // foreground interval resumes the moment they return to the app).
+        await requestBackgroundLocationPermission();
+        void startBackgroundShareTask();
+      } else if (nextState === "active") {
+        // App returned to foreground — foreground interval resumes, so the
+        // background task is no longer needed.
+        void stopBackgroundShareTask();
+      }
+    };
+
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => sub.remove();
+  // shareTokenRef is a ref — stable; no deps needed beyond mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
 

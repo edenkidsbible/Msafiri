@@ -21,6 +21,11 @@ module.exports = {
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",
+        NSLocationAlwaysAndWhenInUseUsageDescription:
+          "Msafiri uses your location in the background so your live-sharing recipients continue to see your position even when the screen is locked.",
+        NSLocationAlwaysUsageDescription:
+          "Msafiri uses your location in the background so your live-sharing recipients continue to see your position even when the screen is locked.",
+        UIBackgroundModes: ["location"],
         ITSAppUsesNonExemptEncryption: false,
       },
     },
@@ -31,8 +36,12 @@ module.exports = {
       permissions: [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
       ],
@@ -63,6 +72,10 @@ module.exports = {
         {
           locationWhenInUsePermission:
             "Msafiri needs location access to show your speed and detect speed cameras nearby.",
+          locationAlwaysAndWhenInUsePermission:
+            "Msafiri uses your location in the background while live sharing is active, so your contact can follow your trip even when the screen is locked.",
+          isIosBackgroundLocationEnabled: true,
+          isAndroidBackgroundLocationEnabled: true,
         },
       ],
       [
