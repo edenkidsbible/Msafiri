@@ -379,33 +379,55 @@ const DriveMapView = forwardRef(function DriveMapView(
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
 
-  // Overview mode — always fit the remaining portion of the route so the driver
-  // sees exactly what's still ahead of them, not road they've already passed.
-  // Each entry starts fresh (savedOverviewRegionRef is cleared) so the driver
-  // always gets the full-route view. The stale-region restore was the root
-  // cause of "not zooming out properly" — if the driver had panned during a
-  // previous session the saved region could be quite zoomed in.
-  //
-  // Exiting overview (overviewMode → false) is handled by the main camera
-  // effect above — duplicating it here caused three conflicting native ops
-  // that crashed Apple Maps / produced a blank map.
+  // Overview mode — zoom out to show the full remaining route.
+  // fitToCoordinates is unreliable on iOS Apple Maps (silent no-op), so we
+  // compute the bounding box manually and call animateToRegion instead, which
+  // works consistently on both platforms.
+  // A 120 ms delay lets the navigation camera effect (which also fires on
+  // overviewMode change and returns early) fully settle before we move the
+  // camera, avoiding a race that can produce a blank or wrong viewport.
   useEffect(() => {
     if (!navigationActive || !overviewMode) return;
     if (!activeRoute?.coords.length) return;
 
     savedOverviewRegionRef.current = null;
 
-    const lat = currentLatRef.current;
-    const lng = currentLngRef.current;
-    const coords =
-      lat != null && lng != null
-        ? remainingCoords(activeRoute.coords, lat, lng)
-        : activeRoute.coords;
+    const t = setTimeout(() => {
+      if (!overviewModeRef.current) return; // already exited before timer fired
 
-    mapRef.current?.fitToCoordinates(coords, {
-      edgePadding: { top: 140, right: 50, bottom: 280, left: 50 },
-      animated: true,
-    });
+      const lat = currentLatRef.current;
+      const lng = currentLngRef.current;
+      const coords =
+        lat != null && lng != null
+          ? remainingCoords(activeRoute.coords, lat, lng)
+          : activeRoute.coords;
+
+      if (coords.length < 2) return;
+
+      const lats = coords.map((c) => c.latitude);
+      const lngs = coords.map((c) => c.longitude);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+
+      // 35 % padding so the route isn't edge-to-edge; bottom gets extra room
+      // for the navigation bar that sits over the lower portion of the map.
+      const latDelta = Math.max((maxLat - minLat) * 1.5, 0.02);
+      const lngDelta = Math.max((maxLng - minLng) * 1.5, 0.02);
+
+      mapRef.current?.animateToRegion(
+        {
+          latitude: (minLat + maxLat) / 2,
+          longitude: (minLng + maxLng) / 2,
+          latitudeDelta: latDelta,
+          longitudeDelta: lngDelta,
+        },
+        700,
+      );
+    }, 120);
+
+    return () => clearTimeout(t);
   }, [overviewMode, navigationActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect when the driver manually pans/zooms the map while navigation is
@@ -486,14 +508,13 @@ const DriveMapView = forwardRef(function DriveMapView(
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        // PROVIDER_GOOGLE on both platforms — Apple Maps has sparse POI data
-        // in Kenya/East Africa; Google Maps is the reliable baseline.
+        // PROVIDER_GOOGLE explicitly on Android only — it gets Android onto
         // the same well-optimized Google Maps renderer/gesture pipeline that
         // iOS's Apple Maps equivalent enjoys, and unlocks
         // moveOnMarkerPress/toolbar tuning below. iOS has no Google Maps SDK
         // key configured, so it falls back to the platform default (Apple
         // Maps), same as the browse map screen.
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         // Night mode: apply the Google Maps dark style when the app is in dark
         // mode. PROVIDER_GOOGLE on Android supports customMapStyle; iOS (Apple
         // Maps) ignores the prop entirely so passing [] is safe on both.

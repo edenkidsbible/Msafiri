@@ -3,7 +3,7 @@ import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
@@ -302,7 +302,6 @@ export default function MapViewScreen() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_GOOGLE}
         customMapStyle={c.isDark ? DARK_MAP_STYLE : []}
         initialRegion={
           currentLat && currentLng
@@ -433,7 +432,7 @@ export default function MapViewScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Report button */}
+      {/* Report button — left side so it never conflicts with the right controls */}
       <TouchableOpacity
         style={[styles.reportBtn, { backgroundColor: c.primary, bottom: insets.bottom + 96 }]}
         onPress={() => setShowReport(true)}
@@ -620,7 +619,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15, shadowRadius: 5, elevation: 5,
   },
   reportBtn: {
-    position: "absolute", right: 70,
+    position: "absolute", left: 16,
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 28,
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
