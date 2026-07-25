@@ -145,6 +145,7 @@ export default function DriveScreen() {
   const tabBarH     = Platform.OS === "web" ? 84 : 96;
 
   const [searchText, setSearchText] = useState("");
+  const [searchInputFocused, setSearchInputFocused] = useState(false);
   const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -534,6 +535,8 @@ export default function DriveScreen() {
               onChangeText={handleSearchChange}
               returnKeyType="search"
               onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+              onFocus={() => setSearchInputFocused(true)}
+              onBlur={() => setSearchInputFocused(false)}
               autoCorrect={false}
               autoCapitalize="none"
             />
@@ -541,6 +544,29 @@ export default function DriveScreen() {
             {searchLoading && (
               <ActivityIndicator size="small" color={c.primary} style={{ marginRight: 14 }} />
             )}
+
+            {/* X — clear typed text and dismiss keyboard */}
+            {!isMapMode && !searchLoading && searchText.length > 0 && (
+              <TouchableOpacity
+                onPress={() => { setSearchText(""); Keyboard.dismiss(); }}
+                style={{ marginRight: 14 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close-circle" size={19} color={fgMuted} />
+              </TouchableOpacity>
+            )}
+
+            {/* Keyboard-down — dismiss keyboard when focused but nothing typed yet */}
+            {!isMapMode && !searchLoading && searchText.length === 0 && searchInputFocused && (
+              <TouchableOpacity
+                onPress={() => Keyboard.dismiss()}
+                style={{ marginRight: 14 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="chevron-down" size={20} color={fgMuted} />
+              </TouchableOpacity>
+            )}
+
             {isMapMode && !searchLoading && (
               <TouchableOpacity
                 onPress={clearDestination}
