@@ -853,12 +853,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const lng = currentLngRef.current;
               if (!tk || !did || lat == null || lng == null) return;
               try {
-                await apiPatch(`/share/${tk}/ping`, {
-                  deviceId: did, lat, lng,
-                  speedKmh:           currentSpeedRef.current,
-                  durationRemainingS: durationRemainingRef.current,
-                  distanceRemainingM: distanceRemainingRef.current,
-                });
+                const pingBody: Record<string, unknown> = { deviceId: did, lat, lng, speedKmh: currentSpeedRef.current };
+                if (durationRemainingRef.current != null) pingBody.durationRemainingS = durationRemainingRef.current;
+                if (distanceRemainingRef.current != null) pingBody.distanceRemainingM = distanceRemainingRef.current;
+                await apiPatch(`/share/${tk}/ping`, pingBody);
               } catch { /* ignore */ }
             }, 8000);
           } else {
@@ -1829,6 +1827,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }));
       // Start ping interval — reads fresh GPS values via refs so the closure
       // never goes stale even as the driver moves for the next 8 hours.
+      // Nav metrics (durationRemainingS, distanceRemainingM) are only included
+      // when navigation is active; omitting them keeps the recipient view clean
+      // for freeform "track me" sessions that have no destination set.
       if (sharePingIntervalRef.current) clearInterval(sharePingIntervalRef.current);
       sharePingIntervalRef.current = setInterval(async () => {
         const tk  = shareTokenRef.current;
@@ -1837,14 +1838,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const lng = currentLngRef.current;
         if (!tk || !did || lat == null || lng == null) return;
         try {
-          await apiPatch(`/share/${tk}/ping`, {
-            deviceId:           did,
-            lat,
-            lng,
-            speedKmh:           currentSpeedRef.current,
-            durationRemainingS: durationRemainingRef.current,
-            distanceRemainingM: distanceRemainingRef.current,
-          });
+          const pingBody: Record<string, unknown> = { deviceId: did, lat, lng, speedKmh: currentSpeedRef.current };
+          if (durationRemainingRef.current != null) pingBody.durationRemainingS = durationRemainingRef.current;
+          if (distanceRemainingRef.current != null) pingBody.distanceRemainingM = distanceRemainingRef.current;
+          await apiPatch(`/share/${tk}/ping`, pingBody);
         } catch { /* ignore ping failures — next interval will retry */ }
       }, 8000);
       const code = data.shortCode ?? data.token;

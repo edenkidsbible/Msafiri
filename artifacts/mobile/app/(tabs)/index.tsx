@@ -788,6 +788,41 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
+          BOTTOM-LEFT: Share Trip button — visible whenever not navigating
+          (mirrors the nav-bar share button for freeform "track me" sessions)
+      ══════════════════════════════════════════════════════════════════ */}
+      {!isMapMode && !showResults && (
+        <TouchableOpacity
+          style={[
+            styles.idleShareBtn,
+            {
+              bottom: bottomBase + 8 + speedStripHeight + 8,
+              left: 16,
+              backgroundColor: isSharingTrip ? "#00C853" : fabBg,
+            },
+          ]}
+          onPress={handleSharePress}
+          disabled={sharingLoading}
+          activeOpacity={0.85}
+        >
+          {sharingLoading ? (
+            <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
+          ) : (
+            <>
+              <Ionicons
+                name={isSharingTrip ? "radio" : "share-social-outline"}
+                size={14}
+                color={isSharingTrip ? "#fff" : fgMuted}
+              />
+              <Text style={[styles.idleShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
+                {isSharingTrip ? "● Live" : "Share Trip"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Route preview sheet
       ══════════════════════════════════════════════════════════════════ */}
       {isMapMode && !navigationActive && activeRoute && (
@@ -1306,6 +1341,19 @@ const styles = StyleSheet.create({
   zoneTypeName:     { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   zoneSpeedLine:    { fontSize: 13, fontFamily: "Inter_700Bold" },
   zoneDistAhead:    { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  // ── Idle-mode share button (mirrors nav share button, shown when not navigating) ──
+  idleShareBtn: {
+    position: "absolute", zIndex: 11,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    borderRadius: 22, paddingHorizontal: 14, paddingVertical: 11,
+    gap: 6,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15, shadowRadius: 6, elevation: 8,
+  },
+  idleShareBtnTxt: {
+    fontSize: 13, fontFamily: "Inter_700Bold",
+  },
 
   // Legacy (kept to avoid tsc errors on any surviving references)
   zoneContextLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, textTransform: "uppercase" },
