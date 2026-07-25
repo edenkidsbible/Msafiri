@@ -687,15 +687,6 @@ export default function DriveScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Report incident */}
-          <TouchableOpacity
-            style={styles.navReportBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="camera" size={14} color="#FFF" />
-            <Text style={styles.navReportTxt}>Report Incident</Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -1048,26 +1039,43 @@ export default function DriveScreen() {
             </View>
           </View>
 
-          {routeIncidentsAhead.length > 0 && (
+          {/* ── Bottom action row: Report + Incidents Ahead ────────────── */}
+          <View style={styles.navActionRow}>
+
+            {/* Report Incident — always visible */}
             <TouchableOpacity
-              style={[styles.incidentsBar, {
-                backgroundColor: isDark ? "#00E67614" : "#E5393512",
-                borderColor: isDark ? "#00E67640" : "#E5393530",
-              }]}
-              onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-              activeOpacity={0.8}
+              style={[styles.navActionReport, { backgroundColor: "#E65100" }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+              activeOpacity={0.85}
             >
-              <Text style={styles.incidentsBarTxt} numberOfLines={1}>
-                {incidentSummaryParts(routeIncidentsAhead).map((p, i) => (
-                  <Text key={i}>
-                    {i > 0 ? "   " : ""}
-                    <Text style={{ fontFamily: EMOJI_FONT_FAMILY }}>{p.emoji}</Text> {p.label}
-                  </Text>
-                ))}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={isDark ? "#00E676" : "#E53935"} />
+              <Ionicons name="camera" size={14} color="#FFF" />
+              <Text style={styles.navActionReportTxt}>Report</Text>
             </TouchableOpacity>
-          )}
+
+            {/* Incidents Ahead — conditional; shows count + summary */}
+            {routeIncidentsAhead.length > 0 ? (
+              <TouchableOpacity
+                style={[styles.navActionIncidents, {
+                  backgroundColor: isDark ? "#00E67614" : "#E5393512",
+                  borderColor: isDark ? "#00E67640" : "#E5393530",
+                }]}
+                onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="warning" size={14} color={isDark ? "#00E676" : "#E53935"} />
+                <Text style={[styles.navActionIncidentsTxt, { color: isDark ? "#00E676" : "#E53935" }]} numberOfLines={1}>
+                  {routeIncidentsAhead.length} Ahead
+                </Text>
+                <Ionicons name="chevron-up" size={14} color={isDark ? "#00E676" : "#E53935"} />
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.navActionClear, { backgroundColor: isDark ? "#00E67614" : "#E8F5E9", borderColor: isDark ? "#00E67630" : "#A5D6A730" }]}>
+                <Ionicons name="checkmark-circle-outline" size={14} color={isDark ? "#00E676" : "#2E7D32"} />
+                <Text style={[styles.navActionClearTxt, { color: isDark ? "#00E676" : "#2E7D32" }]}>Clear Ahead</Text>
+              </View>
+            )}
+          </View>
+
         </View>
       )}
 
@@ -1461,7 +1469,29 @@ const styles = StyleSheet.create({
   },
   navShareBtnTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 
-  // ── Nav-mode right-side FAB column (overview + report) ───────────────────
+  // ── Nav bar bottom action row: Report + Incidents Ahead ─────────────────
+  navActionRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+  },
+  navActionReport: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 11, borderRadius: 22,
+    shadowColor: "#E65100", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 6,
+  },
+  navActionReportTxt: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
+  navActionIncidents: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 22, borderWidth: 1,
+  },
+  navActionIncidentsTxt: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  navActionClear: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 22, borderWidth: 1,
+  },
+  navActionClearTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  // ── Nav-mode right-side FAB column (overview only) ────────────────────
   navFabCol: {
     position: "absolute", zIndex: 14,
     alignItems: "flex-end", gap: 8,
@@ -1488,14 +1518,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22, shadowRadius: 8, elevation: 8,
   },
   recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
-  navReportBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#E65100",
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25, shadowRadius: 6, elevation: 8,
-  },
-  navReportTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
 
   // ── Overview auto-exit toast ──────────────────────────────────────────────
   overviewToast: {
