@@ -121,6 +121,8 @@ function makeDestIcon(label: string | null) {
 const POLL_MS = 5000;
 // Same-origin API call — Replit proxy routes /api/* to the API server
 const API_BASE = "/api";
+// How long with no ping before we show the "Signal lost" banner (ms)
+const STALE_THRESHOLD_MS = 30_000;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function LiveTracker() {
@@ -233,6 +235,13 @@ export default function LiveTracker() {
   const ended = session?.ended;
   const hasPos = session && session.lat != null && session.lng != null;
 
+  // Signal-lost: lastPingAt exists, session is active, and ping is stale
+  const lastPingMs = session?.lastPingAt ? new Date(session.lastPingAt).getTime() : null;
+  const isSignalLost =
+    !ended &&
+    lastPingMs != null &&
+    Date.now() - lastPingMs > STALE_THRESHOLD_MS;
+
   return (
     <div style={{
       minHeight: "100dvh",
@@ -281,12 +290,12 @@ export default function LiveTracker() {
           <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
             <div style={{
               width: 9, height: 9, borderRadius: "50%",
-              background: hasPos ? "#69F0AE" : "#FFD740",
-              boxShadow: hasPos ? "0 0 0 3px rgba(105,240,174,0.3)" : "none",
-              animation: hasPos ? "livepulse 2s ease-in-out infinite" : "none",
+              background: isSignalLost ? "#FFD740" : hasPos ? "#69F0AE" : "#FFD740",
+              boxShadow: !isSignalLost && hasPos ? "0 0 0 3px rgba(105,240,174,0.3)" : "none",
+              animation: !isSignalLost && hasPos ? "livepulse 2s ease-in-out infinite" : "none",
             }} />
             <span style={{ fontSize: 12, fontWeight: 600 }}>
-              {hasPos ? "LIVE" : "Waiting…"}
+              {isSignalLost ? "Signal lost" : hasPos ? "LIVE" : "Waiting…"}
             </span>
           </div>
         )}
@@ -323,6 +332,26 @@ export default function LiveTracker() {
 
       {/* ── Map ── */}
       <div ref={mapDivRef} style={{ flex: 1, minHeight: 300 }} />
+
+      {/* ── Signal-lost banner ── */}
+      {isSignalLost && session?.lastPingAt && (
+        <div style={{
+          background: "#FFF8E1",
+          borderTop: "2px solid #FFD740",
+          padding: "10px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontSize: 13,
+          color: "#5D4037",
+        }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+          <span>
+            <strong>Signal lost</strong> — last seen {timeSince(session.lastPingAt)}. The map will
+            update automatically when the driver regains signal.
+          </span>
+        </div>
+      )}
 
       {/* ── Stats card ── */}
       {session && (

@@ -20,6 +20,20 @@ export const SHARE_BACKGROUND_TASK = "msafiri-share-bg";
 const SHARE_STORAGE_KEY  = "sdk_share";
 const DEVICE_STORAGE_KEY = "sdk_device_id";
 
+// Holds the most recent ping that failed to reach the server so we can
+// replay it as soon as connectivity returns.
+const PENDING_PING_KEY = "sdk_share_pending_ping";
+
+interface PendingPing {
+  token:    string;
+  deviceId: string;
+  lat:      number;
+  lng:      number;
+  speedKmh: number;
+  /** ms timestamp when the ping was queued */
+  queuedAt: number;
+}
+
 // ─── Task definition ──────────────────────────────────────────────────────────
 
 /**
@@ -73,14 +87,60 @@ export function defineShareBackgroundTask(): void {
     const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "";
     if (!domain) return;
 
+    const pingBody = { deviceId, lat, lng, speedKmh };
+
+    // ── Flush any previously queued ping first ────────────────────────────────
+    // If the last ping failed (network outage), we stored it so we can replay
+    // it as soon as connectivity returns, giving the recipient one update even
+    // after a gap rather than a silent freeze.
+    const pendingRaw = await AsyncStorage.getItem(PENDING_PING_KEY);
+    if (pendingRaw) {
+      try {
+        const pending: PendingPing = JSON.parse(pendingRaw);
+        // Only replay if it's for the same session and not too old (15 min cap)
+        const ageMs = Date.now() - pending.queuedAt;
+        if (pending.token === token && ageMs < 15 * 60 * 1000) {
+          await fetch(`https://${domain}/api/share/${pending.token}/ping`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              deviceId: pending.deviceId,
+              lat:      pending.lat,
+              lng:      pending.lng,
+              speedKmh: pending.speedKmh,
+            }),
+          });
+        }
+        // Whether it succeeded or not, remove the queued entry — the current
+        // ping that follows will establish the fresh position.
+        await AsyncStorage.removeItem(PENDING_PING_KEY);
+      } catch {
+        // Still offline — leave the pending entry so the next cycle can retry
+      }
+    }
+
+    // ── Send current ping ─────────────────────────────────────────────────────
     try {
-      await fetch(`https://${domain}/api/share/${token}/ping`, {
+      const res = await fetch(`https://${domain}/api/share/${token}/ping`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId, lat, lng, speedKmh }),
+        body: JSON.stringify(pingBody),
       });
+      // 410 means the session has ended — clear storage so we stop pinging
+      if (res.status === 410) {
+        await AsyncStorage.removeItem(SHARE_STORAGE_KEY);
+      }
     } catch {
-      // Network error — the next location update will retry automatically
+      // Network error — queue this ping so the next invocation can replay it
+      const pending: PendingPing = {
+        token,
+        deviceId,
+        lat,
+        lng,
+        speedKmh,
+        queuedAt: Date.now(),
+      };
+      await AsyncStorage.setItem(PENDING_PING_KEY, JSON.stringify(pending));
     }
   });
 }
