@@ -12,15 +12,27 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useColors } from "@/hooks/useColors";
+import { useColorScheme } from "react-native";
+
+import rawColors from "@/constants/colors";
 
 export type ErrorFallbackProps = {
   error: Error;
   resetError: () => void;
 };
 
+// Intentionally does NOT use useColors / useApp — this component is rendered
+// by ErrorBoundary which lives outside AppProvider, so context is unavailable.
+function useFallbackColors() {
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark" && "dark" in rawColors;
+  return isDark
+    ? (rawColors as unknown as Record<string, typeof rawColors.light>).dark
+    : rawColors.light;
+}
+
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
-  const colors = useColors();
+  const colors = useFallbackColors();
   const insets = useSafeAreaInsets();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
