@@ -1656,8 +1656,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         aheadDistanceM: Math.max(0, inc.distanceAlongRouteM - (currentRouteDistanceM ?? 0)),
       }));
     if (!navigationActive || currentRouteDistanceM == null) return withAhead(routeIncidents);
+    // Only keep incidents that are still ahead of the driver. A 15 m rearward
+    // tolerance absorbs GPS jitter at the exact crossing point without keeping
+    // an already-passed camera visible in the "ahead" list for tens of seconds.
     return withAhead(
-      routeIncidents.filter((inc) => inc.distanceAlongRouteM >= currentRouteDistanceM - 50)
+      routeIncidents.filter((inc) => inc.distanceAlongRouteM >= currentRouteDistanceM - 15)
     );
   }, [routeIncidents, navigationActive, currentRouteDistanceM]);
 

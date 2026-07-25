@@ -30,6 +30,7 @@ type AlertZone = SpeedZone & { distance: number };
 interface Props {
   zone: AlertZone;
   onDismiss: () => void;
+  currentSpeed: number;
 }
 
 const TYPE_LABELS  = { camera: "Speed Camera", police: "Police Check", zone: "Speed Zone" } as const;
@@ -47,7 +48,7 @@ function formatDist(m: number) {
   return `${(m / 1000).toFixed(1)} km`;
 }
 
-export default function DriveAlertOverlay({ zone, onDismiss }: Props) {
+export default function DriveAlertOverlay({ zone, onDismiss, currentSpeed }: Props) {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
   const slideY  = useRef(new Animated.Value(340)).current;
@@ -121,7 +122,7 @@ export default function DriveAlertOverlay({ zone, onDismiss }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* ── Body: location name  +  speed limit badge ── */}
+      {/* ── Body: location name  +  speed badges ── */}
       <View style={styles.body}>
         {/* Location */}
         <View style={styles.locationRow}>
@@ -138,19 +139,38 @@ export default function DriveAlertOverlay({ zone, onDismiss }: Props) {
           </View>
         </View>
 
-        {/* Speed limit badge */}
-        <Animated.View
-          style={[
-            styles.limitBadge,
-            { borderColor: bg, transform: [{ scale: pulse }] },
-          ]}
-        >
-          <Text style={[styles.limitNumber, { color: bg }]}>{zone.speedLimit}</Text>
-          <Text style={[styles.limitUnit, { color: bg }]}>km/h</Text>
-          {urgent && (
-            <View style={[styles.limitUrgentRing, { borderColor: bg }]} />
-          )}
-        </Animated.View>
+        {/* Speed badges — driver speed + limit side by side */}
+        <View style={styles.badgesCol}>
+          {/* Driver's current speed */}
+          {(() => {
+            const overLimit = zone.speedLimit != null && currentSpeed > zone.speedLimit;
+            const speedColor = overLimit ? colors.speedDanger : "#2E7D32";
+            return (
+              <View style={[styles.speedBadge, { borderColor: speedColor }]}>
+                <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>YOU</Text>
+                <Text style={[styles.limitNumber, { color: speedColor, fontSize: 28, lineHeight: 30 }]}>
+                  {Math.round(currentSpeed)}
+                </Text>
+                <Text style={[styles.limitUnit, { color: speedColor }]}>km/h</Text>
+              </View>
+            );
+          })()}
+
+          {/* Speed limit badge */}
+          <Animated.View
+            style={[
+              styles.limitBadge,
+              { borderColor: bg, transform: [{ scale: pulse }] },
+            ]}
+          >
+            <Text style={[styles.limitLabel, { color: colors.mutedForeground }]}>LIMIT</Text>
+            <Text style={[styles.limitNumber, { color: bg }]}>{zone.speedLimit}</Text>
+            <Text style={[styles.limitUnit, { color: bg }]}>km/h</Text>
+            {urgent && (
+              <View style={[styles.limitUrgentRing, { borderColor: bg }]} />
+            )}
+          </Animated.View>
+        </View>
       </View>
 
       {/* ── Dismiss button ── */}
@@ -248,6 +268,30 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
+  // Two badges side-by-side: driver speed + speed limit
+  badgesCol: {
+    flexDirection: "row",
+    alignItems:    "center",
+    gap:           8,
+  },
+
+  // Driver's current speed — same circle shape as limit badge but smaller
+  speedBadge: {
+    width:          76,
+    height:         76,
+    borderRadius:   38,
+    borderWidth:    3,
+    alignItems:     "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF",
+  },
+  speedLabel: {
+    fontSize:   9,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.2,
+    marginBottom: -2,
+  },
+
   // Speed limit circle
   limitBadge: {
     width:          96,
@@ -258,6 +302,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FFF",
     position:       "relative",
+  },
+  limitLabel: {
+    fontSize:   9,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.2,
+    marginBottom: -2,
   },
   limitNumber: {
     fontSize:   42,

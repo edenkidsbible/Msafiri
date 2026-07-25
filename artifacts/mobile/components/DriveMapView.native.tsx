@@ -114,6 +114,15 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
   if (members.length === 1) {
     const r = members[0];
+    // Admin-confirmed camera reports use the same red camera circle as static
+    // speed-camera zone markers — they are permanent infrastructure, not transient incidents.
+    if (r.type === "camera") {
+      return (
+        <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
+          <MarkerIcon ioniconName="camera" bg="#E53935" size={32} />
+        </View>
+      );
+    }
     const def = resolveIncidentType(r.type);
     const confirmed = r.status === "confirmed";
     return (
@@ -631,8 +640,8 @@ const DriveMapView = forwardRef(function DriveMapView(
                           <Text style={ms.incidentRoad}>{r.roadName}</Text>
                         ) : null}
                         <Text style={ms.incidentMeta}>
-                          {ageStr}
-                          {r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
+                          {r.type === "camera" ? "Confirmed by admin" : ageStr}
+                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         {canVote && (

@@ -423,7 +423,7 @@ export default function DriveScreen() {
 
       {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
       {activeAlert && (
-        <DriveAlertOverlay zone={activeAlert} onDismiss={dismissAlert} />
+        <DriveAlertOverlay zone={activeAlert} onDismiss={dismissAlert} currentSpeed={currentSpeed} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════

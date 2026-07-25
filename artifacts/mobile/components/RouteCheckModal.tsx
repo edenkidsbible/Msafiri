@@ -207,7 +207,11 @@ export default function RouteCheckModal({
                             )}
                           </View>
                           <Text style={[styles.rowSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                            {inc.source === "static" ? (inc.road ?? inc.name) : "Reported by a driver"}
+                            {inc.source === "static"
+                              ? (inc.road ?? inc.name)
+                              : inc.type === "camera"
+                                ? (inc.road ?? inc.name ?? "Confirmed by admin")
+                                : "Reported by a driver"}
                           </Text>
                         </View>
                         <Text style={[styles.rowDist, { color }]}>{distLabel(inc.distanceAlongRouteM)}</Text>

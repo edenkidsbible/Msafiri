@@ -20,7 +20,9 @@ export function distLabel(m: number): string {
 }
 
 export function incidentVisual(inc: RouteIncident): { IconComp: typeof Ionicons | typeof MaterialCommunityIcons; icon: string; color: string } {
-  if (inc.source === "static") {
+  if (inc.source === "static" || inc.type === "camera") {
+    // Admin-confirmed camera reports are treated identically to static speed
+    // cameras — same red icon, same visual weight, no "reported by a driver" framing.
     if (inc.type === "camera") return { IconComp: Ionicons, icon: "camera", color: "#E53935" };
     if (inc.type === "police") return { IconComp: Ionicons, icon: "person", color: "#1565C0" };
     return { IconComp: Ionicons, icon: "speedometer", color: "#E65100" };
@@ -153,7 +155,11 @@ export default function RouteIncidentsPanel() {
                       )}
                     </View>
                     <Text style={[styles.rowSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                      {inc.source === "static" ? (inc.road ?? inc.name) : "Reported by a driver"}
+                      {inc.source === "static"
+                        ? (inc.road ?? inc.name)
+                        : inc.type === "camera"
+                          ? (inc.road ?? inc.name ?? "Confirmed by admin")
+                          : "Reported by a driver"}
                     </Text>
                     {!!inc.description && (
                       <Text style={[styles.rowDesc, { color: c.mutedForeground }]} numberOfLines={2}>
@@ -165,10 +171,13 @@ export default function RouteIncidentsPanel() {
                         Limit: {inc.speedLimit} km/h
                       </Text>
                     )}
-                    {inc.source === "report" && inc.confirmCount != null && (
+                    {inc.source === "report" && inc.type !== "camera" && inc.confirmCount != null && (
                       <Text style={[styles.rowDesc, { color: c.mutedForeground }]}>
                         Confirmed by {inc.confirmCount} driver{inc.confirmCount === 1 ? "" : "s"}
                       </Text>
+                    )}
+                    {inc.source === "report" && inc.type === "camera" && (
+                      <Text style={[styles.rowDesc, { color: "#2E7D32" }]}>Confirmed by admin</Text>
                     )}
                   </View>
                   <Text style={[styles.rowDist, { color }]}>

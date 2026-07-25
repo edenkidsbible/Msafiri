@@ -119,6 +119,27 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
 
   if (members.length === 1) {
     const r = members[0];
+    // Admin-confirmed camera reports look identical to static speed-camera zone
+    // markers — red circle with a camera icon, not the emoji blob used for
+    // transient community incidents.
+    if (r.type === "camera") {
+      return (
+        <View
+          collapsable={false}
+          style={{
+            opacity: faded ? 0.45 : 1,
+            width: 32, height: 32, borderRadius: 16,
+            backgroundColor: "#E53935",
+            alignItems: "center", justifyContent: "center",
+            borderWidth: 2.5, borderColor: "#FFF",
+            shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
+          }}
+        >
+          <Ionicons name="camera" size={16} color="#FFF" />
+        </View>
+      );
+    }
     const def = resolveIncidentType(r.type);
     return (
       <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
@@ -498,8 +519,8 @@ export default function MapViewScreen() {
                         </View>
                         {r.roadName ? <Text style={ms.incidentRoad}>{r.roadName}</Text> : null}
                         <Text style={ms.incidentMeta}>
-                          {ageStr}
-                          {r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
+                          {r.type === "camera" ? "Confirmed by admin" : ageStr}
+                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         <View style={ms.voteRow}>
