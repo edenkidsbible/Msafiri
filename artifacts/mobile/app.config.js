@@ -18,6 +18,14 @@ module.exports = {
       bundleIdentifier: "com.msafirikenya.app",
       buildNumber: "1",
       supportsTablet: false,
+      config: {
+        googleMaps: {
+          // Use the same Maps API key as Android. In Google Cloud Console the
+          // key should also have an iOS app restriction for bundle ID
+          // com.msafirikenya.app so Apple Maps is never used as a fallback.
+          apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY ?? "AIzaSyAqD6Eo_ZMUvoqHO_jLdPUAXTQVo-Ej3Dg",
+        },
+      },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",

@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { POIItem } from "@/components/POICard";
@@ -74,6 +74,7 @@ export default function BrowseMapView({ pois, tab, userLat, userLng, onGo }: Pro
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
+        provider={PROVIDER_GOOGLE}
         initialRegion={
           userLat && userLng
             ? { latitude: userLat, longitude: userLng, latitudeDelta: 0.08, longitudeDelta: 0.08 }

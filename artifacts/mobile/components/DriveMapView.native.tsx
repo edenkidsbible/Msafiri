@@ -486,13 +486,14 @@ const DriveMapView = forwardRef(function DriveMapView(
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        // PROVIDER_GOOGLE explicitly on Android only — it gets Android onto
+        // PROVIDER_GOOGLE on both platforms — Apple Maps has sparse POI data
+        // in Kenya/East Africa; Google Maps is the reliable baseline.
         // the same well-optimized Google Maps renderer/gesture pipeline that
         // iOS's Apple Maps equivalent enjoys, and unlocks
         // moveOnMarkerPress/toolbar tuning below. iOS has no Google Maps SDK
         // key configured, so it falls back to the platform default (Apple
         // Maps), same as the browse map screen.
-        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+        provider={PROVIDER_GOOGLE}
         // Night mode: apply the Google Maps dark style when the app is in dark
         // mode. PROVIDER_GOOGLE on Android supports customMapStyle; iOS (Apple
         // Maps) ignores the prop entirely so passing [] is safe on both.
