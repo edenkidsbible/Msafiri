@@ -155,6 +155,9 @@ export default function DriveScreen() {
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
 
+  // ── Map drift (driver panned away from GPS position during navigation) ────
+  const [mapDrifted, setMapDrifted] = useState(false);
+
   // ── Route overview mode ───────────────────────────────────────────────────
   const [overviewMode, setOverviewMode] = useState(false);
   const overviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,10 +174,13 @@ export default function DriveScreen() {
     }, 2200);
   }, [overviewToastOpacity]);
 
-  // Auto-exit overview after 8 seconds so the driver doesn't have to tap again
+  // Auto-exit overview after 8 seconds so the driver doesn't have to tap again.
+  // Also clears any drift state — entering overview is an implicit "I see the
+  // map now" action, so the Recenter button doesn't need to stay visible.
   const enterOverview = useCallback(() => {
     if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
     setOverviewMode(true);
+    setMapDrifted(false);
     overviewTimerRef.current = setTimeout(() => {
       setOverviewMode(false);
     }, 8000);
@@ -194,12 +200,13 @@ export default function DriveScreen() {
     }
   }, [overviewMode, distToNextM, exitOverview, showOverviewToast]);
 
-  // Clear overview when navigation ends (e.g. driver taps Stop)
+  // Clear overview + drift when navigation ends (e.g. driver taps Stop)
   useEffect(() => {
     if (!navigationActive) {
       if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
       if (overviewToastTimerRef.current) clearTimeout(overviewToastTimerRef.current);
       setOverviewMode(false);
+      setMapDrifted(false);
     }
   }, [navigationActive]);
 
@@ -418,7 +425,7 @@ export default function DriveScreen() {
 
       {/* ── Base layer: full-screen map ── */}
       <View style={StyleSheet.absoluteFillObject}>
-        <DriveMapView ref={driveMapRef} overviewMode={overviewMode} />
+        <DriveMapView ref={driveMapRef} overviewMode={overviewMode} onDriftChange={setMapDrifted} />
       </View>
 
       {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
@@ -634,6 +641,26 @@ export default function DriveScreen() {
         </View>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════
+          RECENTER button — appears on the left when the driver has panned
+          away from their GPS position during navigation. Tapping snaps the
+          map back to street-level tracking, just like Apple / Google Maps.
+      ══════════════════════════════════════════════════════════════════ */}
+      {!showResults && navigationActive && !overviewMode && mapDrifted && (
+        <TouchableOpacity
+          style={[styles.recenterBtn, { bottom: bottomBase + speedStripHeight + 80, left: 16 }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            driveMapRef.current?.recenter();
+            setMapDrifted(false);
+          }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="locate" size={17} color="#1565C0" />
+          <Text style={styles.recenterBtnTxt}>Recenter</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Navigation right-side FABs: overview toggle + report incident */}
       {!showResults && navigationActive && (
         <View style={[styles.navFabCol, { top: topInset + 118, right: 12 }]}>
@@ -815,7 +842,7 @@ export default function DriveScreen() {
                 color={isSharingTrip ? "#fff" : fgMuted}
               />
               <Text style={[styles.idleShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                {isSharingTrip ? "● Live" : "Share Trip"}
+                {isSharingTrip ? "● Sharing" : "Share Location"}
               </Text>
             </>
           )}
@@ -1012,7 +1039,7 @@ export default function DriveScreen() {
                       color={isSharingTrip ? "#fff" : fgMuted}
                     />
                     <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                      {isSharingTrip ? "● Live — tap to stop sharing" : "Share Trip"}
+                      {isSharingTrip ? "● Sharing — tap to stop" : "Share Location"}
                     </Text>
                   </>
                 )}
@@ -1449,6 +1476,18 @@ const styles = StyleSheet.create({
     shadowColor: "#1565C0", shadowOpacity: 0.45,
   },
   overviewBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  // ── Recenter button (left-side, appears when map drifts during nav) ────────
+  recenterBtn: {
+    position: "absolute", zIndex: 30,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#FFFFFFEE",
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22,
+    borderWidth: 1.5, borderColor: "#1565C0",
+    shadowColor: "#1565C0", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22, shadowRadius: 8, elevation: 8,
+  },
+  recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
   navReportBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "#E65100",

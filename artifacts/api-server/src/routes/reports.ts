@@ -12,19 +12,25 @@ const router: Router = Router();
 const MODERATED_TYPES = new Set(["camera", "police"]);
 
 // ── TTL per report type (seconds; null = never expires) ───────────────────────
+// Every non-camera incident expires after 12 hours unless a driver votes
+// "Still here" (which extends the timer by another 12 h from the time of vote).
+// Only admin can confirm a report as permanent or delete it outright.
+// Speed cameras are physical infrastructure — they never auto-expire; only an
+// admin can remove them from the map.
+const INCIDENT_TTL = 12 * 3600; // 12 h
 export const TTL_SECONDS: Record<string, number | null> = {
-  camera:    null,        // permanent until denied
-  police:    4 * 3600,    // 4 h
-  accident:  2 * 3600,    // 2 h
-  traffic:   1 * 3600,    // 1 h
-  roadblock: 12 * 3600,   // 12 h
-  hazard:    12 * 3600,   // 12 h
-  pothole:   7 * 86400,   // 7 days
-  debris:    4 * 3600,    // 4 h
-  breakdown: 2 * 3600,    // 2 h
-  weather:   1 * 3600,    // 1 h
-  closure:   8 * 3600,    // 8 h
-  clear:     1 * 3600,    // 1 h
+  camera:    null,             // permanent — admin managed only
+  police:    INCIDENT_TTL,
+  accident:  INCIDENT_TTL,
+  traffic:   INCIDENT_TTL,
+  roadblock: INCIDENT_TTL,
+  hazard:    INCIDENT_TTL,
+  pothole:   INCIDENT_TTL,
+  debris:    INCIDENT_TTL,
+  breakdown: INCIDENT_TTL,
+  weather:   INCIDENT_TTL,
+  closure:   INCIDENT_TTL,
+  clear:     INCIDENT_TTL,
 };
 
 // Camera cluster radius in degrees (~50 m at equatorial latitudes)
@@ -230,18 +236,29 @@ router.post("/reports", async (req: Request, res: Response) => {
           });
         }
         const newCount = cluster.confirmCount + 1;
-        const newStatus =
-          newCount >= 2 && cluster.status === "active" ? "confirmed" : cluster.status;
         const newConfirmedBy = [...clusterConfirmedBy, deviceId];
+        // Extend the TTL by 12 h from now — a second driver reporting the same
+        // thing is a strong signal it's still there, so we refresh the window.
+        // Camera reports have null expiresAt and stay permanent regardless.
+        const newExpiresAt =
+          cluster.expiresAt != null
+            ? new Date(Math.max(cluster.expiresAt.getTime(), Date.now()) + INCIDENT_TTL * 1000)
+            : null;
         await db
           .update(communityReportsTable)
-          .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy, lastVotedAt: new Date() })
+          .set({
+            confirmCount: newCount,
+            // Status never changes based on driver votes — only admin can confirm.
+            confirmedBy: newConfirmedBy,
+            lastVotedAt: new Date(),
+            ...(newExpiresAt ? { expiresAt: newExpiresAt } : {}),
+          })
           .where(eq(communityReportsTable.id, cluster.id));
         return res.json({
           id: cluster.id,
           action: "clustered",
           confirmCount: newCount,
-          status: newStatus,
+          status: cluster.status,
         });
       }
     }
@@ -346,7 +363,12 @@ async function notifyReporterUnderReview(deviceId: string, type: string): Promis
   ]);
 }
 
-// ── POST /reports/:id/confirm — "Still there" ─────────────────────────────────
+// ── POST /reports/:id/confirm — "Still here" ──────────────────────────────────
+// Driver-side vote: signals the incident is still present. This extends the
+// report's TTL by 12 h so other drivers keep seeing it, and increments
+// confirmCount for display ("X drivers say still here"). It does NOT promote
+// the report to "confirmed" status — only an admin can do that. Cameras are
+// permanent and never expire, so the TTL extension is a no-op for them.
 router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
@@ -364,24 +386,34 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
 
     if (!report) return res.status(404).json({ error: "Not found" });
     if (report.deviceId === deviceId)
-      return res.status(403).json({ error: "Cannot confirm own report" });
+      return res.status(403).json({ error: "Cannot vote on own report" });
 
     const confirmedBy = (report.confirmedBy ?? []) as string[];
     if (confirmedBy.includes(deviceId)) {
-      return res.status(409).json({ error: "Already confirmed", confirmCount: report.confirmCount, status: report.status });
+      return res.status(409).json({ error: "Already voted", confirmCount: report.confirmCount, status: report.status });
     }
 
     const newCount = report.confirmCount + 1;
-    const newStatus =
-      newCount >= 2 && report.status === "active" ? "confirmed" : report.status;
     const newConfirmedBy = [...confirmedBy, deviceId];
+    // Extend the window: 12 h from now, or 12 h past the current expiry,
+    // whichever is later. Camera reports (expiresAt = null) are unchanged.
+    const newExpiresAt =
+      report.expiresAt != null
+        ? new Date(Math.max(report.expiresAt.getTime(), Date.now()) + INCIDENT_TTL * 1000)
+        : null;
 
     await db
       .update(communityReportsTable)
-      .set({ confirmCount: newCount, status: newStatus, confirmedBy: newConfirmedBy, lastVotedAt: new Date() })
+      .set({
+        confirmCount: newCount,
+        confirmedBy: newConfirmedBy,
+        lastVotedAt: new Date(),
+        ...(newExpiresAt ? { expiresAt: newExpiresAt } : {}),
+      })
       .where(eq(communityReportsTable.id, id));
 
-    return res.json({ confirmCount: newCount, status: newStatus });
+    // Status never changes from a driver vote — only admin promotes to "confirmed".
+    return res.json({ confirmCount: newCount, status: report.status });
   } catch (err) {
     console.error("POST /reports/:id/confirm error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -528,6 +560,12 @@ router.post("/reports/:id/flag", async (req: Request, res: Response) => {
 });
 
 // ── POST /reports/:id/deny — "Gone now" ───────────────────────────────────────
+// Driver-side vote: signals the incident may no longer be present. This records
+// the vote (visible to admins in the dashboard) and increments denyCount for
+// display to other drivers ("X drivers say it's gone"). The report is NOT
+// removed from the map — only an admin can deny/remove a report. The natural
+// 12 h TTL handles cleanup for incidents nobody refreshes with "Still here".
+// Camera reports are permanent regardless of deny votes; admin removes them.
 router.post("/reports/:id/deny", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
@@ -546,14 +584,13 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     if (!report) return res.status(404).json({ error: "Not found" });
 
     const newDenyCount = report.denyCount + 1;
-    const newStatus = "denied";
-
+    // Status is intentionally NOT changed — only admin can remove a report.
     await db
       .update(communityReportsTable)
-      .set({ denyCount: newDenyCount, status: newStatus, lastVotedAt: new Date() })
+      .set({ denyCount: newDenyCount, lastVotedAt: new Date() })
       .where(eq(communityReportsTable.id, id));
 
-    return res.json({ denyCount: newDenyCount, status: newStatus });
+    return res.json({ denyCount: newDenyCount, status: report.status });
   } catch (err) {
     console.error("POST /reports/:id/deny error:", err);
     return res.status(500).json({ error: "Internal server error" });

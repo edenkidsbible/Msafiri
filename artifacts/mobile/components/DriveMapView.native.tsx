@@ -158,8 +158,34 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
 // ─── Main map component ───────────────────────────────────────────────────────
 
+// Return the slice of `coords` from the point nearest to (lat, lng) onward.
+// Used by overview mode to fit only the road still ahead, not the portion
+// the driver has already passed.
+function remainingCoords(
+  coords: { latitude: number; longitude: number }[],
+  lat: number,
+  lng: number,
+): { latitude: number; longitude: number }[] {
+  if (coords.length === 0) return coords;
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < coords.length; i++) {
+    const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  // Keep at least the last 2 points so fitToCoordinates always has a valid bbox
+  const slice = coords.slice(bestIdx);
+  return slice.length >= 2 ? slice : coords.slice(Math.max(0, coords.length - 2));
+}
+
 const DriveMapView = forwardRef(function DriveMapView(
-  { overviewMode = false }: { overviewMode?: boolean },
+  {
+    overviewMode = false,
+    onDriftChange,
+  }: {
+    overviewMode?: boolean;
+    onDriftChange?: (drifted: boolean) => void;
+  },
   ref: React.ForwardedRef<DriveMapViewHandle>,
 ) {
   const {
@@ -345,42 +371,61 @@ const DriveMapView = forwardRef(function DriveMapView(
     }
   }, [navigationActive, currentLat, currentLng, overviewMode]);
 
-  // Overview mode — show the full remaining route (or the driver's saved zoom).
-  // First entry fits the whole polyline; subsequent entries restore the zoom
-  // level the driver last chose by pinching during overview.
+  // Track the driver's GPS position via a ref so the overview effect can read
+  // the latest value without adding it to the dependency array (which would
+  // re-trigger the fit on every GPS tick while overview is active).
+  const currentLatRef = useRef(currentLat);
+  const currentLngRef = useRef(currentLng);
+  useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
+  useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
+
+  // Overview mode — always fit the remaining portion of the route so the driver
+  // sees exactly what's still ahead of them, not road they've already passed.
+  // Each entry starts fresh (savedOverviewRegionRef is cleared) so the driver
+  // always gets the full-route view. The stale-region restore was the root
+  // cause of "not zooming out properly" — if the driver had panned during a
+  // previous session the saved region could be quite zoomed in.
+  //
   // Exiting overview (overviewMode → false) is handled by the main camera
-  // effect above, which already fires on overviewMode changes and calls
-  // animateCamera back to first-person. Duplicating that call here caused
-  // three conflicting native map operations on nav-start → blank map → crash.
+  // effect above — duplicating it here caused three conflicting native ops
+  // that crashed Apple Maps / produced a blank map.
   useEffect(() => {
     if (!navigationActive || !overviewMode) return;
     if (!activeRoute?.coords.length) return;
 
-    const saved = savedOverviewRegionRef.current;
-    if (saved) {
-      // Return to the zoom the driver chose last time — much more useful than
-      // always re-fitting the entire remaining polyline from scratch.
-      mapRef.current?.animateToRegion(saved, 600);
-    } else {
-      // First overview tap on this route — fit the full polyline so the driver
-      // gets a complete picture before deciding how far to zoom back in.
-      mapRef.current?.fitToCoordinates(activeRoute.coords, {
-        edgePadding: { top: 120, right: 40, bottom: 260, left: 40 },
-        animated: true,
-      });
-    }
+    savedOverviewRegionRef.current = null;
+
+    const lat = currentLatRef.current;
+    const lng = currentLngRef.current;
+    const coords =
+      lat != null && lng != null
+        ? remainingCoords(activeRoute.coords, lat, lng)
+        : activeRoute.coords;
+
+    mapRef.current?.fitToCoordinates(coords, {
+      edgePadding: { top: 140, right: 50, bottom: 280, left: 50 },
+      animated: true,
+    });
   }, [overviewMode, navigationActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Capture the driver's manual zoom during overview. react-native-maps passes
-  // `details.isGesture = true` only for user-initiated region changes, so we
-  // can safely ignore programmatic animateCamera / fitToCoordinates completions.
+  // Detect when the driver manually pans/zooms the map while navigation is
+  // active (and not in overview mode). That drift means their view has left
+  // the GPS position — surface a Recenter button so they can snap back.
+  // During overview mode, panning is expected; save the region for reference
+  // but don't signal drift (there is no separate recenter needed there —
+  // tapping the Overview button again or waiting for auto-exit handles it).
   const handleRegionChangeComplete = useCallback(
     (region: Region, details: { isGesture?: boolean }) => {
-      if (overviewModeRef.current && details?.isGesture) {
+      if (!details?.isGesture) return;
+      if (overviewModeRef.current) {
+        // Save manual zoom within an overview session (for possible future use)
         savedOverviewRegionRef.current = region;
+      } else if (navActiveRef.current) {
+        // Driver panned/zoomed during navigation — signal drift to parent
+        onDriftChange?.(true);
       }
     },
-    [],
+    [onDriftChange],
   );
 
   // Deep-link focus: center map on a push-notification incident then clear
@@ -426,11 +471,13 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
+    // Snap back to a tight street-level view identical to nav-start zoom.
     mapRef.current?.animateToRegion(
-      { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.01, longitudeDelta: 0.01 },
-      600
+      { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+      500
     );
-  }, [currentLat, currentLng]);
+    onDriftChange?.(false);
+  }, [currentLat, currentLng, onDriftChange]);
 
   useImperativeHandle(ref, () => ({ recenter }), [recenter]);
 
@@ -640,15 +687,42 @@ const DriveMapView = forwardRef(function DriveMapView(
                           <Text style={ms.incidentRoad}>{r.roadName}</Text>
                         ) : null}
                         <Text style={ms.incidentMeta}>
-                          {r.type === "camera" ? "Confirmed by admin" : ageStr}
-                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
+                          {r.type === "camera" ? "Speed camera — permanent" : ageStr}
+                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount} say still here` : ""}
+                          {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount} say gone` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
-                        {canVote && (
+                        {r.type === "camera" ? (
+                          // Speed cameras are permanent infrastructure managed by admins.
+                          // Drivers cannot vote them away — only flag for admin review.
+                          <View style={ms.voteRow}>
+                            <View style={[ms.cameraPermanentNote]}>
+                              <Ionicons name="shield-checkmark-outline" size={12} color="#1565C0" />
+                              <Text style={ms.cameraPermanentTxt}>Managed by our team — flag if misplaced</Text>
+                            </View>
+                            <TouchableOpacity
+                              style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
+                              disabled={flaggingId === r.id}
+                              onPress={() => handleFlagReport(r.id)}
+                            >
+                              <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
+                              <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
+                                {flaggingId === r.id ? "Sending…" : "Flag"}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : canVote && (
+                          // Non-camera incidents: drivers can vote Still here (extends 12 h
+                          // TTL) or Gone now (records vote for admin; report stays on map
+                          // until it expires naturally or admin removes it).
                           <View style={ms.voteRow}>
                             <TouchableOpacity
                               style={[ms.voteBtn, { backgroundColor: "#388E3C18", borderColor: "#388E3C55" }]}
-                              onPress={() => { confirmReport(r.id); setSelectedCluster(null); }}
+                              onPress={() => {
+                                confirmReport(r.id);
+                                Alert.alert("Thanks!", "We've noted this and extended the warning for other drivers.");
+                                setSelectedCluster(null);
+                              }}
                             >
                               <Ionicons name="thumbs-up-outline" size={13} color="#388E3C" />
                               <Text style={[ms.voteTxt, { color: "#388E3C" }]}>Still here</Text>
@@ -661,7 +735,10 @@ const DriveMapView = forwardRef(function DriveMapView(
                                 const ok = await denyReport(r.id);
                                 setDenyingId(null);
                                 if (ok) {
+                                  // Report stays on map — only admin can remove it.
+                                  // Close the sheet and show a thank-you.
                                   setSelectedCluster(null);
+                                  Alert.alert("Thanks for the update", "Your report helps our team keep the map accurate.");
                                 } else {
                                   Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
                                 }
@@ -795,7 +872,14 @@ const ms = StyleSheet.create({
   ownTxt: { fontSize: 10, fontWeight: "700", color: "#1565C0" },
   incidentRoad: { fontSize: 12, fontWeight: "600", color: "#1565C0", marginTop: 1 },
   incidentMeta: { fontSize: 12, color: "#888" },
-  voteRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  voteRow: { flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap", alignItems: "center" },
+  cameraPermanentNote: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    flex: 1,
+  },
+  cameraPermanentTxt: {
+    fontSize: 11, fontWeight: "500", color: "#1565C0", flexShrink: 1,
+  },
   voteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1,

@@ -2176,24 +2176,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Track that this device has voted on this report
     votedReportIdsRef.current.add(id);
     if (report.serverId) votedReportIdsRef.current.add(report.serverId);
-    // Optimistic: immediately remove AND persist so the report doesn't
-    // reappear on the next app reload before the next poll completes.
-    setCommunityReports((prev) => {
-      const u = prev.filter((r) => r.id !== id && r.serverId !== id);
-      AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
-      return u;
-    });
+    // Optimistic: increment denyCount — report stays on the map because only
+    // admin can remove reports. The 12 h TTL handles natural expiry.
+    const originalDenyCount = report.denyCount ?? 0;
+    setCommunityReports((prev) =>
+      prev.map((r) =>
+        r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount + 1 } : r
+      )
+    );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await apiPost(`/reports/${serverId}/deny`, { deviceId: deviceIdRef.current });
+      const result = await apiPost<{ denyCount: number; status: string }>(
+        `/reports/${serverId}/deny`,
+        { deviceId: deviceIdRef.current }
+      );
+      // Sync authoritative count from server
+      setCommunityReports((prev) =>
+        prev.map((r) =>
+          r.id === id || r.serverId === id ? { ...r, denyCount: result.denyCount } : r
+        )
+      );
       return true;
     } catch (err) {
-      // Roll back — restore the report and re-persist
-      setCommunityReports((prev) => {
-        const u = [...prev, report];
-        AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
-        return u;
-      });
+      // Roll back optimistic increment
+      setCommunityReports((prev) =>
+        prev.map((r) =>
+          r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount } : r
+        )
+      );
       warnIfBlockedDevice(err);
       return false;
     }
