@@ -57,12 +57,16 @@ function timeSince(isoStr: string): string {
 }
 
 // ── Custom map icons ──────────────────────────────────────────────────────────
-function makeCarIcon(speedKmh: number | null) {
+function makeCarIcon(speedKmh: number | null, isStale = false, lastPingAt: string | null = null) {
   const speed = speedKmh != null ? Math.round(speedKmh) : null;
+  // When signal is lost, show "Last seen X ago" label; otherwise show speed
+  const label = isStale
+    ? (lastPingAt ? `<span style="color:#fff;font-size:8px;font-weight:700;line-height:1;margin-top:1px;text-align:center;">${timeSince(lastPingAt)}</span>` : "")
+    : (speed != null ? `<span style="color:#fff;font-size:9px;font-weight:700;line-height:1;margin-top:1px;">${speed}</span>` : "");
   return L.divIcon({
     html: `
       <div style="
-        background:#1A73E8;
+        background:${isStale ? "#90A4AE" : "#1A73E8"};
         border:3px solid #fff;
         border-radius:50%;
         width:46px;height:46px;
@@ -70,13 +74,14 @@ function makeCarIcon(speedKmh: number | null) {
         align-items:center;justify-content:center;
         box-shadow:0 3px 10px rgba(0,0,0,0.4);
         font-family:system-ui,sans-serif;
+        opacity:${isStale ? "0.55" : "1"};
       ">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
           <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.08 3.11H5.77L6.85 7zM19 17H5v-5h14v5z"/>
           <circle cx="7.5" cy="14.5" r="1.5"/>
           <circle cx="16.5" cy="14.5" r="1.5"/>
         </svg>
-        ${speed != null ? `<span style="color:#fff;font-size:9px;font-weight:700;line-height:1;margin-top:1px;">${speed}</span>` : ""}
+        ${label}
       </div>`,
     className: "",
     iconSize:   [46, 46],
@@ -161,6 +166,14 @@ export default function LiveTracker() {
     }
   }, [token]);
 
+  // ── Signal-lost: computed early so effects can depend on it ──────────────
+  // lastPingAt exists, session is active, and ping is stale
+  const lastPingMs = session?.lastPingAt ? new Date(session.lastPingAt).getTime() : null;
+  const isSignalLost =
+    !session?.ended &&
+    lastPingMs != null &&
+    Date.now() - lastPingMs > STALE_THRESHOLD_MS;
+
   // ── Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapDivRef.current || mapRef.current) return;
@@ -186,17 +199,18 @@ export default function LiveTracker() {
     const map = mapRef.current;
     if (!map || !session) return;
 
-    // Driver marker
+    // Driver marker — show at reduced opacity with "Last seen" label when stale
     if (session.lat != null && session.lng != null) {
       const pos: L.LatLngExpression = [session.lat, session.lng];
+      const icon = makeCarIcon(session.speedKmh, isSignalLost, session.lastPingAt);
       if (!driverMarkerRef.current) {
         driverMarkerRef.current = L.marker(pos, {
-          icon: makeCarIcon(session.speedKmh),
+          icon,
           zIndexOffset: 1000,
         }).addTo(map);
       } else {
         driverMarkerRef.current.setLatLng(pos);
-        driverMarkerRef.current.setIcon(makeCarIcon(session.speedKmh));
+        driverMarkerRef.current.setIcon(icon);
       }
 
       // First time we get a real position: fit the map nicely
@@ -218,7 +232,9 @@ export default function LiveTracker() {
       const dPos: L.LatLngExpression = [session.destinationLat, session.destinationLng];
       destMarkerRef.current = L.marker(dPos, { icon: makeDestIcon(session.destinationName) }).addTo(map);
     }
-  }, [session]);
+  // isSignalLost is time-driven (updates every 10s via forceRender tick), so include it
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, isSignalLost]);
 
   // ── Poll loop ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -234,13 +250,6 @@ export default function LiveTracker() {
   // ── Render ────────────────────────────────────────────────────────────────
   const ended = session?.ended;
   const hasPos = session && session.lat != null && session.lng != null;
-
-  // Signal-lost: lastPingAt exists, session is active, and ping is stale
-  const lastPingMs = session?.lastPingAt ? new Date(session.lastPingAt).getTime() : null;
-  const isSignalLost =
-    !ended &&
-    lastPingMs != null &&
-    Date.now() - lastPingMs > STALE_THRESHOLD_MS;
 
   return (
     <div style={{
