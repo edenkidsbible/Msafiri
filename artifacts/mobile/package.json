@@ -66,7 +66,7 @@
     "expo-notifications": "~0.32.17",
     "expo-sms": "^14.0.8",
     "expo-speech": "~14.0.8",
-    "expo-task-manager": "^57.0.6",
+    "expo-task-manager": "^14.0.9",
     "expo-updates": "~29.0.19",
     "react-native-maps": "1.20.1",
     "react-native-purchases": "^10.4.0"
