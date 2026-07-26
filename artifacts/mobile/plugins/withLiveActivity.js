@@ -200,12 +200,18 @@ function withWidgetExtensionTarget(config) {
 
     // Inherit DEVELOPMENT_TEAM from the main app target so EAS doesn't need
     // extra configuration to sign the widget extension.
+    // pbxXCConfigurationListSection() does not exist in the xcode package
+    // version bundled with @expo/config-plugins@54.  Use raw object access.
+    function xcConfigListSection() {
+      return project.hash.project.objects["XCConfigurationList"] || {};
+    }
+
     function getMainDevelopmentTeam() {
       try {
         const mainTarget = project.getFirstTarget();
         if (!mainTarget?.firstTarget?.buildConfigurationList) return "";
         const listKey = stripComment(mainTarget.firstTarget.buildConfigurationList);
-        const list = project.pbxXCConfigurationListSection()[listKey];
+        const list = xcConfigListSection()[listKey];
         for (const ref of (list?.buildConfigurations ?? [])) {
           const key = stripComment(typeof ref === "object" ? ref.value : ref);
           const cfg = project.pbxXCBuildConfigurationSection()[key];
@@ -241,7 +247,7 @@ function withWidgetExtensionTarget(config) {
     // UUID comes pre-stripped of comments from the xcode package internals.
     const nativeTarget = widgetTarget.pbxNativeTarget;
     const configListKey = stripComment(nativeTarget.buildConfigurationList);
-    const configList = project.pbxXCConfigurationListSection()[configListKey];
+    const configList = xcConfigListSection()[configListKey];
     if (configList && Array.isArray(configList.buildConfigurations)) {
       for (const ref of configList.buildConfigurations) {
         const configKey = stripComment(

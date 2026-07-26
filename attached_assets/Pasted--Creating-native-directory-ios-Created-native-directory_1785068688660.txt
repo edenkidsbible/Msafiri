@@ -1,0 +1,33 @@
+- Creating native directory (./ios)
+✔ Created native directory
+- Updating package.json
+✔ Updated package.json
+- Running prebuild
+✖ Prebuild failed
+TypeError: [ios.xcodeproj]: withIosXcodeprojBaseMod: project.pbxXCConfigurationListSection is not a function
+TypeError: [ios.xcodeproj]: withIosXcodeprojBaseMod: project.pbxXCConfigurationListSection is not a function
+    at /Users/expo/workingdir/build/artifacts/mobile/plugins/withLiveActivity.js:244:32
+    at action (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:199:29)
+    at interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:27)
+    at action (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:204:14)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+pnpm expo prebuild --no-install --platform ios exited with non-zero code: 1
+
+Clean up credentials
+
+684ms
+
+
+Fail job
+
+0ms
+
+
+Build failed
+
+pnpm expo prebuild --no-install --platform ios exited with non-zero code: 1
