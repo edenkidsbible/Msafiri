@@ -211,39 +211,31 @@ function withWidgetExtensionTarget(config) {
       TARGETED_DEVICE_FAMILY: "1",
     };
 
-    project.addBuildProperty(
-      "IPHONEOS_DEPLOYMENT_TARGET",
-      "16.2",
-      "Debug",
-      WIDGET_TARGET_NAME
+    // Apply build settings only to the widget target's own configurations.
+    // We walk: widgetTarget → buildConfigurationList UUID → each config UUID
+    // → XCBuildConfiguration → buildSettings.  This avoids the broken PRODUCT_NAME
+    // filter that was previously writing widget-only settings (IPHONEOS_DEPLOYMENT_TARGET
+    // 16.2, SWIFT_VERSION 5.9, etc.) into the main app's build configurations.
+    const allTargetSection = project.pbxNativeTargetSection();
+    const widgetNativeTarget = Object.values(allTargetSection).find(
+      (t) => t && t.name === WIDGET_TARGET_NAME
     );
-    project.addBuildProperty(
-      "IPHONEOS_DEPLOYMENT_TARGET",
-      "16.2",
-      "Release",
-      WIDGET_TARGET_NAME
-    );
-
-    // Apply build settings
-    const configurations = project.pbxXCBuildConfigurationSection();
-    Object.keys(configurations).forEach((key) => {
-      const config = configurations[key];
-      if (
-        config &&
-        config.buildSettings &&
-        config.buildSettings.PRODUCT_NAME === `"${WIDGET_TARGET_NAME}"` ||
-        (config && config.name && config.buildSettings &&
-          Object.values(project.pbxNativeTargetSection()).some(
-            (t) =>
-              t &&
-              t.name === WIDGET_TARGET_NAME &&
-              Array.isArray(t.buildConfigurationList) === false &&
-              t.buildConfigurationList
-          ))
-      ) {
-        Object.assign(config.buildSettings, commonSettings);
+    if (widgetNativeTarget && widgetNativeTarget.buildConfigurationList) {
+      const configListUuid = widgetNativeTarget.buildConfigurationList;
+      const configList = project.pbxXCConfigurationListSection()[configListUuid];
+      if (configList && Array.isArray(configList.buildConfigurations)) {
+        configList.buildConfigurations.forEach((configRef) => {
+          // buildConfigurations entries are { value: uuid, comment: "..." }
+          const uuid =
+            typeof configRef === "object" ? configRef.value : configRef;
+          const buildConfig =
+            project.pbxXCBuildConfigurationSection()[uuid];
+          if (buildConfig && buildConfig.buildSettings) {
+            Object.assign(buildConfig.buildSettings, commonSettings);
+          }
+        });
       }
-    });
+    }
 
     return config;
   });
