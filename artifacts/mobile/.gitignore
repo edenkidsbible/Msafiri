@@ -9,9 +9,12 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# Native — generated project dirs are ignored, but custom Expo module sources are not
 ios/
 android/
+# Exception: hand-written native Expo module sources inside modules/ must be tracked
+!modules/**/ios/
+!modules/**/ios/**
 *.orig.*
 *.jks
 *.p8
