@@ -183,15 +183,6 @@ function withWidgetExtensionTarget(config) {
       widgetTarget.uuid
     );
 
-    // Add the widget source files to the Xcode file references
-    swiftFiles.forEach((fileName) => {
-      project.addSourceFile(
-        `${WIDGET_TARGET_NAME}/${fileName}`,
-        { target: widgetTarget.uuid },
-        widgetTarget.uuid
-      );
-    });
-
     // Build settings for the extension target
     const commonSettings = {
       ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: "NO",
