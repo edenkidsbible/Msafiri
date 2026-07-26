@@ -2000,6 +2000,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       destinationName: navDestination?.name.split(",")[0] ?? null,
       isSharingTrip: shareToken !== null,
       durationRemainingS,
+      navigationActive,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigationActive, shareToken, currentStepIdx, activeRoute, navDestination]);
@@ -2025,6 +2026,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       destinationName: navDestination?.name.split(",")[0] ?? null,
       isSharingTrip: shareToken !== null,
       durationRemainingS,
+      navigationActive,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSpeed, currentSpeedLimit]);

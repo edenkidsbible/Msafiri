@@ -6,6 +6,11 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiGet } from "@/utils/apiClient";
 import { useApp, CommunityReport } from "@/context/AppContext";
+import {
+  registerNavNotificationCategories,
+  ACTION_STOP_NAVIGATION,
+  ACTION_STOP_SHARING,
+} from "@/utils/NavigationNotification";
 
 // Resolved at build time from app.json → extra.eas.projectId.
 // Expo requires this in production to route push tokens to the correct project.
@@ -41,6 +46,9 @@ async function getOrCreateDeviceId(): Promise<string> {
 async function ensureAndroidChannels(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
+    // Register notification categories for nav/sharing action buttons.
+    // Safe to call multiple times (expo-notifications is idempotent).
+    await registerNavNotificationCategories();
     // Remove legacy channels that were created with DEFAULT importance.
     // deleteNotificationChannelAsync is a no-op if the channel doesn't exist.
     await Notifications.deleteNotificationChannelAsync("default").catch(() => {});
@@ -160,9 +168,27 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const router = useRouter();
-  const { communityReports, setPendingConfirmationReport, setPendingConfirmationSource, setPendingFocusCoords, currentLat, currentLng, markReportPrompted } = useApp();
+  const {
+    communityReports,
+    setPendingConfirmationReport,
+    setPendingConfirmationSource,
+    setPendingFocusCoords,
+    currentLat,
+    currentLng,
+    markReportPrompted,
+    stopNavigation,
+    stopSharingTrip,
+  } = useApp();
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+
+  // Stable refs so the response listener (registered once with [] deps) always
+  // calls the latest version of these functions without going stale.
+  const stopNavigationRef   = useRef(stopNavigation);
+  const stopSharingTripRef  = useRef(stopSharingTrip);
+
+  useEffect(() => { stopNavigationRef.current  = stopNavigation;  }, [stopNavigation]);
+  useEffect(() => { stopSharingTripRef.current = stopSharingTrip; }, [stopSharingTrip]);
 
   // Keep a ref to the latest coordinates so the interval always uses fresh values
   const latRef = useRef<number | null>(currentLat);
@@ -187,9 +213,24 @@ export function usePushNotifications() {
       console.warn("[usePushNotifications] registerToken error:", err)
     );
 
-    // Handle tapping a notification — navigate to the map tab
+    // Handle tapping a notification or pressing an action button
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
+        const actionId = response.actionIdentifier;
+
+        // ── Navigation / sharing action buttons ───────────────────────────────
+        // These fire when the driver taps "Stop Navigation" or "Stop Sharing"
+        // directly from the notification shade or lock screen.
+        if (actionId === ACTION_STOP_NAVIGATION) {
+          stopNavigationRef.current();
+          return;
+        }
+        if (actionId === ACTION_STOP_SHARING) {
+          void stopSharingTripRef.current();
+          return;
+        }
+
+        // ── Default tap (notification body) ──────────────────────────────────
         const data = response.notification.request.content.data as Record<
           string,
           unknown

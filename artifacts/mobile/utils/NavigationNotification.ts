@@ -26,7 +26,22 @@ export interface NavNotificationState {
   destinationName: string | null;
   isSharingTrip: boolean;
   durationRemainingS: number | null;
+  /** Whether turn-by-turn navigation is active (as opposed to share-only). */
+  navigationActive: boolean;
 }
+
+// ── Action identifiers ────────────────────────────────────────────────────────
+// These string constants are shared with the notification response listener in
+// usePushNotifications.ts so both sides stay in sync.
+export const ACTION_STOP_NAVIGATION = "STOP_NAVIGATION";
+export const ACTION_STOP_SHARING    = "STOP_SHARING";
+
+// ── Notification category IDs ─────────────────────────────────────────────────
+// Each category carries a different action button label:
+//   nav_active   → "Stop Navigation"  (nav is running, possibly also sharing)
+//   sharing_only → "Stop Sharing"     (only the trip-share session is live)
+const CATEGORY_NAV_ACTIVE   = "nav_active";
+const CATEGORY_SHARING_ONLY = "sharing_only";
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -48,7 +63,7 @@ function fmtEta(s: number | null): string {
 
 function buildContent(
   state: NavNotificationState,
-): { title: string; body: string } {
+): { title: string; body: string; categoryIdentifier: string } {
   const {
     speedKmh,
     speedLimitKmh,
@@ -57,6 +72,7 @@ function buildContent(
     destinationName,
     isSharingTrip,
     durationRemainingS,
+    navigationActive,
   } = state;
 
   // Title: distance-to-manoeuvre + instruction, or destination on final stretch
@@ -75,10 +91,49 @@ function buildContent(
   const eta = fmtEta(durationRemainingS);
   if (eta) parts.push(eta);
 
-  return { title, body: parts.join("  ·  ") };
+  // Action button: nav running → "Stop Navigation"; share-only → "Stop Sharing"
+  const categoryIdentifier = navigationActive
+    ? CATEGORY_NAV_ACTIVE
+    : CATEGORY_SHARING_ONLY;
+
+  return { title, body: parts.join("  ·  "), categoryIdentifier };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Register the notification categories that carry the action buttons.
+ * Must be called once during app startup (before any nav notification fires).
+ * Safe to call multiple times — expo-notifications is idempotent.
+ */
+export async function registerNavNotificationCategories(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  await Promise.all([
+    Notifications.setNotificationCategoryAsync(CATEGORY_NAV_ACTIVE, [
+      {
+        identifier: ACTION_STOP_NAVIGATION,
+        buttonTitle: "Stop Navigation",
+        options: {
+          // Foreground the app so the response listener can call stopNavigation()
+          opensAppToForeground: true,
+          isDestructive: false,
+          isAuthenticationRequired: false,
+        },
+      },
+    ]),
+    Notifications.setNotificationCategoryAsync(CATEGORY_SHARING_ONLY, [
+      {
+        identifier: ACTION_STOP_SHARING,
+        buttonTitle: "Stop Sharing",
+        options: {
+          opensAppToForeground: true,
+          isDestructive: false,
+          isAuthenticationRequired: false,
+        },
+      },
+    ]),
+  ]);
+}
 
 /**
  * Show (or replace) the persistent navigation notification.
@@ -89,7 +144,7 @@ export async function showNavNotification(
 ): Promise<void> {
   if (Platform.OS !== "android") return;
 
-  const { title, body } = buildContent(state);
+  const { title, body, categoryIdentifier } = buildContent(state);
 
   await Notifications.scheduleNotificationAsync({
     identifier: NAV_NOTIFICATION_ID,
@@ -97,6 +152,9 @@ export async function showNavNotification(
       title,
       body,
       data: { type: "nav_status" },
+      // categoryIdentifier links this notification to the registered category
+      // so the OS renders the correct action button in the shade and lock screen.
+      categoryIdentifier,
       // sticky prevents the notification from being cleared when the user
       // swipes away the notification shade; it persists until explicitly
       // dismissed by the app (via dismissNavNotification).
