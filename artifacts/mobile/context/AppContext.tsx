@@ -24,6 +24,11 @@ import {
   stopBackgroundShareTask,
   requestBackgroundLocationPermission,
 } from "@/utils/backgroundShare";
+import {
+  showNavNotification,
+  updateNavNotification,
+  dismissNavNotification,
+} from "@/utils/NavigationNotification";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
@@ -789,6 +794,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Shared cooldown gate for supplementary hazard voice alerts — see
   // GENERAL_ALERT_COOLDOWN_MS above.
   const lastGeneralAlertAtRef = useRef<number>(0);
+  // Timestamp of the last speed-driven nav-notification update (Android only).
+  // Throttles high-frequency GPS-speed writes to at most once every 3 seconds.
+  const lastNavNotifSpeedUpdateRef = useRef<number>(0);
   // Forwards to the memoized `stopNavigation` below so handleLocation (a
   // stable useCallback defined earlier in this component) can trigger a
   // full stop without needing it in its dependency array.
@@ -1966,6 +1974,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
+
+  // ── Android navigation status bar notification ────────────────────────────
+  // Effect 1: show / update / dismiss on structural changes (nav on/off, step
+  // advance, share state, destination). These happen infrequently so no
+  // throttle is needed.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const isActive = navigationActive || shareToken !== null;
+    if (!isActive) {
+      void dismissNavNotification();
+      return;
+    }
+
+    const instruction =
+      activeRoute?.steps[currentStepIdx]?.instruction ?? null;
+
+    void showNavNotification({
+      speedKmh: currentSpeed,
+      speedLimitKmh: currentSpeedLimit,
+      nextInstruction: instruction,
+      distToNextM,
+      destinationName: navDestination?.name.split(",")[0] ?? null,
+      isSharingTrip: shareToken !== null,
+      durationRemainingS,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigationActive, shareToken, currentStepIdx, activeRoute, navDestination]);
+
+  // Effect 2: update the notification content when speed or limit changes,
+  // but throttled to once per 3 s so it doesn't fire on every GPS fix.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    if (!navigationActive && shareToken === null) return;
+
+    const now = Date.now();
+    if (now - lastNavNotifSpeedUpdateRef.current < 3000) return;
+    lastNavNotifSpeedUpdateRef.current = now;
+
+    const instruction =
+      activeRoute?.steps[currentStepIdx]?.instruction ?? null;
+
+    void updateNavNotification({
+      speedKmh: currentSpeed,
+      speedLimitKmh: currentSpeedLimit,
+      nextInstruction: instruction,
+      distToNextM,
+      destinationName: navDestination?.name.split(",")[0] ?? null,
+      isSharingTrip: shareToken !== null,
+      durationRemainingS,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSpeed, currentSpeedLimit]);
 
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
