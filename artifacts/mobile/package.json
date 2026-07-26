@@ -64,6 +64,7 @@
     "@react-native-community/netinfo": "11.4.1",
     "expo-audio": "~1.1.1",
     "expo-keep-awake": "^15.0.8",
+    "expo-modules-core": "^3.0.30",
     "expo-notifications": "~0.32.17",
     "expo-sms": "^14.0.8",
     "expo-speech": "~14.0.8",

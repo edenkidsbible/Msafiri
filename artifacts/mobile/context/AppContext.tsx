@@ -29,6 +29,7 @@ import {
   updateNavNotification,
   dismissNavNotification,
 } from "@/utils/NavigationNotification";
+import { useLiveActivity } from "@/hooks/useLiveActivity";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
@@ -2027,6 +2028,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSpeed, currentSpeedLimit]);
+
+  // ── iOS Dynamic Island / Lock Screen Live Activity ─────────────────────────
+  // Mirrors the Android notification logic above; all gating is done inside
+  // useLiveActivity so this call is safe on Android and web.
+  useLiveActivity({
+    navigationActive,
+    isSharingTrip: shareToken !== null,
+    currentSpeed,
+    currentSpeedLimit,
+    nextInstruction: activeRoute?.steps[currentStepIdx]?.instruction ?? null,
+    distToNextM,
+    destinationName: navDestination?.name.split(",")[0] ?? null,
+    currentStepIdx,
+  });
+
 
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
