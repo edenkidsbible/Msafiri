@@ -222,12 +222,13 @@ function withWidgetExtensionTarget(config) {
       return "";
     }
 
+    const devTeam = getMainDevelopmentTeam();
     const commonSettings = {
       ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: "NO",
       CLANG_ENABLE_MODULES: "YES",
       CODE_SIGN_STYLE: "Automatic",
       CURRENT_PROJECT_VERSION: "1",
-      DEVELOPMENT_TEAM: getMainDevelopmentTeam(),
+      ...(devTeam ? { DEVELOPMENT_TEAM: devTeam } : {}),
       GENERATE_INFOPLIST_FILE: "NO",
       INFOPLIST_FILE: `${WIDGET_TARGET_NAME}/Info.plist`,
       CODE_SIGN_ENTITLEMENTS: `${WIDGET_TARGET_NAME}/${WIDGET_TARGET_NAME}.entitlements`,
