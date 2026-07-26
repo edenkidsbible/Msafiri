@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate-cameras": "node scripts/validateCameras.mjs",
     "fix-cameras": "node scripts/validateCameras.mjs --fix",
-    "check-expo-versions": "expo install --check"
+    "check-expo-versions": "expo install --check",
+    "eas-build-post-install": "bash scripts/install-widget-profile.sh"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

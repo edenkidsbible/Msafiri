@@ -231,7 +231,13 @@ function withWidgetExtensionTarget(config) {
     const commonSettings = {
       ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: "NO",
       CLANG_ENABLE_MODULES: "YES",
-      CODE_SIGN_STYLE: "Automatic",
+      // Manual signing: EAS installs the distribution cert + the widget
+      // profile (via the eas-build-post-install hook / WIDGET_PROFILE_BASE64
+      // secret).  Xcode auto-selects the installed profile by bundle ID.
+      // "Automatic" cannot be used because EAS builds don't pass
+      // -allowProvisioningUpdates to xcodebuild.
+      CODE_SIGN_IDENTITY: '"Apple Distribution"',
+      CODE_SIGN_STYLE: "Manual",
       CURRENT_PROJECT_VERSION: "1",
       ...(devTeam ? { DEVELOPMENT_TEAM: devTeam } : {}),
       GENERATE_INFOPLIST_FILE: "NO",
