@@ -9,7 +9,8 @@
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate-cameras": "node scripts/validateCameras.mjs",
-    "fix-cameras": "node scripts/validateCameras.mjs --fix"
+    "fix-cameras": "node scripts/validateCameras.mjs --fix",
+    "check-expo-versions": "expo install --check"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -38,7 +38,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- **Mobile Expo packages — always use `expo install`, never `pnpm add`.**
+  Running `pnpm add expo-task-manager` (or any `expo-*` / `react-native-*` package) installs the latest npm version, which is almost always wrong for the pinned SDK. `npx expo install <pkg>` consults the SDK's known-good version registry and pins the correct one. Wrong versions cause a native SIGABRT crash on launch in TestFlight builds (while still passing Expo Go). After adding any new Expo package, run `pnpm --filter @workspace/mobile run check-expo-versions` to confirm everything is compatible. This check also runs automatically as `prebuildCommand` on every EAS build profile and will abort the build if any package is on the wrong version.
 
 ## Pointers
 
