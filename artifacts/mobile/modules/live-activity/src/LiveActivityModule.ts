@@ -13,6 +13,13 @@ export interface LiveActivityState {
   destinationName: string | null;
   /** Whether the driver's live-sharing session is active */
   isSharingTrip: boolean;
+  /**
+   * Unix timestamp (seconds) of this update.  The Live Activity widget uses
+   * this to detect when iOS has suspended the app and the speed value is
+   * frozen — if the age exceeds 15 s the widget shows a stale-data indicator
+   * instead of the (potentially misleading) last-known speed.
+   */
+  lastUpdatedAt: number;
 }
 
 interface LiveActivityModuleInterface extends NativeModule {

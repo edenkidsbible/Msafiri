@@ -9,6 +9,7 @@ export interface LiveActivityState {
   distToNextM: number | null;
   destinationName: string | null;
   isSharingTrip: boolean;
+  lastUpdatedAt: number;
 }
 
 export async function startActivity(_state: LiveActivityState): Promise<void> {}

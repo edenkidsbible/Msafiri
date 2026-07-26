@@ -22,7 +22,18 @@ struct MsafiriActivityAttributes: ActivityAttributes {
     var distToNextM: Double?
     var destinationName: String?
     var isSharingTrip: Bool
+    /// Unix timestamp (seconds) of the last JS-written update.
+    /// When >15 s in the past the speed reading is considered stale.
+    var lastUpdatedAt: Double
   }
+}
+
+// MARK: - Staleness helper
+
+/// Returns true when the last JS update is older than 15 seconds.
+private func isStale(_ state: MsafiriActivityAttributes.ContentState) -> Bool {
+  let age = Date().timeIntervalSince1970 - state.lastUpdatedAt
+  return age > 15
 }
 
 // MARK: - Formatting helpers
@@ -52,12 +63,18 @@ struct CompactLeadingView: View {
 
   var body: some View {
     HStack(spacing: 2) {
-      Text("\(Int(state.speedKmh.rounded()))")
-        .font(.system(size: 17, weight: .bold, design: .rounded))
-        .foregroundStyle(.white)
-      Text("km/h")
-        .font(.system(size: 8, weight: .medium))
-        .foregroundStyle(.white.opacity(0.7))
+      if isStale(state) {
+        Image(systemName: "clock.badge.exclamationmark")
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(.white.opacity(0.45))
+      } else {
+        Text("\(Int(state.speedKmh.rounded()))")
+          .font(.system(size: 17, weight: .bold, design: .rounded))
+          .foregroundStyle(.white)
+        Text("km/h")
+          .font(.system(size: 8, weight: .medium))
+          .foregroundStyle(.white.opacity(0.7))
+      }
     }
     .padding(.leading, 4)
   }
@@ -90,9 +107,15 @@ struct MinimalView: View {
   let state: MsafiriActivityAttributes.ContentState
 
   var body: some View {
-    Text("\(Int(state.speedKmh.rounded()))")
-      .font(.system(size: 14, weight: .bold, design: .rounded))
-      .foregroundStyle(.white)
+    if isStale(state) {
+      Image(systemName: "clock.badge.exclamationmark")
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(.white.opacity(0.45))
+    } else {
+      Text("\(Int(state.speedKmh.rounded()))")
+        .font(.system(size: 14, weight: .bold, design: .rounded))
+        .foregroundStyle(.white)
+    }
   }
 }
 
@@ -159,7 +182,20 @@ struct ExpandedView: View {
       }
 
       // ── Speed vs limit bar ────────────────────────────────────
-      if let limit = state.speedLimitKmh, limit > 0 {
+      let stale = isStale(state)
+
+      if stale {
+        // Stale data — show a greyed-out placeholder so the driver isn't
+        // misled by a frozen speed reading from before iOS suspended the app.
+        HStack(spacing: 6) {
+          Image(systemName: "clock.badge.exclamationmark")
+            .font(.system(size: 14))
+            .foregroundStyle(.secondary)
+          Text("Speed unavailable")
+            .font(.system(size: 12, weight: .medium, design: .rounded))
+            .foregroundStyle(.secondary)
+        }
+      } else if let limit = state.speedLimitKmh, limit > 0 {
         let speed = state.speedKmh
         let ratio = min(speed / limit, 1.5)
         let overLimit = speed > limit + 5

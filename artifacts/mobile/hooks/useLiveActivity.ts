@@ -75,6 +75,9 @@ export function useLiveActivity({
     distToNextM: stateRef.current.distToNextM,
     destinationName: stateRef.current.destinationName,
     isSharingTrip: stateRef.current.isSharingTrip,
+    // Unix timestamp in seconds — the widget greys out the speed when this
+    // is >15 s old, indicating the app was suspended by iOS mid-trip.
+    lastUpdatedAt: Date.now() / 1000,
   });
 
   // ── Effect 1: structural changes (nav on/off, sharing, step advance) ────────
