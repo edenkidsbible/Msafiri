@@ -206,6 +206,10 @@ function withWidgetExtensionTarget(config) {
       return project.hash.project.objects["XCConfigurationList"] || {};
     }
 
+    // Resolve DEVELOPMENT_TEAM: prefer the explicit teamId from app.config.js
+    // (config.ios.teamId), which is always available at prebuild time.  Fall
+    // back to reading it from the main app target's build settings for cases
+    // where the project was already prebuilt and credentials injected.
     function getMainDevelopmentTeam() {
       try {
         const mainTarget = project.getFirstTarget();
@@ -222,7 +226,8 @@ function withWidgetExtensionTarget(config) {
       return "";
     }
 
-    const devTeam = getMainDevelopmentTeam();
+    const devTeam =
+      config.ios?.teamId || getMainDevelopmentTeam();
     const commonSettings = {
       ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: "NO",
       CLANG_ENABLE_MODULES: "YES",

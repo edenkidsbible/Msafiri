@@ -17,6 +17,7 @@ module.exports = {
     ios: {
       bundleIdentifier: "com.msafirikenya.app",
       buildNumber: "1",
+      teamId: "74YL4VVLY2",
       supportsTablet: false,
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
