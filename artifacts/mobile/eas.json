@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
-      "prebuildCommand": "npx expo install --check",
+      "prebuildCommand": "bash scripts/check-expo-versions.sh",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "REPLACE_WITH_DEV_DOMAIN",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
@@ -19,7 +19,7 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "prebuildCommand": "npx expo install --check",
+      "prebuildCommand": "bash scripts/check-expo-versions.sh",
       "android": {
         "buildType": "apk"
       },
@@ -34,7 +34,7 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
-      "prebuildCommand": "npx expo install --check",
+      "prebuildCommand": "bash scripts/check-expo-versions.sh",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
