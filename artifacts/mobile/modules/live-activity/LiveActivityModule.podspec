@@ -8,8 +8,8 @@ Pod::Spec.new do |s|
   s.summary        = 'iOS Dynamic Island / Lock Screen Live Activity for Msafiri'
   s.description    = 'Expo native module that wraps ActivityKit to display real-time navigation state in the Dynamic Island and on the Lock Screen.'
   s.homepage       = 'https://github.com/msafirikenya/app'
-  s.license        = package['license']
-  s.authors        = package['author']
+  s.license        = { :type => 'MIT' }
+  s.authors        = { 'Msafiri Kenya' => 'dev@msafirikenya.com' }
   s.platform       = :ios, '16.0'
   s.swift_version  = '5.9'
   s.source         = { :path => '.' }
