@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.homepage       = 'https://github.com/msafirikenya/app'
   s.license        = { :type => 'MIT' }
   s.authors        = { 'Msafiri Kenya' => 'dev@msafirikenya.com' }
-  s.platform       = :ios, '16.0'
+  s.platform       = :ios, '15.1'
   s.swift_version  = '5.9'
   s.source         = { :path => '.' }
   s.static_framework = true
