@@ -5,5 +5,10 @@
  * ActivityKit to render a Dynamic Island / Lock Screen Live Activity while
  * the driver is navigating or sharing their trip.
  */
-export { startActivity, updateActivity, endActivity } from "./src/LiveActivityModule";
+export {
+  startActivity,
+  updateActivity,
+  endActivity,
+  onPushTokenUpdate,
+} from "./src/LiveActivityModule";
 export type { LiveActivityState } from "./src/LiveActivityModule";

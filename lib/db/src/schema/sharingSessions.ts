@@ -22,6 +22,11 @@ export const sharingSessionsTable = pgTable("sharing_sessions", {
   distanceRemainingM: doublePrecision("distance_remaining_m"),
   createdAt:          timestamp("created_at").notNull().defaultNow(),
   lastPingAt:         timestamp("last_ping_at"),
+  // APNs push token (hex-encoded) for the driver's Live Activity.  Set by
+  // the mobile app immediately after startActivity() returns.  Used by the
+  // server to push ContentState updates directly to the Dynamic Island /
+  // Lock Screen even when the app process is fully suspended.
+  liveActivityPushToken: text("live_activity_push_token"),
   // Null while the session is active; set when the driver stops sharing / navigation ends
   endedAt:            timestamp("ended_at"),
   // Hard expiry regardless of endedAt — prevents sessions living forever if the

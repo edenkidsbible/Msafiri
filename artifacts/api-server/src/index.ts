@@ -8,6 +8,7 @@ import { startPushNotificationsJob } from "./jobs/pushNotifications";
 import { seedCourseIfEmpty } from "./startup/seedCourse";
 import { backfillCourseAudio } from "./startup/backfillCourseAudio";
 import { dedupPushTokens } from "./startup/dedupPushTokens";
+import { migrateSchema } from "./startup/migrateSchema";
 
 const rawPort = process.env["PORT"];
 
@@ -60,6 +61,7 @@ app.listen(port, async (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  await migrateSchema();
   await seedDefaultAdmin();
   await seedCourseIfEmpty();
   await backfillCourseAudio();

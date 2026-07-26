@@ -23,9 +23,18 @@ export interface LiveActivityState {
 }
 
 interface LiveActivityModuleInterface extends NativeModule {
-  startActivity(state: LiveActivityState): Promise<void>;
+  /**
+   * Start a Live Activity and return the APNs push token (hex-encoded)
+   * that the server can use to push ContentState updates directly when the
+   * app is suspended.  Returns null if ActivityKit has not yet issued a
+   * token within the two-second wait window.
+   */
+  startActivity(state: LiveActivityState): Promise<string | null>;
   updateActivity(state: LiveActivityState): Promise<void>;
   endActivity(): Promise<void>;
+
+  /** Fired by the native layer whenever ActivityKit rotates the push token. */
+  addListener(event: "onPushTokenUpdate", handler: (payload: { token: string }) => void): { remove(): void };
 }
 
 // requireNativeModule throws on web — see LiveActivityModule.web.ts for the
@@ -33,7 +42,12 @@ interface LiveActivityModuleInterface extends NativeModule {
 const LiveActivityModule =
   requireNativeModule<LiveActivityModuleInterface>("LiveActivityModule");
 
-export async function startActivity(state: LiveActivityState): Promise<void> {
+/**
+ * Start the Live Activity.  Returns the APNs push token (hex string) that
+ * can be uploaded to the server for remote updates, or null if the OS has
+ * not yet assigned one.
+ */
+export async function startActivity(state: LiveActivityState): Promise<string | null> {
   return LiveActivityModule.startActivity(state);
 }
 
@@ -43,4 +57,15 @@ export async function updateActivity(state: LiveActivityState): Promise<void> {
 
 export async function endActivity(): Promise<void> {
   return LiveActivityModule.endActivity();
+}
+
+/**
+ * Subscribe to push-token rotations.  ActivityKit may rotate the token
+ * during a long activity; each new token should be uploaded to the server
+ * so it can continue sending remote updates.
+ */
+export function onPushTokenUpdate(
+  handler: (token: string) => void
+): { remove(): void } {
+  return LiveActivityModule.addListener("onPushTokenUpdate", ({ token }) => handler(token));
 }

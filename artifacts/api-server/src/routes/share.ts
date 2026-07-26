@@ -3,6 +3,7 @@ import { db, sharingSessionsTable } from "@workspace/db";
 import { eq, and, isNull, lt } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { logger } from "../lib/logger.js";
+import { pushLiveActivityUpdate, type LiveActivityContentState } from "../lib/apns.js";
 
 const router: Router = Router();
 
@@ -23,6 +24,10 @@ function generateShortCode(): string {
 // 8 hour session cap — sessions cannot live longer than this even if the app
 // crashes before sending a DELETE.
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+// Validate an APNs Live Activity push token (64-byte hex, 128 hex chars)
+const PUSH_TOKEN_RE = /^[0-9a-f]{64,512}$/i;
+function isValidPushToken(s: string): boolean { return PUSH_TOKEN_RE.test(s); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,12 +85,57 @@ router.post("/share/session", async (req: Request, res: Response) => {
   }
 });
 
+// ── PATCH /share/:token/activity-token — store the Live Activity push token ───
+// Called by the mobile app right after startActivity() returns a push token.
+// The token is used by the ping handler below to push ContentState updates
+// directly via APNs when the app process is fully suspended.
+// Body: { deviceId, pushToken }
+router.patch("/share/:token/activity-token", async (req: Request, res: Response) => {
+  const token = req.params["token"] as string;
+  if (!isValidUuid(token)) { res.status(404).json({ error: "session not found" }); return; }
+
+  const { deviceId, pushToken } = req.body ?? {};
+  if (!deviceId || typeof deviceId !== "string") {
+    res.status(400).json({ error: "deviceId required" }); return;
+  }
+  if (!pushToken || typeof pushToken !== "string" || !isValidPushToken(pushToken)) {
+    res.status(400).json({ error: "pushToken must be a hex-encoded APNs token" }); return;
+  }
+
+  const [session] = await db
+    .select({ deviceId: sharingSessionsTable.deviceId, endedAt: sharingSessionsTable.endedAt, expiresAt: sharingSessionsTable.expiresAt })
+    .from(sharingSessionsTable)
+    .where(eq(sharingSessionsTable.token, token));
+
+  if (!session) { res.status(404).json({ error: "session not found" }); return; }
+  if (session.deviceId !== deviceId) { res.status(403).json({ error: "forbidden" }); return; }
+  if (session.endedAt || session.expiresAt < new Date()) {
+    res.status(410).json({ error: "session ended" }); return;
+  }
+
+  await db
+    .update(sharingSessionsTable)
+    .set({ liveActivityPushToken: pushToken })
+    .where(eq(sharingSessionsTable.token, token));
+
+  logger.info({ token, tokenPrefix: pushToken.slice(0, 8) }, "Live Activity push token stored");
+  res.json({ ok: true });
+});
+
 // ── PATCH /share/:token/ping — driver sends a GPS update ─────────────────────
-// Body: { deviceId, lat, lng, speedKmh?, durationRemainingS?, distanceRemainingM? }
+// Body: { deviceId, lat, lng, speedKmh?, durationRemainingS?, distanceRemainingM?,
+//         nextInstruction?, distToNextM?, destinationName?, speedLimitKmh?,
+//         isSharingTrip? }
+// After updating the DB row, fires a Live Activity remote push if a push token
+// is stored for the session, so the Dynamic Island / Lock Screen updates even
+// when the app is fully suspended.
 router.patch("/share/:token/ping", async (req: Request, res: Response) => {
   const token = req.params["token"] as string;
   if (!isValidUuid(token)) { res.status(404).json({ error: "session not found" }); return; }
-  const { deviceId, lat, lng, speedKmh, durationRemainingS, distanceRemainingM } = req.body ?? {};
+  const {
+    deviceId, lat, lng, speedKmh, durationRemainingS, distanceRemainingM,
+    nextInstruction, distToNextM, destinationName, speedLimitKmh, isSharingTrip,
+  } = req.body ?? {};
 
   if (!deviceId || typeof deviceId !== "string") {
     res.status(400).json({ error: "deviceId required" });
@@ -98,9 +148,10 @@ router.patch("/share/:token/ping", async (req: Request, res: Response) => {
 
   const [session] = await db
     .select({
-      deviceId:  sharingSessionsTable.deviceId,
-      endedAt:   sharingSessionsTable.endedAt,
-      expiresAt: sharingSessionsTable.expiresAt,
+      deviceId:              sharingSessionsTable.deviceId,
+      endedAt:               sharingSessionsTable.endedAt,
+      expiresAt:             sharingSessionsTable.expiresAt,
+      liveActivityPushToken: sharingSessionsTable.liveActivityPushToken,
     })
     .from(sharingSessionsTable)
     .where(eq(sharingSessionsTable.token, token));
@@ -123,6 +174,23 @@ router.patch("/share/:token/ping", async (req: Request, res: Response) => {
       lastPingAt:         new Date(),
     })
     .where(eq(sharingSessionsTable.token, token));
+
+  // ── Remote Live Activity push ─────────────────────────────────────────────
+  // Fire-and-forget so that a slow/failing APNs request never delays the ping
+  // response that the driver's app is waiting on.
+  if (session.liveActivityPushToken) {
+    const contentState: LiveActivityContentState = {
+      speedKmh:        speedKmh        != null ? Number(speedKmh)        : 0,
+      speedLimitKmh:   speedLimitKmh   != null ? Number(speedLimitKmh)   : null,
+      nextInstruction: typeof nextInstruction === "string" ? nextInstruction : null,
+      distToNextM:     distToNextM     != null ? Number(distToNextM)     : null,
+      destinationName: typeof destinationName === "string" ? destinationName : null,
+      isSharingTrip:   typeof isSharingTrip === "boolean" ? isSharingTrip : true,
+      lastUpdatedAt:   Date.now() / 1000,
+    };
+    // Do not await — keep the ping response fast
+    pushLiveActivityUpdate(session.liveActivityPushToken, contentState).catch(() => {});
+  }
 
   res.json({ ok: true });
 });

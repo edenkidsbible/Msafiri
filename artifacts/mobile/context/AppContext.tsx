@@ -716,7 +716,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentLngRef = useRef<number | null>(null);
   // Extra navigation refs used by the share-trip ping interval so it can read
   // fresh values inside setInterval without stale closure captures.
-  const currentSpeedRef    = useRef(0);
+  const currentSpeedRef      = useRef(0);
+  const currentSpeedLimitRef = useRef<number | null>(null);
+  const distToNextMRef       = useRef<number | null>(null);
   const durationRemainingRef = useRef<number | null>(null);
   const distanceRemainingRef = useRef<number | null>(null);
   // Share-trip
@@ -959,6 +961,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
   useEffect(() => { currentSpeedRef.current = currentSpeed; }, [currentSpeed]);
+  useEffect(() => { currentSpeedLimitRef.current = currentSpeedLimit; }, [currentSpeedLimit]);
+  useEffect(() => { distToNextMRef.current = distToNextM; }, [distToNextM]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
   // Reports created while offline (or whose initial POST failed) stay local
@@ -1850,6 +1854,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const pingBody: Record<string, unknown> = { deviceId: did, lat, lng, speedKmh: currentSpeedRef.current };
           if (durationRemainingRef.current != null) pingBody.durationRemainingS = durationRemainingRef.current;
           if (distanceRemainingRef.current != null) pingBody.distanceRemainingM = distanceRemainingRef.current;
+          // Include Live Activity state so the server can push ContentState
+          // updates directly via APNs when the app is fully suspended.
+          if (currentSpeedLimitRef.current != null) pingBody.speedLimitKmh = currentSpeedLimitRef.current;
+          if (distToNextMRef.current != null) pingBody.distToNextM = distToNextMRef.current;
+          const route = routeRef.current;
+          const stepIdx = stepIdxRef.current;
+          if (route?.steps[stepIdx]?.instruction) pingBody.nextInstruction = route.steps[stepIdx].instruction;
+          if (navDestRef.current?.name) pingBody.destinationName = navDestRef.current.name.split(",")[0];
+          pingBody.isSharingTrip = true;
           await apiPatch(`/share/${tk}/ping`, pingBody);
         } catch { /* ignore ping failures — next interval will retry */ }
       }, 8000);
@@ -2043,6 +2056,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     distToNextM,
     destinationName: navDestination?.name.split(",")[0] ?? null,
     currentStepIdx,
+    // Provide the sharing-session token and deviceId so the hook can upload
+    // the Live Activity push token to the server for remote APNs updates.
+    shareToken,
+    deviceId,
   });
 
 
