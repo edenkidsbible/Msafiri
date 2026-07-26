@@ -183,12 +183,45 @@ function withWidgetExtensionTarget(config) {
       widgetTarget.uuid
     );
 
-    // Build settings for the extension target
+    // ── Build settings ────────────────────────────────────────────────────────
+    //
+    // The xcode npm package stores UUID cross-references in two forms:
+    //   • As plain keys in section dictionaries:  "ABC123"
+    //   • As values in parent objects with a comment: "ABC123 /* Debug */"
+    //
+    // Passing a comment-suffixed string as a section key always returns
+    // undefined, which is why previous iterations silently skipped the whole
+    // settings block.  stripComment() normalises before every lookup.
+    function stripComment(str) {
+      if (typeof str !== "string") return str;
+      const i = str.indexOf(" /*");
+      return i >= 0 ? str.slice(0, i) : str;
+    }
+
+    // Inherit DEVELOPMENT_TEAM from the main app target so EAS doesn't need
+    // extra configuration to sign the widget extension.
+    function getMainDevelopmentTeam() {
+      try {
+        const mainTarget = project.getFirstTarget();
+        if (!mainTarget?.firstTarget?.buildConfigurationList) return "";
+        const listKey = stripComment(mainTarget.firstTarget.buildConfigurationList);
+        const list = project.pbxXCConfigurationListSection()[listKey];
+        for (const ref of (list?.buildConfigurations ?? [])) {
+          const key = stripComment(typeof ref === "object" ? ref.value : ref);
+          const cfg = project.pbxXCBuildConfigurationSection()[key];
+          const team = cfg?.buildSettings?.DEVELOPMENT_TEAM;
+          if (team) return team;
+        }
+      } catch (_) {}
+      return "";
+    }
+
     const commonSettings = {
       ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: "NO",
       CLANG_ENABLE_MODULES: "YES",
       CODE_SIGN_STYLE: "Automatic",
       CURRENT_PROJECT_VERSION: "1",
+      DEVELOPMENT_TEAM: getMainDevelopmentTeam(),
       GENERATE_INFOPLIST_FILE: "NO",
       INFOPLIST_FILE: `${WIDGET_TARGET_NAME}/Info.plist`,
       CODE_SIGN_ENTITLEMENTS: `${WIDGET_TARGET_NAME}/${WIDGET_TARGET_NAME}.entitlements`,
@@ -199,32 +232,25 @@ function withWidgetExtensionTarget(config) {
       SKIP_INSTALL: "YES",
       SWIFT_EMIT_LOC_STRINGS: "YES",
       SWIFT_VERSION: "5.9",
-      TARGETED_DEVICE_FAMILY: "1",
+      TARGETED_DEVICE_FAMILY: '"1"',
     };
 
-    // Apply build settings only to the widget target's own configurations.
-    // We walk: widgetTarget → buildConfigurationList UUID → each config UUID
-    // → XCBuildConfiguration → buildSettings.  This avoids the broken PRODUCT_NAME
-    // filter that was previously writing widget-only settings (IPHONEOS_DEPLOYMENT_TARGET
-    // 16.2, SWIFT_VERSION 5.9, etc.) into the main app's build configurations.
-    const allTargetSection = project.pbxNativeTargetSection();
-    const widgetNativeTarget = Object.values(allTargetSection).find(
-      (t) => t && t.name === WIDGET_TARGET_NAME
-    );
-    if (widgetNativeTarget && widgetNativeTarget.buildConfigurationList) {
-      const configListUuid = widgetNativeTarget.buildConfigurationList;
-      const configList = project.pbxXCConfigurationListSection()[configListUuid];
-      if (configList && Array.isArray(configList.buildConfigurations)) {
-        configList.buildConfigurations.forEach((configRef) => {
-          // buildConfigurations entries are { value: uuid, comment: "..." }
-          const uuid =
-            typeof configRef === "object" ? configRef.value : configRef;
-          const buildConfig =
-            project.pbxXCBuildConfigurationSection()[uuid];
-          if (buildConfig && buildConfig.buildSettings) {
-            Object.assign(buildConfig.buildSettings, commonSettings);
-          }
-        });
+    // Apply settings to the widget target's own XCBuildConfiguration objects.
+    // Use widgetTarget.pbxNativeTarget (returned by addTarget) directly —
+    // no need to search the section again, and the buildConfigurationList
+    // UUID comes pre-stripped of comments from the xcode package internals.
+    const nativeTarget = widgetTarget.pbxNativeTarget;
+    const configListKey = stripComment(nativeTarget.buildConfigurationList);
+    const configList = project.pbxXCConfigurationListSection()[configListKey];
+    if (configList && Array.isArray(configList.buildConfigurations)) {
+      for (const ref of configList.buildConfigurations) {
+        const configKey = stripComment(
+          typeof ref === "object" ? ref.value : ref
+        );
+        const buildConfig = project.pbxXCBuildConfigurationSection()[configKey];
+        if (buildConfig?.buildSettings) {
+          Object.assign(buildConfig.buildSettings, commonSettings);
+        }
       }
     }
 

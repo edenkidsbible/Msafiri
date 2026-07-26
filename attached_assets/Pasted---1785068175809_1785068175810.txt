@@ -1,0 +1,45 @@
++----------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+
+$ set -o pipefail && xcodebuild -workspace ./Msafiri.xcworkspace -scheme Msafiri -configuration Release -derivedDataPath ./build -destination 'generic/platform=iOS' -archivePath /Users/expo/Library/Developer/Xcode/Archives/2026-07-26/Msafiri\ 2026-07-26\ 05.14.44.xcarchive -resultBundlePath '/var/folders/5_/4knlryn57n39p2c_jw8567z00000gn/T/result-bundle-1785068079529.xcresult' archive | tee /Users/expo/workingdir/logs/Msafiri-Msafiri.log > /dev/null
+
+❌  Signing for "MsafiriWidget" requires a development team. Select a development team in the Signing & Capabilities editor. (in target 'MsafiriWidget' from project 'Msafiri')
+
+
+❌  error: SWIFT_VERSION '' is unsupported, supported versions are: 4.0, 4.2, 5.0, 6.0. (in target 'MsafiriWidget' from project 'Msafiri')
+
+⚠️  Pods/react-native-maps-ReactNativeMapsPrivacy: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 26.0.99
+⚠️  Pods/SDWebImage-SDWebImage: iOS@9.0 deployment version mismatch, expected >= 2.0 <= 26.0.99
+▸ ** ARCHIVE FAILED **
+▸ The following build commands failed:
+▸ 	Archiving workspace Msafiri with scheme Msafiri
+▸ (1 failure)
+Exit status: 65
++---------------------------------------+
+|           Build environment           |
++-------------+-------------------------+
+| xcode_path  | /Applications/Xcode.app |
+| gym_version | 2.228.0                 |
+| sdk         | iPhoneOS26.0.sdk        |
++-------------+-------------------------+
+Looks like fastlane ran into a build/archive error with your project
+It's hard to tell what's causing the error, so we wrote some guides on how
+to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
+Before submitting an issue on GitHub, please follow the guide above and make
+sure your project is set up correctly.
+fastlane uses `xcodebuild` commands to generate your binary, you can see the
+the full commands printed out in yellow in the above log.
+Make sure to inspect the output above, as usually you'll find more error information there
+[!] Error building the application - see the log above
+Error: Starting from Xcode 14, resource bundles are signed by default, which requires setting the development team for each resource bundle target.
+To resolve this issue, downgrade to an older Xcode version using the "image" field in eas.json, or upgrade to SDK 46 or higher.
+Clean up credentials
+
+672ms
+
+
+Fail job
+
+0ms
+
+
+Build failed: Starting from Xcode 14, resource bundles are signed by default, which requires setting the development team for each resource bundle target.
+To resolve this issue, downgrade to an older Xcode version using the "image" field in eas.json, or upgrade to SDK 46 or higher.
