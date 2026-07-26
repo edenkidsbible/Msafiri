@@ -17,7 +17,6 @@ module.exports = {
     ios: {
       bundleIdentifier: "com.msafirikenya.app",
       buildNumber: "1",
-      teamId: "74YL4VVLY2",
       supportsTablet: false,
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
@@ -96,7 +95,6 @@ module.exports = {
       "./plugins/withDisableUnusedAudioServices.js",
       "./plugins/withR8Optimization.js",
       "./plugins/withGeoIntentFilter.js",
-      "./plugins/withLiveActivity.js",
     ],
     updates: {
       url: "https://u.expo.dev/465586c3-648b-459e-b3c9-1983e1a62ffb",
