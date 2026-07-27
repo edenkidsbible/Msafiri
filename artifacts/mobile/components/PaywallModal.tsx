@@ -129,6 +129,7 @@ export function PaywallModal({ visible, onClose }: Props) {
             <TouchableOpacity
               onPress={handleAdminTap}
               activeOpacity={0.85}
+              delayPressIn={0}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
