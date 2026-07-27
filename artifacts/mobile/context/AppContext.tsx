@@ -1216,14 +1216,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // ── Unified alert panel: zones + community reports ────────────────────────
     //
-    // (1) Zone candidate — tighter 60° forward hemisphere to avoid alerting on
-    //     cameras the driver has just passed or turned away from.
+    // (1) Zone candidate — tight 45° forward cone to avoid alerting on cameras
+    //     the driver has just passed or turned away from.
     //     Camera-type zones only appear if the driver is actually over the limit
     //     (camera alerts during legal-speed driving would be pure noise).
+    //     Additionally, items the driver is already moving away from (distance
+    //     increasing vs the previous fix) are suppressed so a passed item never
+    //     re-activates even if GPS jitter briefly puts it inside the cone.
     const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
     const zoneCandidate = (() => {
       const fwd = driverHeading != null
-        ? inRangeZones.filter((z) => angleDiffDeg(driverHeading, bearingDeg(lat, lng, z.lat, z.lng)) <= 60)
+        ? inRangeZones.filter((z) => {
+            if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, z.lat, z.lng)) > 45) return false;
+            // Suppress if the driver is moving away from this item (already passed it).
+            if (prevFix) {
+              const prevDist = haversine(prevFix.lat, prevFix.lng, z.lat, z.lng);
+              if (prevDist < z.distance) return false;
+            }
+            return true;
+          })
         : inRangeZones;
       for (const z of fwd) {
         if (z.type === "camera" && z.speedLimit != null && kmh <= z.speedLimit) continue;
@@ -1232,7 +1243,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return null;
     })();
 
-    // (2) Report candidate — nearest forward-hemisphere active report < 2 h old
+    // (2) Report candidate — nearest forward-cone (≤45°) active report < 2 h old.
+    //     Items the driver is already moving away from are suppressed (same
+    //     passed-point rule as zone candidates above).
     const reportCandidate = (() => {
       if (!isDriving) return null;
       let best: (typeof communityReportsRef.current)[0] | null = null;
@@ -1242,7 +1255,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (now - r.timestamp > 7200000) continue;
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
-        if (driverHeading != null && angleDiffDeg(driverHeading, bearingDeg(lat, lng, r.lat, r.lng)) > 60) continue;
+        if (driverHeading != null && angleDiffDeg(driverHeading, bearingDeg(lat, lng, r.lat, r.lng)) > 45) continue;
+        // Suppress if driver is moving away (already passed the report).
+        if (prevFix) {
+          const prevDist = haversine(prevFix.lat, prevFix.lng, r.lat, r.lng);
+          if (prevDist < d) continue;
+        }
         best = r;
         bestDist = d;
       }
@@ -1281,7 +1299,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             };
 
     // (4) Dismiss active alert if it has moved out of range, the driver has
-    //     turned away (> 90°), or the driver has passed it (2 consecutive fixes
+    //     turned away (> 75°), or the driver has passed it (2 consecutive fixes
     //     of increasing distance).
     if (alertZoneRef.current && !alertDismissed.current) {
       const curZone   = withDist.find((z) => z.id === alertZoneRef.current);
@@ -1293,10 +1311,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
-        // 90° heading threshold — must be clearly pointing away, not just
-        // slightly off-axis, to avoid oscillation with the 60° activation cone.
+        // 75° heading threshold — wide enough to absorb GPS heading jitter and
+        // road curves, while still dismissing when the driver clearly turns away.
+        // Hysteresis: activation requires ≤45°, dismissal triggers at >75°.
         if (driverHeading != null && curItemLat != null && curItemLng != null) {
-          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 90) return true;
+          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 75) return true;
         }
         const lastDist = alertZoneLastDistRef.current;
         if (lastDist != null && curDist > lastDist) {
