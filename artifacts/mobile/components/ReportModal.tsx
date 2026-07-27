@@ -293,7 +293,7 @@ export default function ReportModal({
               >
                 <Ionicons name="navigate" size={14} color={locationMode === "current" ? c.primary : c.mutedForeground} />
                 <Text style={[styles.locToggleTxt, { color: locationMode === "current" ? c.primary : c.mutedForeground }]}>
-                  Current Location
+                  Here
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -303,7 +303,7 @@ export default function ReportModal({
               >
                 <Ionicons name="search" size={14} color={locationMode === "search" ? c.primary : c.mutedForeground} />
                 <Text style={[styles.locToggleTxt, { color: locationMode === "search" ? c.primary : c.mutedForeground }]}>
-                  Search Location
+                  Search
                 </Text>
               </TouchableOpacity>
               {Platform.OS !== "web" && (
@@ -314,7 +314,7 @@ export default function ReportModal({
                 >
                   <Ionicons name="map" size={14} color={locationMode === "map" ? c.primary : c.mutedForeground} />
                   <Text style={[styles.locToggleTxt, { color: locationMode === "map" ? c.primary : c.mutedForeground }]}>
-                    Pin on Map
+                    Drop Pin
                   </Text>
                 </TouchableOpacity>
               )}
@@ -463,87 +463,99 @@ export default function ReportModal({
               </View>
             )}
 
-            {/* Incident type */}
-            <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 22 }]}>WHAT DO YOU SEE?</Text>
-            <View style={styles.grid}>
-              {TYPES.map((t) => {
-                const active = sel === t.type;
-                return (
-                  <TouchableOpacity
-                    key={t.type}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? t.color + "18" : c.muted,
-                        borderColor: active ? t.color : c.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      bumpIdleTimer();
-                      if (canOneTapSubmit(t.type)) {
-                        doSubmit(t.type);
-                        return;
-                      }
-                      setSel(t.type);
-                      setSpeedLimit("");
-                    }}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
-                      <Text style={styles.chipEmoji}>{t.emoji}</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.chipLabel,
-                        { color: active ? t.color : c.foreground },
-                        active && { fontFamily: "Inter_600SemiBold" },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {t.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* While in Drop Pin mode and no pin placed yet — prompt instead of showing the incident grid */}
+            {locationMode === "map" && !pickedMapLocation && (
+              <View style={[styles.pinPrompt, { backgroundColor: c.muted }]}>
+                <Ionicons name="pin-outline" size={18} color={c.mutedForeground} />
+                <Text style={[styles.pinPromptTxt, { color: c.mutedForeground }]}>
+                  Pan & zoom to your spot, then tap the map to drop a pin
+                </Text>
+              </View>
+            )}
 
-            {/* Speed limit picker — appears when "Speed Camera" is selected. Fixed
-                choices (NTSA's common 10 km/h steps) replace free-form digit entry
-                so cameras are reported with standardized values. */}
-            {sel === "camera" && (
-              <View style={[styles.speedSection, { backgroundColor: "#E5393512", borderColor: "#E5393544" }]}>
-                <View style={styles.speedSectionHeader}>
-                  <Ionicons name="speedometer-outline" size={18} color="#E53935" />
-                  <Text style={[styles.speedLabel, { color: "#E53935" }]}>Speed limit at this camera:</Text>
-                  <Text style={[styles.speedOptional, { color: c.mutedForeground }]}>optional</Text>
-                </View>
-                <View style={styles.speedChipRow}>
-                  {SPEED_LIMIT_OPTIONS.map((limit) => {
-                    const active = speedLimit === String(limit);
+            {/* Incident type grid — shown for non-map modes, or once a map pin is placed */}
+            {(locationMode !== "map" || !!pickedMapLocation) && (
+              <>
+                <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 22 }]}>WHAT DO YOU SEE?</Text>
+                <View style={styles.grid}>
+                  {TYPES.map((t) => {
+                    const active = sel === t.type;
                     return (
                       <TouchableOpacity
-                        key={limit}
+                        key={t.type}
                         style={[
-                          styles.speedChip,
+                          styles.chip,
                           {
-                            backgroundColor: active ? "#E53935" : c.card,
-                            borderColor: active ? "#E53935" : "#E5393566",
+                            backgroundColor: active ? t.color + "18" : c.muted,
+                            borderColor: active ? t.color : c.border,
                           },
                         ]}
                         onPress={() => {
                           Haptics.selectionAsync();
                           bumpIdleTimer();
-                          setSpeedLimit((prev) => (prev === String(limit) ? "" : String(limit)));
+                          if (canOneTapSubmit(t.type)) {
+                            doSubmit(t.type);
+                            return;
+                          }
+                          setSel(t.type);
+                          setSpeedLimit("");
                         }}
                         activeOpacity={0.75}
                       >
-                        <Text style={[styles.speedChipTxt, { color: active ? "#FFF" : c.foreground }]}>{limit}</Text>
+                        <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
+                          <Text style={styles.chipEmoji}>{t.emoji}</Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.chipLabel,
+                            { color: active ? t.color : c.foreground },
+                            active && { fontFamily: "Inter_600SemiBold" },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {t.label}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
-              </View>
+
+                {/* Speed limit picker — only when Speed Camera is selected */}
+                {sel === "camera" && (
+                  <View style={[styles.speedSection, { backgroundColor: "#E5393512", borderColor: "#E5393544" }]}>
+                    <View style={styles.speedSectionHeader}>
+                      <Ionicons name="speedometer-outline" size={18} color="#E53935" />
+                      <Text style={[styles.speedLabel, { color: "#E53935" }]}>Speed limit at this camera:</Text>
+                      <Text style={[styles.speedOptional, { color: c.mutedForeground }]}>optional</Text>
+                    </View>
+                    <View style={styles.speedChipRow}>
+                      {SPEED_LIMIT_OPTIONS.map((limit) => {
+                        const active = speedLimit === String(limit);
+                        return (
+                          <TouchableOpacity
+                            key={limit}
+                            style={[
+                              styles.speedChip,
+                              {
+                                backgroundColor: active ? "#E53935" : c.card,
+                                borderColor: active ? "#E53935" : "#E5393566",
+                              },
+                            ]}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              bumpIdleTimer();
+                              setSpeedLimit((prev) => (prev === String(limit) ? "" : String(limit)));
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={[styles.speedChipTxt, { color: active ? "#FFF" : c.foreground }]}>{limit}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </>
             )}
           </ScrollView>
 
@@ -659,6 +671,13 @@ const styles = StyleSheet.create({
     minWidth: 56, alignItems: "center",
   },
   speedChipTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  pinPrompt: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, paddingVertical: 20, paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  pinPromptTxt: { fontSize: 13.5, fontFamily: "Inter_500Medium", flex: 1, lineHeight: 20 },
 
   chipEmoji: { fontSize: 17, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
   submitEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
