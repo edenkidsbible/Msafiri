@@ -30,7 +30,7 @@ type ReportType = CommunityReport["type"];
 const SPEED_LIMIT_OPTIONS = [30, 40, 50, 60, 70, 80, 90, 100, 110];
 
 // Map-pin location validation constants
-const MAP_PIN_RADIUS_M = 5000;  // 5 km proximity gate
+const MAP_PIN_RADIUS_M = 300;   // 300 m proximity gate
 const THREE_HOURS_MS   = 3 * 60 * 60 * 1000;
 
 /** Haversine distance in metres between two coordinates. */
