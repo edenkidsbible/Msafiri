@@ -90,7 +90,7 @@ export default function ReportModal({
 }: ReportModalProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { tripHistory } = useApp();
+  const { tripHistory, isAdmin } = useApp();
   const [sel, setSel] = useState<ReportType | null>(null);
   const [speedLimit, setSpeedLimit] = useState("");
 
@@ -202,6 +202,8 @@ export default function ReportModal({
    *  or any trip point from the last 3 hours. Prevents pinning unfamiliar locations. */
   const mapPinValid = useMemo(() => {
     if (!pickedMapLocation) return false;
+    // Admins can pin anywhere — no proximity restriction
+    if (isAdmin) return true;
     const { lat, lng } = pickedMapLocation;
     // Current GPS position check
     if (currentLat != null && currentLng != null) {
@@ -217,7 +219,7 @@ export default function ReportModal({
       }
     }
     return false;
-  }, [pickedMapLocation, currentLat, currentLng, tripHistory]);
+  }, [pickedMapLocation, currentLat, currentLng, tripHistory, isAdmin]);
 
   const canSubmit = !!sel && (
     locationMode === "current" ? hasCurrentLocation :
