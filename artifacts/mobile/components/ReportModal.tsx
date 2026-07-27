@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import * as Haptics from "expo-haptics";
 import {
@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { CommunityReport } from "@/context/AppContext";
+import { CommunityReport, useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { MapPinPicker } from "./MapPinPicker";
@@ -28,6 +28,21 @@ type ReportType = CommunityReport["type"];
 // Fixed speed-limit choices for speed camera reports (30–110 km/h in the
 // same 10 km/h steps NTSA limits use) — replaces free-form numeric entry.
 const SPEED_LIMIT_OPTIONS = [30, 40, 50, 60, 70, 80, 90, 100, 110];
+
+// Map-pin location validation constants
+const MAP_PIN_RADIUS_M = 5000;  // 5 km proximity gate
+const THREE_HOURS_MS   = 3 * 60 * 60 * 1000;
+
+/** Haversine distance in metres between two coordinates. */
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export interface ReportLocation {
   lat: number;
@@ -74,6 +89,7 @@ export default function ReportModal({
 }: ReportModalProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const { tripHistory } = useApp();
   const [sel, setSel] = useState<ReportType | null>(null);
   const [speedLimit, setSpeedLimit] = useState("");
 
@@ -181,10 +197,31 @@ export default function ReportModal({
     }
   };
 
+  /** True when the pinned map location is within 5 km of the user's current position
+   *  or any trip point from the last 3 hours. Prevents pinning unfamiliar locations. */
+  const mapPinValid = useMemo(() => {
+    if (!pickedMapLocation) return false;
+    const { lat, lng } = pickedMapLocation;
+    // Current GPS position check
+    if (currentLat != null && currentLng != null) {
+      if (haversineM(currentLat, currentLng, lat, lng) <= MAP_PIN_RADIUS_M) return true;
+    }
+    // Recent trip history check (last 3 hours)
+    const cutoff = Date.now() - THREE_HOURS_MS;
+    for (const trip of tripHistory) {
+      if (trip.endTime < cutoff) continue;
+      for (const point of trip.positions) {
+        if (point.time < cutoff) continue;
+        if (haversineM(point.lat, point.lng, lat, lng) <= MAP_PIN_RADIUS_M) return true;
+      }
+    }
+    return false;
+  }, [pickedMapLocation, currentLat, currentLng, tripHistory]);
+
   const canSubmit = !!sel && (
     locationMode === "current" ? hasCurrentLocation :
     locationMode === "search" ? !!pickedLocation :
-    locationMode === "map" ? !!pickedMapLocation : false
+    locationMode === "map" ? (!!pickedMapLocation && mapPinValid) : false
   );
 
   const doSubmit = (type: ReportType, limit?: number, location?: ReportLocation) => {
@@ -401,6 +438,28 @@ export default function ReportModal({
                     });
                   }}
                 />
+                {!pickedMapLocation && (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
+                    <Ionicons name="information-circle-outline" size={14} color={c.mutedForeground} style={{ marginTop: 1 }} />
+                    <Text style={{ fontSize: 12, color: c.mutedForeground, flex: 1, lineHeight: 18 }}>
+                      Tap the map to pin the exact spot. You need to be near this location or have recently traveled this route.
+                    </Text>
+                  </View>
+                )}
+                {pickedMapLocation && mapPinValid && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
+                    <Ionicons name="checkmark-circle" size={14} color="#2E7D32" />
+                    <Text style={{ fontSize: 12, color: "#2E7D32", flex: 1 }}>Location verified — within your area</Text>
+                  </View>
+                )}
+                {pickedMapLocation && !mapPinValid && (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
+                    <Ionicons name="warning-outline" size={14} color="#F57C00" style={{ marginTop: 1 }} />
+                    <Text style={{ fontSize: 12, color: "#F57C00", flex: 1, lineHeight: 18 }}>
+                      This pin is too far from your location. Move closer or use a spot you've traveled through in the last 3 hours.
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 

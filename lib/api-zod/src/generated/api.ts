@@ -613,7 +613,8 @@ export const AdminListSubscribersResponse = zod.object({
   "appUserId": zod.string(),
   "lastSeenAt": zod.string().nullish(),
   "country": zod.string().nullish(),
-  "hasActiveEntitlement": zod.boolean()
+  "hasActiveEntitlement": zod.boolean(),
+  "isOnTrial": zod.boolean()
 })),
   "total": zod.number(),
   "activeSubscribers": zod.number(),

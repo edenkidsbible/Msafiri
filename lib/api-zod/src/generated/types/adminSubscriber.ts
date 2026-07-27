@@ -14,4 +14,5 @@ export interface AdminSubscriber {
   /** @nullable */
   country?: string | null;
   hasActiveEntitlement: boolean;
+  isOnTrial: boolean;
 }

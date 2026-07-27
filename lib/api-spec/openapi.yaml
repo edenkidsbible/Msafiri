@@ -1618,13 +1618,14 @@ components:
 
     AdminSubscriber:
       type: object
-      required: [id, appUserId, hasActiveEntitlement]
+      required: [id, appUserId, hasActiveEntitlement, isOnTrial]
       properties:
         id:                   { type: string }
         appUserId:            { type: string }
         lastSeenAt:           { type: ["string", "null"] }
         country:              { type: ["string", "null"] }
         hasActiveEntitlement: { type: boolean }
+        isOnTrial:            { type: boolean }
 
     AdminSubscriberList:
       type: object

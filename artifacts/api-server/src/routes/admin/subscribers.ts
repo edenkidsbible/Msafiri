@@ -3,7 +3,9 @@ import { Router, type Request, type Response } from "express";
 const router = Router();
 
 // GET /admin/subscribers
-// Fetches subscriber summary from RevenueCat via the Replit connectors proxy
+// Fetches subscriber summary from RevenueCat via the Replit connectors proxy.
+// Only returns customers with production entitlements — sandbox/test accounts
+// that used development purchases are automatically filtered out.
 router.get("/subscribers", async (_req: Request, res: Response) => {
   try {
     const { ReplitConnectors } = await import("@replit/connectors-sdk");
@@ -42,30 +44,68 @@ router.get("/subscribers", async (_req: Request, res: Response) => {
     );
 
     let customers: any[] = [];
-    let total = 0;
 
     if (customersResp.ok) {
       const customersData = await customersResp.json() as any;
       customers = customersData?.items ?? [];
-      total = customersData?.next_page ? customers.length : customers.length;
     }
 
-    const mapped = customers.map((c: any) => ({
-      id:                c.id,
-      appUserId:         c.app_user_id ?? c.id,
-      lastSeenAt:        c.last_seen_at ?? null,
-      country:           c.country ?? null,
-      hasActiveEntitlement: Array.isArray(c.entitlements) && c.entitlements.some((e: any) => e.expires_date === null || new Date(e.expires_date) > new Date()),
-    }));
+    // The 3-day trial window used in the app
+    const TRIAL_DAYS = 3;
 
-    const activeCount = mapped.filter((c) => c.hasActiveEntitlement).length;
+    const mapped = customers
+      .map((c: any): any | null => {
+        const allEntitlements: any[] = Array.isArray(c.entitlements) ? c.entitlements : [];
+
+        // Split into production vs sandbox entitlements.
+        // If environment field is absent we trust it (legacy / promotional grants).
+        const productionEntitlements = allEntitlements.filter(
+          (e: any) => e.environment !== "SANDBOX"
+        );
+
+        // Customers whose ONLY entitlements are sandbox purchases are test accounts — skip them.
+        if (allEntitlements.length > 0 && productionEntitlements.length === 0) {
+          return null;
+        }
+
+        // Active = not yet expired production entitlement
+        const activeProduction = productionEntitlements.filter(
+          (e: any) =>
+            e.expires_date == null || new Date(e.expires_date) > new Date()
+        );
+
+        const hasActiveEntitlement = activeProduction.length > 0;
+
+        // Trial detection: explicit period_type flag OR purchase within trial window
+        const isOnTrial = hasActiveEntitlement && activeProduction.some((e: any) => {
+          if (e.period_type === "TRIAL") return true;
+          if (e.purchase_date) {
+            const daysSince = (Date.now() - new Date(e.purchase_date).getTime()) / 86_400_000;
+            return daysSince <= TRIAL_DAYS;
+          }
+          return false;
+        });
+
+        return {
+          id:                  c.id,
+          appUserId:           c.app_user_id ?? c.id,
+          lastSeenAt:          c.last_seen_at ?? null,
+          country:             c.country ?? null,
+          hasActiveEntitlement,
+          isOnTrial,
+        };
+      })
+      .filter((c: any): c is NonNullable<typeof c> => c !== null);
+
+    const activeCount = mapped.filter((c) => c.hasActiveEntitlement && !c.isOnTrial).length;
+    const trialCount  = mapped.filter((c) => c.isOnTrial).length;
 
     return res.json({
-      subscribers:        mapped,
-      total,
-      projectName:        project.name ?? project.id,
-      activeSubscribers:  activeCount,
-      trialSubscribers:   0,
+      subscribers:       mapped,
+      total:             mapped.length,
+      projectName:       project.name ?? project.id,
+      activeSubscribers: activeCount,
+      trialSubscribers:  trialCount,
     });
   } catch (err) {
     console.error("GET /admin/subscribers error:", err);
