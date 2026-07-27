@@ -3,6 +3,7 @@ import { SCROLL_PROPS } from "@/lib/scrollProps";
 import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
+  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -429,6 +430,9 @@ export default function ReportModal({
                 <MapPinPicker
                   initialLat={currentLat ?? -1.2921}
                   initialLng={currentLng ?? 36.8219}
+                  mapHeight={pickedMapLocation
+                    ? 200
+                    : Math.round(Dimensions.get("window").height * 0.52)}
                   onLocationChange={(lat, lng) => {
                     bumpIdleTimer();
                     setPickedMapLocation({

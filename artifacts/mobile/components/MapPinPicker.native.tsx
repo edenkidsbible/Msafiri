@@ -12,9 +12,10 @@ export interface MapPinPickerProps {
   initialLat: number;
   initialLng: number;
   onLocationChange: (lat: number, lng: number) => void;
+  mapHeight?: number;
 }
 
-export function MapPinPicker({ initialLat, initialLng, onLocationChange }: MapPinPickerProps) {
+export function MapPinPicker({ initialLat, initialLng, onLocationChange, mapHeight = 220 }: MapPinPickerProps) {
   const mapRef = useRef<MapView>(null);
   const [pos, setPos] = useState({ latitude: initialLat, longitude: initialLng });
 
@@ -28,7 +29,7 @@ export function MapPinPicker({ initialLat, initialLng, onLocationChange }: MapPi
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        style={styles.map}
+        style={[styles.map, { height: mapHeight }]}
         initialRegion={{
           latitude: initialLat,
           longitude: initialLng,
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#DDD",
   },
-  map: { height: 220 },
+  map: { height: 220 }, // overridden by mapHeight prop at render time
   footer: {
     paddingHorizontal: 12,
     paddingVertical: 8,
