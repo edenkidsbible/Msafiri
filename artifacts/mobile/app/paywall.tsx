@@ -17,6 +17,7 @@ import { router } from "expo-router";
 import { useSubscription } from "@/lib/revenuecat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { AdminPinModal } from "@/components/AdminPinModal";
 
 type Result = "success" | "restored" | "error" | null;
 
@@ -34,7 +35,7 @@ const FEATURES = [
 export default function PaywallScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { requestLocationPermission } = useApp();
+  const { requestLocationPermission, isAdmin, adminLogout } = useApp();
   const { offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings, purchase, isPurchasing, restore, isRestoring, isTrialEligible, setReviewerMode } =
     useSubscription();
 
@@ -91,6 +92,28 @@ export default function PaywallScreen() {
         e?.message ?? "No active subscription was found for your account. If you believe this is an error, please contact support."
       );
       setResult("error");
+    }
+  }
+
+  // Hidden admin entry — tap "Drive" 3 times quickly.
+  const adminTapCount = useRef(0);
+  const adminTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  function handleAdminTap() {
+    adminTapCount.current += 1;
+    if (adminTapTimer.current) clearTimeout(adminTapTimer.current);
+    if (adminTapCount.current >= 3) {
+      adminTapCount.current = 0;
+      if (isAdmin) {
+        Alert.alert("Admin Mode", "Deactivate admin access on this device?", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Deactivate", style: "destructive", onPress: () => { void adminLogout(); } },
+        ]);
+      } else {
+        setShowAdminLogin(true);
+      }
+    } else {
+      adminTapTimer.current = setTimeout(() => { adminTapCount.current = 0; }, 2000);
     }
   }
 
@@ -331,7 +354,9 @@ export default function PaywallScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.heroTitle, { color: c.foreground }]}>
-              Drive smarter. Stay protected.
+              {/* 3 taps on "Drive" opens admin PIN entry */}
+              <Text onPress={handleAdminTap}>Drive</Text>
+              {" smarter. Stay protected."}
             </Text>
             <Text style={[styles.heroSub, { color: c.mutedForeground }]}>
               Real-time alerts for Kenyan roads
@@ -518,6 +543,12 @@ export default function PaywallScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Admin PIN entry — triggered by 3 taps on "Drive" in the hero */}
+      <AdminPinModal
+        visible={showAdminLogin}
+        onClose={() => setShowAdminLogin(false)}
+      />
     </View>
   );
 }
