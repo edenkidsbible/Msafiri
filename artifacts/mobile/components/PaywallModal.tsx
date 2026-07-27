@@ -110,26 +110,25 @@ export function PaywallModal({ visible, onClose }: Props) {
       <View style={[styles.root, { backgroundColor: c.background, paddingBottom: insets.bottom + 16 }]}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: c.border }]}>
-          <View style={styles.headerLeft} />
+          {/* Top-left: hidden admin tap zone (4 taps) */}
+          <TouchableOpacity
+            onPress={handleAdminTap}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+            activeOpacity={1}
+            style={styles.headerLeft}
+          >
+            {/* Invisible when not admin; faint indicator when admin is active */}
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={isAdmin ? c.primary + "90" : "transparent"}
+            />
+          </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
-          {/* Top-right: hidden admin tap zone (4 taps) + close button */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <TouchableOpacity
-              onPress={handleAdminTap}
-              hitSlop={{ top: 12, bottom: 12, left: 8, right: 2 }}
-              activeOpacity={1}
-            >
-              {/* Invisible when not admin; faint indicator when admin is active */}
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={isAdmin ? c.primary + "90" : "transparent"}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}>
-              <Ionicons name="close" size={24} color={c.mutedForeground} />
-            </TouchableOpacity>
-          </View>
+          {/* Top-right: close button */}
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}>
+            <Ionicons name="close" size={24} color={c.mutedForeground} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -343,7 +342,7 @@ export function PaywallModal({ visible, onClose }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Admin login — triggered by 4-tap on top-right checkmark */}
+        {/* Admin login — triggered by 4-tap on top-left checkmark */}
         <AdminPinModal
           visible={showAdminLogin}
           onClose={() => setShowAdminLogin(false)}
