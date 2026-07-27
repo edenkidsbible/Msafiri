@@ -5,6 +5,7 @@ import {
   Animated,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -131,7 +133,7 @@ export default function DriveScreen() {
     pendingConfirmationReport, setPendingConfirmationReport,
     setPendingConfirmationSource,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
-    driverName,
+    driverName, setDriverName,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -153,6 +155,8 @@ export default function DriveScreen() {
   const [showReport, setShowReport] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sharingLoading, setSharingLoading] = useState(false);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
 
@@ -211,18 +215,14 @@ export default function DriveScreen() {
     }
   }, [navigationActive]);
 
-  const handleSharePress = useCallback(async () => {
-    if (isSharingTrip) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await stopSharingTrip();
-      return;
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // Extracted so both the direct path and the name-prompt confirm button can call it.
+  const doStartSharing = useCallback(async (name: string) => {
     setSharingLoading(true);
     try {
       const link = await startSharingTrip();
       if (link) {
-        const namePrefix = driverName.trim() ? `${driverName.trim()} is sharing their live location 📍` : "Follow my live trip 📍";
+        const trimmed = name.trim();
+        const namePrefix = trimmed ? `${trimmed} is sharing their live location 📍` : "Follow my live trip 📍";
         await Share.share({
           message: `${namePrefix}\n${link}`,
           title: "Track my trip — Msafiri Kenya",
@@ -231,7 +231,27 @@ export default function DriveScreen() {
     } finally {
       setSharingLoading(false);
     }
-  }, [isSharingTrip, startSharingTrip, stopSharingTrip, driverName]);
+  }, [startSharingTrip]);
+
+  const handleSharePress = useCallback(async () => {
+    if (isSharingTrip) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await stopSharingTrip();
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Show the name prompt the very first time the driver taps share.
+    // After that (prompted = true) we go straight to sharing.
+    const prompted = await AsyncStorage.getItem("sdk_share_name_prompted");
+    if (!prompted) {
+      setNameInput(driverName); // pre-fill if they already set a name somehow
+      setShowNamePrompt(true);
+      return;
+    }
+
+    await doStartSharing(driverName);
+  }, [isSharingTrip, stopSharingTrip, doStartSharing, driverName]);
 
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
@@ -1202,6 +1222,76 @@ export default function DriveScreen() {
         }}
       />
 
+      {/* ── Driver name prompt (shown once before first live share) ─────────── */}
+      <Modal
+        visible={showNamePrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNamePrompt(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.namePromptOverlay}
+        >
+          <View style={[styles.namePromptSheet, { backgroundColor: c.card }]}>
+            <Text style={[styles.namePromptTitle, { color: c.foreground }]}>
+              What should people see?
+            </Text>
+            <Text style={[styles.namePromptSub, { color: c.mutedForeground }]}>
+              People you share your live location with will see your name — e.g. "Jane is sharing their location".
+            </Text>
+
+            <View style={[styles.namePromptInputRow, { borderColor: c.border, backgroundColor: c.muted }]}>
+              <Ionicons name="person-outline" size={18} color={c.mutedForeground} style={{ marginRight: 8 }} />
+              <TextInput
+                style={[styles.namePromptInput, { color: c.foreground }]}
+                placeholder="Your first name (optional)"
+                placeholderTextColor={c.mutedForeground}
+                value={nameInput}
+                onChangeText={setNameInput}
+                returnKeyType="done"
+                maxLength={40}
+                autoFocus
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.namePromptPrimary, { backgroundColor: c.primary }]}
+              activeOpacity={0.85}
+              onPress={async () => {
+                const trimmed = nameInput.trim();
+                if (trimmed) setDriverName(trimmed);
+                await AsyncStorage.setItem("sdk_share_name_prompted", "1");
+                setShowNamePrompt(false);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                await doStartSharing(trimmed);
+              }}
+            >
+              <Ionicons name="share-social-outline" size={17} color={c.primaryForeground} style={{ marginRight: 6 }} />
+              <Text style={[styles.namePromptPrimaryTxt, { color: c.primaryForeground }]}>
+                Start Sharing
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.namePromptSkip}
+              activeOpacity={0.7}
+              onPress={async () => {
+                await AsyncStorage.setItem("sdk_share_name_prompted", "1");
+                setShowNamePrompt(false);
+                await doStartSharing(driverName);
+              }}
+            >
+              <Text style={[styles.namePromptSkipTxt, { color: c.mutedForeground }]}>Skip for now</Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.namePromptHint, { color: c.mutedForeground }]}>
+              You can update this anytime in Settings → Live Sharing
+            </Text>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* ── Overview auto-exit toast ─────────────────────────────────────────── */}
       <Animated.View
         pointerEvents="none"
@@ -1580,4 +1670,77 @@ const styles = StyleSheet.create({
     width: "100%", paddingVertical: 16, borderRadius: 16, alignItems: "center",
   },
   arrivalDoneTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
+
+  // ── Driver name prompt modal ───────────────────────────────────────────────
+  namePromptOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  namePromptSheet: {
+    width: "100%",
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  namePromptTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  namePromptSub: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 19,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  namePromptInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  namePromptInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+  },
+  namePromptPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    borderRadius: 14,
+    marginBottom: 10,
+  },
+  namePromptPrimaryTxt: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  namePromptSkip: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  namePromptSkipTxt: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+  },
+  namePromptHint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    marginTop: 12,
+    opacity: 0.7,
+  },
 });
