@@ -235,6 +235,8 @@ interface AppContextValue {
   adminVerifyReport: (id: string) => Promise<void>;
   adminDenyReport: (id: string) => Promise<void>;
   adminUpdateReportLocation: (id: string, lat: number, lng: number, roadName?: string | null) => Promise<void>;
+  adminUpdateZoneLocation: (id: string, lat: number, lng: number) => Promise<void>;
+  adminRemoveZone: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -2526,6 +2528,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, [communityReports]);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  const adminUpdateZoneLocation = useCallback(async (id: string, lat: number, lng: number): Promise<void> => {
+    await adminApiFetch("PATCH", `/admin-mobile/zones/${id}/location`, { lat, lng });
+    setDbZones((prev) => prev.map((z) => z.id === id ? { ...z, lat, lng } : z));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const adminRemoveZone = useCallback(async (id: string): Promise<void> => {
+    await adminApiFetch("DELETE", `/admin-mobile/zones/${id}`);
+    setDbZones((prev) => prev.filter((z) => z.id !== id));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission, requestNotificationPermission,
@@ -2562,6 +2574,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markReportPrompted, isReportPrompted,
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
+      adminUpdateZoneLocation, adminRemoveZone,
     }}>
       {children}
     </AppContext.Provider>

@@ -18,6 +18,7 @@ import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, type Region } from 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
+import type { SpeedZone } from "@/data/speedZones";
 import { useColors } from "@/hooks/useColors";
 import { POIS } from "@/data/pois";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
@@ -197,6 +198,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     vehicleType, allZones,
     pendingFocusCoords, setPendingFocusCoords,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
+    adminUpdateZoneLocation, adminRemoveZone,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -236,6 +238,8 @@ const DriveMapView = forwardRef(function DriveMapView(
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [adminLocationTarget, setAdminLocationTarget] = useState<CommunityReport | null>(null);
+  const [selectedZone, setSelectedZone] = useState<SpeedZone | null>(null);
+  const [adminZoneLocationTarget, setAdminZoneLocationTarget] = useState<SpeedZone | null>(null);
 
   // Android + PROVIDER_GOOGLE: custom marker views must go through at least one
   // full render cycle with tracksViewChanges=true before the native layer
@@ -597,14 +601,8 @@ const DriveMapView = forwardRef(function DriveMapView(
               <Marker
                 coordinate={{ latitude: z.lat, longitude: z.lng }}
                 anchor={{ x: 0.5, y: 1 }}
-                title={z.name}
-                description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
-                // Start with tracksViewChanges=true so Android/PROVIDER_GOOGLE
-                // can capture the initial bitmap of each custom marker view.
-                // Switch to false after markersFrozen (1.5 s) to stop
-                // re-rasterising on every map layout pass — the biggest
-                // source of dropped frames while panning.
                 tracksViewChanges={!markersFrozen}
+                onPress={() => setSelectedZone(z)}
               >
                 {z.isStretchEndpoint ? (
                   <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={bg} />
@@ -904,7 +902,7 @@ const DriveMapView = forwardRef(function DriveMapView(
         </Modal>
       )}
 
-      {/* Admin location fixer */}
+      {/* Admin location fixer — community reports */}
       {adminLocationTarget && (
         <AdminLocationPickerModal
           visible
@@ -919,6 +917,98 @@ const DriveMapView = forwardRef(function DriveMapView(
             setAdminLocationTarget(null);
           }}
         />
+      )}
+
+      {/* Admin location fixer — speed zones */}
+      {adminZoneLocationTarget && (
+        <AdminLocationPickerModal
+          visible
+          reportId={adminZoneLocationTarget.id}
+          initialLat={adminZoneLocationTarget.lat}
+          initialLng={adminZoneLocationTarget.lng}
+          onClose={() => setAdminZoneLocationTarget(null)}
+          onSave={async (lat, lng) => {
+            await adminUpdateZoneLocation(adminZoneLocationTarget.id, lat, lng);
+            setAdminZoneLocationTarget(null);
+            setSelectedZone(null);
+          }}
+        />
+      )}
+
+      {/* Speed zone detail sheet */}
+      {selectedZone && !adminZoneLocationTarget && (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setSelectedZone(null)}>
+          <TouchableOpacity style={ms.backdrop} activeOpacity={1} onPress={() => setSelectedZone(null)}>
+            <TouchableOpacity activeOpacity={1} style={ms.sheet}>
+              {/* Header */}
+              <View style={ms.sheetHeader}>
+                <View style={[ms.zoneIconWrap, {
+                  backgroundColor: selectedZone.type === "camera" ? "#E5393518" : selectedZone.type === "police" ? "#1565C018" : "#E6510018",
+                }]}>
+                  <Ionicons
+                    name={selectedZone.type === "camera" ? "camera" : selectedZone.type === "police" ? "person" : "speedometer"}
+                    size={20}
+                    color={selectedZone.type === "camera" ? "#E53935" : selectedZone.type === "police" ? "#1565C0" : "#E65100"}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={ms.zoneTitle}>{selectedZone.name}</Text>
+                  <Text style={ms.zoneSub}>
+                    {selectedZone.road}
+                    {selectedZone.speedLimit ? `  ·  ${capSpeedLimit(selectedZone.speedLimit, vehicle)} km/h` : ""}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedZone(null)} style={ms.closeBtn}>
+                  <Ionicons name="close" size={18} color="#757575" />
+                </TouchableOpacity>
+              </View>
+
+              {/* User note */}
+              <View style={ms.zoneManagedNote}>
+                <Ionicons name="shield-checkmark-outline" size={13} color="#1565C0" />
+                <Text style={ms.zoneManagedTxt}>
+                  {selectedZone.type === "camera"
+                    ? "Speed camera — permanent enforcement point"
+                    : selectedZone.type === "police"
+                    ? "Police checkpoint — reported by our team"
+                    : "Speed zone — managed by our team"}
+                </Text>
+              </View>
+
+              {/* Admin actions */}
+              {isAdmin && (
+                <View style={ms.adminActionRow}>
+                  <TouchableOpacity
+                    style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
+                    onPress={() => setAdminZoneLocationTarget(selectedZone)}
+                  >
+                    <Ionicons name="location" size={13} color="#1565C0" />
+                    <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
+                    onPress={() =>
+                      Alert.alert("Remove Zone", `Remove "${selectedZone.name}" from the map?`, [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Remove",
+                          style: "destructive",
+                          onPress: async () => {
+                            await adminRemoveZone(selectedZone.id);
+                            setSelectedZone(null);
+                          },
+                        },
+                      ])
+                    }
+                  >
+                    <Ionicons name="close-circle" size={13} color="#B71C1C" />
+                    <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       )}
     </>
   );
@@ -1047,4 +1137,20 @@ const ms = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
   },
   adminBtnTxt: { fontSize: 11, fontWeight: "700" },
+  // Zone detail sheet
+  sheetHeader: {
+    flexDirection: "row", alignItems: "center", marginBottom: 4,
+  },
+  zoneIconWrap: {
+    width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 10,
+  },
+  zoneTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#212121" },
+  zoneSub: { fontSize: 12, color: "#757575", marginTop: 2 },
+  zoneManagedNote: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 8, paddingHorizontal: 10,
+    backgroundColor: "#E3F2FD18", borderRadius: 8,
+    marginTop: 8,
+  },
+  zoneManagedTxt: { fontSize: 12, color: "#1565C0", flex: 1 },
 });
