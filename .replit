@@ -36,3 +36,6 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
 ADMIN_JWT_SECRET = "lMuenV2uOsO8mh5upcwclnsZoYGHV1vugJvhhCwFsxDexta2Bu-BrPMiOO2oHHk8"
 RESEND_FROM = "Msafiri Kenya <noreply@msafirikenya.com>"
 REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-c52237a7-860b-4963-bc52-c54263801a9a"
