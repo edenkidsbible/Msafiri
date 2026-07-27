@@ -110,22 +110,8 @@ export function PaywallModal({ visible, onClose }: Props) {
       <View style={[styles.root, { backgroundColor: c.background, paddingBottom: insets.bottom + 16 }]}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: c.border }]}>
-          {/* Top-left: hidden admin tap zone (4 taps) */}
-          <TouchableOpacity
-            onPress={handleAdminTap}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
-            activeOpacity={1}
-            style={styles.headerLeft}
-          >
-            {/* Invisible when not admin; faint indicator when admin is active */}
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color={isAdmin ? c.primary + "90" : "transparent"}
-            />
-          </TouchableOpacity>
+          <View style={styles.headerLeft} />
           <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
-          {/* Top-right: close button */}
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}>
             <Ionicons name="close" size={24} color={c.mutedForeground} />
           </TouchableOpacity>
@@ -139,9 +125,16 @@ export function PaywallModal({ visible, onClose }: Props) {
         >
           {/* Hero */}
           <View style={styles.heroWrap}>
-            <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
-              <Ionicons name="shield-checkmark" size={40} color={c.primary} />
-            </View>
+            {/* 4 taps on the shield badge opens admin PIN entry */}
+            <TouchableOpacity
+              onPress={handleAdminTap}
+              activeOpacity={0.85}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
+                <Ionicons name="shield-checkmark" size={40} color={c.primary} />
+              </View>
+            </TouchableOpacity>
             <Text style={[styles.heroTitle, { color: c.foreground }]}>
               Drive smarter.{"\n"}Stay protected.
             </Text>
