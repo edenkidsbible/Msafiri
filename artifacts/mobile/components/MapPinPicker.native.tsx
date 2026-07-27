@@ -35,7 +35,7 @@ export function MapPinPicker({ initialLat, initialLng, onLocationChange }: MapPi
           latitudeDelta: 0.004,
           longitudeDelta: 0.004,
         }}
-        onPress={(e) => {
+        onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
           const { latitude, longitude } = e.nativeEvent.coordinate;
           update(latitude, longitude);
           mapRef.current?.animateToRegion(

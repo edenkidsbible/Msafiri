@@ -130,7 +130,9 @@ export function AdminLocationPickerModal({
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           }}
-          onPress={(e) => handlePress(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
+          onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) =>
+            handlePress(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)
+          }
           scrollEnabled
           zoomEnabled
           rotateEnabled={false}
@@ -139,7 +141,7 @@ export function AdminLocationPickerModal({
           <Marker
             coordinate={pos}
             draggable
-            onDragEnd={(e) =>
+            onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) =>
               handlePress(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)
             }
           />
