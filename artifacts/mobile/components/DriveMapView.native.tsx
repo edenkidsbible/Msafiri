@@ -529,19 +529,12 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
 
-  // Community report clusters need their own separate freeze that RESETS
-  // whenever clusters change. On Android/PROVIDER_GOOGLE, a marker that starts
-  // life with tracksViewChanges=false never gets its bitmap captured and shows
-  // as invisible. Unfreezing briefly on every cluster update gives newly added
-  // markers their capture window before freezing again to avoid jank.
-  const [clustersFrozen, setClustersFrozen] = useState(false);
-  const clusterFreezeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    setClustersFrozen(false);
-    if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current);
-    clusterFreezeRef.current = setTimeout(() => setClustersFrozen(true), 1500);
-    return () => { if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current); };
-  }, [clusters]);
+  // Community report cluster markers always keep tracksViewChanges={true}.
+  // The freeze optimisation (set to false after 1.5 s) caused tap hit-detection
+  // to become unreliable: Google Maps calculates touch areas when the flag
+  // flips, so resetting it on every communityReports change (syncs, votes)
+  // created a cycle where markers lost their tap target after each poll.
+  // The cost of keeping it true is negligible for ~30 emoji markers.
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
@@ -633,7 +626,7 @@ const DriveMapView = forwardRef(function DriveMapView(
               key={clusterKey}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={!clustersFrozen}
+              tracksViewChanges={true}
               onPress={() => openCluster(group)}
               zIndex={10}
             >
@@ -792,8 +785,8 @@ const DriveMapView = forwardRef(function DriveMapView(
                         ) : null}
                         <Text style={ms.incidentMeta}>
                           {r.type === "camera" ? "Speed camera — permanent" : ageStr}
-                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount} say still here` : ""}
-                          {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount} say gone` : ""}
+                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount > 99 ? "99+" : r.confirmCount} say still here` : ""}
+                          {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         {r.type === "camera" ? (
@@ -885,7 +878,13 @@ const DriveMapView = forwardRef(function DriveMapView(
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
-                              onPress={() => setAdminLocationTarget(r)}
+                              onPress={() => {
+                                // Close the cluster popup first — iOS cannot
+                                // show two <Modal>s simultaneously, so the
+                                // fix-pin modal would be invisible otherwise.
+                                setSelectedCluster(null);
+                                setAdminLocationTarget(r);
+                              }}
                             >
                               <Ionicons name="location" size={13} color="#1565C0" />
                               <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>

@@ -9,6 +9,7 @@ import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
+import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
@@ -185,6 +186,7 @@ export default function MapViewScreen() {
     vehicleType, allZones,
     confirmReport, denyReport, flagReport,
     driverHeading,
+    isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
   } = useApp();
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -211,22 +213,15 @@ export default function MapViewScreen() {
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
+  const [adminLocationTarget, setAdminLocationTarget] = useState<CommunityReport | null>(null);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
   const openedAtRef = useRef(0);
   const now = Date.now();
 
-  // Android/PROVIDER_GOOGLE: cluster markers need tracksViewChanges=true for
-  // their first render so the native layer captures the custom view bitmap.
-  // Reset whenever clusters change so newly added markers are always captured.
-  const [clustersFrozen, setClustersFrozen] = useState(false);
-  const clusterFreezeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    setClustersFrozen(false);
-    if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current);
-    clusterFreezeRef.current = setTimeout(() => setClustersFrozen(true), 1500);
-    return () => { if (clusterFreezeRef.current) clearTimeout(clusterFreezeRef.current); };
-  }, [clusters]);
+  // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
+  // for the full explanation. The freeze optimisation caused tap hit-detection
+  // to break whenever communityReports changed (polls, votes, new reports).
 
   const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
     setShowReport(false);
@@ -256,6 +251,50 @@ export default function MapViewScreen() {
     if (Date.now() - openedAtRef.current < 400) return;
     setSelectedCluster(null);
   };
+  const handleAdminVerify = async (r: CommunityReport) => {
+    const id = r.serverId ?? r.id;
+    try {
+      await adminVerifyReport(id);
+      setSelectedCluster((prev) =>
+        prev
+          ? {
+              ...prev,
+              members: prev.members.map((m) =>
+                m.id === r.id || m.serverId === id
+                  ? { ...m, adminVerified: true, status: "confirmed" as const, confirmCount: 999 }
+                  : m
+              ),
+            }
+          : prev
+      );
+    } catch (err: any) {
+      Alert.alert("Verification Failed", err?.message ?? "Check your connection and try again.");
+    }
+  };
+
+  const handleAdminDeny = (r: CommunityReport) => {
+    Alert.alert("Remove Report", "Permanently remove this report from the map?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          const id = r.serverId ?? r.id;
+          try {
+            await adminDenyReport(id);
+            setSelectedCluster((prev) => {
+              if (!prev) return prev;
+              const remaining = prev.members.filter((m) => m.id !== r.id && m.serverId !== id);
+              return remaining.length ? { ...prev, members: remaining } : null;
+            });
+          } catch (err: any) {
+            Alert.alert("Remove Failed", err?.message ?? "Check your connection and try again.");
+          }
+        },
+      },
+    ]);
+  };
+
   const handleFlagReport = (id: string) => {
     Alert.alert(
       "Report to moderators",
@@ -354,7 +393,7 @@ export default function MapViewScreen() {
               key={clusterKey}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={!clustersFrozen}
+              tracksViewChanges={true}
               zIndex={10}
               opacity={behind ? 0.3 : 1}
               onPress={() => openCluster(group)}
@@ -464,6 +503,24 @@ export default function MapViewScreen() {
         currentLng={currentLng}
       />
 
+      {/* Admin Fix Pin modal — rendered outside the cluster Modal so iOS can
+          show it without two <Modal>s stacked simultaneously. */}
+      {adminLocationTarget && (
+        <AdminLocationPickerModal
+          visible
+          reportId={adminLocationTarget.serverId ?? adminLocationTarget.id}
+          initialLat={adminLocationTarget.lat}
+          initialLng={adminLocationTarget.lng}
+          initialRoadName={adminLocationTarget.roadName}
+          onClose={() => setAdminLocationTarget(null)}
+          onSave={async (lat, lng, roadName) => {
+            const id = adminLocationTarget.serverId ?? adminLocationTarget.id;
+            await adminUpdateReportLocation(id, lat, lng, roadName ?? null);
+            setAdminLocationTarget(null);
+          }}
+        />
+      )}
+
       {/* ── Incident detail sheet ─────────────────────────────────────────── */}
       {selectedCluster && (
         <Modal
@@ -505,7 +562,13 @@ export default function MapViewScreen() {
                       <View style={{ flex: 1, gap: 3 }}>
                         <View style={ms.incidentLabelRow}>
                           <Text style={ms.incidentType}>{reportLabel(r.type)}</Text>
-                          {confirmed && (
+                          {r.adminVerified && (
+                            <View style={[ms.verifiedBadge, { backgroundColor: "#E3F2FD", borderColor: "#1565C030" }]}>
+                              <Ionicons name="shield-checkmark" size={11} color="#1565C0" />
+                              <Text style={[ms.verifiedTxt, { color: "#1565C0" }]}>Admin Verified</Text>
+                            </View>
+                          )}
+                          {!r.adminVerified && confirmed && (
                             <View style={ms.verifiedBadge}>
                               <Ionicons name="checkmark-circle" size={11} color="#2E7D32" />
                               <Text style={ms.verifiedTxt}>Verified</Text>
@@ -519,48 +582,105 @@ export default function MapViewScreen() {
                         </View>
                         {r.roadName ? <Text style={ms.incidentRoad}>{r.roadName}</Text> : null}
                         <Text style={ms.incidentMeta}>
-                          {r.type === "camera" ? "Confirmed by admin" : ageStr}
-                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  Reported by ${r.confirmCount} users` : ""}
+                          {r.type === "camera" ? "Speed camera — permanent" : ageStr}
+                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount > 99 ? "99+" : r.confirmCount} say still here` : ""}
+                          {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
-                        <View style={ms.voteRow}>
-                          <TouchableOpacity
-                            style={[ms.voteBtn, { backgroundColor: "#388E3C18", borderColor: "#388E3C55" }]}
-                            onPress={() => { confirmReport(r.id); setSelectedCluster(null); }}
-                          >
-                            <Ionicons name="thumbs-up-outline" size={13} color="#388E3C" />
-                            <Text style={[ms.voteTxt, { color: "#388E3C" }]}>Still here</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }, denyingId === r.id && ms.voteBtnDisabled]}
-                            disabled={denyingId === r.id}
-                            onPress={async () => {
-                              setDenyingId(r.id);
-                              const ok = await denyReport(r.id);
-                              setDenyingId(null);
-                              if (ok) {
+                        {r.type === "camera" ? (
+                          <View style={ms.voteRow}>
+                            <View style={ms.cameraPermanentNote}>
+                              <Ionicons name="shield-checkmark-outline" size={12} color="#1565C0" />
+                              <Text style={ms.cameraPermanentTxt}>Managed by our team — flag if misplaced</Text>
+                            </View>
+                            <TouchableOpacity
+                              style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
+                              disabled={flaggingId === r.id}
+                              onPress={() => handleFlagReport(r.id)}
+                            >
+                              <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
+                              <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
+                                {flaggingId === r.id ? "Sending…" : "Flag"}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <View style={ms.voteRow}>
+                            <TouchableOpacity
+                              style={[ms.voteBtn, { backgroundColor: "#388E3C18", borderColor: "#388E3C55" }]}
+                              onPress={() => {
+                                confirmReport(r.id);
+                                Alert.alert("Thanks!", "We've noted this and extended the warning for other drivers.");
                                 setSelectedCluster(null);
-                              } else {
-                                Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
-                              }
-                            }}
-                          >
-                            <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
-                            <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
-                              {denyingId === r.id ? "Sending…" : "Gone now"}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
-                            disabled={flaggingId === r.id}
-                            onPress={() => handleFlagReport(r.id)}
-                          >
-                            <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
-                            <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
-                              {flaggingId === r.id ? "Sending…" : "Report"}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
+                              }}
+                            >
+                              <Ionicons name="thumbs-up-outline" size={13} color="#388E3C" />
+                              <Text style={[ms.voteTxt, { color: "#388E3C" }]}>Still here</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }, denyingId === r.id && ms.voteBtnDisabled]}
+                              disabled={denyingId === r.id}
+                              onPress={async () => {
+                                setDenyingId(r.id);
+                                const ok = await denyReport(r.id);
+                                setDenyingId(null);
+                                if (ok) {
+                                  setSelectedCluster(null);
+                                  Alert.alert("Thanks for the update", "Your report helps our team keep the map accurate.");
+                                } else {
+                                  Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
+                                }
+                              }}
+                            >
+                              <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
+                              <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
+                                {denyingId === r.id ? "Sending…" : "Gone now"}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
+                              disabled={flaggingId === r.id}
+                              onPress={() => handleFlagReport(r.id)}
+                            >
+                              <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
+                              <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
+                                {flaggingId === r.id ? "Sending…" : "Report"}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                        {isAdmin && (
+                          <View style={ms.adminActionRow}>
+                            <TouchableOpacity
+                              style={[ms.adminBtn, { backgroundColor: "#E8F5E920", borderColor: "#1B5E2040" }]}
+                              onPress={() => handleAdminVerify(r)}
+                            >
+                              <Ionicons name="checkmark-circle" size={13} color="#1B5E20" />
+                              <Text style={[ms.adminBtnTxt, { color: "#1B5E20" }]}>
+                                {r.adminVerified ? "✓ Verified" : "Verify"}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
+                              onPress={() => handleAdminDeny(r)}
+                            >
+                              <Ionicons name="close-circle" size={13} color="#B71C1C" />
+                              <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
+                              onPress={() => {
+                                // Close cluster modal first — iOS cannot show two
+                                // <Modal>s simultaneously.
+                                setSelectedCluster(null);
+                                setAdminLocationTarget(r);
+                              }}
+                            >
+                              <Ionicons name="location" size={13} color="#1565C0" />
+                              <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
                     </View>
                   );
@@ -687,11 +807,24 @@ const ms = StyleSheet.create({
   ownTxt: { fontSize: 10, fontWeight: "700", color: "#1565C0" },
   incidentRoad: { fontSize: 12, fontWeight: "600", color: "#1565C0", marginTop: 1 },
   incidentMeta: { fontSize: 12, color: "#888" },
-  voteRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  voteRow: { flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" },
   voteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
   },
   voteBtnDisabled: { opacity: 0.5 },
   voteTxt: { fontSize: 12, fontWeight: "600" },
+  cameraPermanentNote: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    flex: 1,
+  },
+  cameraPermanentTxt: { fontSize: 11, color: "#1565C0", fontWeight: "500", flex: 1 },
+  adminActionRow: {
+    flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap",
+  },
+  adminBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1,
+  },
+  adminBtnTxt: { fontSize: 11, fontWeight: "600" },
 });

@@ -9,7 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "REPLACE_WITH_DEV_DOMAIN",
+        "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"

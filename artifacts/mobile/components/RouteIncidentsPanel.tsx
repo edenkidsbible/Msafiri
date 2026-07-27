@@ -173,7 +173,7 @@ export default function RouteIncidentsPanel() {
                     )}
                     {inc.source === "report" && inc.type !== "camera" && inc.confirmCount != null && inc.confirmCount > 1 && (
                       <Text style={[styles.rowDesc, { color: c.mutedForeground }]}>
-                        {inc.confirmCount} driver{inc.confirmCount === 1 ? "" : "s"} say still here
+                        {inc.confirmCount! > 99 ? "99+" : inc.confirmCount} driver{inc.confirmCount === 1 ? "" : "s"} say still here
                       </Text>
                     )}
                     {inc.source === "report" && inc.type === "camera" && (

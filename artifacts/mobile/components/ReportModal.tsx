@@ -481,54 +481,40 @@ export default function ReportModal({
 
             {/* Incident type grid — shown for non-map modes, or once a map pin is placed */}
             {(locationMode !== "map" || !!pickedMapLocation) && (
-              <>
-                <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 22 }]}>WHAT DO YOU SEE?</Text>
-                <View style={styles.grid}>
-                  {TYPES.map((t) => {
-                    const active = sel === t.type;
-                    return (
-                      <TouchableOpacity
-                        key={t.type}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor: active ? t.color + "18" : c.muted,
-                            borderColor: active ? t.color : c.border,
-                          },
-                        ]}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          bumpIdleTimer();
-                          if (canOneTapSubmit(t.type)) {
-                            doSubmit(t.type);
-                            return;
-                          }
-                          setSel(t.type);
-                          setSpeedLimit("");
-                        }}
-                        activeOpacity={0.75}
-                      >
-                        <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
-                          <Text style={styles.chipEmoji}>{t.emoji}</Text>
-                        </View>
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            { color: active ? t.color : c.foreground },
-                            active && { fontFamily: "Inter_600SemiBold" },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {t.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+              sel === "camera" ? (
+                /* ── Camera focused view ──────────────────────────────────────
+                   When Speed Camera is selected, collapse the full grid and
+                   show only the camera card + speed-limit picker so the driver
+                   isn't forced to scroll past 13 other chips to reach it.
+                ────────────────────────────────────────────────────────────── */
+                <>
+                  {/* Back link */}
+                  <TouchableOpacity
+                    style={styles.changeTypeRow}
+                    onPress={() => { Haptics.selectionAsync(); bumpIdleTimer(); setSel(null); setSpeedLimit(""); }}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="arrow-back" size={16} color={c.primary} />
+                    <Text style={[styles.changeTypeTxt, { color: c.primary }]}>Change incident type</Text>
+                  </TouchableOpacity>
 
-                {/* Speed limit picker — only when Speed Camera is selected */}
-                {sel === "camera" && (
-                  <View style={[styles.speedSection, { backgroundColor: "#E5393512", borderColor: "#E5393544" }]}>
+                  {/* Selected camera card */}
+                  <View style={[styles.cameraCard, { backgroundColor: "#E5393512", borderColor: "#E53935" }]}>
+                    <View style={[styles.cameraCardIcon, { backgroundColor: "#E5393530" }]}>
+                      <Text style={styles.cameraCardEmoji}>📷</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.cameraCardLabel, { color: "#E53935" }]}>Speed Camera</Text>
+                      <Text style={[styles.cameraCardHint, { color: c.mutedForeground }]}>
+                        Tap a speed limit below, then submit
+                      </Text>
+                    </View>
+                    <Ionicons name="checkmark-circle" size={22} color="#E53935" />
+                  </View>
+
+                  {/* Speed limit picker — front and centre */}
+                  <View style={[styles.speedSection, { backgroundColor: "#E5393508", borderColor: "#E5393544", marginTop: 12 }]}>
                     <View style={styles.speedSectionHeader}>
                       <Ionicons name="speedometer-outline" size={18} color="#E53935" />
                       <Text style={[styles.speedLabel, { color: "#E53935" }]}>Speed limit at this camera:</Text>
@@ -560,8 +546,55 @@ export default function ReportModal({
                       })}
                     </View>
                   </View>
-                )}
-              </>
+                </>
+              ) : (
+                /* ── Normal incident grid ──────────────────────────────────── */
+                <>
+                  <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 22 }]}>WHAT DO YOU SEE?</Text>
+                  <View style={styles.grid}>
+                    {TYPES.map((t) => {
+                      const active = sel === t.type;
+                      return (
+                        <TouchableOpacity
+                          key={t.type}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: active ? t.color + "18" : c.muted,
+                              borderColor: active ? t.color : c.border,
+                            },
+                          ]}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            bumpIdleTimer();
+                            if (canOneTapSubmit(t.type)) {
+                              doSubmit(t.type);
+                              return;
+                            }
+                            setSel(t.type);
+                            setSpeedLimit("");
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
+                            <Text style={styles.chipEmoji}>{t.emoji}</Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.chipLabel,
+                              { color: active ? t.color : c.foreground },
+                              active && { fontFamily: "Inter_600SemiBold" },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {t.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )
             )}
           </ScrollView>
 
@@ -687,6 +720,25 @@ const styles = StyleSheet.create({
 
   chipEmoji: { fontSize: 17, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
   submitEmoji: { fontSize: 16, lineHeight: 20, fontFamily: EMOJI_FONT_FAMILY },
+
+  changeTypeRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginTop: 20, marginBottom: 14,
+  },
+  changeTypeTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  cameraCard: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderWidth: 2, borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  cameraCardIcon: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+  },
+  cameraCardEmoji: { fontSize: 24, lineHeight: 28, fontFamily: EMOJI_FONT_FAMILY },
+  cameraCardLabel: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  cameraCardHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 14 },
   submitBtn: {

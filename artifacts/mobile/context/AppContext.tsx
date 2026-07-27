@@ -324,7 +324,7 @@ function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: n
   const t = maneuver?.type ?? "";
   const mod = maneuver?.modifier ?? "";
   const road = name ? ` onto ${name}` : "";
-  if (t === "arrive") return "You have arrived at your destination";
+  if (t === "arrive") return "Arriving at your destination";
   if (t === "depart") return `Head ${mod || "forward"}${road}`;
   if (t === "turn") return `Turn ${mod || "left"}${road}`;
   if (t === "new name") return `Continue${road}`;
@@ -564,7 +564,9 @@ let _bestVoiceId: string | undefined;
  *  POI names) that can't be matched to a pre-generated Keli clip. */
 function speakText(text: string) {
   if (Platform.OS === "web") return;
-  Speech.stop();
+  // Stop any Keli clips that may be mid-play before starting TTS, so the two
+  // voice systems never overlap.
+  stopVoice();
   Speech.speak(text, {
     language: "en-GB",
     rate: 0.82,   // slightly slower = clearer, more deliberate
@@ -804,12 +806,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const alertZoneRef = useRef<string | null>(null);
   const alertDismissed = useRef(false);
+  // Track the last value we called setActiveAlert with so we can skip the
+  // call when nothing meaningful has changed. Calling setActiveAlert on every
+  // GPS fix (1 Hz) with a new object reference causes the entire drive screen
+  // to re-render every second, which saturates the JS bridge and makes the map
+  // unresponsive to pan/zoom/drag gestures.
+  const lastSetAlertRef = useRef<{ id: string; tier: number; distM: number } | null>(null);
   // Distance to the active alert zone at the last GPS fix — used to detect
   // when the driver is moving away so we can dismiss the alert early.
   const alertZoneLastDistRef = useRef<number | null>(null);
   // Consecutive GPS fixes where distance to the active alert zone increased;
   // when this reaches 2 we dismiss (driver has passed or turned away).
   const alertZoneIncreasingCountRef = useRef(0);
+  // Per-zone cooldown after auto-dismiss (ms timestamp). Prevents an alert that
+  // was just dismissed from immediately re-triggering due to the heading
+  // activation window (60°) being wider than the dismissal window (90°).
+  const alertDismissCooldownRef = useRef<Map<string, number>>(new Map());
   const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1281,8 +1293,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
+        // 90° heading threshold — must be clearly pointing away, not just
+        // slightly off-axis, to avoid oscillation with the 60° activation cone.
         if (driverHeading != null && curItemLat != null && curItemLng != null) {
-          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 45) return true;
+          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 90) return true;
         }
         const lastDist = alertZoneLastDistRef.current;
         if (lastDist != null && curDist > lastDist) {
@@ -1290,17 +1304,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (alertZoneIncreasingCountRef.current >= 2) return true;
         } else {
           alertZoneIncreasingCountRef.current = 0;
-          alertZoneLastDistRef.current = curDist;
         }
+        // Always keep the last-distance up to date so the increasing counter
+        // only fires when the distance genuinely grows over multiple fixes.
+        alertZoneLastDistRef.current = curDist;
         return false;
       })();
 
       if (shouldDismiss) {
+        const dismissedId = alertZoneRef.current!;
+        // Set a 60-second cooldown so this zone cannot immediately re-trigger.
+        alertDismissCooldownRef.current.set(dismissedId, Date.now() + 60_000);
         alertZoneRef.current = null;
         alertSourceRef.current = null;
         alertDismissed.current = false;
         alertZoneLastDistRef.current = null;
         alertZoneIncreasingCountRef.current = 0;
+        lastSetAlertRef.current = null;
         setActiveAlert(null);
       }
     }
@@ -1310,7 +1330,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const isStationary = stationaryStreakRef.current >= 3;
 
     // (5) Activate a new alert or refresh the ongoing one
+    // Prune expired cooldown entries to avoid unbounded map growth.
+    const nowTs = Date.now();
+    for (const [k, exp] of alertDismissCooldownRef.current) {
+      if (nowTs > exp) alertDismissCooldownRef.current.delete(k);
+    }
+
     if (winner && !isStationary) {
+      // Skip winner if it was recently auto-dismissed (60 s cooldown).
+      const cooldownExp = alertDismissCooldownRef.current.get(winner.id);
+      if (cooldownExp && nowTs < cooldownExp) {
+        // Still in cooldown — suppress activation; treat as no winner.
+      } else
       if (winner.id !== alertZoneRef.current) {
         alertZoneRef.current = winner.id;
         alertSourceRef.current = winner.source;
@@ -1339,7 +1370,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
       if (!alertDismissed.current && winner.id === alertZoneRef.current) {
-        setActiveAlert(winner);
+        // Only call setActiveAlert when something meaningful changes — new ID,
+        // urgency tier crossing a threshold (400 m / 200 m), or distance
+        // moving by more than 20 m.  Calling it every GPS tick (1 Hz) with a
+        // new object reference floods the JS bridge and freezes the map.
+        const tier = winner.distance < 200 ? 2 : winner.distance < 400 ? 1 : 0;
+        const prev = lastSetAlertRef.current;
+        if (!prev || prev.id !== winner.id || prev.tier !== tier || Math.abs(prev.distM - winner.distance) > 20) {
+          lastSetAlertRef.current = { id: winner.id, tier, distM: winner.distance };
+          setActiveAlert(winner);
+        }
       }
     } else if (!winner) {
       // No candidate in range → clear banner only if the tracked alert is gone
@@ -1356,6 +1396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           alertDismissed.current = false;
           alertZoneLastDistRef.current = null;
           alertZoneIncreasingCountRef.current = 0;
+          lastSetAlertRef.current = null;
           setActiveAlert(null);
         }
       }
@@ -2206,7 +2247,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 
   // ── Other actions ─────────────────────────────────────────────────────────
-  const dismissAlert = useCallback(() => { alertDismissed.current = true; setActiveAlert(null); }, []);
+  const dismissAlert = useCallback(() => {
+    alertDismissed.current = true;
+    lastSetAlertRef.current = null;
+    setActiveAlert(null);
+  }, []);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setThemeOverride = useCallback((v: "system" | "light" | "dark") => {
     setThemeOverrideState(v);

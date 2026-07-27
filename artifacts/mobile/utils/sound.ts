@@ -232,6 +232,8 @@ export function stopVoice() {
       try { p.pause(); p.seekTo(0); } catch { /* ignore */ }
     }
   }
+  // Stop TTS fallback too — ensures neither system plays over the other.
+  try { Speech.stop(); } catch { /* ignore */ }
 }
 
 /**
