@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
+  Alert,
   ActivityIndicator,
   Modal,
   ScrollView,
@@ -14,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSubscription } from "@/lib/revenuecat";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
+import { AdminPinModal } from "./AdminPinModal";
 
 interface Props {
   visible: boolean;
@@ -34,10 +37,35 @@ export function PaywallModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const { offerings, offeringsLoading, purchase, isPurchasing, restore, isRestoring, error, isTrialEligible } =
     useSubscription();
+  const { isAdmin, adminLogout } = useApp();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
   const [confirmPkg, setConfirmPkg] = useState<any>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // ── Hidden admin entry: 4 taps on the top-right checkmark ───────────────────
+  const [adminTapCount, setAdminTapCount] = useState(0);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const adminTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleAdminTap() {
+    if (adminTapTimer.current) clearTimeout(adminTapTimer.current);
+    const next = adminTapCount + 1;
+    if (next >= 4) {
+      setAdminTapCount(0);
+      if (isAdmin) {
+        Alert.alert("Admin Mode", "Deactivate admin access on this device?", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Deactivate", style: "destructive", onPress: () => { void adminLogout(); } },
+        ]);
+      } else {
+        setShowAdminLogin(true);
+      }
+    } else {
+      setAdminTapCount(next);
+      adminTapTimer.current = setTimeout(() => setAdminTapCount(0), 2000);
+    }
+  }
 
   const currentOffering = offerings?.current;
   const weeklyPkg = currentOffering?.availablePackages.find(
@@ -84,9 +112,24 @@ export function PaywallModal({ visible, onClose }: Props) {
         <View style={[styles.header, { borderBottomColor: c.border }]}>
           <View style={styles.headerLeft} />
           <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Ionicons name="close" size={24} color={c.mutedForeground} />
-          </TouchableOpacity>
+          {/* Top-right: hidden admin tap zone (4 taps) + close button */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <TouchableOpacity
+              onPress={handleAdminTap}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 2 }}
+              activeOpacity={1}
+            >
+              {/* Invisible when not admin; faint indicator when admin is active */}
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color={isAdmin ? c.primary + "90" : "transparent"}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}>
+              <Ionicons name="close" size={24} color={c.mutedForeground} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -299,6 +342,13 @@ export function PaywallModal({ visible, onClose }: Props) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Admin login — triggered by 4-tap on top-right checkmark */}
+        <AdminPinModal
+          visible={showAdminLogin}
+          onClose={() => setShowAdminLogin(false)}
+          onSuccess={() => setShowAdminLogin(false)}
+        />
 
         {/* Test-mode purchase confirmation modal */}
         {confirmPkg && (

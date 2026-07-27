@@ -20,7 +20,6 @@ import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
-import { AdminPinModal } from "@/components/AdminPinModal";
 import { useSubscription } from "@/lib/revenuecat";
 import { PaywallModal } from "@/components/PaywallModal";
 import { resolveIncidentType } from "@/constants/incidentTypes";
@@ -37,12 +36,10 @@ export default function SettingsScreen() {
     vehicleType, setVehicleType,
     clearAllData,
     driverName, setDriverName,
-    isAdmin, adminLogout,
   } = useApp();
 
   const { isSubscribed, reviewerMode, setReviewerMode } = useSubscription();
   const [showPaywall, setShowPaywall] = useState(false);
-  const [showAdminPin, setShowAdminPin] = useState(false);
 
   const [name, setName] = useState(sosContact?.name ?? "");
   const [phone, setPhone] = useState(sosContact?.phone ?? "");
@@ -704,35 +701,6 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Admin Mode */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ADMIN</Text>
-        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, overflow: "hidden" }]}>
-          {isAdmin ? (
-            <View style={[styles.toggleRow]}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#E8F5E9", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="shield-checkmark" size={22} color="#1B5E20" />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[styles.toggleLabel, { color: "#1B5E20" }]}>Admin Mode Active</Text>
-                <Text style={[styles.toggleSub, { color: c.mutedForeground }]}>Full moderator controls on the map</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => Alert.alert("Logout from Admin Mode", "Remove admin access on this device?", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Logout", style: "destructive", onPress: () => { void adminLogout(); } },
-                ])}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: c.destructive, fontSize: 13, fontFamily: "Inter_600SemiBold" }}>Logout</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <Row label="Admin Login" icon="shield-outline" onPress={() => setShowAdminPin(true)} />
-          )}
-        </View>
-      </View>
-
       {/* About */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>ABOUT</Text>
@@ -761,10 +729,6 @@ export default function SettingsScreen() {
       </View>
     </ScrollView>
 
-    <AdminPinModal
-      visible={showAdminPin}
-      onClose={() => setShowAdminPin(false)}
-      onSuccess={() => {}} />
     <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
     </>
   );
