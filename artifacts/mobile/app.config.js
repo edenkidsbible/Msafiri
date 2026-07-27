@@ -23,11 +23,11 @@ module.exports = {
       },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
-          "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",
+          "Msafiri uses your location to show your real-time speed and alert you to nearby speed cameras, police checkpoints, and road hazards reported by other drivers.",
         NSLocationAlwaysAndWhenInUseUsageDescription:
-          "Msafiri uses your location in the background so your live-sharing recipients continue to see your position even when the screen is locked.",
+          "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
         NSLocationAlwaysUsageDescription:
-          "Msafiri uses your location in the background so your live-sharing recipients continue to see your position even when the screen is locked.",
+          "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
         UIBackgroundModes: ["location"],
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -74,9 +74,9 @@ module.exports = {
         "expo-location",
         {
           locationWhenInUsePermission:
-            "Msafiri needs location access to show your speed and detect speed cameras nearby.",
+            "Msafiri uses your location to show your real-time speed and alert you to nearby speed cameras, police checkpoints, and road hazards reported by other drivers.",
           locationAlwaysAndWhenInUsePermission:
-            "Msafiri uses your location in the background while live sharing is active, so your contact can follow your trip even when the screen is locked.",
+            "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
           isIosBackgroundLocationEnabled: true,
           isAndroidBackgroundLocationEnabled: true,
         },
