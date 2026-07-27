@@ -28,7 +28,7 @@ async function ensureAudioMode() {
     // and mix with anything else already playing (e.g. music/podcasts).
     await setAudioModeAsync({
       playsInSilentMode: true,
-      interruptionMode: "mixWithOthers",
+      interruptionMode: "duckOthers",
       allowsRecording: false,
       shouldPlayInBackground: false,
       shouldRouteThroughEarpiece: false,

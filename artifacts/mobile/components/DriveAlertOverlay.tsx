@@ -2,12 +2,20 @@
  * DriveAlertOverlay
  * ─────────────────
  * Full-width bottom panel that slides up when the driver approaches a speed
- * camera, police check, or speed zone. Replaces the old small AlertBanner.
+ * camera, police check, speed zone, or community-reported hazard.
  *
  * Urgency tiers (based on distance):
  *   • 1000–400 m  →  yellow  (warning)
  *   •  400–200 m  →  orange  (caution)
- *   •    < 200 m  →  red     (danger, pulsing speed-limit badge)
+ *   •    < 200 m  →  red     (danger, pulsing badge)
+ *
+ * Sound policy:
+ *   Play once when a NEW alert appears (id changes). No repeat sound on
+ *   entering the 200 m danger zone — the visual pulse is enough signal.
+ *
+ * Type-aware layout:
+ *   "zone" source (camera / police / speed zone) → speed-limit + driver-speed badges.
+ *   "report" source (accident, pothole, roadblock, …) → incident card with emoji.
  */
 
 import React, { useEffect, useRef } from "react";
@@ -17,30 +25,37 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-import { SpeedZone } from "@/data/speedZones";
+import { DriveAlert } from "@/context/AppContext";
+import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
 
-type AlertZone = SpeedZone & { distance: number };
-
 interface Props {
-  zone: AlertZone;
+  alert: DriveAlert;
   onDismiss: () => void;
   currentSpeed: number;
 }
 
-const TYPE_LABELS  = { camera: "Speed Camera", police: "Police Check", zone: "Speed Zone" } as const;
-const TYPE_ICONS   = { camera: "camera"  as const, police: "shield" as const, zone: "warning" as const };
-const ICON_SIZES   = { camera: 36, police: 34, zone: 34 };
+// ── Zone-type helpers ─────────────────────────────────────────────────────────
+
+const ZONE_LABELS: Record<string, string> = {
+  camera: "Speed Camera",
+  police: "Police Check",
+  zone:   "Speed Zone",
+};
+const ZONE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
+  camera: "camera",
+  police: "shield",
+  zone:   "warning",
+};
 
 function urgencyColor(distance: number, colors: ReturnType<typeof useColors>) {
-  if (distance < 200) return colors.speedDanger;          // red
-  if (distance < 400) return "#E65100";                   // deep orange
-  return colors.warning;                                   // yellow/amber
+  if (distance < 200) return colors.speedDanger;   // red
+  if (distance < 400) return "#E65100";             // deep orange
+  return colors.warning;                             // yellow/amber
 }
 
 function formatDist(m: number) {
@@ -48,21 +63,26 @@ function formatDist(m: number) {
   return `${(m / 1000).toFixed(1)} km`;
 }
 
-export default function DriveAlertOverlay({ zone, onDismiss, currentSpeed }: Props) {
-  const colors  = useColors();
-  const insets  = useSafeAreaInsets();
-  const slideY  = useRef(new Animated.Value(340)).current;
-  const pulse   = useRef(new Animated.Value(1)).current;
-  const prevId  = useRef<string | null>(null);
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function DriveAlertOverlay({ alert, onDismiss, currentSpeed }: Props) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const slideY = useRef(new Animated.Value(340)).current;
+  const pulse  = useRef(new Animated.Value(1)).current;
+  const prevId = useRef<string | null>(null);
   const prevUrgent = useRef(false);
 
-  const urgent = zone.distance < 200;
-  const bg     = urgencyColor(zone.distance, colors);
+  const urgent = alert.distance < 200;
+  const bg     = urgencyColor(alert.distance, colors);
 
-  // ── Slide in on first appearance of a new zone ────────────────────────────
+  // ── Slide in + sound on first appearance of a new alert ──────────────────
   useEffect(() => {
-    if (zone.id !== prevId.current) {
-      prevId.current = zone.id;
+    if (alert.id !== prevId.current) {
+      prevId.current = alert.id;
+      prevUrgent.current = false;
+      pulse.stopAnimation();
+      pulse.setValue(1);
       slideY.setValue(340);
       Animated.spring(slideY, {
         toValue: 0,
@@ -70,15 +90,14 @@ export default function DriveAlertOverlay({ zone, onDismiss, currentSpeed }: Pro
         tension: 60,
         friction: 10,
       }).start();
-      playSound("alert");
+      void playSound("alert");
     }
-  }, [zone.id]);
+  }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Start pulsing when entering the 200 m danger zone ────────────────────
+  // ── Start pulsing when entering the 200 m danger zone (no extra sound) ───
   useEffect(() => {
     if (urgent && !prevUrgent.current) {
       prevUrgent.current = true;
-      playSound("alert");
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulse, { toValue: 1.08, duration: 380, useNativeDriver: true }),
@@ -90,7 +109,23 @@ export default function DriveAlertOverlay({ zone, onDismiss, currentSpeed }: Pro
       pulse.stopAnimation();
       pulse.setValue(1);
     }
-  }, [urgent]);
+  }, [urgent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Resolve display values ────────────────────────────────────────────────
+  const isZone   = alert.source === "zone";
+  const typeLabel = isZone
+    ? (ZONE_LABELS[alert.type] ?? "Speed Zone")
+    : resolveIncidentType(alert.type).label;
+  // For zone alerts we use the ZONE_ICONS map; for report alerts the emoji
+  // is always shown first so the icon is a safety-net fallback only.
+  const typeIcon: React.ComponentProps<typeof Ionicons>["name"] = isZone
+    ? (ZONE_ICONS[alert.type] ?? "warning")
+    : "warning";
+  const emoji = !isZone ? resolveIncidentType(alert.type).emoji : null;
+
+  const hasSpeedBadges = isZone && alert.speedLimit != null;
+  const overLimit      = hasSpeedBadges && currentSpeed > alert.speedLimit!;
+  const speedColor     = overLimit ? colors.speedDanger : "#2E7D32";
 
   return (
     <Animated.View
@@ -98,20 +133,24 @@ export default function DriveAlertOverlay({ zone, onDismiss, currentSpeed }: Pro
         styles.sheet,
         {
           paddingBottom: insets.bottom + 12,
-          borderColor: bg,
-          transform: [{ translateY: slideY }],
+          borderColor:   bg,
+          transform:     [{ translateY: slideY }],
         },
       ]}
     >
       {/* ── Handle pill ── */}
       <View style={styles.handle} />
 
-      {/* ── Header: icon  +  type label  +  distance  +  close ── */}
+      {/* ── Header: icon + label + distance + close ── */}
       <View style={[styles.header, { backgroundColor: bg }]}>
-        <Ionicons name={TYPE_ICONS[zone.type]} size={ICON_SIZES[zone.type]} color="#FFF" />
+        {emoji ? (
+          <Text style={styles.headerEmoji}>{emoji}</Text>
+        ) : (
+          <Ionicons name={typeIcon} size={34} color="#FFF" />
+        )}
         <View style={styles.headerText}>
-          <Text style={styles.typeLabel}>{TYPE_LABELS[zone.type].toUpperCase()}</Text>
-          <Text style={styles.distLabel}>{formatDist(zone.distance)} ahead</Text>
+          <Text style={styles.typeLabel}>{typeLabel.toUpperCase()}</Text>
+          <Text style={styles.distLabel}>{formatDist(alert.distance)} ahead</Text>
         </View>
         <TouchableOpacity
           onPress={onDismiss}
@@ -122,55 +161,53 @@ export default function DriveAlertOverlay({ zone, onDismiss, currentSpeed }: Pro
         </TouchableOpacity>
       </View>
 
-      {/* ── Body: location name  +  speed badges ── */}
+      {/* ── Body ── */}
       <View style={styles.body}>
-        {/* Location */}
+        {/* Location / name */}
         <View style={styles.locationRow}>
           <Ionicons name="location-sharp" size={16} color={bg} style={{ marginTop: 1 }} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.zoneName, { color: colors.text }]} numberOfLines={1}>
-              {zone.name}
+              {alert.name}
             </Text>
-            {zone.road ? (
+            {alert.road ? (
               <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]} numberOfLines={1}>
-                {zone.road}
+                {alert.road}
               </Text>
             ) : null}
           </View>
         </View>
 
-        {/* Speed badges — driver speed + limit side by side */}
-        <View style={styles.badgesCol}>
-          {/* Driver's current speed */}
-          {(() => {
-            const overLimit = zone.speedLimit != null && currentSpeed > zone.speedLimit;
-            const speedColor = overLimit ? colors.speedDanger : "#2E7D32";
-            return (
-              <View style={[styles.speedBadge, { borderColor: speedColor }]}>
-                <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>YOU</Text>
-                <Text style={[styles.limitNumber, { color: speedColor, fontSize: 28, lineHeight: 30 }]}>
-                  {Math.round(currentSpeed)}
-                </Text>
-                <Text style={[styles.limitUnit, { color: speedColor }]}>km/h</Text>
-              </View>
-            );
-          })()}
+        {/* Speed badges — only for zone alerts with a speed limit */}
+        {hasSpeedBadges && (
+          <View style={styles.badgesCol}>
+            {/* Driver's current speed */}
+            <View style={[styles.speedBadge, { borderColor: speedColor }]}>
+              <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>YOU</Text>
+              <Text style={[styles.limitNumber, { color: speedColor, fontSize: 28, lineHeight: 30 }]}>
+                {Math.round(currentSpeed)}
+              </Text>
+              <Text style={[styles.limitUnit, { color: speedColor }]}>km/h</Text>
+            </View>
 
-          {/* Speed limit badge */}
-          <Animated.View
-            style={[
-              styles.limitBadge,
-              { borderColor: bg, transform: [{ scale: pulse }] },
-            ]}
-          >
+            {/* Speed limit badge */}
+            <Animated.View style={[styles.limitBadge, { borderColor: bg, transform: [{ scale: pulse }] }]}>
+              <Text style={[styles.limitLabel, { color: colors.mutedForeground }]}>LIMIT</Text>
+              <Text style={[styles.limitNumber, { color: bg }]}>{alert.speedLimit}</Text>
+              <Text style={[styles.limitUnit, { color: bg }]}>km/h</Text>
+              {urgent && <View style={[styles.limitUrgentRing, { borderColor: bg }]} />}
+            </Animated.View>
+          </View>
+        )}
+
+        {/* For report-type alerts with a known speed limit, show just the limit */}
+        {!isZone && alert.speedLimit != null && (
+          <Animated.View style={[styles.limitBadge, { borderColor: bg, transform: [{ scale: pulse }] }]}>
             <Text style={[styles.limitLabel, { color: colors.mutedForeground }]}>LIMIT</Text>
-            <Text style={[styles.limitNumber, { color: bg }]}>{zone.speedLimit}</Text>
+            <Text style={[styles.limitNumber, { color: bg }]}>{alert.speedLimit}</Text>
             <Text style={[styles.limitUnit, { color: bg }]}>km/h</Text>
-            {urgent && (
-              <View style={[styles.limitUrgentRing, { borderColor: bg }]} />
-            )}
           </Animated.View>
-        </View>
+        )}
       </View>
 
       {/* ── Dismiss button ── */}
@@ -198,13 +235,11 @@ const styles = StyleSheet.create({
     borderTopWidth:  3,
     borderLeftWidth: 3,
     borderRightWidth: 3,
-    // shadow
     shadowColor:    "#000",
     shadowOffset:   { width: 0, height: -6 },
     shadowOpacity:  0.22,
     shadowRadius:   18,
     elevation:      24,
-    // ensure it's above everything else
     zIndex: 9999,
   },
   handle: {
@@ -226,6 +261,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical:   12,
     gap:            12,
+  },
+  headerEmoji: {
+    fontSize: 30,
   },
   headerText: { flex: 1, gap: 2 },
   typeLabel: {
@@ -268,14 +306,12 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
-  // Two badges side-by-side: driver speed + speed limit
+  // Speed badges
   badgesCol: {
     flexDirection: "row",
     alignItems:    "center",
     gap:           8,
   },
-
-  // Driver's current speed — same circle shape as limit badge but smaller
   speedBadge: {
     width:          76,
     height:         76,
@@ -291,8 +327,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: -2,
   },
-
-  // Speed limit circle
   limitBadge: {
     width:          96,
     height:         96,

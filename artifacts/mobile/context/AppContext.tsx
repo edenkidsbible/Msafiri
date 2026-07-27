@@ -130,6 +130,22 @@ export interface RouteCheckResult {
   incidents: RouteIncident[];
 }
 
+/** Unified alert shown in DriveAlertOverlay — covers both static speed
+ *  zones/cameras and live community reports so either can trigger the
+ *  full-screen panel. */
+export interface DriveAlert {
+  id: string;
+  source: "zone" | "report";
+  type: string;
+  name: string;
+  road?: string | null;
+  description?: string | null;
+  distance: number;
+  speedLimit?: number | null;
+  lat: number;
+  lng: number;
+}
+
 interface AppContextValue {
   locationGranted: boolean;
   requestLocationPermission: () => Promise<void>;
@@ -137,7 +153,7 @@ interface AppContextValue {
   currentLat: number | null;
   currentLng: number | null;
   currentSpeed: number;
-  activeAlert: (SpeedZone & { distance: number }) | null;
+  activeAlert: DriveAlert | null;
   currentSpeedLimit: number | null;
   nearbyZones: Array<SpeedZone & { distance: number }>;
   allZones: SpeedZone[];
@@ -676,7 +692,8 @@ function warnIfBlockedDevice(err: unknown): boolean {
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
 const STEP_ANNOUNCE_DIST = 220; // m — announce next step when within this distance
 const STEP_ADVANCE_DIST = 35;  // m — advance step index when past maneuver
-const ARRIVAL_DIST = 60;       // m — wider than STEP_ADVANCE_DIST: tolerates GPS drift so the final "arrived" check doesn't get stuck
+const ARRIVAL_DIST = 30;        // m — trigger arrival voice + advance final step
+const APPROACHING_DIST = 65;   // m — one early "approaching your destination" cue
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
 // readout, so we only claim confidence in a posted limit when squarely
 // inside the admin-defined corridor — not just "somewhere nearby".
@@ -697,7 +714,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentLat, setCurrentLat] = useState<number | null>(null);
   const [currentLng, setCurrentLng] = useState<number | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
-  const [activeAlert, setActiveAlert] = useState<(SpeedZone & { distance: number }) | null>(null);
+  const [activeAlert, setActiveAlert] = useState<DriveAlert | null>(null);
   const [currentSpeedLimit, setCurrentSpeedLimit] = useState<number | null>(null);
   const [nearbyZones, setNearbyZones] = useState<Array<SpeedZone & { distance: number }>>([]);
   const [hudMode, setHudModeState] = useState(false);
@@ -803,6 +820,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // stable useCallback defined earlier in this component) can trigger a
   // full stop without needing it in its dependency array.
   const stopNavigationRef = useRef<() => void>(() => {});
+  // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
+  const offRouteCountRef = useRef(0);
+  const isReroutingRef   = useRef(false);
+  const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
+  // Tracks whether we've already spoken the "approaching destination" cue this
+  // navigation session so it fires exactly once per trip.
+  const approachingAnnouncedRef = useRef(false);
+  const alertSourceRef = useRef<"zone" | "report" | null>(null);
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
   const syncReportToServerRef = useRef<((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void) | null>(null);
@@ -1131,6 +1156,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const speakGeneralAlert = (text: string) => { lastGeneralAlertAtRef.current = Date.now(); speakText(text); };
     const speakGeneralAlertPhrase = (key: PhraseKey) => { lastGeneralAlertAtRef.current = Date.now(); void speakPhrase(key); };
 
+    const isDriving = kmh > 5;
+
     // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
     if (activeLimitZone && kmh > activeLimitZone.speedLimit) {
       const warnNow = Date.now();
@@ -1151,76 +1178,162 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const driverHeading = driverHeadingDeg(prevFix, lat, lng);
     setDriverHeading(driverHeading);
 
-    // ── Dismiss active alert when driver is moving away ───────────────────────
-    // Track consecutive fixes where the active alert zone is getting farther
-    // away. Two in a row means the driver has passed or turned — clear the
-    // banner so it doesn't linger after the hazard is behind them.
-    if (alertZoneRef.current) {
-      const activeZoneCurrent = withDist.find((z) => z.id === alertZoneRef.current);
-      if (activeZoneCurrent) {
+    // ── Unified alert panel: zones + community reports ────────────────────────
+    //
+    // (1) Zone candidate — tighter 60° forward hemisphere to avoid alerting on
+    //     cameras the driver has just passed or turned away from.
+    //     Camera-type zones only appear if the driver is actually over the limit
+    //     (camera alerts during legal-speed driving would be pure noise).
+    const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
+    const zoneCandidate = (() => {
+      const fwd = driverHeading != null
+        ? inRangeZones.filter((z) => angleDiffDeg(driverHeading, bearingDeg(lat, lng, z.lat, z.lng)) <= 60)
+        : inRangeZones;
+      for (const z of fwd) {
+        if (z.type === "camera" && z.speedLimit != null && kmh <= z.speedLimit) continue;
+        return z;
+      }
+      return null;
+    })();
+
+    // (2) Report candidate — nearest forward-hemisphere active report < 2 h old
+    const reportCandidate = (() => {
+      if (!isDriving) return null;
+      let best: (typeof communityReportsRef.current)[0] | null = null;
+      let bestDist = Infinity;
+      for (const r of communityReportsRef.current) {
+        if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
+        if (now - r.timestamp > 7200000) continue;
+        const d = haversine(lat, lng, r.lat, r.lng);
+        if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
+        if (driverHeading != null && angleDiffDeg(driverHeading, bearingDeg(lat, lng, r.lat, r.lng)) > 60) continue;
+        best = r;
+        bestDist = d;
+      }
+      return best ? { report: best, dist: bestDist } : null;
+    })();
+
+    // (3) Pick winner: closer of zone vs report
+    const zoneDist   = zoneCandidate?.distance ?? Infinity;
+    const reportDist = reportCandidate?.dist   ?? Infinity;
+    const winner: DriveAlert | null =
+      zoneDist === Infinity && reportDist === Infinity
+        ? null
+        : zoneDist <= reportDist
+          ? {
+              id: zoneCandidate!.id,
+              source: "zone" as const,
+              type: zoneCandidate!.type,
+              name: zoneCandidate!.name,
+              road: zoneCandidate!.road,
+              description: zoneCandidate!.description,
+              distance: zoneCandidate!.distance,
+              speedLimit: zoneCandidate!.speedLimit,
+              lat: zoneCandidate!.lat,
+              lng: zoneCandidate!.lng,
+            }
+          : {
+              id: reportCandidate!.report.id,
+              source: "report" as const,
+              type: reportCandidate!.report.type,
+              name: resolveIncidentType(reportCandidate!.report.type).label,
+              road: reportCandidate!.report.roadName,
+              distance: reportCandidate!.dist,
+              speedLimit: reportCandidate!.report.speedLimit,
+              lat: reportCandidate!.report.lat,
+              lng: reportCandidate!.report.lng,
+            };
+
+    // (4) Dismiss active alert if it has moved out of range, the driver has
+    //     turned away (> 90°), or the driver has passed it (2 consecutive fixes
+    //     of increasing distance).
+    if (alertZoneRef.current && !alertDismissed.current) {
+      const curZone   = withDist.find((z) => z.id === alertZoneRef.current);
+      const curReport = curZone ? null : communityReportsRef.current.find((r) => r.id === alertZoneRef.current);
+      const curItemLat = curZone?.lat ?? curReport?.lat;
+      const curItemLng = curZone?.lng ?? curReport?.lng;
+      const curDist    = curZone?.distance
+        ?? (curItemLat != null && curItemLng != null ? haversine(lat, lng, curItemLat, curItemLng) : null);
+
+      const shouldDismiss = (() => {
+        if (curDist == null || curDist > ALERT_DIST) return true;
+        if (driverHeading != null && curItemLat != null && curItemLng != null) {
+          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 90) return true;
+        }
         const lastDist = alertZoneLastDistRef.current;
-        if (lastDist != null && activeZoneCurrent.distance > lastDist) {
+        if (lastDist != null && curDist > lastDist) {
           alertZoneIncreasingCountRef.current += 1;
-          if (alertZoneIncreasingCountRef.current >= 2) {
-            alertZoneRef.current = null;
-            alertDismissed.current = false;
-            alertZoneLastDistRef.current = null;
-            alertZoneIncreasingCountRef.current = 0;
-            setActiveAlert(null);
-          }
+          if (alertZoneIncreasingCountRef.current >= 2) return true;
         } else {
           alertZoneIncreasingCountRef.current = 0;
-          alertZoneLastDistRef.current = activeZoneCurrent.distance;
+          alertZoneLastDistRef.current = curDist;
         }
-      }
-    }
+        return false;
+      })();
 
-    // Pick the nearest in-range zone that is in the driver's forward hemisphere.
-    // When heading is unknown (first fix, or GPS accuracy too low to derive
-    // direction) fall back to the nearest in-range zone regardless of bearing,
-    // preserving the pre-heading distance-only behaviour.
-    const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
-    const alertCandidate = driverHeading != null
-      ? (inRangeZones.find((z) => angleDiffDeg(driverHeading, bearingDeg(lat, lng, z.lat, z.lng)) <= 90) ?? null)
-      : (inRangeZones[0] ?? null);
-
-    if (alertCandidate) {
-      if (alertCandidate.id !== alertZoneRef.current) {
-        // alertCandidate is already direction-filtered above — fire unconditionally.
-        alertZoneRef.current = alertCandidate.id;
-        alertZoneLastDistRef.current = alertCandidate.distance;
-        alertZoneIncreasingCountRef.current = 0;
-        alertDismissed.current = false;
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        if (notifGranted.current) void fireZoneNotification(alertCandidate, alertCandidate.distance);
-        if (canSpeakGeneralAlert()) {
-          // Visual AlertBanner shows road name + limit; voice just calls the type.
-          // Use the "close" variant when the zone is within 600 m.
-          const isClose = alertCandidate.distance <= 600;
-          if (alertCandidate.type === "camera") {
-            speakGeneralAlertPhrase(isClose ? "camera_ahead_close" : "camera_ahead");
-          } else if (alertCandidate.type === "police") {
-            speakGeneralAlertPhrase(isClose ? "police_ahead_close" : "police_ahead");
-          } else {
-            speakGeneralAlertPhrase("zone_ahead");
-          }
-        }
-        if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
-      }
-      // Only show the banner for the zone that is the confirmed active alert;
-      // this prevents a stale/behind zone from appearing if alertZoneRef was
-      // already set to a different zone from a prior fix.
-      if (!alertDismissed.current && alertCandidate.id === alertZoneRef.current) {
-        setActiveAlert(alertCandidate);
-      }
-    } else {
-      const stillInRange = alertZoneRef.current && withDist.find((z) => z.id === alertZoneRef.current && z.distance <= ALERT_DIST);
-      if (!stillInRange) {
+      if (shouldDismiss) {
         alertZoneRef.current = null;
+        alertSourceRef.current = null;
         alertDismissed.current = false;
         alertZoneLastDistRef.current = null;
         alertZoneIncreasingCountRef.current = 0;
         setActiveAlert(null);
+      }
+    }
+
+    // Suppress new overlay popups while the driver is stationary (jitter
+    // near a zone while parked should not trigger the panel).
+    const isStationary = stationaryStreakRef.current >= 3;
+
+    // (5) Activate a new alert or refresh the ongoing one
+    if (winner && !isStationary) {
+      if (winner.id !== alertZoneRef.current) {
+        alertZoneRef.current = winner.id;
+        alertSourceRef.current = winner.source;
+        alertZoneLastDistRef.current = winner.distance;
+        alertZoneIncreasingCountRef.current = 0;
+        alertDismissed.current = false;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        if (canSpeakGeneralAlert()) {
+          const isClose = winner.distance <= 600;
+          if (winner.source === "zone") {
+            if (winner.type === "camera") speakGeneralAlertPhrase(isClose ? "camera_ahead_close" : "camera_ahead");
+            else if (winner.type === "police") speakGeneralAlertPhrase(isClose ? "police_ahead_close" : "police_ahead");
+            else speakGeneralAlertPhrase("zone_ahead");
+          } else {
+            const REPORT_PHRASE_MAP: Partial<Record<string, PhraseKey>> = {
+              accident: "report_accident", pothole: "report_pothole", roadblock: "report_roadblock",
+              police: "report_police", alcoblow: "report_alcoblow", roadworks: "report_roadworks",
+              camera: "report_camera", traffic: "report_traffic", hazard: "report_hazard",
+              debris: "report_debris", breakdown: "report_breakdown", weather: "report_weather",
+              closure: "report_closure",
+            };
+            const phraseKey = REPORT_PHRASE_MAP[winner.type];
+            if (phraseKey) speakGeneralAlertPhrase(phraseKey);
+          }
+        }
+        if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
+      }
+      if (!alertDismissed.current && winner.id === alertZoneRef.current) {
+        setActiveAlert(winner);
+      }
+    } else if (!winner) {
+      // No candidate in range → clear banner only if the tracked alert is gone
+      if (alertZoneRef.current) {
+        const stillInRange =
+          withDist.some((z) => z.id === alertZoneRef.current && z.distance <= ALERT_DIST) ||
+          communityReportsRef.current.some((r) => {
+            if (r.id !== alertZoneRef.current) return false;
+            return haversine(lat, lng, r.lat, r.lng) <= ALERT_DIST;
+          });
+        if (!stillInRange) {
+          alertZoneRef.current = null;
+          alertSourceRef.current = null;
+          alertDismissed.current = false;
+          alertZoneLastDistRef.current = null;
+          alertZoneIncreasingCountRef.current = 0;
+          setActiveAlert(null);
+        }
       }
     }
 
@@ -1231,7 +1344,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // reports near their static position, which is exactly the annoyance we
     // want to avoid. Reports aren't marked as announced while not driving, so
     // they'll still be announced once the driver starts moving near them.
-    const isDriving = kmh > 5;
     const REPORT_ANNOUNCE_DIST = 1000;
     for (const report of isDriving ? communityReportsRef.current : []) {
       if (announcedReportsRef.current.has(report.id)) continue;
@@ -1329,6 +1441,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // indefinitely with no further instruction to trigger a re-check.
         const dest = navDestRef.current;
         const distToDest = dest ? haversine(lat, lng, dest.lat, dest.lng) : dist;
+
+        // One-shot "approaching your destination" voice cue, fired when within
+        // APPROACHING_DIST but still outside the arrival threshold — gives the
+        // driver time to slow down before the full arrival phrase fires.
+        if (isLastStep && !approachingAnnouncedRef.current
+            && distToDest < APPROACHING_DIST && distToDest >= ARRIVAL_DIST) {
+          approachingAnnouncedRef.current = true;
+          speakText("Approaching your destination");
+        }
+
         const arrived = isLastStep
           ? (dist < ARRIVAL_DIST || distToDest < ARRIVAL_DIST)
           : dist < STEP_ADVANCE_DIST;
@@ -1341,6 +1463,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             void speakPhrase("arrived");
             navActiveRef.current = false;
             navStartRef.current = null;
+            approachingAnnouncedRef.current = false;
             setNavigationActive(false);
             const trip = tripRef.current;
             setArrivedInfo({
@@ -1357,6 +1480,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
           }
         }
+      }
+    }
+
+    // ── Off-route detection → auto-reroute ───────────────────────────────────
+    // Scan a window of route coords around the last projected index.  If the
+    // driver is > 250 m from the nearest point for 3 consecutive fixes, the
+    // reroute callback fetches a fresh route from the current position.
+    if (navActiveRef.current && routeRef.current) {
+      const coords  = routeRef.current.coords;
+      const prior   = Math.max(0, Math.min(routeProjIdxRef.current, coords.length - 1));
+      const wStart  = Math.max(0, prior - 10);
+      const wEnd    = Math.min(coords.length - 1, prior + 30);
+      let minOff    = Infinity;
+      for (let i = wStart; i <= wEnd; i++) {
+        const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
+        if (d < minOff) minOff = d;
+      }
+      if (minOff > 250) {
+        offRouteCountRef.current += 1;
+        if (offRouteCountRef.current >= 3 && !isReroutingRef.current) {
+          offRouteCountRef.current = 0;
+          triggerRerouteRef.current?.(lat, lng);
+        }
+      } else {
+        offRouteCountRef.current = 0;
       }
     }
 
@@ -1498,6 +1646,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination?.lat, navDestination?.lng]);
+
+  // ── Auto-reroute callback ─────────────────────────────────────────────────
+  // handleLocation fires this when the driver is consistently off-route.
+  // Fetches a fresh OSRM route from the current position and replaces the
+  // active route in-place, resetting the step index transparently.
+  useEffect(() => {
+    triggerRerouteRef.current = (lat: number, lng: number) => {
+      if (!navDestRef.current || isReroutingRef.current) return;
+      const dest = navDestRef.current;
+      isReroutingRef.current = true;
+      setRouteLoading(true);
+      fetchOSRM(lat, lng, dest.lat, dest.lng)
+        .then((routes) => {
+          if (!routes.length) return;
+          const [primary, ...alts] = routes;
+          setActiveRoute(primary);
+          routeRef.current = primary;
+          stepIdxRef.current = 0;
+          setCurrentStepIdx(0);
+          routeProjIdxRef.current = 0;
+          lastSpokenRef.current = "";
+          approachingAnnouncedRef.current = false;
+          setAltRoutes(alts);
+          const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+          setZonesOnRoute(
+            getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
+              ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
+            }))
+          );
+        })
+        .catch((e) => console.warn("[reroute] OSRM:", e))
+        .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync isOffline to a ref so callbacks can read it without re-rendering
   useEffect(() => { isOfflineRef.current = isOffline; }, [isOffline]);
@@ -1764,6 +1946,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNavDestState(d);
     navDestRef.current = d;
     destAnnouncedRef.current = false;
+    approachingAnnouncedRef.current = false;
+    offRouteCountRef.current = 0;
     if (!d) {
       setActiveRoute(null);
       setAltRoutes([]);

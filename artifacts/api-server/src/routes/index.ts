@@ -12,9 +12,11 @@ import shareRouter from "./share.js";
 import courseRouter from "./course.js";
 import publicSettingsRouter from "./settings.js";
 import storageRouter from "./storage.js";
+import placesRouter from "./places.js";
 
 const router: IRouter = Router();
 
+router.use(placesRouter);
 router.use(healthRouter);
 router.use(reportsRouter);
 router.use(speedZonesRouter);

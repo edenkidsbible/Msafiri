@@ -620,13 +620,43 @@ const DriveMapView = forwardRef(function DriveMapView(
           <Polyline key={r.id} coordinates={r.coords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(r)} />
         ))}
 
-        {/* Active route */}
-        {activeRoute && (
-          <>
-            <Polyline coordinates={activeRoute.coords} strokeColor={navigationActive ? "#0D47A1AA" : "#1565C0AA"} strokeWidth={10} lineCap="round" lineJoin="round" />
-            <Polyline coordinates={activeRoute.coords} strokeColor={navigationActive ? "#1976D2" : "#2196F3"} strokeWidth={6} lineCap="round" lineJoin="round" />
-          </>
-        )}
+        {/* Active route — split into passed (grey) + remaining (blue) while navigating */}
+        {activeRoute && (() => {
+          if (navigationActive && currentLat != null && currentLng != null) {
+            const coords = activeRoute.coords;
+            // Find nearest coord index to driver position
+            let bestIdx = 0;
+            let bestDist = Infinity;
+            for (let i = 0; i < coords.length; i++) {
+              const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
+              if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            const passed    = coords.slice(0, bestIdx + 1);
+            const remaining = coords.slice(bestIdx);
+            return (
+              <>
+                {passed.length >= 2 && (
+                  <>
+                    <Polyline coordinates={passed} strokeColor="#33333344" strokeWidth={10} lineCap="round" lineJoin="round" />
+                    <Polyline coordinates={passed} strokeColor="#66666666" strokeWidth={6} lineCap="round" lineJoin="round" />
+                  </>
+                )}
+                {remaining.length >= 2 && (
+                  <>
+                    <Polyline coordinates={remaining} strokeColor="#0D47A1AA" strokeWidth={10} lineCap="round" lineJoin="round" />
+                    <Polyline coordinates={remaining} strokeColor="#1976D2" strokeWidth={6} lineCap="round" lineJoin="round" />
+                  </>
+                )}
+              </>
+            );
+          }
+          return (
+            <>
+              <Polyline coordinates={activeRoute.coords} strokeColor="#1565C0AA" strokeWidth={10} lineCap="round" lineJoin="round" />
+              <Polyline coordinates={activeRoute.coords} strokeColor="#2196F3" strokeWidth={6} lineCap="round" lineJoin="round" />
+            </>
+          );
+        })()}
 
         {/* Destination pin */}
         {activeRoute && activeRoute.coords.length > 0 && (
