@@ -51,7 +51,7 @@ export function PaywallModal({ visible, onClose }: Props) {
   function handleAdminTap() {
     if (adminTapTimer.current) clearTimeout(adminTapTimer.current);
     const next = adminTapCount + 1;
-    if (next >= 6) {
+    if (next >= 3) {
       setAdminTapCount(0);
       if (isAdmin) {
         Alert.alert("Admin Mode", "Deactivate admin access on this device?", [
@@ -111,10 +111,7 @@ export function PaywallModal({ visible, onClose }: Props) {
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: c.border }]}>
           <View style={styles.headerLeft} />
-          {/* 6 taps on the title opens admin PIN entry */}
-          <TouchableOpacity onPress={handleAdminTap} activeOpacity={1} delayPressIn={0}>
-            <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
-          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}>
             <Ionicons name="close" size={24} color={c.mutedForeground} />
           </TouchableOpacity>
@@ -132,7 +129,9 @@ export function PaywallModal({ visible, onClose }: Props) {
               <Ionicons name="shield-checkmark" size={40} color={c.primary} />
             </View>
             <Text style={[styles.heroTitle, { color: c.foreground }]}>
-              Drive smarter.{"\n"}Stay protected.
+              {/* 3 taps on "Drive" opens admin PIN entry */}
+              <Text onPress={handleAdminTap}>Drive</Text>
+              {" smarter."}{"\n"}Stay protected.
             </Text>
             <Text style={[styles.heroSub, { color: c.mutedForeground }]}>
               Join thousands of Kenyan drivers who arrive safely every day.
