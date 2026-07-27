@@ -51,7 +51,7 @@ export function PaywallModal({ visible, onClose }: Props) {
   function handleAdminTap() {
     if (adminTapTimer.current) clearTimeout(adminTapTimer.current);
     const next = adminTapCount + 1;
-    if (next >= 4) {
+    if (next >= 6) {
       setAdminTapCount(0);
       if (isAdmin) {
         Alert.alert("Admin Mode", "Deactivate admin access on this device?", [
@@ -111,7 +111,10 @@ export function PaywallModal({ visible, onClose }: Props) {
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: c.border }]}>
           <View style={styles.headerLeft} />
-          <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
+          {/* 6 taps on the title opens admin PIN entry */}
+          <TouchableOpacity onPress={handleAdminTap} activeOpacity={1} delayPressIn={0}>
+            <Text style={[styles.headerTitle, { color: c.foreground }]}>Msafiri</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}>
             <Ionicons name="close" size={24} color={c.mutedForeground} />
           </TouchableOpacity>
@@ -125,17 +128,9 @@ export function PaywallModal({ visible, onClose }: Props) {
         >
           {/* Hero */}
           <View style={styles.heroWrap}>
-            {/* 4 taps on the shield badge opens admin PIN entry */}
-            <TouchableOpacity
-              onPress={handleAdminTap}
-              activeOpacity={0.85}
-              delayPressIn={0}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
-                <Ionicons name="shield-checkmark" size={40} color={c.primary} />
-              </View>
-            </TouchableOpacity>
+            <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
+              <Ionicons name="shield-checkmark" size={40} color={c.primary} />
+            </View>
             <Text style={[styles.heroTitle, { color: c.foreground }]}>
               Drive smarter.{"\n"}Stay protected.
             </Text>
