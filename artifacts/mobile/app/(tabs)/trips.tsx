@@ -22,8 +22,12 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import TripCard from "@/components/TripCard";
 import RouteCheckModal from "@/components/RouteCheckModal";
+import BackgroundLocationDisclosureModal, {
+  BG_LOCATION_DISCLOSED_KEY,
+} from "@/components/BackgroundLocationDisclosureModal";
 import {
   SavedPlace,
   PlannedTrip,
@@ -102,16 +106,21 @@ export default function TripsScreen() {
   const [tripSaving, setTripSaving] = useState(false);
   const tripTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSharePress = useCallback(async () => {
-    if (isSharingTrip) {
-      await stopSharingTrip();
-      return;
-    }
+  // ── Background-location prominent disclosure ──────────────────────────────
+  // Shown once, the first time the driver taps "Start Live Sharing", before
+  // the OS background-location runtime prompt fires (required by Google Play
+  // and Apple App Store policy).
+  const [showBgDisclosure, setShowBgDisclosure] = useState(false);
+
+  /** Actually starts the share session and opens the native share sheet. */
+  const doStartSharing = useCallback(async () => {
     setSharingLoading(true);
     try {
       const link = await startSharingTrip();
       if (link) {
-        const namePrefix = driverName.trim() ? `${driverName.trim()} is sharing their live location 📍` : "Follow my live trip 📍";
+        const namePrefix = driverName.trim()
+          ? `${driverName.trim()} is sharing their live location 📍`
+          : "Follow my live trip 📍";
         await Share.share({
           message: `${namePrefix}\n${link}`,
           title: "Track my trip — Msafiri Kenya",
@@ -120,7 +129,33 @@ export default function TripsScreen() {
     } finally {
       setSharingLoading(false);
     }
-  }, [isSharingTrip, startSharingTrip, stopSharingTrip, driverName]);
+  }, [startSharingTrip, driverName]);
+
+  const handleSharePress = useCallback(async () => {
+    if (isSharingTrip) {
+      await stopSharingTrip();
+      return;
+    }
+    // Show prominent disclosure the first time; skip on subsequent taps.
+    const already = await AsyncStorage.getItem(BG_LOCATION_DISCLOSED_KEY);
+    if (!already) {
+      setShowBgDisclosure(true);
+      return;
+    }
+    await doStartSharing();
+  }, [isSharingTrip, stopSharingTrip, doStartSharing]);
+
+  /** User tapped "Allow background location" on the disclosure sheet. */
+  const handleDisclosureAllow = useCallback(async () => {
+    await AsyncStorage.setItem(BG_LOCATION_DISCLOSED_KEY, "1");
+    setShowBgDisclosure(false);
+    await doStartSharing();
+  }, [doStartSharing]);
+
+  /** User tapped "Not now" — close without starting the share. */
+  const handleDisclosureDismiss = useCallback(() => {
+    setShowBgDisclosure(false);
+  }, []);
 
   // Route check modal (road conditions for a saved place / planned trip)
   const [routeCheck, setRouteCheck] = useState<{ label: string; lat: number; lng: number } | null>(null);
@@ -915,6 +950,14 @@ export default function TripsScreen() {
           destLng={routeCheck.lng}
         />
       )}
+
+      {/* Prominent disclosure — shown once before the OS background-location
+          prompt fires (required by Google Play + Apple App Store policy). */}
+      <BackgroundLocationDisclosureModal
+        visible={showBgDisclosure}
+        onAllow={handleDisclosureAllow}
+        onDismiss={handleDisclosureDismiss}
+      />
     </View>
   );
 }
