@@ -16,6 +16,7 @@ export const speedZonesTable = pgTable("speed_zones", {
   startLng:     doublePrecision("start_lng"),       // stretch mode
   endLat:       doublePrecision("end_lat"),         // stretch mode
   endLng:       doublePrecision("end_lng"),         // stretch mode
+  staticId:     text("static_id"),                 // sz-id of the built-in zone this row overrides
   status:       text("status").notNull().default("active"), // active|inactive
   createdBy:    text("created_by"),                // admin_users.id of the creator
   createdAt:    timestamp("created_at").notNull().defaultNow(),

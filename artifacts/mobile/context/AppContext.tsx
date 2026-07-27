@@ -235,8 +235,8 @@ interface AppContextValue {
   adminVerifyReport: (id: string) => Promise<void>;
   adminDenyReport: (id: string) => Promise<void>;
   adminUpdateReportLocation: (id: string, lat: number, lng: number, roadName?: string | null) => Promise<void>;
-  adminUpdateZoneLocation: (id: string, lat: number, lng: number) => Promise<void>;
-  adminRemoveZone: (id: string) => Promise<void>;
+  adminUpdateZoneLocation: (id: string, lat: number, lng: number, staticZone?: SpeedZone) => Promise<void>;
+  adminRemoveZone: (id: string, staticZone?: SpeedZone) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -484,19 +484,23 @@ interface ApiSpeedZone {
   endLat: number | null;
   endLng: number | null;
   status: string;
+  staticId?: string | null; // present when this DB row overrides a built-in static zone
 }
 
 function apiZoneToStaticZones(z: ApiSpeedZone): SpeedZone[] {
   if (z.status !== "active" || z.speedLimit == null) return [];
   const type: SpeedZone["type"] = z.type === "camera" || z.type === "police" ? z.type : "zone";
   const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "" };
+  // When this DB record overrides a static zone, use the static zone's id so that
+  // all speed-matching and route logic (which knows static ids) stays consistent.
+  const pointId = z.staticId ?? `db-${z.id}`;
   if (z.mode === "point" && z.lat != null && z.lng != null) {
-    return [{ ...base, id: `db-${z.id}`, lat: z.lat, lng: z.lng }];
+    return [{ ...base, id: pointId, lat: z.lat, lng: z.lng }];
   }
   if (z.mode === "stretch" && z.startLat != null && z.startLng != null && z.endLat != null && z.endLng != null) {
     return [
-      { ...base, id: `db-${z.id}-start`, lat: z.startLat, lng: z.startLng, isStretchEndpoint: true },
-      { ...base, id: `db-${z.id}-end`, lat: z.endLat, lng: z.endLng, isStretchEndpoint: true },
+      { ...base, id: `${pointId}-start`, lat: z.startLat, lng: z.startLng, isStretchEndpoint: true },
+      { ...base, id: `${pointId}-end`, lat: z.endLat, lng: z.endLng, isStretchEndpoint: true },
     ];
   }
   return [];
@@ -772,6 +776,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
   const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
+  const [suppressedStaticIds, setSuppressedStaticIds] = useState<string[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
   const [driverHeading, setDriverHeading] = useState<number | null>(null);
   const allZonesRef = useRef<SpeedZone[]>(SPEED_ZONES);
@@ -1768,9 +1773,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const poll = async () => {
       if (isOfflineRef.current) return;
       try {
-        const data = await apiGet<{ zones: ApiSpeedZone[] }>(`/speed-zones`);
+        const data = await apiGet<{ zones: ApiSpeedZone[]; suppressedStaticIds?: string[] }>(`/speed-zones`);
         setDbZones(data.zones.flatMap(apiZoneToStaticZones));
         setDbStretches(data.zones.map(apiZoneToStretch).filter((s): s is SpeedStretch => s !== null));
+        setSuppressedStaticIds(data.suppressedStaticIds ?? []);
       } catch { /* network error — keep previous DB zones */ }
     };
     poll(); // immediate on mount
@@ -1781,10 +1787,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Merged static + admin-managed zones, kept in a ref so non-reactive
   // callbacks (e.g. handleLocation) always read the latest list.
-  const allZones = useMemo<SpeedZone[]>(
-    () => (dbZones.length ? [...SPEED_ZONES, ...dbZones] : SPEED_ZONES),
-    [dbZones]
-  );
+  const allZones = useMemo<SpeedZone[]>(() => {
+    // Remove static zones that have been overridden or suppressed by a DB record.
+    const filtered = SPEED_ZONES.filter((z) => !suppressedStaticIds.includes(z.id));
+    return dbZones.length ? [...filtered, ...dbZones] : filtered;
+  }, [dbZones, suppressedStaticIds]);
   useEffect(() => { allZonesRef.current = allZones; }, [allZones]);
   useEffect(() => { dbStretchesRef.current = dbStretches; }, [dbStretches]);
 
@@ -2528,14 +2535,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, [communityReports]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const adminUpdateZoneLocation = useCallback(async (id: string, lat: number, lng: number): Promise<void> => {
-    await adminApiFetch("PATCH", `/admin-mobile/zones/${id}/location`, { lat, lng });
-    setDbZones((prev) => prev.map((z) => z.id === id ? { ...z, lat, lng } : z));
+  const adminUpdateZoneLocation = useCallback(async (
+    id: string, lat: number, lng: number, staticZone?: SpeedZone
+  ): Promise<void> => {
+    const body: Record<string, unknown> = { lat, lng };
+    if (staticZone) {
+      body.staticData = {
+        name: staticZone.name,
+        road: staticZone.road,
+        type: staticZone.type,
+        speedLimit: staticZone.speedLimit,
+        description: staticZone.description,
+      };
+    }
+    await adminApiFetch("PATCH", `/admin-mobile/zones/${id}/location`, body);
+    setDbZones((prev) => {
+      const exists = prev.some((z) => z.id === id);
+      if (exists) return prev.map((z) => z.id === id ? { ...z, lat, lng } : z);
+      // First promotion — add to dbZones so the static entry gets suppressed immediately
+      return staticZone ? [...prev, { ...staticZone, lat, lng }] : prev;
+    });
+    if (staticZone) {
+      setSuppressedStaticIds((prev) => prev.includes(id) ? prev : [...prev, id]);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const adminRemoveZone = useCallback(async (id: string): Promise<void> => {
-    await adminApiFetch("DELETE", `/admin-mobile/zones/${id}`);
+  const adminRemoveZone = useCallback(async (id: string, staticZone?: SpeedZone): Promise<void> => {
+    const body: Record<string, unknown> = {};
+    if (staticZone) {
+      body.staticData = {
+        name: staticZone.name,
+        road: staticZone.road,
+        type: staticZone.type,
+        speedLimit: staticZone.speedLimit,
+        description: staticZone.description,
+      };
+    }
+    await adminApiFetch("DELETE", `/admin-mobile/zones/${id}`, body);
     setDbZones((prev) => prev.filter((z) => z.id !== id));
+    if (staticZone) {
+      setSuppressedStaticIds((prev) => prev.includes(id) ? prev : [...prev, id]);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

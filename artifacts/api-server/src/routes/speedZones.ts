@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, speedZonesTable } from "@workspace/db";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
 
 const router: Router = Router();
 
@@ -29,6 +29,7 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
     endLat: z.endLat,
     endLng: z.endLng,
     status: z.status,
+    staticId: z.staticId,
     createdAt: z.createdAt.getTime(),
   };
 }
@@ -46,10 +47,20 @@ router.get("/speed-zones", async (req: Request, res: Response) => {
       .from(speedZonesTable)
       .where(eq(speedZonesTable.status, "active"));
 
+    // Collect ALL static_id values (active or inactive) so the mobile can
+    // suppress the matching built-in static zone in both cases.
+    const suppressedRows = await db
+      .select({ staticId: speedZonesTable.staticId })
+      .from(speedZonesTable)
+      .where(isNotNull(speedZonesTable.staticId));
+    const suppressedStaticIds = suppressedRows
+      .map((r) => r.staticId)
+      .filter((id): id is string => id !== null);
+
     // When no coordinates are supplied return everything so the mobile app
     // can show all cameras and speed zones regardless of the driver's location.
     if (isNaN(lat) || isNaN(lng)) {
-      return res.json({ zones: rows.map(toClient) });
+      return res.json({ zones: rows.map(toClient), suppressedStaticIds });
     }
 
     const latDelta = radius / 111320;
@@ -74,7 +85,7 @@ router.get("/speed-zones", async (req: Request, res: Response) => {
       })
       .map(toClient);
 
-    return res.json({ zones: result });
+    return res.json({ zones: result, suppressedStaticIds });
   } catch (err) {
     console.error("GET /speed-zones error:", err);
     return res.status(500).json({ error: "Internal server error" });

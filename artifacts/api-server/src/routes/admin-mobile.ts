@@ -1,7 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
+
+// UUID v4 pattern — static zones use "sz"-prefixed IDs instead
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = Router();
 
@@ -163,25 +166,65 @@ router.patch(
 
 // ─── PATCH /admin-mobile/zones/:id/location ──────────────────────────────────
 // Fix the lat/lng of a speed zone marker.
+// For DB zones (UUID id): updates the existing row.
+// For static zones (sz-prefixed id): upserts a DB record keyed by staticId.
 router.patch(
   "/admin-mobile/zones/:id/location",
   adminMobileAuth,
   async (req: Request, res: Response) => {
     try {
       const id = req.params["id"] as string;
-      const { lat, lng } = req.body as { lat?: number; lng?: number };
+      const { lat, lng, staticData } = req.body as {
+        lat?: number; lng?: number;
+        staticData?: { name: string; road?: string; type: string; speedLimit?: number; description?: string };
+      };
       if (lat == null || lng == null) return res.status(400).json({ error: "lat and lng required" });
 
-      const rows = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
-      if (!rows.length) return res.status(404).json({ error: "Zone not found" });
+      if (UUID_RE.test(id)) {
+        // Standard DB zone — update by primary key
+        const rows = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
+        if (!rows.length) return res.status(404).json({ error: "Zone not found" });
+        const [updated] = await db
+          .update(speedZonesTable)
+          .set({ lat, lng, updatedAt: new Date() })
+          .where(eq(speedZonesTable.id, id))
+          .returning();
+        return res.json({ id: updated.id, staticId: updated.staticId, lat: updated.lat, lng: updated.lng });
+      }
 
-      const [updated] = await db
-        .update(speedZonesTable)
-        .set({ lat, lng, updatedAt: new Date() })
-        .where(eq(speedZonesTable.id, id))
+      // Static zone — upsert by staticId
+      const existing = await db
+        .select()
+        .from(speedZonesTable)
+        .where(eq(speedZonesTable.staticId, id));
+
+      if (existing.length) {
+        const [updated] = await db
+          .update(speedZonesTable)
+          .set({ lat, lng, status: "active", updatedAt: new Date() })
+          .where(eq(speedZonesTable.staticId, id))
+          .returning();
+        return res.json({ id: updated.id, staticId: updated.staticId, lat: updated.lat, lng: updated.lng });
+      }
+
+      // First-time promotion of a static zone
+      if (!staticData) return res.status(400).json({ error: "staticData required to promote a static zone" });
+      const [created] = await db
+        .insert(speedZonesTable)
+        .values({
+          name: staticData.name,
+          road: staticData.road ?? null,
+          type: staticData.type,
+          mode: "point",
+          speedLimit: staticData.speedLimit ?? null,
+          description: staticData.description ?? null,
+          lat,
+          lng,
+          staticId: id,
+          status: "active",
+        })
         .returning();
-
-      return res.json({ id: updated.id, lat: updated.lat, lng: updated.lng });
+      return res.json({ id: created.id, staticId: created.staticId, lat: created.lat, lng: created.lng });
     } catch (err) {
       console.error("[admin-mobile/zones/location]", err);
       return res.status(500).json({ error: "Internal server error" });
@@ -191,21 +234,60 @@ router.patch(
 
 // ─── DELETE /admin-mobile/zones/:id ──────────────────────────────────────────
 // Deactivate (soft-delete) a speed zone.
+// For static zones, upserts a suppression record with status=inactive.
 router.delete(
   "/admin-mobile/zones/:id",
   adminMobileAuth,
   async (req: Request, res: Response) => {
     try {
       const id = req.params["id"] as string;
-      const rows = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
-      if (!rows.length) return res.status(404).json({ error: "Zone not found" });
+      const { staticData } = req.body as {
+        staticData?: { name: string; road?: string; type: string; speedLimit?: number; description?: string };
+      };
 
-      await db
-        .update(speedZonesTable)
-        .set({ status: "inactive", updatedAt: new Date() })
-        .where(eq(speedZonesTable.id, id));
+      if (UUID_RE.test(id)) {
+        // Standard DB zone — soft-delete by primary key
+        const rows = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
+        if (!rows.length) return res.status(404).json({ error: "Zone not found" });
+        await db
+          .update(speedZonesTable)
+          .set({ status: "inactive", updatedAt: new Date() })
+          .where(eq(speedZonesTable.id, id));
+        return res.json({ id, status: "inactive" });
+      }
 
-      return res.json({ id, status: "inactive" });
+      // Static zone — upsert suppression by staticId
+      const existing = await db
+        .select()
+        .from(speedZonesTable)
+        .where(eq(speedZonesTable.staticId, id));
+
+      if (existing.length) {
+        await db
+          .update(speedZonesTable)
+          .set({ status: "inactive", updatedAt: new Date() })
+          .where(eq(speedZonesTable.staticId, id));
+        return res.json({ id, status: "inactive" });
+      }
+
+      // First-time suppression of a static zone with no prior DB record
+      if (!staticData) return res.status(400).json({ error: "staticData required to suppress a static zone" });
+      const [created] = await db
+        .insert(speedZonesTable)
+        .values({
+          name: staticData.name,
+          road: staticData.road ?? null,
+          type: staticData.type,
+          mode: "point",
+          speedLimit: staticData.speedLimit ?? null,
+          description: staticData.description ?? null,
+          lat: null,
+          lng: null,
+          staticId: id,
+          status: "inactive",
+        })
+        .returning();
+      return res.json({ id: created.id, staticId: id, status: "inactive" });
     } catch (err) {
       console.error("[admin-mobile/zones/delete]", err);
       return res.status(500).json({ error: "Internal server error" });

@@ -30,10 +30,6 @@ const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, lo
 const POI_RADIUS_M = 8000;
 const CLUSTER_DIST_M = 35;
 
-// Static speed zones have ids like "sz076"; DB zones have real UUIDs.
-// Admin edits only work against DB records.
-const isDbZone = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -932,7 +928,7 @@ const DriveMapView = forwardRef(function DriveMapView(
           initialLng={adminZoneLocationTarget.lng}
           onClose={() => setAdminZoneLocationTarget(null)}
           onSave={async (lat, lng) => {
-            await adminUpdateZoneLocation(adminZoneLocationTarget.id, lat, lng);
+            await adminUpdateZoneLocation(adminZoneLocationTarget.id, lat, lng, adminZoneLocationTarget);
             setAdminZoneLocationTarget(null);
             setSelectedZone(null);
           }}
@@ -979,8 +975,8 @@ const DriveMapView = forwardRef(function DriveMapView(
                 </Text>
               </View>
 
-              {/* Admin actions — only for DB zones (UUID ids); static zones can't be edited via API */}
-              {isAdmin && isDbZone(selectedZone.id) && (
+              {/* Admin actions — available for all zones (both static and DB-managed) */}
+              {isAdmin && (
                 <View style={ms.adminActionRow}>
                   <TouchableOpacity
                     style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
@@ -998,7 +994,7 @@ const DriveMapView = forwardRef(function DriveMapView(
                           text: "Remove",
                           style: "destructive",
                           onPress: async () => {
-                            await adminRemoveZone(selectedZone.id);
+                            await adminRemoveZone(selectedZone.id, selectedZone);
                             setSelectedZone(null);
                           },
                         },
@@ -1008,14 +1004,6 @@ const DriveMapView = forwardRef(function DriveMapView(
                     <Ionicons name="close-circle" size={13} color="#B71C1C" />
                     <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
                   </TouchableOpacity>
-                </View>
-              )}
-              {isAdmin && !isDbZone(selectedZone.id) && (
-                <View style={ms.zoneManagedNote}>
-                  <Ionicons name="information-circle-outline" size={13} color="#757575" />
-                  <Text style={[ms.zoneManagedTxt, { color: "#757575" }]}>
-                    Static zone — edit via the admin dashboard
-                  </Text>
                 </View>
               )}
             </TouchableOpacity>
