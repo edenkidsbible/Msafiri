@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
+import { AdminLocationPickerModal } from "./AdminLocationPickerModal";
 
 export type DriveMapViewHandle = { recenter: () => void };
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
@@ -195,6 +196,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     confirmReport, denyReport, flagReport,
     vehicleType, allZones,
     pendingFocusCoords, setPendingFocusCoords,
+    isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -233,6 +235,7 @@ const DriveMapView = forwardRef(function DriveMapView(
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
+  const [adminLocationTarget, setAdminLocationTarget] = useState<CommunityReport | null>(null);
 
   // Android + PROVIDER_GOOGLE: custom marker views must go through at least one
   // full render cycle with tracksViewChanges=true before the native layer
@@ -267,6 +270,51 @@ const DriveMapView = forwardRef(function DriveMapView(
     } else {
       Alert.alert("Couldn't send report", "Check your connection and try again.");
     }
+  };
+
+  // ─── Admin actions ─────────────────────────────────────────────────────────
+  const handleAdminVerify = async (r: CommunityReport) => {
+    const id = r.serverId ?? r.id;
+    try {
+      await adminVerifyReport(id);
+      setSelectedCluster((prev) =>
+        prev
+          ? {
+              ...prev,
+              members: prev.members.map((m) =>
+                m.id === r.id || m.serverId === id
+                  ? { ...m, adminVerified: true, status: "confirmed" as const, confirmCount: 999 }
+                  : m
+              ),
+            }
+          : prev
+      );
+    } catch (err: any) {
+      Alert.alert("Verification Failed", err?.message ?? "Check your connection and try again.");
+    }
+  };
+
+  const handleAdminDeny = (r: CommunityReport) => {
+    Alert.alert("Remove Report", "Permanently remove this report from the map?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          const id = r.serverId ?? r.id;
+          try {
+            await adminDenyReport(id);
+            setSelectedCluster((prev) => {
+              if (!prev) return prev;
+              const remaining = prev.members.filter((m) => m.id !== r.id && m.serverId !== id);
+              return remaining.length ? { ...prev, members: remaining } : null;
+            });
+          } catch (err: any) {
+            Alert.alert("Remove Failed", err?.message ?? "Check your connection and try again.");
+          }
+        },
+      },
+    ]);
   };
   const openedAtRef = useRef(0);
 
@@ -723,7 +771,13 @@ const DriveMapView = forwardRef(function DriveMapView(
                       <View style={{ flex: 1, gap: 3 }}>
                         <View style={ms.incidentLabelRow}>
                           <Text style={ms.incidentType}>{reportLabel(r.type)}</Text>
-                          {confirmed && (
+                          {r.adminVerified && (
+                            <View style={[ms.verifiedBadge, { backgroundColor: "#E3F2FD", borderColor: "#1565C030" }]}>
+                              <Ionicons name="shield-checkmark" size={11} color="#1565C0" />
+                              <Text style={[ms.verifiedTxt, { color: "#1565C0" }]}>Admin Verified</Text>
+                            </View>
+                          )}
+                          {!r.adminVerified && confirmed && (
                             <View style={ms.verifiedBadge}>
                               <Ionicons name="checkmark-circle" size={11} color="#2E7D32" />
                               <Text style={ms.verifiedTxt}>Verified</Text>
@@ -813,6 +867,33 @@ const DriveMapView = forwardRef(function DriveMapView(
                             </TouchableOpacity>
                           </View>
                         )}
+                        {isAdmin && (
+                          <View style={ms.adminActionRow}>
+                            <TouchableOpacity
+                              style={[ms.adminBtn, { backgroundColor: "#E8F5E920", borderColor: "#1B5E2040" }]}
+                              onPress={() => handleAdminVerify(r)}
+                            >
+                              <Ionicons name="checkmark-circle" size={13} color="#1B5E20" />
+                              <Text style={[ms.adminBtnTxt, { color: "#1B5E20" }]}>
+                                {r.adminVerified ? "✓ Verified" : "Verify"}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
+                              onPress={() => handleAdminDeny(r)}
+                            >
+                              <Ionicons name="close-circle" size={13} color="#B71C1C" />
+                              <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
+                              onPress={() => setAdminLocationTarget(r)}
+                            >
+                              <Ionicons name="location" size={13} color="#1565C0" />
+                              <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
                     </View>
                   );
@@ -821,6 +902,23 @@ const DriveMapView = forwardRef(function DriveMapView(
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
+      )}
+
+      {/* Admin location fixer */}
+      {adminLocationTarget && (
+        <AdminLocationPickerModal
+          visible
+          reportId={adminLocationTarget.serverId ?? adminLocationTarget.id}
+          initialLat={adminLocationTarget.lat}
+          initialLng={adminLocationTarget.lng}
+          initialRoadName={adminLocationTarget.roadName}
+          onClose={() => setAdminLocationTarget(null)}
+          onSave={async (lat, lng, roadName) => {
+            const id = adminLocationTarget.serverId ?? adminLocationTarget.id;
+            await adminUpdateReportLocation(id, lat, lng, roadName ?? null);
+            setAdminLocationTarget(null);
+          }}
+        />
       )}
     </>
   );
@@ -938,4 +1036,15 @@ const ms = StyleSheet.create({
   },
   voteBtnDisabled: { opacity: 0.5 },
   voteTxt: { fontSize: 12, fontWeight: "600" },
+  // ── Admin action row ────────────────────────────────────────────────────────
+  adminActionRow: {
+    flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center",
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E0E0E0",
+  },
+  adminBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
+  },
+  adminBtnTxt: { fontSize: 11, fontWeight: "700" },
 });

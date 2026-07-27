@@ -39,6 +39,11 @@ export const communityReportsTable = pgTable("community_reports", {
   // Set true when a moderator reviews the flag(s) and decides to keep the
   // report live; a fresh flag from a new device clears this so it resurfaces.
   flagDismissed:  boolean("flag_dismissed").notNull().default(false),
+  // Set true by an admin (via the admin-mobile API) to permanently verify a
+  // report as legitimate. Admin-verified reports show a distinct "Admin
+  // Verified" badge (vs the community "Verified" badge), get confirmCount=999
+  // so they can never be deny-voted away, and have no expiry (expiresAt=null).
+  adminVerified:  boolean("admin_verified").notNull().default(false),
 });
 
 export const insertReportSchema = createInsertSchema(communityReportsTable).omit({

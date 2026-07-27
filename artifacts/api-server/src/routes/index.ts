@@ -13,6 +13,7 @@ import courseRouter from "./course.js";
 import publicSettingsRouter from "./settings.js";
 import storageRouter from "./storage.js";
 import placesRouter from "./places.js";
+import adminMobileRouter from "./admin-mobile.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(shareRouter);
 router.use(courseRouter);
 router.use(publicSettingsRouter);
 router.use(storageRouter);
+router.use(adminMobileRouter);
 
 export default router;

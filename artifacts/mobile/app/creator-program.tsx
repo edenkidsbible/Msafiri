@@ -90,6 +90,12 @@ export default function CreatorProgramScreen() {
     }
   }
 
+  async function handleResubmit() {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    setSubmitState("idle");
+    setError(null);
+  }
+
   async function handleRedeemCode() {
     if (Platform.OS === "ios") {
       try {
@@ -266,6 +272,13 @@ export default function CreatorProgramScreen() {
             <Text style={[styles.successBody, { color: c.mutedForeground }]}>
               We'll review your application and you'll hear back within 6 hours. If approved, we'll send your promo code by email.
             </Text>
+            {submitState === "already" && (
+              <TouchableOpacity onPress={handleResubmit} activeOpacity={0.7} style={styles.resubmitBtn}>
+                <Text style={[styles.resubmitTxt, { color: c.mutedForeground }]}>
+                  Not your submission? <Text style={{ color: c.primary }}>Apply again →</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -340,6 +353,9 @@ const styles = StyleSheet.create({
   },
   successTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
   successBody:  { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+
+  resubmitBtn: { marginTop: 4, alignSelf: "center" },
+  resubmitTxt: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
 
   codeBox: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 8 },
   codeTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

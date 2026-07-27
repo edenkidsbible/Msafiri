@@ -140,6 +140,7 @@ router.get("/reports", async (req: Request, res: Response) => {
       denyCount: r.denyCount,
       speedLimit: r.speedLimit,
       roadName: r.roadName,
+      adminVerified: r.adminVerified ?? false,
       createdAt: r.createdAt.getTime(),
       expiresAt: r.expiresAt?.getTime() ?? null,
     });

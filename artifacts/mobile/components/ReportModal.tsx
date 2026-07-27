@@ -21,6 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { CommunityReport } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
+import { MapPinPicker } from "./MapPinPicker";
 
 type ReportType = CommunityReport["type"];
 
@@ -77,7 +78,8 @@ export default function ReportModal({
   const [speedLimit, setSpeedLimit] = useState("");
 
   const hasCurrentLocation = currentLat != null && currentLng != null;
-  const [locationMode, setLocationMode] = useState<"current" | "search">("current");
+  const [locationMode, setLocationMode] = useState<"current" | "search" | "map">("current");
+  const [pickedMapLocation, setPickedMapLocation] = useState<ReportLocation | null>(null);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -115,6 +117,7 @@ export default function ReportModal({
     setSearchResults([]);
     setSearchError(false);
     setPickedLocation(null);
+    setPickedMapLocation(null);
     setEditingSearch(true);
   };
 
@@ -161,7 +164,7 @@ export default function ReportModal({
     setTimeout(() => searchInputRef.current?.focus(), 50);
   };
 
-  const selectMode = (mode: "current" | "search") => {
+  const selectMode = (mode: "current" | "search" | "map") => {
     bumpIdleTimer();
     setLocationMode(mode);
     if (mode === "current") {
@@ -171,12 +174,18 @@ export default function ReportModal({
       setPickedLocation(null);
       setSearchError(false);
       setEditingSearch(true);
+    } else if (mode === "map") {
+      Keyboard.dismiss();
     } else {
       setEditingSearch(true);
     }
   };
 
-  const canSubmit = !!sel && (locationMode === "current" ? hasCurrentLocation : !!pickedLocation);
+  const canSubmit = !!sel && (
+    locationMode === "current" ? hasCurrentLocation :
+    locationMode === "search" ? !!pickedLocation :
+    locationMode === "map" ? !!pickedMapLocation : false
+  );
 
   const doSubmit = (type: ReportType, limit?: number, location?: ReportLocation) => {
     clearIdleTimer();
@@ -189,7 +198,10 @@ export default function ReportModal({
     const limit = sel === "camera" && speedLimit.trim()
       ? parseInt(speedLimit.trim(), 10)
       : undefined;
-    const location = locationMode === "search" && pickedLocation ? pickedLocation : undefined;
+    const location =
+      locationMode === "search" && pickedLocation ? pickedLocation :
+      locationMode === "map" && pickedMapLocation ? pickedMapLocation :
+      undefined;
     doSubmit(sel, isNaN(limit as number) ? undefined : limit, location);
   };
 
@@ -257,6 +269,18 @@ export default function ReportModal({
                   Search Location
                 </Text>
               </TouchableOpacity>
+              {Platform.OS !== "web" && (
+                <TouchableOpacity
+                  style={[styles.locToggleBtn, locationMode === "map" && { backgroundColor: c.card }]}
+                  onPress={() => selectMode("map")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="map" size={14} color={locationMode === "map" ? c.primary : c.mutedForeground} />
+                  <Text style={[styles.locToggleTxt, { color: locationMode === "map" ? c.primary : c.mutedForeground }]}>
+                    Pin on Map
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {locationMode === "current" && (
@@ -360,6 +384,23 @@ export default function ReportModal({
                     )}
                   </>
                 )}
+              </View>
+            )}
+
+            {locationMode === "map" && (
+              <View style={{ marginTop: 4 }}>
+                <MapPinPicker
+                  initialLat={currentLat ?? -1.2921}
+                  initialLng={currentLng ?? 36.8219}
+                  onLocationChange={(lat, lng) => {
+                    bumpIdleTimer();
+                    setPickedMapLocation({
+                      lat,
+                      lng,
+                      label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+                    });
+                  }}
+                />
               </View>
             )}
 

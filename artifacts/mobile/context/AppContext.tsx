@@ -18,7 +18,7 @@ import { speakPhrase, stopVoice, scheduleAfterClip, speakRoadClip, resolveRoadCl
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
-import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/utils/apiClient";
+import { apiGet, apiPost, apiPatch, apiDelete, ApiError, API_BASE } from "@/utils/apiClient";
 import {
   startBackgroundShareTask,
   stopBackgroundShareTask,
@@ -44,6 +44,7 @@ export interface CommunityReport {
   isOwn?: boolean;
   speedLimit?: number;
   roadName?: string;
+  adminVerified?: boolean;
 }
 
 export interface TripPoint { lat: number; lng: number; speed: number; time: number }
@@ -227,6 +228,13 @@ interface AppContextValue {
    *  noise threshold (< 5 m). Used by the map to fade pins that are behind
    *  the driver (angle > 90° from the heading vector). */
   driverHeading: number | null;
+  // Admin mode
+  isAdmin: boolean;
+  adminLogin: (pin: string) => Promise<void>;
+  adminLogout: () => Promise<void>;
+  adminVerifyReport: (id: string) => Promise<void>;
+  adminDenyReport: (id: string) => Promise<void>;
+  adminUpdateReportLocation: (id: string, lat: number, lng: number, roadName?: string | null) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -286,6 +294,21 @@ function driverHeadingDeg(
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+}
+
+/** Decode a JWT payload and verify the role + expiry without a library. */
+function isAdminTokenValid(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    // atob is globally available in React Native (polyfilled by Hermes / JSC)
+    const payload = JSON.parse(atob(parts[1])) as { role?: string; exp?: number };
+    return payload.role === "admin_mobile" &&
+      typeof payload.exp === "number" &&
+      payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
 }
 
 /** Returns the English ordinal suffix string for a positive integer, e.g. 1→"1st", 3→"3rd". */
@@ -1696,6 +1719,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: string; type: string; lat: number; lng: number;
           status: string; confirmCount: number; denyCount: number;
           createdAt: number; expiresAt: number | null;
+          speedLimit: number | null; roadName: string | null; adminVerified: boolean;
         }> }>(`/reports`);
         const remote: CommunityReport[] = data.reports.map((r) => ({
           id: r.id,
@@ -1708,6 +1732,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: r.status as CommunityReport["status"],
           confirmCount: r.confirmCount,
           denyCount: r.denyCount,
+          speedLimit: r.speedLimit ?? undefined,
+          roadName: r.roadName ?? undefined,
+          adminVerified: r.adminVerified,
           isOwn: false,
         }));
         setCommunityReports((prev) => {
@@ -1716,7 +1743,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const ownedUpdated = owned.map((o) => {
             const match = remote.find((r) => r.id === o.serverId);
             return match
-              ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount }
+              ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount, adminVerified: match.adminVerified }
               : o;
           });
           return [...ownedUpdated, ...remoteNew].filter(
@@ -2418,6 +2445,87 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void AsyncStorage.setItem(KEYS.DRIVER_NAME, trimmed);
   }, []);
 
+  // ─── Admin mode ──────────────────────────────────────────────────────────────
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const adminTokenRef = useRef<string | null>(null);
+  useEffect(() => { adminTokenRef.current = adminToken; }, [adminToken]);
+
+  // Restore a valid admin token from AsyncStorage on mount
+  useEffect(() => {
+    void AsyncStorage.getItem("admin_mobile_token").then((t) => {
+      if (t && isAdminTokenValid(t)) setAdminToken(t);
+      else if (t) void AsyncStorage.removeItem("admin_mobile_token");
+    });
+  }, []);
+
+  const isAdmin = !!adminToken && isAdminTokenValid(adminToken);
+
+  /** Makes an authenticated fetch to the admin-mobile API. */
+  async function adminApiFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
+    if (!API_BASE) throw new Error("API_BASE not configured");
+    const token = adminTokenRef.current;
+    if (!token) throw new Error("Not authenticated as admin");
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const data: { error?: string } = await res.json().catch(() => ({}));
+      throw new Error(data?.error ?? `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
+  const adminLogin = useCallback(async (pin: string): Promise<void> => {
+    const res = await apiPost<{ token: string }>("/admin-mobile/auth", { pin });
+    await AsyncStorage.setItem("admin_mobile_token", res.token);
+    setAdminToken(res.token);
+  }, []);
+
+  const adminLogout = useCallback(async (): Promise<void> => {
+    await AsyncStorage.removeItem("admin_mobile_token");
+    setAdminToken(null);
+  }, []);
+
+  const adminVerifyReport = useCallback(async (id: string): Promise<void> => {
+    const report = communityReports.find((r) => r.id === id || r.serverId === id);
+    const serverId = report?.serverId ?? id;
+    await adminApiFetch("POST", `/admin-mobile/reports/${serverId}/verify`);
+    setCommunityReports((prev) =>
+      prev.map((r) =>
+        r.id === id || r.serverId === serverId
+          ? { ...r, adminVerified: true, status: "confirmed" as const, confirmCount: 999 }
+          : r
+      )
+    );
+  }, [communityReports]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const adminDenyReport = useCallback(async (id: string): Promise<void> => {
+    const report = communityReports.find((r) => r.id === id || r.serverId === id);
+    const serverId = report?.serverId ?? id;
+    await adminApiFetch("POST", `/admin-mobile/reports/${serverId}/deny`);
+    setCommunityReports((prev) => prev.filter((r) => r.id !== id && r.serverId !== serverId));
+  }, [communityReports]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const adminUpdateReportLocation = useCallback(async (
+    id: string,
+    lat: number,
+    lng: number,
+    roadName?: string | null
+  ): Promise<void> => {
+    const report = communityReports.find((r) => r.id === id || r.serverId === id);
+    const serverId = report?.serverId ?? id;
+    await adminApiFetch("PATCH", `/admin-mobile/reports/${serverId}/location`, { lat, lng, roadName });
+    setCommunityReports((prev) =>
+      prev.map((r) =>
+        r.id === id || r.serverId === serverId
+          ? { ...r, lat, lng, ...(roadName !== undefined ? { roadName: roadName ?? undefined } : {}) }
+          : r
+      )
+    );
+  }, [communityReports]);  // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission, requestNotificationPermission,
@@ -2453,6 +2561,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pendingFocusCoords, setPendingFocusCoords,
       markReportPrompted, isReportPrompted,
       driverHeading,
+      isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     }}>
       {children}
     </AppContext.Provider>
