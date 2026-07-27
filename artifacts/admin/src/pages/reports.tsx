@@ -22,6 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AdminReport } from "@workspace/api-client-react";
 import { ReportsMap } from "@/components/reports-map";
+import { LocationEditorDialog } from "@/components/location-editor-dialog";
 import { getToken } from "@/lib/auth";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -104,6 +105,7 @@ export default function Reports() {
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
+  const [locationEditorReport, setLocationEditorReport] = useState<AdminReport | null>(null);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [deviceToBlock, setDeviceToBlock] = useState<string | null>(null);
   const [blockReason, setBlockReason] = useState("");
@@ -746,6 +748,9 @@ export default function Reports() {
                               <DropdownMenuItem onClick={() => openEditDialog(report)} className="cursor-pointer">
                                 <Edit className="mr-2 h-4 w-4" /> Edit Details
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setLocationEditorReport(report)} className="cursor-pointer">
+                                <MapPin className="mr-2 h-4 w-4" /> Edit Location
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {report.deviceBlocked ? (
                                 <DropdownMenuItem
@@ -950,6 +955,15 @@ export default function Reports() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {locationEditorReport && (
+        <LocationEditorDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setLocationEditorReport(null); }}
+          report={locationEditorReport}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] })}
+        />
+      )}
     </AdminLayout>
   );
 }

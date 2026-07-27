@@ -70,7 +70,7 @@ export default function CreatorProgramScreen() {
     setError(null);
     setSubmitState("submitting");
     try {
-      const deviceId = await AsyncStorage.getItem("device_id") ?? "unknown";
+      const deviceId = await AsyncStorage.getItem("sdk_device_id") ?? "unknown";
       const result = await apiPost("/creator-application", {
         deviceId,
         name:     name.trim() || null,

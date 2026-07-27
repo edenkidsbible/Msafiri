@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import {
   useAdminGetModerationQueue,
@@ -9,11 +10,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, XCircle, Loader2, ShieldAlert, TimerReset, Camera, Flag, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ShieldAlert, TimerReset, Camera, Flag, RefreshCw, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AdminReport } from "@workspace/api-client-react";
+import { LocationEditorDialog } from "@/components/location-editor-dialog";
 
 const TYPE_LABELS: Record<string, string> = {
   camera: "Speed Camera",
@@ -33,6 +35,7 @@ function QueueRow({
   report,
   onApprove,
   onReject,
+  onViewMap,
   isBusy,
   approveLabel,
   rejectLabel,
@@ -40,6 +43,7 @@ function QueueRow({
   report: AdminReport;
   onApprove: () => void;
   onReject: () => void;
+  onViewMap: () => void;
   isBusy: boolean;
   approveLabel: string;
   rejectLabel: string;
@@ -64,6 +68,15 @@ function QueueRow({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+          title="View & edit location on map"
+          onClick={onViewMap}
+        >
+          <MapPin className="h-3.5 w-3.5" />
+        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -95,11 +108,13 @@ function FlagRow({
   report,
   onKeep,
   onRemove,
+  onViewMap,
   isBusy,
 }: {
   report: AdminReport;
   onKeep: () => void;
   onRemove: () => void;
+  onViewMap: () => void;
   isBusy: boolean;
 }) {
   const reasons = report.flagReasons ?? [];
@@ -138,6 +153,15 @@ function FlagRow({
       <div className="flex items-center gap-2 shrink-0">
         <Button
           size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+          title="View & edit location on map"
+          onClick={onViewMap}
+        >
+          <MapPin className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="sm"
           variant="outline"
           className="gap-2 h-8 shadow-none border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
           disabled={isBusy}
@@ -166,6 +190,7 @@ function FlagRow({
 export default function ModerationQueue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [locationEditorReport, setLocationEditorReport] = useState<AdminReport | null>(null);
 
   const { data, isLoading, isFetching, refetch } = useAdminGetModerationQueue();
 
@@ -263,6 +288,7 @@ export default function ModerationQueue() {
                   isBusy={flagBusyId === r.id}
                   onKeep={() => keepMutation.mutate({ id: r.id })}
                   onRemove={() => removeMutation.mutate({ id: r.id })}
+                  onViewMap={() => setLocationEditorReport(r)}
                 />
               ))
             )}
@@ -292,6 +318,7 @@ export default function ModerationQueue() {
                   rejectLabel="Deny"
                   onApprove={() => approveMutation.mutate({ id: r.id })}
                   onReject={() => rejectMutation.mutate({ id: r.id })}
+                  onViewMap={() => setLocationEditorReport(r)}
                 />
               ))
             )}
@@ -324,12 +351,22 @@ export default function ModerationQueue() {
                   rejectLabel="Dismiss"
                   onApprove={() => approveMutation.mutate({ id: r.id })}
                   onReject={() => rejectMutation.mutate({ id: r.id })}
+                  onViewMap={() => setLocationEditorReport(r)}
                 />
               ))
             )}
           </CardContent>
         </Card>
       </div>
+
+      {locationEditorReport && (
+        <LocationEditorDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setLocationEditorReport(null); }}
+          report={locationEditorReport}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/moderation-queue"] })}
+        />
+      )}
     </AdminLayout>
   );
 }
