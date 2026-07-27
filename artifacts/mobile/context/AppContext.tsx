@@ -716,8 +716,9 @@ function warnIfBlockedDevice(err: unknown): boolean {
 }
 
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
-const STEP_ANNOUNCE_DIST = 220; // m — announce next step when within this distance
-const STEP_ADVANCE_DIST = 35;  // m — advance step index when past maneuver
+const STEP_ANNOUNCE_DIST = 350; // m — initial "In X metres, turn …" announcement
+const STEP_REMIND_DIST  = 80;  // m — final "turn now" reminder (no distance prefix)
+const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
 const ARRIVAL_DIST = 30;        // m — trigger arrival voice + advance final step
 const APPROACHING_DIST = 65;   // m — one early "approaching your destination" cue
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
@@ -821,7 +822,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Per-zone cooldown after auto-dismiss (ms timestamp). Prevents an alert that
   // was just dismissed from immediately re-triggering due to the heading
   // activation window (60°) being wider than the dismissal window (90°).
-  const alertDismissCooldownRef = useRef<Map<string, number>>(new Map());
+  // Maps dismissed alert id → { expiry, peakDistM }.
+  // peakDistM starts at the distance when the alert was dismissed and is
+  // updated upward on every GPS tick while in cooldown.  When the driver
+  // re-approaches to within (peakDistM − 300 m) the cooldown is cancelled
+  // early — a genuine U-turn or loop will have built enough peak distance for
+  // the threshold to be reachable; brief GPS jitter never will.
+  const alertDismissCooldownRef = useRef<Map<string, { expiry: number; peakDistM: number }>>(new Map());
   const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1332,8 +1339,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (shouldDismiss) {
         const dismissedId = alertZoneRef.current!;
-        // Set a 60-second cooldown so this zone cannot immediately re-trigger.
-        alertDismissCooldownRef.current.set(dismissedId, Date.now() + 60_000);
+        // 60-second cooldown. peakDistM starts at the dismiss distance and is
+        // updated upward each GPS tick so the early-cancel check can tell whether
+        // the driver has made a genuine detour (built up enough distance) vs jitter.
+        alertDismissCooldownRef.current.set(dismissedId, {
+          expiry: Date.now() + 60_000,
+          peakDistM: curDist ?? 0,
+        });
         alertZoneRef.current = null;
         alertSourceRef.current = null;
         alertDismissed.current = false;
@@ -1351,17 +1363,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // (5) Activate a new alert or refresh the ongoing one
     // Prune expired cooldown entries to avoid unbounded map growth.
     const nowTs = Date.now();
-    for (const [k, exp] of alertDismissCooldownRef.current) {
-      if (nowTs > exp) alertDismissCooldownRef.current.delete(k);
+    for (const [k, cd] of alertDismissCooldownRef.current) {
+      if (nowTs > cd.expiry) alertDismissCooldownRef.current.delete(k);
     }
 
     if (winner && !isStationary) {
-      // Skip winner if it was recently auto-dismissed (60 s cooldown).
-      const cooldownExp = alertDismissCooldownRef.current.get(winner.id);
-      if (cooldownExp && nowTs < cooldownExp) {
-        // Still in cooldown — suppress activation; treat as no winner.
-      } else
-      if (winner.id !== alertZoneRef.current) {
+      // If this winner is under a 60 s cooldown, first update the running peak
+      // distance (we track how far away the driver got after the dismiss), then
+      // check whether a genuine re-approach has happened.
+      //
+      // Early-cancel rule: winner.distance ≤ peakDistM − 300 m
+      //   • A real U-turn or looping road will have built up a large peak
+      //     (e.g. dismissed at 280 m, drove to 900 m peak → cancel at 600 m).
+      //   • Brief GPS jitter never accumulates enough peak distance: dismissed
+      //     at 280 m, peak only reaches ~350 m → threshold 50 m, which is
+      //     always below IN_ZONE_DIST (250 m) → cooldown stays intact.
+      const cooldown = alertDismissCooldownRef.current.get(winner.id);
+      if (cooldown && nowTs < cooldown.expiry) {
+        // Keep peak up-to-date as the driver moves away.
+        if (winner.distance > cooldown.peakDistM) {
+          cooldown.peakDistM = winner.distance;
+        }
+        if (winner.distance <= cooldown.peakDistM - 300) {
+          // Genuine re-approach — cancel the cooldown early.
+          alertDismissCooldownRef.current.delete(winner.id);
+        }
+        // else: still too close to the peak → suppress via the has() check below.
+      }
+
+      // Activate a new alert (only when not in cooldown).
+      if (!alertDismissCooldownRef.current.has(winner.id) && winner.id !== alertZoneRef.current) {
         alertZoneRef.current = winner.id;
         alertSourceRef.current = winner.source;
         alertZoneLastDistRef.current = winner.distance;
@@ -1509,13 +1540,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const dist = haversine(lat, lng, step.location.latitude, step.location.longitude);
         setDistToNextM(Math.round(dist));
 
-        const key = `step_${idx}`;
-        if (dist < STEP_ANNOUNCE_DIST && lastSpokenRef.current !== key) {
+        const key     = `step_${idx}`;
+        const nearKey = `step_${idx}_near`;
+
+        if (dist < STEP_ANNOUNCE_DIST && lastSpokenRef.current !== key && lastSpokenRef.current !== nearKey) {
+          // ── Initial announcement — "In 300 metres, turn left onto Ngong Road" ──
+          // Fires once when the driver enters the 350 m bubble.  Using `else if`
+          // for the reminder below means only one phrase fires per GPS tick even
+          // when the driver is already inside both thresholds (e.g. nav started
+          // close to a junction).
           lastSpokenRef.current = key;
           const distWord = dist > 100 ? `In ${Math.round(dist / 50) * 50} metres, ` : "";
-          // speakTurnAnnouncement: plays a Keli distance-prefix clip then TTS
-          // for the turn instruction (which contains a dynamic road name).
           speakTurnAnnouncement(distWord + step.instruction.toLowerCase());
+          // Protect the clip chain (distance + maneuver + road ≈ 5–6 s total)
+          // from being cut by a supplementary hazard/zone alert.
+          // Advancing lastGeneralAlertAtRef makes canSpeakGeneralAlert() return
+          // false for the next ~6 s without shortening any already-running
+          // cooldown that expires later.
+          const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
+          if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
+
+        } else if (!isLastStep && dist < STEP_REMIND_DIST && lastSpokenRef.current === key) {
+          // ── Final "turn now" reminder — fires at ≤ 80 m ──────────────────────
+          // Only fires after the initial was already given (lastSpokenRef === key)
+          // and only for intermediate steps — the last step uses APPROACHING_DIST
+          // (65 m) for its cue.  No distance prefix here: at this range the
+          // driver needs the raw maneuver word, not a countdown.
+          lastSpokenRef.current = nearKey;
+          speakTurnAnnouncement(step.instruction.toLowerCase());
+          // Shorter protection window — maneuver-only clip is ~2–3 s.
+          const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
+          if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
         }
 
         // The final step gets a wider arrival radius than intermediate turns:

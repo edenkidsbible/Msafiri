@@ -39,23 +39,3 @@ REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-717ae7ae-25e0-4b53-8612-804b1a421998"
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
-
-[[ports]]
-localPort = 18115
-externalPort = 3001
-
-[[ports]]
-localPort = 22813
-externalPort = 80
-
-[[ports]]
-localPort = 23744
-externalPort = 3000
