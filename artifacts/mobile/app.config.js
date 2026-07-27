@@ -18,6 +18,9 @@ module.exports = {
       bundleIdentifier: "com.msafirikenya.app",
       buildNumber: "1",
       supportsTablet: false,
+      config: {
+        googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY || "AIzaSyAqD6Eo_ZMUvoqHO_jLdPUAXTQVo-Ej3Dg",
+      },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           "Msafiri uses your location to show your real-time speed and detect nearby speed cameras and police checkpoints.",
