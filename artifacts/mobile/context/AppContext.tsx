@@ -24,11 +24,6 @@ import {
   stopBackgroundShareTask,
   requestBackgroundLocationPermission,
 } from "@/utils/backgroundShare";
-import {
-  showNavNotification,
-  updateNavNotification,
-  dismissNavNotification,
-} from "@/utils/NavigationNotification";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
@@ -815,7 +810,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastGeneralAlertAtRef = useRef<number>(0);
   // Timestamp of the last speed-driven nav-notification update (Android only).
   // Throttles high-frequency GPS-speed writes to at most once every 3 seconds.
-  const lastNavNotifSpeedUpdateRef = useRef<number>(0);
   // Forwards to the memoized `stopNavigation` below so handleLocation (a
   // stable useCallback defined earlier in this component) can trigger a
   // full stop without needing it in its dependency array.
@@ -1258,7 +1252,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
         if (driverHeading != null && curItemLat != null && curItemLng != null) {
-          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 90) return true;
+          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 45) return true;
         }
         const lastDist = alertZoneLastDistRef.current;
         if (lastDist != null && curDist > lastDist) {
@@ -1485,7 +1479,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // ── Off-route detection → auto-reroute ───────────────────────────────────
     // Scan a window of route coords around the last projected index.  If the
-    // driver is > 250 m from the nearest point for 3 consecutive fixes, the
+    // driver is > 20 m from the nearest point for 3 consecutive fixes, the
     // reroute callback fetches a fresh route from the current position.
     if (navActiveRef.current && routeRef.current) {
       const coords  = routeRef.current.coords;
@@ -1497,7 +1491,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
         if (d < minOff) minOff = d;
       }
-      if (minOff > 250) {
+      if (minOff > 20) {
         offRouteCountRef.current += 1;
         if (offRouteCountRef.current >= 3 && !isReroutingRef.current) {
           offRouteCountRef.current = 0;
@@ -2172,60 +2166,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
 
-  // ── Android navigation status bar notification ────────────────────────────
-  // Effect 1: show / update / dismiss on structural changes (nav on/off, step
-  // advance, share state, destination). These happen infrequently so no
-  // throttle is needed.
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-
-    const isActive = navigationActive || shareToken !== null;
-    if (!isActive) {
-      void dismissNavNotification();
-      return;
-    }
-
-    const instruction =
-      activeRoute?.steps[currentStepIdx]?.instruction ?? null;
-
-    void showNavNotification({
-      speedKmh: currentSpeed,
-      speedLimitKmh: currentSpeedLimit,
-      nextInstruction: instruction,
-      distToNextM,
-      destinationName: navDestination?.name.split(",")[0] ?? null,
-      isSharingTrip: shareToken !== null,
-      durationRemainingS,
-      navigationActive,
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigationActive, shareToken, currentStepIdx, activeRoute, navDestination]);
-
-  // Effect 2: update the notification content when speed or limit changes,
-  // but throttled to once per 3 s so it doesn't fire on every GPS fix.
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    if (!navigationActive && shareToken === null) return;
-
-    const now = Date.now();
-    if (now - lastNavNotifSpeedUpdateRef.current < 3000) return;
-    lastNavNotifSpeedUpdateRef.current = now;
-
-    const instruction =
-      activeRoute?.steps[currentStepIdx]?.instruction ?? null;
-
-    void updateNavNotification({
-      speedKmh: currentSpeed,
-      speedLimitKmh: currentSpeedLimit,
-      nextInstruction: instruction,
-      distToNextM,
-      destinationName: navDestination?.name.split(",")[0] ?? null,
-      isSharingTrip: shareToken !== null,
-      durationRemainingS,
-      navigationActive,
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSpeed, currentSpeedLimit]);
 
 
 

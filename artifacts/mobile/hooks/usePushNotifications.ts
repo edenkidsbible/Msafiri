@@ -6,11 +6,6 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiGet } from "@/utils/apiClient";
 import { useApp, CommunityReport } from "@/context/AppContext";
-import {
-  registerNavNotificationCategories,
-  ACTION_STOP_NAVIGATION,
-  ACTION_STOP_SHARING,
-} from "@/utils/NavigationNotification";
 
 // Resolved at build time from app.json → extra.eas.projectId.
 // Expo requires this in production to route push tokens to the correct project.
@@ -46,9 +41,6 @@ async function getOrCreateDeviceId(): Promise<string> {
 async function ensureAndroidChannels(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
-    // Register notification categories for nav/sharing action buttons.
-    // Safe to call multiple times (expo-notifications is idempotent).
-    await registerNavNotificationCategories();
     // Remove legacy channels that were created with DEFAULT importance.
     // deleteNotificationChannelAsync is a no-op if the channel doesn't exist.
     await Notifications.deleteNotificationChannelAsync("default").catch(() => {});
@@ -68,18 +60,6 @@ async function ensureAndroidChannels(): Promise<void> {
       sound: "alert_tone.mp3",
       vibrationPattern: [0, 200, 100, 200],
       lightColor: "#00C853",
-    });
-
-    // Silent ongoing channel used by the navigation status bar notification.
-    // LOW importance = no heads-up banner, no sound, no vibration; the tile
-    // simply lives in the notification shade while navigation/sharing is active.
-    await Notifications.setNotificationChannelAsync("msafiri_nav", {
-      name: "Navigation Status",
-      importance: Notifications.AndroidImportance.LOW,
-      sound: undefined,
-      vibrationPattern: undefined,
-      enableVibrate: false,
-      showBadge: false,
     });
   } catch (err) {
     console.warn("[usePushNotifications] Failed to set up Android channels:", err);
@@ -217,18 +197,6 @@ export function usePushNotifications() {
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const actionId = response.actionIdentifier;
-
-        // ── Navigation / sharing action buttons ───────────────────────────────
-        // These fire when the driver taps "Stop Navigation" or "Stop Sharing"
-        // directly from the notification shade or lock screen.
-        if (actionId === ACTION_STOP_NAVIGATION) {
-          stopNavigationRef.current();
-          return;
-        }
-        if (actionId === ACTION_STOP_SHARING) {
-          void stopSharingTripRef.current();
-          return;
-        }
 
         // ── Default tap (notification body) ──────────────────────────────────
         const data = response.notification.request.content.data as Record<
