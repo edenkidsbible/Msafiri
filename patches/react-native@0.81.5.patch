@@ -1,0 +1,1941 @@
+diff --git a/Libraries/Animated/animations/Animation.js b/Libraries/Animated/animations/Animation.js
+index b466dfbf6afc59c8a112380d865804572b41e50f..70b048267ddccc21ed05f339f05c6e43cd30f17b 100644
+--- a/Libraries/Animated/animations/Animation.js
++++ b/Libraries/Animated/animations/Animation.js
+@@ -41,9 +41,9 @@ let startNativeAnimationNextId = 1;
+ // Once an animation has been stopped or finished its course, it will
+ // not be reused.
+ export default class Animation {
+-  #nativeID: ?number;
+-  #onEnd: ?EndCallback;
+-  #useNativeDriver: boolean;
++  __priv_nativeID: ?number;
++  __priv_onEnd: ?EndCallback;
++  __priv_useNativeDriver: boolean;
+ 
+   __active: boolean;
+   __isInteraction: boolean;
+@@ -52,10 +52,10 @@ export default class Animation {
+   __debugID: ?string;
+ 
+   constructor(config: AnimationConfig) {
+-    this.#useNativeDriver = NativeAnimatedHelper.shouldUseNativeDriver(config);
++    this.__priv_useNativeDriver = NativeAnimatedHelper.shouldUseNativeDriver(config);
+ 
+     this.__active = false;
+-    this.__isInteraction = config.isInteraction ?? !this.#useNativeDriver;
++    this.__isInteraction = config.isInteraction ?? !this.__priv_useNativeDriver;
+     this.__isLooping = config.isLooping;
+     this.__iterations = config.iterations ?? 1;
+     if (__DEV__) {
+@@ -70,7 +70,7 @@ export default class Animation {
+     previousAnimation: ?Animation,
+     animatedValue: AnimatedValue,
+   ): void {
+-    if (!this.#useNativeDriver && animatedValue.__isNative === true) {
++    if (!this.__priv_useNativeDriver && animatedValue.__isNative === true) {
+       throw new Error(
+         'Attempting to run JS driven animation on animated node ' +
+           'that has been moved to "native" earlier by starting an ' +
+@@ -78,13 +78,13 @@ export default class Animation {
+       );
+     }
+ 
+-    this.#onEnd = onEnd;
++    this.__priv_onEnd = onEnd;
+     this.__active = true;
+   }
+ 
+   stop(): void {
+-    if (this.#nativeID != null) {
+-      const nativeID = this.#nativeID;
++    if (this.__priv_nativeID != null) {
++      const nativeID = this.__priv_nativeID;
+       const identifier = `${nativeID}:stopAnimation`;
+       try {
+         // This is only required when singleOpBatching is used, as otherwise
+@@ -123,7 +123,7 @@ export default class Animation {
+   }
+ 
+   __startAnimationIfNative(animatedValue: AnimatedValue): boolean {
+-    if (!this.#useNativeDriver) {
++    if (!this.__priv_useNativeDriver) {
+       return false;
+     }
+ 
+@@ -135,9 +135,9 @@ export default class Animation {
+     try {
+       const config = this.__getNativeAnimationConfig();
+       animatedValue.__makeNative(config.platformConfig);
+-      this.#nativeID = NativeAnimatedHelper.generateNewAnimationId();
++      this.__priv_nativeID = NativeAnimatedHelper.generateNewAnimationId();
+       NativeAnimatedHelper.API.startAnimatingNode(
+-        this.#nativeID,
++        this.__priv_nativeID,
+         animatedValue.__getNativeTag(),
+         config,
+         result => {
+@@ -185,9 +185,9 @@ export default class Animation {
+    * callback will never be called more than once.
+    */
+   __notifyAnimationEnd(result: EndResult): void {
+-    const callback = this.#onEnd;
++    const callback = this.__priv_onEnd;
+     if (callback != null) {
+-      this.#onEnd = null;
++      this.__priv_onEnd = null;
+       callback(result);
+     }
+   }
+diff --git a/Libraries/Animated/nodes/AnimatedNode.js b/Libraries/Animated/nodes/AnimatedNode.js
+index 8f0b1b9078fe0c540e45b6bfa86898edb3b98a11..7b0c597d47e96afe2abdd6a444ef8aad332b7566 100644
+--- a/Libraries/Animated/nodes/AnimatedNode.js
++++ b/Libraries/Animated/nodes/AnimatedNode.js
+@@ -28,7 +28,7 @@ let _assertNativeAnimatedModule: ?() => void = () => {
+ };
+ 
+ export default class AnimatedNode {
+-  #listeners: Map<string, ValueListenerCallback>;
++  __priv_listeners: Map<string, ValueListenerCallback>;
+ 
+   _platformConfig: ?PlatformConfig = undefined;
+ 
+@@ -38,7 +38,7 @@ export default class AnimatedNode {
+       ...
+     }>,
+   ) {
+-    this.#listeners = new Map();
++    this.__priv_listeners = new Map();
+     if (__DEV__) {
+       this.__debugID = config?.debugID;
+     }
+@@ -81,11 +81,11 @@ export default class AnimatedNode {
+    * animations.  This is useful because there is no way to
+    * synchronously read the value because it might be driven natively.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#addlistener
++   * See https://reactnative.dev/docs/animatedvalue__priv_addlistener
+    */
+   addListener(callback: (value: any) => mixed): string {
+     const id = String(_uniqueId++);
+-    this.#listeners.set(id, callback);
++    this.__priv_listeners.set(id, callback);
+     return id;
+   }
+ 
+@@ -93,23 +93,23 @@ export default class AnimatedNode {
+    * Unregister a listener. The `id` param shall match the identifier
+    * previously returned by `addListener()`.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#removelistener
++   * See https://reactnative.dev/docs/animatedvalue__priv_removelistener
+    */
+   removeListener(id: string): void {
+-    this.#listeners.delete(id);
++    this.__priv_listeners.delete(id);
+   }
+ 
+   /**
+    * Remove all registered listeners.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#removealllisteners
++   * See https://reactnative.dev/docs/animatedvalue__priv_removealllisteners
+    */
+   removeAllListeners(): void {
+-    this.#listeners.clear();
++    this.__priv_listeners.clear();
+   }
+ 
+   hasListeners(): boolean {
+-    return this.#listeners.size > 0;
++    return this.__priv_listeners.size > 0;
+   }
+ 
+   __onAnimatedValueUpdateReceived(value: number, offset: number): void {
+@@ -118,7 +118,7 @@ export default class AnimatedNode {
+ 
+   __callListeners(value: number): void {
+     const event = {value};
+-    this.#listeners.forEach(listener => {
++    this.__priv_listeners.forEach(listener => {
+       listener(event);
+     });
+   }
+diff --git a/Libraries/Animated/nodes/AnimatedObject.js b/Libraries/Animated/nodes/AnimatedObject.js
+index 990242aa8069d13d33035da0d34eadbd8609dc88..79af52cdf56800ff1627ac0bf29fab34b28f757e 100644
+--- a/Libraries/Animated/nodes/AnimatedObject.js
++++ b/Libraries/Animated/nodes/AnimatedObject.js
+@@ -82,7 +82,7 @@ function mapAnimatedNodes(value: any, fn: any => any, depth: number = 0): any {
+ }
+ 
+ export default class AnimatedObject extends AnimatedWithChildren {
+-  #nodes: $ReadOnlyArray<AnimatedNode>;
++  __priv_nodes: $ReadOnlyArray<AnimatedNode>;
+   _value: mixed;
+ 
+   /**
+@@ -106,7 +106,7 @@ export default class AnimatedObject extends AnimatedWithChildren {
+     config?: ?AnimatedNodeConfig,
+   ) {
+     super(config);
+-    this.#nodes = nodes;
++    this.__priv_nodes = nodes;
+     this._value = value;
+   }
+ 
+@@ -117,7 +117,7 @@ export default class AnimatedObject extends AnimatedWithChildren {
+   }
+ 
+   __getValueWithStaticObject(staticObject: mixed): any {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     let index = 0;
+     // NOTE: We can depend on `this._value` and `staticObject` sharing a
+     // structure because of `useAnimatedPropsMemo`.
+@@ -131,7 +131,7 @@ export default class AnimatedObject extends AnimatedWithChildren {
+   }
+ 
+   __attach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__addChild(this);
+@@ -140,7 +140,7 @@ export default class AnimatedObject extends AnimatedWithChildren {
+   }
+ 
+   __detach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__removeChild(this);
+@@ -149,7 +149,7 @@ export default class AnimatedObject extends AnimatedWithChildren {
+   }
+ 
+   __makeNative(platformConfig: ?PlatformConfig): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__makeNative(platformConfig);
+diff --git a/Libraries/Animated/nodes/AnimatedProps.js b/Libraries/Animated/nodes/AnimatedProps.js
+index 750569f3afe0427f9a3f5efe9117131bd05b7215..e0af65320f5c7500d0fc64d5854d500f193a71bd 100644
+--- a/Libraries/Animated/nodes/AnimatedProps.js
++++ b/Libraries/Animated/nodes/AnimatedProps.js
+@@ -92,11 +92,11 @@ function createAnimatedProps(
+ }
+ 
+ export default class AnimatedProps extends AnimatedNode {
+-  #callback: () => void;
+-  #nodeKeys: $ReadOnlyArray<string>;
+-  #nodes: $ReadOnlyArray<AnimatedNode>;
+-  #props: {[string]: mixed};
+-  #target: ?TargetView = null;
++  __priv_callback: () => void;
++  __priv_nodeKeys: $ReadOnlyArray<string>;
++  __priv_nodes: $ReadOnlyArray<AnimatedNode>;
++  __priv_props: {[string]: mixed};
++  __priv_target: ?TargetView = null;
+ 
+   constructor(
+     inputProps: {[string]: mixed},
+@@ -106,19 +106,19 @@ export default class AnimatedProps extends AnimatedNode {
+   ) {
+     super(config);
+     const [nodeKeys, nodes, props] = createAnimatedProps(inputProps, allowlist);
+-    this.#nodeKeys = nodeKeys;
+-    this.#nodes = nodes;
+-    this.#props = props;
+-    this.#callback = callback;
++    this.__priv_nodeKeys = nodeKeys;
++    this.__priv_nodes = nodes;
++    this.__priv_props = props;
++    this.__priv_callback = callback;
+   }
+ 
+   __getValue(): Object {
+     const props: {[string]: mixed} = {};
+ 
+-    const keys = Object.keys(this.#props);
++    const keys = Object.keys(this.__priv_props);
+     for (let ii = 0, length = keys.length; ii < length; ii++) {
+       const key = keys[ii];
+-      const value = this.#props[key];
++      const value = this.__priv_props[key];
+ 
+       if (value instanceof AnimatedNode) {
+         props[key] = value.__getValue();
+@@ -143,7 +143,7 @@ export default class AnimatedProps extends AnimatedNode {
+     const keys = Object.keys(staticProps);
+     for (let ii = 0, length = keys.length; ii < length; ii++) {
+       const key = keys[ii];
+-      const maybeNode = this.#props[key];
++      const maybeNode = this.__priv_props[key];
+ 
+       if (key === 'style') {
+         const staticStyle = staticProps.style;
+@@ -176,10 +176,10 @@ export default class AnimatedProps extends AnimatedNode {
+   __getNativeAnimatedEventTuples(): $ReadOnlyArray<[string, AnimatedEvent]> {
+     const tuples = [];
+ 
+-    const keys = Object.keys(this.#props);
++    const keys = Object.keys(this.__priv_props);
+     for (let ii = 0, length = keys.length; ii < length; ii++) {
+       const key = keys[ii];
+-      const value = this.#props[key];
++      const value = this.__priv_props[key];
+ 
+       if (value instanceof AnimatedEvent && value.__isNative) {
+         tuples.push([key, value]);
+@@ -192,8 +192,8 @@ export default class AnimatedProps extends AnimatedNode {
+   __getAnimatedValue(): Object {
+     const props: {[string]: mixed} = {};
+ 
+-    const nodeKeys = this.#nodeKeys;
+-    const nodes = this.#nodes;
++    const nodeKeys = this.__priv_nodeKeys;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const key = nodeKeys[ii];
+       const node = nodes[ii];
+@@ -204,7 +204,7 @@ export default class AnimatedProps extends AnimatedNode {
+   }
+ 
+   __attach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__addChild(this);
+@@ -213,12 +213,12 @@ export default class AnimatedProps extends AnimatedNode {
+   }
+ 
+   __detach(): void {
+-    if (this.__isNative && this.#target != null) {
+-      this.#disconnectAnimatedView(this.#target);
++    if (this.__isNative && this.__priv_target != null) {
++      this.__priv_disconnectAnimatedView(this.__priv_target);
+     }
+-    this.#target = null;
++    this.__priv_target = null;
+ 
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__removeChild(this);
+@@ -228,11 +228,11 @@ export default class AnimatedProps extends AnimatedNode {
+   }
+ 
+   update(): void {
+-    this.#callback();
++    this.__priv_callback();
+   }
+ 
+   __makeNative(platformConfig: ?PlatformConfig): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__makeNative(platformConfig);
+@@ -242,27 +242,27 @@ export default class AnimatedProps extends AnimatedNode {
+       this.__isNative = true;
+ 
+       // Since this does not call the super.__makeNative, we need to store the
+-      // supplied platformConfig here, before calling #connectAnimatedView
++      // supplied platformConfig here, before calling __priv_connectAnimatedView
+       // where it will be needed to traverse the graph of attached values.
+       super.__setPlatformConfig(platformConfig);
+ 
+-      if (this.#target != null) {
+-        this.#connectAnimatedView(this.#target);
++      if (this.__priv_target != null) {
++        this.__priv_connectAnimatedView(this.__priv_target);
+       }
+     }
+   }
+ 
+   setNativeView(instance: TargetViewInstance): void {
+-    if (this.#target?.instance === instance) {
++    if (this.__priv_target?.instance === instance) {
+       return;
+     }
+-    this.#target = {instance, connectedViewTag: null};
++    this.__priv_target = {instance, connectedViewTag: null};
+     if (this.__isNative) {
+-      this.#connectAnimatedView(this.#target);
++      this.__priv_connectAnimatedView(this.__priv_target);
+     }
+   }
+ 
+-  #connectAnimatedView(target: TargetView): void {
++  __priv_connectAnimatedView(target: TargetView): void {
+     invariant(this.__isNative, 'Expected node to be marked as "native"');
+     let viewTag: ?number = findNodeHandle(target.instance);
+     if (viewTag == null) {
+@@ -279,7 +279,7 @@ export default class AnimatedProps extends AnimatedNode {
+     target.connectedViewTag = viewTag;
+   }
+ 
+-  #disconnectAnimatedView(target: TargetView): void {
++  __priv_disconnectAnimatedView(target: TargetView): void {
+     invariant(this.__isNative, 'Expected node to be marked as "native"');
+     const viewTag = target.connectedViewTag;
+     if (viewTag == null) {
+@@ -306,8 +306,8 @@ export default class AnimatedProps extends AnimatedNode {
+     const platformConfig = this.__getPlatformConfig();
+     const propsConfig: {[string]: number} = {};
+ 
+-    const nodeKeys = this.#nodeKeys;
+-    const nodes = this.#nodes;
++    const nodeKeys = this.__priv_nodeKeys;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const key = nodeKeys[ii];
+       const node = nodes[ii];
+diff --git a/Libraries/Animated/nodes/AnimatedStyle.js b/Libraries/Animated/nodes/AnimatedStyle.js
+index 87fee9c0c590d54cdefe787a86d6ec20f50f5bde..7f32634562d5ac5cd4b6024018d5e203c872f408 100644
+--- a/Libraries/Animated/nodes/AnimatedStyle.js
++++ b/Libraries/Animated/nodes/AnimatedStyle.js
+@@ -82,10 +82,10 @@ function createAnimatedStyle(
+ }
+ 
+ export default class AnimatedStyle extends AnimatedWithChildren {
+-  #originalStyleForWeb: ?mixed;
+-  #nodeKeys: $ReadOnlyArray<string>;
+-  #nodes: $ReadOnlyArray<AnimatedNode>;
+-  #style: {[string]: mixed};
++  __priv_originalStyleForWeb: ?mixed;
++  __priv_nodeKeys: $ReadOnlyArray<string>;
++  __priv_nodes: $ReadOnlyArray<AnimatedNode>;
++  __priv_style: {[string]: mixed};
+ 
+   /**
+    * Creates an `AnimatedStyle` if `value` contains `AnimatedNode` instances.
+@@ -118,9 +118,9 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+     config?: ?AnimatedNodeConfig,
+   ) {
+     super(config);
+-    this.#nodeKeys = nodeKeys;
+-    this.#nodes = nodes;
+-    this.#style = style;
++    this.__priv_nodeKeys = nodeKeys;
++    this.__priv_nodes = nodes;
++    this.__priv_style = style;
+ 
+     if ((Platform.OS as string) === 'web') {
+       // $FlowIgnore[cannot-write] - Intentional shadowing.
+@@ -134,10 +134,10 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+   __getValue(): FlatStyleForWeb<FlatStyle> | FlatStyle {
+     const style: {[string]: mixed} = {};
+ 
+-    const keys = Object.keys(this.#style);
++    const keys = Object.keys(this.__priv_style);
+     for (let ii = 0, length = keys.length; ii < length; ii++) {
+       const key = keys[ii];
+-      const value = this.#style[key];
++      const value = this.__priv_style[key];
+ 
+       if (value instanceof AnimatedNode) {
+         style[key] = value.__getValue();
+@@ -166,7 +166,7 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+     const keys = Object.keys(style);
+     for (let ii = 0, length = keys.length; ii < length; ii++) {
+       const key = keys[ii];
+-      const maybeNode = this.#style[key];
++      const maybeNode = this.__priv_style[key];
+ 
+       if (key === 'transform' && maybeNode instanceof AnimatedTransform) {
+         style[key] = maybeNode.__getValueWithStaticTransforms(
+@@ -185,8 +185,8 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+   __getAnimatedValue(): Object {
+     const style: {[string]: mixed} = {};
+ 
+-    const nodeKeys = this.#nodeKeys;
+-    const nodes = this.#nodes;
++    const nodeKeys = this.__priv_nodeKeys;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const key = nodeKeys[ii];
+       const node = nodes[ii];
+@@ -197,7 +197,7 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+   }
+ 
+   __attach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__addChild(this);
+@@ -206,7 +206,7 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+   }
+ 
+   __detach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__removeChild(this);
+@@ -215,7 +215,7 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+   }
+ 
+   __makeNative(platformConfig: ?PlatformConfig) {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__makeNative(platformConfig);
+@@ -227,8 +227,8 @@ export default class AnimatedStyle extends AnimatedWithChildren {
+     const platformConfig = this.__getPlatformConfig();
+     const styleConfig: {[string]: ?number} = {};
+ 
+-    const nodeKeys = this.#nodeKeys;
+-    const nodes = this.#nodes;
++    const nodeKeys = this.__priv_nodeKeys;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const key = nodeKeys[ii];
+       const node = nodes[ii];
+diff --git a/Libraries/Animated/nodes/AnimatedTransform.js b/Libraries/Animated/nodes/AnimatedTransform.js
+index b0b79b1b0b62563fad43491b8fcfae9cc9df7721..acd16861ab726df5f4c372db72076746d113d7c7 100644
+--- a/Libraries/Animated/nodes/AnimatedTransform.js
++++ b/Libraries/Animated/nodes/AnimatedTransform.js
+@@ -47,7 +47,7 @@ function flatAnimatedNodes(
+ export default class AnimatedTransform extends AnimatedWithChildren {
+   // NOTE: For potentially historical reasons, some operations only operate on
+   // the first level of AnimatedNode instances. This optimizes that bevavior.
+-  #nodes: $ReadOnlyArray<AnimatedNode>;
++  __priv_nodes: $ReadOnlyArray<AnimatedNode>;
+ 
+   _transforms: $ReadOnlyArray<Transform<>>;
+ 
+@@ -74,12 +74,12 @@ export default class AnimatedTransform extends AnimatedWithChildren {
+     config?: ?AnimatedNodeConfig,
+   ) {
+     super(config);
+-    this.#nodes = nodes;
++    this.__priv_nodes = nodes;
+     this._transforms = transforms;
+   }
+ 
+   __makeNative(platformConfig: ?PlatformConfig) {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__makeNative(platformConfig);
+@@ -112,7 +112,7 @@ export default class AnimatedTransform extends AnimatedWithChildren {
+   }
+ 
+   __attach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__addChild(this);
+@@ -121,7 +121,7 @@ export default class AnimatedTransform extends AnimatedWithChildren {
+   }
+ 
+   __detach(): void {
+-    const nodes = this.#nodes;
++    const nodes = this.__priv_nodes;
+     for (let ii = 0, length = nodes.length; ii < length; ii++) {
+       const node = nodes[ii];
+       node.__removeChild(this);
+diff --git a/Libraries/Animated/nodes/AnimatedValue.js b/Libraries/Animated/nodes/AnimatedValue.js
+index e8fb1cccbf07218a8da701474a445050c018371a..1e698d77850d29583625b1f6a42ee20c60ad401c 100644
+--- a/Libraries/Animated/nodes/AnimatedValue.js
++++ b/Libraries/Animated/nodes/AnimatedValue.js
+@@ -85,8 +85,8 @@ function _executeAsAnimatedBatch(id: string, operation: () => void) {
+  * See https://reactnative.dev/docs/animatedvalue
+  */
+ export default class AnimatedValue extends AnimatedWithChildren {
+-  #listenerCount: number;
+-  #updateSubscription: ?EventSubscription;
++  __priv_listenerCount: number;
++  __priv_updateSubscription: ?EventSubscription;
+ 
+   _value: number;
+   _startingValue: number;
+@@ -100,8 +100,8 @@ export default class AnimatedValue extends AnimatedWithChildren {
+       throw new Error('AnimatedValue: Attempting to set value to undefined');
+     }
+ 
+-    this.#listenerCount = 0;
+-    this.#updateSubscription = null;
++    this.__priv_listenerCount = 0;
++    this.__priv_updateSubscription = null;
+ 
+     this._startingValue = this._value = value;
+     this._offset = 0;
+@@ -127,38 +127,38 @@ export default class AnimatedValue extends AnimatedWithChildren {
+ 
+   __makeNative(platformConfig: ?PlatformConfig): void {
+     super.__makeNative(platformConfig);
+-    if (this.#listenerCount > 0) {
+-      this.#ensureUpdateSubscriptionExists();
++    if (this.__priv_listenerCount > 0) {
++      this.__priv_ensureUpdateSubscriptionExists();
+     }
+   }
+ 
+   addListener(callback: (value: any) => mixed): string {
+     const id = super.addListener(callback);
+-    this.#listenerCount++;
++    this.__priv_listenerCount++;
+     if (this.__isNative) {
+-      this.#ensureUpdateSubscriptionExists();
++      this.__priv_ensureUpdateSubscriptionExists();
+     }
+     return id;
+   }
+ 
+   removeListener(id: string): void {
+     super.removeListener(id);
+-    this.#listenerCount--;
+-    if (this.__isNative && this.#listenerCount === 0) {
+-      this.#updateSubscription?.remove();
++    this.__priv_listenerCount--;
++    if (this.__isNative && this.__priv_listenerCount === 0) {
++      this.__priv_updateSubscription?.remove();
+     }
+   }
+ 
+   removeAllListeners(): void {
+     super.removeAllListeners();
+-    this.#listenerCount = 0;
++    this.__priv_listenerCount = 0;
+     if (this.__isNative) {
+-      this.#updateSubscription?.remove();
++      this.__priv_updateSubscription?.remove();
+     }
+   }
+ 
+-  #ensureUpdateSubscriptionExists(): void {
+-    if (this.#updateSubscription != null) {
++  __priv_ensureUpdateSubscriptionExists(): void {
++    if (this.__priv_updateSubscription != null) {
+       return;
+     }
+     const nativeTag = this.__getNativeTag();
+@@ -173,13 +173,13 @@ export default class AnimatedValue extends AnimatedWithChildren {
+         },
+       );
+ 
+-    this.#updateSubscription = {
++    this.__priv_updateSubscription = {
+       remove: () => {
+-        // Only this function assigns to `this.#updateSubscription`.
+-        if (this.#updateSubscription == null) {
++        // Only this function assigns to `this.__priv_updateSubscription`.
++        if (this.__priv_updateSubscription == null) {
+           return;
+         }
+-        this.#updateSubscription = null;
++        this.__priv_updateSubscription = null;
+         subscription.remove();
+         NativeAnimatedAPI.stopListeningToAnimatedNodeValue(nativeTag);
+       },
+@@ -190,7 +190,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+    * Directly set the value.  This will stop any animations running on the value
+    * and update all the bound properties.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#setvalue
++   * See https://reactnative.dev/docs/animatedvalue__priv_setvalue
+    */
+   setValue(value: number): void {
+     if (this._animation) {
+@@ -213,7 +213,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+    * `setValue`, an animation, or `Animated.event`.  Useful for compensating
+    * things like the start of a pan gesture.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#setoffset
++   * See https://reactnative.dev/docs/animatedvalue__priv_setoffset
+    */
+   setOffset(offset: number): void {
+     this._offset = offset;
+@@ -226,7 +226,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+    * Merges the offset value into the base value and resets the offset to zero.
+    * The final output of the value is unchanged.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#flattenoffset
++   * See https://reactnative.dev/docs/animatedvalue__priv_flattenoffset
+    */
+   flattenOffset(): void {
+     this._value += this._offset;
+@@ -240,7 +240,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+    * Sets the offset value to the base value, and resets the base value to zero.
+    * The final output of the value is unchanged.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#extractoffset
++   * See https://reactnative.dev/docs/animatedvalue__priv_extractoffset
+    */
+   extractOffset(): void {
+     this._offset += this._value;
+@@ -257,7 +257,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+    * final value after stopping the animation, which is useful for updating
+    * state to match the animation position with layout.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#stopanimation
++   * See https://reactnative.dev/docs/animatedvalue__priv_stopanimation
+    */
+   stopAnimation(callback?: ?(value: number) => void): void {
+     this.stopTracking();
+@@ -275,7 +275,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+   /**
+    * Stops any animation and resets the value to its original.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#resetanimation
++   * See https://reactnative.dev/docs/animatedvalue__priv_resetanimation
+    */
+   resetAnimation(callback?: ?(value: number) => void): void {
+     this.stopAnimation(callback);
+@@ -309,7 +309,7 @@ export default class AnimatedValue extends AnimatedWithChildren {
+    * Typically only used internally, but could be used by a custom Animation
+    * class.
+    *
+-   * See https://reactnative.dev/docs/animatedvalue#animate
++   * See https://reactnative.dev/docs/animatedvalue__priv_animate
+    */
+   animate(animation: Animation, callback: ?EndCallback): void {
+     let handle = null;
+diff --git a/Libraries/Debugging/DebuggingOverlayRegistry.js b/Libraries/Debugging/DebuggingOverlayRegistry.js
+index 958712b70bf107c0cb185229ada74ee0bb80b3a4..71f0e75f43fdb23e02e5e0a57ec890f76ef92eb0 100644
+--- a/Libraries/Debugging/DebuggingOverlayRegistry.js
++++ b/Libraries/Debugging/DebuggingOverlayRegistry.js
+@@ -55,27 +55,27 @@ type LegacyNodeUpdate = {
+ };
+ 
+ class DebuggingOverlayRegistry {
+-  #registry: Set<DebuggingOverlayRegistrySubscriberProtocol> = new Set();
+-  #reactDevToolsAgent: ReactDevToolsAgent | null = null;
++  __priv_registry: Set<DebuggingOverlayRegistrySubscriberProtocol> = new Set();
++  __priv_reactDevToolsAgent: ReactDevToolsAgent | null = null;
+ 
+   constructor() {
+     if (reactDevToolsHook?.reactDevtoolsAgent != null) {
+-      this.#onReactDevToolsAgentAttached(reactDevToolsHook.reactDevtoolsAgent);
++      this.__priv_onReactDevToolsAgentAttached(reactDevToolsHook.reactDevtoolsAgent);
+     }
+ 
+     // There could be cases when frontend is disconnected and then connected again for the same React Native runtime.
+     reactDevToolsHook?.on?.(
+       'react-devtools',
+-      this.#onReactDevToolsAgentAttached,
++      this.__priv_onReactDevToolsAgentAttached,
+     );
+   }
+ 
+   subscribe(subscriber: DebuggingOverlayRegistrySubscriberProtocol) {
+-    this.#registry.add(subscriber);
++    this.__priv_registry.add(subscriber);
+   }
+ 
+   unsubscribe(subscriber: DebuggingOverlayRegistrySubscriberProtocol) {
+-    const wasPresent = this.#registry.delete(subscriber);
++    const wasPresent = this.__priv_registry.delete(subscriber);
+     if (!wasPresent) {
+       console.error(
+         '[DebuggingOverlayRegistry] Unexpected argument for unsubscription, which was not previously subscribed:',
+@@ -84,15 +84,15 @@ class DebuggingOverlayRegistry {
+     }
+   }
+ 
+-  #onReactDevToolsAgentAttached = (agent: ReactDevToolsAgent): void => {
+-    this.#reactDevToolsAgent = agent;
++  __priv_onReactDevToolsAgentAttached = (agent: ReactDevToolsAgent): void => {
++    this.__priv_reactDevToolsAgent = agent;
+ 
+-    agent.addListener('drawTraceUpdates', this.#onDrawTraceUpdates);
+-    agent.addListener('showNativeHighlight', this.#onHighlightElements);
+-    agent.addListener('hideNativeHighlight', this.#onClearElementsHighlights);
++    agent.addListener('drawTraceUpdates', this.__priv_onDrawTraceUpdates);
++    agent.addListener('showNativeHighlight', this.__priv_onHighlightElements);
++    agent.addListener('hideNativeHighlight', this.__priv_onClearElementsHighlights);
+   };
+ 
+-  #getPublicInstanceFromInstance = (
++  __priv_getPublicInstanceFromInstance = (
+     instanceHandle: InstanceFromReactDevTools,
+   ): HostInstance | null => {
+     // `canonical.publicInstance` => Fabric
+@@ -118,12 +118,12 @@ class DebuggingOverlayRegistry {
+     return null;
+   };
+ 
+-  #findLowestParentFromRegistryForInstance(
++  __priv_findLowestParentFromRegistryForInstance(
+     instance: ReactNativeElement,
+   ): ?DebuggingOverlayRegistrySubscriberProtocol {
+     let iterator: ?ReadOnlyElement = instance;
+     while (iterator != null) {
+-      for (const subscriber of this.#registry) {
++      for (const subscriber of this.__priv_registry) {
+         if (subscriber.rootViewRef.current === iterator) {
+           return subscriber;
+         }
+@@ -135,12 +135,12 @@ class DebuggingOverlayRegistry {
+     return null;
+   }
+ 
+-  #findLowestParentFromRegistryForInstanceLegacy(
++  __priv_findLowestParentFromRegistryForInstanceLegacy(
+     instance: HostInstance,
+   ): ?DebuggingOverlayRegistrySubscriberProtocol {
+     const candidates: Array<DebuggingOverlayRegistrySubscriberProtocol> = [];
+ 
+-    for (const subscriber of this.#registry) {
++    for (const subscriber of this.__priv_registry) {
+       if (
+         subscriber.rootViewRef.current != null &&
+         // $FlowFixMe[incompatible-call] There is a lot of stuff to untangle to make types for refs work.
+@@ -213,14 +213,14 @@ class DebuggingOverlayRegistry {
+     return candidatesWithNoChildren[0];
+   }
+ 
+-  #onDrawTraceUpdates: (
++  __priv_onDrawTraceUpdates: (
+     ...ReactDevToolsAgentEvents['drawTraceUpdates']
+   ) => void = traceUpdates => {
+     const modernNodesUpdates: Array<ModernNodeUpdate> = [];
+     const legacyNodesUpdates: Array<LegacyNodeUpdate> = [];
+ 
+     for (const {node, color} of traceUpdates) {
+-      const publicInstance = this.#getPublicInstanceFromInstance(node);
++      const publicInstance = this.__priv_getPublicInstanceFromInstance(node);
+       if (publicInstance == null) {
+         return;
+       }
+@@ -249,21 +249,21 @@ class DebuggingOverlayRegistry {
+     }
+ 
+     if (modernNodesUpdates.length > 0) {
+-      this.#drawTraceUpdatesModern(modernNodesUpdates);
++      this.__priv_drawTraceUpdatesModern(modernNodesUpdates);
+     }
+ 
+     if (legacyNodesUpdates.length > 0) {
+-      this.#drawTraceUpdatesLegacy(legacyNodesUpdates);
++      this.__priv_drawTraceUpdatesLegacy(legacyNodesUpdates);
+     }
+   };
+ 
+-  #drawTraceUpdatesModern(updates: Array<ModernNodeUpdate>): void {
++  __priv_drawTraceUpdatesModern(updates: Array<ModernNodeUpdate>): void {
+     const parentToTraceUpdatesMap = new Map<
+       DebuggingOverlayRegistrySubscriberProtocol,
+       Array<TraceUpdate>,
+     >();
+     for (const {id, instance, color} of updates) {
+-      const parent = this.#findLowestParentFromRegistryForInstance(instance);
++      const parent = this.__priv_findLowestParentFromRegistryForInstance(instance);
+       if (parent == null) {
+         continue;
+       }
+@@ -302,7 +302,7 @@ class DebuggingOverlayRegistry {
+   }
+ 
+   // TODO: remove once DOM Node APIs are opt-in by default and Paper is no longer supported.
+-  #drawTraceUpdatesLegacy(updates: Array<LegacyNodeUpdate>): void {
++  __priv_drawTraceUpdatesLegacy(updates: Array<LegacyNodeUpdate>): void {
+     const parentToTraceUpdatesPromisesMap = new Map<
+       DebuggingOverlayRegistrySubscriberProtocol,
+       Array<Promise<TraceUpdate>>,
+@@ -310,7 +310,7 @@ class DebuggingOverlayRegistry {
+ 
+     for (const {id, instance, color} of updates) {
+       const parent =
+-        this.#findLowestParentFromRegistryForInstanceLegacy(instance);
++        this.__priv_findLowestParentFromRegistryForInstanceLegacy(instance);
+ 
+       if (parent == null) {
+         continue;
+@@ -363,11 +363,11 @@ class DebuggingOverlayRegistry {
+     }
+   }
+ 
+-  #onHighlightElements: (
++  __priv_onHighlightElements: (
+     ...ReactDevToolsAgentEvents['showNativeHighlight']
+   ) => void = nodes => {
+     // First clear highlights for every container
+-    for (const subscriber of this.#registry) {
++    for (const subscriber of this.__priv_registry) {
+       subscriber.debuggingOverlayRef.current?.clearElementsHighlight();
+     }
+ 
+@@ -379,7 +379,7 @@ class DebuggingOverlayRegistry {
+     const legacyPublicInstances: Array<HostInstance> = [];
+ 
+     for (const node of nodes) {
+-      const publicInstance = this.#getPublicInstanceFromInstance(node);
++      const publicInstance = this.__priv_getPublicInstanceFromInstance(node);
+       if (publicInstance == null) {
+         continue;
+       }
+@@ -392,22 +392,22 @@ class DebuggingOverlayRegistry {
+     }
+ 
+     if (reactNativeElements.length > 0) {
+-      this.#onHighlightElementsModern(reactNativeElements);
++      this.__priv_onHighlightElementsModern(reactNativeElements);
+     }
+ 
+     if (legacyPublicInstances.length > 0) {
+-      this.#onHighlightElementsLegacy(legacyPublicInstances);
++      this.__priv_onHighlightElementsLegacy(legacyPublicInstances);
+     }
+   };
+ 
+-  #onHighlightElementsModern(elements: Array<ReactNativeElement>): void {
++  __priv_onHighlightElementsModern(elements: Array<ReactNativeElement>): void {
+     const parentToElementsMap = new Map<
+       DebuggingOverlayRegistrySubscriberProtocol,
+       Array<ReactNativeElement>,
+     >();
+ 
+     for (const element of elements) {
+-      const parent = this.#findLowestParentFromRegistryForInstance(element);
++      const parent = this.__priv_findLowestParentFromRegistryForInstance(element);
+       if (parent == null) {
+         continue;
+       }
+@@ -444,7 +444,7 @@ class DebuggingOverlayRegistry {
+   }
+ 
+   // TODO: remove once DOM Node APIs are opt-in by default and Paper is no longer supported.
+-  #onHighlightElementsLegacy(elements: Array<HostInstance>): void {
++  __priv_onHighlightElementsLegacy(elements: Array<HostInstance>): void {
+     const parentToElementsMap = new Map<
+       DebuggingOverlayRegistrySubscriberProtocol,
+       Array<HostInstance>,
+@@ -452,7 +452,7 @@ class DebuggingOverlayRegistry {
+ 
+     for (const element of elements) {
+       const parent =
+-        this.#findLowestParentFromRegistryForInstanceLegacy(element);
++        this.__priv_findLowestParentFromRegistryForInstanceLegacy(element);
+       if (parent == null) {
+         continue;
+       }
+@@ -501,10 +501,10 @@ class DebuggingOverlayRegistry {
+     }
+   }
+ 
+-  #onClearElementsHighlights: (
++  __priv_onClearElementsHighlights: (
+     ...ReactDevToolsAgentEvents['hideNativeHighlight']
+   ) => void = () => {
+-    for (const subscriber of this.#registry) {
++    for (const subscriber of this.__priv_registry) {
+       subscriber.debuggingOverlayRef.current?.clearElementsHighlight();
+     }
+   };
+diff --git a/Libraries/vendor/emitter/EventEmitter.js b/Libraries/vendor/emitter/EventEmitter.js
+index 01dcd481796a495cf374657a55ee54b8fe5bcc4a..b86f74b4f07b2f8094f09df391a53dfe2b3f03cd 100644
+--- a/Libraries/vendor/emitter/EventEmitter.js
++++ b/Libraries/vendor/emitter/EventEmitter.js
+@@ -72,11 +72,11 @@ export default class EventEmitter<
+   > = $ReadOnly<Record<string, $ReadOnlyArray<UnsafeEventObject>>>,
+ > implements IEventEmitter<TEventToArgsMap>
+ {
+-  #registry: Registry<TEventToArgsMap>;
++  __priv_registry: Registry<TEventToArgsMap>;
+ 
+   constructor() {
+     // $FlowFixMe[incompatible-type]
+-    this.#registry = {};
++    this.__priv_registry = {};
+   }
+ 
+   /**
+@@ -97,7 +97,7 @@ export default class EventEmitter<
+       TEventToArgsMap,
+       $Keys<TEventToArgsMap>,
+       TEventToArgsMap[TEvent],
+-    >(this.#registry, eventType);
++    >(this.__priv_registry, eventType);
+     const registration: Registration<TEventToArgsMap[TEvent]> = {
+       context,
+       listener,
+@@ -121,7 +121,7 @@ export default class EventEmitter<
+     ...args: TEventToArgsMap[TEvent]
+   ): void {
+     const registrations: ?Set<Registration<TEventToArgsMap[TEvent]>> =
+-      this.#registry[eventType];
++      this.__priv_registry[eventType];
+     if (registrations != null) {
+       // Copy `registrations` to take a snapshot when we invoke `emit`, in case
+       // registrations are added or removed when listeners are invoked.
+@@ -140,9 +140,9 @@ export default class EventEmitter<
+   ): void {
+     if (eventType == null) {
+       // $FlowFixMe[incompatible-type]
+-      this.#registry = {};
++      this.__priv_registry = {};
+     } else {
+-      delete this.#registry[eventType];
++      delete this.__priv_registry[eventType];
+     }
+   }
+ 
+@@ -151,7 +151,7 @@ export default class EventEmitter<
+    */
+   listenerCount<TEvent: $Keys<TEventToArgsMap>>(eventType: TEvent): number {
+     const registrations: ?Set<Registration<TEventToArgsMap[TEvent]>> =
+-      this.#registry[eventType];
++      this.__priv_registry[eventType];
+     return registrations == null ? 0 : registrations.size;
+   }
+ }
+diff --git a/src/private/devsupport/rndevtools/FuseboxSessionObserver.js b/src/private/devsupport/rndevtools/FuseboxSessionObserver.js
+index c0ac0b2c547d7f6c64323330209005a16e584e80..a321cbb081efd9ecf7a8f18a5f49e55f48b96c1e 100644
+--- a/src/private/devsupport/rndevtools/FuseboxSessionObserver.js
++++ b/src/private/devsupport/rndevtools/FuseboxSessionObserver.js
+@@ -9,16 +9,16 @@
+  */
+ 
+ class FuseboxSessionObserver {
+-  #hasNativeSupport: boolean;
++  __priv_hasNativeSupport: boolean;
+ 
+   constructor() {
+-    this.#hasNativeSupport = global.hasOwnProperty(
++    this.__priv_hasNativeSupport = global.hasOwnProperty(
+       '__DEBUGGER_SESSION_OBSERVER__',
+     );
+   }
+ 
+   hasActiveSession(): boolean {
+-    if (!this.#hasNativeSupport) {
++    if (!this.__priv_hasNativeSupport) {
+       return false;
+     }
+ 
+@@ -26,7 +26,7 @@ class FuseboxSessionObserver {
+   }
+ 
+   subscribe(callback: (status: boolean) => void): () => void {
+-    if (!this.#hasNativeSupport) {
++    if (!this.__priv_hasNativeSupport) {
+       return () => {};
+     }
+ 
+diff --git a/src/private/devsupport/rndevtools/setUpFuseboxReactDevToolsDispatcher.js b/src/private/devsupport/rndevtools/setUpFuseboxReactDevToolsDispatcher.js
+index 79f7f4d7688ae0a4b70bb25fdfe766680faaab54..25e51d0ab5c719f8e49b65ef337f7abfde1d8434 100644
+--- a/src/private/devsupport/rndevtools/setUpFuseboxReactDevToolsDispatcher.js
++++ b/src/private/devsupport/rndevtools/setUpFuseboxReactDevToolsDispatcher.js
+@@ -18,19 +18,19 @@ type JSONValue =
+ type DomainName = 'react-devtools';
+ 
+ class EventScope<T> {
+-  #listeners: Set<(T) => void> = new Set();
++  __priv_listeners: Set<(T) => void> = new Set();
+ 
+   addEventListener(listener: T => void): void {
+-    this.#listeners.add(listener);
++    this.__priv_listeners.add(listener);
+   }
+ 
+   removeEventListener(listener: T => void): void {
+-    this.#listeners.delete(listener);
++    this.__priv_listeners.delete(listener);
+   }
+ 
+   emit(value: T): void {
+     // Assuming that listeners won't throw.
+-    for (const listener of this.#listeners) {
++    for (const listener of this.__priv_listeners) {
+       listener(value);
+     }
+   }
+@@ -68,7 +68,7 @@ export class Domain {
+  * @see {@link ./__docs__/FuseboxReactDevToolsDispatcher.excalidraw.svg}
+  */
+ class FuseboxReactDevToolsDispatcher {
+-  static #domainNameToDomainMap: Map<DomainName, Domain> = new Map();
++  static __priv_domainNameToDomainMap: Map<DomainName, Domain> = new Map();
+ 
+   // Referenced and initialized from Chrome DevTools frontend.
+   static BINDING_NAME: string = '__CHROME_DEVTOOLS_FRONTEND_BINDING__';
+@@ -78,7 +78,7 @@ class FuseboxReactDevToolsDispatcher {
+   static initializeDomain(domainName: DomainName): Domain {
+     const domain = new Domain(domainName);
+ 
+-    this.#domainNameToDomainMap.set(domainName, domain);
++    this.__priv_domainNameToDomainMap.set(domainName, domain);
+     this.onDomainInitialization.emit(domain);
+ 
+     return domain;
+@@ -86,7 +86,7 @@ class FuseboxReactDevToolsDispatcher {
+ 
+   // Should be private, referenced from Chrome DevTools frontend only.
+   static sendMessage(domainName: DomainName, message: string): void {
+-    const domain = this.#domainNameToDomainMap.get(domainName);
++    const domain = this.__priv_domainNameToDomainMap.get(domainName);
+     if (domain == null) {
+       throw new Error(
+         `Could not send message to ${domainName}: domain doesn't exist`,
+diff --git a/src/private/webapis/dom/oldstylecollections/HTMLCollection.js b/src/private/webapis/dom/oldstylecollections/HTMLCollection.js
+index 26bc6e4d6c9b23434dcaaf2c4619c0741a2894d2..77ea6670d960c4388e2d3ff848de3a09be2f1865 100644
+--- a/src/private/webapis/dom/oldstylecollections/HTMLCollection.js
++++ b/src/private/webapis/dom/oldstylecollections/HTMLCollection.js
+@@ -20,7 +20,7 @@ import {setPlatformObject} from '../../webidl/PlatformObjects';
+ 
+ // $FlowIssue[prop-missing] Flow doesn't understand [Symbol.iterator]() {} and thinks this class doesn't implement the Iterable<T> interface.
+ export default class HTMLCollection<T> implements Iterable<T>, ArrayLike<T> {
+-  #length: number;
++  __priv_length: number;
+ 
+   /**
+    * Use `createHTMLCollection` to create instances of this class.
+@@ -38,15 +38,15 @@ export default class HTMLCollection<T> implements Iterable<T>, ArrayLike<T> {
+       });
+     }
+ 
+-    this.#length = elements.length;
++    this.__priv_length = elements.length;
+   }
+ 
+   get length(): number {
+-    return this.#length;
++    return this.__priv_length;
+   }
+ 
+   item(index: number): T | null {
+-    if (index < 0 || index >= this.#length) {
++    if (index < 0 || index >= this.__priv_length) {
+       return null;
+     }
+ 
+diff --git a/src/private/webapis/dom/oldstylecollections/NodeList.js b/src/private/webapis/dom/oldstylecollections/NodeList.js
+index 5d6e99eea7cc2fd23d0647913c6985af2c4d911c..70fec4ce8bd40f48c0a7c7a9d495dbb4cbb49488 100644
+--- a/src/private/webapis/dom/oldstylecollections/NodeList.js
++++ b/src/private/webapis/dom/oldstylecollections/NodeList.js
+@@ -24,7 +24,7 @@ import {setPlatformObject} from '../../webidl/PlatformObjects';
+ 
+ // $FlowIssue[prop-missing] Flow doesn't understand [Symbol.iterator]() {} and thinks this class doesn't implement the Iterable<T> interface.
+ export default class NodeList<T> implements Iterable<T>, ArrayLike<T> {
+-  #length: number;
++  __priv_length: number;
+ 
+   /**
+    * Use `createNodeList` to create instances of this class.
+@@ -39,15 +39,15 @@ export default class NodeList<T> implements Iterable<T>, ArrayLike<T> {
+         writable: false,
+       });
+     }
+-    this.#length = elements.length;
++    this.__priv_length = elements.length;
+   }
+ 
+   get length(): number {
+-    return this.#length;
++    return this.__priv_length;
+   }
+ 
+   item(index: number): T | null {
+-    if (index < 0 || index >= this.#length) {
++    if (index < 0 || index >= this.__priv_length) {
+       return null;
+     }
+ 
+@@ -71,7 +71,7 @@ export default class NodeList<T> implements Iterable<T>, ArrayLike<T> {
+     // eslint-disable-next-line consistent-this
+     const arrayLike: ArrayLike<T> = this;
+ 
+-    for (let index = 0; index < this.#length; index++) {
++    for (let index = 0; index < this.__priv_length; index++) {
+       if (thisArg == null) {
+         callbackFn(arrayLike[index], index, this);
+       } else {
+diff --git a/src/private/webapis/errors/DOMException.js b/src/private/webapis/errors/DOMException.js
+index b759632d0a9e8992e7d215a1e4bf123bd2211067..f2ccb0e1e841db1147a130eca0a4413d267064fa 100644
+--- a/src/private/webapis/errors/DOMException.js
++++ b/src/private/webapis/errors/DOMException.js
+@@ -10,7 +10,7 @@
+ 
+ /**
+  * This module implements the `DOMException` interface from WebIDL.
+- * See https://webidl.spec.whatwg.org/#idl-DOMException.
++ * See https://webidl.spec.whatwg.org/__priv_idl-DOMException.
+  */
+ 
+ // flowlint unsafe-getters-setters:off
+@@ -125,27 +125,27 @@ export default class DOMException extends Error {
+   +INVALID_NODE_TYPE_ERR: 24;
+   +DATA_CLONE_ERR: 25;
+ 
+-  #name: string;
+-  #code: number;
++  __priv_name: string;
++  __priv_code: number;
+ 
+   constructor(message?: string, name?: string) {
+     super(message);
+ 
+     if (typeof name === 'undefined') {
+-      this.#name = 'Error';
+-      this.#code = 0;
++      this.__priv_name = 'Error';
++      this.__priv_code = 0;
+     } else {
+-      this.#name = String(name);
+-      this.#code = ERROR_NAME_TO_ERROR_CODE_MAP[this.name] ?? 0;
++      this.__priv_name = String(name);
++      this.__priv_code = ERROR_NAME_TO_ERROR_CODE_MAP[this.name] ?? 0;
+     }
+   }
+ 
+   get name(): string {
+-    return this.#name;
++    return this.__priv_name;
+   }
+ 
+   get code(): number {
+-    return this.#code;
++    return this.__priv_code;
+   }
+ }
+ 
+diff --git a/src/private/webapis/geometry/DOMRectList.js b/src/private/webapis/geometry/DOMRectList.js
+index 5e308fcce3418a1c7a9fb9b7a2a770e6009c9a87..d3487c0722e8f7cf85fc9ce59bbb830fab37c0f6 100644
+--- a/src/private/webapis/geometry/DOMRectList.js
++++ b/src/private/webapis/geometry/DOMRectList.js
+@@ -21,7 +21,7 @@ import {setPlatformObject} from '../webidl/PlatformObjects';
+ 
+ // $FlowIssue[prop-missing] Flow doesn't understand [Symbol.iterator]() {} and thinks this class doesn't implement the Iterable interface.
+ export default class DOMRectList implements Iterable<DOMRectReadOnly> {
+-  #length: number;
++  __priv_length: number;
+ 
+   /**
+    * Use `createDOMRectList` to create instances of this class.
+@@ -39,15 +39,15 @@ export default class DOMRectList implements Iterable<DOMRectReadOnly> {
+       });
+     }
+ 
+-    this.#length = elements.length;
++    this.__priv_length = elements.length;
+   }
+ 
+   get length(): number {
+-    return this.#length;
++    return this.__priv_length;
+   }
+ 
+   item(index: number): DOMRectReadOnly | null {
+-    if (index < 0 || index >= this.#length) {
++    if (index < 0 || index >= this.__priv_length) {
+       return null;
+     }
+ 
+diff --git a/src/private/webapis/geometry/DOMRectReadOnly.js b/src/private/webapis/geometry/DOMRectReadOnly.js
+index cba98de3b9b0411a580dce0ba5b29e6fd426fddf..643a56b5fcf1dc6cdb5fd7fde12ae01adc59386d 100644
+--- a/src/private/webapis/geometry/DOMRectReadOnly.js
++++ b/src/private/webapis/geometry/DOMRectReadOnly.js
+@@ -35,10 +35,10 @@ function castToNumber(value: mixed): number {
+  * This is a (mostly) spec-compliant version of `DOMRectReadOnly` (https://developer.mozilla.org/en-US/docs/Web/API/DOMRectReadOnly).
+  */
+ export default class DOMRectReadOnly {
+-  #x: number;
+-  #y: number;
+-  #width: number;
+-  #height: number;
++  __priv_x: number;
++  __priv_y: number;
++  __priv_width: number;
++  __priv_height: number;
+ 
+   constructor(x: ?number, y: ?number, width: ?number, height: ?number) {
+     this.__setInternalX(x);
+@@ -51,36 +51,36 @@ export default class DOMRectReadOnly {
+    * The x coordinate of the `DOMRectReadOnly`'s origin.
+    */
+   get x(): number {
+-    return this.#x;
++    return this.__priv_x;
+   }
+ 
+   /**
+    * The y coordinate of the `DOMRectReadOnly`'s origin.
+    */
+   get y(): number {
+-    return this.#y;
++    return this.__priv_y;
+   }
+ 
+   /**
+    * The width of the `DOMRectReadOnly`.
+    */
+   get width(): number {
+-    return this.#width;
++    return this.__priv_width;
+   }
+ 
+   /**
+    * The height of the `DOMRectReadOnly`.
+    */
+   get height(): number {
+-    return this.#height;
++    return this.__priv_height;
+   }
+ 
+   /**
+    * Returns the top coordinate value of the `DOMRect` (has the same value as `y`, or `y + height` if `height` is negative).
+    */
+   get top(): number {
+-    const height = this.#height;
+-    const y = this.#y;
++    const height = this.__priv_height;
++    const y = this.__priv_y;
+ 
+     if (height < 0) {
+       return y + height;
+@@ -93,8 +93,8 @@ export default class DOMRectReadOnly {
+    * Returns the right coordinate value of the `DOMRect` (has the same value as ``x + width`, or `x` if `width` is negative).
+    */
+   get right(): number {
+-    const width = this.#width;
+-    const x = this.#x;
++    const width = this.__priv_width;
++    const x = this.__priv_x;
+ 
+     if (width < 0) {
+       return x;
+@@ -107,8 +107,8 @@ export default class DOMRectReadOnly {
+    * Returns the bottom coordinate value of the `DOMRect` (has the same value as `y + height`, or `y` if `height` is negative).
+    */
+   get bottom(): number {
+-    const height = this.#height;
+-    const y = this.#y;
++    const height = this.__priv_height;
++    const y = this.__priv_y;
+ 
+     if (height < 0) {
+       return y;
+@@ -121,8 +121,8 @@ export default class DOMRectReadOnly {
+    * Returns the left coordinate value of the `DOMRect` (has the same value as `x`, or `x + width` if `width` is negative).
+    */
+   get left(): number {
+-    const width = this.#width;
+-    const x = this.#x;
++    const width = this.__priv_width;
++    const x = this.__priv_x;
+ 
+     if (width < 0) {
+       return x + width;
+@@ -157,35 +157,35 @@ export default class DOMRectReadOnly {
+   }
+ 
+   __getInternalX(): number {
+-    return this.#x;
++    return this.__priv_x;
+   }
+ 
+   __getInternalY(): number {
+-    return this.#y;
++    return this.__priv_y;
+   }
+ 
+   __getInternalWidth(): number {
+-    return this.#width;
++    return this.__priv_width;
+   }
+ 
+   __getInternalHeight(): number {
+-    return this.#height;
++    return this.__priv_height;
+   }
+ 
+   __setInternalX(x: ?number) {
+-    this.#x = castToNumber(x);
++    this.__priv_x = castToNumber(x);
+   }
+ 
+   __setInternalY(y: ?number) {
+-    this.#y = castToNumber(y);
++    this.__priv_y = castToNumber(y);
+   }
+ 
+   __setInternalWidth(width: ?number) {
+-    this.#width = castToNumber(width);
++    this.__priv_width = castToNumber(width);
+   }
+ 
+   __setInternalHeight(height: ?number) {
+-    this.#height = castToNumber(height);
++    this.__priv_height = castToNumber(height);
+   }
+ }
+ 
+diff --git a/src/private/webapis/performance/EventTiming.js b/src/private/webapis/performance/EventTiming.js
+index 5e2b446dcfdaac0a2081451d392622d78937b030..1353ba8ea301ddbe72ac7a07fa104fb27c51713d 100644
+--- a/src/private/webapis/performance/EventTiming.js
++++ b/src/private/webapis/performance/EventTiming.js
+@@ -28,9 +28,9 @@ export type PerformanceEventTimingJSON = {
+ };
+ 
+ export class PerformanceEventTiming extends PerformanceEntry {
+-  #processingStart: DOMHighResTimeStamp;
+-  #processingEnd: DOMHighResTimeStamp;
+-  #interactionId: number;
++  __priv_processingStart: DOMHighResTimeStamp;
++  __priv_processingEnd: DOMHighResTimeStamp;
++  __priv_interactionId: number;
+ 
+   constructor(init: {
+     name: string,
+@@ -46,29 +46,29 @@ export class PerformanceEventTiming extends PerformanceEntry {
+       startTime: init.startTime ?? 0,
+       duration: init.duration ?? 0,
+     });
+-    this.#processingStart = init.processingStart ?? 0;
+-    this.#processingEnd = init.processingEnd ?? 0;
+-    this.#interactionId = init.interactionId ?? 0;
++    this.__priv_processingStart = init.processingStart ?? 0;
++    this.__priv_processingEnd = init.processingEnd ?? 0;
++    this.__priv_interactionId = init.interactionId ?? 0;
+   }
+ 
+   get processingStart(): DOMHighResTimeStamp {
+-    return this.#processingStart;
++    return this.__priv_processingStart;
+   }
+ 
+   get processingEnd(): DOMHighResTimeStamp {
+-    return this.#processingEnd;
++    return this.__priv_processingEnd;
+   }
+ 
+   get interactionId(): number {
+-    return this.#interactionId;
++    return this.__priv_interactionId;
+   }
+ 
+   toJSON(): PerformanceEventTimingJSON {
+     return {
+       ...super.toJSON(),
+-      processingStart: this.#processingStart,
+-      processingEnd: this.#processingEnd,
+-      interactionId: this.#interactionId,
++      processingStart: this.__priv_processingStart,
++      processingEnd: this.__priv_processingEnd,
++      interactionId: this.__priv_interactionId,
+     };
+   }
+ }
+@@ -112,7 +112,7 @@ function getCachedEventCounts(): Map<string, number> {
+ /**
+  * Implementation of the EventCounts Web Performance API
+  * corresponding to the standard in
+- * https://www.w3.org/TR/event-timing/#eventcounts
++ * https://www.w3.org/TR/event-timing/__priv_eventcounts
+  */
+ export class EventCounts {
+   get size(): number {
+diff --git a/src/private/webapis/performance/MemoryInfo.js b/src/private/webapis/performance/MemoryInfo.js
+index 24dc4c3d3ff2a00f71c5b58b8465d9dcead3ce3b..8ce9a2c61392d600e306bb68348dbe12288e31b7 100644
+--- a/src/private/webapis/performance/MemoryInfo.js
++++ b/src/private/webapis/performance/MemoryInfo.js
+@@ -20,15 +20,15 @@ type MemoryInfoLike = {
+ 
+ // Read-only object with JS memory information. This is returned by the performance.memory API.
+ export default class MemoryInfo {
+-  #jsHeapSizeLimit: ?number;
+-  #totalJSHeapSize: ?number;
+-  #usedJSHeapSize: ?number;
++  __priv_jsHeapSizeLimit: ?number;
++  __priv_totalJSHeapSize: ?number;
++  __priv_usedJSHeapSize: ?number;
+ 
+   constructor(memoryInfo: ?MemoryInfoLike) {
+     if (memoryInfo != null) {
+-      this.#jsHeapSizeLimit = memoryInfo.jsHeapSizeLimit;
+-      this.#totalJSHeapSize = memoryInfo.totalJSHeapSize;
+-      this.#usedJSHeapSize = memoryInfo.usedJSHeapSize;
++      this.__priv_jsHeapSizeLimit = memoryInfo.jsHeapSizeLimit;
++      this.__priv_totalJSHeapSize = memoryInfo.totalJSHeapSize;
++      this.__priv_usedJSHeapSize = memoryInfo.usedJSHeapSize;
+     }
+   }
+ 
+@@ -36,21 +36,21 @@ export default class MemoryInfo {
+    * The maximum size of the heap, in bytes, that is available to the context
+    */
+   get jsHeapSizeLimit(): ?number {
+-    return this.#jsHeapSizeLimit;
++    return this.__priv_jsHeapSizeLimit;
+   }
+ 
+   /**
+    * The total allocated heap size, in bytes
+    */
+   get totalJSHeapSize(): ?number {
+-    return this.#totalJSHeapSize;
++    return this.__priv_totalJSHeapSize;
+   }
+ 
+   /**
+    * The currently active segment of JS heap, in bytes.
+    */
+   get usedJSHeapSize(): ?number {
+-    return this.#usedJSHeapSize;
++    return this.__priv_usedJSHeapSize;
+   }
+ }
+ 
+diff --git a/src/private/webapis/performance/PerformanceEntry.js b/src/private/webapis/performance/PerformanceEntry.js
+index 76daf969c03c8f9974b7fa66b172f87b84feb4f8..746d73da23c064c18f9f03ba4fa1ff4f5bc0ac6a 100644
+--- a/src/private/webapis/performance/PerformanceEntry.js
++++ b/src/private/webapis/performance/PerformanceEntry.js
+@@ -29,10 +29,10 @@ export type PerformanceEntryJSON = {
+ };
+ 
+ export class PerformanceEntry {
+-  #name: string;
+-  #entryType: PerformanceEntryType;
+-  #startTime: DOMHighResTimeStamp;
+-  #duration: DOMHighResTimeStamp;
++  __priv_name: string;
++  __priv_entryType: PerformanceEntryType;
++  __priv_startTime: DOMHighResTimeStamp;
++  __priv_duration: DOMHighResTimeStamp;
+ 
+   constructor(init: {
+     name: string,
+@@ -40,34 +40,34 @@ export class PerformanceEntry {
+     startTime: DOMHighResTimeStamp,
+     duration: DOMHighResTimeStamp,
+   }) {
+-    this.#name = init.name;
+-    this.#entryType = init.entryType;
+-    this.#startTime = init.startTime;
+-    this.#duration = init.duration;
++    this.__priv_name = init.name;
++    this.__priv_entryType = init.entryType;
++    this.__priv_startTime = init.startTime;
++    this.__priv_duration = init.duration;
+   }
+ 
+   get name(): string {
+-    return this.#name;
++    return this.__priv_name;
+   }
+ 
+   get entryType(): PerformanceEntryType {
+-    return this.#entryType;
++    return this.__priv_entryType;
+   }
+ 
+   get startTime(): DOMHighResTimeStamp {
+-    return this.#startTime;
++    return this.__priv_startTime;
+   }
+ 
+   get duration(): DOMHighResTimeStamp {
+-    return this.#duration;
++    return this.__priv_duration;
+   }
+ 
+   toJSON(): PerformanceEntryJSON {
+     return {
+-      name: this.#name,
+-      entryType: this.#entryType,
+-      startTime: this.#startTime,
+-      duration: this.#duration,
++      name: this.__priv_name,
++      entryType: this.__priv_entryType,
++      startTime: this.__priv_startTime,
++      duration: this.__priv_duration,
+     };
+   }
+ }
+diff --git a/src/private/webapis/performance/PerformanceObserver.js b/src/private/webapis/performance/PerformanceObserver.js
+index 6870d4a9f2a4f509d281243ccb8b123a5e7cd0f7..6d2bb9d4201260e77e0bda627a5545b508b9c67b 100644
+--- a/src/private/webapis/performance/PerformanceObserver.js
++++ b/src/private/webapis/performance/PerformanceObserver.js
+@@ -28,18 +28,18 @@ import nullthrows from 'nullthrows';
+ export {PerformanceEntry} from './PerformanceEntry';
+ 
+ export class PerformanceObserverEntryList {
+-  #entries: PerformanceEntryList;
++  __priv_entries: PerformanceEntryList;
+ 
+   constructor(entries: PerformanceEntryList) {
+-    this.#entries = entries;
++    this.__priv_entries = entries;
+   }
+ 
+   getEntries(): PerformanceEntryList {
+-    return this.#entries;
++    return this.__priv_entries;
+   }
+ 
+   getEntriesByType(type: PerformanceEntryType): PerformanceEntryList {
+-    return this.#entries.filter(entry => entry.entryType === type);
++    return this.__priv_entries.filter(entry => entry.entryType === type);
+   }
+ 
+   getEntriesByName(
+@@ -47,9 +47,9 @@ export class PerformanceObserverEntryList {
+     type?: PerformanceEntryType,
+   ): PerformanceEntryList {
+     if (type === undefined) {
+-      return this.#entries.filter(entry => entry.name === name);
++      return this.__priv_entries.filter(entry => entry.name === name);
+     } else {
+-      return this.#entries.filter(
++      return this.__priv_entries.filter(
+         entry => entry.name === name && entry.entryType === type,
+       );
+     }
+@@ -110,13 +110,13 @@ function getSupportedPerformanceEntryTypes(): $ReadOnlyArray<PerformanceEntryTyp
+  * observer.observe({ type: "event" });
+  */
+ export class PerformanceObserver {
+-  #nativeObserverHandle: OpaqueNativeObserverHandle | null = null;
+-  #callback: PerformanceObserverCallback;
+-  #type: 'single' | 'multiple' | void;
+-  #calledAtLeastOnce = false;
++  __priv_nativeObserverHandle: OpaqueNativeObserverHandle | null = null;
++  __priv_callback: PerformanceObserverCallback;
++  __priv_type: 'single' | 'multiple' | void;
++  __priv_calledAtLeastOnce = false;
+ 
+   constructor(callback: PerformanceObserverCallback) {
+-    this.#callback = callback;
++    this.__priv_callback = callback;
+   }
+ 
+   observe(options: PerformanceObserverInit): void {
+@@ -125,21 +125,21 @@ export class PerformanceObserver {
+       return;
+     }
+ 
+-    this.#validateObserveOptions(options);
++    this.__priv_validateObserveOptions(options);
+ 
+-    if (this.#nativeObserverHandle == null) {
+-      this.#nativeObserverHandle = this.#createNativeObserver();
++    if (this.__priv_nativeObserverHandle == null) {
++      this.__priv_nativeObserverHandle = this.__priv_createNativeObserver();
+     }
+ 
+-    const observerHandle = nullthrows(this.#nativeObserverHandle);
++    const observerHandle = nullthrows(this.__priv_nativeObserverHandle);
+ 
+     if (options.entryTypes) {
+-      this.#type = 'multiple';
++      this.__priv_type = 'multiple';
+       NativePerformance.observe?.(observerHandle, {
+         entryTypes: options.entryTypes.map(performanceEntryTypeToRaw),
+       });
+     } else if (options.type) {
+-      this.#type = 'single';
++      this.__priv_type = 'single';
+       NativePerformance.observe?.(observerHandle, {
+         type: performanceEntryTypeToRaw(options.type),
+         buffered: options.buffered,
+@@ -154,20 +154,20 @@ export class PerformanceObserver {
+       return;
+     }
+ 
+-    if (this.#nativeObserverHandle == null || !NativePerformance.disconnect) {
++    if (this.__priv_nativeObserverHandle == null || !NativePerformance.disconnect) {
+       return;
+     }
+ 
+-    NativePerformance.disconnect(this.#nativeObserverHandle);
++    NativePerformance.disconnect(this.__priv_nativeObserverHandle);
+   }
+ 
+-  #createNativeObserver(): OpaqueNativeObserverHandle | null {
++  __priv_createNativeObserver(): OpaqueNativeObserverHandle | null {
+     if (!NativePerformance || !NativePerformance.createObserver) {
+       warnNoNativePerformance();
+       return null;
+     }
+ 
+-    this.#calledAtLeastOnce = false;
++    this.__priv_calledAtLeastOnce = false;
+ 
+     const observerHandle: OpaqueNativeObserverHandle =
+       NativePerformance.createObserver(() => {
+@@ -183,19 +183,19 @@ export class PerformanceObserver {
+         const entryList = new PerformanceObserverEntryList(entries);
+ 
+         let droppedEntriesCount = 0;
+-        if (!this.#calledAtLeastOnce) {
++        if (!this.__priv_calledAtLeastOnce) {
+           droppedEntriesCount =
+             NativePerformance.getDroppedEntriesCount?.(observerHandle) ?? 0;
+-          this.#calledAtLeastOnce = true;
++          this.__priv_calledAtLeastOnce = true;
+         }
+ 
+-        this.#callback(entryList, this, {droppedEntriesCount});
++        this.__priv_callback(entryList, this, {droppedEntriesCount});
+       });
+ 
+     return observerHandle;
+   }
+ 
+-  #validateObserveOptions(options: PerformanceObserverInit): void {
++  __priv_validateObserveOptions(options: PerformanceObserverInit): void {
+     const {type, entryTypes, durationThreshold} = options;
+ 
+     if (!type && !entryTypes) {
+@@ -210,13 +210,13 @@ export class PerformanceObserver {
+       );
+     }
+ 
+-    if (this.#type === 'multiple' && type) {
++    if (this.__priv_type === 'multiple' && type) {
+       throw new Error(
+         "Failed to execute 'observe' on 'PerformanceObserver': This observer has performed observe({entryTypes:...}, therefore it cannot perform observe({type:...})",
+       );
+     }
+ 
+-    if (this.#type === 'single' && entryTypes) {
++    if (this.__priv_type === 'single' && entryTypes) {
+       throw new Error(
+         "Failed to execute 'observe' on 'PerformanceObserver': This PerformanceObserver has performed observe({type:...}, therefore it cannot perform observe({entryTypes:...})",
+       );
+diff --git a/src/private/webapis/performance/ReactNativeStartupTiming.js b/src/private/webapis/performance/ReactNativeStartupTiming.js
+index 7ee24fc992955b20675c73eb7450ce7556ecea5a..74009e7004be39e6ad6ac6bfbc2e2eef084fe6a3 100644
+--- a/src/private/webapis/performance/ReactNativeStartupTiming.js
++++ b/src/private/webapis/performance/ReactNativeStartupTiming.js
+@@ -28,22 +28,22 @@ export default class ReactNativeStartupTiming {
+   // We do NOT match web spect here for two reasons:
+   // 1. The `ReactNativeStartupTiming` is non-standard API
+   // 2. The timing information is relative to the time origin, which means `0` has valid meaning
+-  #startTime: ?number;
+-  #endTime: ?number;
+-  #initializeRuntimeStart: ?number;
+-  #initializeRuntimeEnd: ?number;
+-  #executeJavaScriptBundleEntryPointStart: ?number;
+-  #executeJavaScriptBundleEntryPointEnd: ?number;
++  __priv_startTime: ?number;
++  __priv_endTime: ?number;
++  __priv_initializeRuntimeStart: ?number;
++  __priv_initializeRuntimeEnd: ?number;
++  __priv_executeJavaScriptBundleEntryPointStart: ?number;
++  __priv_executeJavaScriptBundleEntryPointEnd: ?number;
+ 
+   constructor(startUpTiming: ?ReactNativeStartupTimingLike) {
+     if (startUpTiming != null) {
+-      this.#startTime = startUpTiming.startTime;
+-      this.#endTime = startUpTiming.endTime;
+-      this.#initializeRuntimeStart = startUpTiming.initializeRuntimeStart;
+-      this.#initializeRuntimeEnd = startUpTiming.initializeRuntimeEnd;
+-      this.#executeJavaScriptBundleEntryPointStart =
++      this.__priv_startTime = startUpTiming.startTime;
++      this.__priv_endTime = startUpTiming.endTime;
++      this.__priv_initializeRuntimeStart = startUpTiming.initializeRuntimeStart;
++      this.__priv_initializeRuntimeEnd = startUpTiming.initializeRuntimeEnd;
++      this.__priv_executeJavaScriptBundleEntryPointStart =
+         startUpTiming.executeJavaScriptBundleEntryPointStart;
+-      this.#executeJavaScriptBundleEntryPointEnd =
++      this.__priv_executeJavaScriptBundleEntryPointEnd =
+         startUpTiming.executeJavaScriptBundleEntryPointEnd;
+     }
+   }
+@@ -52,42 +52,42 @@ export default class ReactNativeStartupTiming {
+    * Start time of the RN app startup process. This is provided by the platform by implementing the `ReactMarker.setAppStartTime` API in the native platform code.
+    */
+   get startTime(): ?number {
+-    return this.#startTime;
++    return this.__priv_startTime;
+   }
+ 
+   /**
+    * End time of the RN app startup process. This is equal to `executeJavaScriptBundleEntryPointEnd`.
+    */
+   get endTime(): ?number {
+-    return this.#endTime;
++    return this.__priv_endTime;
+   }
+ 
+   /**
+    * Start time when RN runtime get initialized. This is when RN infra first kicks in app startup process.
+    */
+   get initializeRuntimeStart(): ?number {
+-    return this.#initializeRuntimeStart;
++    return this.__priv_initializeRuntimeStart;
+   }
+ 
+   /**
+    * End time when RN runtime get initialized. This is the last marker before ends of the app startup process.
+    */
+   get initializeRuntimeEnd(): ?number {
+-    return this.#initializeRuntimeEnd;
++    return this.__priv_initializeRuntimeEnd;
+   }
+ 
+   /**
+    * Start time of JS bundle being executed. This indicates the RN JS bundle is loaded and start to be evaluated.
+    */
+   get executeJavaScriptBundleEntryPointStart(): ?number {
+-    return this.#executeJavaScriptBundleEntryPointStart;
++    return this.__priv_executeJavaScriptBundleEntryPointStart;
+   }
+ 
+   /**
+    * End time of JS bundle being executed. This indicates all the synchronous entry point jobs are finished.
+    */
+   get executeJavaScriptBundleEntryPointEnd(): ?number {
+-    return this.#executeJavaScriptBundleEntryPointEnd;
++    return this.__priv_executeJavaScriptBundleEntryPointEnd;
+   }
+ }
+ 
+diff --git a/src/private/webapis/performance/ResourceTiming.js b/src/private/webapis/performance/ResourceTiming.js
+index 0f02887250b5561589283a31b3e37e08493f0b7c..7581e77c2117eef5c839bbfc8897de9d7ff1547a 100644
+--- a/src/private/webapis/performance/ResourceTiming.js
++++ b/src/private/webapis/performance/ResourceTiming.js
+@@ -30,13 +30,13 @@ export type PerformanceResourceTimingJSON = {
+ };
+ 
+ export class PerformanceResourceTiming extends PerformanceEntry {
+-  #fetchStart: DOMHighResTimeStamp;
+-  #requestStart: DOMHighResTimeStamp;
+-  #connectStart: DOMHighResTimeStamp;
+-  #connectEnd: DOMHighResTimeStamp;
+-  #responseStart: DOMHighResTimeStamp;
+-  #responseEnd: DOMHighResTimeStamp;
+-  #responseStatus: ?number;
++  __priv_fetchStart: DOMHighResTimeStamp;
++  __priv_requestStart: DOMHighResTimeStamp;
++  __priv_connectStart: DOMHighResTimeStamp;
++  __priv_connectEnd: DOMHighResTimeStamp;
++  __priv_responseStart: DOMHighResTimeStamp;
++  __priv_responseEnd: DOMHighResTimeStamp;
++  __priv_responseStatus: ?number;
+ 
+   constructor(init: {
+     name: string,
+@@ -56,53 +56,53 @@ export class PerformanceResourceTiming extends PerformanceEntry {
+       startTime: init.startTime,
+       duration: init.duration,
+     });
+-    this.#fetchStart = init.fetchStart;
+-    this.#requestStart = init.requestStart;
+-    this.#connectStart = init.connectStart;
+-    this.#connectEnd = init.connectEnd;
+-    this.#responseStart = init.responseStart;
+-    this.#responseEnd = init.responseEnd;
+-    this.#responseStatus = init.responseStatus;
++    this.__priv_fetchStart = init.fetchStart;
++    this.__priv_requestStart = init.requestStart;
++    this.__priv_connectStart = init.connectStart;
++    this.__priv_connectEnd = init.connectEnd;
++    this.__priv_responseStart = init.responseStart;
++    this.__priv_responseEnd = init.responseEnd;
++    this.__priv_responseStatus = init.responseStatus;
+   }
+ 
+   get fetchStart(): DOMHighResTimeStamp {
+-    return this.#fetchStart;
++    return this.__priv_fetchStart;
+   }
+ 
+   get requestStart(): DOMHighResTimeStamp {
+-    return this.#requestStart;
++    return this.__priv_requestStart;
+   }
+ 
+   get connectStart(): DOMHighResTimeStamp {
+-    return this.#connectStart;
++    return this.__priv_connectStart;
+   }
+ 
+   get connectEnd(): DOMHighResTimeStamp {
+-    return this.#connectEnd;
++    return this.__priv_connectEnd;
+   }
+ 
+   get responseStart(): DOMHighResTimeStamp {
+-    return this.#responseStart;
++    return this.__priv_responseStart;
+   }
+ 
+   get responseEnd(): DOMHighResTimeStamp {
+-    return this.#responseEnd;
++    return this.__priv_responseEnd;
+   }
+ 
+   get responseStatus(): ?number {
+-    return this.#responseStatus;
++    return this.__priv_responseStatus;
+   }
+ 
+   toJSON(): PerformanceResourceTimingJSON {
+     return {
+       ...super.toJSON(),
+-      fetchStart: this.#fetchStart,
+-      requestStart: this.#requestStart,
+-      connectStart: this.#connectStart,
+-      connectEnd: this.#connectEnd,
+-      responseStart: this.#responseStart,
+-      responseEnd: this.#responseEnd,
+-      responseStatus: this.#responseStatus,
++      fetchStart: this.__priv_fetchStart,
++      requestStart: this.__priv_requestStart,
++      connectStart: this.__priv_connectStart,
++      connectEnd: this.__priv_connectEnd,
++      responseStart: this.__priv_responseStart,
++      responseEnd: this.__priv_responseEnd,
++      responseStatus: this.__priv_responseStatus,
+     };
+   }
+ }
+diff --git a/src/private/webapis/performance/UserTiming.js b/src/private/webapis/performance/UserTiming.js
+index 6809f3ca5ca01c52b4edd877112eee0e9c4225f6..c5058743375733e6ce7099e88a876c7e2a589356 100644
+--- a/src/private/webapis/performance/UserTiming.js
++++ b/src/private/webapis/performance/UserTiming.js
+@@ -30,7 +30,7 @@ export type PerformanceMeasureInit = {
+ };
+ 
+ export class PerformanceMark extends PerformanceEntry {
+-  #detail: DetailType;
++  __priv_detail: DetailType;
+ 
+   constructor(markName: string, markOptions?: PerformanceMarkOptions) {
+     super({
+@@ -41,17 +41,17 @@ export class PerformanceMark extends PerformanceEntry {
+     });
+ 
+     if (markOptions) {
+-      this.#detail = markOptions.detail;
++      this.__priv_detail = markOptions.detail;
+     }
+   }
+ 
+   get detail(): DetailType {
+-    return this.#detail;
++    return this.__priv_detail;
+   }
+ }
+ 
+ export class PerformanceMeasure extends PerformanceEntry {
+-  #detail: DetailType;
++  __priv_detail: DetailType;
+ 
+   constructor(measureName: string, measureOptions: PerformanceMeasureInit) {
+     super({
+@@ -62,11 +62,11 @@ export class PerformanceMeasure extends PerformanceEntry {
+     });
+ 
+     if (measureOptions) {
+-      this.#detail = measureOptions.detail;
++      this.__priv_detail = measureOptions.detail;
+     }
+   }
+ 
+   get detail(): DetailType {
+-    return this.#detail;
++    return this.__priv_detail;
+   }
+ }
