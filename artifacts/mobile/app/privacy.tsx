@@ -54,7 +54,7 @@ export default function PrivacyScreen() {
       <Li><B>Location at time of SOS</B>{" — a single GPS coordinate is included in emergency SMS messages sent via the SOS feature."}</Li>
       <View style={[s.callout, { backgroundColor: c.card, borderColor: c.border }]}>
         <Text style={[s.p, { color: c.mutedForeground, marginBottom: 0 }]}>
-          <B>When location is transmitted:</B>{" Your GPS coordinates are sent to servers in four situations: (a) when you submit a community road report; (b) when you activate the SOS feature; (c) every 8 seconds while Live Trip Sharing is active; and (d) when you request navigation directions (your origin and destination are sent to the OSRM routing service). Speed calculation and hazard detection happen on-device and do not require location to be transmitted."}
+          <B>When location is transmitted:</B>{" Your GPS coordinates are sent to servers in four situations: (a) when you submit a community road report; (b) when you activate the SOS feature; (c) every 8 seconds while Live Trip Sharing is active; and (d) when you request navigation directions (your origin and destination are sent to the Mapbox routing service). Speed calculation and hazard detection happen on-device and do not require location to be transmitted."}
         </Text>
       </View>
 
@@ -125,12 +125,12 @@ export default function PrivacyScreen() {
 
       <Text style={[s.h3, { color: c.primary }]}>1.8 Voice Guidance and Audio</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        Msafiri provides voice-guided navigation and hazard alerts using bundled audio clips and, for
-        dynamic phrases such as road names and speed limit announcements, on-demand text-to-speech via
-        <B> ElevenLabs</B>.
+        Msafiri provides voice-guided navigation and hazard alerts using the device's built-in
+        text-to-speech engine (iOS Siri voice / Android Google TTS). Navigation voice runs entirely
+        on-device. No audio or text is sent to external servers for navigation guidance.
       </Text>
-      <Li>{"When on-demand TTS is used, a "}<B>short text phrase</B>{" (e.g., \"Turn right onto Ngong Road\") is sent to ElevenLabs' API servers to generate an audio clip. No location data, device ID, or personal information is included in these requests."}</Li>
-      <Li>{"Generated audio clips are "}<B>cached on your device for up to 90 days</B>{" to minimise repeated network requests."}</Li>
+      <Li>{"Navigation turn instructions are spoken by your device's system TTS engine. No text or audio leaves your device for navigation voice purposes."}</Li>
+      <Li>{"Course audio in the Learning section uses AI text-to-speech. See section 1.9 for details."}</Li>
 
       <Text style={[s.h3, { color: c.primary }]}>1.9 Crash and Error Reporting</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
@@ -150,7 +150,7 @@ export default function PrivacyScreen() {
       <Li><B>Turn-by-turn navigation</B>{" — calculating driving routes, step-by-step directions, and announcing upcoming hazards along your route."}</Li>
       <Li><B>Community report system</B>{" — validating, aggregating, and expiring road reports submitted by users."}</Li>
       <Li><B>Live Trip Sharing</B>{" — transmitting your real-time position to people you've shared your trip link with."}</Li>
-      <Li><B>Voice guidance</B>{" — generating navigation and hazard announcements via on-device audio and ElevenLabs TTS."}</Li>
+      <Li><B>Voice guidance</B>{" — generating navigation and hazard announcements using your device's built-in TTS engine. No data leaves your device for navigation voice."}</Li>
       <Li><B>Subscription management</B>{" — verifying your Msafiri Pro subscription status via RevenueCat to unlock premium features."}</Li>
       <Li><B>Safety features</B>{" — enabling the SOS emergency SMS feature to function correctly."}</Li>
       <Li><B>App improvement</B>{" — analysing crash data and error logs via Sentry to fix bugs and improve performance."}</Li>
@@ -174,9 +174,9 @@ export default function PrivacyScreen() {
       <Text style={[s.h3, { color: c.primary }]}>3.2 With Service Providers</Text>
       <Li><B>RevenueCat</B>{" — subscription management. Receives your device ID and subscription events. Privacy: revenuecat.com/privacy."}</Li>
       <Li><B>Sentry</B>{" — crash and error reporting. Receives device model, OS version, App version, and error stack traces. Location data is scrubbed before transmission. Privacy: sentry.io/privacy."}</Li>
-      <Li><B>ElevenLabs</B>{" — on-demand voice guidance synthesis. Receives short text phrases only (no location or personal data). Privacy: elevenlabs.io/privacy."}</Li>
+      <Li><B>ElevenLabs</B>{" — AI text-to-speech for course audio in the Learning section. Receives short text phrases only (no location or personal data). Privacy: elevenlabs.io/privacy."}</Li>
       <Li><B>Google Maps SDK</B>{" — map rendering on Android and iOS. Privacy: policies.google.com/privacy."}</Li>
-      <Li><B>OSRM (Open Source Routing Machine)</B>{" — route calculation. Your origin and destination GPS coordinates are sent to calculate driving routes. No personal information included."}</Li>
+      <Li><B>Mapbox</B>{" — route calculation. Your origin and destination GPS coordinates are sent to calculate driving routes. No personal information included. Privacy: mapbox.com/legal/privacy."}</Li>
       <Li><B>OpenStreetMap / Nominatim / Photon</B>{" — reverse geocoding and place search. Queries do not include your device ID. Privacy: openstreetmap.org/privacy."}</Li>
       <Li><B>Overpass API</B>{" — Search Along Route POI queries. A route bounding box is sent; no device ID or personal data included."}</Li>
       <Li><B>Hosting and infrastructure providers</B>{" — cloud hosting with access to server logs; contractually restricted from using data for other purposes."}</Li>
@@ -268,7 +268,7 @@ export default function PrivacyScreen() {
       </Text>
       <Li><B>Primary purpose:</B>{" Location is used to (a) calculate your driving speed on-device, (b) detect nearby road hazards and speed zones, (c) provide turn-by-turn navigation, (d) attach a coordinate to SOS emergency messages and community reports, and (e) transmit your position during Live Trip Sharing."}</Li>
       <Li><B>Background location:</B>{" Used only when Live Trip Sharing is active and you have granted \"Always\" permission. Background pings are sent every 8 seconds during an active session and deleted when the session ends."}</Li>
-      <Li><B>Route calculation:</B>{" When you request navigation directions, your start and end coordinates are sent to an OSRM routing server. Your live position during navigation is not continuously sent to OSRM."}</Li>
+      <Li><B>Route calculation:</B>{" When you request navigation directions, your start and end coordinates are sent to Mapbox's routing API. Your live position during navigation is not continuously sent to Mapbox."}</Li>
       <Li><B>Not used for:</B>{" Advertising, targeted marketing, building a movement history, or any purpose unrelated to road safety and navigation."}</Li>
       <Li><B>Data minimisation:</B>{" We do not collect location when the App is closed and background mode is disabled."}</Li>
 
