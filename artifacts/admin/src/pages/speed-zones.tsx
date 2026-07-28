@@ -5,6 +5,8 @@ import {
   useAdminDeleteSpeedZone,
   useAdminCreateSpeedZone,
   useAdminUpdateSpeedZone,
+  useAdminVerifySpeedZone,
+  useAdminRemoveSpeedZone,
   getAdminListSpeedZonesQueryKey,
 } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, Navigation2 } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, Navigation2, ShieldCheck, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -137,6 +139,30 @@ export default function SpeedZones() {
       },
       onError: () => {
         toast({ title: "Operation Failed", description: "Unable to update speed zone.", variant: "destructive" });
+      }
+    }
+  });
+
+  const verifyMutation = useAdminVerifySpeedZone({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Zone verified", description: "Marked as admin-verified." });
+        invalidate();
+      },
+      onError: () => {
+        toast({ title: "Operation Failed", description: "Unable to verify zone.", variant: "destructive" });
+      }
+    }
+  });
+
+  const removeMutation = useAdminRemoveSpeedZone({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Zone deactivated", description: "Zone removed from the live map." });
+        invalidate();
+      },
+      onError: () => {
+        toast({ title: "Operation Failed", description: "Unable to deactivate zone.", variant: "destructive" });
       }
     }
   });
@@ -637,6 +663,23 @@ export default function SpeedZones() {
                               <DropdownMenuItem onClick={() => openEditDialog(zone)} className="cursor-pointer">
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => verifyMutation.mutate({ id: zone.id })}
+                                disabled={zone.verified || verifyMutation.isPending}
+                                className="cursor-pointer text-emerald-700 focus:text-emerald-700"
+                              >
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                                {zone.verified ? "Already Verified" : "Mark as Verified"}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => removeMutation.mutate({ id: zone.id })}
+                                disabled={zone.status === "inactive" || removeMutation.isPending}
+                                className="cursor-pointer text-amber-700 focus:text-amber-700"
+                              >
+                                <EyeOff className="mr-2 h-4 w-4" />
+                                {zone.status === "inactive" ? "Already Deactivated" : "Deactivate Zone"}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 

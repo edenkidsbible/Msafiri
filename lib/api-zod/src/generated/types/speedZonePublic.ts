@@ -30,5 +30,6 @@ export interface SpeedZonePublic {
   /** @nullable */
   endLng?: number | null;
   status: string;
+  verified?: boolean;
   createdAt?: number;
 }

@@ -30,6 +30,7 @@ export interface AdminSpeedZone {
   /** @nullable */
   endLng?: number | null;
   status: string;
+  verified: boolean;
   /** @nullable */
   createdBy?: string | null;
   createdAt: string;

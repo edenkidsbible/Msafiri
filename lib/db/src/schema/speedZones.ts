@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, doublePrecision, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, doublePrecision, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,7 @@ export const speedZonesTable = pgTable("speed_zones", {
   endLng:       doublePrecision("end_lng"),         // stretch mode
   staticId:     text("static_id"),                 // sz-id of the built-in zone this row overrides
   status:       text("status").notNull().default("active"), // active|inactive
+  verified:     boolean("verified").notNull().default(false), // admin has physically verified this location
   createdBy:    text("created_by"),                // admin_users.id of the creator
   createdAt:    timestamp("created_at").notNull().defaultNow(),
   updatedAt:    timestamp("updated_at").notNull().defaultNow(),

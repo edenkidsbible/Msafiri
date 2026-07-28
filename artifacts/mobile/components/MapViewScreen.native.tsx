@@ -187,6 +187,7 @@ export default function MapViewScreen() {
     confirmReport, denyReport, flagReport,
     driverHeading,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
+    adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
   } = useApp();
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -214,6 +215,11 @@ export default function MapViewScreen() {
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [adminLocationTarget, setAdminLocationTarget] = useState<CommunityReport | null>(null);
+
+  // Zone tap sheet state
+  const [selectedZone, setSelectedZone] = useState<typeof allZones[0] | null>(null);
+  const zoneOpenedAtRef = useRef(0);
+  const [adminZoneLocationTarget, setAdminZoneLocationTarget] = useState<typeof allZones[0] | null>(null);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
   const openedAtRef = useRef(0);
@@ -352,10 +358,12 @@ export default function MapViewScreen() {
         showsCompass
         showsTraffic={showTraffic}
       >
-        {/* Speed zone markers — road-stretch corridors show their limit as a
-            badge at each end so you can see how the speed changes along the
-            road, instead of a straight line cutting across the map. */}
+        {/* Speed zone markers — null-guard coordinates to prevent the iOS
+            NSInvalidArgumentException crash when lat/lng is null/undefined.
+            Road-stretch endpoints show a speed-limit badge at each end. */}
         {allZones.map((z) => {
+          // ── Crash guard ── skip any zone with a missing coordinate ──────────
+          if (z.lat == null || z.lng == null || isNaN(z.lat) || isNaN(z.lng)) return null;
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;
           const behind = isPinBehind(z.lat, z.lng);
           return (
@@ -366,6 +374,11 @@ export default function MapViewScreen() {
                 title={z.name}
                 description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
                 opacity={behind ? 0.3 : 1}
+                tracksViewChanges={true}
+                onPress={() => {
+                  zoneOpenedAtRef.current = Date.now();
+                  setSelectedZone(z);
+                }}
               >
                 {z.isStretchEndpoint ? (
                   <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={m.bg} />
@@ -503,8 +516,7 @@ export default function MapViewScreen() {
         currentLng={currentLng}
       />
 
-      {/* Admin Fix Pin modal — rendered outside the cluster Modal so iOS can
-          show it without two <Modal>s stacked simultaneously. */}
+      {/* Admin Fix Pin modal — community reports */}
       {adminLocationTarget && (
         <AdminLocationPickerModal
           visible
@@ -519,6 +531,145 @@ export default function MapViewScreen() {
             setAdminLocationTarget(null);
           }}
         />
+      )}
+
+      {/* Admin Fix Pin modal — speed zones (rendered outside zone sheet so
+          iOS can show it without two <Modal>s stacked simultaneously). */}
+      {adminZoneLocationTarget && (
+        <AdminLocationPickerModal
+          visible
+          reportId={adminZoneLocationTarget.id}
+          initialLat={adminZoneLocationTarget.lat}
+          initialLng={adminZoneLocationTarget.lng}
+          initialRoadName={adminZoneLocationTarget.road ?? undefined}
+          onClose={() => setAdminZoneLocationTarget(null)}
+          onSave={async (lat, lng) => {
+            const z = adminZoneLocationTarget;
+            await adminUpdateZoneLocation(z.id, lat, lng, z);
+            setAdminZoneLocationTarget(null);
+          }}
+        />
+      )}
+
+      {/* ── Zone detail sheet ─────────────────────────────────────────────── */}
+      {selectedZone && (
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedZone(null)}
+        >
+          <TouchableOpacity
+            style={ms.backdrop}
+            onPress={() => {
+              if (Date.now() - zoneOpenedAtRef.current < 400) return;
+              setSelectedZone(null);
+            }}
+            activeOpacity={1}
+          >
+            <TouchableOpacity activeOpacity={1} style={ms.sheet}>
+              <View style={ms.handle} />
+
+              {/* Header */}
+              <View style={ms.headerRow}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <Text style={ms.sheetTitle}>{selectedZone.name}</Text>
+                    {selectedZone.verified && (
+                      <View style={[ms.verifiedBadge, { backgroundColor: "#E3F2FD" }]}>
+                        <Ionicons name="shield-checkmark" size={11} color="#1565C0" />
+                        <Text style={[ms.verifiedTxt, { color: "#1565C0" }]}>Admin Verified</Text>
+                      </View>
+                    )}
+                  </View>
+                  {selectedZone.road ? (
+                    <Text style={ms.incidentRoad}>{selectedZone.road}</Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity onPress={() => setSelectedZone(null)} style={ms.closeBtn}>
+                  <Ionicons name="close" size={20} color="#888" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Details */}
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                <View style={[ms.zonePill, { backgroundColor: selectedZone.type === "camera" ? "#FFEBEE" : selectedZone.type === "police" ? "#EDE7F6" : "#FFF8E1" }]}>
+                  <Ionicons
+                    name={selectedZone.type === "camera" ? "camera" : selectedZone.type === "police" ? "shield" : "speedometer"}
+                    size={13}
+                    color={selectedZone.type === "camera" ? "#C62828" : selectedZone.type === "police" ? "#4527A0" : "#E65100"}
+                  />
+                  <Text style={[ms.zonePillTxt, { color: selectedZone.type === "camera" ? "#C62828" : selectedZone.type === "police" ? "#4527A0" : "#E65100" }]}>
+                    {selectedZone.type === "camera" ? "Speed Camera" : selectedZone.type === "police" ? "Police" : "Speed Zone"}
+                  </Text>
+                </View>
+                <View style={[ms.zonePill, { backgroundColor: "#E8F5E9" }]}>
+                  <Ionicons name="speedometer-outline" size={13} color="#2E7D32" />
+                  <Text style={[ms.zonePillTxt, { color: "#2E7D32" }]}>{capSpeedLimit(selectedZone.speedLimit, vehicle)} km/h</Text>
+                </View>
+              </View>
+
+              {selectedZone.description ? (
+                <Text style={[ms.incidentMeta, { marginTop: 10, lineHeight: 18 }]}>{selectedZone.description}</Text>
+              ) : null}
+
+              {/* Admin actions */}
+              {isAdmin && (
+                <View style={ms.adminActionRow}>
+                  <TouchableOpacity
+                    style={[ms.adminBtn, { backgroundColor: "#E8F5E920", borderColor: "#1B5E2040" }]}
+                    onPress={async () => {
+                      try {
+                        await adminVerifyZone(selectedZone.id, selectedZone);
+                        setSelectedZone((prev) => prev ? { ...prev, verified: true } : prev);
+                      } catch {
+                        Alert.alert("Error", "Could not verify zone.");
+                      }
+                    }}
+                  >
+                    <Ionicons name={selectedZone.verified ? "checkmark-circle" : "checkmark-circle-outline"} size={14} color="#1B5E20" />
+                    <Text style={[ms.adminBtnTxt, { color: "#1B5E20" }]}>{selectedZone.verified ? "✓ Verified" : "Verify"}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
+                    onPress={() => {
+                      Alert.alert("Remove Zone", `Remove "${selectedZone.name}" from the map?`, [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Remove", style: "destructive",
+                          onPress: async () => {
+                            try {
+                              await adminRemoveZone(selectedZone.id, selectedZone);
+                              setSelectedZone(null);
+                            } catch {
+                              Alert.alert("Remove Failed", "Check your connection and try again.");
+                            }
+                          },
+                        },
+                      ]);
+                    }}
+                  >
+                    <Ionicons name="close-circle-outline" size={14} color="#B71C1C" />
+                    <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
+                    onPress={() => {
+                      setSelectedZone(null);
+                      // Delay to let zone modal close before Fix Pin modal opens
+                      setTimeout(() => setAdminZoneLocationTarget(selectedZone), 50);
+                    }}
+                  >
+                    <Ionicons name="location-outline" size={14} color="#1565C0" />
+                    <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       )}
 
       {/* ── Incident detail sheet ─────────────────────────────────────────── */}
@@ -827,4 +978,9 @@ const ms = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1,
   },
   adminBtnTxt: { fontSize: 11, fontWeight: "600" },
+  zonePill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  zonePillTxt: { fontSize: 12, fontWeight: "600" },
 });

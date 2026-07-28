@@ -237,6 +237,7 @@ interface AppContextValue {
   adminUpdateReportLocation: (id: string, lat: number, lng: number, roadName?: string | null) => Promise<void>;
   adminUpdateZoneLocation: (id: string, lat: number, lng: number, staticZone?: SpeedZone) => Promise<void>;
   adminRemoveZone: (id: string, staticZone?: SpeedZone) => Promise<void>;
+  adminVerifyZone: (id: string, staticZone?: SpeedZone) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -484,13 +485,14 @@ interface ApiSpeedZone {
   endLat: number | null;
   endLng: number | null;
   status: string;
+  verified?: boolean;
   staticId?: string | null; // present when this DB row overrides a built-in static zone
 }
 
 function apiZoneToStaticZones(z: ApiSpeedZone): SpeedZone[] {
   if (z.status !== "active" || z.speedLimit == null) return [];
   const type: SpeedZone["type"] = z.type === "camera" || z.type === "police" ? z.type : "zone";
-  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "" };
+  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "", verified: z.verified ?? false };
   // When this DB record overrides a static zone, use the static zone's id so that
   // all speed-matching and route logic (which knows static ids) stays consistent.
   const pointId = z.staticId ?? `db-${z.id}`;
@@ -2697,6 +2699,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const adminVerifyZone = useCallback(async (id: string, staticZone?: SpeedZone): Promise<void> => {
+    const body: Record<string, unknown> = {};
+    if (staticZone) {
+      body.staticData = {
+        name: staticZone.name,
+        road: staticZone.road,
+        type: staticZone.type,
+        speedLimit: staticZone.speedLimit,
+        description: staticZone.description,
+      };
+    }
+    await adminApiFetch("POST", `/admin-mobile/zones/${id}/verify`, body);
+    // Optimistic update — mark the zone as verified locally
+    setDbZones((prev) =>
+      prev.map((z) => z.id === id ? { ...z, verified: true } : z)
+    );
+    // Also mark static zones that were verified via their sz-id
+    if (staticZone) {
+      setDbZones((prev) =>
+        prev.map((z) => z.id === staticZone.id ? { ...z, verified: true } : z)
+      );
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission, requestNotificationPermission,
@@ -2733,7 +2759,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markReportPrompted, isReportPrompted,
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
-      adminUpdateZoneLocation, adminRemoveZone,
+      adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
     }}>
       {children}
     </AppContext.Provider>

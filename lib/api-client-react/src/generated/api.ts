@@ -2633,6 +2633,146 @@ export const useAdminCreateSpeedZone = <TError = ErrorType<void>,
       return useMutation(getAdminCreateSpeedZoneMutationOptions(options));
     }
 
+export const getAdminVerifySpeedZoneUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/speed-zones/${id}/verify`
+}
+
+/**
+ * @summary Mark a speed zone as admin-verified
+ */
+export const adminVerifySpeedZone = async (id: string, options?: RequestInit): Promise<AdminSpeedZone> => {
+
+  return customFetch<AdminSpeedZone>(getAdminVerifySpeedZoneUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminVerifySpeedZoneMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminVerifySpeedZone>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminVerifySpeedZone>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminVerifySpeedZone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminVerifySpeedZone>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminVerifySpeedZone(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminVerifySpeedZoneMutationResult = NonNullable<Awaited<ReturnType<typeof adminVerifySpeedZone>>>
+
+    export type AdminVerifySpeedZoneMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark a speed zone as admin-verified
+ */
+export const useAdminVerifySpeedZone = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminVerifySpeedZone>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminVerifySpeedZone>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminVerifySpeedZoneMutationOptions(options));
+    }
+
+export const getAdminRemoveSpeedZoneUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/speed-zones/${id}/remove`
+}
+
+/**
+ * @summary Soft-remove a speed zone (set status=inactive)
+ */
+export const adminRemoveSpeedZone = async (id: string, options?: RequestInit): Promise<AdminSpeedZone> => {
+
+  return customFetch<AdminSpeedZone>(getAdminRemoveSpeedZoneUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminRemoveSpeedZoneMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRemoveSpeedZone>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRemoveSpeedZone>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminRemoveSpeedZone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRemoveSpeedZone>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminRemoveSpeedZone(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRemoveSpeedZoneMutationResult = NonNullable<Awaited<ReturnType<typeof adminRemoveSpeedZone>>>
+
+    export type AdminRemoveSpeedZoneMutationError = ErrorType<void>
+
+    /**
+ * @summary Soft-remove a speed zone (set status=inactive)
+ */
+export const useAdminRemoveSpeedZone = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRemoveSpeedZone>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRemoveSpeedZone>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminRemoveSpeedZoneMutationOptions(options));
+    }
+
 export const getAdminUpdateSpeedZoneUrl = (id: string,) => {
 
 

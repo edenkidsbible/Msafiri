@@ -324,6 +324,7 @@ export interface SpeedZonePublic {
   /** @nullable */
   endLng?: number | null;
   status: string;
+  verified?: boolean;
   createdAt?: number;
 }
 
@@ -355,6 +356,7 @@ export interface AdminSpeedZone {
   /** @nullable */
   endLng?: number | null;
   status: string;
+  verified: boolean;
   /** @nullable */
   createdBy?: string | null;
   createdAt: string;
@@ -417,6 +419,7 @@ export interface SpeedZoneUpdate {
   /** @nullable */
   endLng?: number | null;
   status?: string;
+  verified?: boolean;
 }
 
 export interface SuccessResult {

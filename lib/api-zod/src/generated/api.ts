@@ -648,6 +648,7 @@ export const ListSpeedZonesResponse = zod.object({
   "endLat": zod.number().nullish(),
   "endLng": zod.number().nullish(),
   "status": zod.string(),
+  "verified": zod.boolean().optional(),
   "createdAt": zod.number().optional()
 }))
 })
@@ -681,6 +682,7 @@ export const AdminListSpeedZonesResponse = zod.object({
   "endLat": zod.number().nullish(),
   "endLng": zod.number().nullish(),
   "status": zod.string(),
+  "verified": zod.boolean(),
   "createdBy": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -727,6 +729,65 @@ export const AdminCreateSpeedZoneResponse = zod.object({
   "endLat": zod.number().nullish(),
   "endLng": zod.number().nullish(),
   "status": zod.string(),
+  "verified": zod.boolean(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Mark a speed zone as admin-verified
+ */
+export const AdminVerifySpeedZoneParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminVerifySpeedZoneResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string(),
+  "verified": zod.boolean(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Soft-remove a speed zone (set status=inactive)
+ */
+export const AdminRemoveSpeedZoneParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminRemoveSpeedZoneResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "type": zod.string(),
+  "mode": zod.string(),
+  "speedLimit": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "startLat": zod.number().nullish(),
+  "startLng": zod.number().nullish(),
+  "endLat": zod.number().nullish(),
+  "endLng": zod.number().nullish(),
+  "status": zod.string(),
+  "verified": zod.boolean(),
   "createdBy": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -756,7 +817,8 @@ export const AdminUpdateSpeedZoneBody = zod.object({
   "startLng": zod.number().nullish(),
   "endLat": zod.number().nullish(),
   "endLng": zod.number().nullish(),
-  "status": zod.string().optional()
+  "status": zod.string().optional(),
+  "verified": zod.boolean().optional()
 })
 
 export const AdminUpdateSpeedZoneResponse = zod.object({
@@ -774,6 +836,7 @@ export const AdminUpdateSpeedZoneResponse = zod.object({
   "endLat": zod.number().nullish(),
   "endLng": zod.number().nullish(),
   "status": zod.string(),
+  "verified": zod.boolean(),
   "createdBy": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()

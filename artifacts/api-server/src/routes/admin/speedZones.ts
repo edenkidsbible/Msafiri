@@ -23,6 +23,7 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
     endLat: z.endLat,
     endLng: z.endLng,
     status: z.status,
+    verified: z.verified,
     createdBy: z.createdBy,
     createdAt: z.createdAt.toISOString(),
     updatedAt: z.updatedAt.toISOString(),
@@ -175,6 +176,7 @@ router.patch("/speed-zones/:id", async (req: Request, res: Response) => {
     if (speedLimit  !== undefined) updates["speedLimit"] = speedLimit;
     if (description !== undefined) updates["description"] = description;
     if (status      !== undefined) updates["status"] = status;
+    if ((req.body as any).verified !== undefined) updates["verified"] = (req.body as any).verified;
     if (lat         !== undefined) updates["lat"] = lat;
     if (lng         !== undefined) updates["lng"] = lng;
     if (startLat    !== undefined) updates["startLat"] = startLat;
@@ -191,6 +193,42 @@ router.patch("/speed-zones/:id", async (req: Request, res: Response) => {
     return res.json(toClient(updated));
   } catch (err) {
     console.error("PATCH /admin/speed-zones/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/speed-zones/:id/verify — mark as admin-verified
+router.post("/speed-zones/:id/verify", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const [existing] = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const [updated] = await db
+      .update(speedZonesTable)
+      .set({ verified: true, updatedAt: new Date() })
+      .where(eq(speedZonesTable.id, id))
+      .returning();
+    return res.json(toClient(updated));
+  } catch (err) {
+    console.error("POST /admin/speed-zones/:id/verify error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/speed-zones/:id/remove — soft-remove (set status=inactive)
+router.post("/speed-zones/:id/remove", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const [existing] = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const [updated] = await db
+      .update(speedZonesTable)
+      .set({ status: "inactive", verified: false, updatedAt: new Date() })
+      .where(eq(speedZonesTable.id, id))
+      .returning();
+    return res.json(toClient(updated));
+  } catch (err) {
+    console.error("POST /admin/speed-zones/:id/remove error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

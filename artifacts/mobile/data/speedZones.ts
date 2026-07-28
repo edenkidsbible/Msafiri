@@ -2,6 +2,7 @@ export type ZoneType = "camera" | "police" | "zone";
 
 export interface SpeedZone {
   id: string;
+  verified?: boolean;        // admin has physically confirmed this location
   name: string;
   road: string;
   lat: number;

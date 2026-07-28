@@ -29,6 +29,7 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
     endLat: z.endLat,
     endLng: z.endLng,
     status: z.status,
+    verified: z.verified,
     staticId: z.staticId,
     createdAt: z.createdAt.getTime(),
   };

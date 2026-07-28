@@ -164,6 +164,71 @@ router.patch(
   }
 );
 
+// ─── POST /admin-mobile/zones/:id/verify ─────────────────────────────────────
+// Mark a speed zone as admin-verified (physically confirmed on site).
+// For DB zones (UUID): sets verified=true on the existing row.
+// For static zones (sz-prefixed): upserts a DB record with verified=true.
+router.post(
+  "/admin-mobile/zones/:id/verify",
+  adminMobileAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params["id"] as string;
+      const { staticData } = req.body as {
+        staticData?: { name: string; road?: string; type: string; speedLimit?: number; description?: string };
+      };
+
+      if (UUID_RE.test(id)) {
+        // Standard DB zone — set verified by primary key
+        const rows = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
+        if (!rows.length) return res.status(404).json({ error: "Zone not found" });
+        await db
+          .update(speedZonesTable)
+          .set({ verified: true, updatedAt: new Date() })
+          .where(eq(speedZonesTable.id, id));
+        return res.json({ id, verified: true });
+      }
+
+      // Static zone — upsert by staticId
+      const existing = await db
+        .select()
+        .from(speedZonesTable)
+        .where(eq(speedZonesTable.staticId, id));
+
+      if (existing.length) {
+        await db
+          .update(speedZonesTable)
+          .set({ verified: true, status: "active", updatedAt: new Date() })
+          .where(eq(speedZonesTable.staticId, id));
+        return res.json({ id, verified: true });
+      }
+
+      // First-time promotion of a static zone
+      if (!staticData) return res.status(400).json({ error: "staticData required to promote a static zone" });
+      const [created] = await db
+        .insert(speedZonesTable)
+        .values({
+          name: staticData.name,
+          road: staticData.road ?? null,
+          type: staticData.type,
+          mode: "point",
+          speedLimit: staticData.speedLimit ?? null,
+          description: staticData.description ?? null,
+          lat: null,
+          lng: null,
+          staticId: id,
+          status: "active",
+          verified: true,
+        })
+        .returning();
+      return res.json({ id: created.id, staticId: id, verified: true });
+    } catch (err) {
+      console.error("[admin-mobile/zones/verify]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 // ─── PATCH /admin-mobile/zones/:id/location ──────────────────────────────────
 // Fix the lat/lng of a speed zone marker.
 // For DB zones (UUID id): updates the existing row.
