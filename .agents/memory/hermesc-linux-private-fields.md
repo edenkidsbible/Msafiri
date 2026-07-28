@@ -1,35 +1,54 @@
 ---
-name: hermesc Linux private-field error
-description: The hermesc linux64 binary shipped with RN 0.81.5 rejects JS private class field syntax (#x, #y…) — surfaces as "private properties are not supported" when running eas update on Linux (Replit). Fix is Babel-level downcompilation.
+name: hermesc private-field error (RN 0.81 — all platforms)
+description: hermesc in RN 0.81.5 rejects #field private class syntax on BOTH linux64 (eas update) AND macOS (eas build iOS). Multiple packages affected. Fix is a global Babel override that excludes react-native-reanimated.
 ---
 
-# hermesc Linux private-field error
+# hermesc private-field error (RN 0.81 — all platforms)
 
 ## The error
-Running `eas update` on Linux (Replit) fails with:
+Both `eas update` (linux hermesc) and `eas build` (macOS hermesc) fail with:
 ```
-Failed to generate Hermes bytecode
 error: private properties are not supported
-    #x;
+    #registry;
 ```
 
-## Why
-The `hermesc` linux64 binary bundled with `react-native@0.81.5` does not support private class field syntax (`#field`). Third-party packages that use `#` fields are bundled by Metro but then fail Hermes compilation.
+## Affected packages (confirmed)
+- `react-native/src/private/webapis/geometry/DOMRectReadOnly.js` — `#x`, `#y`, `#width`, `#height`
+- Other packages using `#registry`, `#listenerCount`, `#updateSubscription` (expo-modules-core and others)
+- Multiple packages — the scope is **global**, not limited to one file
 
-## Fix
-Add three Babel plugins to `babel.config.js` so private fields are downcompiled before Hermes sees the bundle:
+## Why the transform is tricky
+Adding the three Babel plugins globally breaks `react-native-reanimated@4.x` + `react-native-worklets@0.5.1`:
+the Worklets Babel plugin crashes with `Cannot read properties of undefined (reading 'length')` when
+the class-property transforms mutate the AST before it runs. Reanimated's plugin needs to see the
+original AST. Reanimated itself does NOT use private fields that hermesc rejects, so excluding it is safe.
 
+## Working fix — babel.config.js
 ```js
-plugins: [
-  ["@babel/plugin-transform-class-properties",          { loose: true }],
-  ["@babel/plugin-transform-private-methods",           { loose: true }],
-  ["@babel/plugin-transform-private-property-in-object",{ loose: true }],
+overrides: [
+  {
+    exclude: /react-native-reanimated|react-native-worklets/,
+    plugins: [
+      "@babel/plugin-transform-class-properties",
+      "@babel/plugin-transform-private-methods",
+      "@babel/plugin-transform-private-property-in-object",
+    ],
+  },
 ],
 ```
 
-Also add them as explicit devDependencies (they exist as transitive deps but pnpm hoisting is unreliable):
+## Also required — metro.config.js
+```js
+config.cacheVersion = "babel-private-fields-v4"; // bump when babel.config.js changes
 ```
-pnpm add -D @babel/plugin-transform-class-properties @babel/plugin-transform-private-methods @babel/plugin-transform-private-property-in-object
-```
+Metro caches per-file transforms keyed on config hash. Without a cacheVersion bump the
+old (untransformed) cached output is reused and the plugins appear to have no effect.
 
-**Why loose:true:** Required for all three to be consistent — mixing strict and loose mode across class transforms causes a Babel error.
+## devDependencies needed
+```
+pnpm add -D @babel/plugin-transform-class-properties @babel/plugin-transform-private-methods @babel/plugin-transform-private-property-in-object babel-preset-expo
+```
+(`babel-preset-expo` was missing as an explicit dep despite being used in babel.config.js)
+
+**Why:** EAS hermesc (both platforms) claims Hermes 0.12 support (which includes private fields) but the
+binary shipped in the react-native npm package has a bug — it rejects the syntax at compile time.
