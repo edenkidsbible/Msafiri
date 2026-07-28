@@ -189,6 +189,8 @@ export interface AdminModerationQueue {
   expired: AdminReport[];
   pendingReview: AdminReport[];
   flagged: AdminReport[];
+  /** Camera reports where a driver tapped "Gone now" — pending admin decision to approve or reject removal */
+  cameraRemoval: AdminReport[];
 }
 
 export interface AdminModerationActionResult {

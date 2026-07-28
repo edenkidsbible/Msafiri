@@ -8,7 +8,7 @@ export const communityReportsTable = pgTable("community_reports", {
   lat:          doublePrecision("lat").notNull(),
   lng:          doublePrecision("lng").notNull(),
   deviceId:     text("device_id").notNull(),
-  status:       text("status").notNull().default("active"), // active|confirmed|expired|denied|pending_review|flagged
+  status:       text("status").notNull().default("active"), // active|confirmed|expired|denied|pending_review|flagged|admin_review
   confirmCount: integer("confirm_count").notNull().default(1),
   confirmedBy:  jsonb("confirmed_by").notNull().$type<string[]>().default([]),
   denyCount:    integer("deny_count").notNull().default(0),

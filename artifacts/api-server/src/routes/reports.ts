@@ -12,30 +12,53 @@ const router: Router = Router();
 const MODERATED_TYPES = new Set(["camera", "police"]);
 
 // ── TTL per report type (seconds; null = never expires) ───────────────────────
-// Every non-camera incident expires after 12 hours unless a driver votes
-// "Still here" (which extends the timer by another 12 h from the time of vote).
-// Only admin can confirm a report as permanent or delete it outright.
-// Speed cameras are physical infrastructure — they never auto-expire; only an
-// admin can remove them from the map.
-const INCIDENT_TTL = 12 * 3600; // 12 h
+// Per-type TTLs reflect how quickly each incident class realistically clears:
+// high-churn types (police, alcoblow, traffic) expire in hours; physical
+// hazards (pothole, debris) persist for a full day. Cameras are permanent
+// physical infrastructure — only an admin can remove them from the map.
+// INCIDENT_TTL is kept for the cluster-deduplication TTL extension path.
+const INCIDENT_TTL = 12 * 3600; // used by cluster dedup extension only
 export const TTL_SECONDS: Record<string, number | null> = {
-  camera:    null,             // permanent — admin managed only
-  police:    INCIDENT_TTL,
-  accident:  INCIDENT_TTL,
-  traffic:   INCIDENT_TTL,
-  roadblock: INCIDENT_TTL,
-  hazard:    INCIDENT_TTL,
-  pothole:   INCIDENT_TTL,
-  debris:    INCIDENT_TTL,
-  breakdown: INCIDENT_TTL,
-  weather:   INCIDENT_TTL,
-  closure:   INCIDENT_TTL,
-  clear:     INCIDENT_TTL,
+  camera:    null,            // permanent — admin managed only
+  police:    3  * 3600,      // 3 h  — checkpoints relocate frequently
+  alcoblow:  3  * 3600,      // 3 h  — mobile checkpoints
+  accident:  8  * 3600,      // 8 h
+  traffic:   2  * 3600,      // 2 h  — congestion clears quickly
+  roadblock: 12 * 3600,      // 12 h
+  roadworks: 12 * 3600,      // 12 h
+  closure:   12 * 3600,      // 12 h
+  hazard:    24 * 3600,      // 24 h — physical hazards persist
+  pothole:   24 * 3600,      // 24 h
+  debris:    24 * 3600,      // 24 h
+  breakdown: 24 * 3600,      // 24 h
+  weather:   24 * 3600,      // 24 h
+  clear:     INCIDENT_TTL,   // 12 h — ephemeral clearance signal
 };
 
 // Camera cluster radius in degrees (~50 m at equatorial latitudes)
 const CLUSTER_LAT = 0.00045;
 const CLUSTER_LNG = 0.00060;
+
+// Shared TTL extension for driver confirm votes (explicit /confirm endpoint AND
+// the cluster-dedup path in POST /reports). Both represent the same signal —
+// another driver confirms this incident is still present — so they use identical
+// math: +2 h from now, capped at 36 h from the report's original creation time.
+// Camera reports (expiresAt = null) are permanent and are always returned as null.
+const CONFIRM_EXTEND_MS = 2  * 3600 * 1000; // +2 h per confirm
+const CONFIRM_MAX_MS    = 36 * 3600 * 1000; // hard ceiling from createdAt
+
+function calcExtendedExpiry(
+  currentExpiresAt: Date | null,
+  createdAt: Date
+): Date | null {
+  if (currentExpiresAt == null) return null; // permanent (camera)
+  return new Date(
+    Math.min(
+      createdAt.getTime() + CONFIRM_MAX_MS,
+      Math.max(currentExpiresAt.getTime(), Date.now()) + CONFIRM_EXTEND_MS
+    )
+  );
+}
 
 // Haversine in metres (JS-side precise check after bounding-box query)
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -47,10 +70,17 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 // Visible-to-drivers status filter — deliberately an allow-list (rather than
-// excluding "expired"/"denied") so any future status, including
-// "pending_review", is hidden from drivers by default until explicitly added here.
+// excluding "expired"/"denied") so any future status is hidden from drivers
+// by default until explicitly added here.
+// "admin_review" is included so that cameras flagged for removal stay visible
+// on the map while pending admin decision — they're real infrastructure until
+// an admin confirms the removal.
 function isActive() {
-  return or(eq(communityReportsTable.status, "active"), eq(communityReportsTable.status, "confirmed"));
+  return or(
+    eq(communityReportsTable.status, "active"),
+    eq(communityReportsTable.status, "confirmed"),
+    eq(communityReportsTable.status, "admin_review")
+  );
 }
 
 // Any report without valid coordinates must never reach the mobile app —
@@ -82,7 +112,9 @@ async function expireStale() {
         ne(communityReportsTable.status, "denied"),
         // Never auto-expire a report still awaiting its first moderator
         // decision — it must stay in the moderation queue until acted on.
-        ne(communityReportsTable.status, "pending_review")
+        ne(communityReportsTable.status, "pending_review"),
+        // Never auto-expire a camera queued for admin removal review.
+        ne(communityReportsTable.status, "admin_review")
       )
     );
 }
@@ -245,13 +277,9 @@ router.post("/reports", async (req: Request, res: Response) => {
         }
         const newCount = cluster.confirmCount + 1;
         const newConfirmedBy = [...clusterConfirmedBy, deviceId];
-        // Extend the TTL by 12 h from now — a second driver reporting the same
-        // thing is a strong signal it's still there, so we refresh the window.
-        // Camera reports have null expiresAt and stay permanent regardless.
-        const newExpiresAt =
-          cluster.expiresAt != null
-            ? new Date(Math.max(cluster.expiresAt.getTime(), Date.now()) + INCIDENT_TTL * 1000)
-            : null;
+        // A second driver reporting the same incident is a confirm signal —
+        // use the same capped extension as the explicit /confirm endpoint.
+        const newExpiresAt = calcExtendedExpiry(cluster.expiresAt, cluster.createdAt);
         await db
           .update(communityReportsTable)
           .set({
@@ -403,12 +431,9 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
 
     const newCount = report.confirmCount + 1;
     const newConfirmedBy = [...confirmedBy, deviceId];
-    // Extend the window: 12 h from now, or 12 h past the current expiry,
-    // whichever is later. Camera reports (expiresAt = null) are unchanged.
-    const newExpiresAt =
-      report.expiresAt != null
-        ? new Date(Math.max(report.expiresAt.getTime(), Date.now()) + INCIDENT_TTL * 1000)
-        : null;
+    // Extend the expiry via the shared helper: +2 h per confirm, capped at
+    // 36 h from original creation. Camera reports (expiresAt = null) unchanged.
+    const newExpiresAt = calcExtendedExpiry(report.expiresAt, report.createdAt);
 
     await db
       .update(communityReportsTable)
@@ -421,7 +446,7 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
       .where(eq(communityReportsTable.id, id));
 
     // Status never changes from a driver vote — only admin promotes to "confirmed".
-    return res.json({ confirmCount: newCount, status: report.status });
+    return res.json({ confirmCount: newCount, status: report.status, expiresAt: newExpiresAt?.getTime() ?? null });
   } catch (err) {
     console.error("POST /reports/:id/confirm error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -567,13 +592,21 @@ router.post("/reports/:id/flag", async (req: Request, res: Response) => {
   }
 });
 
+// Number of distinct deny votes required to auto-remove a non-camera report.
+const DENY_THRESHOLD = 2;
+
 // ── POST /reports/:id/deny — "Gone now" ───────────────────────────────────────
-// Driver-side vote: signals the incident may no longer be present. This records
-// the vote (visible to admins in the dashboard) and increments denyCount for
-// display to other drivers ("X drivers say it's gone"). The report is NOT
-// removed from the map — only an admin can deny/remove a report. The natural
-// 12 h TTL handles cleanup for incidents nobody refreshes with "Still here".
-// Camera reports are permanent regardless of deny votes; admin removes them.
+// Driver-side vote: signals the incident may no longer be present.
+//
+// Non-camera reports: when the deny count reaches DENY_THRESHOLD the report is
+// automatically removed from the map (status "denied") so stale incidents
+// disappear without requiring admin action.
+//
+// Camera reports: cameras are fixed physical infrastructure that should not
+// silently vanish because one or two confused drivers tapped "Gone now". Instead
+// the report is moved to "admin_review" so a human can confirm or reject the
+// removal. The camera stays visible on the map (isActive() includes admin_review)
+// until an admin acts.
 router.post("/reports/:id/deny", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
@@ -592,13 +625,29 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     if (!report) return res.status(404).json({ error: "Not found" });
 
     const newDenyCount = report.denyCount + 1;
-    // Status is intentionally NOT changed — only admin can remove a report.
+
+    // Determine status transition (idempotent — if already denied/admin_review, keep it).
+    let newStatus = report.status;
+    if (report.type === "camera") {
+      // Only queue cameras that are already live on the map for admin removal review.
+      // A camera still in pending_review (awaiting its first moderation decision)
+      // must stay in that queue — transitioning it to admin_review would put it
+      // into isActive() and make it visible to drivers before any moderator has
+      // approved it, bypassing the existing camera moderation control entirely.
+      if (report.status === "active" || report.status === "confirmed") {
+        newStatus = "admin_review";
+      }
+      // pending_review, admin_review, denied, expired — no transition.
+    } else if (newDenyCount >= DENY_THRESHOLD && report.status !== "denied") {
+      newStatus = "denied";
+    }
+
     await db
       .update(communityReportsTable)
-      .set({ denyCount: newDenyCount, lastVotedAt: new Date() })
+      .set({ denyCount: newDenyCount, lastVotedAt: new Date(), status: newStatus })
       .where(eq(communityReportsTable.id, id));
 
-    return res.json({ denyCount: newDenyCount, status: report.status });
+    return res.json({ denyCount: newDenyCount, status: newStatus });
   } catch (err) {
     console.error("POST /reports/:id/deny error:", err);
     return res.status(500).json({ error: "Internal server error" });

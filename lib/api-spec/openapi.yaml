@@ -353,6 +353,58 @@ paths:
         "404":
           description: Not found
 
+  /admin/reports/{id}/approve-removal:
+    post:
+      operationId: adminApproveCameraRemoval
+      tags: [admin-reports]
+      summary: Approve driver's "Gone now" — confirm camera is physically removed
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Approved — camera removed from map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModerationActionResult"
+        "400":
+          description: Report is not in admin_review status
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /admin/reports/{id}/reject-removal:
+    post:
+      operationId: adminRejectCameraRemoval
+      tags: [admin-reports]
+      summary: Reject driver's "Gone now" — camera stays on map
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Rejected — camera restored to active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModerationActionResult"
+        "400":
+          description: Report is not in admin_review status
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
   /admin/reports/{id}/flags/keep:
     post:
       operationId: adminKeepFlaggedReport
@@ -1515,7 +1567,7 @@ components:
 
     AdminModerationQueue:
       type: object
-      required: [expired, pendingReview, flagged]
+      required: [expired, pendingReview, flagged, cameraRemoval]
       properties:
         expired:
           type: array
@@ -1527,6 +1579,11 @@ components:
             $ref: "#/components/schemas/AdminReport"
         flagged:
           type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        cameraRemoval:
+          type: array
+          description: Camera reports where a driver tapped "Gone now" — pending admin decision to approve or reject removal
           items:
             $ref: "#/components/schemas/AdminReport"
 

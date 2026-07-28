@@ -1217,6 +1217,146 @@ export const useAdminRejectReport = <TError = ErrorType<void>,
       return useMutation(getAdminRejectReportMutationOptions(options));
     }
 
+export const getAdminApproveCameraRemovalUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/reports/${id}/approve-removal`
+}
+
+/**
+ * @summary Approve driver's "Gone now" — confirm camera is physically removed
+ */
+export const adminApproveCameraRemoval = async (id: string, options?: RequestInit): Promise<AdminModerationActionResult> => {
+
+  return customFetch<AdminModerationActionResult>(getAdminApproveCameraRemovalUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminApproveCameraRemovalMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminApproveCameraRemoval>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminApproveCameraRemoval>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminApproveCameraRemoval'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminApproveCameraRemoval>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminApproveCameraRemoval(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminApproveCameraRemovalMutationResult = NonNullable<Awaited<ReturnType<typeof adminApproveCameraRemoval>>>
+
+    export type AdminApproveCameraRemovalMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve driver's "Gone now" — confirm camera is physically removed
+ */
+export const useAdminApproveCameraRemoval = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminApproveCameraRemoval>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminApproveCameraRemoval>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminApproveCameraRemovalMutationOptions(options));
+    }
+
+export const getAdminRejectCameraRemovalUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/reports/${id}/reject-removal`
+}
+
+/**
+ * @summary Reject driver's "Gone now" — camera stays on map
+ */
+export const adminRejectCameraRemoval = async (id: string, options?: RequestInit): Promise<AdminModerationActionResult> => {
+
+  return customFetch<AdminModerationActionResult>(getAdminRejectCameraRemovalUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminRejectCameraRemovalMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRejectCameraRemoval>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRejectCameraRemoval>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminRejectCameraRemoval'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRejectCameraRemoval>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminRejectCameraRemoval(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRejectCameraRemovalMutationResult = NonNullable<Awaited<ReturnType<typeof adminRejectCameraRemoval>>>
+
+    export type AdminRejectCameraRemovalMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject driver's "Gone now" — camera stays on map
+ */
+export const useAdminRejectCameraRemoval = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRejectCameraRemoval>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRejectCameraRemoval>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminRejectCameraRemovalMutationOptions(options));
+    }
+
 export const getAdminKeepFlaggedReportUrl = (id: string,) => {
 
 

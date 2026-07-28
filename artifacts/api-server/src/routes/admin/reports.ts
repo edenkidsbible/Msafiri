@@ -106,7 +106,7 @@ router.delete("/reports/blocked-devices/:deviceId", requireFeature("reports"), a
 // awaiting first review before they reach drivers.
 router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: Request, res: Response) => {
   try {
-    const [expired, pendingReview, flagged, blockedIds] = await Promise.all([
+    const [expired, pendingReview, flagged, cameraRemoval, blockedIds] = await Promise.all([
       db
         .select()
         .from(communityReportsTable)
@@ -127,6 +127,14 @@ router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: 
         .from(communityReportsTable)
         .where(and(sql`${communityReportsTable.flagCount} > 0`, eq(communityReportsTable.flagDismissed, false)))
         .orderBy(desc(communityReportsTable.flagCount))
+        .limit(200),
+      // Camera reports that a driver flagged as "Gone now" — the camera stays
+      // visible on the map until an admin approves or rejects the removal.
+      db
+        .select()
+        .from(communityReportsTable)
+        .where(eq(communityReportsTable.status, "admin_review"))
+        .orderBy(communityReportsTable.createdAt)
         .limit(200),
       getBlockedDeviceIds(),
     ]);
@@ -153,6 +161,7 @@ router.get("/reports/moderation-queue", requireFeature("reports"), async (_req: 
       expired: expired.map(serialize),
       pendingReview: pendingReview.map(serialize),
       flagged: flagged.map(serialize),
+      cameraRemoval: cameraRemoval.map(serialize),
     });
   } catch (err) {
     console.error("GET /admin/reports/moderation-queue error:", err);
@@ -494,12 +503,88 @@ router.post("/reports", requireFeature("reports"), async (req: Request, res: Res
   }
 });
 
+// ── POST /admin/reports/:id/approve-removal — confirm a camera is physically gone
+// Moves the report from admin_review to denied, removing it from the map.
+router.post("/reports/:id/approve-removal", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.status !== "admin_review") {
+      return res.status(400).json({ error: "Only reports in admin_review status can be approved for removal" });
+    }
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({ status: "denied" })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: "report.camera_removal_approved",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName, denyCount: existing.denyCount },
+    });
+
+    return res.json({ id: updated.id, status: updated.status });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/approve-removal error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/:id/reject-removal — dismiss driver's "Gone now" on a camera
+// Returns the camera to active status — it stays on the map.
+router.post("/reports/:id/reject-removal", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.status !== "admin_review") {
+      return res.status(400).json({ error: "Only reports in admin_review status can have removal rejected" });
+    }
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({ status: "active" })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: "report.camera_removal_rejected",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName, denyCount: existing.denyCount },
+    });
+
+    return res.json({ id: updated.id, status: updated.status });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/reject-removal error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 const VALID_TYPES = new Set([
   "camera", "police", "alcoblow", "accident", "traffic", "roadblock",
   "roadworks", "hazard", "pothole", "debris", "breakdown", "weather",
   "closure", "clear",
 ]);
-const VALID_STATUSES = new Set(["active", "confirmed", "expired", "denied", "pending_review"]);
+const VALID_STATUSES = new Set(["active", "confirmed", "expired", "denied", "pending_review", "admin_review"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Minimal RFC-4180 CSV parser: handles quoted fields, embedded commas/newlines, and "" escaping.

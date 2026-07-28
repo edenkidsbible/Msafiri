@@ -284,7 +284,24 @@ export const AdminGetModerationQueueResponse = zod.object({
   "expiresAt": zod.string().nullish(),
   "flagCount": zod.number().optional(),
   "flagReasons": zod.array(zod.string()).optional()
-}))
+})),
+  "cameraRemoval": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "deviceId": zod.string(),
+  "deviceBlocked": zod.boolean().optional(),
+  "status": zod.string(),
+  "confirmCount": zod.number(),
+  "denyCount": zod.number(),
+  "speedLimit": zod.number().nullish(),
+  "roadName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string().nullish(),
+  "flagCount": zod.number().optional(),
+  "flagReasons": zod.array(zod.string()).optional()
+})).describe('Camera reports where a driver tapped \"Gone now\" — pending admin decision to approve or reject removal')
 })
 
 
@@ -311,6 +328,36 @@ export const AdminRejectReportParams = zod.object({
 })
 
 export const AdminRejectReportResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string().optional(),
+  "status": zod.string(),
+  "expiresAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Approve driver's "Gone now" — confirm camera is physically removed
+ */
+export const AdminApproveCameraRemovalParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminApproveCameraRemovalResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string().optional(),
+  "status": zod.string(),
+  "expiresAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Reject driver's "Gone now" — camera stays on map
+ */
+export const AdminRejectCameraRemovalParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminRejectCameraRemovalResponse = zod.object({
   "id": zod.string(),
   "type": zod.string().optional(),
   "status": zod.string(),

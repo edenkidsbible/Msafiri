@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
-import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports, useAdminListBlockedDevices, useAdminBlockDevice, useAdminUnblockDevice } from "@workspace/api-client-react";
+import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports, useAdminListBlockedDevices, useAdminBlockDevice, useAdminUnblockDevice, useAdminGetModerationQueue, useAdminApproveCameraRemoval, useAdminRejectCameraRemoval } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw, Camera, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -43,11 +43,12 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  active:    "bg-primary/10 text-primary border-primary/20",
-  confirmed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-  expired:   "bg-muted text-muted-foreground border-muted-foreground/20",
-  denied:    "bg-destructive/10 text-destructive border-destructive/20",
-  flagged:   "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  active:       "bg-primary/10 text-primary border-primary/20",
+  confirmed:    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  expired:      "bg-muted text-muted-foreground border-muted-foreground/20",
+  denied:       "bg-destructive/10 text-destructive border-destructive/20",
+  flagged:      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  admin_review: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
 };
 
 const reportSchema = z.object({
@@ -169,8 +170,37 @@ export default function Reports() {
     setShowSuggestions(false);
   };
 
+  const [cameraQueueExpanded, setCameraQueueExpanded] = useState(true);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: moderationData, refetch: refetchModeration } = useAdminGetModerationQueue({
+    query: { queryKey: ["/api/admin/reports/moderation-queue"] },
+  });
+  const cameraRemovalQueue = moderationData?.cameraRemoval ?? [];
+
+  const approveCameraRemovalMutation = useAdminApproveCameraRemoval({
+    mutation: {
+      onSuccess: (result) => {
+        toast({ title: "Camera removed", description: "The camera report has been removed from the map." });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/moderation-queue"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+      },
+      onError: () => toast({ title: "Failed to approve removal", variant: "destructive" }),
+    },
+  });
+
+  const rejectCameraRemovalMutation = useAdminRejectCameraRemoval({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Camera kept", description: "The camera is still active on the map." });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports/moderation-queue"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+      },
+      onError: () => toast({ title: "Failed to reject removal", variant: "destructive" }),
+    },
+  });
 
   const { data, isLoading, isFetching, refetch } = useAdminListReports({
     page,
@@ -566,6 +596,88 @@ export default function Reports() {
             </Dialog>
           </div>
         </div>
+
+        {/* Camera Removal Review */}
+        {cameraRemovalQueue.length > 0 && (
+          <div className="border border-orange-500/30 rounded-xl bg-orange-500/5 overflow-hidden">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-orange-500/10 transition-colors"
+              onClick={() => setCameraQueueExpanded((v) => !v)}
+            >
+              <div className="flex items-center gap-2.5">
+                <Camera className="h-4 w-4 text-orange-500" />
+                <span className="font-semibold text-sm text-orange-700 dark:text-orange-400">
+                  Camera Removal Requests
+                </span>
+                <Badge className="bg-orange-500 text-white shadow-none text-xs">
+                  {cameraRemovalQueue.length}
+                </Badge>
+              </div>
+              {cameraQueueExpanded ? (
+                <ChevronUp className="h-4 w-4 text-orange-500" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-orange-500" />
+              )}
+            </button>
+
+            {cameraQueueExpanded && (
+              <div className="border-t border-orange-500/20 divide-y divide-orange-500/10">
+                {cameraRemovalQueue.map((r) => (
+                  <div key={r.id} className="flex items-center gap-4 px-4 py-3 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground truncate">
+                          {r.roadName || "Unknown location"}
+                        </span>
+                        {r.speedLimit != null && (
+                          <Badge variant="outline" className="text-xs shadow-none shrink-0">
+                            {r.speedLimit} km/h
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {r.lat.toFixed(5)}, {r.lng.toFixed(5)}
+                        </span>
+                        <span className="text-muted-foreground/50">·</span>
+                        <span className="text-xs text-muted-foreground">
+                          {r.denyCount} driver{r.denyCount !== 1 ? "s" : ""} reported gone
+                        </span>
+                        <span className="text-muted-foreground/50">·</span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(r.createdAt), "MMM d, HH:mm")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 shadow-none border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                        disabled={approveCameraRemovalMutation.isPending || rejectCameraRemovalMutation.isPending}
+                        onClick={() => approveCameraRemovalMutation.mutate({ id: r.id })}
+                        title="Confirm the camera is physically gone — remove from map"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Remove
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 shadow-none border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600"
+                        disabled={approveCameraRemovalMutation.isPending || rejectCameraRemovalMutation.isPending}
+                        onClick={() => rejectCameraRemovalMutation.mutate({ id: r.id })}
+                        title="Camera is still there — keep it on the map"
+                      >
+                        <XCircle className="h-3.5 w-3.5" /> Keep
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
           <div className="relative flex-1">

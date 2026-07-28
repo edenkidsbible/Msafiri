@@ -38,7 +38,7 @@ export interface CommunityReport {
   confirmed: number;
   // API-backed fields (populated after server sync)
   serverId?: string;
-  status?: "active" | "confirmed" | "expired" | "denied";
+  status?: "active" | "confirmed" | "expired" | "denied" | "admin_review";
   confirmCount?: number;
   denyCount?: number;
   isOwn?: boolean;
@@ -2429,8 +2429,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Track that this device has voted on this report
     votedReportIdsRef.current.add(id);
     if (report.serverId) votedReportIdsRef.current.add(report.serverId);
-    // Optimistic: increment denyCount — report stays on the map because only
-    // admin can remove reports. The 12 h TTL handles natural expiry.
+    // Optimistic: increment denyCount — report stays visible until we hear back
+    // from the server (which may remove it or queue it for admin review).
     const originalDenyCount = report.denyCount ?? 0;
     setCommunityReports((prev) =>
       prev.map((r) =>
@@ -2443,12 +2443,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         `/reports/${serverId}/deny`,
         { deviceId: deviceIdRef.current }
       );
-      // Sync authoritative count from server
-      setCommunityReports((prev) =>
-        prev.map((r) =>
-          r.id === id || r.serverId === id ? { ...r, denyCount: result.denyCount } : r
-        )
-      );
+      if (result.status === "denied") {
+        // Non-camera report hit the deny threshold — remove it from the local map
+        // immediately so the driver sees a clean map without waiting for the next poll.
+        setCommunityReports((prev) => {
+          const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
+          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+          return u;
+        });
+      } else {
+        // Camera (admin_review) or below-threshold: just sync the authoritative count.
+        setCommunityReports((prev) =>
+          prev.map((r) =>
+            r.id === id || r.serverId === id
+              ? { ...r, denyCount: result.denyCount, status: result.status as CommunityReport["status"] }
+              : r
+          )
+        );
+      }
       return true;
     } catch (err) {
       // Roll back optimistic increment
