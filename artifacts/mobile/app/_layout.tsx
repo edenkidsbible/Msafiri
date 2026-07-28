@@ -26,6 +26,12 @@ import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
+import { defineNavBackgroundTask } from "@/utils/backgroundNavLocation";
+import { initSentry, Sentry } from "@/utils/sentry";
+
+// ── Sentry — must initialise before any component mounts so the error boundary
+// and native crash handler are registered as early as possible.
+initSentry();
 
 try {
   initializeRevenueCat();
@@ -33,10 +39,11 @@ try {
   console.warn("RevenueCat unavailable:", err?.message ?? err);
 }
 
-// Register the background share task before any React components mount.
+// Register background tasks before any React components mount.
 // expo-task-manager requires tasks to be defined synchronously at module
 // load time — defining them inside a component or effect is too late.
 defineShareBackgroundTask();
+defineNavBackgroundTask();
 
 // Every @expo/vector-icons component (Ionicons, MaterialCommunityIcons,
 // Feather — the three families this app uses) calls `Font.loadAsync()` for
@@ -309,7 +316,7 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   // Web: skip font loading entirely — fontfaceobserver fires a 6-second timeout
   // as an uncaught rejection in sandboxed environments. The browser handles CSS
   // fonts on its own so we don't need to wait for them.
@@ -348,7 +355,10 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
+      <ErrorBoundary
+        // Also report ErrorBoundary catches to Sentry
+        onError={(err) => Sentry.captureException(err)}
+      >
         <QueryClientProvider client={queryClient}>
           <SubscriptionProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
@@ -364,6 +374,10 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+// Wrap with Sentry so the native crash handler and React error boundary are
+// both active. Sentry.wrap is a no-op when EXPO_PUBLIC_SENTRY_DSN is absent.
+export default Sentry.wrap(RootLayout);
 
 const styles = StyleSheet.create({
   offlineBanner: {

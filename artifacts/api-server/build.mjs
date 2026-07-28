@@ -62,7 +62,8 @@ async function buildAll() {
       "@swc/*",
       "@aws-sdk/*",
       "@azure/*",
-      "@opentelemetry/*",
+      // "@opentelemetry/*" — intentionally NOT externalized; @sentry/node v10
+      // requires these at runtime and they are pure JS so esbuild bundles them.
       "@google-cloud/*",
       "@google/*",
       "googleapis",

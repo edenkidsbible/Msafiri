@@ -44,3 +44,4 @@
 - [Incident re-notify rotation](incident-renotify-rotation.md) — no device location history exists (only push_tokens.lastLat/lastLng latest fix), so "ask fresh drivers" = exclude cumulative notifiedTokens per report + tiebreak by lastSeenAt.
 - [Report flag auto-hide vs deny](report-flag-autohide-vs-deny.md) — flag route now auto-hides on 2 distinct-device flags (status "flagged"); kept separate from the pre-existing single-vote "deny"/Gone-now path.
 - [Admin mobile system](admin-mobile-system.md) — PIN auth → 30-day JWT (SESSION_SECRET); adminVerified column; verify/deny/relocate endpoints; admin state lives in AppContext not a separate context.
+- [Sentry + OpenTelemetry bundling](sentry-otel-bundling.md) — @sentry/node v10 must NOT be in esbuild externals; also causes drizzle-orm dual-instance TS errors fixed by adding @opentelemetry/api to both api-server and db packages.

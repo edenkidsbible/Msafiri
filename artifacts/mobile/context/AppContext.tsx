@@ -24,6 +24,10 @@ import {
   stopBackgroundShareTask,
   requestBackgroundLocationPermission,
 } from "@/utils/backgroundShare";
+import {
+  startBackgroundNavTask,
+  stopBackgroundNavTask,
+} from "@/utils/backgroundNavLocation";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
@@ -2158,6 +2162,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navActiveRef.current = true;
     navStartRef.current = Date.now();
     setNavigationActive(true);
+    // Start the iOS background location task so GPS keeps flowing when the
+    // driver locks the screen. Fire-and-forget — failure is non-fatal (the
+    // foreground watcher still works; the bg task just adds resilience).
+    void startBackgroundNavTask();
     // Advance the session generation so any timer from a previous session
     // (rapid stop → start scenario) knows it is stale.
     const mySession = ++navSessionGenRef.current;
@@ -2208,6 +2216,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navActiveRef.current = false;
     navStartRef.current = null;
     setNavigationActive(false);
+    // Stop the background nav task — no longer needed once navigation ends.
+    void stopBackgroundNavTask();
     setDistToNextM(null);
     setNavDestState(null);
     navDestRef.current = null;
@@ -2242,6 +2252,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     stopNavigationRef.current = stopNavigation;
   }, [stopNavigation]);
+
+  // ── Background nav: keep GPS flowing when the screen is locked (iOS) ────────
+  // When navigation is active and the driver backgrounds the app (locks screen,
+  // switches away), iOS throttles watchPositionAsync. The TaskManager background
+  // location task keeps the OS location engine alive so fixes keep arriving.
+  // We mirror the share-task pattern: start on background, stop on foreground.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (!navActiveRef.current) return;
+      if (nextState === "background" || nextState === "inactive") {
+        void startBackgroundNavTask();
+      } else if (nextState === "active") {
+        void stopBackgroundNavTask();
+      }
+    };
+
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => sub.remove();
+  // navActiveRef is a ref — stable across renders, no dep needed
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Background share: keep pings alive when the app is backgrounded ────────
   // When a live-share session is active and the driver backgrounds the app
