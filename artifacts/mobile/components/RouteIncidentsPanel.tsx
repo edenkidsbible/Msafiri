@@ -171,11 +171,25 @@ export default function RouteIncidentsPanel() {
                         Limit: {inc.speedLimit} km/h
                       </Text>
                     )}
-                    {inc.source === "report" && inc.type !== "camera" && inc.confirmCount != null && inc.confirmCount > 1 && (
-                      <Text style={[styles.rowDesc, { color: c.mutedForeground }]}>
-                        {inc.confirmCount! > 99 ? "99+" : inc.confirmCount} driver{inc.confirmCount === 1 ? "" : "s"} say still here
-                      </Text>
-                    )}
+                    {/* #31 — Confidence tier pill */}
+                    {inc.source === "report" && inc.type !== "camera" && (() => {
+                      const c2 = inc.confirmCount ?? 0;
+                      if (c2 >= 5) return (
+                        <View style={styles.tierPillReliable}>
+                          <Text style={styles.tierPillTxt}>✓ Highly Reliable · {c2} drivers</Text>
+                        </View>
+                      );
+                      if (c2 >= 2) return (
+                        <View style={styles.tierPillConfirmed}>
+                          <Text style={[styles.tierPillTxt, { color: "#1B5E20" }]}>✓ Confirmed by {c2} drivers</Text>
+                        </View>
+                      );
+                      return (
+                        <Text style={[styles.rowDesc, { color: c.mutedForeground, fontStyle: "italic" }]}>
+                          Unconfirmed · reported by 1 driver
+                        </Text>
+                      );
+                    })()}
                     {inc.source === "report" && inc.type === "camera" && (
                       inc.reportStatus === "pending_review" || inc.reportStatus === "admin_review"
                         ? <Text style={[styles.rowDesc, { color: "#E65100" }]}>Pending review</Text>
@@ -283,4 +297,17 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   rowDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   rowDist: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginLeft: 6 },
+
+  // ── Confidence tier pills (#31) ───────────────────────────────────────────
+  tierPillReliable: {
+    marginTop: 3, alignSelf: "flex-start",
+    backgroundColor: "#1B5E2018", borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  tierPillConfirmed: {
+    marginTop: 3, alignSelf: "flex-start",
+    backgroundColor: "#E8F5E9", borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  tierPillTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1B5E20" },
 });

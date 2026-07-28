@@ -35,6 +35,7 @@ import { snapToRoad } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 import { speakRoundaboutExitCue, speakTakeThisExit } from "@/utils/sound";
+import RouteSearchSheet from "@/components/RouteSearchSheet";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -169,6 +170,8 @@ export default function DriveScreen() {
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
+  // #34 — Search Along Route
+  const [showRouteSearch, setShowRouteSearch] = useState(false);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
@@ -804,6 +807,16 @@ export default function DriveScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* Search along route (#34) */}
+          <TouchableOpacity
+            style={[styles.navReportBtn, { backgroundColor: "#37474F" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="search" size={14} color="#FFF" />
+            <Text style={styles.navReportTxt}>Search</Text>
+          </TouchableOpacity>
+
           {/* Report incident */}
           <TouchableOpacity
             style={styles.navReportBtn}
@@ -1388,6 +1401,9 @@ export default function DriveScreen() {
           }}
         />
       )}
+
+      {/* #34 — Search Along Route */}
+      <RouteSearchSheet visible={showRouteSearch} onClose={() => setShowRouteSearch(false)} />
     </Animated.View>
   );
 }

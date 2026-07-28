@@ -146,6 +146,8 @@ export interface DriveAlert {
   speedLimit?: number | null;
   lat: number;
   lng: number;
+  /** Community-report confirm count — used for confidence tier display. */
+  confirmCount?: number;
 }
 
 interface AppContextValue {
@@ -828,6 +830,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Shared cooldown gate for supplementary hazard voice alerts — see
   // GENERAL_ALERT_COOLDOWN_MS above.
   const lastGeneralAlertAtRef = useRef<number>(0);
+  // Tracks server IDs seen in the previous poll — used to detect reports that
+  // were removed (expired / denied) while the driver is en route.
+  const prevPollServerIdsRef = useRef<Set<string>>(new Set());
   // Timestamp of the last speed-driven nav-notification update (Android only).
   // Throttles high-frequency GPS-speed writes to at most once every 3 seconds.
   // Forwards to the memoized `stopNavigation` below so handleLocation (a
@@ -1249,6 +1254,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               speedLimit: reportCandidate!.report.speedLimit,
               lat: reportCandidate!.report.lat,
               lng: reportCandidate!.report.lng,
+              confirmCount: reportCandidate!.report.confirmCount,
             };
 
     // (4) Dismiss active alert if it has moved out of range, the driver has
@@ -1357,16 +1363,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (winner.source === "zone") {
             if (winner.type === "camera") speakGeneralAlert(isClose ? "Speed camera ahead. Reduce your speed." : "Speed camera ahead.");
             else if (winner.type === "police") speakGeneralAlert(isClose ? "Police checkpoint ahead. Reduce your speed." : "Police checkpoint ahead.");
-            else speakGeneralAlert("Speed zone ahead.");
+            else {
+              // #33: Speak the actual speed limit when entering a zone
+              const limit = winner.speedLimit;
+              if (limit != null) speakGeneralAlert(`${limit} kilometre per hour zone.`);
+              else speakGeneralAlert("Speed zone ahead.");
+            }
           } else {
+            // #33: Include distance (rounded to nearest 50 m) in community report cues
+            const roundedDist = Math.round(winner.distance / 50) * 50;
+            const distText = roundedDist >= 1000 ? "one kilometre" : `${roundedDist} metres`;
             const REPORT_TEXT_MAP: Partial<Record<string, string>> = {
-              accident: "Accident reported ahead.", pothole: "Pothole ahead.",
-              roadblock: "Road block ahead.", police: "Police reported ahead.",
-              alcoblow: "Alcoblow checkpoint ahead.", roadworks: "Road works ahead.",
-              camera: "Speed camera reported ahead.", traffic: "Traffic congestion ahead.",
-              hazard: "Road hazard ahead.", debris: "Debris on road ahead.",
-              breakdown: "Vehicle breakdown ahead.", weather: "Weather hazard ahead.",
-              closure: "Road closure ahead.",
+              accident:  `Accident in ${distText}.`,
+              pothole:   `Pothole in ${distText}.`,
+              roadblock: `Road block in ${distText}.`,
+              police:    `Police checkpoint in ${distText}.`,
+              alcoblow:  `Alcoblow checkpoint in ${distText}.`,
+              roadworks: `Road works in ${distText}.`,
+              camera:    `Speed camera in ${distText}.`,
+              traffic:   `Traffic congestion in ${distText}.`,
+              hazard:    `Road hazard in ${distText}.`,
+              debris:    `Debris on road, ${distText}.`,
+              breakdown: `Vehicle breakdown in ${distText}.`,
+              weather:   `Weather hazard in ${distText}.`,
+              closure:   `Road closure in ${distText}.`,
             };
             const alertText = REPORT_TEXT_MAP[winner.type];
             if (alertText) speakGeneralAlert(alertText);
@@ -1428,20 +1448,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const reportIsAhead = driverHeading == null || angleDiffDeg(driverHeading, bearingToReport) <= 90;
       if (!reportIsAhead) continue;
       announcedReportsRef.current.add(report.id);
+      // #33: Include distance (rounded to nearest 50 m) in the spoken cue
+      const roundedAnnDist = Math.round(distToReport / 50) * 50;
+      const annDistText = roundedAnnDist >= 1000 ? "one kilometre" : `${roundedAnnDist} metres`;
       const REPORT_TEXT: Partial<Record<string, string>> = {
-        accident:  "Accident reported ahead.",
-        pothole:   "Pothole ahead.",
-        roadblock: "Road block ahead.",
-        police:    "Police reported ahead.",
-        alcoblow:  "Alcoblow checkpoint ahead.",
-        roadworks: "Road works ahead.",
-        camera:    "Speed camera reported ahead.",
-        traffic:   "Traffic congestion ahead.",
-        hazard:    "Road hazard ahead.",
-        debris:    "Debris on road ahead.",
-        breakdown: "Vehicle breakdown ahead.",
-        weather:   "Weather hazard ahead.",
-        closure:   "Road closure ahead.",
+        accident:  `Accident in ${annDistText}.`,
+        pothole:   `Pothole in ${annDistText}.`,
+        roadblock: `Road block in ${annDistText}.`,
+        police:    `Police checkpoint in ${annDistText}.`,
+        alcoblow:  `Alcoblow checkpoint in ${annDistText}.`,
+        roadworks: `Road works in ${annDistText}.`,
+        camera:    `Speed camera in ${annDistText}.`,
+        traffic:   `Traffic congestion in ${annDistText}.`,
+        hazard:    `Road hazard in ${annDistText}.`,
+        debris:    `Debris on road, ${annDistText}.`,
+        breakdown: `Vehicle breakdown in ${annDistText}.`,
+        weather:   `Weather hazard in ${annDistText}.`,
+        closure:   `Road closure in ${annDistText}.`,
       };
       const reportText = REPORT_TEXT[report.type];
       if (reportText && canSpeakGeneralAlert()) {
@@ -1872,6 +1895,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           adminVerified: r.adminVerified,
           isOwn: false,
         }));
+        // #32: Detect reports that vanished (expired / denied) while the driver
+        // is navigating and the report was within the alert window.
+        if (navActiveRef.current && prevPollServerIdsRef.current.size > 0) {
+          const newIds = new Set(remote.map((r) => r.id));
+          const loc = pollLocationRef.current;
+          for (const prev of communityReportsRef.current) {
+            if (!prev.serverId) continue;
+            if (newIds.has(prev.serverId)) continue; // still active on server
+            if (!announcedReportsRef.current.has(prev.id)) continue; // not spoken to driver
+            if (!loc) continue;
+            const dist = haversine(loc.lat, loc.lng, prev.lat, prev.lng);
+            // Only if report is still ahead (not yet passed, not too far)
+            if (dist < IN_ZONE_DIST || dist > ALERT_DIST * 3) continue;
+            const CLEARED_TEXT: Partial<Record<string, string>> = {
+              police:    "Police checkpoint cleared.",
+              alcoblow:  "Checkpoint cleared.",
+              accident:  "Accident cleared.",
+              roadblock: "Road block cleared.",
+              roadworks: "Road works cleared.",
+              hazard:    "Hazard cleared.",
+              pothole:   "Hazard cleared.",
+              camera:    "Speed camera report cleared.",
+              traffic:   "Traffic cleared.",
+              debris:    "Hazard cleared.",
+              breakdown: "Incident cleared.",
+              weather:   "Hazard cleared.",
+              closure:   "Road closure cleared.",
+            };
+            speakText(CLEARED_TEXT[prev.type] ?? "Incident ahead cleared.");
+            break; // one cue per poll cycle
+          }
+        }
+        prevPollServerIdsRef.current = new Set(remote.map((r) => r.id));
+
         setCommunityReports((prev) => {
           const owned = prev.filter((r) => r.isOwn);
           const remoteNew = remote.filter((rem) => !owned.some((o) => o.serverId === rem.id));

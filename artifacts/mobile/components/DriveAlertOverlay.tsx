@@ -39,6 +39,29 @@ interface Props {
   currentSpeed: number;
 }
 
+// ── Confidence tier helpers (#31) ─────────────────────────────────────────────
+
+function reportTier(confirmCount: number | undefined): "new" | "confirmed" | "reliable" {
+  const c = confirmCount ?? 0;
+  if (c >= 5) return "reliable";
+  if (c >= 2) return "confirmed";
+  return "new";
+}
+
+function tierLabel(count: number | undefined): string {
+  const c = count ?? 0;
+  if (c === 0) return "Reported by a driver";
+  if (c < 5)  return `Confirmed by ${c} driver${c === 1 ? "" : "s"}`;
+  return `Highly reliable · ${c} drivers`;
+}
+
+/** Blend the urgency colour toward a desaturated grey for low-confidence reports */
+function tierBg(baseBg: string, tier: "new" | "confirmed" | "reliable"): string {
+  if (tier === "new")       return "#8D6E63"; // muted warm brown — clearly a fresh report
+  if (tier === "confirmed") return baseBg;    // normal urgency colour
+  return baseBg;                              // reliable: same colour, ring added in UI
+}
+
 // ── Zone-type helpers ─────────────────────────────────────────────────────────
 
 const ZONE_LABELS: Record<string, string> = {
@@ -127,6 +150,10 @@ export default function DriveAlertOverlay({ alert, onDismiss, currentSpeed }: Pr
   const overLimit      = hasSpeedBadges && currentSpeed > alert.speedLimit!;
   const speedColor     = overLimit ? colors.speedDanger : "#2E7D32";
 
+  // Confidence tier (#31) — only applies to community reports
+  const tier       = !isZone ? reportTier(alert.confirmCount) : null;
+  const effectiveBg = tier ? tierBg(bg, tier) : bg;
+
   return (
     <Animated.View
       style={[
@@ -142,7 +169,7 @@ export default function DriveAlertOverlay({ alert, onDismiss, currentSpeed }: Pr
       <View style={styles.handle} />
 
       {/* ── Header: icon + label + distance + close ── */}
-      <View style={[styles.header, { backgroundColor: bg }]}>
+      <View style={[styles.header, { backgroundColor: effectiveBg }]}>
         {emoji ? (
           <Text style={styles.headerEmoji}>{emoji}</Text>
         ) : (
@@ -151,6 +178,14 @@ export default function DriveAlertOverlay({ alert, onDismiss, currentSpeed }: Pr
         <View style={styles.headerText}>
           <Text style={styles.typeLabel}>{typeLabel.toUpperCase()}</Text>
           <Text style={styles.distLabel}>{formatDist(alert.distance)} ahead</Text>
+          {/* Confidence tier label for community reports */}
+          {tier && tier !== "new" && (
+            <View style={[styles.tierBadge, { backgroundColor: tier === "reliable" ? "#00C853" : "#FFD600" }]}>
+              <Text style={[styles.tierBadgeTxt, { color: tier === "reliable" ? "#FFF" : "#333" }]}>
+                {tier === "reliable" ? "✓ Highly Reliable" : "✓ Confirmed"}
+              </Text>
+            </View>
+          )}
         </View>
         <TouchableOpacity
           onPress={onDismiss}
@@ -165,7 +200,7 @@ export default function DriveAlertOverlay({ alert, onDismiss, currentSpeed }: Pr
       <View style={styles.body}>
         {/* Location / name */}
         <View style={styles.locationRow}>
-          <Ionicons name="location-sharp" size={16} color={bg} style={{ marginTop: 1 }} />
+          <Ionicons name="location-sharp" size={16} color={effectiveBg} style={{ marginTop: 1 }} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.zoneName, { color: colors.text }]} numberOfLines={1}>
               {alert.name}
@@ -175,6 +210,17 @@ export default function DriveAlertOverlay({ alert, onDismiss, currentSpeed }: Pr
                 {alert.road}
               </Text>
             ) : null}
+            {/* Tier sub-label for "New" reports so driver knows it's unconfirmed */}
+            {tier === "new" && (
+              <Text style={[styles.zoneRoad, { color: colors.mutedForeground, fontStyle: "italic" }]}>
+                Reported by a driver · unconfirmed
+              </Text>
+            )}
+            {tier === "confirmed" && (
+              <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]}>
+                {tierLabel(alert.confirmCount)}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -363,6 +409,20 @@ const styles = StyleSheet.create({
     borderRadius: 58,
     borderWidth:  2,
     opacity:      0.4,
+  },
+
+  // ── Confidence tier badge ────────────────────────────────────────────────
+  tierBadge: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  tierBadgeTxt: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
   },
 
   // ── Dismiss button ───────────────────────────────────────────────────────

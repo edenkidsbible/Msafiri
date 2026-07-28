@@ -127,11 +127,31 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
     }
     const def = resolveIncidentType(r.type);
     const confirmed = r.status === "confirmed";
+
+    // #31 — Confidence tier styling
+    const confirms = r.confirmCount ?? 0;
+    const tier = confirms >= 5 ? "reliable" : confirms >= 2 ? "confirmed" : "new";
+    const markerBg =
+      confirmed ? "#B71C1C" :
+      tier === "reliable" ? "#1B5E20" :   // deep green — highly reliable
+      tier === "confirmed" ? def.color :   // normal color — confirmed
+      def.color;                           // new — normal color, smaller opacity below
+
     return (
-      <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
-        <View style={[ms.emojiMarker, { backgroundColor: confirmed ? "#B71C1C" : def.color }]}>
+      <View collapsable={false} style={{ opacity: faded ? 0.3 : tier === "new" ? 0.75 : 1 }}>
+        {/* Outer glow ring for "reliable" reports */}
+        {tier === "reliable" && (
+          <View style={[ms.reliableRing, { borderColor: markerBg }]} />
+        )}
+        <View style={[ms.emojiMarker, { backgroundColor: markerBg }]}>
           <Text style={ms.emojiMarkerText}>{def.emoji}</Text>
         </View>
+        {/* Confirm count badge for 2+ confirms */}
+        {confirms >= 2 && (
+          <View style={[ms.confirmBadge, { backgroundColor: tier === "reliable" ? "#1B5E20" : "#37474F" }]}>
+            <Text style={ms.confirmBadgeTxt}>{confirms > 99 ? "99+" : confirms}</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -1050,6 +1070,24 @@ const ms = StyleSheet.create({
   },
   speedBadgeNum: { fontSize: 15, fontFamily: "Inter_700Bold", lineHeight: 17 },
   speedBadgeUnit: { fontSize: 8, fontFamily: "Inter_600SemiBold", opacity: 0.85, lineHeight: 9 },
+
+  // ── Confidence tier overlays (single-report markers) ───────────────────────
+  reliableRing: {
+    position: "absolute",
+    top: -6, left: -6, right: -6, bottom: -6,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    opacity: 0.55,
+  },
+  confirmBadge: {
+    position: "absolute",
+    top: -6, right: -6,
+    minWidth: 16, height: 16, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: "#FFF",
+  },
+  confirmBadgeTxt: { color: "#FFF", fontSize: 9, fontFamily: "Inter_700Bold" },
 
   // ── Cluster marker ──────────────────────────────────────────────────────────
   clusterWrap: {
