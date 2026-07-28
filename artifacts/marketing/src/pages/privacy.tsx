@@ -16,8 +16,8 @@ export default function Privacy() {
     <LegalLayout
       badge="Legal"
       title="Privacy Policy"
-      effectiveDate="June 30, 2026"
-      lastUpdated="June 30, 2026"
+      effectiveDate="July 28, 2026"
+      lastUpdated="July 28, 2026"
     >
       <p style={S.intro}>
         Msafiri Kenya ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy
@@ -41,29 +41,42 @@ export default function Privacy() {
       <ul style={S.ul}>
         <li style={S.li}><span style={S.bold}>GPS coordinates (latitude and longitude)</span> — used in real time to calculate your speed, detect nearby speed cameras, police checkpoints, and speed zones.</li>
         <li style={S.li}><span style={S.bold}>Location when the app is in use ("When In Use")</span> — collected while you have the app open and are actively driving.</li>
-        <li style={S.li}><span style={S.bold}>Background location ("Always")</span> — optionally collected when you enable background driving mode, so alerts continue while the screen is off. You may revoke this at any time in your device Settings.</li>
+        <li style={S.li}><span style={S.bold}>Background location ("Always")</span> — optionally collected when Live Trip Sharing is active, so people following your journey can see your position even when your screen is locked. You may revoke this at any time in your device Settings.</li>
         <li style={S.li}><span style={S.bold}>Location at time of SOS</span> — a single GPS coordinate is included in emergency SMS messages sent via the SOS feature.</li>
       </ul>
       <div style={S.callout}>
         <p style={{ ...S.p, marginBottom: 0 }}>
-          <span style={S.bold}>Important:</span> Your precise location is processed on-device in real time and is not transmitted to our servers for the purpose of speed calculation or alert generation. Location data is only transmitted when you submit a community road report or trigger the SOS feature.
+          <span style={S.bold}>When location is transmitted:</span> Your GPS coordinates are sent to our servers or third-party services in four situations: (a) when you submit a community road report; (b) when you activate the SOS feature; (c) every 8 seconds while Live Trip Sharing is active; and (d) when you request turn-by-turn navigation directions (your origin and destination are sent to the OSRM routing service). Speed calculation and hazard detection happen on-device and do not require location to be transmitted.
         </p>
       </div>
 
-      <h3 style={S.h3}>1.2 Device and Technical Information</h3>
+      <h3 style={S.h3}>1.2 Speed and Motion Data</h3>
+      <p style={S.p}>
+        Msafiri calculates your driving speed entirely from GPS coordinates provided by your device's
+        location hardware. We do not access your device's accelerometer, gyroscope, barometer, or any
+        other motion or fitness sensor. No motion or fitness data is transmitted to our servers. The
+        speed value displayed in the App is calculated locally on your device and is not stored or logged.
+      </p>
+      <ul style={S.ul}>
+        <li style={S.li}><span style={S.bold}>GPS-derived speed</span> — computed from successive location fixes; used only for on-screen display and alert triggering. Never stored.</li>
+        <li style={S.li}><span style={S.bold}>Heading (direction of travel)</span> — derived from GPS; used locally to determine whether a hazard is ahead of you. Never stored.</li>
+      </ul>
+
+      <h3 style={S.h3}>1.3 Device and Technical Information</h3>
       <ul style={S.ul}>
         <li style={S.li}><span style={S.bold}>Device identifier (device ID)</span> — a unique anonymous identifier assigned to your device. Msafiri does not require account registration; your device ID is used in place of a user account.</li>
         <li style={S.li}><span style={S.bold}>Operating system and version</span> — iOS or Android version for compatibility and bug-fix purposes.</li>
         <li style={S.li}><span style={S.bold}>App version</span> — to ensure you receive feature-compatible responses from our API.</li>
         <li style={S.li}><span style={S.bold}>Network type</span> — Wi-Fi or mobile data, used solely for optimising data usage.</li>
+        <li style={S.li}><span style={S.bold}>Push notification token</span> — a device-specific token issued by Apple (APNs) or Google (FCM) used to deliver safety alerts and trip notifications. Stored on our servers and associated with your device ID. You can revoke notification permission at any time in your device Settings.</li>
       </ul>
 
-      <h3 style={S.h3}>1.3 Community Road Reports</h3>
+      <h3 style={S.h3}>1.4 Community Road Reports</h3>
       <p style={S.p}>
         When you submit a road report (e.g., speed camera, police checkpoint, speed zone, road hazard), we collect:
       </p>
       <ul style={S.ul}>
-        <li style={S.li}>The <span style={S.bold}>type of report</span> (e.g., speed camera, checkpoint).</li>
+        <li style={S.li}>The <span style={S.bold}>type of report</span> (e.g., speed camera, checkpoint, pothole).</li>
         <li style={S.li}>The <span style={S.bold}>GPS coordinates</span> at the time of submission.</li>
         <li style={S.li}>The <span style={S.bold}>timestamp</span> of the report.</li>
         <li style={S.li}>Your <span style={S.bold}>device ID</span> (to prevent spam and enable report editing).</li>
@@ -74,7 +87,21 @@ export default function Privacy() {
         your name, phone number, or any personally identifiable information to community reports.
       </p>
 
-      <h3 style={S.h3}>1.4 Payment and Subscription Information (Msafiri Pro)</h3>
+      <h3 style={S.h3}>1.5 Live Trip Sharing</h3>
+      <p style={S.p}>
+        When you activate Live Trip Sharing, we collect and transmit:
+      </p>
+      <ul style={S.ul}>
+        <li style={S.li}><span style={S.bold}>GPS coordinates and speed</span> — sent to our servers approximately every 8 seconds while sharing is active, so people you've shared your trip link with can follow your journey in real time.</li>
+        <li style={S.li}><span style={S.bold}>Session token</span> — a randomly generated link used to identify your sharing session. The link expires after 24 hours or when you stop sharing, whichever is sooner.</li>
+        <li style={S.li}><span style={S.bold}>Display name</span> — if you enter a name for your trip, it is stored with the session and shown to people viewing your live trip. This is optional and you may leave it blank.</li>
+      </ul>
+      <p style={S.p}>
+        Live trip data (coordinates and speed pings) is permanently deleted when the session expires.
+        We do not retain a history of your trips.
+      </p>
+
+      <h3 style={S.h3}>1.6 Payment and Subscription Information (Msafiri Pro)</h3>
       <p style={S.p}>
         Msafiri Pro subscriptions are processed by <span style={S.bold}>RevenueCat</span> (our payment
         infrastructure provider) and billed through the Apple App Store or Google Play Store. We do not
@@ -86,25 +113,34 @@ export default function Privacy() {
         <li style={S.li}>We retain subscription status data for as long as your account is active, plus a reasonable period for billing dispute resolution.</li>
       </ul>
 
-      <h3 style={S.h3}>1.5 SOS Emergency Data</h3>
+      <h3 style={S.h3}>1.7 SOS Emergency Data</h3>
       <p style={S.p}>
-        If you use the SOS emergency feature, the App sends an SMS from your device using your
-        device's own SMS functionality. The message includes:
+        If you use the SOS emergency feature, the App composes an emergency message with your GPS
+        location and opens your device's native SMS app for you to send. The message includes:
       </p>
       <ul style={S.ul}>
         <li style={S.li}>A standardised emergency message ("EMERGENCY – I need help!").</li>
         <li style={S.li}>A Google Maps link containing your current GPS coordinates.</li>
       </ul>
       <p style={S.p}>
-        This SMS is sent directly from your device to your nominated emergency contacts. Msafiri does
-        not transmit, store, or have access to the content of these messages or the recipients' phone
-        numbers. Your device's carrier may retain this data under its own privacy policy.
+        Msafiri does not transmit, store, or have access to the content of these messages or the
+        recipients' phone numbers. Your device's carrier may retain this data under its own privacy policy.
       </p>
 
-      <h3 style={S.h3}>1.6 Usage and Analytics Data</h3>
+      <h3 style={S.h3}>1.8 Voice Guidance and Audio</h3>
+      <p style={S.p}>
+        Msafiri provides voice-guided navigation and hazard alerts using pre-recorded audio clips
+        bundled with the App and, for certain phrases (such as road names and dynamic speed limit
+        announcements), on-demand text-to-speech synthesis via <span style={S.bold}>ElevenLabs</span>.
+      </p>
       <ul style={S.ul}>
-        <li style={S.li}><span style={S.bold}>App interaction logs</span> — screens visited, features used, session duration (collected anonymously via device ID only).</li>
-        <li style={S.li}><span style={S.bold}>Crash reports</span> — automatic crash logs that include device model, OS version, and stack trace. These do not include location data.</li>
+        <li style={S.li}>When on-demand TTS is used, a <span style={S.bold}>short text phrase</span> (e.g., "Turn right onto Ngong Road in 200 metres") is sent to ElevenLabs' API servers to generate an audio clip. No location data, device ID, or personal information is included in these requests.</li>
+        <li style={S.li}>Generated audio clips are <span style={S.bold}>cached on your device for up to 90 days</span> to minimise repeated network requests for the same phrase.</li>
+      </ul>
+
+      <h3 style={S.h3}>1.9 Usage and Crash Data</h3>
+      <ul style={S.ul}>
+        <li style={S.li}><span style={S.bold}>Crash and error reports</span> — we use <span style={S.bold}>Sentry</span> (sentry.io) to automatically capture crash reports and performance traces. Sentry payloads are scrubbed of GPS coordinates and location-related fields before transmission. Reports include device model, OS version, App version, and a stack trace. No precise location data is included in Sentry reports.</li>
         <li style={S.li}><span style={S.bold}>API request logs</span> — server-side request logs including IP address, endpoint called, and timestamp, retained for up to 30 days for security and abuse monitoring.</li>
       </ul>
 
@@ -113,10 +149,13 @@ export default function Privacy() {
       <p style={S.p}>We use the information we collect for the following purposes:</p>
       <ul style={S.ul}>
         <li style={S.li}><span style={S.bold}>Core app functionality</span> — providing real-time speed awareness, road alert notifications, and displaying community reports on the in-app map.</li>
+        <li style={S.li}><span style={S.bold}>Turn-by-turn navigation</span> — calculating driving routes, providing step-by-step directions, and announcing upcoming hazards along your route.</li>
         <li style={S.li}><span style={S.bold}>Community report system</span> — validating, aggregating, and expiring road reports submitted by users.</li>
+        <li style={S.li}><span style={S.bold}>Live Trip Sharing</span> — transmitting your real-time position to people you've shared your trip link with.</li>
         <li style={S.li}><span style={S.bold}>Subscription management</span> — verifying your Msafiri Pro subscription status via RevenueCat to unlock premium features.</li>
         <li style={S.li}><span style={S.bold}>Safety features</span> — enabling the SOS emergency SMS feature to function correctly.</li>
-        <li style={S.li}><span style={S.bold}>App improvement</span> — analysing anonymised usage patterns and crash data to fix bugs and improve performance.</li>
+        <li style={S.li}><span style={S.bold}>Voice guidance</span> — generating spoken navigation instructions and hazard announcements via on-device audio and ElevenLabs TTS.</li>
+        <li style={S.li}><span style={S.bold}>App improvement</span> — analysing crash data and error logs via Sentry to fix bugs and improve performance.</li>
         <li style={S.li}><span style={S.bold}>Security and fraud prevention</span> — detecting and preventing spam reports, abuse, or unauthorised access to our API.</li>
         <li style={S.li}><span style={S.bold}>Legal compliance</span> — complying with applicable laws, regulations, and lawful requests from Kenyan authorities.</li>
       </ul>
@@ -131,13 +170,19 @@ export default function Privacy() {
       <h3 style={S.h3}>3.1 With Other Msafiri Users</h3>
       <p style={S.p}>
         Community road reports you submit are shared with other users in anonymised form (report type,
-        location, and timestamp only). Your device ID is never exposed to other users.
+        location, and timestamp only). Your device ID is never exposed to other users. Live Trip Sharing
+        data is shared only with people who have your specific trip link.
       </p>
 
       <h3 style={S.h3}>3.2 With Service Providers</h3>
       <ul style={S.ul}>
-        <li style={S.li}><span style={S.bold}>RevenueCat</span> — for subscription management. RevenueCat processes subscription events and provides us with your subscription status. See RevenueCat's privacy policy at revenuecat.com/privacy.</li>
-        <li style={S.li}><span style={S.bold}>OpenStreetMap / Nominatim</span> — for reverse geocoding (converting GPS coordinates to road names). Queries are sent with a custom User-Agent and do not include your device ID. See OpenStreetMap's privacy policy at openstreetmap.org/privacy.</li>
+        <li style={S.li}><span style={S.bold}>RevenueCat</span> — for subscription management. Receives your device ID and subscription events. Privacy policy: revenuecat.com/privacy.</li>
+        <li style={S.li}><span style={S.bold}>Sentry</span> — for crash and error reporting. Receives device model, OS version, App version, and error stack traces. Location data is scrubbed before transmission. Privacy policy: sentry.io/privacy.</li>
+        <li style={S.li}><span style={S.bold}>ElevenLabs</span> — for on-demand voice guidance synthesis. Receives short text phrases only (no location or personal data). Privacy policy: elevenlabs.io/privacy.</li>
+        <li style={S.li}><span style={S.bold}>Google Maps SDK</span> — for map rendering on Android and iOS. Google's Maps SDK may collect device and usage data per Google's privacy policy: policies.google.com/privacy.</li>
+        <li style={S.li}><span style={S.bold}>OSRM (Open Source Routing Machine)</span> — for route calculation. Your origin and destination GPS coordinates are sent to an OSRM server to calculate driving routes. No personally identifiable information is included.</li>
+        <li style={S.li}><span style={S.bold}>OpenStreetMap / Nominatim / Photon</span> — for reverse geocoding (converting GPS coordinates to road names) and place search. Queries do not include your device ID. Privacy policy: openstreetmap.org/privacy.</li>
+        <li style={S.li}><span style={S.bold}>Overpass API</span> — for the Search Along Route feature. A bounding box derived from your route is sent to query nearby points of interest. No device ID or personal data is included.</li>
         <li style={S.li}><span style={S.bold}>Hosting and infrastructure providers</span> — our server infrastructure runs on cloud hosting services. These providers have access to server logs but are contractually restricted from using the data for any purpose other than providing infrastructure services.</li>
       </ul>
 
@@ -158,11 +203,13 @@ export default function Privacy() {
       {/* 4 */}
       <h2 style={S.h2}>4. Data Retention</h2>
       <ul style={S.ul}>
-        <li style={S.li}><span style={S.bold}>Community reports</span> — retained for as long as they are active (typically 24–48 hours for most report types) and then automatically expired. Expired reports are retained in our database for up to 90 days for abuse-prevention analysis, then permanently deleted.</li>
-        <li style={S.li}><span style={S.bold}>Device ID and usage logs</span> — retained for up to 12 months, after which they are permanently deleted or anonymised beyond recovery.</li>
+        <li style={S.li}><span style={S.bold}>Community reports</span> — retained for as long as they are active (typically 24–48 hours) then automatically expired. Expired reports are retained for up to 90 days for abuse-prevention analysis, then permanently deleted.</li>
+        <li style={S.li}><span style={S.bold}>Live trip sharing data</span> — GPS pings are deleted immediately when the trip session expires (after 24 hours or when you stop sharing). We do not retain a history of your journeys.</li>
+        <li style={S.li}><span style={S.bold}>Device ID and push notification token</span> — retained for up to 12 months of inactivity, after which they are permanently deleted or anonymised.</li>
         <li style={S.li}><span style={S.bold}>API access logs (IP addresses)</span> — retained for up to 30 days for security monitoring.</li>
         <li style={S.li}><span style={S.bold}>Subscription records</span> — retained for the duration of your subscription and for up to 12 months after cancellation for billing and legal dispute purposes.</li>
-        <li style={S.li}><span style={S.bold}>Crash reports</span> — retained for up to 6 months to assist with bug resolution.</li>
+        <li style={S.li}><span style={S.bold}>Crash and error reports (Sentry)</span> — retained for up to 90 days to assist with bug resolution.</li>
+        <li style={S.li}><span style={S.bold}>Cached voice audio</span> — stored locally on your device for up to 90 days; automatically evicted after that. Clearing the App's storage removes these files.</li>
       </ul>
 
       {/* 5 */}
@@ -179,8 +226,7 @@ export default function Privacy() {
       </ul>
       <p style={S.p}>
         While we implement industry-standard safeguards, no method of electronic transmission or storage
-        is 100% secure. We cannot guarantee absolute security. If you believe your data has been
-        compromised, please contact us immediately at privacy@msafirikenya.com.
+        is 100% secure. If you believe your data has been compromised, please contact us at privacy@msafirikenya.com.
       </p>
 
       {/* 6 */}
@@ -195,10 +241,22 @@ export default function Privacy() {
         <li style={S.li}><span style={S.bold}>Android:</span> Settings &rarr; Apps &rarr; Msafiri &rarr; Permissions &rarr; Location. You can grant "Allow only while using the app" or "Allow all the time."</li>
       </ul>
       <p style={S.p}>
-        Revoking location access will prevent core app functionality (speed display and road alerts) from working, but will not affect your subscription status.
+        Revoking location access will prevent core app functionality (speed display, road alerts, and navigation) from working, but will not affect your subscription status.
       </p>
 
-      <h3 style={S.h3}>6.2 Deleting Your Data</h3>
+      <h3 style={S.h3}>6.2 Notification Permissions</h3>
+      <p style={S.p}>
+        You can revoke push notification permission at any time:
+      </p>
+      <ul style={S.ul}>
+        <li style={S.li}><span style={S.bold}>iOS:</span> Settings &rarr; Notifications &rarr; Msafiri &rarr; Allow Notifications (toggle off).</li>
+        <li style={S.li}><span style={S.bold}>Android:</span> Settings &rarr; Apps &rarr; Msafiri &rarr; Notifications (toggle off).</li>
+      </ul>
+      <p style={S.p}>
+        Revoking notifications means you will not receive push alerts for trip confirmations, hazard notifications while the app is in the background, or admin messages.
+      </p>
+
+      <h3 style={S.h3}>6.3 Deleting Your Data</h3>
       <p style={S.p}>
         Because Msafiri does not require account registration, your data is linked only to your device ID.
         To request deletion of all data associated with your device:
@@ -207,12 +265,6 @@ export default function Privacy() {
         <li style={S.li}>Email us at <span style={S.bold}>privacy@msafirikenya.com</span> with the subject line "Data Deletion Request."</li>
         <li style={S.li}>We will delete all data tied to your device ID within <span style={S.bold}>30 days</span> of receiving your request, except where retention is required by law or for legitimate security purposes.</li>
       </ul>
-
-      <h3 style={S.h3}>6.3 Opting Out of Analytics</h3>
-      <p style={S.p}>
-        You may opt out of anonymised analytics collection within the App under Settings &rarr; Privacy.
-        Opting out does not affect crash reporting, which is required for app stability.
-      </p>
 
       <h3 style={S.h3}>6.4 Subscription Cancellation</h3>
       <p style={S.p}>
@@ -229,17 +281,19 @@ export default function Privacy() {
         specific disclosures about how Msafiri uses location data:
       </p>
       <ul style={S.ul}>
-        <li style={S.li}><span style={S.bold}>Purpose:</span> Location is used exclusively to (a) calculate your driving speed, (b) detect nearby road hazards and alerts, and (c) attach a coordinate to SOS emergency messages and user-submitted community reports.</li>
-        <li style={S.li}><span style={S.bold}>Background location:</span> Used only when you have explicitly granted "Always" permission and have background mode enabled. Background location is processed on-device; it is not continuously transmitted to our servers.</li>
-        <li style={S.li}><span style={S.bold}>Not used for:</span> Advertising, targeted marketing, tracking your movement history, sharing your location with third parties (except the limited SOS use case described in Section 1.5), or any purpose unrelated to road safety.</li>
-        <li style={S.li}><span style={S.bold}>Data minimisation:</span> We request only the level of location precision required for the feature in use. We do not collect location when the App is closed and background mode is disabled.</li>
+        <li style={S.li}><span style={S.bold}>Primary purpose:</span> Location is used to (a) calculate your driving speed on-device, (b) detect nearby road hazards and speed zone alerts, (c) provide turn-by-turn navigation, (d) attach a coordinate to SOS emergency messages and community reports, and (e) transmit your position during Live Trip Sharing.</li>
+        <li style={S.li}><span style={S.bold}>Background location:</span> Used only when Live Trip Sharing is active and you have granted "Always" permission. Background location pings are sent to our servers every 8 seconds during an active sharing session and deleted when the session ends.</li>
+        <li style={S.li}><span style={S.bold}>Route calculation:</span> When you request navigation directions, your start and end coordinates are sent to an OSRM routing server. This is a one-time request per route; your live position during navigation is not continuously sent to OSRM.</li>
+        <li style={S.li}><span style={S.bold}>Not used for:</span> Advertising, targeted marketing, building a movement history, or any purpose unrelated to road safety and navigation.</li>
+        <li style={S.li}><span style={S.bold}>Data minimisation:</span> We do not collect location when the App is closed and background mode is disabled.</li>
       </ul>
 
       {/* 8 */}
       <h2 style={S.h2}>8. SMS Permissions</h2>
       <p style={S.p}>
-        Msafiri requests <span style={S.bold}>SEND_SMS</span> permission on Android solely to enable the SOS emergency feature.
-        This permission is used only when you deliberately press and hold the SOS button. We do not:
+        The SOS emergency feature composes an emergency message with your location and opens your
+        device's native SMS app for you to review and send. Msafiri does not request the restricted
+        SEND_SMS permission and cannot send a text message without you tapping send. We do not:
       </p>
       <ul style={S.ul}>
         <li style={S.li}>Send SMS messages without your explicit action.</li>
@@ -258,18 +312,23 @@ export default function Privacy() {
       </p>
       <p style={S.p}>
         Users between the ages of 13 and 17 should obtain parental or guardian consent before using the
-        App, particularly before enabling the SOS feature.
+        App, particularly before enabling the SOS feature or Live Trip Sharing.
       </p>
 
       {/* 10 */}
-      <h2 style={S.h2}>10. Third-Party Services and Links</h2>
+      <h2 style={S.h2}>10. Third-Party Services</h2>
       <p style={S.p}>
-        The App integrates with or links to the following third-party services. We encourage you to
-        review their respective privacy policies:
+        The App integrates with the following third-party services. We encourage you to review their
+        respective privacy policies:
       </p>
       <ul style={S.ul}>
         <li style={S.li}><span style={S.bold}>RevenueCat</span> — revenuecat.com/privacy — in-app subscription management.</li>
-        <li style={S.li}><span style={S.bold}>OpenStreetMap / Nominatim</span> — openstreetmap.org/privacy — geocoding (road name lookup from coordinates).</li>
+        <li style={S.li}><span style={S.bold}>Sentry</span> — sentry.io/privacy — crash and error reporting (location-scrubbed).</li>
+        <li style={S.li}><span style={S.bold}>ElevenLabs</span> — elevenlabs.io/privacy — on-demand voice guidance text-to-speech.</li>
+        <li style={S.li}><span style={S.bold}>Google Maps</span> — policies.google.com/privacy — map rendering and geocoding on Android and iOS.</li>
+        <li style={S.li}><span style={S.bold}>OSRM</span> — project-osrm.org — open-source routing engine for navigation directions.</li>
+        <li style={S.li}><span style={S.bold}>OpenStreetMap / Nominatim / Photon</span> — openstreetmap.org/privacy — road name lookup and place search.</li>
+        <li style={S.li}><span style={S.bold}>Overpass API</span> — overpass-api.de — points-of-interest search for Search Along Route.</li>
         <li style={S.li}><span style={S.bold}>Apple App Store</span> — apple.com/legal/privacy — app distribution, payment processing.</li>
         <li style={S.li}><span style={S.bold}>Google Play Store</span> — policies.google.com/privacy — app distribution, payment processing.</li>
       </ul>
@@ -281,9 +340,10 @@ export default function Privacy() {
       <h2 style={S.h2}>11. International Data Transfers</h2>
       <p style={S.p}>
         Msafiri Kenya is based in Kenya. Your data may be processed on servers located outside Kenya,
-        including in the European Union and the United States, by our infrastructure and service providers.
-        We take reasonable steps to ensure that any international transfer of data complies with applicable
-        data protection laws and that your data receives an adequate level of protection.
+        including in the European Union and the United States, by our infrastructure and service providers
+        (including Sentry, ElevenLabs, RevenueCat, and OSRM). We take reasonable steps to ensure that
+        any international transfer of data complies with applicable data protection laws and that your
+        data receives an adequate level of protection.
       </p>
 
       {/* 12 */}
@@ -298,14 +358,13 @@ export default function Privacy() {
       </ul>
       <p style={S.p}>
         Your continued use of the App after the effective date of any changes constitutes your acceptance
-        of the updated Privacy Policy. If you do not agree with the changes, you should stop using the App.
+        of the updated Privacy Policy.
       </p>
 
       {/* 13 */}
       <h2 style={S.h2}>13. Contact Us</h2>
       <p style={S.p}>
-        If you have any questions, concerns, or requests regarding this Privacy Policy or how we handle
-        your data, please contact us:
+        If you have any questions, concerns, or requests regarding this Privacy Policy, please contact us:
       </p>
       <div style={S.callout}>
         <p style={{ ...S.p, marginBottom: "0.25rem" }}><span style={S.bold}>Msafiri Kenya</span></p>

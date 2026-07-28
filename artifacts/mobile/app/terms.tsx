@@ -26,7 +26,7 @@ export default function TermsScreen() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={[s.effectiveDate, { color: c.mutedForeground }]}>
-        Effective: June 30, 2026 · Last updated: June 30, 2026
+        Effective: July 28, 2026 · Last updated: July 28, 2026
       </Text>
 
       <Text style={[s.intro, { color: c.mutedForeground }]}>
@@ -43,10 +43,9 @@ export default function TermsScreen() {
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Apple and Google are not parties to these Terms and have no obligation whatsoever to provide any
-        maintenance, support, warranty, or other services with respect to the App. By accepting these Terms,
-        you acknowledge that Apple and Google have no responsibility for the App or its content. Nothing in
-        these Terms may conflict with the Apple Media Services Terms and Conditions or Google Play Terms of
-        Service as applicable.
+        maintenance, support, warranty, or other services with respect to the App. Nothing in these Terms
+        may conflict with the Apple Media Services Terms and Conditions or Google Play Terms of Service
+        as applicable.
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If you are a parent or legal guardian accepting these Terms on behalf of a minor, you accept full
@@ -60,8 +59,8 @@ export default function TermsScreen() {
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If you are between 13 and 17 years of age, you confirm that you have obtained parental or guardian
-        consent to use the App. The SOS emergency feature should only be used in genuine emergencies;
-        minors must ensure a parent or guardian is aware of and has approved use of this feature.
+        consent to use the App. The SOS emergency feature and Live Trip Sharing should only be used with
+        the knowledge and approval of a parent or guardian.
       </Text>
 
       {/* 3 */}
@@ -69,7 +68,7 @@ export default function TermsScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Subject to these Terms, Msafiri Kenya grants you a "}<B>limited, non-exclusive, non-transferable, revocable licence</B>{" to download and use the App on a device that you own or control, solely for your personal, non-commercial use."}
       </Text>
-      <Text style={[s.p, { color: c.mutedForeground }]}>You may not:</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>{"You may not:"}</Text>
       <Li>{"Copy, modify, distribute, sell, or lease any part of the App."}</Li>
       <Li>{"Reverse engineer, decompile, or attempt to extract the source code of the App, except where permitted by applicable law."}</Li>
       <Li>{"Remove, obscure, or alter any proprietary notices or labels on the App."}</Li>
@@ -78,10 +77,11 @@ export default function TermsScreen() {
 
       {/* 4 */}
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>4. Acceptable Use</Text>
-      <Text style={[s.p, { color: c.mutedForeground }]}>You agree to use the App only for lawful purposes. You must not use the App to:</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>{"You agree to use the App only for lawful purposes. You must not use the App to:"}</Text>
       <Li>{"Submit false, misleading, or fabricated road reports."}</Li>
       <Li>{"Deliberately flood our system with spam reports (\"report spamming\") to disrupt service for other users."}</Li>
-      <Li>{"Abuse the SOS feature by sending emergency messages when no emergency exists — this wastes emergency responder resources and may be illegal."}</Li>
+      <Li>{"Abuse the SOS feature by sending emergency messages when no emergency exists — this wastes emergency responder resources and may be illegal under Kenyan law."}</Li>
+      <Li>{"Share Live Trip Sharing links with malicious intent or to facilitate surveillance of another person without their consent."}</Li>
       <Li>{"Interfere with or disrupt the integrity or performance of the App, its servers, or networks connected to it."}</Li>
       <Li>{"Attempt to gain unauthorised access to any portion of the App, our servers, our admin systems, or any system or network connected to Msafiri."}</Li>
       <Li>{"Violate any applicable local, national, or international laws or regulations, including Kenyan traffic laws."}</Li>
@@ -100,20 +100,20 @@ export default function TermsScreen() {
       </Text>
       <Li><B>Weekly plan:</B>{" KES 100 per week, with a 3-day free trial for new subscribers."}</Li>
       <Li><B>Monthly plan:</B>{" KES 300 per month, with a 3-day free trial for new subscribers."}</Li>
-      <Li>{"Other subscription durations (annual, etc.) may be offered from time to time as listed in the App."}</Li>
+      <Li>{"Other subscription durations may be offered from time to time as listed in the App."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Pricing may change. We will give you at least 30 days' notice of any price increase before it
-        takes effect. Continued use after the price change constitutes your acceptance of the new price.
+        takes effect.
       </Text>
 
       <Text style={[s.h3, { color: c.primary }]}>5.2 Free Trial</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        {"New subscribers may be eligible for a "}<B>3-day free trial</B>{". The free trial begins on the date you subscribe and automatically converts to a paid subscription at the end of the trial period unless you cancel before the trial ends. Free trial eligibility is determined by Apple or Google based on your App Store or Google Play account, and is generally limited to one trial per account — reinstalling or re-downloading the App does not grant an additional trial."}
+        {"New subscribers may be eligible for a "}<B>3-day free trial</B>{". The free trial automatically converts to a paid subscription at the end of the trial period unless you cancel before the trial ends. Free trial eligibility is determined by Apple or Google and is generally limited to one trial per account — reinstalling the App does not grant an additional trial."}
       </Text>
 
       <Text style={[s.h3, { color: c.primary }]}>5.3 Billing and Renewal</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        {"Subscriptions are billed through the "}<B>Apple App Store</B>{" or "}<B>Google Play Store</B>{" (depending on your device) and managed via RevenueCat. Your subscription automatically renews at the end of each billing period unless you cancel at least 24 hours before the renewal date."}
+        {"Subscriptions are billed through the "}<B>Apple App Store</B>{" or "}<B>Google Play Store</B>{" and managed via RevenueCat. Your subscription automatically renews at the end of each billing period unless you cancel at least 24 hours before the renewal date."}
       </Text>
       <Li>{"You will be charged through your App Store or Google Play account."}</Li>
       <Li>{"Renewal charges occur within 24 hours prior to the end of the current period."}</Li>
@@ -144,7 +144,7 @@ export default function TermsScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"By submitting a community road report through the App, you grant Msafiri Kenya a "}<B>worldwide, royalty-free, non-exclusive licence</B>{" to use, aggregate, display, and distribute that report (in anonymised form) to other users of the App for road safety purposes."}
       </Text>
-      <Text style={[s.p, { color: c.mutedForeground }]}>You represent and warrant that:</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>{"You represent and warrant that:"}</Text>
       <Li>{"All reports you submit are truthful and based on your genuine observation."}</Li>
       <Li>{"You will not submit reports that are false, misleading, or intended to deceive other drivers."}</Li>
       <Li>{"You will not submit reports for commercial gain or to harass specific individuals or law enforcement officers."}</Li>
@@ -155,28 +155,62 @@ export default function TermsScreen() {
       </Text>
 
       {/* 7 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>7. SOS Emergency Feature</Text>
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>7. Navigation and Route Guidance</Text>
+      <View style={[s.warning, { backgroundColor: c.primary + "14", borderColor: c.primary + "4D" }]}>
+        <Text style={[s.p, { color: c.foreground, marginBottom: 0 }]}>
+          <B>Turn-by-turn navigation in Msafiri is a supplemental driving aid only.</B>{" Always follow official road signs, traffic signals, and the instructions of traffic officers. Do not follow in-app navigation directions if they appear to conflict with posted signage or road conditions."}
+        </Text>
+      </View>
+      <Li>{"Route data is sourced from OpenStreetMap and calculated by OSRM. Routes may be incorrect, outdated, or unavailable in areas with poor map coverage."}</Li>
+      <Li>{"GPS accuracy limitations mean the App may temporarily show you off-route or suggest incorrect turns. Always use your own judgement."}</Li>
+      <Li>{"Estimated arrival times are calculated based on distance and speed and do not fully account for traffic conditions."}</Li>
+      <Li>{"Voice guidance instructions are computer-generated and may occasionally mispronounce road names or give imprecise timing."}</Li>
+      <Li>{"We are not responsible for any consequences — including fines, accidents, fuel costs, or delays — arising from following in-app navigation directions."}</Li>
+
+      {/* 8 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>8. Live Trip Sharing</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        Msafiri allows you to share a live trip link so trusted contacts can follow your journey in
+        real time.
+      </Text>
+      <Li><B>You control who sees your location.</B>{" The trip link is generated by you and shared at your discretion. Msafiri does not share your link with anyone on your behalf."}</Li>
+      <Li>{"Trip links expire automatically after "}<B>24 hours</B>{" or when you stop sharing, whichever is sooner."}</Li>
+      <Li>{"Do not share your trip link publicly or with people you do not trust — anyone with the link can view your real-time position while sharing is active."}</Li>
+      <Li>{"You may stop sharing at any time by tapping Stop Sharing in the App. Location transmission ceases immediately."}</Li>
+      <Li>{"We are not responsible for any consequences arising from sharing a trip link with an unintended party."}</Li>
+
+      {/* 9 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>9. Driver Safety Course</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        {"Msafiri includes an in-app "}<B>Driver Safety Course</B>{" covering Kenyan road rules, NTSA speed regulations, and safe driving practices."}
+      </Text>
+      <Li>{"Course content is "}<B>educational and informational only</B>{". Completing the course does not constitute official NTSA training, certification, or licensing."}</Li>
+      <Li>{"While we strive to keep course content aligned with current Kenyan traffic laws (including LN 161/2016 speed regulations), we do not guarantee that content reflects the most recent legislative changes. Always consult official NTSA resources for authoritative information."}</Li>
+      <Li>{"Course audio is generated using AI text-to-speech technology (ElevenLabs). Content accuracy is our responsibility; audio generation is provided by ElevenLabs."}</Li>
+      <Li>{"Course progress is stored locally on your device. We do not transmit or store your course completion status on our servers."}</Li>
+
+      {/* 10 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>10. SOS Emergency Feature</Text>
       <View style={[s.warning, { backgroundColor: c.primary + "14", borderColor: c.primary + "4D" }]}>
         <Text style={[s.p, { color: c.foreground, marginBottom: 0 }]}>
           <B>The SOS feature is intended for genuine emergencies only.</B>{" Misuse of this feature — including sending false emergency messages — may constitute a criminal offence under Kenyan law and could result in termination of your access to the App."}
         </Text>
       </View>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        The SOS feature uses your device's SMS capabilities to send an emergency message containing your
-        GPS location to contacts you have pre-configured. You are solely responsible for:
+        The SOS feature composes an emergency message with your GPS location and opens your device's
+        native SMS app for you to review and send to pre-configured contacts. You are solely responsible for:
       </Text>
       <Li>{"Ensuring your emergency contacts are correctly entered in the App."}</Li>
       <Li>{"Ensuring your device has sufficient SMS credit or connectivity to send the message."}</Li>
       <Li>{"Standard SMS charges from your mobile carrier may apply when sending emergency messages."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        Msafiri Kenya is not responsible for any failure to deliver SOS messages due to network
-        unavailability, insufficient SMS credit, incorrect contact information, or any other technical
-        failure outside our control. The SOS feature is a supplemental safety tool and is not a substitute
-        for calling emergency services (999 in Kenya).
+        Msafiri Kenya is not responsible for any failure to deliver SOS messages. The SOS feature is a
+        supplemental safety tool and is not a substitute for calling emergency services{" "}
+        (<B>999 in Kenya</B>).
       </Text>
 
-      {/* 8 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>8. Road Safety Disclaimer</Text>
+      {/* 11 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>11. Road Safety Disclaimer</Text>
       <View style={[s.warning, { backgroundColor: c.primary + "14", borderColor: c.primary + "4D" }]}>
         <Text style={[s.p, { color: c.foreground, marginBottom: 8 }]}>
           <B>Msafiri is a supplemental driving awareness tool. It is not a substitute for safe driving practices, attention to road conditions, or compliance with Kenyan traffic laws and regulations.</B>
@@ -184,35 +218,36 @@ export default function TermsScreen() {
         <Text style={[s.p, { color: c.foreground, marginBottom: 0 }]}>
           Always keep your eyes on the road. Do not operate the App while driving in a manner that
           distracts you. Use audio alerts where available. Msafiri does not guarantee the accuracy or
-          completeness of any road alert, speed limit, or hazard data.
+          completeness of any road alert, speed limit, hazard data, or navigation instruction.
         </Text>
       </View>
       <Li>{"Road data displayed in the App is crowd-sourced and may be inaccurate, outdated, or incomplete."}</Li>
       <Li>{"Speed limit information is indicative only. Always follow posted road signs."}</Li>
-      <Li>{"The App's GPS-based speed reading may differ from your vehicle's speedometer due to GPS limitations. Always refer to your vehicle's speedometer for accurate speed."}</Li>
-      <Li>{"Msafiri is not responsible for any fines, penalties, accidents, injuries, or other consequences arising from reliance on App data."}</Li>
+      <Li>{"The App's GPS-based speed reading may differ from your vehicle's speedometer due to GPS accuracy limitations. Always refer to your vehicle's speedometer for accurate speed."}</Li>
+      <Li>{"Confidence tier labels on community reports (e.g., \"Confirmed by drivers\") are crowd-sourced indicators, not verified facts."}</Li>
+      <Li>{"Msafiri is not responsible for any fines, penalties, accidents, injuries, or other consequences arising from reliance on App data or navigation instructions."}</Li>
 
-      {/* 9 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>9. Intellectual Property</Text>
+      {/* 12 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>12. Intellectual Property</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The App and all its content — including but not limited to the Msafiri name, logo, design,
         software code, text, graphics, map overlays, and audio alerts — are the exclusive property of
         Msafiri Kenya and are protected by Kenyan and international intellectual property laws.
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        Nothing in these Terms grants you any right, title, or interest in the App or its content beyond
-        the limited licence described in Section 3. All rights not expressly granted are reserved by
-        Msafiri Kenya.
+        Map data is sourced from OpenStreetMap contributors under the Open Database Licence (ODbL).
+        Attribution: © OpenStreetMap contributors.
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        If you believe any content in the App infringes your intellectual property rights, please contact
-        us at legal@msafirikenya.com.
+        Nothing in these Terms grants you any right, title, or interest in the App or its content beyond
+        the limited licence described in Section 3. If you believe any content in the App infringes your
+        intellectual property rights, please contact us at legal@msafirikenya.com.
       </Text>
 
-      {/* 10 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>10. Disclaimers and Limitation of Liability</Text>
+      {/* 13 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>13. Disclaimers and Limitation of Liability</Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>10.1 Disclaimer of Warranties</Text>
+      <Text style={[s.h3, { color: c.primary }]}>13.1 Disclaimer of Warranties</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         THE APP IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS
         OR IMPLIED. TO THE FULLEST EXTENT PERMITTED BY LAW, MSAFIRI KENYA DISCLAIMS ALL WARRANTIES,
@@ -220,9 +255,9 @@ export default function TermsScreen() {
       </Text>
       <Li>{"Implied warranties of merchantability, fitness for a particular purpose, and non-infringement."}</Li>
       <Li>{"Any warranty that the App will be error-free, uninterrupted, or free of viruses or other harmful components."}</Li>
-      <Li>{"Any warranty regarding the accuracy, reliability, or timeliness of road data, speed camera locations, checkpoint data, or any other user-generated content."}</Li>
+      <Li>{"Any warranty regarding the accuracy, reliability, or timeliness of road data, speed camera locations, checkpoint data, navigation directions, or any other user-generated content."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>10.2 Limitation of Liability</Text>
+      <Text style={[s.h3, { color: c.primary }]}>13.2 Limitation of Liability</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, MSAFIRI KENYA AND ITS OFFICERS, DIRECTORS,
         EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
@@ -232,6 +267,7 @@ export default function TermsScreen() {
       <Li>{"Traffic fines, penalties, or legal consequences arising from reliance on App data."}</Li>
       <Li>{"Personal injury or property damage caused while using the App while driving."}</Li>
       <Li>{"Failure of the SOS feature to deliver an emergency message."}</Li>
+      <Li>{"Incorrect navigation directions or route calculation errors."}</Li>
       <Li>{"Service interruptions, data loss, or inaccurate road data."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Our total liability to you for any claim arising out of or related to these Terms or the App is
@@ -239,8 +275,8 @@ export default function TermsScreen() {
         whichever is greater.
       </Text>
 
-      {/* 11 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>11. Indemnification</Text>
+      {/* 14 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>14. Indemnification</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You agree to indemnify, defend, and hold harmless Msafiri Kenya and its officers, directors,
         employees, agents, and licensors from and against any and all claims, damages, losses, costs,
@@ -249,31 +285,32 @@ export default function TermsScreen() {
       <Li>{"Your use of the App in violation of these Terms."}</Li>
       <Li>{"Any road report you submit that is false or misleading."}</Li>
       <Li>{"Misuse of the SOS emergency feature."}</Li>
+      <Li>{"Sharing a Live Trip Sharing link in a manner that causes harm to another person."}</Li>
       <Li>{"Your violation of any applicable law or third-party rights."}</Li>
 
-      {/* 12 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>12. Termination</Text>
+      {/* 15 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>15. Termination</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We may suspend or terminate your access to the App at any time, with or without cause, including
         for violations of these Terms. Upon termination:
       </Text>
       <Li>{"Your licence to use the App is immediately revoked."}</Li>
-      <Li>{"You remain bound by any provisions of these Terms that by their nature should survive termination (including Sections 9, 10, 11, 13, and 14)."}</Li>
+      <Li>{"You remain bound by any provisions of these Terms that by their nature should survive termination (including Sections 12, 13, 14, 16, and 17)."}</Li>
       <Li>{"If you have an active Msafiri Pro subscription, we will issue a pro-rated refund for the unused portion where required by applicable law."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You may stop using the App at any time. Deleting the App from your device terminates your use
-        but does not automatically delete data we hold about your device — see Section 6.2 of our
-        Privacy Policy for data deletion instructions.
+        but does not automatically delete data we hold — see Section 6.3 of our Privacy Policy for data
+        deletion instructions.
       </Text>
 
-      {/* 13 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>13. Governing Law</Text>
+      {/* 16 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>16. Governing Law</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"These Terms are governed by and construed in accordance with the laws of the "}<B>Republic of Kenya</B>{", without regard to its conflict-of-law provisions. You agree that any dispute arising out of or relating to these Terms or the App shall be subject to the exclusive jurisdiction of the courts of Kenya, unless otherwise required by applicable law in your country of residence."}
       </Text>
 
-      {/* 14 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>14. Dispute Resolution</Text>
+      {/* 17 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>17. Dispute Resolution</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Before initiating any formal legal proceedings, you agree to first contact us at
         legal@msafirikenya.com to attempt to resolve the dispute informally. We will try to resolve
@@ -285,13 +322,14 @@ export default function TermsScreen() {
         court of competent jurisdiction to prevent irreparable harm while a dispute is pending.
       </Text>
 
-      {/* 15 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>15. Third-Party Services and App Stores</Text>
+      {/* 18 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>18. Third-Party Services and App Stores</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        The App integrates with third-party services including RevenueCat (subscription management) and
-        OpenStreetMap (mapping data). Your use of these third-party services is governed by their own
-        terms and conditions. Msafiri Kenya is not responsible for the acts or omissions of any third-party
-        service provider.
+        The App integrates with third-party services including RevenueCat (subscription management),
+        Google Maps (map rendering), OpenStreetMap / OSRM (routing and geocoding), ElevenLabs (voice
+        guidance), and Sentry (crash reporting). Your use of these third-party services is governed by
+        their own terms and conditions. Msafiri Kenya is not responsible for the acts or omissions of
+        any third-party service provider.
       </Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         In the event of any conflict between these Terms and the applicable App Store terms (Apple Media
@@ -299,8 +337,8 @@ export default function TermsScreen() {
         prevail with respect to the relevant App Store's responsibilities only.
       </Text>
 
-      {/* 16 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>16. Modifications to These Terms</Text>
+      {/* 19 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>19. Modifications to These Terms</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We reserve the right to modify these Terms at any time. When we make material changes, we will:
       </Text>
@@ -313,8 +351,8 @@ export default function TermsScreen() {
         applicable, cancel your Msafiri Pro subscription.
       </Text>
 
-      {/* 17 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>17. Severability and Entire Agreement</Text>
+      {/* 20 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>20. Severability and Entire Agreement</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If any provision of these Terms is held to be invalid or unenforceable, that provision will be
         modified to the minimum extent necessary to make it enforceable, and the remaining provisions will
@@ -323,8 +361,8 @@ export default function TermsScreen() {
         agreements and understandings.
       </Text>
 
-      {/* 18 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>18. Contact Us</Text>
+      {/* 21 */}
+      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>21. Contact Us</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If you have any questions about these Terms, please contact us:
       </Text>
