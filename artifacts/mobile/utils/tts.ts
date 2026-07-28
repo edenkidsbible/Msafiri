@@ -382,8 +382,24 @@ function playAndWait(player: AudioPlayer): Promise<void> {
     const iv = setInterval(() => {
       elapsed += 50;
 
+      // Detect a clip that finished before the first tick (e.g. the audio
+      // was already loaded and played through in < 50 ms after .play()).
+      // Without this guard, `started` would never become true and the loop
+      // would stall until the 15 s safety timeout.
+      const alreadyFinished =
+        !player.playing &&
+        player.duration > 0 &&
+        player.currentTime >= player.duration - 0.1;
+
       if (!started) {
-        if (player.playing) started = true;
+        if (player.playing) {
+          started = true;
+        } else if (alreadyFinished) {
+          // Clip finished before we saw it start — resolve immediately.
+          clearInterval(iv);
+          resolve();
+          return;
+        }
       } else {
         // Ended: no longer playing, or reached the end of the track
         if (!player.playing ||
@@ -453,10 +469,22 @@ export async function speakPhrase(text: string): Promise<void> {
       if (uri) {
         source = { uri };
       } else {
-        // Network/cache miss → expo-speech fallback for this segment only
-        Speech.speak(seg.text, { language: "en-GB", rate: 0.82, pitch: 0.93 });
-        // Wait an estimate based on text length (150 ms per character, min 800 ms)
-        await new Promise(r => setTimeout(r, Math.max(800, seg.text.length * 150)));
+        // Network/cache miss → expo-speech fallback for this segment only.
+        // Wait for the actual completion callback (onDone/onStopped/onError)
+        // rather than a heuristic sleep, so the next segment starts immediately
+        // after the speech finishes and stopNavVoice() (which calls Speech.stop())
+        // resolves this promise via onStopped rather than waiting out a timer.
+        await new Promise<void>((resolve) => {
+          const safety = setTimeout(resolve, 10_000); // hard cap
+          Speech.speak(seg.text, {
+            language: "en-GB",
+            rate: 0.82,
+            pitch: 0.93,
+            onDone:    () => { clearTimeout(safety); resolve(); },
+            onStopped: () => { clearTimeout(safety); resolve(); },
+            onError:   () => { clearTimeout(safety); resolve(); },
+          });
+        });
         continue;
       }
     }

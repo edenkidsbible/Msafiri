@@ -766,6 +766,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Tracks whether we've already spoken the "approaching destination" cue this
   // navigation session so it fires exactly once per trip.
   const approachingAnnouncedRef = useRef(false);
+  // Timeout handle for the delayed opening-step cue in startNavigation.
+  // Stored in a ref so stopNavigation (and a rapid re-start) can cancel it
+  // before it fires, preventing a stale instruction from bleeding into a
+  // new session or playing after the driver has already stopped.
+  const openingCueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonically-incrementing session ID — incremented on every startNavigation
+  // and stopNavigation call.  The opening-cue callback captures its value at
+  // schedule time and bails out if the session has advanced since then.
+  const navSessionGenRef = useRef(0);
   const alertSourceRef = useRef<"zone" | "report" | null>(null);
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
@@ -2051,10 +2060,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navActiveRef.current = true;
     navStartRef.current = Date.now();
     setNavigationActive(true);
+    // Advance the session generation so any timer from a previous session
+    // (rapid stop → start scenario) knows it is stale.
+    const mySession = ++navSessionGenRef.current;
+    // Cancel any leftover opening-cue timer from a previous session.
+    if (openingCueTimerRef.current != null) {
+      clearTimeout(openingCueTimerRef.current);
+      openingCueTimerRef.current = null;
+    }
+
     speakText("Navigation started.");
     const firstInstruction = activeRoute.steps[0]?.instruction;
     if (firstInstruction) {
-      setTimeout(() => speakText(firstInstruction), 2200);
+      // Fire the opening step cue ~2.2 s after "Navigation started." finishes.
+      // Guard against three races:
+      //   (a) User tapped Stop within 2.2 s — navActiveRef will be false.
+      //   (b) User tapped Stop then Start again within 2.2 s — navSessionGenRef
+      //       will have advanced past mySession so the stale callback bails.
+      //   (c) Driver was already within STEP_ANNOUNCE_DIST of step 0 when they
+      //       tapped Start, so the GPS handler announced it first and set
+      //       lastSpokenRef to "step_0".  A second call would cut in mid-clip.
+      openingCueTimerRef.current = setTimeout(() => {
+        openingCueTimerRef.current = null;
+        if (navActiveRef.current &&
+            navSessionGenRef.current === mySession &&
+            !lastSpokenRef.current) {
+          speakText(firstInstruction);
+        }
+      }, 2200);
     }
   }, [activeRoute]);
 
@@ -2063,6 +2096,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // cleanup. Stop TTS (with a trailing follow-up to catch any narrowly-missed
     // utterance that slipped through on some Android TTS engines).
     stopVoice();
+
+    // Cancel any pending opening-cue timer so it cannot fire in a subsequent
+    // session (e.g. driver stops then immediately starts a new route within 2.2 s).
+    if (openingCueTimerRef.current != null) {
+      clearTimeout(openingCueTimerRef.current);
+      openingCueTimerRef.current = null;
+    }
+    navSessionGenRef.current++;
 
     navActiveRef.current = false;
     navStartRef.current = null;
