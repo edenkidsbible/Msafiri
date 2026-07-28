@@ -80,14 +80,14 @@ export async function playSound(key: SoundKey) {
 
 // ─── Navigation voice ─────────────────────────────────────────────────────────
 //
-// All navigation voice guidance now uses ElevenLabs (Keli voice) via tts.ts.
-// speakPhrase() handles bundled token clips + on-demand road-name caching.
+// All navigation voice guidance uses the device TTS engine via tts.ts
+// (expo-speech). speakPhrase() handles audio session ducking and generation
+// tracking so cues never overlap.
 
 import { speakPhrase, stopNavVoice } from "@/utils/tts";
 
 /**
- * Stop any in-progress navigation voice.  Silences both the ElevenLabs
- * audio player and any expo-speech fallback utterance.
+ * Stop any in-progress navigation voice and restore the audio session.
  */
 export function stopVoice() {
   stopNavVoice();
