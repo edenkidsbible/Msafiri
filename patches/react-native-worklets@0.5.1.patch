@@ -1,0 +1,164 @@
+diff --git a/lib/module/WorkletsModule/NativeWorklets.js b/lib/module/WorkletsModule/NativeWorklets.js
+index 7581ae27a8afe7d73c3a81bfc5c172aeb948f063..d40bca2e6f6a7843e075db5d00f89640fb34ae73 100644
+--- a/lib/module/WorkletsModule/NativeWorklets.js
++++ b/lib/module/WorkletsModule/NativeWorklets.js
+@@ -9,11 +9,11 @@ export function createNativeWorkletsModule() {
+   return new NativeWorklets();
+ }
+ class NativeWorklets {
+-  #workletsModuleProxy;
+-  #serializableUndefined;
+-  #serializableNull;
+-  #serializableTrue;
+-  #serializableFalse;
++  __priv_workletsModuleProxy;
++  __priv_serializableUndefined;
++  __priv_serializableNull;
++  __priv_serializableTrue;
++  __priv_serializableFalse;
+   constructor() {
+     globalThis._WORKLETS_VERSION_JS = jsVersion;
+     if (global.__workletsModuleProxy === undefined && globalThis.__RUNTIME_KIND === RuntimeKind.ReactNative) {
+@@ -21,106 +21,106 @@ class NativeWorklets {
+     }
+     if (global.__workletsModuleProxy === undefined) {
+       throw new WorkletsError(`Native part of Worklets doesn't seem to be initialized.
+-See https://docs.swmansion.com/react-native-worklets/docs/guides/troubleshooting#native-part-of-worklets-doesnt-seem-to-be-initialized for more details.`);
++See https://docs.swmansion.com/react-native-worklets/docs/guides/troubleshooting__priv_native-part-of-worklets-doesnt-seem-to-be-initialized for more details.`);
+     }
+     if (__DEV__) {
+       checkCppVersion();
+     }
+-    this.#workletsModuleProxy = global.__workletsModuleProxy;
+-    this.#serializableNull = this.#workletsModuleProxy.createSerializableNull();
+-    this.#serializableUndefined = this.#workletsModuleProxy.createSerializableUndefined();
+-    this.#serializableTrue = this.#workletsModuleProxy.createSerializableBoolean(true);
+-    this.#serializableFalse = this.#workletsModuleProxy.createSerializableBoolean(false);
++    this.__priv_workletsModuleProxy = global.__workletsModuleProxy;
++    this.__priv_serializableNull = this.__priv_workletsModuleProxy.createSerializableNull();
++    this.__priv_serializableUndefined = this.__priv_workletsModuleProxy.createSerializableUndefined();
++    this.__priv_serializableTrue = this.__priv_workletsModuleProxy.createSerializableBoolean(true);
++    this.__priv_serializableFalse = this.__priv_workletsModuleProxy.createSerializableBoolean(false);
+   }
+   createSerializable(value, shouldPersistRemote, nativeStateSource) {
+-    return this.#workletsModuleProxy.createSerializable(value, shouldPersistRemote, nativeStateSource);
++    return this.__priv_workletsModuleProxy.createSerializable(value, shouldPersistRemote, nativeStateSource);
+   }
+   createSerializableImport(from, to) {
+-    return this.#workletsModuleProxy.createSerializableImport(from, to);
++    return this.__priv_workletsModuleProxy.createSerializableImport(from, to);
+   }
+   createSerializableString(str) {
+-    return this.#workletsModuleProxy.createSerializableString(str);
++    return this.__priv_workletsModuleProxy.createSerializableString(str);
+   }
+   createSerializableNumber(num) {
+-    return this.#workletsModuleProxy.createSerializableNumber(num);
++    return this.__priv_workletsModuleProxy.createSerializableNumber(num);
+   }
+   createSerializableBoolean(bool) {
+-    return bool ? this.#serializableTrue : this.#serializableFalse;
++    return bool ? this.__priv_serializableTrue : this.__priv_serializableFalse;
+   }
+   createSerializableBigInt(bigInt) {
+-    return this.#workletsModuleProxy.createSerializableBigInt(bigInt);
++    return this.__priv_workletsModuleProxy.createSerializableBigInt(bigInt);
+   }
+   createSerializableUndefined() {
+-    return this.#serializableUndefined;
++    return this.__priv_serializableUndefined;
+   }
+   createSerializableNull() {
+-    return this.#serializableNull;
++    return this.__priv_serializableNull;
+   }
+   createSerializableTurboModuleLike(props, proto) {
+-    return this.#workletsModuleProxy.createSerializableTurboModuleLike(props, proto);
++    return this.__priv_workletsModuleProxy.createSerializableTurboModuleLike(props, proto);
+   }
+   createSerializableObject(obj, shouldRetainRemote, nativeStateSource) {
+-    return this.#workletsModuleProxy.createSerializableObject(obj, shouldRetainRemote, nativeStateSource);
++    return this.__priv_workletsModuleProxy.createSerializableObject(obj, shouldRetainRemote, nativeStateSource);
+   }
+   createSerializableHostObject(obj) {
+-    return this.#workletsModuleProxy.createSerializableHostObject(obj);
++    return this.__priv_workletsModuleProxy.createSerializableHostObject(obj);
+   }
+   createSerializableArray(array, shouldRetainRemote) {
+-    return this.#workletsModuleProxy.createSerializableArray(array, shouldRetainRemote);
++    return this.__priv_workletsModuleProxy.createSerializableArray(array, shouldRetainRemote);
+   }
+   createSerializableMap(keys, values) {
+-    return this.#workletsModuleProxy.createSerializableMap(keys, values);
++    return this.__priv_workletsModuleProxy.createSerializableMap(keys, values);
+   }
+   createSerializableSet(values) {
+-    return this.#workletsModuleProxy.createSerializableSet(values);
++    return this.__priv_workletsModuleProxy.createSerializableSet(values);
+   }
+   createSerializableInitializer(obj) {
+-    return this.#workletsModuleProxy.createSerializableInitializer(obj);
++    return this.__priv_workletsModuleProxy.createSerializableInitializer(obj);
+   }
+   createSerializableFunction(func) {
+-    return this.#workletsModuleProxy.createSerializableFunction(func);
++    return this.__priv_workletsModuleProxy.createSerializableFunction(func);
+   }
+   createSerializableWorklet(worklet, shouldPersistRemote) {
+-    return this.#workletsModuleProxy.createSerializableWorklet(worklet, shouldPersistRemote);
++    return this.__priv_workletsModuleProxy.createSerializableWorklet(worklet, shouldPersistRemote);
+   }
+   scheduleOnUI(serializable) {
+-    return this.#workletsModuleProxy.scheduleOnUI(serializable);
++    return this.__priv_workletsModuleProxy.scheduleOnUI(serializable);
+   }
+   executeOnUIRuntimeSync(serializable) {
+-    return this.#workletsModuleProxy.executeOnUIRuntimeSync(serializable);
++    return this.__priv_workletsModuleProxy.executeOnUIRuntimeSync(serializable);
+   }
+   createWorkletRuntime(name, initializer, useDefaultQueue, customQueue, enableEventLoop) {
+-    return this.#workletsModuleProxy.createWorkletRuntime(name, initializer, useDefaultQueue, customQueue, enableEventLoop);
++    return this.__priv_workletsModuleProxy.createWorkletRuntime(name, initializer, useDefaultQueue, customQueue, enableEventLoop);
+   }
+   scheduleOnRuntime(workletRuntime, serializableWorklet) {
+-    return this.#workletsModuleProxy.scheduleOnRuntime(workletRuntime, serializableWorklet);
++    return this.__priv_workletsModuleProxy.scheduleOnRuntime(workletRuntime, serializableWorklet);
+   }
+   createSynchronizable(value) {
+-    return this.#workletsModuleProxy.createSynchronizable(value);
++    return this.__priv_workletsModuleProxy.createSynchronizable(value);
+   }
+   synchronizableGetDirty(synchronizableRef) {
+-    return this.#workletsModuleProxy.synchronizableGetDirty(synchronizableRef);
++    return this.__priv_workletsModuleProxy.synchronizableGetDirty(synchronizableRef);
+   }
+   synchronizableGetBlocking(synchronizableRef) {
+-    return this.#workletsModuleProxy.synchronizableGetBlocking(synchronizableRef);
++    return this.__priv_workletsModuleProxy.synchronizableGetBlocking(synchronizableRef);
+   }
+   synchronizableSetBlocking(synchronizableRef, value) {
+-    return this.#workletsModuleProxy.synchronizableSetBlocking(synchronizableRef, value);
++    return this.__priv_workletsModuleProxy.synchronizableSetBlocking(synchronizableRef, value);
+   }
+   synchronizableLock(synchronizableRef) {
+-    return this.#workletsModuleProxy.synchronizableLock(synchronizableRef);
++    return this.__priv_workletsModuleProxy.synchronizableLock(synchronizableRef);
+   }
+   synchronizableUnlock(synchronizableRef) {
+-    return this.#workletsModuleProxy.synchronizableUnlock(synchronizableRef);
++    return this.__priv_workletsModuleProxy.synchronizableUnlock(synchronizableRef);
+   }
+   reportFatalErrorOnJS(message, stack, name, jsEngine) {
+-    return this.#workletsModuleProxy.reportFatalErrorOnJS(message, stack, name, jsEngine);
++    return this.__priv_workletsModuleProxy.reportFatalErrorOnJS(message, stack, name, jsEngine);
+   }
+   getStaticFeatureFlag(name) {
+-    return this.#workletsModuleProxy.getStaticFeatureFlag(name);
++    return this.__priv_workletsModuleProxy.getStaticFeatureFlag(name);
+   }
+   setDynamicFeatureFlag(name, value) {
+-    this.#workletsModuleProxy.setDynamicFeatureFlag(name, value);
++    this.__priv_workletsModuleProxy.setDynamicFeatureFlag(name, value);
+   }
+ }
+ //# sourceMappingURL=NativeWorklets.js.map
