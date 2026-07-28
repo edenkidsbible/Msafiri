@@ -305,9 +305,9 @@ export default function PrivacyScreen() {
       </Text>
       <Li><B>RevenueCat</B>{" — revenuecat.com/privacy — in-app subscription management."}</Li>
       <Li><B>Sentry</B>{" — sentry.io/privacy — crash and error reporting (location-scrubbed)."}</Li>
-      <Li><B>ElevenLabs</B>{" — elevenlabs.io/privacy — on-demand voice guidance text-to-speech."}</Li>
+      <Li><B>ElevenLabs</B>{" — elevenlabs.io/privacy — AI text-to-speech for course audio in the Learning section."}</Li>
       <Li><B>Google Maps</B>{" — policies.google.com/privacy — map rendering and geocoding."}</Li>
-      <Li><B>OSRM</B>{" — project-osrm.org — open-source routing engine for navigation directions."}</Li>
+      <Li><B>Mapbox</B>{" — mapbox.com/legal/privacy — navigation routing (origin and destination coordinates only)."}</Li>
       <Li><B>OpenStreetMap / Nominatim / Photon</B>{" — openstreetmap.org/privacy — road name lookup and place search."}</Li>
       <Li><B>Overpass API</B>{" — overpass-api.de — points-of-interest search for Search Along Route."}</Li>
       <Li><B>Apple App Store</B>{" — apple.com/legal/privacy — app distribution, payment processing."}</Li>
@@ -321,7 +321,7 @@ export default function PrivacyScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri Kenya is based in Kenya. Your data may be processed on servers located outside Kenya,
         including in the European Union and the United States, by our infrastructure and service providers
-        (including Sentry, ElevenLabs, RevenueCat, and OSRM). We take reasonable steps to ensure that
+        (including Sentry, ElevenLabs, RevenueCat, and Mapbox). We take reasonable steps to ensure that
         any international transfer of data complies with applicable data protection laws and that your
         data receives an adequate level of protection.
       </Text>

@@ -352,12 +352,11 @@ function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: n
 }
 
 /**
- * Primary routing function — Mapbox Directions API (driving-traffic profile).
+ * Fetch a driving route via the Mapbox Directions API (driving-traffic profile).
  *
- * Mapbox returns a structured `maneuver.instruction` per step (natural
- * language, handles u-turns / merges / forks / roundabouts correctly) which
- * we use directly instead of reconstructing it from raw maneuver data.
- * Falls back to OSRM if the API key is not yet configured.
+ * Mapbox returns a pre-built `maneuver.instruction` per step — natural-language
+ * text that correctly handles u-turns, merges, forks, and roundabouts without
+ * needing to reconstruct instructions from raw maneuver data.
  */
 async function fetchMapbox(
   fromLat: number, fromLng: number,
@@ -365,8 +364,8 @@ async function fetchMapbox(
 ): Promise<AppRoute[]> {
   const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
   if (!token) {
-    console.warn("[routing] EXPO_PUBLIC_MAPBOX_TOKEN not set — falling back to OSRM");
-    return fetchOSRM(fromLat, fromLng, toLat, toLng);
+    console.error("[routing] EXPO_PUBLIC_MAPBOX_TOKEN is not set — cannot fetch route");
+    return [];
   }
   const url =
     `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/` +
@@ -382,8 +381,8 @@ async function fetchMapbox(
     clearTimeout(timer);
   }
   if (!res.ok) {
-    console.warn("[routing] Mapbox HTTP", res.status, "— falling back to OSRM");
-    return fetchOSRM(fromLat, fromLng, toLat, toLng);
+    console.warn("[routing] Mapbox HTTP", res.status);
+    return [];
   }
   const data = await res.json();
   if (data.code !== "Ok" || !data.routes?.length) return [];
@@ -398,57 +397,13 @@ async function fetchMapbox(
     steps: (r.legs?.[0]?.steps ?? []).map((s: any) => {
       const maneuver = s.maneuver ?? {};
       const isRoundabout = maneuver.type === "roundabout" || maneuver.type === "rotary";
-      // Mapbox provides maneuver.instruction directly — correct natural-language
-      // text including u-turns, merges, forks.  buildInstruction is a fallback only.
+      // Use Mapbox's pre-built instruction; fall back to buildInstruction only if absent.
       const instruction: string =
         (typeof maneuver.instruction === "string" && maneuver.instruction)
           ? maneuver.instruction
           : buildInstruction(maneuver, s.name ?? "");
       return {
         instruction,
-        distanceM: s.distance ?? 0,
-        location: {
-          latitude:  maneuver.location?.[1] ?? toLat,
-          longitude: maneuver.location?.[0] ?? toLng,
-        },
-        ...(isRoundabout && maneuver.exit != null ? { exitNumber: maneuver.exit as number } : {}),
-      };
-    }),
-  }));
-}
-
-/** Kept as a fallback when EXPO_PUBLIC_MAPBOX_TOKEN is not set. */
-async function fetchOSRM(
-  fromLat: number, fromLng: number,
-  toLat: number, toLng: number
-): Promise<AppRoute[]> {
-  const url =
-    `https://router.project-osrm.org/route/v1/driving/` +
-    `${fromLng},${fromLat};${toLng},${toLat}` +
-    `?alternatives=true&steps=true&overview=full&geometries=geojson`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
-  let res: Response;
-  try {
-    res = await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-  const data = await res.json();
-  if (data.code !== "Ok" || !data.routes?.length) return [];
-  return (data.routes as any[]).map((r, idx) => ({
-    id: `route-${idx}-${Date.now()}`,
-    distanceM: r.distance,
-    durationS: r.duration,
-    coords: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => ({
-      latitude: lat,
-      longitude: lng,
-    })),
-    steps: (r.legs?.[0]?.steps ?? []).map((s: any) => {
-      const maneuver = s.maneuver ?? {};
-      const isRoundabout = maneuver.type === "roundabout" || maneuver.type === "rotary";
-      return {
-        instruction: buildInstruction(maneuver, s.name ?? ""),
         distanceM: s.distance ?? 0,
         location: {
           latitude:  maneuver.location?.[1] ?? toLat,
