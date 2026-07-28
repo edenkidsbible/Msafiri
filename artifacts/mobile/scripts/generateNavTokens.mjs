@@ -90,6 +90,9 @@ export const TOKENS = [
   { key: "the-6th-exit",   text: "The 6th exit." },
   { key: "take-this-exit", text: "Take this exit." },
 
+  // Depart step — replaces "Head north/south/..." to avoid on-demand TTS latency
+  { key: "follow-the-route",        text: "Follow the route." },
+
   // Fixed navigation phrases
   { key: "approaching-destination", text: "Approaching your destination." },
   { key: "arrived",                 text: "You have arrived at your destination." },

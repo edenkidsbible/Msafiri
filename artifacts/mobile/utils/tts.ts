@@ -80,6 +80,8 @@ const TOKEN_ASSETS: Record<string, number> = {
   "the-5th-exit":   require("@/assets/nav-audio/the-5th-exit.mp3"),
   "the-6th-exit":   require("@/assets/nav-audio/the-6th-exit.mp3"),
   "take-this-exit": require("@/assets/nav-audio/take-this-exit.mp3"),
+  // Depart step replacement
+  "follow-the-route":        require("@/assets/nav-audio/follow-the-route.mp3"),
   // Fixed navigation phrases
   "approaching-destination": require("@/assets/nav-audio/approaching-destination.mp3"),
   "arrived":                 require("@/assets/nav-audio/arrived.mp3"),
@@ -217,6 +219,15 @@ function parseToSegments(input: string): Segment[] {
   // 1. Exact full-phrase match
   if (EXACT[norm] && TOKEN_ASSETS[EXACT[norm]]) {
     return [tok(EXACT[norm])];
+  }
+
+  // 1b. Depart-step: "Head {direction}[ onto {road}]"
+  //     OSRM depart modifiers are compass words (north/south/east/west/northeast/…)
+  //     or "forward".  The road name is not critical here — use the bundled
+  //     "Follow the route." token to avoid any on-demand TTS latency on the
+  //     very first instruction spoken when navigation starts.
+  if (norm.startsWith("head ") && TOKEN_ASSETS["follow-the-route"]) {
+    return [tok("follow-the-route")];
   }
 
   // 2. "In X metres, {maneuver}" — extract distance prefix
