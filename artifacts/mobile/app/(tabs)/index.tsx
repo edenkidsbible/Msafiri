@@ -172,6 +172,8 @@ export default function DriveScreen() {
   const driveMapRef = useRef<DriveMapViewHandle>(null);
   // #34 — Search Along Route
   const [showRouteSearch, setShowRouteSearch] = useState(false);
+  // #6 — resume original destination after a Search Along Route stop
+  const [resumeDestination, setResumeDestination] = useState<import("@/context/AppContext").NavDestination | null>(null);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
@@ -264,6 +266,16 @@ export default function DriveScreen() {
       setMapDrifted(false);
     }
   }, [navigationActive]);
+
+  // Safety net: clear resumeDestination whenever navigation ends without an arrival.
+  // When the driver arrives naturally, both navigationActive→false and arrivedInfo are
+  // set in the same React batch, so arrivedInfo is non-null here and we leave
+  // resumeDestination intact for the arrival modal to use.
+  useEffect(() => {
+    if (!navigationActive && arrivedInfo == null) {
+      setResumeDestination(null);
+    }
+  }, [navigationActive, arrivedInfo]);
 
   // Extracted so both the direct path and the name-prompt confirm button can call it.
   const doStartSharing = useCallback(async (name: string) => {
@@ -497,6 +509,7 @@ export default function DriveScreen() {
     Keyboard.dismiss();
     stopNavigation();
     setNavDestination(null);
+    setResumeDestination(null);
     setSearchText("");
     setGeoResults([]);
     setShowResults(false);
@@ -1147,7 +1160,7 @@ export default function DriveScreen() {
                 <SOSButton compact />
                 <TouchableOpacity
                   style={styles.stopBtn}
-                  onPress={() => { stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                  onPress={() => { setResumeDestination(null); stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
                 >
                   <Ionicons name="stop-circle" size={15} color="#FFF" />
                   <Text style={styles.stopBtnTxt}>Stop</Text>
@@ -1265,29 +1278,73 @@ export default function DriveScreen() {
                 )}
               </View>
 
-              {/* Parking search button */}
-              <TouchableOpacity
-                style={[styles.arrivalParkBtn, { backgroundColor: c.muted, borderColor: c.border }]}
-                onPress={() => {
-                  clearArrival();
-                  stopNavigation();
-                  setSearchText("parking near me");
-                  runSearch("parking near me");
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="car-outline" size={18} color={c.foreground} />
-                <Text style={[styles.arrivalParkTxt, { color: c.foreground }]}>Find Nearby Parking</Text>
-              </TouchableOpacity>
+              {/* Resume destination prompt — shown when the stop was a Search Along Route POI */}
+              {resumeDestination ? (
+                <>
+                  <Text style={[styles.arrivalResumeName, { color: c.mutedForeground }]}>
+                    Original destination:
+                  </Text>
+                  <Text style={[styles.arrivalResumeDest, { color: c.foreground }]} numberOfLines={2}>
+                    {resumeDestination.name.split(",")[0]}
+                  </Text>
 
-              {/* Done button */}
-              <TouchableOpacity
-                style={[styles.arrivalDoneBtn, { backgroundColor: c.primary }]}
-                onPress={() => { clearArrival(); stopNavigation(); }}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>Done</Text>
-              </TouchableOpacity>
+                  {/* Continue button */}
+                  <TouchableOpacity
+                    style={[styles.arrivalDoneBtn, { backgroundColor: c.primary, marginTop: 12 }]}
+                    onPress={() => {
+                      const dest = resumeDestination;
+                      clearArrival();
+                      setResumeDestination(null);
+                      setNavDestination(dest);
+                      startNavigation();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="navigate" size={16} color={c.primaryForeground} style={{ marginRight: 6 }} />
+                    <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>
+                      Continue to {resumeDestination.name.split(",")[0]}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Decline link */}
+                  <TouchableOpacity
+                    style={styles.arrivalDeclineBtn}
+                    onPress={() => { clearArrival(); stopNavigation(); setResumeDestination(null); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.arrivalDeclineTxt, { color: c.mutedForeground }]}>
+                      No thanks, I'm done
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  {/* Parking search button */}
+                  <TouchableOpacity
+                    style={[styles.arrivalParkBtn, { backgroundColor: c.muted, borderColor: c.border }]}
+                    onPress={() => {
+                      clearArrival();
+                      stopNavigation();
+                      setSearchText("parking near me");
+                      runSearch("parking near me");
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="car-outline" size={18} color={c.foreground} />
+                    <Text style={[styles.arrivalParkTxt, { color: c.foreground }]}>Find Nearby Parking</Text>
+                  </TouchableOpacity>
+
+                  {/* Done button */}
+                  <TouchableOpacity
+                    style={[styles.arrivalDoneBtn, { backgroundColor: c.primary }]}
+                    onPress={() => { clearArrival(); stopNavigation(); }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>Done</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </Modal>
@@ -1408,6 +1465,8 @@ export default function DriveScreen() {
         onClose={() => setShowRouteSearch(false)}
         onSelect={(poi) => {
           setShowRouteSearch(false);
+          // Save the pre-existing destination so the driver can resume it after the stop
+          if (navDestination) setResumeDestination(navDestination);
           setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
           startNavigation();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1770,9 +1829,14 @@ const styles = StyleSheet.create({
   },
   arrivalParkTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   arrivalDoneBtn: {
-    width: "100%", paddingVertical: 16, borderRadius: 16, alignItems: "center",
+    width: "100%", paddingVertical: 16, borderRadius: 16,
+    alignItems: "center", flexDirection: "row", justifyContent: "center",
   },
   arrivalDoneTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  arrivalResumeName: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4 },
+  arrivalResumeDest: { fontSize: 17, fontFamily: "Inter_700Bold", textAlign: "center", marginBottom: 4 },
+  arrivalDeclineBtn: { alignItems: "center", paddingVertical: 14 },
+  arrivalDeclineTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
   // ── Driver name prompt modal ───────────────────────────────────────────────
   namePromptOverlay: {
