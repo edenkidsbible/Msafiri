@@ -67,12 +67,12 @@ const SLIDES: Slide[] = [
     heroIconSet: "Ionicons",
     features: [
       { icon: "location",     iconSet: "Ionicons", title: "Live Distance",   sub: "Updates every second"  },
-      { icon: "volume-high",  iconSet: "Ionicons", title: "Voice Alert",     sub: "Keli warns you early"  },
+      { icon: "volume-high",  iconSet: "Ionicons", title: "Voice Alert",     sub: "Voice alerts warn you early"  },
       { icon: "flash",        iconSet: "Ionicons", title: "Instant Warning", sub: "Before you arrive"     },
     ],
     headline: ["Never Get Caught", "by a Speed Camera"],
     accentLine: 0,
-    body: "Live distance warnings, Keli's voice alerts, and alarm sounds — all before you reach any camera.",
+    body: "Live distance warnings, voice alerts, and alarm sounds — all before you reach any camera.",
   },
   {
     id: "2",
