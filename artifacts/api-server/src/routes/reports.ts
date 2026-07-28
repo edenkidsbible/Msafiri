@@ -624,30 +624,52 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
 
     if (!report) return res.status(404).json({ error: "Not found" });
 
-    const newDenyCount = report.denyCount + 1;
+    // Atomically append deviceId to denied_by only when it is not already
+    // present, and compute the new deny_count + status in the same statement.
+    // Using a conditional UPDATE (WHERE NOT denied_by @> ...) means concurrent
+    // requests from the same device can never both succeed — PostgreSQL's row
+    // lock serialises them and the second finds the WHERE false, returning 0 rows.
+    //
+    // In the SET clause, column references resolve to the *pre-update* values, so
+    //   jsonb_array_length(denied_by) + 1   == new distinct-voter count
+    //
+    // Status transition rules (mirrors the original logic):
+    //   camera active/confirmed  → admin_review
+    //   non-camera, new count >= DENY_THRESHOLD, not already denied → denied
+    //   everything else          → unchanged
+    const updated = await db.execute(sql`
+      UPDATE community_reports
+      SET
+        denied_by     = denied_by || jsonb_build_array(${deviceId}::text)::jsonb,
+        deny_count    = jsonb_array_length(denied_by) + 1,
+        last_voted_at = now(),
+        status        = CASE
+          WHEN type = 'camera' AND status IN ('active', 'confirmed')
+            THEN 'admin_review'
+          WHEN type != 'camera'
+            AND jsonb_array_length(denied_by) + 1 >= ${DENY_THRESHOLD}
+            AND status != 'denied'
+            THEN 'denied'
+          ELSE status
+        END
+      WHERE id        = ${id}
+        AND NOT (denied_by @> jsonb_build_array(${deviceId}::text)::jsonb)
+      RETURNING deny_count, status
+    `);
 
-    // Determine status transition (idempotent — if already denied/admin_review, keep it).
-    let newStatus = report.status;
-    if (report.type === "camera") {
-      // Only queue cameras that are already live on the map for admin removal review.
-      // A camera still in pending_review (awaiting its first moderation decision)
-      // must stay in that queue — transitioning it to admin_review would put it
-      // into isActive() and make it visible to drivers before any moderator has
-      // approved it, bypassing the existing camera moderation control entirely.
-      if (report.status === "active" || report.status === "confirmed") {
-        newStatus = "admin_review";
-      }
-      // pending_review, admin_review, denied, expired — no transition.
-    } else if (newDenyCount >= DENY_THRESHOLD && report.status !== "denied") {
-      newStatus = "denied";
+    if (updated.rows.length === 0) {
+      // Either already voted (no-op) or the report doesn't exist.
+      // Re-fetch to distinguish the two cases and return the correct payload.
+      const [existing] = await db
+        .select({ denyCount: communityReportsTable.denyCount, status: communityReportsTable.status })
+        .from(communityReportsTable)
+        .where(eq(communityReportsTable.id, id));
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      return res.json({ denyCount: existing.denyCount, status: existing.status });
     }
 
-    await db
-      .update(communityReportsTable)
-      .set({ denyCount: newDenyCount, lastVotedAt: new Date(), status: newStatus })
-      .where(eq(communityReportsTable.id, id));
-
-    return res.json({ denyCount: newDenyCount, status: newStatus });
+    const row = updated.rows[0] as { deny_count: number; status: string };
+    return res.json({ denyCount: row.deny_count, status: row.status });
   } catch (err) {
     console.error("POST /reports/:id/deny error:", err);
     return res.status(500).json({ error: "Internal server error" });

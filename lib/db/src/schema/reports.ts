@@ -12,6 +12,7 @@ export const communityReportsTable = pgTable("community_reports", {
   confirmCount: integer("confirm_count").notNull().default(1),
   confirmedBy:  jsonb("confirmed_by").notNull().$type<string[]>().default([]),
   denyCount:    integer("deny_count").notNull().default(0),
+  deniedBy:     jsonb("denied_by").notNull().$type<string[]>().default([]),
   speedLimit:   integer("speed_limit"),           // cameras only
   roadName:     text("road_name"),
   createdAt:       timestamp("created_at").notNull().defaultNow(),

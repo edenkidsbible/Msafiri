@@ -8,6 +8,13 @@
       "when": 1784303485822,
       "tag": "0000_minor_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1753698000000,
+      "tag": "0001_add_denied_by",
+      "breakpoints": true
     }
   ]
 }

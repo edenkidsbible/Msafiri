@@ -24,6 +24,13 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS live_activity_push_token TEXT
     `);
 
+    // community_reports.denied_by — tracks which device IDs have already cast
+    // a deny vote so a single device cannot trigger the deny threshold twice.
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS denied_by jsonb NOT NULL DEFAULT '[]'::jsonb
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
