@@ -624,6 +624,12 @@ function warnIfBlockedDevice(err: unknown): boolean {
 
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
 const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
+// Minimum gap between ANNOUNCE voice cues (the "In 300 metres, turn left…" cue).
+// Prevents rapid-fire repeats when: (a) consecutive short steps advance in one GPS burst,
+// (b) off-route detection resets lastSpokenRef and re-triggers the cue before the
+// rerouted route arrives.  REMIND and NOW cues are NOT gated by this — they must
+// fire quickly right before a turn.
+const MIN_NAV_ANNOUNCE_GAP_MS = 5000;
 
 // ─── Navigation voice timing ─────────────────────────────────────────────────
 // Fixed trigger distances break at both ends: 350 m at 30 km/h = 42 s
@@ -842,6 +848,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
   const offRouteCountRef = useRef(0);
   const isReroutingRef   = useRef(false);
+  // Timestamp of the last ANNOUNCE voice cue (the "In N metres, turn…" cue).
+  // Used to enforce MIN_NAV_ANNOUNCE_GAP_MS so rapid step chains and reroute
+  // resets don't cause the same instruction to be spoken every second.
+  const lastAnnounceCueAtRef = useRef<number>(0);
   // ── GPS signal-loss detection + dead reckoning ────────────────────────────
   // When navigating, we track the time of the last real GPS fix. If fixes stop
   // arriving for >5 s (tunnel, underpass, parking structure) we set gpsLost and
@@ -1525,13 +1535,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (isDriving && dist < announceM
             && lastSpokenRef.current !== key
             && lastSpokenRef.current !== nearKey
-            && lastSpokenRef.current !== nowKey) {
+            && lastSpokenRef.current !== nowKey
+            && Date.now() - lastAnnounceCueAtRef.current > MIN_NAV_ANNOUNCE_GAP_MS) {
           // ── Cue 1: Announce — "In 300 metres, turn left onto Ngong Road" ─────
           // distWord is pre-compensated: it reflects where the driver will BE
           // when they hear the distance word, not where they were when we fired.
           // Gated on isDriving: if the driver is stopped (red light, traffic jam)
           // we skip the cue WITHOUT advancing lastSpokenRef — so it fires
           // automatically the moment they start moving again.
+          // Gated on MIN_NAV_ANNOUNCE_GAP_MS: prevents rapid-fire repeats when
+          // consecutive short steps advance in one GPS burst, or when off-route
+          // detection resets lastSpokenRef before the new route arrives.
+          lastAnnounceCueAtRef.current = Date.now();
           lastSpokenRef.current = key;
           speakText(distWord + step.instruction);
           // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
@@ -1622,10 +1637,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
         if (d < minOff) minOff = d;
       }
-      if (minOff > 20) {
+      if (minOff > 50) {
         offRouteCountRef.current += 1;
         if (offRouteCountRef.current >= 3 && !isReroutingRef.current) {
           offRouteCountRef.current = 0;
+          // Announce rerouting once, then gate the next ANNOUNCE cue so the
+          // first-step instruction after the new route arrives isn't fired
+          // immediately on top of "Rerouting." (the gap also prevents the
+          // old cue from repeating while the fetch is in flight).
+          speakText("Rerouting.");
+          lastAnnounceCueAtRef.current = Date.now();
           triggerRerouteRef.current?.(lat, lng);
         }
       } else {
@@ -1691,7 +1712,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         if (Platform.OS !== "web") {
           const sub = await Location.watchPositionAsync(
-            { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 3 },
+            { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 10 },
             (loc) => {
               lastLocationAtRef.current = Date.now();
               handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy);
@@ -2306,6 +2327,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     speakText("Navigation started.");
+    // Protect "Navigation started." from being cut off by the first GPS tick,
+    // which would otherwise see lastSpokenRef="" and immediately fire ANNOUNCE.
+    lastAnnounceCueAtRef.current = Date.now();
     const firstInstruction = activeRoute.steps[0]?.instruction;
     if (firstInstruction) {
       // Fire the opening step cue ~2.2 s after "Navigation started." finishes.
