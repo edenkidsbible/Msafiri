@@ -7,6 +7,6 @@ const config = getDefaultConfig(__dirname);
 // invalidate all cached file transforms (e.g. adding/removing Babel plugins).
 // Metro's per-file cache key incorporates this value, so every module gets
 // re-transformed on the next bundle run.
-config.cacheVersion = "babel-private-fields-v2";
+config.cacheVersion = "babel-private-fields-v3";
 
 module.exports = config;
