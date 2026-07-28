@@ -2,6 +2,7 @@ import React, { useRef, useState, useMemo, useCallback, useEffect } from "react"
 import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Keyboard,
@@ -329,6 +330,46 @@ export default function DriveScreen() {
 
     await doStartSharing(driverName);
   }, [isSharingTrip, stopSharingTrip, doStartSharing, driverName]);
+
+  // #10 — when driver taps Stop mid-SAR-stop, offer to resume the original destination
+  const handleStopPress = useCallback(() => {
+    if (resumeDestination) {
+      const dest = resumeDestination;
+      const poiName = navDestination?.name.split(",")[0] ?? "this stop";
+      const originalName = dest.name.split(",")[0];
+      Alert.alert(
+        "Abandon stop?",
+        `Navigate to ${originalName} instead of continuing to ${poiName}?`,
+        [
+          {
+            text: "Yes, go to " + originalName,
+            style: "default",
+            onPress: () => {
+              // Swap destination without stopping — avoids triggering the
+              // safety-net useEffect that clears resumeDestination on Stop.
+              setResumeDestination(null);
+              setNavDestination(dest);
+              startNavigation();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            },
+          },
+          {
+            text: "No, stop here",
+            style: "destructive",
+            onPress: () => {
+              setResumeDestination(null);
+              stopNavigation();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            },
+          },
+        ],
+      );
+    } else {
+      setResumeDestination(null);
+      stopNavigation();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }, [resumeDestination, navDestination, setNavDestination, startNavigation, stopNavigation]);
 
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
@@ -1166,7 +1207,7 @@ export default function DriveScreen() {
                 <SOSButton compact />
                 <TouchableOpacity
                   style={styles.stopBtn}
-                  onPress={() => { setResumeDestination(null); stopNavigation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                  onPress={handleStopPress}
                 >
                   <Ionicons name="stop-circle" size={15} color="#FFF" />
                   <Text style={styles.stopBtnTxt}>Stop</Text>
