@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
-import { speakPhrase } from "@/utils/tts";
+import { speakPhrase, prewarmRouteAudio, cancelPrewarm } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -1688,6 +1688,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAltRoutes(alts);
         const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
         setZonesOnRoute(getZonesOnRoute(primary, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
+        // Pre-warm road-name audio for every step so first-play latency is zero.
+        prewarmRouteAudio(primary.steps);
       })
       .catch((e) => { if (!cancelled) console.warn("OSRM:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
@@ -1724,6 +1726,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
             }))
           );
+          // Pre-warm road-name audio for the new route.
+          prewarmRouteAudio(primary.steps);
         })
         .catch((e) => console.warn("[reroute] OSRM:", e))
         .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });
@@ -2033,6 +2037,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastSpokenRef.current = "";
     setDistToNextM(null);
     routeProjIdxRef.current = 0;
+    // Pre-warm road-name audio for the selected route (cancels any prior prewarm).
+    prewarmRouteAudio(r.steps);
   }, [activeRoute]);
 
   // ── Trip sharing ─────────────────────────────────────────────────────────────
@@ -2165,6 +2171,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // cleanup. Stop TTS (with a trailing follow-up to catch any narrowly-missed
     // utterance that slipped through on some Android TTS engines).
     stopVoice();
+    // Abandon any in-flight prewarm fetches for the route being discarded.
+    cancelPrewarm();
 
     // Cancel any pending opening-cue timer so it cannot fire in a subsequent
     // session (e.g. driver stops then immediately starts a new route within 2.2 s).

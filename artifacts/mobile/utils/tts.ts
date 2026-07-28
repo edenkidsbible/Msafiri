@@ -514,6 +514,11 @@ function playAndWait(player: AudioPlayer): Promise<void> {
 let gen = 0;
 let activePlayer: AudioPlayer | null = null;
 
+/** Separate generation counter for background pre-warm fetches.
+ *  Incremented by cancelPrewarm() so any in-flight prewarm loop
+ *  abandons remaining fetches without interfering with playback. */
+let prewarmGen = 0;
+
 /** Stop any in-progress navigation voice clip immediately. */
 export function stopNavVoice(): void {
   gen++;
@@ -523,6 +528,47 @@ export function stopNavVoice(): void {
   try { Speech.stop(); } catch { /* ignore */ }
   // Restore music volume immediately — don't leave it ducked after interruption
   restoreAudioMode();
+}
+
+/** Abandon any in-flight prewarm fetches (call when navigation stops). */
+export function cancelPrewarm(): void {
+  prewarmGen++;
+}
+
+/**
+ * Pre-warm the on-device audio cache for every road name that appears in the
+ * given route steps.  Runs entirely in the background — the caller must NOT
+ * await this function.  If `cancelPrewarm()` is called (e.g. because the
+ * driver stopped navigation) any pending network fetches are abandoned.
+ *
+ * Only `raw` segments need fetching; bundled token clips are always instant.
+ */
+export async function prewarmRouteAudio(
+  steps: { instruction: string }[]
+): Promise<void> {
+  if (Platform.OS === "web") return;
+
+  // Snapshot the current generation so we can detect cancellation.
+  const myGen = ++prewarmGen;
+
+  // Collect the unique raw texts across all steps.
+  const seen = new Set<string>();
+  for (const step of steps) {
+    for (const seg of parseToSegments(step.instruction)) {
+      if (seg.kind === "raw") seen.add(seg.text);
+    }
+  }
+
+  // Fetch + cache each one, bailing out if cancelled between fetches.
+  for (const text of seen) {
+    if (prewarmGen !== myGen) return;
+    try {
+      await resolveRawClip(text);
+    } catch {
+      // Non-critical — playback will fall back to expo-speech if the cache
+      // miss persists at instruction time.
+    }
+  }
 }
 
 /**
