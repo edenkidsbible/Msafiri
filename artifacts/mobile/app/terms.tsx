@@ -161,7 +161,7 @@ export default function TermsScreen() {
           <B>Turn-by-turn navigation in Msafiri is a supplemental driving aid only.</B>{" Always follow official road signs, traffic signals, and the instructions of traffic officers. Do not follow in-app navigation directions if they appear to conflict with posted signage or road conditions."}
         </Text>
       </View>
-      <Li>{"Route data is sourced from OpenStreetMap and calculated by Mapbox. Routes may be incorrect, outdated, or unavailable in areas with poor map coverage."}</Li>
+      <Li>{"Route data is sourced from OpenStreetMap and calculated by OSRM. Routes may be incorrect, outdated, or unavailable in areas with poor map coverage."}</Li>
       <Li>{"GPS accuracy limitations mean the App may temporarily show you off-route or suggest incorrect turns. Always use your own judgement."}</Li>
       <Li>{"Estimated arrival times are calculated based on distance and speed and do not fully account for traffic conditions."}</Li>
       <Li>{"Voice guidance instructions are computer-generated and may occasionally mispronounce road names or give imprecise timing."}</Li>
@@ -326,8 +326,8 @@ export default function TermsScreen() {
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>18. Third-Party Services and App Stores</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The App integrates with third-party services including RevenueCat (subscription management),
-        Google Maps (map rendering), Mapbox (navigation routing), OpenStreetMap (geocoding),
-        ElevenLabs (course audio), and Sentry (crash reporting). Your use of these third-party services is governed by
+        Google Maps (map rendering), OpenStreetMap / OSRM (routing and geocoding), ElevenLabs (voice
+        guidance), and Sentry (crash reporting). Your use of these third-party services is governed by
         their own terms and conditions. Msafiri Kenya is not responsible for the acts or omissions of
         any third-party service provider.
       </Text>

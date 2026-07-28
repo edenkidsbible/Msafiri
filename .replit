@@ -18,7 +18,7 @@ integrations = ["revenuecat:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 90000
+timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"

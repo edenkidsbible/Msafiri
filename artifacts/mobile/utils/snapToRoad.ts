@@ -1,25 +1,15 @@
-const MAPBOX_DIRECTIONS =
-  "https://api.mapbox.com/directions/v5/mapbox/driving";
+const OSRM = "https://router.project-osrm.org/nearest/v1/driving";
 
 /**
- * Snaps a coordinate to the nearest driveable road using the Mapbox
- * Directions API.  Sending the same point as both origin and destination
- * causes Mapbox to return a waypoint that has been snapped to the closest
- * road — equivalent to OSRM's /nearest endpoint.
- *
+ * Snaps a coordinate to the nearest driveable road using the public OSRM API.
  * Returns the original coordinate unchanged if the service is unavailable.
  */
 export async function snapToRoad(
   lat: number,
   lng: number
 ): Promise<{ lat: number; lng: number }> {
-  const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return { lat, lng };
-
   try {
-    const coord = `${lng},${lat}`;
-    const url = `${MAPBOX_DIRECTIONS}/${coord};${coord}?access_token=${token}&overview=false`;
-    const res = await fetch(url);
+    const res = await fetch(`${OSRM}/${lng},${lat}?number=1`);
     if (!res.ok) return { lat, lng };
     const j = (await res.json()) as {
       waypoints?: Array<{ location: [number, number] }>;

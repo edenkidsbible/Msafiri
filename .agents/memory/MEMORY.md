@@ -1,5 +1,3 @@
-- [Mapbox + expo-speech migration](mapbox-expo-speech-migration.md) — nav routing on Mapbox Directions API, voice on expo-speech; nav-audio MP3s deleted; snapToRoad.ts now uses Mapbox.
-- [hermesc Linux private-field error](hermesc-linux-private-fields.md) — hermesc linux64 in RN 0.81.5 rejects #field syntax; fix: add three @babel/plugin-transform-class-properties/private-methods/private-property-in-object plugins (loose:true) to babel.config.js.
 - [Course audio generation](course-audio-generation.md) — Keli/Flash v2.5 TTS, GCS upload (no public ACL), streamed via /api/course/audio/:slug, AudioPlayer component in mobile lesson screen.
 - [Community report "Gone now" single-vote quirk](report-deny-single-vote.md) — one deny vote denies a report instantly (no threshold); distinct from the 3-confirm protection on self-delete.
 - [expo-router react-native-maps web fix](expo-router-rnmaps-web.md) — .native.tsx files in app/ dir still bundled on web by require.context; move native-only components to components/ with platform extensions instead.

@@ -351,27 +351,14 @@ function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: n
   return name ? `Continue on ${name}` : "Continue";
 }
 
-/**
- * Fetch a driving route via the Mapbox Directions API (driving-traffic profile).
- *
- * Mapbox returns a pre-built `maneuver.instruction` per step — natural-language
- * text that correctly handles u-turns, merges, forks, and roundabouts without
- * needing to reconstruct instructions from raw maneuver data.
- */
-async function fetchMapbox(
+async function fetchOSRM(
   fromLat: number, fromLng: number,
   toLat: number, toLng: number
 ): Promise<AppRoute[]> {
-  const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
-  if (!token) {
-    console.error("[routing] EXPO_PUBLIC_MAPBOX_TOKEN is not set — cannot fetch route");
-    return [];
-  }
   const url =
-    `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/` +
+    `https://router.project-osrm.org/route/v1/driving/` +
     `${fromLng},${fromLat};${toLng},${toLat}` +
-    `?alternatives=true&steps=true&overview=full&geometries=geojson` +
-    `&voice_units=metric&access_token=${token}`;
+    `?alternatives=true&steps=true&overview=full&geometries=geojson`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   let res: Response;
@@ -379,10 +366,6 @@ async function fetchMapbox(
     res = await fetch(url, { signal: controller.signal });
   } finally {
     clearTimeout(timer);
-  }
-  if (!res.ok) {
-    console.warn("[routing] Mapbox HTTP", res.status);
-    return [];
   }
   const data = await res.json();
   if (data.code !== "Ok" || !data.routes?.length) return [];
@@ -397,16 +380,11 @@ async function fetchMapbox(
     steps: (r.legs?.[0]?.steps ?? []).map((s: any) => {
       const maneuver = s.maneuver ?? {};
       const isRoundabout = maneuver.type === "roundabout" || maneuver.type === "rotary";
-      // Use Mapbox's pre-built instruction; fall back to buildInstruction only if absent.
-      const instruction: string =
-        (typeof maneuver.instruction === "string" && maneuver.instruction)
-          ? maneuver.instruction
-          : buildInstruction(maneuver, s.name ?? "");
       return {
-        instruction,
+        instruction: buildInstruction(maneuver, s.name ?? ""),
         distanceM: s.distance ?? 0,
         location: {
-          latitude:  maneuver.location?.[1] ?? toLat,
+          latitude: maneuver.location?.[1] ?? toLat,
           longitude: maneuver.location?.[0] ?? toLng,
         },
         ...(isRoundabout && maneuver.exit != null ? { exitNumber: maneuver.exit as number } : {}),
@@ -592,7 +570,8 @@ function estimateTrafficDelayS(incidents: RouteIncident[]): number {
   return Math.min(totalMin, MAX_TRAFFIC_DELAY_MIN) * 60;
 }
 
-/** Speak a navigation phrase via the device TTS engine (expo-speech). */
+/** Speak navigation guidance via ElevenLabs (Keli voice) using bundled tokens
+ *  for structural phrases and on-demand cached clips for road names. */
 function speakText(text: string) {
   speakPhrase(text).catch((e) => console.warn("[speakText]", e));
 }
@@ -671,11 +650,11 @@ const MIN_NAV_ANNOUNCE_GAP_MS = 5000;
 //      REMIND   — "Turn left onto Ngong Road"                 (~2.5 s of travel)
 //      NOW      — "Turn left"  (maneuver only, driver is at the junction)
 //
-// Estimated speech durations at rate 0.9 (expo-speech device TTS):
+// Clip duration estimates (Keli, Flash v2.5):
 const CLIP_DUR_ANNOUNCE_S = 4.5; // "In 300 metres, turn left onto Ngong Road"
 const CLIP_DUR_REMIND_S   = 2.5; // "Turn left onto Ngong Road"
 const CLIP_DUR_NOW_S      = 1.2; // "Turn left"
-const AUDIO_STARTUP_S     = 0.3; // TTS engine startup latency
+const AUDIO_STARTUP_S     = 0.5; // token load + speaker warm-up
 
 /**
  * Returns speed-adaptive trigger thresholds and the pre-compensated spoken
@@ -1843,7 +1822,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIdx(0);
     routeProjIdxRef.current = 0;
 
-    fetchMapbox(currentLat, currentLng, navDestination.lat, navDestination.lng)
+    fetchOSRM(currentLat, currentLng, navDestination.lat, navDestination.lng)
       .then((routes) => {
         if (cancelled || !routes.length) return;
         const [primary, ...alts] = routes;
@@ -1852,9 +1831,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAltRoutes(alts);
         const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
         setZonesOnRoute(getZonesOnRoute(primary, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
+        // Pre-warm road-name audio for every step so first-play latency is zero.
         prewarmRouteAudio(primary.steps);
       })
-      .catch((e) => { if (!cancelled) console.warn("[routing]:", e); })
+      .catch((e) => { if (!cancelled) console.warn("OSRM:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
 
     return () => { cancelled = true; };
@@ -1863,15 +1843,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Auto-reroute callback ─────────────────────────────────────────────────
   // handleLocation fires this when the driver is consistently off-route.
-  // Fetches a fresh route from the current position and replaces the active
-  // route in-place, resetting the step index transparently.
+  // Fetches a fresh OSRM route from the current position and replaces the
+  // active route in-place, resetting the step index transparently.
   useEffect(() => {
     triggerRerouteRef.current = (lat: number, lng: number) => {
       if (!navDestRef.current || isReroutingRef.current) return;
       const dest = navDestRef.current;
       isReroutingRef.current = true;
       setRouteLoading(true);
-      fetchMapbox(lat, lng, dest.lat, dest.lng)
+      fetchOSRM(lat, lng, dest.lat, dest.lng)
         .then((routes) => {
           if (!routes.length) return;
           const [primary, ...alts] = routes;
@@ -1892,7 +1872,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Pre-warm road-name audio for the new route.
           prewarmRouteAudio(primary.steps);
         })
-        .catch((e) => console.warn("[reroute]:", e))
+        .catch((e) => console.warn("[reroute] OSRM:", e))
         .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2124,7 +2104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const lat = currentLatRef.current;
     const lng = currentLngRef.current;
     if (lat == null || lng == null) return null;
-    const routes = await fetchMapbox(lat, lng, destLat, destLng);
+    const routes = await fetchOSRM(lat, lng, destLat, destLng);
     if (!routes.length) return null;
     const route = routes[0];
     const cumDist = buildCumulativeDistances(route.coords);
