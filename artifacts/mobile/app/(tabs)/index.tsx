@@ -1468,6 +1468,7 @@ export default function DriveScreen() {
           // Save the pre-existing destination so the driver can resume it after the stop
           if (navDestination) setResumeDestination(navDestination);
           setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+          setSearchText(poi.name);
           startNavigation();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }}
