@@ -82,6 +82,26 @@ const TOKEN_ASSETS: Record<string, number> = {
   "take-this-exit": require("@/assets/nav-audio/take-this-exit.mp3"),
   // Depart step replacement
   "follow-the-route":        require("@/assets/nav-audio/follow-the-route.mp3"),
+  // Depart step — directional variants standalone
+  "head-north":          require("@/assets/nav-audio/head-north.mp3"),
+  "head-northeast":      require("@/assets/nav-audio/head-northeast.mp3"),
+  "head-east":           require("@/assets/nav-audio/head-east.mp3"),
+  "head-southeast":      require("@/assets/nav-audio/head-southeast.mp3"),
+  "head-south":          require("@/assets/nav-audio/head-south.mp3"),
+  "head-southwest":      require("@/assets/nav-audio/head-southwest.mp3"),
+  "head-west":           require("@/assets/nav-audio/head-west.mp3"),
+  "head-northwest":      require("@/assets/nav-audio/head-northwest.mp3"),
+  "head-forward":        require("@/assets/nav-audio/head-forward.mp3"),
+  // Depart step — directional variants + "onto"
+  "head-north-onto":     require("@/assets/nav-audio/head-north-onto.mp3"),
+  "head-northeast-onto": require("@/assets/nav-audio/head-northeast-onto.mp3"),
+  "head-east-onto":      require("@/assets/nav-audio/head-east-onto.mp3"),
+  "head-southeast-onto": require("@/assets/nav-audio/head-southeast-onto.mp3"),
+  "head-south-onto":     require("@/assets/nav-audio/head-south-onto.mp3"),
+  "head-southwest-onto": require("@/assets/nav-audio/head-southwest-onto.mp3"),
+  "head-west-onto":      require("@/assets/nav-audio/head-west-onto.mp3"),
+  "head-northwest-onto": require("@/assets/nav-audio/head-northwest-onto.mp3"),
+  "head-forward-onto":   require("@/assets/nav-audio/head-forward-onto.mp3"),
   // Fixed navigation phrases
   "approaching-destination": require("@/assets/nav-audio/approaching-destination.mp3"),
   "arrived":                 require("@/assets/nav-audio/arrived.mp3"),
@@ -197,6 +217,16 @@ const ONTO: Record<string, string> = {
   "at the roundabout, take the 3rd exit": "roundabout-3rd-onto",
   "at the roundabout, take the 4th exit": "roundabout-4th-onto",
   "at the roundabout, take the 5th exit": "roundabout-5th-onto",
+  // Depart-step directions
+  "head north":     "head-north-onto",
+  "head northeast": "head-northeast-onto",
+  "head east":      "head-east-onto",
+  "head southeast": "head-southeast-onto",
+  "head south":     "head-south-onto",
+  "head southwest": "head-southwest-onto",
+  "head west":      "head-west-onto",
+  "head northwest": "head-northwest-onto",
+  "head forward":   "head-forward-onto",
 };
 
 // ─── Segment types ────────────────────────────────────────────────────────────
@@ -223,11 +253,33 @@ function parseToSegments(input: string): Segment[] {
 
   // 1b. Depart-step: "Head {direction}[ onto {road}]"
   //     OSRM depart modifiers are compass words (north/south/east/west/northeast/…)
-  //     or "forward".  The road name is not critical here — use the bundled
-  //     "Follow the route." token to avoid any on-demand TTS latency on the
-  //     very first instruction spoken when navigation starts.
-  if (norm.startsWith("head ") && TOKEN_ASSETS["follow-the-route"]) {
-    return [tok("follow-the-route")];
+  //     or "forward".  Use a bundled directional token so the driver hears the
+  //     road name with zero latency on the very first instruction.
+  if (norm.startsWith("head ")) {
+    const afterHead = norm.slice(5); // e.g. "north onto uhuru highway" or "north"
+    const ontoInAfter = afterHead.indexOf(" onto ");
+    if (ontoInAfter > -1) {
+      const dir      = afterHead.slice(0, ontoInAfter);          // "north"
+      const roadPart = afterHead.slice(ontoInAfter + 6);         // "uhuru highway"
+      const ontoKey  = ONTO[`head ${dir}`];                      // "head-north-onto"
+      if (ontoKey && TOKEN_ASSETS[ontoKey]) {
+        return [
+          tok(ontoKey),
+          raw(roadPart.replace(/\b\w/g, c => c.toUpperCase()) + "."),
+        ];
+      }
+    } else {
+      // No road name — play standalone directional token
+      const dir           = afterHead.split(" ")[0];             // first word
+      const standaloneKey = `head-${dir}`;
+      if (TOKEN_ASSETS[standaloneKey]) {
+        return [tok(standaloneKey)];
+      }
+    }
+    // Unknown direction — fall back to generic "Follow the route."
+    if (TOKEN_ASSETS["follow-the-route"]) {
+      return [tok("follow-the-route")];
+    }
   }
 
   // 2. "In X metres, {maneuver}" — extract distance prefix

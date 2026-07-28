@@ -93,6 +93,28 @@ export const TOKENS = [
   // Depart step — replaces "Head north/south/..." to avoid on-demand TTS latency
   { key: "follow-the-route",        text: "Follow the route." },
 
+  // Depart step — directional variants standalone (no road name)
+  { key: "head-north",          text: "Head north." },
+  { key: "head-northeast",      text: "Head northeast." },
+  { key: "head-east",           text: "Head east." },
+  { key: "head-southeast",      text: "Head southeast." },
+  { key: "head-south",          text: "Head south." },
+  { key: "head-southwest",      text: "Head southwest." },
+  { key: "head-west",           text: "Head west." },
+  { key: "head-northwest",      text: "Head northwest." },
+  { key: "head-forward",        text: "Head forward." },
+
+  // Depart step — directional variants + "onto" (road name follows — open inflection)
+  { key: "head-north-onto",     text: "Head north onto" },
+  { key: "head-northeast-onto", text: "Head northeast onto" },
+  { key: "head-east-onto",      text: "Head east onto" },
+  { key: "head-southeast-onto", text: "Head southeast onto" },
+  { key: "head-south-onto",     text: "Head south onto" },
+  { key: "head-southwest-onto", text: "Head southwest onto" },
+  { key: "head-west-onto",      text: "Head west onto" },
+  { key: "head-northwest-onto", text: "Head northwest onto" },
+  { key: "head-forward-onto",   text: "Head forward onto" },
+
   // Fixed navigation phrases
   { key: "approaching-destination", text: "Approaching your destination." },
   { key: "arrived",                 text: "You have arrived at your destination." },
