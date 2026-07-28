@@ -173,7 +173,7 @@ interface AppContextValue {
   communityReports: CommunityReport[];
   addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => string;
   confirmReport: (id: string) => Promise<void>;
-  denyReport: (id: string) => Promise<boolean>;
+  denyReport: (id: string) => Promise<{ ok: boolean; message?: string }>;
   deleteReport: (id: string) => Promise<void>;
   flagReport: (id: string, reason?: string) => Promise<boolean>;
   updateReport: (id: string, speedLimit: number) => Promise<void>;
@@ -2650,11 +2650,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const denyReport = useCallback(async (id: string): Promise<boolean> => {
-    if (!deviceIdRef.current) return false;
+  const denyReport = useCallback(async (id: string): Promise<{ ok: boolean; message?: string }> => {
+    if (!deviceIdRef.current) return { ok: false, message: "App is still starting up. Try again in a moment." };
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
-    if (!report) return false;
-    const serverId = report.serverId ?? id;
+    if (!report) return { ok: false, message: "This report is no longer on the map." };
+    // Not yet synced to the server (offline-created). For the driver's own
+    // report just resolve it locally — the sync retry would recreate it, and
+    // posting the local id to the API would 404.
+    if (!report.serverId) {
+      if (report.isOwn) {
+        setCommunityReports((prev) => {
+          const u = prev.filter((r) => r.id !== id);
+          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+          return u;
+        });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return { ok: true };
+      }
+      return { ok: false, message: "This report hasn't finished syncing yet. Try again in a moment." };
+    }
+    const serverId = report.serverId;
     // Track that this device has voted on this report
     votedReportIdsRef.current.add(id);
     if (report.serverId) votedReportIdsRef.current.add(report.serverId);
@@ -2690,7 +2705,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           )
         );
       }
-      return true;
+      return { ok: true };
     } catch (err) {
       // Roll back optimistic increment
       setCommunityReports((prev) =>
@@ -2698,8 +2713,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount } : r
         )
       );
-      warnIfBlockedDevice(err);
-      return false;
+      if (warnIfBlockedDevice(err)) return { ok: false }; // alert already shown
+      if (err instanceof ApiError) {
+        if (err.status === 404) {
+          // Gone on the server (expired or admin-removed) — clean up locally.
+          setCommunityReports((prev) => {
+            const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
+            AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+            return u;
+          });
+          return { ok: false, message: "This report was already removed from the map." };
+        }
+        // Surface the server's real reason (own-report protection, already voted…)
+        return { ok: false, message: err.message };
+      }
+      return { ok: false, message: "Check your connection and try again." };
     }
   }, []);
 

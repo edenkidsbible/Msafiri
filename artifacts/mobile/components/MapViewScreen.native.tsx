@@ -119,7 +119,6 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
 
 function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
   const { members } = group;
-  const faded = members.every((r) => now - r.timestamp > 7200000);
 
   if (members.length === 1) {
     const r = members[0];
@@ -131,7 +130,6 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
         <View
           collapsable={false}
           style={{
-            opacity: faded ? 0.45 : 1,
             width: 32, height: 32, borderRadius: 16,
             backgroundColor: "#E53935",
             alignItems: "center", justifyContent: "center",
@@ -146,7 +144,7 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
     }
     const def = resolveIncidentType(r.type);
     return (
-      <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
+      <View collapsable={false}>
         <View style={[styles.emojiMarker, { backgroundColor: def.color }]}>
           <Text style={styles.emojiMarkerText}>{def.emoji}</Text>
         </View>
@@ -156,7 +154,7 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
 
   const icons = members.slice(0, 4);
   return (
-    <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
+    <View collapsable={false}>
       <View style={styles.clusterWrap}>
         <View style={styles.clusterGrid}>
           {icons.map((r) => {
@@ -406,7 +404,9 @@ export default function MapViewScreen() {
         {clusters.map((group) => {
           if (group.lat == null || group.lng == null || isNaN(group.lat) || isNaN(group.lng)) return null;
           const clusterKey = group.members.map((m) => m.id).sort().join("-");
-          const behind = isPinBehind(group.lat, group.lng);
+          // Community reports always render at full opacity — the behind-driver
+          // dimming used for zones computes a degenerate bearing for pins at the
+          // driver's own position, instantly fading a just-submitted report.
           return (
             <Marker
               key={clusterKey}
@@ -414,7 +414,6 @@ export default function MapViewScreen() {
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={true}
               zIndex={10}
-              opacity={behind ? 0.3 : 1}
               onPress={() => openCluster(group)}
             >
               <MapClusterMarker group={group} now={now} />
@@ -790,13 +789,13 @@ export default function MapViewScreen() {
                                 disabled={denyingId === r.id}
                                 onPress={async () => {
                                   setDenyingId(r.id);
-                                  const ok = await denyReport(r.id);
+                                  const res = await denyReport(r.id);
                                   setDenyingId(null);
-                                  if (ok) {
+                                  if (res.ok) {
                                     setSelectedCluster(null);
                                     Alert.alert("Thanks for the update", "Your report helps our team keep the map accurate.");
-                                  } else {
-                                    Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
+                                  } else if (res.message) {
+                                    Alert.alert("Couldn't submit your vote", res.message);
                                   }
                                 }}
                               >

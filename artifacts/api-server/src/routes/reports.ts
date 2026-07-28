@@ -643,9 +643,24 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
 
     if (!report) return res.status(404).json({ error: "Not found" });
 
-    // Reporters may not deny their own report (same self-vote block as /confirm).
-    if (report.deviceId === deviceId)
-      return res.status(403).json({ error: "Cannot vote on own report" });
+    // Owner tapping "Gone now" on their own report = owner-resolve, not a vote.
+    // Non-camera reports resolve immediately (status "denied") unless the
+    // community has confirmed it 3+ times — the same protection the self-delete
+    // flow uses. Own camera reports fall through to the normal deny flow below,
+    // which routes them to admin_review (cameras never silently vanish).
+    if (report.deviceId === deviceId && report.type !== "camera") {
+      if ((report.confirmCount ?? 1) >= 3) {
+        return res.status(403).json({
+          error: "Other drivers have confirmed this is still here, so it can't be removed. Use Flag to ask moderators to review it.",
+        });
+      }
+      const [resolved] = await db
+        .update(communityReportsTable)
+        .set({ status: "denied", lastVotedAt: new Date() })
+        .where(eq(communityReportsTable.id, id))
+        .returning({ denyCount: communityReportsTable.denyCount, status: communityReportsTable.status });
+      return res.json({ denyCount: resolved?.denyCount ?? report.denyCount, status: resolved?.status ?? "denied" });
+    }
 
     // Atomically append deviceId to denied_by only when it is not already
     // present, and compute the new deny_count + status in the same statement.

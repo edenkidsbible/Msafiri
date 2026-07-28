@@ -112,7 +112,6 @@ function SpeedLimitBadge({ speed, bg }: { speed: number; bg: string }) {
 
 function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
   const { members } = group;
-  const faded = members.every((r) => now - r.timestamp > 7200000);
 
   if (members.length === 1) {
     const r = members[0];
@@ -120,7 +119,7 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
     // speed-camera zone markers — they are permanent infrastructure, not transient incidents.
     if (r.type === "camera") {
       return (
-        <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
+        <View collapsable={false}>
           <MarkerIcon ioniconName="camera" bg="#E53935" size={32} />
         </View>
       );
@@ -138,7 +137,9 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
       def.color;                           // new — normal color, smaller opacity below
 
     return (
-      <View collapsable={false} style={{ opacity: faded ? 0.3 : tier === "new" ? 0.75 : 1 }}>
+      // Full opacity always — staleness/new-report dimming removed so fresh and
+      // active reports render clearly (confidence tiers still change color/ring).
+      <View collapsable={false}>
         {/* Outer glow ring for "reliable" reports */}
         {tier === "reliable" && (
           <View style={[ms.reliableRing, { borderColor: markerBg }]} />
@@ -158,7 +159,7 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
   const icons = members.slice(0, 4);
   return (
-    <View collapsable={false} style={{ opacity: faded ? 0.45 : 1 }}>
+    <View collapsable={false}>
       <View style={ms.clusterWrap}>
         <View style={ms.clusterGrid}>
           {icons.map((r) => {
@@ -860,15 +861,14 @@ const DriveMapView = forwardRef(function DriveMapView(
                                 disabled={denyingId === r.id}
                                 onPress={async () => {
                                   setDenyingId(r.id);
-                                  const ok = await denyReport(r.id);
+                                  const res = await denyReport(r.id);
                                   setDenyingId(null);
-                                  if (ok) {
-                                    // Report stays on map — only admin can remove it.
+                                  if (res.ok) {
                                     // Close the sheet and show a thank-you.
                                     setSelectedCluster(null);
                                     Alert.alert("Thanks for the update", "Your report helps our team keep the map accurate.");
-                                  } else {
-                                    Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
+                                  } else if (res.message) {
+                                    Alert.alert("Couldn't submit your vote", res.message);
                                   }
                                 }}
                               >
