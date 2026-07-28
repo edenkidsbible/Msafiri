@@ -287,7 +287,7 @@ const DriveMapView = forwardRef(function DriveMapView(
               ...prev,
               members: prev.members.map((m) =>
                 m.id === r.id || m.serverId === id
-                  ? { ...m, adminVerified: true, status: "confirmed" as const, confirmCount: 999 }
+                  ? { ...m, adminVerified: true, status: "confirmed" as const }
                   : m
               ),
             }

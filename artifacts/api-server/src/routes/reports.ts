@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, communityReportsTable, pushTokensTable, blockedDevicesTable } from "@workspace/db";
-import { eq, and, or, lt, ne, gte, sql, inArray, count } from "drizzle-orm";
+import { eq, and, or, lt, ne, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -51,6 +51,12 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 // "pending_review", is hidden from drivers by default until explicitly added here.
 function isActive() {
   return or(eq(communityReportsTable.status, "active"), eq(communityReportsTable.status, "confirmed"));
+}
+
+// Any report without valid coordinates must never reach the mobile app —
+// a null coordinate passed through the RCT bridge crashes iOS immediately.
+function hasCoordinates() {
+  return and(isNotNull(communityReportsTable.lat), isNotNull(communityReportsTable.lng));
 }
 
 // A device blocked by an admin (report spamming/abuse) is rejected before
@@ -151,7 +157,7 @@ router.get("/reports", async (req: Request, res: Response) => {
       const rows = await db
         .select()
         .from(communityReportsTable)
-        .where(isActive());
+        .where(and(isActive(), hasCoordinates()));
       return res.json({ reports: rows.map(toReport) });
     }
 
@@ -165,6 +171,7 @@ router.get("/reports", async (req: Request, res: Response) => {
       .where(
         and(
           isActive(),
+          hasCoordinates(),
           gte(communityReportsTable.lat, lat - latDelta),
           sql`${communityReportsTable.lat} <= ${lat + latDelta}`,
           gte(communityReportsTable.lng, lng - lngDelta),

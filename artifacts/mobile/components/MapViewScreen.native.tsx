@@ -100,10 +100,13 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
   const clusters: ClusterGroup[] = [];
   for (const r of reports) {
     if (used.has(r.id)) continue;
+    // ── Crash guard ── skip any report whose coordinates are missing or NaN ──
+    if (r.lat == null || r.lng == null || isNaN(r.lat) || isNaN(r.lng)) continue;
     const group: ClusterGroup = { members: [r], lat: r.lat, lng: r.lng };
     used.add(r.id);
     for (const s of reports) {
       if (used.has(s.id)) continue;
+      if (s.lat == null || s.lng == null || isNaN(s.lat) || isNaN(s.lng)) continue;
       if (Math.abs(s.lat - r.lat) < CLUSTER_RADIUS && Math.abs(s.lng - r.lng) < CLUSTER_RADIUS) {
         group.members.push(s);
         used.add(s.id);
@@ -267,7 +270,7 @@ export default function MapViewScreen() {
               ...prev,
               members: prev.members.map((m) =>
                 m.id === r.id || m.serverId === id
-                  ? { ...m, adminVerified: true, status: "confirmed" as const, confirmCount: 999 }
+                  ? { ...m, adminVerified: true, status: "confirmed" as const }
                   : m
               ),
             }
@@ -397,8 +400,11 @@ export default function MapViewScreen() {
           );
         })}
 
-        {/* Community report clusters — tap opens the bottom-sheet modal */}
+        {/* Community report clusters — tap opens the bottom-sheet modal.
+            Cluster lat/lng is already validated by clusterReports(), but we
+            double-check here as a last safety net before hitting the native layer. */}
         {clusters.map((group) => {
+          if (group.lat == null || group.lng == null || isNaN(group.lat) || isNaN(group.lng)) return null;
           const clusterKey = group.members.map((m) => m.id).sort().join("-");
           const behind = isPinBehind(group.lat, group.lng);
           return (
