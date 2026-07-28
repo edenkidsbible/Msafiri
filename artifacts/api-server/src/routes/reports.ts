@@ -42,19 +42,33 @@ const CLUSTER_LNG = 0.00060;
 // Shared TTL extension for driver confirm votes (explicit /confirm endpoint AND
 // the cluster-dedup path in POST /reports). Both represent the same signal —
 // another driver confirms this incident is still present — so they use identical
-// math: +2 h from now, capped at 36 h from the report's original creation time.
-// Camera reports (expiresAt = null) are permanent and are always returned as null.
-const CONFIRM_EXTEND_MS = 2  * 3600 * 1000; // +2 h per confirm
-const CONFIRM_MAX_MS    = 36 * 3600 * 1000; // hard ceiling from createdAt
+// math: +2 h from now, capped at a per-type ceiling from the report's original
+// creation time. Camera reports (expiresAt = null) are permanent and always null.
+const CONFIRM_EXTEND_MS = 2 * 3600 * 1000; // +2 h per confirm
+
+// Per-type hard ceilings — short-lived event types (police, traffic) must not
+// persist for days just because many drivers keep confirming them.
+const CONFIRM_MAX_MS_BY_TYPE: Record<string, number> = {
+  traffic:   4  * 3600 * 1000, //  4 h — congestion clears quickly
+  police:    6  * 3600 * 1000, //  6 h — checkpoints relocate
+  alcoblow:  6  * 3600 * 1000, //  6 h — mobile checkpoints
+  accident:  12 * 3600 * 1000, // 12 h
+  roadblock: 24 * 3600 * 1000, // 24 h
+  roadworks: 24 * 3600 * 1000, // 24 h
+  closure:   24 * 3600 * 1000, // 24 h
+};
+const CONFIRM_MAX_MS_DEFAULT = 36 * 3600 * 1000; // everything else
 
 function calcExtendedExpiry(
   currentExpiresAt: Date | null,
-  createdAt: Date
+  createdAt: Date,
+  type: string
 ): Date | null {
   if (currentExpiresAt == null) return null; // permanent (camera)
+  const maxMs = CONFIRM_MAX_MS_BY_TYPE[type] ?? CONFIRM_MAX_MS_DEFAULT;
   return new Date(
     Math.min(
-      createdAt.getTime() + CONFIRM_MAX_MS,
+      createdAt.getTime() + maxMs,
       Math.max(currentExpiresAt.getTime(), Date.now()) + CONFIRM_EXTEND_MS
     )
   );
@@ -279,7 +293,7 @@ router.post("/reports", async (req: Request, res: Response) => {
         const newConfirmedBy = [...clusterConfirmedBy, deviceId];
         // A second driver reporting the same incident is a confirm signal —
         // use the same capped extension as the explicit /confirm endpoint.
-        const newExpiresAt = calcExtendedExpiry(cluster.expiresAt, cluster.createdAt);
+        const newExpiresAt = calcExtendedExpiry(cluster.expiresAt, cluster.createdAt, cluster.type);
         await db
           .update(communityReportsTable)
           .set({
@@ -424,6 +438,11 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
     if (report.deviceId === deviceId)
       return res.status(403).json({ error: "Cannot vote on own report" });
 
+    // Reports in admin review are frozen — no driver votes until an admin acts.
+    if (report.status === "admin_review") {
+      return res.status(409).json({ error: "Report is under admin review", status: report.status });
+    }
+
     const confirmedBy = (report.confirmedBy ?? []) as string[];
     if (confirmedBy.includes(deviceId)) {
       return res.status(409).json({ error: "Already voted", confirmCount: report.confirmCount, status: report.status });
@@ -433,7 +452,7 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
     const newConfirmedBy = [...confirmedBy, deviceId];
     // Extend the expiry via the shared helper: +2 h per confirm, capped at
     // 36 h from original creation. Camera reports (expiresAt = null) unchanged.
-    const newExpiresAt = calcExtendedExpiry(report.expiresAt, report.createdAt);
+    const newExpiresAt = calcExtendedExpiry(report.expiresAt, report.createdAt, report.type);
 
     await db
       .update(communityReportsTable)
@@ -624,6 +643,10 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
 
     if (!report) return res.status(404).json({ error: "Not found" });
 
+    // Reporters may not deny their own report (same self-vote block as /confirm).
+    if (report.deviceId === deviceId)
+      return res.status(403).json({ error: "Cannot vote on own report" });
+
     // Atomically append deviceId to denied_by only when it is not already
     // present, and compute the new deny_count + status in the same statement.
     // Using a conditional UPDATE (WHERE NOT denied_by @> ...) means concurrent
@@ -637,23 +660,27 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     //   camera active/confirmed  → admin_review
     //   non-camera, new count >= DENY_THRESHOLD, not already denied → denied
     //   everything else          → unchanged
+    // COALESCE(denied_by, '[]'::jsonb) guards against any pre-migration rows
+    // that still carry a NULL in the column — without it the @> containment
+    // check returns NULL (not FALSE) and the WHERE clause silently drops the
+    // row, making the duplicate-vote guard a no-op on old data.
     const updated = await db.execute(sql`
       UPDATE community_reports
       SET
-        denied_by     = denied_by || jsonb_build_array(${deviceId}::text)::jsonb,
-        deny_count    = jsonb_array_length(denied_by) + 1,
+        denied_by     = COALESCE(denied_by, '[]'::jsonb) || jsonb_build_array(${deviceId}::text)::jsonb,
+        deny_count    = jsonb_array_length(COALESCE(denied_by, '[]'::jsonb)) + 1,
         last_voted_at = now(),
         status        = CASE
           WHEN type = 'camera' AND status IN ('active', 'confirmed')
             THEN 'admin_review'
           WHEN type != 'camera'
-            AND jsonb_array_length(denied_by) + 1 >= ${DENY_THRESHOLD}
+            AND jsonb_array_length(COALESCE(denied_by, '[]'::jsonb)) + 1 >= ${DENY_THRESHOLD}
             AND status != 'denied'
             THEN 'denied'
           ELSE status
         END
       WHERE id        = ${id}
-        AND NOT (denied_by @> jsonb_build_array(${deviceId}::text)::jsonb)
+        AND NOT (COALESCE(denied_by, '[]'::jsonb) @> jsonb_build_array(${deviceId}::text)::jsonb)
       RETURNING deny_count, status
     `);
 

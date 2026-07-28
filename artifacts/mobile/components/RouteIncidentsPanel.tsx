@@ -158,7 +158,7 @@ export default function RouteIncidentsPanel() {
                       {inc.source === "static"
                         ? (inc.road ?? inc.name)
                         : inc.type === "camera"
-                          ? (inc.road ?? inc.name ?? "Confirmed by admin")
+                          ? (inc.road ?? inc.name ?? "Speed camera")
                           : "Reported by a driver"}
                     </Text>
                     {!!inc.description && (
@@ -177,7 +177,9 @@ export default function RouteIncidentsPanel() {
                       </Text>
                     )}
                     {inc.source === "report" && inc.type === "camera" && (
-                      <Text style={[styles.rowDesc, { color: "#2E7D32" }]}>Confirmed by admin</Text>
+                      inc.reportStatus === "pending_review" || inc.reportStatus === "admin_review"
+                        ? <Text style={[styles.rowDesc, { color: "#E65100" }]}>Pending review</Text>
+                        : <Text style={[styles.rowDesc, { color: "#2E7D32" }]}>Confirmed by admin</Text>
                     )}
                   </View>
                   <Text style={[styles.rowDist, { color }]}>

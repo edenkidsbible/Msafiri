@@ -38,7 +38,7 @@ export interface CommunityReport {
   confirmed: number;
   // API-backed fields (populated after server sync)
   serverId?: string;
-  status?: "active" | "confirmed" | "expired" | "denied" | "admin_review";
+  status?: "active" | "confirmed" | "expired" | "denied" | "admin_review" | "pending_review";
   confirmCount?: number;
   denyCount?: number;
   isOwn?: boolean;
@@ -117,6 +117,8 @@ export interface RouteIncident {
   aheadDistanceM?: number;
   confirmCount?: number;
   timestamp?: number;
+  /** Propagated from the server report status so the UI can show "Pending review". */
+  reportStatus?: "active" | "confirmed" | "expired" | "denied" | "admin_review" | "pending_review";
 }
 
 export interface RouteCheckResult {
@@ -798,6 +800,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
   const speedHistoryRef = useRef<number[]>([]);
   const stationaryStreakRef = useRef(0);
+  // Counts consecutive GPS fixes with speed ≥ 3 km/h. We only exit the
+  // "stationary" state after 2+ consecutive moving fixes so a single noisy
+  // GPS sample (e.g. 4 km/h while the car is parked) does not break the
+  // streak and briefly expose the driver to a false zone alert.
+  const movingStreakRef = useRef(0);
   // Last matched index into the active route's coordinate array, used to
   // window the per-GPS-fix "where am I along the route" projection instead
   // of rescanning every coordinate every second (see currentRouteDistanceM).
@@ -1039,11 +1046,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Stationary dead-band: once we've seen several consecutive near-zero
     // readings, snap fully to 0 instead of letting jitter hover at 2-4 km/h.
+    // We use a two-sided hysteresis so a single noisy fix (e.g. GPS shows
+    // 4 km/h while parked) does not immediately break the stationary streak
+    // and expose the driver to a false zone alert — movingStreakRef must
+    // reach 2 before we reset stationaryStreakRef.
     if (rawKmh < 3) {
+      movingStreakRef.current = 0;
       stationaryStreakRef.current += 1;
       if (stationaryStreakRef.current >= 2) rawKmh = 0;
     } else {
-      stationaryStreakRef.current = 0;
+      movingStreakRef.current += 1;
+      if (movingStreakRef.current >= 2) {
+        stationaryStreakRef.current = 0;
+      }
     }
 
     // Rolling median (last 3 samples) smooths one-off spikes without adding
@@ -1264,9 +1279,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // (5) Activate a new alert or refresh the ongoing one
     // Prune expired cooldown entries to avoid unbounded map growth.
+    // Bug #4 fix: when a cooldown expires for the zone that's currently
+    // tracked in alertZoneRef, clear that ref too. Without this the new-alert
+    // guard (`winner.id !== alertZoneRef.current`) stays false and the zone
+    // never re-triggers even though the cooldown has fully elapsed.
     const nowTs = Date.now();
     for (const [k, cd] of alertDismissCooldownRef.current) {
-      if (nowTs > cd.expiry) alertDismissCooldownRef.current.delete(k);
+      if (nowTs > cd.expiry) {
+        alertDismissCooldownRef.current.delete(k);
+        if (alertZoneRef.current === k) alertZoneRef.current = null;
+      }
     }
 
     if (winner && !isStationary) {
@@ -1969,6 +1991,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           distanceAlongRouteM: proj.alongRouteM,
           confirmCount: r.confirmCount,
           timestamp: r.timestamp,
+          reportStatus: r.status,
         });
       }
     }
