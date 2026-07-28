@@ -745,22 +745,28 @@ export default function MapViewScreen() {
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         {r.type === "camera" ? (
-                          <View style={ms.voteRow}>
-                            <View style={ms.cameraPermanentNote}>
-                              <Ionicons name="shield-checkmark-outline" size={12} color="#1565C0" />
-                              <Text style={ms.cameraPermanentTxt}>Managed by our team — flag if misplaced</Text>
+                          r.status === "admin_review" ? (
+                            <View style={ms.pendingReviewBanner}>
+                              <Text style={ms.pendingReviewTxt}>⏳ Removal pending admin review</Text>
                             </View>
-                            <TouchableOpacity
-                              style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
-                              disabled={flaggingId === r.id}
-                              onPress={() => handleFlagReport(r.id)}
-                            >
-                              <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
-                              <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
-                                {flaggingId === r.id ? "Sending…" : "Flag"}
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
+                          ) : (
+                            <View style={ms.voteRow}>
+                              <View style={ms.cameraPermanentNote}>
+                                <Ionicons name="shield-checkmark-outline" size={12} color="#1565C0" />
+                                <Text style={ms.cameraPermanentTxt}>Managed by our team — flag if misplaced</Text>
+                              </View>
+                              <TouchableOpacity
+                                style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
+                                disabled={flaggingId === r.id}
+                                onPress={() => handleFlagReport(r.id)}
+                              >
+                                <Ionicons name="flag-outline" size={13} color={flaggingId === r.id ? "#9E9E9E" : "#757575"} />
+                                <Text style={[ms.voteTxt, { color: flaggingId === r.id ? "#9E9E9E" : "#757575" }]}>
+                                  {flaggingId === r.id ? "Sending…" : "Flag"}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )
                         ) : (
                           <View style={ms.voteRow}>
                             <TouchableOpacity
@@ -774,26 +780,32 @@ export default function MapViewScreen() {
                               <Ionicons name="thumbs-up-outline" size={13} color="#388E3C" />
                               <Text style={[ms.voteTxt, { color: "#388E3C" }]}>Still here</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }, denyingId === r.id && ms.voteBtnDisabled]}
-                              disabled={denyingId === r.id}
-                              onPress={async () => {
-                                setDenyingId(r.id);
-                                const ok = await denyReport(r.id);
-                                setDenyingId(null);
-                                if (ok) {
-                                  setSelectedCluster(null);
-                                  Alert.alert("Thanks for the update", "Your report helps our team keep the map accurate.");
-                                } else {
-                                  Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
-                                }
-                              }}
-                            >
-                              <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
-                              <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
-                                {denyingId === r.id ? "Sending…" : "Gone now"}
-                              </Text>
-                            </TouchableOpacity>
+                            {r.status === "admin_review" ? (
+                              <View style={ms.pendingReviewBanner}>
+                                <Text style={ms.pendingReviewTxt}>⏳ Removal pending admin review</Text>
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={[ms.voteBtn, { backgroundColor: "#D32F2F18", borderColor: "#D32F2F55" }, denyingId === r.id && ms.voteBtnDisabled]}
+                                disabled={denyingId === r.id}
+                                onPress={async () => {
+                                  setDenyingId(r.id);
+                                  const ok = await denyReport(r.id);
+                                  setDenyingId(null);
+                                  if (ok) {
+                                    setSelectedCluster(null);
+                                    Alert.alert("Thanks for the update", "Your report helps our team keep the map accurate.");
+                                  } else {
+                                    Alert.alert("Couldn't submit your vote", "Check your connection and try again.");
+                                  }
+                                }}
+                              >
+                                <Ionicons name="thumbs-down-outline" size={13} color={denyingId === r.id ? "#9E9E9E" : "#D32F2F"} />
+                                <Text style={[ms.voteTxt, { color: denyingId === r.id ? "#9E9E9E" : "#D32F2F" }]}>
+                                  {denyingId === r.id ? "Sending…" : "Gone now"}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
                             <TouchableOpacity
                               style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }, flaggingId === r.id && ms.voteBtnDisabled]}
                               disabled={flaggingId === r.id}
@@ -984,6 +996,12 @@ const ms = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1,
   },
   adminBtnTxt: { fontSize: 11, fontWeight: "600" },
+  pendingReviewBanner: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#FFF8E1", borderRadius: 10, borderWidth: 1, borderColor: "#FFD54F",
+    paddingHorizontal: 10, paddingVertical: 7,
+  },
+  pendingReviewTxt: { fontSize: 12, fontWeight: "600", color: "#F57F17" },
   zonePill: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
