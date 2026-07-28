@@ -1,0 +1,67 @@
+[expo-cli] Failed to generate Hermes bytecode for: /home/runner/workspace/node_modules/.pnpm/expo-router@6.0.24_12858a4156df20508f8e9f3cc2c96e2a/node_modules/expo-router/entry.js
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208700:5: error: private properties are not supported
+[expo-cli]     #workletsModuleProxy;
+[expo-cli]     ^~~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208701:5: error: private properties are not supported
+[expo-cli]     #serializableUndefined;
+[expo-cli]     ^~~~~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208702:5: error: private properties are not supported
+[expo-cli]     #serializableNull;
+[expo-cli]     ^~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208703:5: error: private properties are not supported
+[expo-cli]     #serializableTrue;
+[expo-cli]     ^~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208704:5: error: private properties are not supported
+[expo-cli]     #serializableFalse;
+[expo-cli]     ^~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208714:12: error: private properties are not supported
+[expo-cli]       this.#workletsModuleProxy = global.__workletsModuleProxy;
+[expo-cli]            ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208715:12: error: private properties are not supported
+[expo-cli]       this.#serializableNull = this.#workletsModuleProxy.createSerializableNull();
+[expo-cli]            ^~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208715:37: error: private properties are not supported
+[expo-cli]       this.#serializableNull = this.#workletsModuleProxy.createSerializableNull();
+[expo-cli]                                     ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208716:12: error: private properties are not supported
+[expo-cli]       this.#serializableUndefined = this.#workletsModuleProxy.createSerializableUndefined();
+[expo-cli]            ^~~~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208716:42: error: private properties are not supported
+[expo-cli]       this.#serializableUndefined = this.#workletsModuleProxy.createSerializableUndefined();
+[expo-cli]                                          ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208717:12: error: private properties are not supported
+[expo-cli]       this.#serializableTrue = this.#workletsModuleProxy.createSerializableBoolean(true);
+[expo-cli]            ^~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208717:37: error: private properties are not supported
+[expo-cli]       this.#serializableTrue = this.#workletsModuleProxy.createSerializableBoolean(true);
+[expo-cli]                                     ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208718:12: error: private properties are not supported
+[expo-cli]       this.#serializableFalse = this.#workletsModuleProxy.createSerializableBoolean(false);
+[expo-cli]            ^~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208718:38: error: private properties are not supported
+[expo-cli]       this.#serializableFalse = this.#workletsModuleProxy.createSerializableBoolean(false);
+[expo-cli]                                      ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208721:19: error: private properties are not supported
+[expo-cli]       return this.#workletsModuleProxy.createSerializable(value, shouldPersistRemote, nativeStateSource);
+[expo-cli]                   ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208724:19: error: private properties are not supported
+[expo-cli]       return this.#workletsModuleProxy.createSerializableImport(from, to);
+[expo-cli]                   ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208727:19: error: private properties are not supported
+[expo-cli]       return this.#workletsModuleProxy.createSerializableString(str);
+[expo-cli]                   ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208730:19: error: private properties are not supported
+[expo-cli]       return this.#workletsModuleProxy.createSerializableNumber(num);
+[expo-cli]                   ^~~~~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208733:26: error: private properties are not supported
+[expo-cli]       return bool ? this.#serializableTrue : this.#serializableFalse;
+[expo-cli]                          ^~~~~~~~~~~~~~~~~
+[expo-cli] /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js:208733:51: error: private properties are not supported
+[expo-cli]       return bool ? this.#serializableTrue : this.#serializableFalse;
+[expo-cli]                                                   ^~~~~~~~~~~~~~~~~~
+[expo-cli] <unknown>:0: error: too many errors emitted
+[expo-cli] iOS Bundling failed 86673ms node_modules/.pnpm/expo-router@6.0.24_12858a4156df20508f8e9f3cc2c96e2a/node_modules/expo-router/entry.js (2378 modules)
+[expo-cli] Error: /home/runner/workspace/node_modules/.pnpm/react-native@0.81.5_patch_hash=8c7f6ab97be60ee01e2ec4d631c695491987d20d4be5ab9776260d15_030f91624288cdc8569b9055a5e7691f/node_modules/react-native/sdks/hermesc/linux64-bin/hermesc -emit-binary -out /tmp/expo-bundler-0.17718438221580546-1785272538189/index.hbc /tmp/expo-bundler-0.17718438221580546-1785272538189/index.js -O -output-source-map exited with non-zero code: 2
+✖ Export failed
+/home/runner/workspace/node_modules/.pnpm/expo@54.0.35_@babel+core@7.29.7_@expo+metro-runtime@6.1.2_expo-router@6.0.24_react-nati_7f8ae51be1d0bcc065e85283dbf85241/node_modules/expo/bin/cli export --output-dir dist --dump-sourcemap --dump-assetmap --platform ios --platform android exited with non-zero code: 1
+    Error: update command failed.
