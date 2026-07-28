@@ -1448,21 +1448,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const { announceM, remindM, nowM, distWord } = stepTriggers(kmh, dist);
 
-        if (dist < announceM
+        if (isDriving && dist < announceM
             && lastSpokenRef.current !== key
             && lastSpokenRef.current !== nearKey
             && lastSpokenRef.current !== nowKey) {
           // ── Cue 1: Announce — "In 300 metres, turn left onto Ngong Road" ─────
           // distWord is pre-compensated: it reflects where the driver will BE
           // when they hear the distance word, not where they were when we fired.
-          // Fires once when the driver enters the speed-adaptive announce bubble.
+          // Gated on isDriving: if the driver is stopped (red light, traffic jam)
+          // we skip the cue WITHOUT advancing lastSpokenRef — so it fires
+          // automatically the moment they start moving again.
           lastSpokenRef.current = key;
           speakText(distWord + step.instruction);
           // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
           const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
           if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
 
-        } else if (!isLastStep && dist < remindM && lastSpokenRef.current === key) {
+        } else if (isDriving && !isLastStep && dist < remindM && lastSpokenRef.current === key) {
           // ── Cue 2: Remind — "Turn left onto Ngong Road" ──────────────────────
           // Speed-adaptive trigger; road name still spoken — final confirmation
           // before the junction. No distance prefix.
@@ -1471,7 +1473,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
           if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
 
-        } else if (!isLastStep && dist < nowM && lastSpokenRef.current === nearKey) {
+        } else if (isDriving && !isLastStep && dist < nowM && lastSpokenRef.current === nearKey) {
           // ── Cue 3: Now — "Turn left" ─────────────────────────────────────────
           // Driver is at the junction. Maneuver word only — no distance, no road
           // name. Fires before STEP_ADVANCE_DIST (nowM min = 60 m > 50 m advance).

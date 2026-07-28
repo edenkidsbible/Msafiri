@@ -366,20 +366,48 @@ async function resolveRawClip(text: string): Promise<string | null> {
 }
 
 // ─── Audio playback ───────────────────────────────────────────────────────────
-let audioModeReady = false;
+let audioBaseReady = false;
 
-async function ensureTtsAudioMode() {
-  if (audioModeReady || Platform.OS === "web") return;
-  audioModeReady = true;
+/** One-time setup: allow playback in silent mode, route through speaker. */
+async function ensureAudioBase() {
+  if (audioBaseReady || Platform.OS === "web") return;
+  audioBaseReady = true;
   try {
     await setAudioModeAsync({
-      playsInSilentMode:         true,
-      interruptionMode:          "duckOthers",
-      allowsRecording:           false,
-      shouldPlayInBackground:    false,
+      playsInSilentMode:          true,
+      interruptionMode:           "mixWithOthers", // baseline: don't interfere
+      allowsRecording:            false,
+      shouldPlayInBackground:     false,
       shouldRouteThroughEarpiece: false,
     });
   } catch { /* non-critical */ }
+}
+
+const AUDIO_MODE_BASE = {
+  playsInSilentMode:          true,
+  allowsRecording:            false,
+  shouldPlayInBackground:     false,
+  shouldRouteThroughEarpiece: false,
+} as const;
+
+/**
+ * Lower background music while voice plays.
+ * Called immediately before the first clip of each speakPhrase() invocation.
+ */
+async function duckForVoice() {
+  if (Platform.OS === "web") return;
+  try {
+    await setAudioModeAsync({ ...AUDIO_MODE_BASE, interruptionMode: "duckOthers" });
+  } catch { /* ignore */ }
+}
+
+/**
+ * Restore music to its original volume.
+ * Called after all clips finish OR when stopNavVoice() interrupts early.
+ */
+function restoreAudioMode() {
+  if (Platform.OS === "web") return;
+  setAudioModeAsync({ ...AUDIO_MODE_BASE, interruptionMode: "mixWithOthers" }).catch(() => {});
 }
 
 /** Play a player and resolve when it finishes (or times out at 15 s). */
@@ -441,6 +469,8 @@ export function stopNavVoice(): void {
   activePlayer = null;
   // Also stop any fallback expo-speech utterance
   try { Speech.stop(); } catch { /* ignore */ }
+  // Restore music volume immediately — don't leave it ducked after interruption
+  restoreAudioMode();
 }
 
 /**
@@ -452,68 +482,74 @@ export function stopNavVoice(): void {
 export async function speakPhrase(text: string): Promise<void> {
   if (Platform.OS === "web" || !text.trim()) return;
 
-  await ensureTtsAudioMode();
+  await ensureAudioBase();
 
-  // Cancel previous playback
+  // Cancel previous playback, then duck music before our clips start.
   stopNavVoice();
-  const myGen = gen; // snapshot after increment
+  await duckForVoice();
+  const myGen = gen; // snapshot after stopNavVoice incremented gen
 
   const segments = parseToSegments(text);
 
-  for (const seg of segments) {
-    if (gen !== myGen) return; // cancelled
+  try {
+    for (const seg of segments) {
+      if (gen !== myGen) return; // cancelled
 
-    let source: number | { uri: string } | null = null;
+      let source: number | { uri: string } | null = null;
 
-    if (seg.kind === "token") {
-      const asset = TOKEN_ASSETS[seg.key];
-      if (asset == null) {
-        // Token file missing — fall through to speech fallback below
-        console.warn(`[tts] missing token asset: ${seg.key}`);
-        continue;
-      }
-      source = asset;
-    } else {
-      // On-demand road name
-      const uri = await resolveRawClip(seg.text);
-      if (gen !== myGen) return; // cancelled during fetch
-      if (uri) {
-        source = { uri };
+      if (seg.kind === "token") {
+        const asset = TOKEN_ASSETS[seg.key];
+        if (asset == null) {
+          // Token file missing — fall through to speech fallback below
+          console.warn(`[tts] missing token asset: ${seg.key}`);
+          continue;
+        }
+        source = asset;
       } else {
-        // Network/cache miss → expo-speech fallback for this segment only.
-        // Wait for the actual completion callback (onDone/onStopped/onError)
-        // rather than a heuristic sleep, so the next segment starts immediately
-        // after the speech finishes and stopNavVoice() (which calls Speech.stop())
-        // resolves this promise via onStopped rather than waiting out a timer.
-        await new Promise<void>((resolve) => {
-          const safety = setTimeout(resolve, 10_000); // hard cap
-          Speech.speak(seg.text, {
-            language: "en-GB",
-            rate: 0.82,
-            pitch: 0.93,
-            onDone:    () => { clearTimeout(safety); resolve(); },
-            onStopped: () => { clearTimeout(safety); resolve(); },
-            onError:   () => { clearTimeout(safety); resolve(); },
+        // On-demand road name
+        const uri = await resolveRawClip(seg.text);
+        if (gen !== myGen) return; // cancelled during fetch
+        if (uri) {
+          source = { uri };
+        } else {
+          // Network/cache miss → expo-speech fallback for this segment only.
+          // Wait for the actual completion callback (onDone/onStopped/onError)
+          // rather than a heuristic sleep, so the next segment starts immediately
+          // after the speech finishes and stopNavVoice() (which calls Speech.stop())
+          // resolves this promise via onStopped rather than waiting out a timer.
+          await new Promise<void>((resolve) => {
+            const safety = setTimeout(resolve, 10_000); // hard cap
+            Speech.speak(seg.text, {
+              language: "en-GB",
+              rate: 0.82,
+              pitch: 0.93,
+              onDone:    () => { clearTimeout(safety); resolve(); },
+              onStopped: () => { clearTimeout(safety); resolve(); },
+              onError:   () => { clearTimeout(safety); resolve(); },
+            });
           });
-        });
-        continue;
+          continue;
+        }
       }
+
+      if (gen !== myGen || source == null) return;
+
+      let player: AudioPlayer | null = null;
+      try {
+        player = createAudioPlayer(source);
+        activePlayer = player;
+        await playAndWait(player);
+      } catch (err) {
+        console.warn("[tts] playback error:", err);
+      } finally {
+        if (activePlayer === player) activePlayer = null;
+        try { player?.remove(); } catch { /* ignore */ }
+      }
+
+      if (gen !== myGen) return;
     }
-
-    if (gen !== myGen || source == null) return;
-
-    let player: AudioPlayer | null = null;
-    try {
-      player = createAudioPlayer(source);
-      activePlayer = player;
-      await playAndWait(player);
-    } catch (err) {
-      console.warn("[tts] playback error:", err);
-    } finally {
-      if (activePlayer === player) activePlayer = null;
-      try { player?.remove(); } catch { /* ignore */ }
-    }
-
-    if (gen !== myGen) return;
+  } finally {
+    // Restore music volume whether we finished normally, were cancelled, or threw.
+    restoreAudioMode();
   }
 }
