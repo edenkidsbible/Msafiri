@@ -1156,6 +1156,12 @@ export default function DriveScreen() {
                   <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
                     {navDestination?.name.split(",")[0]}
                   </Text>
+                  {/* #9 — remind driver their original destination is saved */}
+                  {resumeDestination && (
+                    <Text style={[styles.navResumeSub, { color: c.primary }]} numberOfLines={1}>
+                      ↩ en route to {resumeDestination.name.split(",")[0]}
+                    </Text>
+                  )}
                 </View>
                 <SOSButton compact />
                 <TouchableOpacity
@@ -1726,6 +1732,7 @@ const styles = StyleSheet.create({
   navEta:       { fontSize: 19, fontFamily: "Inter_700Bold" },
   navArrive:    { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1, opacity: 0.75 },
   navDest:      { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  navResumeSub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2, opacity: 0.9 },
   gpsLostChip:  { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#E65100EE", zIndex: 30 },
   gpsLostText:  { color: "#FFF", fontSize: 11, fontFamily: "Inter_500Medium" },
   stopBtn: {
