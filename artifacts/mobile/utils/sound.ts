@@ -78,40 +78,34 @@ export async function playSound(key: SoundKey) {
   }
 }
 
-// ─── Navigation voice (TTS only) ─────────────────────────────────────────────
+// ─── Navigation voice ─────────────────────────────────────────────────────────
 //
-// All navigation voice guidance uses the device's built-in TTS engine
-// (expo-speech) — one consistent voice throughout, no pre-generated clips.
+// All navigation voice guidance now uses ElevenLabs (Keli voice) via tts.ts.
+// speakPhrase() handles bundled token clips + on-demand road-name caching.
+
+import { speakPhrase, stopNavVoice } from "@/utils/tts";
 
 /**
- * Stop any in-progress TTS utterance. Call whenever a new announcement
- * pre-empts a previous one, or when navigation stops.
+ * Stop any in-progress navigation voice.  Silences both the ElevenLabs
+ * audio player and any expo-speech fallback utterance.
  */
 export function stopVoice() {
-  try { Speech.stop(); } catch { /* ignore */ }
-}
-
-/** Returns "1st", "2nd", "3rd", "4th", … for roundabout exit counting. */
-function toOrdinalSuffix(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+  stopNavVoice();
 }
 
 /**
  * Announce the arm the driver just swept past inside a roundabout.
- * e.g. exitsPassed=2 → "The 2nd exit."
+ * e.g. exitsPassed=2 → "The 2nd exit."  (plays bundled Keli clip)
  * No-op when muted or on web.
  */
 export async function speakRoundaboutExitCue(n: number): Promise<void> {
   if (soundsMuted || Platform.OS === "web") return;
-  await ensureAudioMode();
-  stopVoice();
-  Speech.speak(`The ${toOrdinalSuffix(n)} exit.`, {
-    language: "en-GB",
-    rate: 0.85,
-    pitch: 0.93,
-  });
+  const cues: Record<number, string> = {
+    1: "The 1st exit.", 2: "The 2nd exit.", 3: "The 3rd exit.",
+    4: "The 4th exit.", 5: "The 5th exit.", 6: "The 6th exit.",
+  };
+  const text = cues[n] ?? `The ${n}th exit.`;
+  await speakPhrase(text);
 }
 
 /**
@@ -120,11 +114,5 @@ export async function speakRoundaboutExitCue(n: number): Promise<void> {
  */
 export async function speakTakeThisExit(): Promise<void> {
   if (soundsMuted || Platform.OS === "web") return;
-  await ensureAudioMode();
-  stopVoice();
-  Speech.speak("Take this exit.", {
-    language: "en-GB",
-    rate: 0.85,
-    pitch: 0.93,
-  });
+  await speakPhrase("Take this exit.");
 }

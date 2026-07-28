@@ -13,8 +13,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
-import * as Speech from "expo-speech";
 import { stopVoice } from "@/utils/sound";
+import { speakPhrase } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -559,20 +559,10 @@ function estimateTrafficDelayS(incidents: RouteIncident[]): number {
   return Math.min(totalMin, MAX_TRAFFIC_DELAY_MIN) * 60;
 }
 
-// Best TTS voice — populated once at startup via getAvailableVoicesAsync()
-let _bestVoiceId: string | undefined;
-
-/** Speak navigation guidance via the device TTS engine — one consistent voice
- *  throughout, no pre-generated clips. */
+/** Speak navigation guidance via ElevenLabs (Keli voice) using bundled tokens
+ *  for structural phrases and on-demand cached clips for road names. */
 function speakText(text: string) {
-  if (Platform.OS === "web") return;
-  stopVoice();
-  Speech.speak(text, {
-    language: "en-GB",
-    rate: 0.82,   // slightly slower = clearer, more deliberate
-    pitch: 0.93,  // slightly lower = warmer, more human
-    voice: _bestVoiceId,
-  });
+  speakPhrase(text).catch((e) => console.warn("[speakText]", e));
 }
 
 // ─── Notification setup ───────────────────────────────────────────────────────
@@ -862,69 +852,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notifGranted.current = await requestNotificationPermissionInternal();
       }
 
-      // Select the most natural/human TTS voice available on this device.
-      // Priority: Google neural (Android) > Apple premium (iOS) > Enhanced > any EN
-      if (Platform.OS !== "web") {
-        try {
-          const voices = await Speech.getAvailableVoicesAsync();
-          const en = voices.filter((v) => v.language?.startsWith("en"));
-
-          // Google TTS neural voices on Android sound far more natural
-          const googleNeural = en.filter((v) => {
-            const id = v.identifier?.toLowerCase() ?? "";
-            return id.includes("google") && (
-              id.includes("female") || id.includes("male") ||
-              id.includes("language") || id.includes("wavenet")
-            );
-          });
-
-          // Apple Premium / Enhanced voices on iOS
-          const applePremium = en.filter((v) => {
-            const id = v.identifier?.toLowerCase() ?? "";
-            return (
-              id.includes("premium") ||
-              id.includes("siri") ||
-              (v as any).quality === "Enhanced" ||
-              id.includes("enhanced")
-            );
-          });
-
-          // Any Enhanced / Premium marked voice (any platform)
-          const anyEnhanced = en.filter(
-            (v) =>
-              (v as any).quality === "Enhanced" ||
-              v.identifier?.toLowerCase().includes("premium") ||
-              v.identifier?.toLowerCase().includes("enhanced")
-          );
-
-          // Prefer GB/AU accent for Kenyan market (familiar British English)
-          const preferredLocale = (list: typeof en) => [
-            ...list.filter((v) => v.language?.startsWith("en-GB")),
-            ...list.filter((v) => v.language?.startsWith("en-AU")),
-            ...list.filter((v) => v.language?.startsWith("en-US")),
-            ...list,
-          ];
-
-          const ranked = [
-            ...preferredLocale(googleNeural),
-            ...preferredLocale(applePremium),
-            ...preferredLocale(anyEnhanced),
-            ...en,
-          ];
-
-          // Deduplicate by identifier
-          const seen = new Set<string>();
-          for (const v of ranked) {
-            if (!seen.has(v.identifier)) {
-              seen.add(v.identifier);
-              _bestVoiceId = v.identifier;
-              break;
-            }
-          }
-        } catch {
-          // voice selection is best-effort; silence the error
-        }
-      }
     })();
   }, []);
 
@@ -2136,8 +2063,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // cleanup. Stop TTS (with a trailing follow-up to catch any narrowly-missed
     // utterance that slipped through on some Android TTS engines).
     stopVoice();
-    Speech.stop?.();
-    setTimeout(() => Speech.stop?.(), 60);
 
     navActiveRef.current = false;
     navStartRef.current = null;

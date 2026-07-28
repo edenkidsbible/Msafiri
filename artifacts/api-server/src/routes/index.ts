@@ -33,5 +33,6 @@ router.use(courseRouter);
 router.use(publicSettingsRouter);
 router.use(storageRouter);
 router.use(adminMobileRouter);
+router.use(ttsRouter);
 
 export default router;
