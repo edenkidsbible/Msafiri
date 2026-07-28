@@ -26,6 +26,7 @@ import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
 import DriveMapView, { type DriveMapViewHandle } from "@/components/DriveMapView";
+import { isCivilTwilight } from "@/utils/solarTwilight";
 import ReportModal from "@/components/ReportModal";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
@@ -214,6 +215,43 @@ export default function DriveScreen() {
     }
   }, [overviewMode, distToNextM, exitOverview, showOverviewToast]);
 
+  // ── Night mode auto-switch (Task #38) ────────────────────────────────────────
+  // Derives civil twilight from the driver's GPS position — no network call.
+  // manualThemeRef: set when the driver taps the moon/sun FAB this session,
+  // which suppresses automatic switching for the rest of the session (resets on
+  // app restart — not persisted).
+  const manualThemeRef = useRef(false);
+  const screenFade     = useRef(new Animated.Value(1)).current;
+
+  // triggerAutoSwitch — fade out → swap theme → fade in (300 ms total)
+  const triggerAutoSwitch = useCallback((next: "dark" | "light") => {
+    Animated.timing(screenFade, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setThemeOverride(next);
+      Animated.timing(screenFade, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    });
+  }, [screenFade, setThemeOverride]);
+
+  // Ref bag keeps a stable snapshot of the values the interval reads each tick
+  // so we don't need to tear-down/re-create the interval on every GPS fix.
+  const autoNightRef = useRef({ isDark: c.isDark, lat: currentLat, lng: currentLng });
+  useEffect(() => {
+    autoNightRef.current = { isDark: c.isDark, lat: currentLat, lng: currentLng };
+  });
+
+  useEffect(() => {
+    const tick = () => {
+      if (manualThemeRef.current) return;
+      const { isDark: dark, lat, lng } = autoNightRef.current;
+      if (lat == null || lng == null) return;
+      const night = isCivilTwilight(lat, lng, new Date());
+      if (night && !dark)  triggerAutoSwitch("dark");
+      if (!night && dark)  triggerAutoSwitch("light");
+    };
+    tick(); // check immediately on mount
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [triggerAutoSwitch]);
+
   // Clear overview + drift when navigation ends (e.g. driver taps Stop)
   useEffect(() => {
     if (!navigationActive) {
@@ -231,16 +269,31 @@ export default function DriveScreen() {
       const link = await startSharingTrip();
       if (link) {
         const trimmed = name.trim();
-        const namePrefix = trimmed ? `${trimmed} is sharing their live location 📍` : "Follow my live trip 📍";
+        const namePrefix = trimmed
+          ? `${trimmed} is sharing their live ETA 📍`
+          : "Follow my live trip 📍";
+        // Build an ETA suffix when navigation is active and we have duration data.
+        let etaSuffix = "";
+        if (durationRemainingS != null && durationRemainingS > 0) {
+          const arrive = new Date(Date.now() + durationRemainingS * 1000);
+          const hh = arrive.getHours();
+          const mm = arrive.getMinutes().toString().padStart(2, "0");
+          const minLeft = Math.round(durationRemainingS / 60);
+          etaSuffix = `\nETA: ${hh}:${mm} (${minLeft} min away)`;
+          if (distanceRemainingM != null) {
+            const km = (distanceRemainingM / 1000).toFixed(1);
+            etaSuffix += `, ${km} km remaining`;
+          }
+        }
         await Share.share({
-          message: `${namePrefix}\n${link}`,
+          message: `${namePrefix}${etaSuffix}\n${link}`,
           title: "Track my trip — Msafiri Kenya",
         });
       }
     } finally {
       setSharingLoading(false);
     }
-  }, [startSharingTrip]);
+  }, [startSharingTrip, durationRemainingS, distanceRemainingM]);
 
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
@@ -451,7 +504,7 @@ export default function DriveScreen() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.screen}>
+    <Animated.View style={[styles.screen, { opacity: screenFade }]}>
 
       {/* ── Base layer: full-screen map ── */}
       <View style={StyleSheet.absoluteFillObject}>
@@ -692,6 +745,7 @@ export default function DriveScreen() {
             style={[styles.fab, { backgroundColor: fabBg }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              manualThemeRef.current = true; // suppress auto-switch for this session
               setThemeOverride(isDark ? "light" : "dark");
             }}
           >
@@ -1106,7 +1160,7 @@ export default function DriveScreen() {
                       color={isSharingTrip ? "#fff" : fgMuted}
                     />
                     <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                      {isSharingTrip ? "● Sharing — tap to stop" : "Share Location"}
+                      {isSharingTrip ? "● Sharing — tap to stop" : "Share ETA"}
                     </Text>
                   </>
                 )}
@@ -1334,7 +1388,7 @@ export default function DriveScreen() {
           }}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 

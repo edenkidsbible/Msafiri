@@ -48,6 +48,13 @@ function durationStr(s: number): string {
   return `${m} min`;
 }
 
+function arrivalTimeStr(durationS: number): string {
+  const arrive = new Date(Date.now() + durationS * 1000);
+  const h = arrive.getHours();
+  const m = arrive.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 function timeSince(isoStr: string): string {
   const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
   if (diff < 5)  return "just now";
@@ -387,7 +394,11 @@ export default function LiveTracker() {
           {!ended && (
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
               {session.durationRemainingS != null && (
-                <StatPill icon="⏱" label="ETA" value={durationStr(session.durationRemainingS)} />
+                <StatPill
+                  icon="⏱"
+                  label="ETA"
+                  value={`${arrivalTimeStr(session.durationRemainingS)} · ${durationStr(session.durationRemainingS)}`}
+                />
               )}
               {session.distanceRemainingM != null && (
                 <StatPill icon="📏" label="Left" value={distStr(session.distanceRemainingM)} />

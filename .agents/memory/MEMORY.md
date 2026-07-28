@@ -31,6 +31,7 @@
 - [Expo tsconfig platform-file resolution](expo-tsconfig-platform-suffixes.md) — tsc can't resolve `@/components/Foo` when only Foo.native.tsx/Foo.web.tsx exist; add moduleSuffixes to tsconfig.
 - [logAudit call-site signature](audit-log-signature.md) — logAudit takes one options object with nested `actor: {id,name,role}` and object `details`; watch for call sites drifting to flat actorId/actorName or string details.
 - [Drive page theme vs HUD mode](drive-theme-vs-hudmode.md) — two separate booleans (themeOverride, hudMode) look similar; drive-page color theming must follow themeOverride/useColors, not the HUD/Night-Mode settings switch.
+- [Auto-switch interval ref-bag pattern](auto-switch-ref-bag.md) — when a 60s interval needs fresh state without re-registering on every GPS fix, keep a ref-bag updated by a no-dep useEffect; interval reads the ref, not closure-captured state.
 - [lib/db composite build gotcha](db-package-composite-build.md) — new schema exports invisible to consumers until `tsc -b` regenerates dist/*.d.ts; drizzle-kit push alone doesn't do this.
 - [On-demand route status check](route-status-on-demand-check.md) — checkRouteStatus() reuses active-nav incident-matching for arbitrary destinations (Saved Places/Planned Trips) without touching navigation state.
 - [Modal refetch-storm from live GPS state](modal-refetch-gps-dependency.md) — never put a continuously-updating value (e.g. currentLat) straight in a useEffect dep array for a one-shot fetch; use a stable boolean/ref transition + manual refresh instead.
