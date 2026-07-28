@@ -17,6 +17,7 @@
 - [Camera validation circular-anchor trap](camera-validation-circular-anchors.md) — validateCameras.mjs anchors placed at a camera's own coords make it validate against itself (false 0m pass); keep anchors far from cameras, verify against geocoded landmarks.
 - [Expo watchPositionAsync silent stall](expo-location-watch-stall.md) — watchPositionAsync can freeze after first fix; pair GPS tracking with a watchdog resubscribe + keep-awake, don't trust a bare subscription.
 - [Live ETA/distance-remaining display locations](live-eta-distance-display.md) — two separate route panels (index.tsx nav bar, MapViewScreen.web.tsx) both need updating in sync, or one drifts back to static.
+- [GPS dead reckoning pattern](gps-dead-reckoning.md) — signal-loss interval in AppContext; drStateRef holds last real fix; setCurrentLat/Lng advance from it; off-route detection gated by !gpsLostRef.current.
 - [Mobile API client pattern](mobile-api-client-pattern.md) — mobile app uses a hand-written apiGet/apiPost wrapper, not generated api-client-react hooks like the web artifacts.
 - [Speed corridor confidence matching](speed-corridor-confidence-matching.md) — a stricter confidence check must exclude the data feeding a looser legacy check, not just be given fallback priority over it.
 - [Speed gauge stationary jitter](speed-gauge-stationary-jitter.md) — GPS phantom motion while parked; fix needs accuracy-based noise floor + dead-band + rolling median together, not just one.

@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -204,6 +204,8 @@ function RootLayoutNav() {
   if (isSubscribed) wasSubscribed.current = true;
   usePushNotifications();
   const versionCheck = useAppVersion();
+  // Soft-update banner: dismissed once per session, not blocking
+  const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
 
   useEffect(() => {
     // Wait until AppContext has hydrated from AsyncStorage and RevenueCat
@@ -286,6 +288,33 @@ function RootLayoutNav() {
       />
       <PaywallBypassBanner />
       <OfflineBanner />
+      {/* Soft update banner — shown when a newer version is available but not
+          required. Dismissable per session; taps open the relevant store page. */}
+      {versionCheck.updateAvailable && !versionCheck.isForceRequired && !updateBannerDismissed && (
+        <View style={styles.updateBanner}>
+          <Ionicons name="arrow-up-circle-outline" size={15} color="#FFF" />
+          <Text style={styles.updateBannerText} numberOfLines={1}>
+            Update available{versionCheck.latestVersion ? ` · v${versionCheck.latestVersion}` : ""}
+          </Text>
+          {(versionCheck.storeUrlIos || versionCheck.storeUrlAndroid) && (
+            <TouchableOpacity
+              onPress={() => {
+                const url = Platform.OS === "ios" ? versionCheck.storeUrlIos : versionCheck.storeUrlAndroid;
+                if (url) void Linking.openURL(url);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+            >
+              <Text style={styles.updateBannerAction}>Update</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => setUpdateBannerDismissed(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+          >
+            <Ionicons name="close" size={15} color="#FFFFFFCC" />
+          </TouchableOpacity>
+        </View>
+      )}
       <RouteIncidentsPanel />
       <Stack
         screenOptions={{
@@ -399,6 +428,26 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 16,
     zIndex: 999,
+  },
+  updateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#E65100",
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    zIndex: 999,
+  },
+  updateBannerText: {
+    flex: 1,
+    color: "#FFF",
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+  updateBannerAction: {
+    color: "#FFD180",
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
   offlineText: {
     color: "#fff",

@@ -36,6 +36,13 @@ function durationStr(s: number): string {
   return h > 0 ? `${h}h ${m}min` : `${m} min`;
 }
 
+function arrivalTimeStr(durationS: number): string {
+  const d = new Date(Date.now() + durationS * 1000);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `Arrive ${h}:${m}`;
+}
+
 export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -121,6 +128,9 @@ export default function MapViewScreen() {
                 </Text>
                 <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
                   {durationStr(durationRemainingS ?? (activeRoute.durationS + routeTrafficDelayS))} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
+                </Text>
+                <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFAA" : c.mutedForeground, marginTop: 1 }]}>
+                  {arrivalTimeStr(durationRemainingS ?? (activeRoute.durationS + routeTrafficDelayS))}
                 </Text>
                 {routeTrafficDelayS > 0 && (
                   <Text style={[styles.routeMeta, { color: navigationActive ? "#FFD180" : "#E65100", marginTop: 1 }]}>

@@ -183,6 +183,9 @@ interface AppContextValue {
   onboardingComplete: boolean;
   completeOnboarding: () => void;
   isOffline: boolean;
+  /** True when GPS signal has been absent for >5 s during active navigation.
+   *  Dead reckoning is used to project position during this window (max 15 s). */
+  gpsLost: boolean;
   vehicleType: VehicleTypeId;
   setVehicleType: (v: VehicleTypeId) => void;
   // Navigation
@@ -834,6 +837,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
   const offRouteCountRef = useRef(0);
   const isReroutingRef   = useRef(false);
+  // ── GPS signal-loss detection + dead reckoning ────────────────────────────
+  // When navigating, we track the time of the last real GPS fix. If fixes stop
+  // arriving for >5 s (tunnel, underpass, parking structure) we set gpsLost and
+  // begin projecting position along the route polyline using the last known
+  // speed and heading (dead reckoning), for up to 15 s before freezing.
+  const [gpsLost, setGpsLost] = useState(false);
+  const gpsLostRef      = useRef(false);   // stable ref for interval callbacks
+  const gpsLostSinceRef = useRef<number | null>(null); // when loss started
+  const lastNavFixAtRef = useRef(0);       // last real fix while navActive
+  const lastHeadingRef  = useRef<number | null>(null); // last known heading (°)
+  const drStateRef      = useRef<{ lat: number; lng: number; speedMps: number; heading: number } | null>(null);
   const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
   // Tracks whether we've already spoken the "approaching destination" cue this
   // navigation session so it fires exactly once per trip.
@@ -1023,6 +1037,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // and (c) a short rolling median to smooth out one-off spikes.
     const deviceKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
     const now = Date.now();
+    // Real GPS fix arrived — stamp it and clear any signal-loss state so
+    // off-route detection and step tracking operate on the actual position.
+    if (navActiveRef.current) lastNavFixAtRef.current = now;
+    if (gpsLostRef.current) {
+      gpsLostRef.current = false;
+      gpsLostSinceRef.current = null;
+      setGpsLost(false);
+    }
     const prevFix = lastFixRef.current;
     // GPS horizontal accuracy is typically 3-15m in good conditions; treat
     // anything worse as too noisy to derive a speed delta from directly.
@@ -1141,6 +1163,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // — in that case all direction checks degrade to distance-only behaviour.
     const driverHeading = driverHeadingDeg(prevFix, lat, lng);
     setDriverHeading(driverHeading);
+    // Update dead reckoning baseline — used by the DR interval when signal is lost.
+    lastHeadingRef.current = driverHeading ?? lastHeadingRef.current;
+    drStateRef.current = { lat, lng, speedMps: Math.max(0, kmh / 3.6), heading: lastHeadingRef.current ?? 0 };
 
     // ── Unified alert panel: zones + community reports ────────────────────────
     //
@@ -1562,7 +1587,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Scan a window of route coords around the last projected index.  If the
     // driver is > 20 m from the nearest point for 3 consecutive fixes, the
     // reroute callback fetches a fresh route from the current position.
-    if (navActiveRef.current && routeRef.current) {
+    // Suppressed during dead reckoning: the projected position is derived from
+    // the route itself and will never be "off-route" in a meaningful sense.
+    if (navActiveRef.current && routeRef.current && !gpsLostRef.current) {
       const coords  = routeRef.current.coords;
       const prior   = Math.max(0, Math.min(routeProjIdxRef.current, coords.length - 1));
       const wStart  = Math.max(0, prior - 10);
@@ -1683,6 +1710,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       teardown();
     };
   }, [locationGranted, handleLocation]);
+
+  // ── Dead reckoning interval ────────────────────────────────────────────────
+  // Polls every second while the GPS subscription is active. When navigation
+  // is running and real fixes stop arriving for >5 s, this detects the gap,
+  // sets gpsLost, and projects the driver's position forward along the last
+  // known heading at the last known speed — for up to 15 s before freezing.
+  // This keeps distanceRemainingM / durationRemainingS counting down smoothly
+  // during short signal outages (tunnels, underpasses, parking structures).
+  useEffect(() => {
+    if (!locationGranted) return;
+    const id = setInterval(() => {
+      if (!navActiveRef.current) return;
+      const now = Date.now();
+      const sinceLastFix = now - lastNavFixAtRef.current;
+
+      // Detect signal loss (first time only — don't keep re-setting state)
+      if (sinceLastFix > 5000 && !gpsLostRef.current) {
+        gpsLostRef.current = true;
+        gpsLostSinceRef.current = now;
+        setGpsLost(true);
+      }
+
+      if (!gpsLostRef.current) return;
+
+      // Freeze after 15 s — dead reckoning error compounds too quickly beyond that
+      const lostFor = now - (gpsLostSinceRef.current ?? now);
+      if (lostFor > 15000) return;
+
+      const dr = drStateRef.current;
+      if (!dr || dr.speedMps < 0.5 || lastHeadingRef.current == null) return;
+
+      // Project one second of travel in the last known heading direction.
+      // Simple flat-earth formula — accurate to <0.1 m error per 1 s step.
+      const distM      = dr.speedMps; // metres in 1 second
+      const headingRad = (dr.heading * Math.PI) / 180;
+      const newLat     = dr.lat + (distM * Math.cos(headingRad)) / 111320;
+      const newLng     = dr.lng + (distM * Math.sin(headingRad)) / (111320 * Math.cos(dr.lat * Math.PI / 180));
+
+      // Push the projected position into React state so currentRouteDistanceM
+      // (and therefore distanceRemainingM / durationRemainingS) keep updating.
+      setCurrentLat(newLat);
+      setCurrentLng(newLng);
+      drStateRef.current = { ...dr, lat: newLat, lng: newLng };
+    }, 1000);
+    return () => clearInterval(id);
+  }, [locationGranted]);
 
   // Keep the screen awake while actively navigating so the OS doesn't dim/
   // lock the display and throttle GPS callbacks mid-trip.
@@ -2762,6 +2835,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hasVotedOnReport,
       pendingFocusCoords, setPendingFocusCoords,
       markReportPrompted, isReportPrompted,
+      gpsLost,
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,

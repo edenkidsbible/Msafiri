@@ -54,6 +54,14 @@ function durationStr(s: number): string {
   return h > 0 ? `${h}h ${m}min` : `${m} min`;
 }
 
+/** Format estimated arrival as a clock time, e.g. "Arrive 14:35" */
+function arrivalTimeStr(durationS: number): string {
+  const d = new Date(Date.now() + durationS * 1000);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `Arrive ${h}:${m}`;
+}
+
 function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
   const l = instruction.toLowerCase();
   if (l.includes("right")) return "arrow-forward-circle";
@@ -134,6 +142,7 @@ export default function DriveScreen() {
     setPendingConfirmationSource,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, setDriverName,
+    gpsLost,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -516,6 +525,14 @@ export default function DriveScreen() {
               <Text style={[styles.navDist, { opacity: 0.7 }]}>{distStr(distToNextM)}</Text>
             )}
           </View>
+        </View>
+      )}
+
+      {/* GPS signal-lost chip — shown during dead reckoning (mid-nav only) */}
+      {navigationActive && gpsLost && (
+        <View style={[styles.gpsLostChip, { top: topInset + 4 }]}>
+          <Ionicons name="cloud-offline-outline" size={12} color="#FFF" />
+          <Text style={styles.gpsLostText}>GPS signal lost</Text>
         </View>
       )}
 
@@ -1051,8 +1068,12 @@ export default function DriveScreen() {
                   <Text style={[styles.navEta, { color: fgMain }]}>
                     {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
                   </Text>
+                  {/* Arrival clock time — updates every GPS fix via durationRemainingS */}
+                  <Text style={[styles.navArrive, { color: fgMuted }]}>
+                    {arrivalTimeStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
+                    {distanceRemainingM != null ? ` · ${distStr(distanceRemainingM)}` : ""}
+                  </Text>
                   <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
-                    {distanceRemainingM != null ? `${distStr(distanceRemainingM)} · ` : ""}
                     {navDestination?.name.split(",")[0]}
                   </Text>
                 </View>
@@ -1564,7 +1585,10 @@ const styles = StyleSheet.create({
   navLimitNum:  { fontSize: 14, fontFamily: "Inter_700Bold" },
   navDivider:   { width: 1, borderRadius: 1, marginHorizontal: 2, opacity: 0.5 },
   navEta:       { fontSize: 19, fontFamily: "Inter_700Bold" },
+  navArrive:    { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1, opacity: 0.75 },
   navDest:      { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  gpsLostChip:  { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#E65100EE", zIndex: 30 },
+  gpsLostText:  { color: "#FFF", fontSize: 11, fontFamily: "Inter_500Medium" },
   stopBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "#E53935",
