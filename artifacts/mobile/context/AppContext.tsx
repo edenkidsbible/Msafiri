@@ -612,9 +612,70 @@ function warnIfBlockedDevice(err: unknown): boolean {
 }
 
 const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
-const STEP_ANNOUNCE_DIST = 350; // m — initial "In X metres, turn …" announcement
-const STEP_REMIND_DIST  = 80;  // m — final "turn now" reminder (no distance prefix)
 const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
+
+// ─── Navigation voice timing ─────────────────────────────────────────────────
+// Fixed trigger distances break at both ends: 350 m at 30 km/h = 42 s
+// (too early); 350 m at 100 km/h = 12.6 s (too late for a highway turn).
+// Google Maps and Bolt solve this with two ideas combined:
+//
+//   1. Speed-adaptive spoken distance
+//      Target ~8 seconds of travel time, snapped to available token grid.
+//      e.g. at 50 km/h → 100 m token; at 100 km/h → 250 m token.
+//
+//   2. Audio pre-compensation (the formula they actually use)
+//      triggerM = spokenDistM + speed × clipDuration
+//      This advances the trigger so the SPOKEN distance is still accurate
+//      when the driver HEARS it, after 4-5 s of clip playback have elapsed.
+//
+//   3. Three-cue system (industry standard)
+//      ANNOUNCE — "In [N] metres, turn left onto Ngong Road"  (~8 s of travel)
+//      REMIND   — "Turn left onto Ngong Road"                 (~2.5 s of travel)
+//      NOW      — "Turn left"  (maneuver only, driver is at the junction)
+//
+// Clip duration estimates (Keli, Flash v2.5):
+const CLIP_DUR_ANNOUNCE_S = 4.5; // "In 300 metres, turn left onto Ngong Road"
+const CLIP_DUR_REMIND_S   = 2.5; // "Turn left onto Ngong Road"
+const CLIP_DUR_NOW_S      = 1.2; // "Turn left"
+const AUDIO_STARTUP_S     = 0.5; // token load + speaker warm-up
+
+/**
+ * Returns speed-adaptive trigger thresholds and the pre-compensated spoken
+ * distance word for the ANNOUNCE cue.
+ *
+ * @param speedKmh  Current GPS speed (km/h)
+ * @param distM     Current distance to next maneuver point (metres)
+ */
+function stepTriggers(speedKmh: number, distM: number) {
+  const s = Math.max(5, speedKmh) / 3.6; // m/s; floor prevents division issues at 0
+
+  // ── ANNOUNCE ─────────────────────────────────────────────────────────────
+  // Target spoken distance: ~8 s of travel, snapped to 50 m token grid (100–350 m)
+  const spokenAnnounceM = Math.min(350, Math.max(100, Math.round(s * 8 / 50) * 50));
+  const announceM       = spokenAnnounceM + s * (CLIP_DUR_ANNOUNCE_S + AUDIO_STARTUP_S);
+
+  // Actual spoken distance at trigger time = where driver will be when audio ends.
+  // Differs from spokenAnnounceM when nav starts inside the bubble or speed changed.
+  const actualSpokenM = Math.max(0, Math.round((distM - s * CLIP_DUR_ANNOUNCE_S) / 50) * 50);
+  const distWord      = actualSpokenM >= 100 ? `In ${actualSpokenM} metres, ` : "";
+
+  // ── REMIND ───────────────────────────────────────────────────────────────
+  // Spoken distance not needed; just need trigger threshold.
+  const spokenRemindM = Math.min(100, Math.max(30, Math.round(s * 2.5 / 10) * 10));
+  const remindM       = spokenRemindM + s * (CLIP_DUR_REMIND_S + AUDIO_STARTUP_S);
+
+  // ── NOW ──────────────────────────────────────────────────────────────────
+  // Must fire BEFORE STEP_ADVANCE_DIST (50 m) or the step advances first and
+  // the cue is silently skipped. Minimum is therefore STEP_ADVANCE_DIST + 10 = 60 m.
+  const nowM = Math.max(60, 20 + s * (CLIP_DUR_NOW_S + AUDIO_STARTUP_S));
+
+  return { announceM, remindM, nowM, distWord };
+}
+
+/** Strip "onto [road]" for the NOW cue — driver is at the junction, no road name needed. */
+function maneuverOnly(instruction: string): string {
+  return instruction.replace(/\s+onto\s+.+$/i, "").replace(/\s+on\s+.+$/i, "").trim();
+}
 const ARRIVAL_DIST = 30;        // m — trigger arrival voice + advance final step
 const APPROACHING_DIST = 65;   // m — one early "approaching your destination" cue
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
@@ -1383,35 +1444,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const key     = `step_${idx}`;
         const nearKey = `step_${idx}_near`;
+        const nowKey  = `step_${idx}_now`;
 
-        if (dist < STEP_ANNOUNCE_DIST && lastSpokenRef.current !== key && lastSpokenRef.current !== nearKey) {
-          // ── Initial announcement — "In 300 metres, turn left onto Ngong Road" ──
-          // Fires once when the driver enters the 350 m bubble.  Using `else if`
-          // for the reminder below means only one phrase fires per GPS tick even
-          // when the driver is already inside both thresholds (e.g. nav started
-          // close to a junction).
+        const { announceM, remindM, nowM, distWord } = stepTriggers(kmh, dist);
+
+        if (dist < announceM
+            && lastSpokenRef.current !== key
+            && lastSpokenRef.current !== nearKey
+            && lastSpokenRef.current !== nowKey) {
+          // ── Cue 1: Announce — "In 300 metres, turn left onto Ngong Road" ─────
+          // distWord is pre-compensated: it reflects where the driver will BE
+          // when they hear the distance word, not where they were when we fired.
+          // Fires once when the driver enters the speed-adaptive announce bubble.
           lastSpokenRef.current = key;
-          const distWord = dist > 100 ? `In ${Math.round(dist / 50) * 50} metres, ` : "";
           speakText(distWord + step.instruction);
-          // Protect the clip chain (distance + maneuver + road ≈ 5–6 s total)
-          // from being cut by a supplementary hazard/zone alert.
-          // Advancing lastGeneralAlertAtRef makes canSpeakGeneralAlert() return
-          // false for the next ~6 s without shortening any already-running
-          // cooldown that expires later.
+          // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
           const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
           if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
 
-        } else if (!isLastStep && dist < STEP_REMIND_DIST && lastSpokenRef.current === key) {
-          // ── Final "turn now" reminder — fires at ≤ 80 m ──────────────────────
-          // Only fires after the initial was already given (lastSpokenRef === key)
-          // and only for intermediate steps — the last step uses APPROACHING_DIST
-          // (65 m) for its cue.  No distance prefix here: at this range the
-          // driver needs the raw maneuver word, not a countdown.
+        } else if (!isLastStep && dist < remindM && lastSpokenRef.current === key) {
+          // ── Cue 2: Remind — "Turn left onto Ngong Road" ──────────────────────
+          // Speed-adaptive trigger; road name still spoken — final confirmation
+          // before the junction. No distance prefix.
           lastSpokenRef.current = nearKey;
           speakText(step.instruction);
-          // Shorter protection window — maneuver-only clip is ~2–3 s.
           const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
           if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
+
+        } else if (!isLastStep && dist < nowM && lastSpokenRef.current === nearKey) {
+          // ── Cue 3: Now — "Turn left" ─────────────────────────────────────────
+          // Driver is at the junction. Maneuver word only — no distance, no road
+          // name. Fires before STEP_ADVANCE_DIST (nowM min = 60 m > 50 m advance).
+          lastSpokenRef.current = nowKey;
+          speakText(maneuverOnly(step.instruction));
+          const protect2s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 2000);
+          if (lastGeneralAlertAtRef.current < protect2s) lastGeneralAlertAtRef.current = protect2s;
         }
 
         // The final step gets a wider arrival radius than intermediate turns:
