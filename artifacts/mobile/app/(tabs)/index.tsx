@@ -1403,7 +1403,16 @@ export default function DriveScreen() {
       )}
 
       {/* #34 — Search Along Route */}
-      <RouteSearchSheet visible={showRouteSearch} onClose={() => setShowRouteSearch(false)} />
+      <RouteSearchSheet
+        visible={showRouteSearch}
+        onClose={() => setShowRouteSearch(false)}
+        onSelect={(poi) => {
+          setShowRouteSearch(false);
+          setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+          startNavigation();
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }}
+      />
     </Animated.View>
   );
 }

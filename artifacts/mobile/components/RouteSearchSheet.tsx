@@ -158,9 +158,10 @@ function etaMinutes(distM: number, speedKmh: number): number {
 interface Props {
   visible: boolean;
   onClose: () => void;
+  onSelect: (item: { name: string; lat: number; lng: number }) => void;
 }
 
-export default function RouteSearchSheet({ visible, onClose }: Props) {
+export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { activeRoute, currentLat, currentLng, currentSpeed } = useApp();
@@ -339,7 +340,13 @@ export default function RouteSearchSheet({ visible, onClose }: Props) {
                 const dist = Math.max(0, item.distAheadM);
                 const eta  = etaMinutes(dist, speedKmh);
                 return (
-                  <View style={[styles.row, { borderColor: c.border }]}>
+                  <TouchableOpacity
+                    style={[styles.row, { borderColor: c.border }]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      onSelect({ name: item.name, lat: item.lat, lng: item.lng });
+                    }}
+                  >
                     <View style={[styles.rowIconWrap, { backgroundColor: c.primary + "18" }]}>
                       <Ionicons name="location" size={16} color={c.primary} />
                     </View>
@@ -361,7 +368,7 @@ export default function RouteSearchSheet({ visible, onClose }: Props) {
                         </Text>
                       )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               }}
             />
