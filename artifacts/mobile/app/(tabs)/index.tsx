@@ -32,6 +32,12 @@ import ReportModal from "@/components/ReportModal";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import {
+  loadRecentSearches,
+  saveRecentSearch,
+  removeRecentSearch,
+  clearRecentSearches,
+} from "@/utils/recentSearches";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
@@ -166,6 +172,7 @@ export default function DriveScreen() {
   const [searchError, setSearchError] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recentSearches, setRecentSearches] = useState<GeoResult[]>([]);
   const [sharingLoading, setSharingLoading] = useState(false);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -193,6 +200,11 @@ export default function DriveScreen() {
     inputRange:  [0, 1, 2, 3],
     outputRange: ["#CE1126", "#1A1A1A", "#006600", "#CE1126"],
   });
+  // Load recent searches from AsyncStorage on mount
+  useEffect(() => {
+    loadRecentSearches().then(setRecentSearches);
+  }, []);
+
   useEffect(() => {
     const loop = Animated.loop(
       Animated.timing(reportColorAnim, { toValue: 3, duration: 3000, useNativeDriver: false })
@@ -577,6 +589,8 @@ export default function DriveScreen() {
     setGeoResults([]);
     setShowResults(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Persist to recents (newest-first, deduped)
+    saveRecentSearch(r).then(setRecentSearches);
   };
 
   const clearDestination = () => {
@@ -770,7 +784,7 @@ export default function DriveScreen() {
             )}
           </View>
 
-          {/* Results dropdown */}
+          {/* Results dropdown — live search results */}
           {showResults && (
             <View pointerEvents="auto" style={[styles.resultsCard, { backgroundColor: bg }]}>
               {searchError && (
@@ -816,6 +830,62 @@ export default function DriveScreen() {
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={13} color={fgMuted} />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
+
+          {/* Recents dropdown — shown when focused with no text typed */}
+          {!showResults && searchInputFocused && searchText.length === 0 && recentSearches.length > 0 && (
+            <View pointerEvents="auto" style={[styles.resultsCard, { backgroundColor: bg }]}>
+              {/* Clear all header */}
+              <TouchableOpacity
+                style={[styles.recentsClearRow, { borderBottomColor: divBg }]}
+                onPress={() => {
+                  clearRecentSearches();
+                  setRecentSearches([]);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                activeOpacity={0.72}
+              >
+                <Text style={[styles.recentsClearTxt, { color: c.primary }]}>Clear all recents</Text>
+              </TouchableOpacity>
+              <FlatList
+                {...FLAT_LIST_PROPS}
+                data={recentSearches}
+                keyExtractor={(item) => item.display}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.resultRow,
+                      { borderBottomColor: divBg },
+                      index === 0 && { borderTopColor: divBg, borderTopWidth: StyleSheet.hairlineWidth },
+                    ]}
+                    onPress={() => pickDestination(item)}
+                    activeOpacity={0.72}
+                  >
+                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}>
+                      <Ionicons name="time-outline" size={15} color={fgMuted} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>
+                        {item.short}
+                      </Text>
+                      <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>
+                        {item.display.split(",").slice(2).join(",").trim()}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        removeRecentSearch(item).then(setRecentSearches);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close-circle" size={17} color={fgMuted} />
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 )}
               />
@@ -1723,6 +1793,14 @@ const styles = StyleSheet.create({
   resultIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   resultName: { fontSize: 15, fontFamily: "Inter_500Medium" },
   resultSub:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+
+  // ── Recent searches ───────────────────────────────────────────────────────
+  recentsClearRow: {
+    paddingHorizontal: 16, paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: "flex-end",
+  },
+  recentsClearTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   // ── Prominent Report button ───────────────────────────────────────────────
   reportBar: {
