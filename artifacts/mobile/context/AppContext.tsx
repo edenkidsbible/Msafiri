@@ -796,6 +796,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [driverHeading, setDriverHeading] = useState<number | null>(null);
   const allZonesRef = useRef<SpeedZone[]>(SPEED_ZONES);
   const dbStretchesRef = useRef<SpeedStretch[]>([]);
+  // Synchronous mirrors of dbZones/suppressedStaticIds state — read by admin
+  // callbacks that need the current value before the next render cycle fires.
+  const dbZonesRef = useRef<SpeedZone[]>([]);
+  const suppressedStaticIdsRef = useRef<string[]>([]);
 
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [driverName, setDriverNameState] = useState<string>("");
@@ -2114,10 +2118,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const allZones = useMemo<SpeedZone[]>(() => {
     // Remove static zones that have been overridden or suppressed by a DB record.
     const filtered = SPEED_ZONES.filter((z) => !suppressedStaticIds.includes(z.id));
-    return dbZones.length ? [...filtered, ...dbZones] : filtered;
+    // Always spread dbZones — even when empty, spreading [] is a no-op.
+    // The old `dbZones.length ?` guard caused promoted zones to disappear when
+    // suppressedStaticIds had entries but dbZones was transiently empty (e.g.
+    // a network error during the poll): the static zone was suppressed but no
+    // DB replacement appeared, so the zone vanished from allZones entirely.
+    return [...filtered, ...dbZones];
   }, [dbZones, suppressedStaticIds]);
   useEffect(() => { allZonesRef.current = allZones; }, [allZones]);
+  useEffect(() => { dbZonesRef.current = dbZones; }, [dbZones]);
+  useEffect(() => { suppressedStaticIdsRef.current = suppressedStaticIds; }, [suppressedStaticIds]);
   useEffect(() => { dbStretchesRef.current = dbStretches; }, [dbStretches]);
+
+  // ── Zone override persistence ─────────────────────────────────────────────
+  // Cache suppressedStaticIds + dbZones to AsyncStorage so that on the next
+  // app start allZonesRef is immediately populated with the correct coordinates
+  // — before the first API poll returns (which can take several seconds).
+  // Without this, the GPS handler runs against stale static coords during that
+  // startup window, which is the root cause of false alerts after a pin move.
+  const ZONE_CACHE_KEY = "sdk_zone_overrides_v2";
+  useEffect(() => {
+    AsyncStorage.getItem(ZONE_CACHE_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw) as { d?: SpeedZone[]; s?: string[] };
+        const cachedDb = Array.isArray(parsed.d) ? parsed.d : [];
+        const cachedSup = Array.isArray(parsed.s) ? parsed.s : [];
+        if (!cachedDb.length && !cachedSup.length) return;
+        setDbZones(cachedDb);
+        setSuppressedStaticIds(cachedSup);
+        // Update allZonesRef synchronously — the useEffect above fires only
+        // after the next render, but the GPS handler may tick before that.
+        allZonesRef.current = [
+          ...SPEED_ZONES.filter((z) => !cachedSup.includes(z.id)),
+          ...cachedDb,
+        ];
+      } catch { /* malformed cache — fall back to static data */ }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!dbZones.length && !suppressedStaticIds.length) return;
+    void AsyncStorage.setItem(ZONE_CACHE_KEY, JSON.stringify({ d: dbZones, s: suppressedStaticIds }));
+  }, [dbZones, suppressedStaticIds]);
 
   // ── Route incidents (unified static zones + community reports along the route) ─
   const routeCumDist = useMemo(
@@ -3062,15 +3105,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         description: staticZone.description,
       };
     }
-    await adminApiFetch("PATCH", `/admin-mobile/zones/${id}/location`, body);
-    setDbZones((prev) => {
-      const exists = prev.some((z) => z.id === id);
-      if (exists) return prev.map((z) => z.id === id ? { ...z, lat, lng } : z);
-      // First promotion — add to dbZones so the static entry gets suppressed immediately
-      return staticZone ? [...prev, { ...staticZone, lat, lng }] : prev;
-    });
-    if (staticZone) {
-      setSuppressedStaticIds((prev) => prev.includes(id) ? prev : [...prev, id]);
+
+    // ── True optimistic update — apply BEFORE the API call ────────────────
+    // Moving the update after `await` left the GPS handler reading stale
+    // coordinates for the entire duration of the network round-trip (1-3 s),
+    // which could trigger false alerts or crash-prone calculations against a
+    // zone position that no longer matched any real road feature.
+    const prevDbZones = dbZonesRef.current;
+    const prevSuppressed = suppressedStaticIdsRef.current;
+
+    const nextDbZones = (() => {
+      const exists = prevDbZones.some((z) => z.id === id);
+      if (exists) return prevDbZones.map((z) => z.id === id ? { ...z, lat, lng } : z);
+      // First promotion: add a placeholder so suppression and replacement are
+      // atomic — both changes land in the same React render batch.
+      return staticZone ? [...prevDbZones, { ...staticZone, lat, lng }] : prevDbZones;
+    })();
+    const nextSuppressed = staticZone && !prevSuppressed.includes(id)
+      ? [...prevSuppressed, id]
+      : prevSuppressed;
+
+    setDbZones(nextDbZones);
+    setSuppressedStaticIds(nextSuppressed);
+    // Sync allZonesRef immediately — don't wait for the useEffect so the GPS
+    // handler uses the new position starting from the very next location tick.
+    allZonesRef.current = [
+      ...SPEED_ZONES.filter((z) => !nextSuppressed.includes(z.id)),
+      ...nextDbZones,
+    ];
+
+    try {
+      await adminApiFetch("PATCH", `/admin-mobile/zones/${id}/location`, body);
+    } catch (err) {
+      // Roll back so the map returns to the last confirmed state.
+      setDbZones(prevDbZones);
+      setSuppressedStaticIds(prevSuppressed);
+      allZonesRef.current = [
+        ...SPEED_ZONES.filter((z) => !prevSuppressed.includes(z.id)),
+        ...prevDbZones,
+      ];
+      throw err;
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3085,10 +3159,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         description: staticZone.description,
       };
     }
-    await adminApiFetch("DELETE", `/admin-mobile/zones/${id}`, body);
-    setDbZones((prev) => prev.filter((z) => z.id !== id));
-    if (staticZone) {
-      setSuppressedStaticIds((prev) => prev.includes(id) ? prev : [...prev, id]);
+
+    // True optimistic update — apply BEFORE the API call
+    const prevDbZones = dbZonesRef.current;
+    const prevSuppressed = suppressedStaticIdsRef.current;
+
+    const nextDbZones = prevDbZones.filter((z) => z.id !== id);
+    const nextSuppressed = staticZone && !prevSuppressed.includes(id)
+      ? [...prevSuppressed, id]
+      : prevSuppressed;
+
+    setDbZones(nextDbZones);
+    setSuppressedStaticIds(nextSuppressed);
+    allZonesRef.current = [
+      ...SPEED_ZONES.filter((z) => !nextSuppressed.includes(z.id)),
+      ...nextDbZones,
+    ];
+
+    try {
+      await adminApiFetch("DELETE", `/admin-mobile/zones/${id}`, body);
+    } catch (err) {
+      setDbZones(prevDbZones);
+      setSuppressedStaticIds(prevSuppressed);
+      allZonesRef.current = [
+        ...SPEED_ZONES.filter((z) => !prevSuppressed.includes(z.id)),
+        ...prevDbZones,
+      ];
+      throw err;
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3103,16 +3200,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         description: staticZone.description,
       };
     }
-    await adminApiFetch("POST", `/admin-mobile/zones/${id}/verify`, body);
-    // Optimistic update — mark the zone as verified locally
-    setDbZones((prev) =>
-      prev.map((z) => z.id === id ? { ...z, verified: true } : z)
-    );
-    // Also mark static zones that were verified via their sz-id
-    if (staticZone) {
-      setDbZones((prev) =>
-        prev.map((z) => z.id === staticZone.id ? { ...z, verified: true } : z)
-      );
+
+    // True optimistic update — apply BEFORE the API call
+    const prevDbZones = dbZonesRef.current;
+    const prevSuppressed = suppressedStaticIdsRef.current;
+
+    const nextDbZones = (() => {
+      const exists = prevDbZones.some((z) => z.id === id);
+      if (exists) return prevDbZones.map((z) => z.id === id ? { ...z, verified: true } : z);
+      // Static zone not yet in dbZones — promote with verified=true immediately
+      // so the map shows the badge without waiting for the next 5-min poll.
+      return staticZone ? [...prevDbZones, { ...staticZone, verified: true }] : prevDbZones;
+    })();
+    const nextSuppressed = staticZone && !prevSuppressed.includes(id)
+      ? [...prevSuppressed, id]
+      : prevSuppressed;
+
+    setDbZones(nextDbZones);
+    setSuppressedStaticIds(nextSuppressed);
+    allZonesRef.current = [
+      ...SPEED_ZONES.filter((z) => !nextSuppressed.includes(z.id)),
+      ...nextDbZones,
+    ];
+
+    try {
+      await adminApiFetch("POST", `/admin-mobile/zones/${id}/verify`, body);
+    } catch (err) {
+      setDbZones(prevDbZones);
+      setSuppressedStaticIds(prevSuppressed);
+      allZonesRef.current = [
+        ...SPEED_ZONES.filter((z) => !prevSuppressed.includes(z.id)),
+        ...prevDbZones,
+      ];
+      throw err;
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
