@@ -234,19 +234,20 @@ export default function MapViewScreen() {
   const openedAtRef = useRef(0);
   const now = Date.now();
 
-  // Kenya-red pulse on the Report button — gentle heartbeat so it draws the
-  // eye without being distracting.
-  const reportPulse = useRef(new Animated.Value(1)).current;
+  // Kenya flag color-cycle on the Report button — Red→Black→Green→Red, 3 s loop.
+  // useNativeDriver must be false for backgroundColor interpolation.
+  const reportColorAnim = useRef(new Animated.Value(0)).current;
+  const reportBgColor   = reportColorAnim.interpolate({
+    inputRange:  [0, 1, 2, 3],
+    outputRange: ["#CE1126", "#1A1A1A", "#006600", "#CE1126"],
+  });
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(reportPulse, { toValue: 1.07, duration: 700, useNativeDriver: true }),
-        Animated.timing(reportPulse, { toValue: 1.0,  duration: 700, useNativeDriver: true }),
-      ])
+      Animated.timing(reportColorAnim, { toValue: 3, duration: 3000, useNativeDriver: false })
     );
     loop.start();
     return () => loop.stop();
-  }, [reportPulse]);
+  }, [reportColorAnim]);
 
   // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
   // for the full explanation. The freeze optimisation caused tap hit-detection
@@ -521,17 +522,16 @@ export default function MapViewScreen() {
           The incidents chip appears inline when a route has active alerts. */}
       <View style={[styles.mapActionRow, { bottom: insets.bottom + 96 }]}>
 
-        {/* Report — Kenya red, pulsing */}
-        <Animated.View style={{ transform: [{ scale: reportPulse }] }}>
-          <TouchableOpacity
-            style={[styles.mapPill, { backgroundColor: "#CE1126" }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-            activeOpacity={0.85}
-          >
+        {/* Report — Kenya flag color cycle: Red → Black → Green → Red */}
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+          activeOpacity={0.82}
+        >
+          <Animated.View style={[styles.mapPill, { backgroundColor: reportBgColor }]}>
             <Ionicons name="warning" size={14} color="#FFF" />
             <Text style={styles.mapPillTxt}>Report</Text>
-          </TouchableOpacity>
-        </Animated.View>
+          </Animated.View>
+        </TouchableOpacity>
 
         {/* Find Nearby — Kenya black */}
         <TouchableOpacity
@@ -543,7 +543,7 @@ export default function MapViewScreen() {
           <Text style={styles.mapPillTxt}>Find Nearby</Text>
         </TouchableOpacity>
 
-        {/* Incidents chip — Kenya green, inline so all three fit one row */}
+        {/* Incidents chip — Kenya green, inline so all fit one row */}
         {routeIncidentsAhead.length > 0 && (
           <TouchableOpacity
             style={[styles.mapPill, { backgroundColor: "#006600" }]}
@@ -555,22 +555,23 @@ export default function MapViewScreen() {
           </TouchableOpacity>
         )}
 
-      </View>
+        {/* Recenter — appears inline when the map has been panned away */}
+        {mapDrifted && currentLat && currentLng && (
+          <TouchableOpacity
+            style={[styles.mapPill, { backgroundColor: "#FFFFFFEE", borderWidth: 1.5, borderColor: "#1565C0" }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              centerOnUser();
+              setMapDrifted(false);
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="locate" size={14} color="#1565C0" />
+            <Text style={[styles.mapPillTxt, { color: "#1565C0" }]}>Recenter</Text>
+          </TouchableOpacity>
+        )}
 
-      {/* Recenter — appears whenever the driver has panned away from their position */}
-      {mapDrifted && currentLat && currentLng && (
-        <TouchableOpacity
-          style={[styles.recenterBtn, { bottom: insets.bottom + 152 }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            centerOnUser();
-          }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="locate" size={17} color="#1565C0" />
-          <Text style={styles.recenterBtnTxt}>Recenter</Text>
-        </TouchableOpacity>
-      )}
+      </View>
 
       {showTraffic && (
         <View style={[styles.trafficBadge, { backgroundColor: c.primary, bottom: insets.bottom + 150 }]}>

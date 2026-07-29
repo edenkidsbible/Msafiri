@@ -186,19 +186,20 @@ export default function DriveScreen() {
   const [mapDrifted, setMapDrifted] = useState(false);
   const [navBarHeight, setNavBarHeight] = useState(0);
 
-  // Kenya-red heartbeat on the Report button — draws the eye without being
-  // distracting; runs continuously so it's always visible when relevant.
-  const reportPulseAnim = useRef(new Animated.Value(1)).current;
+  // Kenya flag color-cycle on the Report button — cycles Red→Black→Green→Red
+  // so it's impossible to miss. useNativeDriver must be false for color animation.
+  const reportColorAnim = useRef(new Animated.Value(0)).current;
+  const reportBgColor   = reportColorAnim.interpolate({
+    inputRange:  [0, 1, 2, 3],
+    outputRange: ["#CE1126", "#1A1A1A", "#006600", "#CE1126"],
+  });
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(reportPulseAnim, { toValue: 1.07, duration: 750, useNativeDriver: true }),
-        Animated.timing(reportPulseAnim, { toValue: 1.0,  duration: 750, useNativeDriver: true }),
-      ])
+      Animated.timing(reportColorAnim, { toValue: 3, duration: 3000, useNativeDriver: false })
     );
     loop.start();
     return () => loop.stop();
-  }, [reportPulseAnim]);
+  }, [reportColorAnim]);
 
   // overviewMode removed — the map is always freely pannable during navigation.
   // mapDrifted tracks whether the driver has panned away from their GPS position;
@@ -902,16 +903,15 @@ export default function DriveScreen() {
             <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
           </TouchableOpacity>
 
-          <Animated.View style={{ transform: [{ scale: reportPulseAnim }] }}>
-            <TouchableOpacity
-              style={[styles.driveActionPill, { backgroundColor: "#CE1126" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-              activeOpacity={0.82}
-            >
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+            activeOpacity={0.82}
+          >
+            <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
               <Ionicons name="camera" size={14} color="#FFF" />
               <Text style={styles.driveActionPillTxt}>Report</Text>
-            </TouchableOpacity>
-          </Animated.View>
+            </Animated.View>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1042,7 +1042,7 @@ export default function DriveScreen() {
                   color={isSharingTrip ? "#FFF" : fgMuted}
                 />
                 <Text style={[styles.driveActionPillTxt, { color: isSharingTrip ? "#FFF" : fgMuted }]} numberOfLines={1}>
-                  {isSharingTrip ? "● Sharing" : "Share"}
+                  {isSharingTrip ? "● Sharing" : "Share Location"}
                 </Text>
               </>
             )}
@@ -1058,17 +1058,16 @@ export default function DriveScreen() {
             <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
           </TouchableOpacity>
 
-          {/* Report — Kenya red with pulse */}
-          <Animated.View style={{ transform: [{ scale: reportPulseAnim }] }}>
-            <TouchableOpacity
-              style={[styles.driveActionPill, { backgroundColor: "#CE1126" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-              activeOpacity={0.82}
-            >
+          {/* Report — Kenya flag color cycle */}
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+            activeOpacity={0.82}
+          >
+            <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
               <Ionicons name="camera" size={14} color="#FFF" />
               <Text style={styles.driveActionPillTxt}>Report</Text>
-            </TouchableOpacity>
-          </Animated.View>
+            </Animated.View>
+          </TouchableOpacity>
 
         </View>
       )}
