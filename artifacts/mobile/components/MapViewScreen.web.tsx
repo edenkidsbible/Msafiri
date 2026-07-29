@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -58,6 +58,21 @@ export default function MapViewScreen() {
   const [filter, setFilter] = useState<ZoneFilter>("all");
   const [showReport, setShowReport] = useState(false);
   const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
+
+  // Fade the ETA labels when durationRemainingS jumps >60 s (traffic refresh).
+  // Small per-GPS-fix drift is below the threshold and passes through unchanged.
+  const etaFadeAnim  = useRef(new Animated.Value(1)).current;
+  const prevEtaRef   = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = prevEtaRef.current;
+    prevEtaRef.current = durationRemainingS;
+    if (prev == null || durationRemainingS == null) return;
+    if (Math.abs(durationRemainingS - prev) < 60) return;
+    Animated.sequence([
+      Animated.timing(etaFadeAnim, { toValue: 0, duration: 150, useNativeDriver: false }),
+      Animated.timing(etaFadeAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+    ]).start();
+  }, [durationRemainingS, etaFadeAnim]);
 
   const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
   const isRoundaboutStep = currentStep?.instruction?.toLowerCase().includes("roundabout") ?? false;
@@ -126,12 +141,14 @@ export default function MapViewScreen() {
                 <Text style={[styles.routeDestName, { color: navigationActive ? "#FFF" : c.foreground }]} numberOfLines={1}>
                   {navDestination.name.split(",")[0]}
                 </Text>
-                <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
-                  {durationStr(durationRemainingS ?? activeRoute.durationS)} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
-                </Text>
-                <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFAA" : c.mutedForeground, marginTop: 1 }]}>
-                  {arrivalTimeStr(durationRemainingS ?? activeRoute.durationS)}
-                </Text>
+                <Animated.View style={{ opacity: etaFadeAnim }}>
+                  <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
+                    {durationStr(durationRemainingS ?? activeRoute.durationS)} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
+                  </Text>
+                  <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFAA" : c.mutedForeground, marginTop: 1 }]}>
+                    {arrivalTimeStr(durationRemainingS ?? activeRoute.durationS)}
+                  </Text>
+                </Animated.View>
                 {routeTrafficDelayS > 0 && (
                   <Text style={[styles.routeMeta, { color: navigationActive ? "#FFD180" : "#E65100", marginTop: 1 }]}>
                     Community reports: +{Math.round(routeTrafficDelayS / 60)} min

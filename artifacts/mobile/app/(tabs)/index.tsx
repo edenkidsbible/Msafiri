@@ -386,6 +386,11 @@ export default function DriveScreen() {
     targetExitNumber: isRoundaboutStep ? (currentStep?.exitNumber ?? null) : null,
   });
 
+  // Fade animation for the ETA bar — fires when durationRemainingS jumps >60 s
+  // (traffic refresh). Small per-GPS-fix drift is below the threshold and ignored.
+  const etaFadeAnim = useRef(new Animated.Value(1)).current;
+  const prevEtaRef  = useRef<number | null>(null);
+
   // Pulse animation for the exit badge when the target exit is next
   const exitBadgePulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -439,6 +444,18 @@ export default function DriveScreen() {
       void speakTakeThisExit();
     }
   }, [targetExitIsNext]);
+
+  // Fade the ETA bar on large jumps (traffic refresh >60 s); ignore GPS drift.
+  useEffect(() => {
+    const prev = prevEtaRef.current;
+    prevEtaRef.current = durationRemainingS;
+    if (prev == null || durationRemainingS == null) return;
+    if (Math.abs(durationRemainingS - prev) < 60) return;
+    Animated.sequence([
+      Animated.timing(etaFadeAnim, { toValue: 0, duration: 150, useNativeDriver: Platform.OS !== "web" }),
+      Animated.timing(etaFadeAnim, { toValue: 1, duration: 250, useNativeDriver: Platform.OS !== "web" }),
+    ]).start();
+  }, [durationRemainingS, etaFadeAnim]);
 
   // Nearest incident ahead — considers BOTH static speed zones AND community
   // reports so a just-reported broken-down vehicle beats a distant speed camera.
@@ -1199,7 +1216,7 @@ export default function DriveScreen() {
 
               {/* Top row */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={{ flex: 1 }}>
+                <Animated.View style={{ flex: 1, opacity: etaFadeAnim }}>
                   <Text style={[styles.navEta, { color: fgMain }]}>
                     {durationStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
                   </Text>
@@ -1217,7 +1234,7 @@ export default function DriveScreen() {
                       ↩ en route to {resumeDestination.name.split(",")[0]}
                     </Text>
                   )}
-                </View>
+                </Animated.View>
                 <SOSButton compact />
                 <TouchableOpacity
                   style={styles.stopBtn}
