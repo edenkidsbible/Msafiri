@@ -48,3 +48,4 @@
 - [Admin mobile system](admin-mobile-system.md) — PIN auth → 30-day JWT (SESSION_SECRET); adminVerified column; verify/deny/relocate endpoints; admin state lives in AppContext not a separate context.
 - [Sentry + OpenTelemetry bundling](sentry-otel-bundling.md) — @sentry/node v10 must NOT be in esbuild externals; also causes drizzle-orm dual-instance TS errors fixed by adding @opentelemetry/api to both api-server and db packages.
 - [ElevenLabs direct API tier gate](elevenlabs-direct-tier-gate.md) — direct ElevenLabs API calls with the Keli voice fail 400 "creator tier required"; new voice tokens must use on-demand TTS (/api/tts proxy → cached 90 days) instead of pre-generating MP3s.
+- [Phase 1 faithful narrator](nav-faithful-narrator.md) — along-road dist replaces haversine, REMIND gated on !isNavVoicePlaying(), compound instructions, post-turn confirmation, reroute grace, uturn type.

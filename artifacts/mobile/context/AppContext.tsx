@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
-import { speakPhrase, prewarmRouteAudio, cancelPrewarm } from "@/utils/tts";
+import { speakPhrase, prewarmRouteAudio, cancelPrewarm, isNavVoicePlaying } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -90,6 +90,13 @@ export interface RouteStep {
   location: RouteCoord;
   /** Exit number for roundabout/rotary steps (1-based). Undefined for all other maneuvers. */
   exitNumber?: number;
+  /** OSRM maneuver type string (e.g. "turn", "roundabout", "uturn", "arrive"). */
+  maneuverType: string;
+  /** Raw road name from OSRM (empty string when unnamed). Used for post-turn confirmations. */
+  roadName: string;
+  /** Distance from the route start to this step's maneuver point, measured along the polyline.
+   *  Used for along-road voice cue timing instead of straight-line haversine. */
+  stepAlongRouteM: number;
 }
 
 export interface AppRoute {
@@ -97,6 +104,10 @@ export interface AppRoute {
   distanceM: number;
   durationS: number;
   coords: RouteCoord[];
+  /** Cumulative distance (metres) from route start to each coordinate index.
+   *  Computed once at fetch time so the GPS handler and voice cue engine can
+   *  use along-road distances without rescanning the whole polyline each tick. */
+  cumDist: number[];
   steps: RouteStep[];
 }
 
@@ -338,7 +349,11 @@ function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: n
   const road = name ? ` onto ${name}` : "";
   if (t === "arrive") return "Arriving at your destination";
   if (t === "depart") return `Head ${mod || "forward"}${road}`;
-  if (t === "turn") return `Turn ${mod || "left"}${road}`;
+  if (t === "uturn") return `Make a U-turn${road}`;
+  if (t === "turn") {
+    if (mod === "uturn") return `Make a U-turn${road}`;
+    return `Turn ${mod || "left"}${road}`;
+  }
   if (t === "new name") return `Continue${road}`;
   if (t === "continue") return `Continue on ${name || "the road"}`;
   if (t === "roundabout" || t === "rotary") {
@@ -369,28 +384,43 @@ async function fetchOSRM(
   }
   const data = await res.json();
   if (data.code !== "Ok" || !data.routes?.length) return [];
-  return (data.routes as any[]).map((r, idx) => ({
-    id: `route-${idx}-${Date.now()}`,
-    distanceM: r.distance,
-    durationS: r.duration,
-    coords: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => ({
-      latitude: lat,
-      longitude: lng,
-    })),
-    steps: (r.legs?.[0]?.steps ?? []).map((s: any) => {
+  return (data.routes as any[]).map((r, idx) => {
+    // Build coords first so we can compute cumulative distances and project
+    // each step's maneuver point onto the polyline (giving stepAlongRouteM).
+    const coords: RouteCoord[] = (r.geometry.coordinates as [number, number][]).map(
+      ([lng, lat]) => ({ latitude: lat, longitude: lng })
+    );
+    const cumDist = buildCumulativeDistances(coords);
+
+    const steps: RouteStep[] = (r.legs?.[0]?.steps ?? []).map((s: any) => {
       const maneuver = s.maneuver ?? {};
       const isRoundabout = maneuver.type === "roundabout" || maneuver.type === "rotary";
+      const roadName = s.name ?? "";
+      const stepLoc: RouteCoord = {
+        latitude:  maneuver.location?.[1] ?? toLat,
+        longitude: maneuver.location?.[0] ?? toLng,
+      };
+      const proj = projectOntoRoute(coords, cumDist, stepLoc.latitude, stepLoc.longitude);
       return {
-        instruction: buildInstruction(maneuver, s.name ?? ""),
+        instruction: buildInstruction(maneuver, roadName),
         distanceM: s.distance ?? 0,
-        location: {
-          latitude: maneuver.location?.[1] ?? toLat,
-          longitude: maneuver.location?.[0] ?? toLng,
-        },
+        location: stepLoc,
+        maneuverType: maneuver.type ?? "",
+        roadName,
+        stepAlongRouteM: proj?.alongRouteM ?? 0,
         ...(isRoundabout && maneuver.exit != null ? { exitNumber: maneuver.exit as number } : {}),
       };
-    }),
-  }));
+    });
+
+    return {
+      id: `route-${idx}-${Date.now()}`,
+      distanceM: r.distance,
+      durationS: r.duration,
+      coords,
+      cumDist,
+      steps,
+    };
+  });
 }
 
 function getZonesOnRoute(route: AppRoute, zones: SpeedZone[]): SpeedZone[] {
@@ -848,6 +878,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
   const offRouteCountRef = useRef(0);
   const isReroutingRef   = useRef(false);
+  // Timestamp (ms) until which off-route detection is suppressed after a
+  // reroute fires.  Prevents the reroute-loop where GPS jitter at a complex
+  // junction immediately triggers another reroute before the new route arrives.
+  const rerouteGraceUntilRef = useRef<number>(0);
   // Timestamp of the last ANNOUNCE voice cue (the "In N metres, turn…" cue).
   // Used to enforce MIN_NAV_ANNOUNCE_GAP_MS so rapid step chains and reroute
   // resets don't cause the same instruction to be spoken every second.
@@ -1516,14 +1550,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Navigation step tracking
+    // ── Navigation step tracking ─────────────────────────────────────────────
     if (navActiveRef.current && routeRef.current) {
-      const steps = routeRef.current.steps;
-      const idx = stepIdxRef.current;
+      const route = routeRef.current;
+      const steps = route.steps;
+      const idx   = stepIdxRef.current;
+
       if (idx < steps.length) {
-        const step = steps[idx];
+        const step       = steps[idx];
         const isLastStep = idx === steps.length - 1;
-        const dist = haversine(lat, lng, step.location.latitude, step.location.longitude);
+
+        // ── Along-route distance to next maneuver ──────────────────────────
+        // Project the driver's GPS fix onto the route polyline and measure
+        // distance-along-the-road to the next maneuver point.  This eliminates
+        // the "signals early on curves" bug that straight-line haversine caused:
+        // a tight bend could read 80 m haversine while 200 m of road remain.
+        // Falls back to haversine when cumDist is unavailable (edge case).
+        let driverAlongM: number | null = null;
+        if (route.cumDist?.length) {
+          const prior  = routeProjIdxRef.current;
+          const wStart = Math.max(0, prior - 5);
+          const wEnd   = Math.min(route.coords.length - 1, prior + 40);
+          const proj   = projectOntoRoute(route.coords, route.cumDist, lat, lng, wStart, wEnd)
+                      ?? projectOntoRoute(route.coords, route.cumDist, lat, lng);
+          if (proj) routeProjIdxRef.current = proj.matchedIdx;
+          driverAlongM = proj?.alongRouteM ?? null;
+        }
+        const dist = driverAlongM != null
+          ? Math.max(0, step.stepAlongRouteM - driverAlongM)
+          : haversine(lat, lng, step.location.latitude, step.location.longitude);
+
         setDistToNextM(Math.round(dist));
 
         const key     = `step_${idx}`;
@@ -1532,40 +1588,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const { announceM, remindM, nowM, distWord } = stepTriggers(kmh, dist);
 
+        // ── Compound instruction ───────────────────────────────────────────
+        // When the next maneuver is < 100 m after this one (tight chicanes,
+        // compact junctions), fold both into a single spoken instruction so
+        // the driver has the full picture before committing to the first turn.
+        const nextStep      = idx + 1 < steps.length ? steps[idx + 1] : null;
+        const useCompound   = !isLastStep
+          && nextStep != null
+          && step.distanceM > 0
+          && step.distanceM < 100
+          && nextStep.maneuverType !== "arrive";
+        const remindText    = useCompound && nextStep
+          ? `${step.instruction}, then ${maneuverOnly(nextStep.instruction).toLowerCase()}`
+          : step.instruction;
+        const announceText  = useCompound && nextStep
+          ? `${step.instruction}, then ${nextStep.instruction.charAt(0).toLowerCase() + nextStep.instruction.slice(1)}`
+          : step.instruction;
+
         if (isDriving && dist < announceM
             && lastSpokenRef.current !== key
             && lastSpokenRef.current !== nearKey
             && lastSpokenRef.current !== nowKey
             && Date.now() - lastAnnounceCueAtRef.current > MIN_NAV_ANNOUNCE_GAP_MS) {
-          // ── Cue 1: Announce — "In 300 metres, turn left onto Ngong Road" ─────
+          // ── Cue 1: Announce — "In 300 metres, turn left onto Ngong Road" ──
           // distWord is pre-compensated: it reflects where the driver will BE
           // when they hear the distance word, not where they were when we fired.
           // Gated on isDriving: if the driver is stopped (red light, traffic jam)
           // we skip the cue WITHOUT advancing lastSpokenRef — so it fires
           // automatically the moment they start moving again.
-          // Gated on MIN_NAV_ANNOUNCE_GAP_MS: prevents rapid-fire repeats when
-          // consecutive short steps advance in one GPS burst, or when off-route
-          // detection resets lastSpokenRef before the new route arrives.
           lastAnnounceCueAtRef.current = Date.now();
           lastSpokenRef.current = key;
-          speakText(distWord + step.instruction);
+          speakText(distWord + announceText);
           // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
           const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
           if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
 
-        } else if (isDriving && !isLastStep && dist < remindM && lastSpokenRef.current === key) {
-          // ── Cue 2: Remind — "Turn left onto Ngong Road" ──────────────────────
-          // Speed-adaptive trigger; road name still spoken — final confirmation
-          // before the junction. No distance prefix.
+        } else if (isDriving && !isLastStep && dist < remindM
+            && lastSpokenRef.current === key
+            && !isNavVoicePlaying()) {
+          // ── Cue 2: Remind — "Turn left onto Ngong Road" ────────────────────
+          // Gated on !isNavVoicePlaying() so we never interrupt the ANNOUNCE
+          // clip mid-sentence.  If Cue 1 is still playing we wait for the next
+          // GPS tick (≈ 1 s) — by then the clip will have finished naturally.
           lastSpokenRef.current = nearKey;
-          speakText(step.instruction);
+          speakText(remindText);
           const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
           if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
 
         } else if (isDriving && !isLastStep && dist < nowM && lastSpokenRef.current === nearKey) {
-          // ── Cue 3: Now — "Turn left" ─────────────────────────────────────────
+          // ── Cue 3: Now — "Turn left" ───────────────────────────────────────
           // Driver is at the junction. Maneuver word only — no distance, no road
-          // name. Fires before STEP_ADVANCE_DIST (nowM min = 60 m > 50 m advance).
+          // name. Allowed to preempt a still-playing REMIND clip because the
+          // driver is physically at the turn and needs the instruction now.
           lastSpokenRef.current = nowKey;
           speakText(maneuverOnly(step.instruction));
           const protect2s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 2000);
@@ -1573,16 +1647,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // The final step gets a wider arrival radius than intermediate turns:
-        // urban GPS drift in dense areas can easily bias a fix by 30-40 m, and
-        // a driver who is visibly stopped at the destination but never quite
-        // crosses a tight 35 m ring would otherwise be stuck "still navigating"
-        // indefinitely with no further instruction to trigger a re-check.
+        // urban GPS drift in dense areas can easily bias a fix by 30-40 m.
         const dest = navDestRef.current;
         const distToDest = dest ? haversine(lat, lng, dest.lat, dest.lng) : dist;
 
-        // One-shot "approaching your destination" voice cue, fired when within
-        // APPROACHING_DIST but still outside the arrival threshold — gives the
-        // driver time to slow down before the full arrival phrase fires.
+        // One-shot "approaching your destination" cue
         if (isLastStep && !approachingAnnouncedRef.current
             && distToDest < APPROACHING_DIST && distToDest >= ARRIVAL_DIST) {
           approachingAnnouncedRef.current = true;
@@ -1597,6 +1666,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const nextIdx = idx + 1;
           stepIdxRef.current = nextIdx;
           setCurrentStepIdx(nextIdx);
+
           if (nextIdx >= steps.length) {
             speakText("You have arrived at your destination.");
             navActiveRef.current = false;
@@ -1611,10 +1681,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               maxSpeedKmh: trip?.maxSpeed ?? 0,
               alertsCount: trip?.alertsCount ?? 0,
             });
-            // Nudge the driver to file a road report after arriving.
-            // Fire-and-forget — server rate-limits to once per 24 h per device.
             if (deviceIdRef.current) {
               apiPost("/push/trip-complete", { deviceId: deviceIdRef.current }).catch(() => {});
+            }
+          } else {
+            // ── Post-turn confirmation ───────────────────────────────────────
+            // After completing a maneuver, confirm the driver is on the right
+            // road: "Continue on Ngong Road."  Then go silent until the next
+            // decision point approaches.
+            // Only fires when the next leg is long enough (≥ 250 m) — short legs
+            // will immediately trigger an ANNOUNCE cue for the next turn and a
+            // confirmation would stack on top.  Also skipped when voice is still
+            // playing (the NOW clip may still be in progress at the exact moment
+            // of step advance), and when the road is unnamed.
+            const confirmedStep = steps[nextIdx];
+            if (!isNavVoicePlaying()
+                && confirmedStep.roadName
+                && confirmedStep.distanceM >= 250
+                && confirmedStep.maneuverType !== "arrive") {
+              speakText(`Continue on ${confirmedStep.roadName}`);
             }
           }
         }
@@ -1623,11 +1708,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // ── Off-route detection → auto-reroute ───────────────────────────────────
     // Scan a window of route coords around the last projected index.  If the
-    // driver is > 20 m from the nearest point for 3 consecutive fixes, the
+    // driver is > 50 m from the nearest point for 3 consecutive fixes, the
     // reroute callback fetches a fresh route from the current position.
-    // Suppressed during dead reckoning: the projected position is derived from
-    // the route itself and will never be "off-route" in a meaningful sense.
-    if (navActiveRef.current && routeRef.current && !gpsLostRef.current) {
+    // Suppressed during dead reckoning and during the post-reroute grace period
+    // (10 s) to prevent the reroute-loop at complex junctions where GPS jitter
+    // can immediately re-trigger another reroute before the new route settles.
+    if (navActiveRef.current && routeRef.current && !gpsLostRef.current
+        && Date.now() > rerouteGraceUntilRef.current) {
       const coords  = routeRef.current.coords;
       const prior   = Math.max(0, Math.min(routeProjIdxRef.current, coords.length - 1));
       const wStart  = Math.max(0, prior - 10);
@@ -1641,10 +1728,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         offRouteCountRef.current += 1;
         if (offRouteCountRef.current >= 3 && !isReroutingRef.current) {
           offRouteCountRef.current = 0;
-          // Announce rerouting once, then gate the next ANNOUNCE cue so the
-          // first-step instruction after the new route arrives isn't fired
-          // immediately on top of "Rerouting." (the gap also prevents the
-          // old cue from repeating while the fetch is in flight).
+          // Suppress off-route for 10 s after triggering a reroute so GPS
+          // jitter at complex junctions doesn't immediately loop back here.
+          rerouteGraceUntilRef.current = Date.now() + 10_000;
           speakText("Rerouting.");
           lastAnnounceCueAtRef.current = Date.now();
           triggerRerouteRef.current?.(lat, lng);

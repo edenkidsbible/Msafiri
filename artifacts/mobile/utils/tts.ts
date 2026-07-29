@@ -392,25 +392,37 @@ async function resolveRawClip(text: string): Promise<string | null> {
       }
     }
 
-    // Fetch from API proxy
-    const res = await fetch(`${API_BASE}/tts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) return null;
+    // Fetch from API proxy — up to 3 attempts with 1 s back-off.
+    // Retrying here (rather than at the call-site) keeps the caller simple and
+    // means route-prewarm + playback-time fetches both benefit automatically.
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
+        const res = await fetch(`${API_BASE}/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) { lastErr = new Error(`HTTP ${res.status}`); continue; }
 
-    const b64 = arrayBufferToBase64(await res.arrayBuffer());
+        const b64 = arrayBufferToBase64(await res.arrayBuffer());
 
-    // Ensure cache dir exists, then write
-    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true }).catch(() => {});
-    await FileSystem.writeAsStringAsync(filePath, b64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    await AsyncStorage.setItem(storeKey, JSON.stringify({ expires: Date.now() + CACHE_TTL_MS }));
+        // Ensure cache dir exists, then write
+        await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true }).catch(() => {});
+        await FileSystem.writeAsStringAsync(filePath, b64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await AsyncStorage.setItem(storeKey, JSON.stringify({ expires: Date.now() + CACHE_TTL_MS }));
 
-    sessionCache.set(text, filePath);
-    return filePath;
+        sessionCache.set(text, filePath);
+        return filePath;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    console.warn("[tts] resolveRawClip failed after 3 attempts:", lastErr);
+    return null;
   } catch (err) {
     console.warn("[tts] resolveRawClip:", err);
     return null;
@@ -520,6 +532,13 @@ let activePlayer: AudioPlayer | null = null;
 let prewarmGen = 0;
 
 /** Stop any in-progress navigation voice clip immediately. */
+/** True while a navigation voice clip is actively playing.
+ *  Use this in AppContext to gate REMIND/NOW cues so they do not fire
+ *  mid-sentence and kill the in-progress clip. */
+export function isNavVoicePlaying(): boolean {
+  return activePlayer !== null;
+}
+
 export function stopNavVoice(): void {
   gen++;
   try { activePlayer?.remove(); } catch { /* ignore */ }
@@ -604,28 +623,18 @@ export async function speakPhrase(text: string): Promise<void> {
         }
         source = asset;
       } else {
-        // On-demand road name
+        // On-demand road name — Keli only, no device-TTS fallback.
+        // resolveRawClip already retries internally; if it still returns null
+        // (persistent network failure) we silently skip this segment rather
+        // than switching to a different voice mid-instruction.
         const uri = await resolveRawClip(seg.text);
         if (gen !== myGen) return; // cancelled during fetch
         if (uri) {
           source = { uri };
         } else {
-          // Network/cache miss → expo-speech fallback for this segment only.
-          // Wait for the actual completion callback (onDone/onStopped/onError)
-          // rather than a heuristic sleep, so the next segment starts immediately
-          // after the speech finishes and stopNavVoice() (which calls Speech.stop())
-          // resolves this promise via onStopped rather than waiting out a timer.
-          await new Promise<void>((resolve) => {
-            const safety = setTimeout(resolve, 10_000); // hard cap
-            Speech.speak(seg.text, {
-              language: "en-GB",
-              rate: 0.82,
-              pitch: 0.93,
-              onDone:    () => { clearTimeout(safety); resolve(); },
-              onStopped: () => { clearTimeout(safety); resolve(); },
-              onError:   () => { clearTimeout(safety); resolve(); },
-            });
-          });
+          // Cache miss persists after retries — skip this segment silently.
+          // The maneuver token that preceded it still played so the driver
+          // hears "Turn left" without a road name rather than a different voice.
           continue;
         }
       }
