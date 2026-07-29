@@ -886,6 +886,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
   const offRouteCountRef = useRef(0);
   const isReroutingRef   = useRef(false);
+  // Ref bag for the periodic traffic-refresh interval — holds the latest
+  // nav state so the fixed-schedule interval never captures stale closures.
+  const trafficBagRef = useRef<{
+    navActive: boolean;
+    route: AppRoute | null;
+    dest: NavDestination | null;
+    lat: number | null;
+    lng: number | null;
+    remainingS: number | null;
+    distanceRemainingM: number | null;
+  }>({ navActive: false, route: null, dest: null, lat: null, lng: null, remainingS: null, distanceRemainingM: null });
   // Timestamp (ms) until which off-route detection is suppressed after a
   // reroute fires.  Prevents the reroute-loop where GPS jitter at a complex
   // junction immediately triggers another reroute before the new route arrives.
@@ -2282,6 +2293,72 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Keep refs in sync so the share-trip ping interval always reads fresh values
   useEffect(() => { durationRemainingRef.current = durationRemainingS; }, [durationRemainingS]);
   useEffect(() => { distanceRemainingRef.current = distanceRemainingM; }, [distanceRemainingM]);
+
+  // ── Periodic traffic refresh ───────────────────────────────────────────────
+  // Re-fetches route duration from Google every 10 min during active navigation.
+  // Updates only activeRoute.durationS (polyline and steps are unchanged) when
+  // the fresh ETA differs from the current remaining time by more than 5 minutes.
+  const TRAFFIC_REFRESH_MS    = 10 * 60 * 1000; // 10 minutes between checks
+  const TRAFFIC_REFRESH_THR_S = 5 * 60;          // 5 min drift triggers an update
+
+  // Keep the bag current after every render so the fixed-interval callback
+  // always reads fresh state without being re-registered on every GPS fix.
+  useEffect(() => {
+    trafficBagRef.current = {
+      navActive: navigationActive,
+      route: activeRoute,
+      dest: navDestination,
+      lat: currentLat,
+      lng: currentLng,
+      remainingS: durationRemainingS,
+      distanceRemainingM,
+    };
+  });
+
+  // Registered once; reads state through the ref bag to avoid stale closures.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const b = trafficBagRef.current;
+      if (!b.navActive || !b.route || !b.dest || b.lat == null || b.lng == null) return;
+      if (isReroutingRef.current) return;
+      // Skip when almost arrived — a 5-min drift would be larger than the trip itself.
+      if (b.remainingS != null && b.remainingS < TRAFFIC_REFRESH_THR_S) return;
+
+      try {
+        const routes = await fetchGoogleRoute(b.lat, b.lng, b.dest.lat, b.dest.lng);
+        if (!routes.length) return;
+
+        // routes[0].durationS is the REMAINING time from current position, not
+        // the total trip duration.  Compare it against durationRemainingS (also
+        // remaining) so the threshold check is apples-to-apples.
+        const newRemainingS = routes[0].durationS;
+        const currentS      = b.remainingS ?? b.route.durationS;
+        if (Math.abs(newRemainingS - currentS) < TRAFFIC_REFRESH_THR_S) return;
+
+        // activeRoute.durationS is a TOTAL baseline; durationRemainingS is
+        // computed as (distanceRemainingM / totalDistanceM) * durationS.
+        // To make that formula yield newRemainingS at the current position we
+        // must back-convert: equivalentTotal = newRemainingS * (total / remaining).
+        const distRem   = b.distanceRemainingM;
+        const distTotal = b.route.distanceM;
+        const equivalentTotalS =
+          distRem != null && distRem > 0 && distTotal > 0
+            ? Math.round(newRemainingS * (distTotal / distRem))
+            : newRemainingS; // edge-case: at trip start remaining ≈ total
+
+        // Silently patch durationS only — polyline, steps, and route id are
+        // unchanged so the driver stays on the same road without any visual jump.
+        setActiveRoute((prev) => prev ? { ...prev, durationS: equivalentTotalS } : prev);
+
+        // Announce updated arrival time (on-demand Keli TTS, cached per minute).
+        const d  = new Date(Date.now() + newRemainingS * 1000);
+        const hh = d.getHours();
+        const mm = d.getMinutes().toString().padStart(2, "0");
+        speakText(`Traffic update. New arrival time is ${hh}:${mm}.`);
+      } catch { /* network error — silently keep current ETA */ }
+    }, TRAFFIC_REFRESH_MS);
+    return () => clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
