@@ -79,14 +79,13 @@ export async function playSound(key: SoundKey) {
 
 // ─── Navigation voice ─────────────────────────────────────────────────────────
 //
-// All navigation voice guidance now uses ElevenLabs (Keli voice) via tts.ts.
-// speakPhrase() handles bundled token clips + on-demand road-name caching.
+// All navigation voice guidance uses device TTS (expo-speech) via tts.ts.
+// iOS: Daniel (British English). Android: Google UK English Female.
 
 import { speakPhrase, stopNavVoice } from "@/utils/tts";
 
 /**
- * Stop any in-progress navigation voice.  Silences both the ElevenLabs
- * audio player and any expo-speech fallback utterance.
+ * Stop any in-progress navigation voice utterance immediately.
  */
 export function stopVoice() {
   stopNavVoice();
