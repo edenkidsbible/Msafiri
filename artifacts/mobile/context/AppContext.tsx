@@ -2252,6 +2252,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCurrentStepIdx(0);
           routeProjIdxRef.current = 0;
           routeMaxDistMRef.current = 0;
+          // Clear the announced-reports set so every incident on the new
+          // route is evaluated fresh. Own reports stay announced — the driver
+          // submitted them and doesn't need a second alert for their own pin.
+          // Non-own reports are cleared so they can re-announce if they fall
+          // on the new corridor, and previously-suppressed reports on the new
+          // route are no longer silently skipped.
+          announcedReportsRef.current = new Set(
+            communityReportsRef.current
+              .filter((r) => r.isOwn && announcedReportsRef.current.has(r.id))
+              .map((r) => r.id)
+          );
           // Clear spoken state so the GPS tick immediately evaluates the new
           // route steps — no stale key from the old route blocks the cue.
           lastSpokenRef.current = "";
