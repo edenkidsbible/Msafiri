@@ -1,0 +1,15 @@
+React Compiler enabled
+Starting Metro Bundler
+iOS node_modules/.pnpm/expo-router@6.0.24_@types+react-dom@19.1.11_@types+react@19.1.17__@types+react@19.1.17__fdb348e3fa81840b33cbb7dec3670e5a/node_modules/expo-router/entry.js ▓▓▓▓░░░░░░░░░░░░ 30.5% (265/511)
+iOS node_modules/.pnpm/expo-router@6.0.24_@types+react-dom@19.1.11_@types+react@19.1.17__@types+react@19.1.17__fdb348e3fa81840b33cbb7dec3670e5a/node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 65.8% ( 750/1000)
+iOS node_modules/.pnpm/expo-router@6.0.24_@types+react-dom@19.1.11_@types+react@19.1.17__@types+react@19.1.17__fdb348e3fa81840b33cbb7dec3670e5a/node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 88.7% (1946/2102)
+iOS Bundling failed 10123ms node_modules/.pnpm/expo-router@6.0.24_@types+react-dom@19.1.11_@types+react@19.1.17__@types+react@19.1.17__fdb348e3fa81840b33cbb7dec3670e5a/node_modules/expo-router/entry.js (2381 modules)
+Cannot read properties of undefined (reading 'match')
+TypeError: Cannot read properties of undefined (reading 'match')
+TypeError: Cannot read properties of undefined (reading 'match')
+    at determineDebugIdFromBundleSource (/Users/expo/workingdir/build/node_modules/.pnpm/@sentry+react-native@7.2.0_expo@54.0.36_react-native@0.81.5_@babel+core@7.29.7_@types+r_160a1150831b38f4259ed5bd63d9ddbf/node_modules/@sentry/react-native/src/js/tools/utils.ts:75:22)
+    at /Users/expo/workingdir/build/node_modules/.pnpm/@sentry+react-native@7.2.0_expo@54.0.36_react-native@0.81.5_@babel+core@7.29.7_@types+r_160a1150831b38f4259ed5bd63d9ddbf/node_modules/@sentry/react-native/src/js/tools/sentryMetroSerializer.ts:77:53
+    at Generator.next (<anonymous>)
+    at fulfilled (/Users/expo/workingdir/build/node_modules/.pnpm/@sentry+react-native@7.2.0_expo@54.0.36_react-native@0.81.5_@babel+core@7.29.7_@types+r_160a1150831b38f4259ed5bd63d9ddbf/node_modules/@sentry/react-native/dist/js/tools/sentryMetroSerializer.js:5:58)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+pnpm expo export:embed --eager --platform ios --dev false exited with non-zero code: 1
