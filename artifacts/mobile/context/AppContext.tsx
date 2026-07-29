@@ -2349,9 +2349,74 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Auto-reroute callback ─────────────────────────────────────────────────
   // handleLocation fires this when the driver is consistently off-route.
-  // Fetches a fresh OSRM route from the current position and replaces the
-  // active route in-place, resetting the step index transparently.
+  // Fetches a fresh route from the current position and replaces the active
+  // route in-place, resetting the step index transparently.
   useEffect(() => {
+    // ── commitReroute ───────────────────────────────────────────────────────
+    // Single source of truth for every state/ref mutation that must happen
+    // whenever a reroute is committed — whether the route came from the
+    // divergence cache or from a fresh fetchGoogleRoute call.  Keeping it in
+    // one place means a future change (new ref to reset, new voice logic, etc.)
+    // only needs to be made once and applies to both paths automatically.
+    function commitReroute(primary: AppRoute, alts: AppRoute[]) {
+      setActiveRoute(primary);
+      routeRef.current = primary;
+      stepIdxRef.current = 0;
+      setCurrentStepIdx(0);
+      routeProjIdxRef.current = 0;
+      routeMaxDistMRef.current = 0;
+      // Clear the announced-reports set so every incident on the new route is
+      // evaluated fresh. Own reports stay announced — the driver submitted them
+      // and doesn't need a second alert for their own pin.  Non-own reports are
+      // cleared so they re-announce if they fall on the new corridor, and
+      // previously-suppressed reports on the new route are no longer skipped.
+      announcedReportsRef.current = new Set(
+        communityReportsRef.current
+          .filter((r) => r.isOwn && announcedReportsRef.current.has(r.id))
+          .map((r) => r.id)
+      );
+      // Clear spoken state so the GPS tick immediately evaluates the new route
+      // steps — no stale key from the old route blocks the cue.
+      lastSpokenRef.current = "";
+      approachingAnnouncedRef.current = false;
+      // Dismiss the divergence preview — the new route has been committed.
+      setDivergenceRoutes([]);
+      divergenceRoutesRef.current = [];
+      setAltRoutes(alts);
+      const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+      setZonesOnRoute(
+        getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
+          ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
+        }))
+      );
+      // Block arrival detection for 5 s so the rapid depart-step cascade on
+      // the new route (step 0 at 0 m → advance → step 1 …) can't trigger a
+      // false "You have arrived" before the route settles.
+      rerouteSettledUntilRef.current = Date.now() + 5_000;
+      // Immediately announce the first actionable step so the driver isn't
+      // silent until the next GPS tick (~1–2 s).  We skip the depart step
+      // (distanceM is typically 0) and use the first step with real distance.
+      const firstActionable = primary.steps.find(
+        (s) => s.distanceM > 0 && s.maneuverType !== "arrive"
+      ) ?? primary.steps[0];
+      if (firstActionable?.instruction) {
+        // Build a distance prefix matching the announce-cue logic so the
+        // driver hears "In 300 metres, turn left onto Ngong Road" not just
+        // "turn left onto Ngong Road" when they still have distance to cover.
+        const dM = firstActionable.distanceM;
+        const distPrefix =
+          dM >= 350 ? "In 350 metres, " :
+          dM >= 250 ? "In 300 metres, " :
+          dM >= 150 ? "In 200 metres, " :
+          dM >= 80  ? "In 100 metres, " : "";
+        speakText(distPrefix + firstActionable.instruction);
+        lastAnnounceCueAtRef.current = Date.now();
+        // Use the same key format the GPS handler uses ("step_0") so the next
+        // fix doesn't immediately re-announce the same step.
+        lastSpokenRef.current = "step_0";
+      }
+    }
+
     triggerRerouteRef.current = (lat: number, lng: number) => {
       if (!navDestRef.current || isReroutingRef.current) return;
       const dest = navDestRef.current;
@@ -2364,47 +2429,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // destination.  If that result is ≤10 s old, reuse it directly and skip
       // the redundant network round-trip that would otherwise follow on the 2nd
       // bad fix.  If the cache is stale or empty, fall through to a fresh fetch.
-      const _cachedRoutes = divergenceRoutesRef.current;
-      const _cacheAge     = Date.now() - divergenceFetchedAtRef.current;
-      if (_cachedRoutes.length > 0 && _cacheAge <= 10_000) {
-        const [primary, ...alts] = _cachedRoutes;
-        setActiveRoute(primary);
-        routeRef.current = primary;
-        stepIdxRef.current = 0;
-        setCurrentStepIdx(0);
-        routeProjIdxRef.current = 0;
-        routeMaxDistMRef.current = 0;
-        announcedReportsRef.current = new Set(
-          communityReportsRef.current
-            .filter((r) => r.isOwn && announcedReportsRef.current.has(r.id))
-            .map((r) => r.id)
-        );
-        lastSpokenRef.current = "";
-        approachingAnnouncedRef.current = false;
-        setDivergenceRoutes([]);
-        divergenceRoutesRef.current = [];
-        setAltRoutes(alts);
-        const _vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-        setZonesOnRoute(
-          getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
-            ...z, speedLimit: capSpeedLimit(z.speedLimit, _vehicle),
-          }))
-        );
-        rerouteSettledUntilRef.current = Date.now() + 5_000;
-        const _firstActionable = primary.steps.find(
-          (s) => s.distanceM > 0 && s.maneuverType !== "arrive"
-        ) ?? primary.steps[0];
-        if (_firstActionable?.instruction) {
-          const dM = _firstActionable.distanceM;
-          const distPrefix =
-            dM >= 350 ? "In 350 metres, " :
-            dM >= 250 ? "In 300 metres, " :
-            dM >= 150 ? "In 200 metres, " :
-            dM >= 80  ? "In 100 metres, " : "";
-          speakText(distPrefix + _firstActionable.instruction);
-          lastAnnounceCueAtRef.current = Date.now();
-          lastSpokenRef.current = "step_0";
-        }
+      const cachedRoutes = divergenceRoutesRef.current;
+      const cacheAge     = Date.now() - divergenceFetchedAtRef.current;
+      if (cachedRoutes.length > 0 && cacheAge <= 10_000) {
+        const [primary, ...alts] = cachedRoutes;
+        commitReroute(primary, alts);
         setRouteLoading(false);
         isReroutingRef.current = false;
         return;
@@ -2414,67 +2443,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .then((routes) => {
           if (!routes.length) return;
           const [primary, ...alts] = routes;
-          setActiveRoute(primary);
-          routeRef.current = primary;
-          stepIdxRef.current = 0;
-          setCurrentStepIdx(0);
-          routeProjIdxRef.current = 0;
-          routeMaxDistMRef.current = 0;
-          // Clear the announced-reports set so every incident on the new
-          // route is evaluated fresh. Own reports stay announced — the driver
-          // submitted them and doesn't need a second alert for their own pin.
-          // Non-own reports are cleared so they can re-announce if they fall
-          // on the new corridor, and previously-suppressed reports on the new
-          // route are no longer silently skipped.
-          announcedReportsRef.current = new Set(
-            communityReportsRef.current
-              .filter((r) => r.isOwn && announcedReportsRef.current.has(r.id))
-              .map((r) => r.id)
-          );
-          // Clear spoken state so the GPS tick immediately evaluates the new
-          // route steps — no stale key from the old route blocks the cue.
-          lastSpokenRef.current = "";
-          approachingAnnouncedRef.current = false;
-          // Reroute committed — dismiss the divergence preview immediately.
-          setDivergenceRoutes([]);
-          divergenceRoutesRef.current = [];
-          setAltRoutes(alts);
-          const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-          setZonesOnRoute(
-            getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
-              ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
-            }))
-          );
-          // Immediately announce the first actionable step of the new route.
-          // Without this the driver is silent until the next GPS tick evaluates
-          // the cue window — up to ~1–2 s on a good signal, longer on weak GPS.
-          // We skip the depart step (distanceM is typically 0) and use the first
-          // step with real distance so the driver gets an actual maneuver cue.
-          const firstActionable = primary.steps.find(
-            (s) => s.distanceM > 0 && s.maneuverType !== "arrive"
-          ) ?? primary.steps[0];
-          // Block arrival detection for 5 s so the rapid depart-step cascade
-          // on the new route (step 0 at 0 m → advance → step 1 …) can't
-          // trigger a false "You have arrived" before the route settles.
-          rerouteSettledUntilRef.current = Date.now() + 5_000;
-
-          if (firstActionable?.instruction) {
-            // Build a distance prefix matching the announce-cue logic so the
-            // driver hears "In 300 metres, turn left onto Ngong Road" not just
-            // "turn left onto Ngong Road" when they still have distance to cover.
-            const dM = firstActionable.distanceM;
-            const distPrefix =
-              dM >= 350 ? "In 350 metres, " :
-              dM >= 250 ? "In 300 metres, " :
-              dM >= 150 ? "In 200 metres, " :
-              dM >= 80  ? "In 100 metres, " : "";
-            speakText(distPrefix + firstActionable.instruction);
-            lastAnnounceCueAtRef.current = Date.now();
-            // Use the same key format the GPS handler uses ("step_0") so the
-            // next fix doesn't immediately re-announce the same step.
-            // Note: underscores match `step_${idx}` in handleLocation.
-            lastSpokenRef.current = `step_0`;
-          }
+          commitReroute(primary, alts);
         })
         .catch((e) => {
           console.warn("[reroute] Routing:", e);
