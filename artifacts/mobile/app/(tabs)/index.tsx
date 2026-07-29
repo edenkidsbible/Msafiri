@@ -632,7 +632,11 @@ export default function DriveScreen() {
         <Pressable style={StyleSheet.absoluteFillObject} onPress={dismissSearch} />
       )}
 
-      {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
+      {/* ── Drive alert overlay (bottom-anchored, slides up) ──────────────────
+           DriveAlertOverlay is the SINGLE SOURCE OF TRUTH for all in-drive
+           speed/zone/hazard alerts. Do NOT add a parallel alert component here.
+           To add a new alert type, extend the DriveAlert union in AppContext and
+           add the rendering logic inside DriveAlertOverlay itself.           ── */}
       {activeAlert && (
         <DriveAlertOverlay
           alert={activeAlert}

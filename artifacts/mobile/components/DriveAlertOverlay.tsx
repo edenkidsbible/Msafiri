@@ -1,6 +1,14 @@
 /**
- * DriveAlertOverlay
- * ─────────────────
+ * DriveAlertOverlay — CANONICAL in-drive alert component
+ * ───────────────────────────────────────────────────────
+ * This is the SINGLE SOURCE OF TRUTH for all speed/zone/hazard alerts shown
+ * to the driver while driving. All in-drive alert UI lives here.
+ *
+ * ⚠️  If you need a new alert type or new alert behaviour, extend THIS component
+ *     (or its DriveAlert interface in AppContext) — do NOT create a parallel
+ *     alert component (e.g. AlertBanner or similar). Parallel alert paths cause
+ *     silent duplication, missed dismissals, and z-index conflicts.
+ *
  * Full-width bottom panel that slides up when the driver approaches a speed
  * camera, police check, speed zone, or community-reported hazard.
  *
