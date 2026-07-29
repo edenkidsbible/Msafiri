@@ -175,6 +175,12 @@ export default function DriveScreen() {
   const [showRouteSearch, setShowRouteSearch] = useState(false);
   // #6 — resume original destination after a Search Along Route stop
   const [resumeDestination, setResumeDestination] = useState<import("@/context/AppContext").NavDestination | null>(null);
+  // Coordinates of the active divert stop — used for departure detection.
+  // Stored in a ref so the distance-check effect doesn't re-register on every GPS tick.
+  const divertStopRef = useRef<{ lat: number; lng: number } | null>(null);
+  // True once the driver has arrived within 200 m of the divert stop so we
+  // don't trigger departure before they've even reached the place.
+  const divertArrivedRef = useRef(false);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
@@ -235,8 +241,45 @@ export default function DriveScreen() {
   useEffect(() => {
     if (!navigationActive && arrivedInfo == null) {
       setResumeDestination(null);
+      divertStopRef.current    = null;
+      divertArrivedRef.current = false;
     }
   }, [navigationActive, arrivedInfo]);
+
+  // ── Auto-depart detection ────────────────────────────────────────────────
+  // When the driver has a divert stop active AND navigation has ended (they've
+  // arrived at the stop or dismissed it), watch their GPS position.
+  // Once they've been within 200 m (arrived), then move >350 m away
+  // (departed), automatically resume navigation to the saved destination.
+  useEffect(() => {
+    if (!resumeDestination) return;          // no divert in progress
+    if (navigationActive) return;            // still navigating to the stop
+    if (!arrivedInfo) return;                // arrival modal not showing
+    if (currentLat == null || currentLng == null) return;
+
+    const stop = divertStopRef.current;
+    if (!stop) return;
+
+    const distFromStop = haversineM(currentLat, currentLng, stop.lat, stop.lng);
+
+    // Gate: mark as "arrived" once within 200 m of the divert stop
+    if (!divertArrivedRef.current && distFromStop <= 200) {
+      divertArrivedRef.current = true;
+    }
+
+    // Depart: driver was close, now >350 m away → auto-resume
+    if (divertArrivedRef.current && distFromStop > 350) {
+      const dest = resumeDestination;
+      clearArrival();
+      setResumeDestination(null);
+      divertStopRef.current    = null;
+      divertArrivedRef.current = false;
+      setNavDestination(dest);
+      startNavigation();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [currentLat, currentLng, resumeDestination, navigationActive, arrivedInfo,
+      clearArrival, setNavDestination, startNavigation]);
 
   // Extracted so both the direct path and the name-prompt confirm button can call it.
   const doStartSharing = useCallback(async (name: string) => {
@@ -1519,12 +1562,53 @@ export default function DriveScreen() {
         onClose={() => setShowRouteSearch(false)}
         onSelect={(poi) => {
           setShowRouteSearch(false);
-          // Save the pre-existing destination so the driver can resume it after the stop
-          if (navDestination) setResumeDestination(navDestination);
-          setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
-          setSearchText(poi.name);
-          startNavigation();
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+          const doNavigate = (divert: boolean) => {
+            if (divert && navDestination) {
+              // Save original destination; store divert stop coords for departure detection
+              setResumeDestination(navDestination);
+              divertStopRef.current    = { lat: poi.lat, lng: poi.lng };
+              divertArrivedRef.current = false;
+            } else {
+              // Full destination change — discard any prior resume destination
+              setResumeDestination(null);
+              divertStopRef.current    = null;
+              divertArrivedRef.current = false;
+            }
+            setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+            setSearchText(poi.name);
+            startNavigation();
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          };
+
+          // When there's already an active destination, ask the driver whether to
+          // divert (and resume later) or simply change the destination.
+          if (navDestination) {
+            const origName = navDestination.name.split(",")[0];
+            Alert.alert(
+              poi.name,
+              `How would you like to proceed?`,
+              [
+                {
+                  text: `Divert here, then continue to ${origName}`,
+                  onPress: () => doNavigate(true),
+                },
+                {
+                  text: "Change destination",
+                  style: "destructive",
+                  onPress: () => doNavigate(false),
+                },
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => setShowRouteSearch(true), // reopen the sheet
+                },
+              ],
+            );
+          } else {
+            // No prior destination — navigate directly without prompting
+            doNavigate(false);
+          }
         }}
       />
     </Animated.View>
