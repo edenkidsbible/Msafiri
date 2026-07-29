@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
+import { useRouter } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -180,6 +181,7 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
 export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const {
     currentLat, currentLng,
     communityReports, addReport, deleteReport,
@@ -552,6 +554,9 @@ export default function MapViewScreen() {
           setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
           startNavigation();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          // Switch to Drive tab so the turn-by-turn nav bar and voice guidance
+          // are immediately visible without the driver having to tap manually.
+          router.replace("/");
         }}
       />
 
