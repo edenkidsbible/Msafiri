@@ -1644,7 +1644,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const REPORT_ANNOUNCE_DIST = 1000;
     for (const report of isDriving ? communityReportsRef.current : []) {
       if (announcedReportsRef.current.has(report.id)) continue;
-      if (now - report.timestamp > 7200000) continue; // ignore reports > 2 h old
+
+      // Skip non-visible statuses — mirrors the server-side isActive() filter.
+      // Denied ("Gone now"), expired, cleared, and flagged reports must never
+      // be announced.  Using status rather than a fixed age gate means reports
+      // that are still active on the server (police, road works, hazards with
+      // TTLs of 3–24 h) are not silently skipped.
+      if (
+        report.status === "expired" ||
+        report.status === "denied"
+      ) continue;
+
+      // Fallback age guard: 24 h.  For online devices the server's TTL system
+      // will have set status to "expired" long before this fires.  For
+      // offline-created reports that were never synced it provides a last-resort
+      // staleness guard.
+      // IMPORTANT: the previous value was 2 h, which silenced all police,
+      // road-works, and hazard reports older than 2 h even though they remained
+      // fully active on the server — those types have TTLs of 3–24 h.
+      if (now - report.timestamp > 86400000) continue; // 24 h
+
       const distToReport = haversine(lat, lng, report.lat, report.lng);
       if (distToReport > REPORT_ANNOUNCE_DIST || distToReport <= IN_ZONE_DIST) continue;
 
@@ -1674,6 +1693,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const bearingToReport = bearingDeg(lat, lng, report.lat, report.lng);
       const reportIsAhead = driverHeading == null || angleDiffDeg(driverHeading, bearingToReport) <= 90;
       if (!reportIsAhead) continue;
+
+      // ── Cross-track gate (non-navigation only) ───────────────────────────
+      // When no active route is available, gate on the perpendicular distance
+      // from the report to the driver's current heading line.  A large
+      // cross-track value means the incident is on a parallel road, not the
+      // driver's own road.  The bearing check above (≤ 90°) is too wide on
+      // its own — an incident 400 m away and 80° off-bearing is clearly on an
+      // adjacent road yet still passes the 90° cone.
+      //
+      // cross_track_m = distToReport × |sin(angle_between_heading_and_bearing)|
+      //
+      // Threshold: 150 m ≈ one road width (7–10 m) plus a generous GPS error
+      // margin so the filter doesn't fire on minor GPS wander.
+      // Falls back to direction-only when heading is unknown (driverHeading==null
+      // case is already handled above by the reportIsAhead fallback).
+      if (!navActiveRef.current && driverHeading != null) {
+        const angleDiff = angleDiffDeg(driverHeading, bearingToReport); // 0–90 at this point
+        const crossTrackM = distToReport * Math.abs(Math.sin(angleDiff * Math.PI / 180));
+        if (crossTrackM > 150) continue;
+      }
+
       announcedReportsRef.current.add(report.id);
       // #33: Include distance (rounded to nearest 50 m) in the spoken cue
       const roundedAnnDist = Math.round(distToReport / 50) * 50;
