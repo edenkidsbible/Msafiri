@@ -860,40 +860,30 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════
-          RECENTER button — appears on the left when the driver has panned
-          away from their GPS position during navigation. Tapping snaps the
-          map back to street-level tracking, just like Apple / Google Maps.
-      ══════════════════════════════════════════════════════════════════ */}
-      {!showResults && mapDrifted && (
-        <TouchableOpacity
-          style={[styles.recenterBtn, {
-            // Float 14 px above whichever bottom panel is visible.
-            // During navigation the nav bar (~390 px) is much taller than
-            // bottomBase + 80, so use the measured navBarHeight instead of
-            // the old fixed offset that buried the button inside the bar.
-            // During nav: clear the Kenyan action row (≈38 px tall at bottom: navBarHeight+8)
-          // so Recenter sits visibly above it. Outside nav: sits above speed strip.
-          bottom: (navBarHeight > 0 ? navBarHeight + 54 : bottomBase + speedStripHeight) + 14,
-            left: 16,
-          }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            driveMapRef.current?.recenter();
-            setMapDrifted(false);
-          }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="locate" size={17} color="#1565C0" />
-          <Text style={styles.recenterBtnTxt}>Recenter</Text>
-        </TouchableOpacity>
-      )}
-
       {/* ── During-navigation Kenyan-colors action row ──────────────────────
-          Floats just above the nav bar. Find Nearby (black) + Report (red, pulsing).
+          Floats just above the nav bar. Recenter (when drifted) + Find Nearby (black) + Report (red, pulsing).
           Replaces the old top-right vertical FAB column. */}
       {!showResults && navigationActive && (
         <View style={[styles.driveNavActionRow, { bottom: navBarHeight + 8 }]}>
+          {mapDrifted && (
+            <TouchableOpacity
+              style={[styles.driveActionPill, {
+                backgroundColor: "#FFFFFFEE",
+                borderWidth: 1.5, borderColor: "#1565C0",
+                shadowColor: "#1565C0",
+              }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                driveMapRef.current?.recenter();
+                setMapDrifted(false);
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="locate" size={14} color="#1565C0" />
+              <Text style={[styles.driveActionPillTxt, { color: "#1565C0" }]}>Recenter</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
@@ -1936,17 +1926,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-end", gap: 8,
   },
 
-  // ── Recenter button (left-side, appears when map drifts during nav) ────────
-  recenterBtn: {
-    position: "absolute", zIndex: 30,
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#FFFFFFEE",
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22,
-    borderWidth: 1.5, borderColor: "#1565C0",
-    shadowColor: "#1565C0", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22, shadowRadius: 8, elevation: 8,
-  },
-  recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
 
   // ── Arrival card ────────────────────────────────────────────────────────
   arrivalOverlay: {
