@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -18,10 +18,19 @@ const TYPE_ICONS = { camera: "camera" as const, police: "person" as const, zone:
 
 export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
   const colors = useColors();
-  const slide = useRef(new Animated.Value(-100)).current;
-  const pulse = useHeartbeatPulse(true);
+  const slide       = useRef(new Animated.Value(-100)).current;
+  // Always holds the latest zone.id so the dismiss callback can compare.
+  const activeIdRef = useRef(zone.id);
+  const [dismissing, setDismissing] = useState(false);
+
+  // Keep activeIdRef in sync with the prop so the callback sees the current ID.
+  useEffect(() => { activeIdRef.current = zone.id; }, [zone.id]);
+
+  // Stop pulsing the instant the driver taps dismiss — don't wait for unmount.
+  const pulse = useHeartbeatPulse(!dismissing);
 
   useEffect(() => {
+    setDismissing(false);            // reset for the incoming zone
     Animated.spring(slide, {
       toValue: 0,
       useNativeDriver: true,
@@ -30,6 +39,22 @@ export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
     }).start();
     playSound("alert");
   }, [zone.id]);
+
+  // ── Dismiss: stop pulse immediately, slide out, then notify parent ─────────
+  // Capture the zone ID at tap-time. If a different zone becomes active before
+  // the 240 ms animation completes, the callback is a no-op so the
+  // newly-surfaced alert is not accidentally dismissed.
+  const handleDismiss = () => {
+    const dismissedId = zone.id;
+    setDismissing(true);
+    Animated.timing(slide, {
+      toValue:         -100,
+      duration:        240,
+      useNativeDriver: true,
+    }).start(() => {
+      if (activeIdRef.current === dismissedId) onDismiss();
+    });
+  };
 
   const dist =
     zone.distance < 500
@@ -58,7 +83,7 @@ export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
         </Text>
       </View>
       <TouchableOpacity
-        onPress={onDismiss}
+        onPress={handleDismiss}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         style={styles.close}
       >

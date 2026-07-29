@@ -21,7 +21,7 @@
  *   when they're above the camera's limit.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -107,17 +107,25 @@ export default function DriveAlertOverlay({
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const slideY = useRef(new Animated.Value(ANIM_OFFSCREEN)).current;
-  const prevId = useRef<string | null>(null);
+  const slideY       = useRef(new Animated.Value(ANIM_OFFSCREEN)).current;
+  const prevId       = useRef<string | null>(null);
+  // Always holds the latest alert.id so the dismiss callback can compare.
+  const activeIdRef  = useRef(alert.id);
+  const [dismissing, setDismissing] = useState(false);
+
+  // Keep activeIdRef in sync with the prop so the callback sees the current ID.
+  useEffect(() => { activeIdRef.current = alert.id; }, [alert.id]);
 
   const urgent = alert.distance < 200;
   const bg     = urgencyColor(alert.distance, colors);
-  const pulse  = useHeartbeatPulse(urgent);
+  // Stop pulsing the instant the driver taps dismiss — don't wait for unmount.
+  const pulse  = useHeartbeatPulse(urgent && !dismissing);
 
   // ── Slide in + sound on first appearance of a new alert ──────────────────
   useEffect(() => {
     if (alert.id !== prevId.current) {
       prevId.current = alert.id;
+      setDismissing(false);          // reset for the incoming alert
       slideY.setValue(ANIM_OFFSCREEN);
       Animated.spring(slideY, {
         toValue:         0,
@@ -128,6 +136,22 @@ export default function DriveAlertOverlay({
       void playSound("alert");
     }
   }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Dismiss: stop pulse immediately, slide out, then notify parent ─────────
+  // Capture the alert ID at tap-time. If a different alert becomes active
+  // before the 280 ms animation completes, the callback is a no-op so the
+  // newly-surfaced alert is not accidentally dismissed.
+  const handleDismiss = () => {
+    const dismissedId = alert.id;
+    setDismissing(true);
+    Animated.timing(slideY, {
+      toValue:         ANIM_OFFSCREEN,
+      duration:        280,
+      useNativeDriver: true,
+    }).start(() => {
+      if (activeIdRef.current === dismissedId) onDismiss();
+    });
+  };
 
   // ── Resolve display values ────────────────────────────────────────────────
   const isZone    = alert.source === "zone";
@@ -187,7 +211,7 @@ export default function DriveAlertOverlay({
           )}
         </View>
         <TouchableOpacity
-          onPress={onDismiss}
+          onPress={handleDismiss}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           style={styles.closeBtn}
         >
@@ -278,7 +302,7 @@ export default function DriveAlertOverlay({
 
       {/* ── Dismiss button (filled — more actionable than outline) ── */}
       <TouchableOpacity
-        onPress={onDismiss}
+        onPress={handleDismiss}
         activeOpacity={0.8}
         style={[styles.dismissBtn, { backgroundColor: bg }]}
       >
