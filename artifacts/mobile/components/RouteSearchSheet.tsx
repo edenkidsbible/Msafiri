@@ -182,20 +182,32 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
     setSearched(false);
 
     try {
-      // Build a bounding box from the route coords, capped to ~30 km radius
-      const lats = activeRoute.coords.map((c) => c.latitude);
-      const lngs = activeRoute.coords.map((c) => c.longitude);
-      const south = Math.min(...lats);
-      const north = Math.max(...lats);
-      const west  = Math.min(...lngs);
-      const east  = Math.max(...lngs);
+      // Build a bounding box from the route coords.
+      // Avoid spread operators (Math.min/max(...array)) — on long polylines
+      // the spread can exceed the JS call stack in Hermes.
+      let south = Infinity, north = -Infinity, west = Infinity, east = -Infinity;
+      for (const coord of activeRoute.coords) {
+        if (coord.latitude  < south) south = coord.latitude;
+        if (coord.latitude  > north) north = coord.latitude;
+        if (coord.longitude < west)  west  = coord.longitude;
+        if (coord.longitude > east)  east  = coord.longitude;
+      }
       const bbox = `${south},${west},${north},${east}`;
 
       const filter = keywordToOverpassFilter(q);
       const overpassQuery = `[out:json][timeout:15];(node${filter}(${bbox});way${filter}(${bbox}););out center 40;`;
       const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
 
-      const res = await fetch(url, { signal: AbortSignal.timeout(16000) });
+      // AbortSignal.timeout() is not available in React Native / Hermes — use
+      // the standard AbortController + setTimeout pattern instead.
+      const controller = new AbortController();
+      const abortTimer = setTimeout(() => controller.abort(), 16000);
+      let res: Response;
+      try {
+        res = await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(abortTimer);
+      }
       if (!res.ok) throw new Error(`Overpass error ${res.status}`);
       const data = await res.json() as { elements: OverpassElement[] };
 
