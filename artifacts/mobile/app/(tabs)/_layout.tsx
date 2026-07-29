@@ -58,7 +58,7 @@ function FloatingTabLayout() {
     >
       <Tabs.Screen name="index"    options={{ title: "Drive" }} />
       <Tabs.Screen name="map"      options={{ title: "Map" }} />
-      <Tabs.Screen name="browse"   options={{ title: "Browse" }} />
+      <Tabs.Screen name="browse"   options={{ title: "Learn" }} />
       <Tabs.Screen name="trips"    options={{ title: "Trips" }} />
       {/* Learn hidden on iOS — only 5 tabs fit the floating bar cleanly */}
       <Tabs.Screen name="learn"    options={{ title: "Learn", href: null }} />
@@ -128,8 +128,8 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="browse"
         options={{
-          title: "Browse",
-          tabBarIcon: icon("compass", "location"),
+          title: "Learn",
+          tabBarIcon: icon("book-open", "book"),
         }}
       />
       <Tabs.Screen

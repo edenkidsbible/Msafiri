@@ -6,7 +6,7 @@ import { useColors } from "@/hooks/useColors";
 export type DriveMapViewHandle = { recenter: () => void };
 
 const DriveMapView = forwardRef(function DriveMapView(
-  _: { overviewMode?: boolean },
+  _: { mapDrifted?: boolean; onDriftChange?: (drifted: boolean) => void },
   ref: React.ForwardedRef<DriveMapViewHandle>,
 ) {
   const c = useColors();

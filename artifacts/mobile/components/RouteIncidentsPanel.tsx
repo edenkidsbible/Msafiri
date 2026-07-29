@@ -14,6 +14,12 @@ import { useColors } from "@/hooks/useColors";
 // there to avoid showing two redundant tap targets on the same screen.
 const DRIVE_TAB_PATH = "/";
 
+// The Map (browse-map) tab has its own "Report" button at left:16,bottom:+96
+// and a controls column at right:12,bottom:+96, so the default right:16,+90
+// position collides with both. On this tab we float the chip above the Report
+// button on the left instead.
+const MAP_TAB_PATH = "/map";
+
 export function distLabel(m: number): string {
   const v = Math.max(0, m);
   return v >= 1000 ? `${(v / 1000).toFixed(1)} km ahead` : `${Math.round(v)} m ahead`;
@@ -73,14 +79,24 @@ export default function RouteIncidentsPanel() {
   if (!activeRoute || arrivedInfo) return null;
 
   const isDriveTab = pathname === DRIVE_TAB_PATH;
+  const isMapTab   = pathname === MAP_TAB_PATH;
 
   if (!routeIncidentsExpanded) {
     // Off the Drive tab, surface a small floating chip so the incident list
     // stays reachable no matter which screen the driver is on.
     if (isDriveTab || routeIncidentsAhead.length === 0) return null;
+
+    // On the Map tab the Report button sits at left:16,bottom:+96 and the
+    // controls column occupies right:12,bottom:+96. The default right:16,+90
+    // position collides with both. Instead, float the chip on the LEFT above
+    // the Report button so the two never overlap.
+    const chipStyle = isMapTab
+      ? { left: 16,  bottom: insets.bottom + 152 }   // above the Report button
+      : { right: 16, bottom: insets.bottom + 90  };  // default: bottom-right
+
     return (
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: c.card, borderColor: c.border, bottom: insets.bottom + 90 }]}
+        style={[styles.fab, { backgroundColor: c.card, borderColor: c.border, ...chipStyle }]}
         onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
         activeOpacity={0.85}
       >

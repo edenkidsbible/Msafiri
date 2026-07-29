@@ -379,8 +379,11 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     // While the driver has drifted (panned/zoomed away), don't fight them by
     // slamming the camera back to the GPS position. Auto-tracking resumes once
-    // they tap Recenter (which sets mapDrifted = false via onDriftChange).
-    if (mapDrifted) return;
+    // they tap Recenter (which sets mapDriftedRef.current = false synchronously).
+    // We read the ref — not the mapDrifted prop — so the guard takes effect
+    // immediately on the first onPanDrag call, before React has batched and
+    // propagated the parent state update.
+    if (mapDriftedRef.current) return;
 
     if (currentLat == null || currentLng == null) return;
 
@@ -459,8 +462,22 @@ const DriveMapView = forwardRef(function DriveMapView(
   // created a cycle where markers lost their tap target after each poll.
   // The cost of keeping it true is negligible for ~30 emoji markers.
 
+  // Fired on every user pan gesture — more reliable than relying on
+  // details.isGesture in onRegionChangeComplete, which is unpopulated on some
+  // react-native-maps versions and Android configurations.
+  // Setting mapDriftedRef.current synchronously here prevents the GPS
+  // camera-follow effect from firing animateCamera before the React state
+  // update (onDriftChange → parent setState) has had a chance to propagate.
+  const handlePanDrag = useCallback(() => {
+    if (!navActiveRef.current) return;
+    if (mapDriftedRef.current) return; // already drifted — no-op
+    mapDriftedRef.current = true;      // synchronous guard
+    onDriftChange?.(true);
+  }, [onDriftChange]);
+
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
+    mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
     // Snap back to a tight street-level view identical to nav-start zoom.
     mapRef.current?.animateToRegion(
       { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
@@ -506,6 +523,10 @@ const DriveMapView = forwardRef(function DriveMapView(
         // navigation — they deliberately leave the zoom level alone after the
         // initial zoom-in on nav start, so the driver's manual zoom is respected.
         onRegionChangeComplete={handleRegionChangeComplete}
+        // onPanDrag fires reliably on every user drag gesture (unlike
+        // onRegionChangeComplete's details.isGesture which is missing on older
+        // react-native-maps builds). This is the primary drift-detection path.
+        onPanDrag={handlePanDrag}
       >
         {/* Speed zone markers — road-stretch corridors show their limit as a
             badge at each end so you can see how the speed changes along the

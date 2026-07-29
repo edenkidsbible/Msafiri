@@ -139,7 +139,7 @@ export default function DriveScreen() {
     currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, zonesOnRoute,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
-    addReport, currentLat, currentLng,
+    addReport, currentLat, currentLng, snapToActiveRoute,
     arrivedInfo, clearArrival,
     pendingConfirmationReport, setPendingConfirmationReport,
     setPendingConfirmationSource,
@@ -178,6 +178,7 @@ export default function DriveScreen() {
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
+  const [navBarHeight, setNavBarHeight] = useState(0);
 
   // overviewMode removed — the map is always freely pannable during navigation.
   // mapDrifted tracks whether the driver has panned away from their GPS position;
@@ -544,7 +545,19 @@ export default function DriveScreen() {
 
       {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
       {activeAlert && (
-        <DriveAlertOverlay alert={activeAlert} onDismiss={dismissAlert} currentSpeed={currentSpeed} />
+        <DriveAlertOverlay
+          alert={activeAlert}
+          onDismiss={dismissAlert}
+          currentSpeed={currentSpeed}
+          // Cover the gauge exactly: in nav mode cover the nav bar; in normal
+          // mode cover the speed strip up to just above the report buttons.
+          // The +20 adds a small breathing gap above the gauge top edge.
+          minPanelHeight={
+            navigationActive && navBarHeight > 0
+              ? navBarHeight + 20
+              : bottomBase + speedStripHeight + 20
+          }
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -796,7 +809,14 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!showResults && navigationActive && mapDrifted && (
         <TouchableOpacity
-          style={[styles.recenterBtn, { bottom: bottomBase + speedStripHeight + 80, left: 16 }]}
+          style={[styles.recenterBtn, {
+            // Float 14 px above whichever bottom panel is visible.
+            // During navigation the nav bar (~390 px) is much taller than
+            // bottomBase + 80, so use the measured navBarHeight instead of
+            // the old fixed offset that buried the button inside the bar.
+            bottom: (navBarHeight > 0 ? navBarHeight : bottomBase + speedStripHeight) + 14,
+            left: 16,
+          }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             driveMapRef.current?.recenter();
@@ -809,28 +829,37 @@ export default function DriveScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Navigation right-side FABs: search + report incident */}
-      {!showResults && navigationActive && (
-        <View style={[styles.navFabCol, { top: topInset + 118, right: 12 }]}>
-          {/* Search along route (#34) */}
+      {/* Right-side FABs: Find Nearby + Report Incident — always visible (not just during navigation) */}
+      {!showResults && (
+        <View style={[styles.navFabCol, {
+          // During navigation these sit below the nav card; outside navigation
+          // they sit below the 3 utility FABs (locate/traffic/night) which stack
+          // ~158 px from topInset+72, so topInset+240 clears them cleanly.
+          top: navigationActive ? topInset + 118 : topInset + 240,
+          right: 12,
+        }]}>
+          {/* Find Nearby */}
           <TouchableOpacity
             style={[styles.navReportBtn, { backgroundColor: "#37474F" }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="search" size={14} color="#FFF" />
-            <Text style={styles.navReportTxt}>Search</Text>
+            <Text style={styles.navReportTxt}>Find Nearby</Text>
           </TouchableOpacity>
 
-          {/* Report incident */}
-          <TouchableOpacity
-            style={styles.navReportBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="camera" size={14} color="#FFF" />
-            <Text style={styles.navReportTxt}>Report Incident</Text>
-          </TouchableOpacity>
+          {/* Report incident — only during navigation; the orange reportBar
+              covers this in normal (non-nav) mode to avoid a duplicate */}
+          {navigationActive && (
+            <TouchableOpacity
+              style={styles.navReportBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="camera" size={14} color="#FFF" />
+              <Text style={styles.navReportTxt}>Report Incident</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -1113,7 +1142,10 @@ export default function DriveScreen() {
           BOTTOM: Navigation active bar
       ══════════════════════════════════════════════════════════════════ */}
       {navigationActive && (
-        <View style={[styles.navBar, { backgroundColor: bg, paddingBottom: bottomBase }]}>
+        <View
+          style={[styles.navBar, { backgroundColor: bg, paddingBottom: bottomBase }]}
+          onLayout={(e) => setNavBarHeight(e.nativeEvent.layout.height)}
+        >
 
           <View style={styles.navBarTopRow}>
             {/* Left: speed digit + current limit ring + upcoming zone chip */}
@@ -1388,7 +1420,11 @@ export default function DriveScreen() {
           if (location) {
             addReport(type, location.lat, location.lng, speedLimit);
           } else if (currentLat !== null && currentLng !== null) {
-            const snapped = await snapToRoad(currentLat, currentLng);
+            // Prefer the route polyline when navigating — it pins the marker on
+            // the exact road the driver is using, not just the nearest road in
+            // Google's database (which can be the wrong lane or a parallel road).
+            const routeSnap = snapToActiveRoute(currentLat, currentLng);
+            const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
             addReport(type, snapped.lat, snapped.lng, speedLimit);
           }
         }}

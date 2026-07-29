@@ -266,6 +266,10 @@ interface AppContextValue {
   /** One-time backfill: writes every DB-relocated zone back into speedZones.ts.
    *  Returns the number of zones patched in the static file. */
   adminSyncStaticZones: () => Promise<{ synced: number; total: number }>;
+  /** Snaps a coordinate to the nearest point on the driver's active route
+   *  polyline. Returns null when no route is active; the caller should then
+   *  fall back to snapToRoad() (Google Roads API) or raw GPS. */
+  snapToActiveRoute: (lat: number, lng: number) => { lat: number; lng: number } | null;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -869,6 +873,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // window the per-GPS-fix "where am I along the route" projection instead
   // of rescanning every coordinate every second (see currentRouteDistanceM).
   const routeProjIdxRef = useRef(0);
+  // High-water mark of the driver's along-route progress in metres.
+  // Only ever increases — GPS jitter can temporarily snap the projection to an
+  // earlier route point (via the –5 lookback window), which would make
+  // currentRouteDistanceM decrease and cause already-passed incidents to
+  // reappear as "ahead" with growing distances. The high-water mark is used
+  // instead of the raw projection value for incident filtering / aheadDistanceM.
+  const routeMaxDistMRef = useRef(0);
   // Proximity voice refs
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
@@ -1284,12 +1295,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (now - r.timestamp > 7200000) continue;
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
-        if (driverHeading != null && angleDiffDeg(driverHeading, bearingDeg(lat, lng, r.lat, r.lng)) > 45) continue;
-        // Suppress if driver is moving away (already passed the report).
-        if (prevFix) {
-          const prevDist = haversine(prevFix.lat, prevFix.lng, r.lat, r.lng);
-          if (prevDist < d) continue;
-        }
+        // Widen to 90° for community reports. On curved roads the straight-line
+        // bearing to a report 600 m ahead can differ from the driving direction
+        // by more than 45° mid-bend, silently dropping genuine upcoming hazards.
+        // The 90° cone still excludes incidents squarely behind the driver
+        // (~180° off heading), so no separate "moving-away" check is needed —
+        // a passed report will be well outside this cone at its next appearance.
+        // (Haversine distance also temporarily increases on curves even while
+        //  approaching, making the old "prevDist < d → skip" check produce false
+        //  negatives on any route that bends.)
+        if (driverHeading != null && angleDiffDeg(driverHeading, bearingDeg(lat, lng, r.lat, r.lng)) > 90) continue;
         best = r;
         bestDist = d;
       }
@@ -1961,6 +1976,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     routeProjIdxRef.current = 0;
+    routeMaxDistMRef.current = 0;
 
     fetchGoogleRoute(currentLat, currentLng, navDestination.lat, navDestination.lng)
       .then((routes) => {
@@ -2004,6 +2020,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stepIdxRef.current = 0;
           setCurrentStepIdx(0);
           routeProjIdxRef.current = 0;
+          routeMaxDistMRef.current = 0;
           lastSpokenRef.current = "";
           approachingAnnouncedRef.current = false;
           setAltRoutes(alts);
@@ -2261,24 +2278,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           routeProjIdxRef.current - 5, routeProjIdxRef.current + WINDOW
         )
       : projectOntoRoute(coords, routeCumDist, currentLat, currentLng);
-    if (proj) routeProjIdxRef.current = proj.matchedIdx;
+    if (proj) {
+      routeProjIdxRef.current = proj.matchedIdx;
+      // Advance the high-water mark — never go backward.
+      if (proj.alongRouteM > routeMaxDistMRef.current) {
+        routeMaxDistMRef.current = proj.alongRouteM;
+      }
+    }
     return proj ? proj.alongRouteM : null;
   }, [activeRoute, routeCumDist, currentLat, currentLng]);
 
   const routeIncidentsAhead = useMemo(() => {
+    // Use the high-water mark so GPS jitter that temporarily snaps the
+    // projection backward never makes already-passed incidents reappear as
+    // "ahead" with growing distances.
+    const effectiveDist = Math.max(currentRouteDistanceM ?? 0, routeMaxDistMRef.current);
     const withAhead = (list: RouteIncident[]) =>
       list.map((inc) => ({
         ...inc,
-        aheadDistanceM: Math.max(0, inc.distanceAlongRouteM - (currentRouteDistanceM ?? 0)),
+        aheadDistanceM: Math.max(0, inc.distanceAlongRouteM - effectiveDist),
       }));
     if (!navigationActive || currentRouteDistanceM == null) return withAhead(routeIncidents);
     // Only keep incidents that are still ahead of the driver. A 15 m rearward
     // tolerance absorbs GPS jitter at the exact crossing point without keeping
     // an already-passed camera visible in the "ahead" list for tens of seconds.
     return withAhead(
-      routeIncidents.filter((inc) => inc.distanceAlongRouteM >= currentRouteDistanceM - 15)
+      routeIncidents.filter((inc) => inc.distanceAlongRouteM >= effectiveDist - 15)
     );
   }, [routeIncidents, navigationActive, currentRouteDistanceM]);
+
+  // ── Snap to active route ─────────────────────────────────────────────────
+  // When the driver is navigating, snapping a newly-reported incident to the
+  // nearest point on the route polyline guarantees it lands on the EXACT road
+  // they're using — not a parallel road, opposite lane, or service road that
+  // Google Roads might pick.  Returns null when no route is active so callers
+  // can fall back to snapToRoad() (Google Roads API) or raw GPS.
+  const snapToActiveRoute = useCallback(
+    (lat: number, lng: number): { lat: number; lng: number } | null => {
+      if (!activeRoute || !routeCumDist) return null;
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, lat, lng);
+      if (!proj) return null;
+      const c = activeRoute.coords[proj.matchedIdx];
+      return { lat: c.latitude, lng: c.longitude };
+    },
+    [activeRoute, routeCumDist],
+  );
 
   const routeTrafficDelayS = useMemo(
     () => estimateTrafficDelayS(routeIncidentsAhead),
@@ -3312,6 +3356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
+      snapToActiveRoute,
     }}>
       {children}
     </AppContext.Provider>

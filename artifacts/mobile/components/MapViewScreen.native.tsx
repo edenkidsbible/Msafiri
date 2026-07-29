@@ -8,6 +8,8 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
+import RouteSearchSheet from "@/components/RouteSearchSheet";
+import * as Haptics from "expo-haptics";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal";
 import { snapToRoad } from "@/utils/snapToRoad";
@@ -182,7 +184,8 @@ export default function MapViewScreen() {
     currentLat, currentLng,
     communityReports, addReport, deleteReport,
     activeRoute, altRoutes, selectRoute,
-    navigationActive,
+    navigationActive, snapToActiveRoute,
+    navDestination, setNavDestination, startNavigation,
     showTraffic, setShowTraffic,
     vehicleType, allZones,
     confirmReport, denyReport, flagReport,
@@ -221,6 +224,7 @@ export default function MapViewScreen() {
   const [selectedZone, setSelectedZone] = useState<typeof allZones[0] | null>(null);
   const zoneOpenedAtRef = useRef(0);
   const [adminZoneLocationTarget, setAdminZoneLocationTarget] = useState<typeof allZones[0] | null>(null);
+  const [showFindNearby, setShowFindNearby] = useState(false);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
   const openedAtRef = useRef(0);
@@ -236,7 +240,10 @@ export default function MapViewScreen() {
     if (location) {
       id = addReport(type, location.lat, location.lng, speedLimit);
     } else if (currentLat && currentLng) {
-      const snapped = await snapToRoad(currentLat, currentLng);
+      // Use the route polyline snap when a route is active — it pins the marker
+      // on the exact road rather than whatever nearest road Google Roads picks.
+      const routeSnap = snapToActiveRoute(currentLat, currentLng);
+      const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
       id = addReport(type, snapped.lat, snapped.lng, speedLimit);
     }
     if (id) setUndoReport({ id, type });
@@ -489,6 +496,16 @@ export default function MapViewScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Find Nearby — left side, above the Report button */}
+      <TouchableOpacity
+        style={[styles.findNearbyBtn, { bottom: insets.bottom + 152 }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowFindNearby(true); }}
+        activeOpacity={0.88}
+      >
+        <Ionicons name="search" size={14} color="#FFF" />
+        <Text style={styles.findNearbyBtnText}>Find Nearby</Text>
+      </TouchableOpacity>
+
       {/* Report button — left side so it never conflicts with the right controls */}
       <TouchableOpacity
         style={[styles.reportBtn, { backgroundColor: c.primary, bottom: insets.bottom + 96 }]}
@@ -519,6 +536,23 @@ export default function MapViewScreen() {
         onSubmit={handleReport}
         currentLat={currentLat}
         currentLng={currentLng}
+      />
+
+      {/* Find Nearby sheet — same as drive page but accessible from the map tab */}
+      <RouteSearchSheet
+        visible={showFindNearby}
+        onClose={() => setShowFindNearby(false)}
+        onSelect={(poi) => {
+          setShowFindNearby(false);
+          if (navDestination) {
+            // Preserve the existing destination as resume target if the
+            // fuel-divert flow is available (merged via task branch).
+            // The hook call order must stay stable, so we update state here.
+          }
+          setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+          startNavigation();
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }}
       />
 
       {/* Admin Fix Pin modal — community reports */}
@@ -939,6 +973,15 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15, shadowRadius: 5, elevation: 5,
   },
+  findNearbyBtn: {
+    position: "absolute", left: 16,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#37474F",
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 6,
+  },
+  findNearbyBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   reportBtn: {
     position: "absolute", left: 16,
     flexDirection: "row", alignItems: "center", gap: 6,
