@@ -27,7 +27,10 @@ import { fileURLToPath } from 'url';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const ZONES_FILE = path.resolve(__dir, '../data/speedZones.ts');
-const OSRM = 'https://router.project-osrm.org/route/v1/driving';
+// Use the app's own routing proxy (server-side Google Routes API) instead of
+// the unreliable public OSRM demo server. Scripts run inside the Replit workspace
+// so port 8080 is directly reachable without going through the proxy.
+const API_BASE = 'http://localhost:80/api/routing';
 const THRESHOLD = parseInt(process.argv.find(a => a.startsWith('--threshold='))?.split('=')[1] ?? '50', 10);
 const FIX = process.argv.includes('--fix');
 const MAXFIX_ARG = process.argv.find(a => a.startsWith('--maxfix='))?.split('=')[1];
@@ -150,12 +153,24 @@ function snapToPolyline(lat, lng, coords) {
 
 async function getRoadGeometry(roadKey) {
   const wps = ROAD_ANCHORS[roadKey];
-  if (!wps) return [];
-  const coords = wps.map(([lng,lat])=>`${lng},${lat}`).join(';');
-  const res = await fetch(`${OSRM}/${coords}?geometries=geojson&overview=full`);
-  if (!res.ok) return [];
-  const j = await res.json();
-  return j.routes?.[0]?.geometry?.coordinates ?? [];
+  if (!wps || wps.length < 2) return [];
+  // Route each consecutive anchor pair and stitch the polylines together.
+  // The API only accepts origin-destination pairs; multi-waypoint roads are
+  // handled by routing segment-by-segment and deduplicating join points.
+  const allCoords = [];
+  for (let i = 0; i < wps.length - 1; i++) {
+    const [fromLng, fromLat] = wps[i];
+    const [toLng,   toLat]   = wps[i + 1];
+    const res = await fetch(
+      `${API_BASE}/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`
+    );
+    if (!res.ok) return [];
+    const j = await res.json();
+    const seg = (j.routes?.[0]?.coords ?? []).map(c => [c.longitude, c.latitude]);
+    // Skip the first point on subsequent segments to avoid duplicates at joins.
+    allCoords.push(...(i === 0 ? seg : seg.slice(1)));
+  }
+  return allCoords;
 }
 
 // ── Parse speedZones.ts ────────────────────────────────────────────────────────

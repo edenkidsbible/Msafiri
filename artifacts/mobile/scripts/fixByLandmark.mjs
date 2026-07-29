@@ -32,7 +32,10 @@ import { fileURLToPath } from 'url';
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const ZONES_FILE = path.resolve(__dir, '../data/speedZones.ts');
 const PHOTON = 'https://photon.komoot.io/api/';
-const OSRM = 'https://router.project-osrm.org/route/v1/driving';
+// Use the app's own routing proxy (server-side Google Routes API) instead of
+// the unreliable public OSRM demo server. Scripts run inside the Replit workspace
+// so port 8080 is directly reachable without going through the proxy.
+const API_BASE = 'http://localhost:80/api/routing';
 const KENYA_BBOX = '33.9,-4.9,41.9,5.5';
 const CAP = 12000;         // real landmark is always near the (region-trusted) stored coord
 const PAIR_MAX = 12000;    // two ends of a named "section" shouldn't be farther apart than this
@@ -203,15 +206,17 @@ async function geocode(term, stored) {
     .sort((a, b) => haversine(stored, a) - haversine(stored, b));
   return feats;   // nearest-to-stored first, within CAP, name-matched
 }
-async function osrmMid(a, b) {
-  const res = await fetch(`${OSRM}/${a.lng},${a.lat};${b.lng},${b.lat}?geometries=geojson&overview=full`);
+async function routeMid(a, b) {
+  const res = await fetch(
+    `${API_BASE}/route?fromLat=${a.lat}&fromLng=${a.lng}&toLat=${b.lat}&toLng=${b.lng}`
+  );
   if (res.ok) {
-    const c = (await res.json()).routes?.[0]?.geometry?.coordinates ?? [];
+    const raw = (await res.json()).routes?.[0]?.coords ?? [];
+    const c = raw.map(pt => ({ lat: pt.latitude, lng: pt.longitude }));
     if (c.length > 1) {
       // midpoint by cumulative distance along the real route
-      const cc = c.map(([lng, lat]) => ({ lat, lng }));
-      let tot = 0; for (let i = 0; i < cc.length - 1; i++) tot += haversine(cc[i], cc[i + 1]);
-      let acc = 0; for (let i = 0; i < cc.length - 1; i++) { const d = haversine(cc[i], cc[i + 1]); if (acc + d >= tot / 2) { const t = d ? (tot / 2 - acc) / d : 0; return { lat: cc[i].lat + t * (cc[i + 1].lat - cc[i].lat), lng: cc[i].lng + t * (cc[i + 1].lng - cc[i].lng) }; } acc += d; }
+      let tot = 0; for (let i = 0; i < c.length - 1; i++) tot += haversine(c[i], c[i + 1]);
+      let acc = 0; for (let i = 0; i < c.length - 1; i++) { const d = haversine(c[i], c[i + 1]); if (acc + d >= tot / 2) { const t = d ? (tot / 2 - acc) / d : 0; return { lat: c[i].lat + t * (c[i + 1].lat - c[i].lat), lng: c[i].lng + t * (c[i + 1].lng - c[i].lng) }; } acc += d; }
     }
   }
   return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 }; // geodesic fallback
@@ -219,11 +224,21 @@ async function osrmMid(a, b) {
 // A term with no significant tokens (pure road code / range) => corridor marker.
 function isCorridorTerm(t) { return tokens(t).length === 0 || /^[a-d]\d/i.test(t.trim()); }
 async function roadGeom(key) {
-  const wps = ROAD_ANCHORS[key]; if (!wps) return [];
-  const c = wps.map(([lng, lat]) => `${lng},${lat}`).join(';');
-  const res = await fetch(`${OSRM}/${c}?geometries=geojson&overview=full`);
-  if (!res.ok) return [];
-  return (await res.json()).routes?.[0]?.geometry?.coordinates ?? [];
+  const wps = ROAD_ANCHORS[key];
+  if (!wps || wps.length < 2) return [];
+  // Route each consecutive anchor pair and stitch the polylines together.
+  const allCoords = [];
+  for (let i = 0; i < wps.length - 1; i++) {
+    const [fromLng, fromLat] = wps[i];
+    const [toLng,   toLat]   = wps[i + 1];
+    const res = await fetch(
+      `${API_BASE}/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`
+    );
+    if (!res.ok) return [];
+    const seg = (await res.json()).routes?.[0]?.coords ?? [];
+    allCoords.push(...(i === 0 ? seg : seg.slice(1)).map(c => [c.longitude, c.latitude]));
+  }
+  return allCoords;
 }
 
 function parseZones(src) {
@@ -268,7 +283,7 @@ async function main() {
     if (found.length === 2) {
       const apart = haversine(found[0], found[1]);
       if (apart > PAIR_MAX) { review.push({ ...z, note: `pair too far apart (${Math.round(apart)}m)`, seen }); continue; }
-      target = await osrmMid(found[0], found[1]); kind = 'pair-mid';
+      target = await routeMid(found[0], found[1]); kind = 'pair-mid';
       await new Promise(r => setTimeout(r, 150));
     } else { target = { lat: found[0].lat, lng: found[0].lng }; kind = 'single'; }
 
