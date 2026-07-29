@@ -9,6 +9,7 @@ import { seedCourseIfEmpty } from "./startup/seedCourse";
 import { backfillCourseAudio } from "./startup/backfillCourseAudio";
 import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
+import { syncStaticZones } from "./startup/syncStaticZones";
 
 const rawPort = process.env["PORT"];
 
@@ -63,6 +64,7 @@ app.listen(port, async (err) => {
   logger.info({ port }, "Server listening");
   await migrateSchema();
   await seedDefaultAdmin();
+  await syncStaticZones();
   await seedCourseIfEmpty();
   await backfillCourseAudio();
   await dedupPushTokens();

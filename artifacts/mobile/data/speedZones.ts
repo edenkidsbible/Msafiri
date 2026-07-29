@@ -159,8 +159,8 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // ── Eastern Bypass (A104) ─────────────────────────────────────────────────────
   // Source: NTSA 2025 — fixed cameras at Ruai junction and Kamulu interchange, 80 km/h.
-  { id: "sz076", name: "Eastern Bypass – Ruai Junction Camera", road: "Eastern Bypass", lat: -1.272, lng: 36.9758, speedLimit: 80, type: "camera", description: "Fixed camera at Ruai junction on Eastern Bypass. Limit: 80 km/h" },
-  { id: "sz077", name: "Eastern Bypass – Kamulu / Utawala Interchange", road: "Eastern Bypass", lat: -1.279312, lng: 36.965667, speedLimit: 80, type: "camera", description: "Fixed camera at Kamulu interchange / Utawala on Eastern Bypass. Limit: 80 km/h" },
+  { id: "sz076", name: "Eastern Bypass – Ruai Junction Camera", road: "Eastern Bypass", lat: -1.2614680433802352, lng: 36.98379825800657, speedLimit: 80, type: "camera", description: "Fixed camera at Ruai junction on Eastern Bypass. Limit: 80 km/h" },
+  { id: "sz077", name: "Eastern Bypass – Kamulu / Utawala Interchange", road: "Eastern Bypass", lat: -1.2333024727669253, lng: 36.989910677075386, speedLimit: 80, type: "camera", description: "Fixed camera at Kamulu interchange / Utawala on Eastern Bypass. Limit: 80 km/h" },
   { id: "sz078", name: "Gitaru Road – Kanyariri Camera", road: "Gitaru Road", lat: -1.236009, lng: 36.692304, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on Gitaru Road near Kanyariri, Kabete. Limit: 80 km/h" },
 
   // ── Nairobi Expressway – additional cameras (NTSA 2025) ──────────────────────

@@ -1,46 +1,8 @@
-import * as fs from "fs";
-import * as path from "path";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
 import { eq, isNotNull } from "drizzle-orm";
-
-// ── Static zone file sync ─────────────────────────────────────────────────────
-// When an admin relocates a static (hardcoded) zone via the mobile app, write
-// the new coordinates directly into speedZones.ts so that the next production
-// build picks them up — making the change permanent across ALL environments
-// rather than relying solely on the DB-override/suppress mechanism.
-// This is best-effort: the DB update is the authoritative source of truth and
-// this function never throws on file-system errors.
-const SPEED_ZONES_FILE = path.resolve(process.cwd(), "../mobile/data/speedZones.ts");
-
-function patchStaticZoneFile(staticId: string, lat: number, lng: number): void {
-  try {
-    const src = fs.readFileSync(SPEED_ZONES_FILE, "utf-8");
-    const lines = src.split("\n");
-    let patched = false;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line.includes(`"${staticId}"`) && !line.includes(`'${staticId}'`)) continue;
-      const updated = line
-        .replace(/\blat:\s*-?\d+(?:\.\d+)?/, `lat: ${lat}`)
-        .replace(/\blng:\s*-?\d+(?:\.\d+)?/, `lng: ${lng}`);
-      if (updated !== line) {
-        lines[i] = updated;
-        patched = true;
-        break;
-      }
-    }
-    if (patched) {
-      fs.writeFileSync(SPEED_ZONES_FILE, lines.join("\n"), "utf-8");
-      console.info(`[zone-sync] ${staticId} → lat=${lat}, lng=${lng}`);
-    } else {
-      console.warn(`[zone-sync] "${staticId}" not in speedZones.ts — DB updated only`);
-    }
-  } catch (err) {
-    console.error("[zone-sync] Failed to patch speedZones.ts:", err);
-  }
-}
+import { patchStaticZoneFile } from "../startup/syncStaticZones";
 
 // UUID v4 pattern — static zones use "sz"-prefixed IDs instead
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
