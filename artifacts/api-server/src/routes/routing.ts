@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { mapSpokenRoadName, isRouteCode } from "../data/kenyaRoads.js";
 
 const GOOGLE_ROUTES_API =
   "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -66,11 +67,74 @@ function googleManeuverToModifier(maneuver: string): string {
   return "straight";
 }
 
-/** Extracts the road name from a Google instruction string.
- *  e.g. "Turn right onto Thika Road" → "Thika Road" */
-function extractRoadName(instruction: string): string {
-  const match = instruction.match(/\bonto\s+(.+)$/i);
-  return match ? match[1].replace(/\.$/, "").trim() : "";
+/**
+ * Rewrites a Google instruction into what should be SPOKEN and returns the
+ * (mapped) road name.  Handles the real Google Routes format:
+ *   "Head north on Uhuru Hwy/A104\nPass by Kithaku (on the right)"
+ *  - keeps only the first line (the "Pass by …" hint is never spoken)
+ *  - finds the road after "onto"/"on"/"toward(s)"
+ *  - translates route codes to common Kenyan names via mapSpokenRoadName();
+ *    an unmapped bare code drops the road name — a code is never voiced.
+ */
+/** Final safety pass: strip any route code that survived the main rewrite —
+ *  slash-composites ("Ruiru/C65", "Thika/G3203/Garissa") lose their code
+ *  parts, and a remaining standalone code is replaced by its common name or
+ *  removed outright.  A code must never reach the driver's ears. */
+function scrubCodes(line: string, lat: number, lng: number): string {
+  return line
+    // "/A2" or "/G3203" inside a slash group
+    .replace(/\/[A-E]\d{1,4}[A-Z]?(?=[/\s,.]|$)/gi, "")
+    // "A2/" at the start of a slash group
+    .replace(/\b[A-E]\d{1,4}[A-Z]?\//gi, "")
+    // standalone code → common name, or drop the word
+    .replace(/\b[A-E]\d{1,4}[A-Z]?\b/gi, (code) => mapSpokenRoadName(code, lat, lng))
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.])/g, "$1")
+    .trim();
+}
+
+function rewriteSpokenInstruction(
+  instruction: string,
+  lat: number,
+  lng: number
+): { instruction: string; roadName: string } {
+  const firstLine = instruction.split("\n")[0].trim();
+  const m = firstLine.match(/\b(onto|on|towards?)\b\s+(.+)$/i);
+  if (!m) return { instruction: firstLine, roadName: "" };
+
+  const keyword = m[1].toLowerCase();
+  // Split a trailing "… toward Thika" destination hint off the road part
+  const tail       = m[2].replace(/\.$/, "").trim();
+  const towardIdx  = keyword.startsWith("toward") ? -1 : tail.search(/\btowards?\b/i);
+  const rawRoad    = (towardIdx > -1 ? tail.slice(0, towardIdx) : tail).trim();
+
+  // Non-road tails like "…exit on the left"; "toward <place>" names a
+  // destination, not a road — leave it alone unless it is a bare code.
+  if (/^the (left|right)$/i.test(rawRoad)) {
+    return { instruction: firstLine, roadName: "" };
+  }
+  if (keyword.startsWith("toward")) {
+    if (!isRouteCode(rawRoad)) return { instruction: firstLine, roadName: "" };
+    const common = mapSpokenRoadName(rawRoad, lat, lng);
+    return {
+      instruction: common
+        ? `${firstLine.slice(0, (m.index ?? 0) + m[1].length)} ${common}`
+        : firstLine.slice(0, m.index ?? 0).trim() || "Continue",
+      roadName: "",
+    };
+  }
+
+  const spoken = mapSpokenRoadName(rawRoad, lat, lng);
+  const prefix = firstLine.slice(0, (m.index ?? 0) + m[1].length);
+  if (spoken === rawRoad && towardIdx === -1) {
+    return { instruction: firstLine, roadName: spoken };
+  }
+  if (spoken) return { instruction: `${prefix} ${spoken}`, roadName: spoken };
+  // Unmapped code — drop the road phrase entirely
+  return {
+    instruction: firstLine.slice(0, m.index ?? 0).replace(/\s+(and stay|and continue)?\s*$/i, "").trim() || "Continue",
+    roadName: "",
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -155,9 +219,20 @@ router.get("/routing/route", async (req, res) => {
       const durationS = parseInt((r.duration ?? "0s").replace("s", ""), 10);
 
       const steps = (r.legs?.[0]?.steps ?? []).map((s: any) => {
-        const maneuver    = s.navigationInstruction?.maneuver   ?? "STRAIGHT";
-        const instruction = s.navigationInstruction?.instructions ?? "Continue";
+        const maneuver = s.navigationInstruction?.maneuver ?? "STRAIGHT";
         const loc = s.startLocation?.latLng ?? { latitude: toLat, longitude: toLng };
+
+        // Kenyans never use route codes in speech — translate "A104"-style
+        // names to their common point-to-point names; drop unmapped codes so
+        // no code is ever voiced.
+        const rewritten = rewriteSpokenInstruction(
+          s.navigationInstruction?.instructions ?? "Continue",
+          loc.latitude,
+          loc.longitude
+        );
+        const instruction = scrubCodes(rewritten.instruction, loc.latitude, loc.longitude) || "Continue";
+        const spokenRoad  = scrubCodes(rewritten.roadName,    loc.latitude, loc.longitude);
+
         return {
           instruction,
           distanceM:        s.distanceMeters ?? 0,
@@ -165,7 +240,7 @@ router.get("/routing/route", async (req, res) => {
           lng:              loc.longitude,
           maneuverType:     googleManeuverToType(maneuver),
           maneuverModifier: googleManeuverToModifier(maneuver),
-          roadName:         extractRoadName(instruction),
+          roadName:         spokenRoad,
         };
       });
 

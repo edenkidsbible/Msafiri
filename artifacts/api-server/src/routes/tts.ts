@@ -11,8 +11,37 @@
  */
 
 import { Router, type Request, type Response } from "express";
+import path from "node:path";
+import fs from "node:fs";
 
 const router = Router();
+
+// ─── Pre-generated clip cache ─────────────────────────────────────────────────
+// Keli clips for common Kenyan road names are pre-generated (one-time, billed
+// to Replit credits) and stored in pregen-tts/<djb2-hash>.mp3.  A hit serves
+// the file directly — no ElevenLabs call, no rate-limit consumption.  The hash
+// function is identical to the mobile app's cache-key hash so filenames match
+// exactly what resolveRawClip() computes for each spoken text.
+
+const PREGEN_DIR = [
+  path.resolve(process.cwd(), "pregen-tts"),
+  path.resolve(process.cwd(), "artifacts/api-server/pregen-tts"),
+].find((d) => fs.existsSync(d)) ?? null;
+
+/** djb2 hash — must stay byte-identical to hashText() in mobile utils/tts.ts */
+function hashText(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) {
+    h = (((h << 5) + h) ^ text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36);
+}
+
+function findPregenClip(text: string): string | null {
+  if (!PREGEN_DIR) return null;
+  const p = path.join(PREGEN_DIR, `${hashText(text)}.mp3`);
+  return fs.existsSync(p) ? p : null;
+}
 
 const VOICE_ID = "hzuja6LJVafBxphAzQRB"; // Keli — matches bundled token voice
 const MODEL_ID  = "eleven_flash_v2_5";
@@ -56,15 +85,6 @@ setInterval(() => {
 
 router.post("/tts", async (req: Request, res: Response): Promise<void> => {
   try {
-    // Rate check
-    const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim()
-      ?? req.socket.remoteAddress
-      ?? "unknown";
-    if (isRateLimited(ip)) {
-      res.status(429).json({ error: "Too many requests" });
-      return;
-    }
-
     const { text } = req.body as { text?: unknown };
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
@@ -73,6 +93,25 @@ router.post("/tts", async (req: Request, res: Response): Promise<void> => {
     }
     if (text.length > MAX_TEXT) {
       res.status(400).json({ error: `text must be ≤ ${MAX_TEXT} characters` });
+      return;
+    }
+
+    // Pre-generated clip hit — serve from disk, skip rate limit + ElevenLabs.
+    const pregen = findPregenClip(text);
+    if (pregen) {
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.setHeader("X-Tts-Source", "pregen");
+      fs.createReadStream(pregen).pipe(res);
+      return;
+    }
+
+    // Rate check (protects ElevenLabs spend — pregen hits above are free)
+    const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim()
+      ?? req.socket.remoteAddress
+      ?? "unknown";
+    if (isRateLimited(ip)) {
+      res.status(429).json({ error: "Too many requests" });
       return;
     }
 
