@@ -363,9 +363,16 @@ function parseToSegments(input: string): Segment[] {
 }
 
 // ─── On-demand audio cache ────────────────────────────────────────────────────
-const CACHE_DIR    = (FileSystem.cacheDirectory ?? "") + "nav-audio/";
-const CACHE_TTL_MS = 365 * 24 * 3600 * 1000; // 1 year — road names & Keli voice are stable
-const sessionCache = new Map<string, string>(); // text → file URI
+// ── Cache versioning ─────────────────────────────────────────────────────────
+// Bump CACHE_VERSION whenever the server voice changes.  Old clips stored under
+// previous versions are deleted on first launch by purgeStaleTtsCache().
+//
+//   v1  (unversioned, no suffix) — Alice voice era; keys: nav_tts_<hash>
+//   v2  — Keli (hzuja6LJVafBxphAzQRB / eleven_flash_v2_5)
+const CACHE_VERSION = "v2";
+const CACHE_DIR     = (FileSystem.cacheDirectory ?? "") + `nav-audio-${CACHE_VERSION}/`;
+const CACHE_TTL_MS  = 365 * 24 * 3600 * 1000; // 1 year — road names & Keli voice are stable
+const sessionCache  = new Map<string, string>(); // text → file URI
 
 /** djb2 hash — good enough for short road-name strings */
 function hashText(text: string): string {
@@ -394,7 +401,7 @@ async function resolveRawClip(text: string): Promise<string | null> {
 
   const hash     = hashText(text);
   const filePath = `${CACHE_DIR}${hash}.mp3`;
-  const storeKey = `nav_tts_${hash}`;
+  const storeKey = `nav_tts_${CACHE_VERSION}_${hash}`;
 
   try {
     // Disk cache hit
@@ -445,6 +452,48 @@ async function resolveRawClip(text: string): Promise<string | null> {
     console.warn("[tts] resolveRawClip:", err);
     return null;
   }
+}
+
+// ─── Stale-cache purge ────────────────────────────────────────────────────────
+
+const OLD_CACHE_DIR = (FileSystem.cacheDirectory ?? "") + "nav-audio/";  // v1 (Alice era)
+const PURGE_FLAG    = `nav_tts_purged_${CACHE_VERSION}`;
+
+/**
+ * One-time startup sweep: deletes un-versioned (Alice-era) cached clips and
+ * their AsyncStorage metadata so stale-voice audio cannot be played back.
+ * Safe to call at every launch — the PURGE_FLAG prevents redundant work.
+ * Non-throwing: any filesystem errors are silently swallowed.
+ */
+export async function purgeStaleTtsCache(): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    const done = await AsyncStorage.getItem(PURGE_FLAG);
+    if (done) return;
+
+    // Delete the old un-versioned cache directory (contains Alice MP3s).
+    try {
+      const info = await FileSystem.getInfoAsync(OLD_CACHE_DIR);
+      if (info.exists) {
+        await FileSystem.deleteAsync(OLD_CACHE_DIR, { idempotent: true });
+      }
+    } catch { /* filesystem error — not fatal */ }
+
+    // Remove all old un-versioned AsyncStorage metadata keys.
+    // Old keys look like "nav_tts_<hash>" — no version segment after "nav_tts_".
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const oldKeys = allKeys.filter(
+        (k) => k.startsWith("nav_tts_") && !/^nav_tts_v\d+_/.test(k)
+      );
+      if (oldKeys.length > 0) await AsyncStorage.multiRemove(oldKeys);
+    } catch { /* storage error — not fatal */ }
+
+    // Clear the in-memory session cache so no v1 URI can be returned this session.
+    sessionCache.clear();
+
+    await AsyncStorage.setItem(PURGE_FLAG, "1");
+  } catch { /* non-fatal — stale clips will expire via normal TTL */ }
 }
 
 // ─── Audio playback ───────────────────────────────────────────────────────────

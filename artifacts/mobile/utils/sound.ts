@@ -1,6 +1,5 @@
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
-import * as Speech from "expo-speech";
 
 // Central place for all short in-app notification sounds (not push-notification
 // sounds — those are handled by the OS via the `sound: "default"` field on the

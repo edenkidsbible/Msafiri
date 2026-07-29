@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
-import { speakPhrase, prewarmRouteAudio, prebuildRouteAudio, cancelPrewarm, isNavVoicePlaying } from "@/utils/tts";
+import { speakPhrase, prewarmRouteAudio, prebuildRouteAudio, cancelPrewarm, isNavVoicePlaying, purgeStaleTtsCache } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -937,6 +937,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
+      // Fire-and-forget: purge any Alice-era TTS clips before the first nav session.
+      // Non-blocking — hydration doesn't wait for the sweep to finish.
+      purgeStaleTtsCache().catch(() => {});
+
       const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
