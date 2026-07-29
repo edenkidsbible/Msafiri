@@ -850,7 +850,7 @@ export default function DriveScreen() {
           away from their GPS position during navigation. Tapping snaps the
           map back to street-level tracking, just like Apple / Google Maps.
       ══════════════════════════════════════════════════════════════════ */}
-      {!showResults && navigationActive && mapDrifted && (
+      {!showResults && mapDrifted && (
         <TouchableOpacity
           style={[styles.recenterBtn, {
             // Float 14 px above whichever bottom panel is visible.

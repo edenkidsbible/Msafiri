@@ -227,6 +227,7 @@ export default function MapViewScreen() {
   const zoneOpenedAtRef = useRef(0);
   const [adminZoneLocationTarget, setAdminZoneLocationTarget] = useState<typeof allZones[0] | null>(null);
   const [showFindNearby, setShowFindNearby] = useState(false);
+  const [mapDrifted, setMapDrifted] = useState(false);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
   const openedAtRef = useRef(0);
@@ -341,6 +342,7 @@ export default function MapViewScreen() {
         600
       );
     }
+    setMapDrifted(false);
   };
 
   const fitToRoute = () => {
@@ -367,6 +369,7 @@ export default function MapViewScreen() {
         showsMyLocationButton={false}
         showsCompass
         showsTraffic={showTraffic}
+        onPanDrag={() => setMapDrifted(true)}
       >
         {/* Speed zone markers — null-guard coordinates to prevent the iOS
             NSInvalidArgumentException crash when lat/lng is null/undefined.
@@ -517,6 +520,21 @@ export default function MapViewScreen() {
         <Ionicons name="warning" size={16} color="#FFF" />
         <Text style={[styles.reportBtnText, { color: "#FFF" }]}>Report</Text>
       </TouchableOpacity>
+
+      {/* Recenter — appears whenever the driver has panned away from their position */}
+      {mapDrifted && currentLat && currentLng && (
+        <TouchableOpacity
+          style={[styles.recenterBtn, { bottom: insets.bottom + 152 }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            centerOnUser();
+          }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="locate" size={17} color="#1565C0" />
+          <Text style={styles.recenterBtnTxt}>Recenter</Text>
+        </TouchableOpacity>
+      )}
 
       {showTraffic && (
         <View style={[styles.trafficBadge, { backgroundColor: c.primary, bottom: insets.bottom + 150 }]}>
@@ -987,6 +1005,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 6, elevation: 6,
   },
   findNearbyBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  recenterBtn: {
+    position: "absolute", left: 16,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#FFFFFFEE",
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 6,
+  },
+  recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
   reportBtn: {
     position: "absolute", left: 16,
     flexDirection: "row", alignItems: "center", gap: 6,
