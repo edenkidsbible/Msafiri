@@ -726,9 +726,17 @@ const DriveMapView = forwardRef(function DriveMapView(
         {(() => {
           if (!divergenceRoutes.length) return null;
 
-          // Identify the fastest divergence route so we can label it
-          // "Recommended" and render it slightly brighter.
+          // Identify the recommended divergence route — fastest time wins; ties
+          // broken by shortest distance.  If both duration AND distance are
+          // equal, neither route is labelled "Recommended" (they show identical
+          // deltas, which is accurate and avoids a misleading label).
           const fastestDurationS = Math.min(...divergenceRoutes.map((r) => r.durationS));
+          const tiedRoutes = divergenceRoutes.filter((r) => r.durationS === fastestDurationS);
+          const shortestDistM = Math.min(...tiedRoutes.map((r) => r.distanceM));
+          // Only a unique winner earns the label: if two routes still tie on
+          // distance after the duration tiebreak, recommendedId stays null.
+          const uniqueWinner = tiedRoutes.filter((r) => r.distanceM === shortestDistM);
+          const recommendedId = uniqueWinner.length === 1 ? uniqueWinner[0].id : null;
 
           // Spread badge positions along the polyline so two badges don't
           // stack on top of each other when the routes share a long common
@@ -742,7 +750,7 @@ const DriveMapView = forwardRef(function DriveMapView(
               : divergenceRoutes.map((_, i) => 0.3 + (i / (divergenceRoutes.length - 1)) * 0.4);
 
           return divergenceRoutes.map((r, idx) => {
-            const isRecommended = r.durationS === fastestDurationS;
+            const isRecommended = recommendedId !== null && r.id === recommendedId;
             const innerColor = isRecommended ? "#FF2D78" : "#FF6FA0";
             const outerColor = isRecommended ? "#FF2D7855" : "#FF6FA033";
 
