@@ -539,7 +539,18 @@ function restoreAudioMode() {
   setAudioModeAsync({ ...AUDIO_MODE_BASE, interruptionMode: "mixWithOthers" }).catch(() => {});
 }
 
-/** Play a player and resolve when it finishes (or times out at 15 s). */
+/**
+ * Play a player and resolve when it finishes (or times out at 15 s).
+ *
+ * Poll interval: 25 ms (was 50 ms) — tighter loop so we detect clip-end
+ * within one frame rather than two, reducing the gap before the next clip.
+ *
+ * Early-resolve threshold: 30 ms before nominal end (was 100 ms).
+ * The old 100 ms threshold was cutting the last word off short clips
+ * (e.g. "in-100m" ≈ 0.4 s) because player.remove() fired 100 ms early.
+ * 30 ms is below audible perception and still clears the native player
+ * before the next createAudioPlayer call.
+ */
 function playAndWait(player: AudioPlayer): Promise<void> {
   return new Promise<void>((resolve) => {
     let started = false;
@@ -551,12 +562,14 @@ function playAndWait(player: AudioPlayer): Promise<void> {
     try { player.play(); } catch { resolve(); return; }
 
     const iv = setInterval(() => {
-      elapsed += 50;
+      elapsed += 25;
       try {
         // Detect a clip that finished before the first tick (e.g. the audio
-        // was already loaded and played through in < 50 ms after .play()).
+        // was already loaded and played through in < 25 ms after .play()).
         // Without this guard, `started` would never become true and the loop
         // would stall until the 15 s safety timeout.
+        // Keep a generous threshold here (100 ms) since this is a catch-all
+        // for clips that complete before we observe them playing at all.
         const alreadyFinished =
           !player.playing &&
           player.duration > 0 &&
@@ -572,9 +585,12 @@ function playAndWait(player: AudioPlayer): Promise<void> {
             return;
           }
         } else {
-          // Ended: no longer playing, or reached the end of the track
+          // Ended: no longer playing, or within 30 ms of the end.
+          // 30 ms is the minimum threshold that reliably catches a clip whose
+          // `playing` flag lags the audio driver by one frame — well below the
+          // 100 ms used previously, so the final word of each clip is not cut off.
           if (!player.playing ||
-              (player.duration > 0 && player.currentTime >= player.duration - 0.1)) {
+              (player.duration > 0 && player.currentTime >= player.duration - 0.03)) {
             clearInterval(iv);
             resolve();
             return;
@@ -593,7 +609,7 @@ function playAndWait(player: AudioPlayer): Promise<void> {
 
       // Safety timeout
       if (elapsed >= 15_000) { clearInterval(iv); resolve(); }
-    }, 50);
+    }, 25);
   });
 }
 
@@ -604,20 +620,42 @@ function playAndWait(player: AudioPlayer): Promise<void> {
 let gen = 0;
 let activePlayer: AudioPlayer | null = null;
 
+/**
+ * Generation that owns the currently-running speakPhrase() invocation.
+ *
+ * Set to `gen` at the very start of speakPhrase (before any await) and
+ * cleared in its outer finally block.  Unlike `activePlayer`, this stays
+ * set for the ENTIRE call — including the gaps between individual clips
+ * where activePlayer is momentarily null while the next source is prepared.
+ *
+ * Without this, a GPS tick landing in the ~50 ms window between the
+ * distance-prefix token and the road-name clip sees isNavVoicePlaying()=false
+ * and fires a REMIND or NOW cue that calls stopNavVoice() and kills the
+ * in-progress sequence, "swallowing" the road name.
+ */
+let sequenceGen = -1;
+
 /** Separate generation counter for background pre-warm fetches.
  *  Incremented by cancelPrewarm() so any in-flight prewarm loop
  *  abandons remaining fetches without interfering with playback. */
 let prewarmGen = 0;
 
-/** True while a navigation voice clip is actively playing.
- *  Use this in AppContext to gate REMIND/NOW cues so they do not fire
- *  mid-sentence and kill the in-progress clip. */
+/**
+ * True while a navigation voice sequence is in progress.
+ *
+ * Returns true for the ENTIRE duration of a speakPhrase() call — not just
+ * while a player is actively playing a clip.  This prevents REMIND/NOW cues
+ * from firing during the brief inter-clip gaps in multi-segment instructions
+ * (e.g. the gap between "in 200 metres" and the road-name clip).
+ *
+ * Use this in AppContext to gate cues that must not interrupt a live utterance.
+ */
 export function isNavVoicePlaying(): boolean {
-  return activePlayer !== null;
+  return sequenceGen === gen || activePlayer !== null;
 }
 
 export function stopNavVoice(): void {
-  gen++;
+  gen++; // increments gen → sequenceGen !== gen → isNavVoicePlaying() false immediately
   try { activePlayer?.remove(); } catch { /* ignore */ }
   activePlayer = null;
   // (No expo-speech fallback — all voice is Keli via ElevenLabs)
@@ -787,10 +825,13 @@ export async function speakPhrase(text: string): Promise<void> {
 
   await ensureAudioBase();
 
-  // Cancel previous playback, then duck music before our clips start.
-  stopNavVoice();
+  // Cancel previous playback, claim sequence ownership, then duck music.
+  stopNavVoice();           // increments gen, kills old player
+  const myGen = gen;        // snapshot immediately — no await between these two lines
+  sequenceGen = myGen;      // isNavVoicePlaying() returns true for the full call,
+                            // including inter-clip gaps, so GPS ticks can't sneak in
+                            // a REMIND/NOW cue that cancels the next segment.
   await duckForVoice();
-  const myGen = gen; // snapshot after stopNavVoice incremented gen
 
   try {
     // ── Pre-built single-clip fast path ──────────────────────────────────────
@@ -903,6 +944,9 @@ export async function speakPhrase(text: string): Promise<void> {
       if (gen !== myGen) return;
     }
   } finally {
+    // Release sequence ownership only if we still own it — a concurrent
+    // stopNavVoice() + new speakPhrase() may have already claimed the slot.
+    if (sequenceGen === myGen) sequenceGen = -1;
     // Restore music volume whether we finished normally, were cancelled, or threw.
     restoreAudioMode();
   }
