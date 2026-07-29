@@ -200,11 +200,13 @@ router.get("/routing/route", async (req, res) => {
 
   // Build origin — include heading when available so Google snaps to the
   // correct carriageway on divided roads instead of assuming the driver could
-  // be on either side.
-  const origin: Record<string, unknown> = {
-    location: { latLng: { latitude: fromLat, longitude: fromLng } },
+  // be on either side.  Note: `heading` belongs inside the `location` object
+  // (Routes API v2 `Location` type), NOT at the `Waypoint` level.
+  const originLocation: Record<string, unknown> = {
+    latLng: { latitude: fromLat, longitude: fromLng },
   };
-  if (heading !== null) origin.heading = heading;
+  if (heading !== null) originLocation.heading = heading;
+  const origin = { location: originLocation };
 
   const body = {
     origin,
@@ -217,9 +219,6 @@ router.get("/routing/route", async (req, res) => {
     routingPreference: "TRAFFIC_AWARE",
     polylineQuality: "HIGH_QUALITY",
     polylineEncoding: "ENCODED_POLYLINE",
-    // Explicitly allow U-turns so that a forward-direction U-turn on a divided
-    // road is treated as a valid maneuver rather than a routing blocker.
-    routeModifiers: { avoidUTurns: false },
   };
 
   const controller = new AbortController();
