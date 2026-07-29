@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -399,6 +400,15 @@ export default function DriveScreen() {
     }
   }, [resumeDestination, navDestination, setNavDestination, startNavigation, stopNavigation]);
 
+  // Centralises search teardown so every dismiss path (outside tap, blur,
+  // chevron button) all go through one place.
+  const dismissSearch = useCallback(() => {
+    setShowResults(false);
+    setGeoResults([]);
+    setSearchInputFocused(false);
+    Keyboard.dismiss();
+  }, []);
+
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
   const isMapMode  = (hasRoute || navigationActive) && !showResults;
@@ -615,6 +625,13 @@ export default function DriveScreen() {
         <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} />
       </View>
 
+      {/* Dismiss suggestions on outside tap — sits above the map but below
+          all HUD layers; only rendered (and therefore only intercepts touches)
+          when suggestions are actually visible. */}
+      {(showResults || searchInputFocused) && (
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={dismissSearch} />
+      )}
+
       {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
       {activeAlert && (
         <DriveAlertOverlay
@@ -742,7 +759,7 @@ export default function DriveScreen() {
               returnKeyType="search"
               onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
               onFocus={() => setSearchInputFocused(true)}
-              onBlur={() => setSearchInputFocused(false)}
+              onBlur={() => { setSearchInputFocused(false); setShowResults(false); setGeoResults([]); }}
               autoCorrect={false}
               autoCapitalize="none"
             />

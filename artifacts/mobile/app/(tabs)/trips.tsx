@@ -92,6 +92,7 @@ export default function TripsScreen() {
   const [placeSearch, setPlaceSearch] = useState("");
   const [placeResults, setPlaceResults] = useState<GeoResult[]>([]);
   const [placeSearching, setPlaceSearching] = useState(false);
+  const [placeSearchFocused, setPlaceSearchFocused] = useState(false);
   const [placeSelected, setPlaceSelected] = useState<GeoResult | null>(null);
   const [placeSaving, setPlaceSaving] = useState(false);
   const [placeLocMode, setPlaceLocMode] = useState<"search" | "map">("search");
@@ -103,6 +104,7 @@ export default function TripsScreen() {
   const [tripSearch, setTripSearch] = useState("");
   const [tripResults, setTripResults] = useState<GeoResult[]>([]);
   const [tripSearching, setTripSearching] = useState(false);
+  const [tripSearchFocused, setTripSearchFocused] = useState(false);
   const [tripDate, setTripDate] = useState(new Date(Date.now() + 60 * 60 * 1000));
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [tempPickerDate, setTempPickerDate] = useState(new Date());
@@ -191,6 +193,7 @@ export default function TripsScreen() {
     setPlaceKind("custom");
     setPlaceSearch("");
     setPlaceResults([]);
+    setPlaceSearchFocused(false);
     setPlaceSelected(null);
     setPlaceLocMode("search");
     loadRecentSearches().then(setRecentSearches);
@@ -203,6 +206,7 @@ export default function TripsScreen() {
     setPlaceKind(p.kind);
     setPlaceSearch(p.address ?? "");
     setPlaceResults([]);
+    setPlaceSearchFocused(false);
     setPlaceSelected({ display: p.address ?? p.label, short: p.label, lat: p.lat, lng: p.lng });
     setPlaceLocMode("search");
     setPlaceModal(true);
@@ -308,6 +312,7 @@ export default function TripsScreen() {
       setTripSearch("");
     }
     setTripResults([]);
+    setTripSearchFocused(false);
     setTripDate(new Date(Date.now() + 60 * 60 * 1000));
     loadRecentSearches().then(setRecentSearches);
     setTripModal(true);
@@ -800,11 +805,13 @@ export default function TripsScreen() {
                     placeholderTextColor={c.mutedForeground}
                     value={placeSearch}
                     onChangeText={handlePlaceSearchChange}
+                    onFocus={() => setPlaceSearchFocused(true)}
+                    onBlur={() => { setPlaceSearchFocused(false); setTimeout(() => setPlaceResults([]), 150); }}
                     autoCorrect={false}
                     autoCapitalize="none"
                   />
                   {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
-                  {!placeSelected && placeSearch.length === 0 && recentSearches.length > 0 && (
+                  {!placeSelected && placeSearch.length === 0 && placeSearchFocused && recentSearches.length > 0 && (
                     <View style={[styles.resultsBox, { borderColor: c.border }]}>
                       <Text style={[styles.recentsLabel, { color: c.mutedForeground }]}>Recent</Text>
                       {recentSearches.map((r, idx) => (
@@ -919,6 +926,8 @@ export default function TripsScreen() {
                 placeholderTextColor={c.mutedForeground}
                 value={tripSearch}
                 onChangeText={handleTripSearchChange}
+                onFocus={() => setTripSearchFocused(true)}
+                onBlur={() => { setTripSearchFocused(false); setTimeout(() => setTripResults([]), 150); }}
                 autoCorrect={false}
                 autoCapitalize="none"
               />
@@ -944,7 +953,7 @@ export default function TripsScreen() {
                 </View>
               )}
 
-              {!tripDest && tripSearch.length === 0 && recentSearches.length > 0 && (
+              {!tripDest && tripSearch.length === 0 && tripSearchFocused && recentSearches.length > 0 && (
                 <View style={[styles.resultsBox, { borderColor: c.border, marginTop: 8 }]}>
                   <Text style={[styles.recentsLabel, { color: c.mutedForeground }]}>Recent</Text>
                   {recentSearches.map((r, idx) => (
