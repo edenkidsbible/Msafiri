@@ -181,8 +181,10 @@ export function mapSpokenRoadName(
 }
 
 // ─── Curated pre-generation set ───────────────────────────────────────────────
-// ~280 names: major Nairobi roads & avenues, Kiambu county's main roads, and
-// Kenya's national highways as point-to-point names.  Zero route codes.
+// ~500 names: major Nairobi roads & avenues, Kiambu county's main roads,
+// Kenya's national highways as point-to-point names, plus city roads for
+// Mombasa, Kisumu, Nakuru, Eldoret, Thika, Nyeri, Meru, Embu, Kisii, and
+// other towns.  Zero route codes.
 // Names avoid apostrophes/periods so the mobile title-case transform
 // (lowercase → /\b\w/ uppercase) reproduces them exactly.
 
@@ -277,4 +279,69 @@ export const KENYA_ROAD_NAMES: string[] = [
   "Siaya Road", "Homa Bay Road", "Migori Road", "Kilifi Road",
   "Watamu Road", "Diani Beach Road", "Likoni Ferry Road", "Port Reitz Road",
   "Moi International Airport Road", "Jomo Kenyatta International Airport Road",
+  // ── Mombasa city streets ──────────────────────────────────────────────────
+  "Tudor Road", "Mwembe Tayari Road", "Nkrumah Road", "Makadara Road",
+  "Mvita Road", "Jomvu Road", "Miritini Road", "Changamwe Road",
+  "Mwache Road", "Kipevu Road", "Shimanzi Road", "Buxton Road",
+  "Archbishop Makarios Road", "Haile Selassie Road", "Nyerere Avenue",
+  "Ronald Ngala Avenue", "Tom Mboya Avenue", "Moi Avenue Mombasa",
+  "Malindi Road Mombasa", "Bamburi Road", "Shanzu Road", "Kikambala Road",
+  "Mtwapa Road", "Kenyatta Beach Road", "North Coast Road", "South Coast Road",
+  "Shimo La Tewa Road", "Mariakani Road",
+  // ── Kisumu city streets ───────────────────────────────────────────────────
+  "Nairobi Road Kisumu", "Kondele Road", "Milimani Road Kisumu",
+  "Kibos Road", "Mamboleo Road", "Kakamega Road Kisumu",
+  "Bondo Road", "Ahero Road", "Nyalenda Road", "Manyatta Road",
+  "Arina Road", "Winam Road", "John Osogo Road", "Obote Road",
+  "Jomo Kenyatta Highway Kisumu",
+  // ── Nakuru city streets ───────────────────────────────────────────────────
+  "Kenyatta Avenue Nakuru", "Gusii Road", "Geoffrey Kamau Road",
+  "Prisons Road", "George Morara Road", "Nakuru-Naivasha Road",
+  "Nakuru-Kisumu Road", "Kampi Ya Moto Road", "Bahati Road",
+  "Lanet Road", "Njoro Road", "Molo Road", "Rongai Road",
+  "Gilgil Road", "Elementaita Road", "Menengai Road",
+  "Section 58 Road", "Section 42 Road", "Free Area Road",
+  // ── Eldoret city streets ──────────────────────────────────────────────────
+  "Nandi Road", "Kesses Road", "Huruma Road Eldoret",
+  "Eldoret-Iten Road", "Eldoret-Ziwa Road", "Burnt Forest Road",
+  "Sergoit Road", "Moiben Road", "Ainabkoi Road",
+  "Sosiani Road", "Elgon View Road", "Pioneer Road Eldoret",
+  "Oloo Street", "Kimumu Road",
+  // ── Thika town streets ────────────────────────────────────────────────────
+  "Kenyatta Highway", "Commercial Street Thika", "Thika-Murang Road",
+  "Garissa Road Thika", "Hospital Road Thika", "Mumbi Road",
+  "Mangu Road", "Ruiru-Juja Road",
+  // ── Nyeri town streets ────────────────────────────────────────────────────
+  "Kimathi Way", "Rwathia Road", "Nyeri-Mweiga Road",
+  "Nairobi Road Nyeri", "Othaya Road Nyeri", "Solio Road",
+  // ── Meru town streets ─────────────────────────────────────────────────────
+  "Meru-Nkubu Road", "Meru-Mikinduri Road", "Meru-Timau Road",
+  "Meru-Chuka Road", "Nkubu Road", "Hospital Road Meru",
+  // ── Embu town streets ─────────────────────────────────────────────────────
+  "Embu-Ishiara Road", "Embu-Runyenjes Road", "Nairobi Road Embu",
+  "Hospital Road Embu", "University Road Embu",
+  // ── Kisii town streets ────────────────────────────────────────────────────
+  "Kisii-Kisumu Road", "Hospital Road Kisii", "Nyamira Road",
+  "Ogembo Road", "Keroka Road", "Gucha Road",
+  // ── Machakos / Kitui / Makueni ────────────────────────────────────────────
+  "Machakos-Nairobi Road", "Machakos-Mombasa Road", "Mwala Road",
+  "Sultan Hamud Road", "Kibwezi Road", "Mtito Andei Road",
+  // ── Naivasha / Nakuru environs ────────────────────────────────────────────
+  "Naivasha-Nakuru Road", "Naivasha-Gilgil Road",
+  "Moi North Lake Road", "Moi South Lake Road Naivasha",
+  "Hell Gate Road", "Kongoni Road",
+  // ── Muranga / Nyahururu / Nanyuki ─────────────────────────────────────────
+  "Murang Road", "Muranga-Sagana Road", "Muranga-Kenol Road",
+  "Nyahururu-Nairobi Road", "Nanyuki-Nyeri Road", "Nanyuki-Meru Road",
+  "Timau Road", "Isiolo Road",
+  // ── Kakamega / Webuye / Bungoma ──────────────────────────────────────────
+  "Kisumu-Kakamega Highway", "Kakamega-Bungoma Road",
+  "Mumias-Kakamega Road", "Webuye-Bungoma Road",
+  "Kitale-Webuye Road", "Kapsabet-Kisumu Road",
+  // ── Common highway connector names (Google naming variations) ────────────
+  "Nairobi-Thika Road", "Thika Road", "Langata Road Extension",
+  "Ngong Road Extension", "Waiyaki Way Extension",
+  "Southern Bypass Extension", "Eastern Bypass Extension",
+  "Mombasa Northern Bypass", "Mombasa Southern Bypass",
+  "Nairobi Western Bypass",
 ];
