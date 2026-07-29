@@ -54,7 +54,7 @@ export default function PrivacyScreen() {
       <Li><B>Location at time of SOS</B>{" — a single GPS coordinate is included in emergency SMS messages sent via the SOS feature."}</Li>
       <View style={[s.callout, { backgroundColor: c.card, borderColor: c.border }]}>
         <Text style={[s.p, { color: c.mutedForeground, marginBottom: 0 }]}>
-          <B>When location is transmitted:</B>{" Your GPS coordinates are sent to servers in four situations: (a) when you submit a community road report; (b) when you activate the SOS feature; (c) every 8 seconds while Live Trip Sharing is active; and (d) when you request navigation directions (your origin and destination are sent to the OSRM routing service). Speed calculation and hazard detection happen on-device and do not require location to be transmitted."}
+          <B>When location is transmitted:</B>{" Your GPS coordinates are sent to servers in four situations: (a) when you submit a community road report; (b) when you activate the SOS feature; (c) every 8 seconds while Live Trip Sharing is active; and (d) when you request navigation directions (your origin and destination are sent to the Google Maps routing service). Speed calculation and hazard detection happen on-device and do not require location to be transmitted."}
         </Text>
       </View>
 
@@ -176,7 +176,7 @@ export default function PrivacyScreen() {
       <Li><B>Sentry</B>{" — crash and error reporting. Receives device model, OS version, App version, and error stack traces. Location data is scrubbed before transmission. Privacy: sentry.io/privacy."}</Li>
       <Li><B>ElevenLabs</B>{" — on-demand voice guidance synthesis. Receives short text phrases only (no location or personal data). Privacy: elevenlabs.io/privacy."}</Li>
       <Li><B>Google Maps SDK</B>{" — map rendering on Android and iOS. Privacy: policies.google.com/privacy."}</Li>
-      <Li><B>OSRM (Open Source Routing Machine)</B>{" — route calculation. Your origin and destination GPS coordinates are sent to calculate driving routes. No personal information included."}</Li>
+      <Li><B>Google Maps Routes API</B>{" — route calculation. Your origin and destination GPS coordinates are sent to the Google Maps platform to calculate driving routes. No personal information included. Privacy: policies.google.com/privacy."}</Li>
       <Li><B>OpenStreetMap / Nominatim / Photon</B>{" — reverse geocoding and place search. Queries do not include your device ID. Privacy: openstreetmap.org/privacy."}</Li>
       <Li><B>Overpass API</B>{" — Search Along Route POI queries. A route bounding box is sent; no device ID or personal data included."}</Li>
       <Li><B>Hosting and infrastructure providers</B>{" — cloud hosting with access to server logs; contractually restricted from using data for other purposes."}</Li>
@@ -268,7 +268,7 @@ export default function PrivacyScreen() {
       </Text>
       <Li><B>Primary purpose:</B>{" Location is used to (a) calculate your driving speed on-device, (b) detect nearby road hazards and speed zones, (c) provide turn-by-turn navigation, (d) attach a coordinate to SOS emergency messages and community reports, and (e) transmit your position during Live Trip Sharing."}</Li>
       <Li><B>Background location:</B>{" Used only when Live Trip Sharing is active and you have granted \"Always\" permission. Background pings are sent every 8 seconds during an active session and deleted when the session ends."}</Li>
-      <Li><B>Route calculation:</B>{" When you request navigation directions, your start and end coordinates are sent to an OSRM routing server. Your live position during navigation is not continuously sent to OSRM."}</Li>
+      <Li><B>Route calculation:</B>{" When you request navigation directions, your start and end coordinates are sent to the Google Maps Routes API via our server. Your live position during navigation is not continuously sent to Google."}</Li>
       <Li><B>Not used for:</B>{" Advertising, targeted marketing, building a movement history, or any purpose unrelated to road safety and navigation."}</Li>
       <Li><B>Data minimisation:</B>{" We do not collect location when the App is closed and background mode is disabled."}</Li>
 
@@ -307,7 +307,7 @@ export default function PrivacyScreen() {
       <Li><B>Sentry</B>{" — sentry.io/privacy — crash and error reporting (location-scrubbed)."}</Li>
       <Li><B>ElevenLabs</B>{" — elevenlabs.io/privacy — on-demand voice guidance text-to-speech."}</Li>
       <Li><B>Google Maps</B>{" — policies.google.com/privacy — map rendering and geocoding."}</Li>
-      <Li><B>OSRM</B>{" — project-osrm.org — open-source routing engine for navigation directions."}</Li>
+      <Li><B>Google Maps Routes API</B>{" — policies.google.com/privacy — routing engine for navigation directions and road snapping."}</Li>
       <Li><B>OpenStreetMap / Nominatim / Photon</B>{" — openstreetmap.org/privacy — road name lookup and place search."}</Li>
       <Li><B>Overpass API</B>{" — overpass-api.de — points-of-interest search for Search Along Route."}</Li>
       <Li><B>Apple App Store</B>{" — apple.com/legal/privacy — app distribution, payment processing."}</Li>
@@ -321,7 +321,7 @@ export default function PrivacyScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri Kenya is based in Kenya. Your data may be processed on servers located outside Kenya,
         including in the European Union and the United States, by our infrastructure and service providers
-        (including Sentry, ElevenLabs, RevenueCat, and OSRM). We take reasonable steps to ensure that
+        (including Sentry, ElevenLabs, RevenueCat, and Google Maps). We take reasonable steps to ensure that
         any international transfer of data complies with applicable data protection laws and that your
         data receives an adequate level of protection.
       </Text>

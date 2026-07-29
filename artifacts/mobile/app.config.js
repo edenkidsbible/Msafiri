@@ -19,7 +19,7 @@ module.exports = {
       buildNumber: "1",
       supportsTablet: false,
       config: {
-        googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY || "AIzaSyAqD6Eo_ZMUvoqHO_jLdPUAXTQVo-Ej3Dg",
+        googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
       },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:

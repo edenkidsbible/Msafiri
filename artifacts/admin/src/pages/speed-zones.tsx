@@ -30,19 +30,13 @@ import { SpeedZonesMap, type PendingZoneCoords } from "@/components/speed-zones-
 
 async function snapToRoad(lat: number, lng: number): Promise<{ lat: number; lng: number }> {
   try {
-    const res = await fetch(
-      `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`
-    );
+    const res = await fetch(`/api/routing/snap?lat=${lat}&lng=${lng}`);
     if (!res.ok) return { lat, lng };
-    const data = await res.json();
-    if (data.code === "Ok" && data.waypoints?.[0]?.location) {
-      const [snappedLng, snappedLat] = data.waypoints[0].location as [number, number];
-      return { lat: snappedLat, lng: snappedLng };
-    }
+    return (await res.json()) as { lat: number; lng: number };
   } catch {
     // network error — return original coords
+    return { lat, lng };
   }
-  return { lat, lng };
 }
 
 const TYPE_COLORS: Record<string, string> = {

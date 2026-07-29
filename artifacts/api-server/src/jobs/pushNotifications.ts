@@ -419,30 +419,63 @@ const ROUTE_CORRIDOR_M = 300; // how close a report must be to the route line to
 const ADVICE_WINDOW_MIN_MS = 20 * 60 * 1000; // start of the notify window before plannedAt
 const ADVICE_WINDOW_MAX_MS = 35 * 60 * 1000; // end of the notify window before plannedAt
 
-interface OSRMRoute {
+interface GoogleRoute {
   distanceM: number;
   durationS: number;
   coords: { lat: number; lng: number }[];
 }
 
-async function fetchOSRMRoute(fromLat: number, fromLng: number, toLat: number, toLng: number): Promise<OSRMRoute | null> {
-  const url =
-    `https://router.project-osrm.org/route/v1/driving/` +
-    `${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+// Decode Google's standard encoded-polyline format
+function decodePolyline(encoded: string): { lat: number; lng: number }[] {
+  const coords: { lat: number; lng: number }[] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b: number, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : result >> 1;
+    coords.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return coords;
+}
+
+async function fetchGoogleRoute(fromLat: number, fromLng: number, toLat: number, toLng: number): Promise<GoogleRoute | null> {
+  const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
+  if (!apiKey) {
+    logger.warn("Planned trip advice: GOOGLE_ROUTES_API_KEY not set, skipping route fetch");
+    return null;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      method: "POST",
+      headers: {
+        "Content-Type":     "application/json",
+        "X-Goog-Api-Key":   apiKey,
+        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
+      },
+      body: JSON.stringify({
+        origin:      { location: { latLng: { latitude: fromLat, longitude: fromLng } } },
+        destination: { location: { latLng: { latitude: toLat,   longitude: toLng   } } },
+        travelMode:        "DRIVE",
+        routingPreference: "TRAFFIC_AWARE",
+        polylineEncoding:  "ENCODED_POLYLINE",
+      }),
+      signal: controller.signal,
+    });
     const data = (await res.json()) as any;
-    if (data.code !== "Ok" || !data.routes?.length) return null;
+    if (!data.routes?.length) return null;
     const r = data.routes[0];
     return {
-      distanceM: r.distance,
-      durationS: r.duration,
-      coords: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => ({ lat, lng })),
+      distanceM: r.distanceMeters ?? 0,
+      durationS: parseInt((r.duration ?? "0s").replace("s", ""), 10),
+      coords:    decodePolyline(r.polyline?.encodedPolyline ?? ""),
     };
   } catch (err) {
-    logger.warn({ err }, "Planned trip advice: OSRM route fetch failed");
+    logger.warn({ err }, "Planned trip advice: Google Routes fetch failed");
     return null;
   } finally {
     clearTimeout(timer);
@@ -450,7 +483,7 @@ async function fetchOSRMRoute(fromLat: number, fromLng: number, toLat: number, t
 }
 
 /** Returns true if any point of the route polyline is within `maxM` of (lat, lng). */
-function isNearRoute(route: OSRMRoute, lat: number, lng: number, maxM: number): boolean {
+function isNearRoute(route: GoogleRoute, lat: number, lng: number, maxM: number): boolean {
   return route.coords.some((c) => haversineKm(c.lat, c.lng, lat, lng) * 1000 <= maxM);
 }
 
@@ -458,7 +491,7 @@ function formatEatTime(d: Date): string {
   return d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Nairobi" });
 }
 
-async function sendTripAdvice(deviceId: string, token: string, tripId: string, label: string, plannedAt: Date, route: OSRMRoute | null): Promise<void> {
+async function sendTripAdvice(deviceId: string, token: string, tripId: string, label: string, plannedAt: Date, route: GoogleRoute | null): Promise<void> {
   let title: string;
   let body: string;
 
@@ -534,7 +567,7 @@ async function checkPlannedTrips(): Promise<void> {
       }
 
       const route = tokenRow.lastLat != null && tokenRow.lastLng != null
-        ? await fetchOSRMRoute(tokenRow.lastLat, tokenRow.lastLng, trip.destLat, trip.destLng)
+        ? await fetchGoogleRoute(tokenRow.lastLat, tokenRow.lastLng, trip.destLat, trip.destLng)
         : null;
 
       await sendTripAdvice(trip.deviceId, tokenRow.token, trip.id, trip.label, trip.plannedAt, route);

@@ -90,7 +90,7 @@ export interface RouteStep {
   location: RouteCoord;
   /** Exit number for roundabout/rotary steps (1-based). Undefined for all other maneuvers. */
   exitNumber?: number;
-  /** OSRM maneuver type string (e.g. "turn", "roundabout", "uturn", "arrive"). */
+  /** Google Routes API maneuver type string (e.g. "turn", "roundabout", "uturn", "arrive"). */
   maneuverType: string;
   /** Raw road name from OSRM (empty string when unnamed). Used for post-turn confirmations. */
   roadName: string;
@@ -369,56 +369,56 @@ function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: n
   return name ? `Continue on ${name}` : "Continue";
 }
 
-async function fetchOSRM(
+async function fetchGoogleRoute(
   fromLat: number, fromLng: number,
   toLat: number, toLng: number
 ): Promise<AppRoute[]> {
-  const url =
-    `https://router.project-osrm.org/route/v1/driving/` +
-    `${fromLng},${fromLat};${toLng},${toLat}` +
-    `?alternatives=true&steps=true&overview=full&geometries=geojson`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
-  let res: Response;
-  try {
-    res = await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-  const data = await res.json();
-  if (data.code !== "Ok" || !data.routes?.length) return [];
-  return (data.routes as any[]).map((r, idx) => {
+  type ServerStep = {
+    instruction: string;
+    distanceM: number;
+    lat: number;
+    lng: number;
+    maneuverType: string;
+    maneuverModifier: string;
+    roadName: string;
+  };
+  type ServerRoute = {
+    index: number;
+    distanceM: number;
+    durationS: number;
+    coords: RouteCoord[];
+    steps: ServerStep[];
+  };
+
+  const data = await apiGet<{ routes: ServerRoute[] }>(
+    `/routing/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`,
+    15000
+  );
+  if (!data.routes?.length) return [];
+
+  return data.routes.map((r, idx) => {
     // Build coords first so we can compute cumulative distances and project
-    // each step's maneuver point onto the polyline (giving stepAlongRouteM).
-    const coords: RouteCoord[] = (r.geometry.coordinates as [number, number][]).map(
-      ([lng, lat]) => ({ latitude: lat, longitude: lng })
-    );
+    // each step's location onto the polyline (giving stepAlongRouteM).
+    const coords: RouteCoord[] = r.coords; // already {latitude, longitude}
     const cumDist = buildCumulativeDistances(coords);
 
-    const steps: RouteStep[] = (r.legs?.[0]?.steps ?? []).map((s: any) => {
-      const maneuver = s.maneuver ?? {};
-      const isRoundabout = maneuver.type === "roundabout" || maneuver.type === "rotary";
-      const roadName = s.name ?? "";
-      const stepLoc: RouteCoord = {
-        latitude:  maneuver.location?.[1] ?? toLat,
-        longitude: maneuver.location?.[0] ?? toLng,
-      };
+    const steps: RouteStep[] = r.steps.map((s) => {
+      const stepLoc: RouteCoord = { latitude: s.lat, longitude: s.lng };
       const proj = projectOntoRoute(coords, cumDist, stepLoc.latitude, stepLoc.longitude);
       return {
-        instruction: buildInstruction(maneuver, roadName),
-        distanceM: s.distance ?? 0,
-        location: stepLoc,
-        maneuverType: maneuver.type ?? "",
-        roadName,
+        instruction:     s.instruction,
+        distanceM:       s.distanceM,
+        location:        stepLoc,
+        maneuverType:    s.maneuverType,
+        roadName:        s.roadName,
         stepAlongRouteM: proj?.alongRouteM ?? 0,
-        ...(isRoundabout && maneuver.exit != null ? { exitNumber: maneuver.exit as number } : {}),
       };
     });
 
     return {
       id: `route-${idx}-${Date.now()}`,
-      distanceM: r.distance,
-      durationS: r.duration,
+      distanceM: r.distanceM,
+      durationS: r.durationS,
       coords,
       cumDist,
       steps,
@@ -571,7 +571,8 @@ function apiZoneToStretch(z: ApiSpeedZone): SpeedStretch | null {
 }
 
 // ── Traffic delay estimation ───────────────────────────────────────────────
-// No live-traffic API is wired up (OSRM only returns free-flow duration), so
+// Google Routes API returns traffic-aware durations. We still estimate the
+// additional delay from community reports to give drivers a heads-up, but
 // we approximate an "expect X min delay" figure from crowd-sourced reports
 // that actually slow traffic down along the route. Static zones (cameras,
 // police checkpoints) don't congest the road, so they're excluded.
@@ -1912,7 +1913,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIdx(0);
     routeProjIdxRef.current = 0;
 
-    fetchOSRM(currentLat, currentLng, navDestination.lat, navDestination.lng)
+    fetchGoogleRoute(currentLat, currentLng, navDestination.lat, navDestination.lng)
       .then((routes) => {
         if (cancelled || !routes.length) return;
         const [primary, ...alts] = routes;
@@ -1924,7 +1925,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Pre-warm road-name audio for every step so first-play latency is zero.
         prewarmRouteAudio(primary.steps);
       })
-      .catch((e) => { if (!cancelled) console.warn("OSRM:", e); })
+      .catch((e) => { if (!cancelled) console.warn("Routing:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
 
     return () => { cancelled = true; };
@@ -1945,7 +1946,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // hears Keli's voice the instant rerouting is triggered — before the new
       // OSRM route has even arrived.
       speakText("Recalculating route.");
-      fetchOSRM(lat, lng, dest.lat, dest.lng)
+      fetchGoogleRoute(lat, lng, dest.lat, dest.lng)
         .then((routes) => {
           if (!routes.length) return;
           const [primary, ...alts] = routes;
@@ -1971,7 +1972,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // bundled-token-only path (maneuver without road name) — still Keli.
           void prebuildRouteAudio(primary.steps);
         })
-        .catch((e) => console.warn("[reroute] OSRM:", e))
+        .catch((e) => console.warn("[reroute] Routing:", e))
         .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2203,7 +2204,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const lat = currentLatRef.current;
     const lng = currentLngRef.current;
     if (lat == null || lng == null) return null;
-    const routes = await fetchOSRM(lat, lng, destLat, destLng);
+    const routes = await fetchGoogleRoute(lat, lng, destLat, destLng);
     if (!routes.length) return null;
     const route = routes[0];
     const cumDist = buildCumulativeDistances(route.coords);

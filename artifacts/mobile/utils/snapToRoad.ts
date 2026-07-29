@@ -1,7 +1,8 @@
-const OSRM = "https://router.project-osrm.org/nearest/v1/driving";
+import { API_BASE } from "./apiClient";
 
 /**
- * Snaps a coordinate to the nearest driveable road using the public OSRM API.
+ * Snaps a coordinate to the nearest driveable road using the Google Roads API
+ * (proxied through the API server so the key stays server-side).
  * Returns the original coordinate unchanged if the service is unavailable.
  */
 export async function snapToRoad(
@@ -9,14 +10,12 @@ export async function snapToRoad(
   lng: number
 ): Promise<{ lat: number; lng: number }> {
   try {
-    const res = await fetch(`${OSRM}/${lng},${lat}?number=1`);
+    if (!API_BASE) return { lat, lng };
+    const res = await fetch(
+      `${API_BASE}/routing/snap?lat=${lat}&lng=${lng}`
+    );
     if (!res.ok) return { lat, lng };
-    const j = (await res.json()) as {
-      waypoints?: Array<{ location: [number, number] }>;
-    };
-    const wp = j.waypoints?.[0];
-    if (!wp?.location?.length) return { lat, lng };
-    return { lat: wp.location[1], lng: wp.location[0] };
+    return (await res.json()) as { lat: number; lng: number };
   } catch {
     return { lat, lng };
   }
