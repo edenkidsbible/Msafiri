@@ -14,7 +14,6 @@ import publicSettingsRouter from "./settings.js";
 import storageRouter from "./storage.js";
 import placesRouter from "./places.js";
 import adminMobileRouter from "./admin-mobile.js";
-import ttsRouter from "./tts.js";
 import routingRouter from "./routing.js";
 
 const router: IRouter = Router();
@@ -34,7 +33,6 @@ router.use(courseRouter);
 router.use(publicSettingsRouter);
 router.use(storageRouter);
 router.use(adminMobileRouter);
-router.use(ttsRouter);
 router.use(routingRouter);
 
 export default router;

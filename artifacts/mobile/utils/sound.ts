@@ -93,7 +93,7 @@ export function stopVoice() {
 
 /**
  * Announce the arm the driver just swept past inside a roundabout.
- * e.g. exitsPassed=2 → "The 2nd exit."  (plays bundled Keli clip)
+ * e.g. exitsPassed=2 → "The 2nd exit."
  * No-op when muted or on web.
  */
 export async function speakRoundaboutExitCue(n: number): Promise<void> {

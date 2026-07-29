@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
-import { speakPhrase, prewarmRouteAudio, prebuildRouteAudio, cancelPrewarm, isNavVoicePlaying, purgeStaleTtsCache, retryMissingClipsForStep } from "@/utils/tts";
+import { speakPhrase, isNavVoicePlaying } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -209,9 +209,6 @@ interface AppContextValue {
   altRoutes: AppRoute[];
   selectRoute: (r: AppRoute) => void;
   navigationActive: boolean;
-  /** True while route voice clips are being pre-fetched before navigation starts.
-   *  The UI shows a "Preparing voice guidance…" spinner during this window. */
-  voicePreparing: boolean;
   startNavigation: () => Promise<void>;
   stopNavigation: () => void;
   isSharingTrip: boolean;
@@ -858,7 +855,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
   const [altRoutes, setAltRoutes] = useState<AppRoute[]>([]);
   const [navigationActive, setNavigationActive] = useState(false);
-  const [voicePreparing, setVoicePreparing] = useState(false);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [distToNextM, setDistToNextM] = useState<number | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -948,9 +944,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const routeRef = useRef<AppRoute | null>(null);
   const stepIdxRef = useRef(0);
   // Tracks instructions for which a background clip-retry has been triggered.
-  // Prevents duplicate retries on successive GPS ticks. Cleared when navigation
-  // starts or stops so reroutes always get a fresh retry opportunity.
-  const stepRetrySetRef = useRef<Set<string>>(new Set());
   const lastSpokenRef = useRef<string>("");
   const navActiveRef = useRef(false);
   const lastLocationAtRef = useRef(0);
@@ -1051,10 +1044,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      // Fire-and-forget: purge any Alice-era TTS clips before the first nav session.
-      // Non-blocking — hydration doesn't wait for the sweep to finish.
-      purgeStaleTtsCache().catch(() => {});
-
       const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
@@ -1848,18 +1837,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const { announceM, remindM, nowM, distWord } = stepTriggers(kmh, dist);
 
-        // ── Background clip retry ──────────────────────────────────────────
-        // When the driver enters the ~800 m window and the step's clip is not
-        // yet cached, kick off a single background fetch.  If it completes
-        // before the ANNOUNCE cue fires, speakPhrase finds it in sessionCache
-        // and plays the seamless single-clip.  If the driver reaches the NOW
-        // cue first, the clip sits in cache unused — never played late.
-        // Gated on dist > nowM so we don't fire a useless fetch at the junction.
-        if (dist < 800 && dist > nowM && !stepRetrySetRef.current.has(step.instruction)) {
-          stepRetrySetRef.current.add(step.instruction);
-          retryMissingClipsForStep(step.instruction);
-        }
-
         // ── Compound instruction ───────────────────────────────────────────
         // When the next maneuver is < 100 m after this one (tight chicanes,
         // compact junctions), fold both into a single spoken instruction so
@@ -2222,8 +2199,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAltRoutes(alts);
         const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
         setZonesOnRoute(getZonesOnRoute(primary, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
-        // Pre-warm road-name audio for every step so first-play latency is zero.
-        prewarmRouteAudio(primary.steps);
       })
       .catch((e) => { if (!cancelled) console.warn("Routing:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
@@ -2274,13 +2249,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
             }))
           );
-          // Pre-warm road-name segments for the new route.
-          prewarmRouteAudio(primary.steps);
-          // Pre-build full-sentence clips — first steps are fetched first so
-          // the driver hears Keli seamlessly as soon as the new route settles.
-          // Fire-and-forget; any step that isn't ready yet falls back to the
-          // bundled-token-only path (maneuver without road name) — still Keli.
-          void prebuildRouteAudio(primary.steps);
           // Immediately announce the first actionable step of the new route.
           // Without this the driver is silent until the next GPS tick evaluates
           // the cue window — up to ~1–2 s on a good signal, longer on weak GPS.
@@ -2795,8 +2763,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastSpokenRef.current = "";
     setDistToNextM(null);
     routeProjIdxRef.current = 0;
-    // Pre-warm road-name audio for the selected route (cancels any prior prewarm).
-    prewarmRouteAudio(r.steps);
   }, [activeRoute]);
 
   // ── Trip sharing ─────────────────────────────────────────────────────────────
@@ -2887,28 +2853,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const startNavigation = useCallback(async () => {
     if (!activeRoute) return;
 
-    // ── Phase 2: Pre-build full-sentence Keli clips before starting ─────────
-    // Fetches each step's instruction as ONE complete MP3 so REMIND cues play
-    // as a single seamless clip rather than a stitched token + road-name pair.
-    // prebuildRouteAudio() aborts early (after 3 consecutive failures) when the
-    // server is unreachable, so the spinner typically clears in <1 s rather than
-    // waiting the full timeout.  The 5 s timeout is a backstop for slow-but-
-    // working connections; un-fetched clips fall back to the token+segment path
-    // at drive time, with a second chance via retryMissingClipsForStep().
-    setVoicePreparing(true);
-    try {
-      await Promise.race([
-        prebuildRouteAudio(activeRoute.steps),
-        new Promise<void>(r => setTimeout(r, 5000)),
-      ]);
-    } catch { /* ignore */ }
-    setVoicePreparing(false);
-
-    // If the user tapped Cancel during prebuild (route was cleared), abort.
+    // If the route was cleared before navigation started, abort.
     if (!routeRef.current) return;
 
     stepIdxRef.current = 0;
-    stepRetrySetRef.current.clear(); // fresh retry opportunities for this route
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
@@ -2965,12 +2913,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // cleanup. Stop TTS (with a trailing follow-up to catch any narrowly-missed
     // utterance that slipped through on some Android TTS engines).
     stopVoice();
-    // Abandon any in-flight prewarm/prebuild fetches for the route being discarded.
-    cancelPrewarm();
-    // Clear clip-retry tracking so a subsequent startNavigation gets fresh retries.
-    stepRetrySetRef.current.clear();
-    // Clear the "Preparing voice guidance" spinner if the user cancelled mid-prebuild.
-    setVoicePreparing(false);
 
     // Cancel any pending opening-cue timer so it cannot fire in a subsequent
     // session (e.g. driver stops then immediately starts a new route within 2.2 s).
@@ -3679,7 +3621,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       vehicleType, setVehicleType,
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
-      navigationActive, voicePreparing, startNavigation, stopNavigation,
+      navigationActive, startNavigation, stopNavigation,
       isSharingTrip: shareToken !== null,
       shareToken,
       shareLink: (shareCode || shareToken) ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareCode ?? shareToken}` : null,
