@@ -283,18 +283,27 @@ export default function DriveScreen() {
     setSharingLoading(true);
     try {
       const link = await startSharingTrip();
-      if (link) {
-        const trimmed = name.trim();
-        // Use a link-only message so no static ETA can go stale if traffic
-        // refreshes mid-trip. Recipients see live ETA on the tracker page.
-        const namePrefix = trimmed
-          ? `${trimmed} is sharing their live trip 📍`
-          : "Follow my live trip 📍";
-        await Share.share({
-          message: `${namePrefix}\nTap the link for real-time ETA and location:\n${link}`,
-          title: "Track my trip — Msafiri Kenya",
-        });
+      if (!link) {
+        // Session creation failed (network error or device ID not ready) —
+        // surface the problem so the driver knows to retry.
+        Alert.alert("Couldn't start sharing", "Check your connection and try again.");
+        return;
       }
+      const trimmed = name.trim();
+      const namePrefix = trimmed
+        ? `${trimmed} is sharing their live trip 📍`
+        : "Follow my live trip 📍";
+      // iOS: pass `url` as a separate field so the share sheet apps (Messages,
+      // WhatsApp, etc.) render it as a tappable link card rather than plain text.
+      // Android's Share API ignores the `url` field so embed the link in `message`.
+      await Share.share(
+        Platform.OS === "ios"
+          ? { message: namePrefix, url: link }
+          : {
+              message: `${namePrefix}\nTap the link for real-time ETA and location:\n${link}`,
+              title: "Track my trip — Msafiri Kenya",
+            }
+      );
     } finally {
       setSharingLoading(false);
     }
@@ -1171,7 +1180,7 @@ export default function DriveScreen() {
         <View style={[styles.navBar, { backgroundColor: bg, paddingBottom: bottomBase }]}>
 
           <View style={styles.navBarTopRow}>
-            {/* Speed block */}
+            {/* Left: speed digit + current limit ring + upcoming zone chip */}
             <View style={[styles.navSpeedBlock, {
               backgroundColor: overLimit ? "#E5393518" : (isDark ? "#00E67618" : "#E8F5E9"),
             }]}>
@@ -1196,34 +1205,74 @@ export default function DriveScreen() {
                   </View>
                 </View>
               )}
+              {/* Upcoming camera/zone chip — next limit when different from current zone */}
+              {activeAlert?.source === "zone" && activeAlert.speedLimit != null &&
+                activeAlert.speedLimit !== currentSpeedLimit && (
+                <View style={[styles.navNextCamChip, { backgroundColor: isDark ? "#FFFFFF12" : "#00000010" }]}>
+                  <Ionicons
+                    name={activeAlert.type === "camera" ? "camera" : activeAlert.type === "police" ? "shield" : "warning"}
+                    size={9}
+                    color={fgMuted}
+                  />
+                  <Text style={[styles.navNextCamTxt, { color: fgMuted }]}>
+                    {activeAlert.speedLimit} km/h
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={[styles.navDivider, { backgroundColor: divBg }]} />
 
-            {/* Right column: ETA+SOS+Stop on top, Share button pinned to bottom */}
-            <View style={{ flex: 1, justifyContent: "space-between" }}>
+            {/* Right: ETA block (full width) then action row below.
+                Keeping ETA and buttons in separate rows eliminates the Android
+                overlap where long ETA text used to fight SOS + Stop for space. */}
+            <View style={{ flex: 1, gap: 6 }}>
 
-              {/* Top row */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Animated.View style={{ flex: 1, opacity: etaFadeAnim }}>
-                  <Text style={[styles.navEta, { color: fgMain }]}>
-                    {durationStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
+              {/* ETA / arrival / destination — unobstructed, full column width */}
+              <Animated.View style={{ opacity: etaFadeAnim }}>
+                <Text style={[styles.navEta, { color: fgMain }]}>
+                  {durationStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
+                </Text>
+                <Text style={[styles.navArrive, { color: fgMuted }]}>
+                  {arrivalTimeStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
+                  {distanceRemainingM != null ? ` · ${distStr(distanceRemainingM)}` : ""}
+                </Text>
+                <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
+                  {navDestination?.name.split(",")[0]}
+                </Text>
+                {resumeDestination && (
+                  <Text style={[styles.navResumeSub, { color: c.primary }]} numberOfLines={1}>
+                    ↩ en route to {resumeDestination.name.split(",")[0]}
                   </Text>
-                  {/* Arrival clock time — updates every GPS fix via durationRemainingS */}
-                  <Text style={[styles.navArrive, { color: fgMuted }]}>
-                    {arrivalTimeStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
-                    {distanceRemainingM != null ? ` · ${distStr(distanceRemainingM)}` : ""}
-                  </Text>
-                  <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
-                    {navDestination?.name.split(",")[0]}
-                  </Text>
-                  {/* #9 — remind driver their original destination is saved */}
-                  {resumeDestination && (
-                    <Text style={[styles.navResumeSub, { color: c.primary }]} numberOfLines={1}>
-                      ↩ en route to {resumeDestination.name.split(",")[0]}
-                    </Text>
+                )}
+              </Animated.View>
+
+              {/* Action row: Share (flex) · SOS · Stop — own row, never squishes */}
+              <View style={styles.navActionRow}>
+                <TouchableOpacity
+                  style={[styles.navShareBtn, {
+                    flex: 1,
+                    backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
+                  }]}
+                  onPress={handleSharePress}
+                  disabled={sharingLoading}
+                  activeOpacity={0.85}
+                >
+                  {sharingLoading ? (
+                    <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name={isSharingTrip ? "radio" : "share-social-outline"}
+                        size={14}
+                        color={isSharingTrip ? "#fff" : fgMuted}
+                      />
+                      <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]} numberOfLines={1}>
+                        {isSharingTrip ? "● Sharing" : "Share ETA"}
+                      </Text>
+                    </>
                   )}
-                </Animated.View>
+                </TouchableOpacity>
                 <SOSButton compact />
                 <TouchableOpacity
                   style={styles.stopBtn}
@@ -1233,31 +1282,6 @@ export default function DriveScreen() {
                   <Text style={styles.stopBtnTxt}>Stop</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Share button — bottom aligns with speed gauge bottom */}
-              <TouchableOpacity
-                style={[styles.navShareBtn, {
-                  backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
-                }]}
-                onPress={handleSharePress}
-                disabled={sharingLoading}
-                activeOpacity={0.85}
-              >
-                {sharingLoading ? (
-                  <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={isSharingTrip ? "radio" : "share-social-outline"}
-                      size={14}
-                      color={isSharingTrip ? "#fff" : fgMuted}
-                    />
-                    <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                      {isSharingTrip ? "● Sharing — tap to stop" : "Share ETA"}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
 
             </View>
           </View>
@@ -1807,6 +1831,18 @@ const styles = StyleSheet.create({
     gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14,
   },
   navShareBtnTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  // Action row: Share (flex:1) + SOS + Stop — its own row so it never fights
+  // with ETA text for horizontal space (the Android overlap fix).
+  navActionRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+  },
+  // Small chip below the speed/limit block showing the NEXT camera's limit
+  // when the driver is about to enter a different speed zone.
+  navNextCamChip: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    marginTop: 6, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8,
+  },
+  navNextCamTxt: { fontSize: 10, fontFamily: "Inter_700Bold" },
 
   navReportBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,

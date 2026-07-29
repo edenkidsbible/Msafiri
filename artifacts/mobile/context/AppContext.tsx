@@ -1250,11 +1250,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     //
     // (1) Zone candidate — tight 45° forward cone to avoid alerting on cameras
     //     the driver has just passed or turned away from.
-    //     Camera-type zones only appear if the driver is actually over the limit
-    //     (camera alerts during legal-speed driving would be pure noise).
-    //     Additionally, items the driver is already moving away from (distance
-    //     increasing vs the previous fix) are suppressed so a passed item never
-    //     re-activates even if GPS jitter briefly puts it inside the cone.
+    //     All zone/camera types appear regardless of current speed so the driver
+    //     can see the upcoming limit and slow down before reaching it — not only
+    //     after already exceeding it.
+    //     Items the driver is already moving away from (distance increasing vs
+    //     the previous fix) are suppressed so a passed item never re-activates
+    //     even if GPS jitter briefly puts it inside the cone.
     const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
     const zoneCandidate = (() => {
       const fwd = driverHeading != null
@@ -1268,11 +1269,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return true;
           })
         : inRangeZones;
-      for (const z of fwd) {
-        if (z.type === "camera" && z.speedLimit != null && kmh <= z.speedLimit) continue;
-        return z;
-      }
-      return null;
+      return fwd[0] ?? null;
     })();
 
     // (2) Report candidate — nearest forward-cone (≤45°) active report < 2 h old.
