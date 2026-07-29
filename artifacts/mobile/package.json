@@ -11,7 +11,7 @@
     "validate-cameras": "node scripts/validateCameras.mjs",
     "fix-cameras": "node scripts/validateCameras.mjs --fix",
     "check-expo-versions": "expo install --check",
-    "test": "node __tests__/driveAlerts.test.mjs",
+    "test": "node --test __tests__/driveAlerts.test.mjs __tests__/driveAlertGating.test.mjs",
     "validate:build": "EXPO_PUBLIC_DOMAIN=msafirikenya.com expo export --platform ios --output-dir /tmp/expo-export-validate",
     "sentry:sourcemaps": "EXPO_PUBLIC_DOMAIN=msafirikenya.com expo export --platform ios --output-dir /tmp/expo-export-validate && npx @sentry/cli sourcemaps upload --org alfrex-labs --project react-native /tmp/expo-export-validate/bundles/"
   },
