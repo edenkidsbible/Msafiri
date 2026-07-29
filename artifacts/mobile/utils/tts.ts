@@ -547,37 +547,50 @@ function playAndWait(player: AudioPlayer): Promise<void> {
     let started = false;
     let elapsed = 0;
 
-    player.play();
+    // Guard player.play() — if the player was already removed by a concurrent
+    // stopNavVoice() call, play() throws synchronously inside the Promise
+    // executor which would otherwise become an unhandled rejection.
+    try { player.play(); } catch { resolve(); return; }
 
     const iv = setInterval(() => {
       elapsed += 50;
+      try {
+        // Detect a clip that finished before the first tick (e.g. the audio
+        // was already loaded and played through in < 50 ms after .play()).
+        // Without this guard, `started` would never become true and the loop
+        // would stall until the 15 s safety timeout.
+        const alreadyFinished =
+          !player.playing &&
+          player.duration > 0 &&
+          player.currentTime >= player.duration - 0.1;
 
-      // Detect a clip that finished before the first tick (e.g. the audio
-      // was already loaded and played through in < 50 ms after .play()).
-      // Without this guard, `started` would never become true and the loop
-      // would stall until the 15 s safety timeout.
-      const alreadyFinished =
-        !player.playing &&
-        player.duration > 0 &&
-        player.currentTime >= player.duration - 0.1;
-
-      if (!started) {
-        if (player.playing) {
-          started = true;
-        } else if (alreadyFinished) {
-          // Clip finished before we saw it start — resolve immediately.
-          clearInterval(iv);
-          resolve();
-          return;
+        if (!started) {
+          if (player.playing) {
+            started = true;
+          } else if (alreadyFinished) {
+            // Clip finished before we saw it start — resolve immediately.
+            clearInterval(iv);
+            resolve();
+            return;
+          }
+        } else {
+          // Ended: no longer playing, or reached the end of the track
+          if (!player.playing ||
+              (player.duration > 0 && player.currentTime >= player.duration - 0.1)) {
+            clearInterval(iv);
+            resolve();
+            return;
+          }
         }
-      } else {
-        // Ended: no longer playing, or reached the end of the track
-        if (!player.playing ||
-            (player.duration > 0 && player.currentTime >= player.duration - 0.1)) {
-          clearInterval(iv);
-          resolve();
-          return;
-        }
+      } catch {
+        // stopNavVoice() called player.remove() while the polling interval was
+        // still running.  Accessing native properties on a freed AudioPlayer
+        // throws in expo-audio, and an unhandled throw inside setInterval
+        // crashes the JS runtime in Expo Go / Hermes.  Resolve immediately so
+        // the parent speakPhrase() can clean up and the app keeps running.
+        clearInterval(iv);
+        resolve();
+        return;
       }
 
       // Safety timeout

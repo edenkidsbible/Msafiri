@@ -2600,29 +2600,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       openingCueTimerRef.current = null;
     }
 
-    speakText("Navigation started.");
-    // Protect "Navigation started." from being cut off by the first GPS tick,
-    // which would otherwise see lastSpokenRef="" and immediately fire ANNOUNCE.
     lastAnnounceCueAtRef.current = Date.now();
     const firstInstruction = activeRoute.steps[0]?.instruction;
-    if (firstInstruction) {
-      // Fire the opening step cue ~2.2 s after "Navigation started." finishes.
-      // Guard against three races:
-      //   (a) User tapped Stop within 2.2 s — navActiveRef will be false.
-      //   (b) User tapped Stop then Start again within 2.2 s — navSessionGenRef
-      //       will have advanced past mySession so the stale callback bails.
-      //   (c) Driver was already within STEP_ANNOUNCE_DIST of step 0 when they
-      //       tapped Start, so the GPS handler announced it first and set
-      //       lastSpokenRef to "step_0".  A second call would cut in mid-clip.
-      openingCueTimerRef.current = setTimeout(() => {
-        openingCueTimerRef.current = null;
-        if (navActiveRef.current &&
-            navSessionGenRef.current === mySession &&
-            !lastSpokenRef.current) {
-          speakText(firstInstruction);
-        }
-      }, 2200);
-    }
+    // Await "Navigation started." completion before queuing the first step cue
+    // instead of using a fixed 2.2 s wall-clock timer.  A fixed timer fires
+    // while the clip is still playing when the audio session initialises slowly
+    // (first clip of the day needs ensureAudioBase + duckForVoice + player
+    // startup, easily 200-400 ms before audio begins), causing both phrases to
+    // overlap or cut each other off.  Awaiting the clip guarantees sequential
+    // playback regardless of device speed or audio session latency.
+    void (async () => {
+      await speakPhrase("Navigation started.");
+      if (!firstInstruction) return;
+      // Guard against three races after the await:
+      //   (a) User tapped Stop — navActiveRef will be false.
+      //   (b) Stop then Start within the clip duration — session gen advanced.
+      //   (c) GPS already announced step 0 during prebuild/clip — lastSpokenRef set.
+      if (!navActiveRef.current || navSessionGenRef.current !== mySession) return;
+      if (lastSpokenRef.current) return;
+      // Short breath pause so the two cues feel distinct rather than merged.
+      await new Promise<void>(r => {
+        openingCueTimerRef.current = setTimeout(() => {
+          openingCueTimerRef.current = null;
+          r();
+        }, 400);
+      });
+      // Re-check after the pause — Stop or GPS announce may have fired.
+      if (navActiveRef.current && navSessionGenRef.current === mySession && !lastSpokenRef.current) {
+        speakText(firstInstruction);
+      }
+    })();
   }, [activeRoute]);
 
   const stopNavigation = useCallback(() => {
