@@ -29,6 +29,7 @@ import {
   stopBackgroundNavTask,
 } from "@/utils/backgroundNavLocation";
 import { resolveIncidentType } from "@/constants/incidentTypes";
+import { getRoadName } from "@/utils/snapToRoad";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -325,6 +326,42 @@ function driverHeadingDeg(
   // Require at least 5 m of genuine movement; less than that is GPS noise.
   if (distM < 5) return null;
   return bearingDeg(prevFix.lat, prevFix.lng, currentLat, currentLng);
+}
+
+// ── Road-name matching helpers ─────────────────────────────────────────────
+//
+// Used for road-based alert gating: a speed camera or reported hazard only
+// triggers the overlay when the driver is on the same road as the incident.
+
+/** Strips parenthetical codes, road-type words, and punctuation so that
+ *  "Thika Superhighway (A2)" normalises to the same string as "Thika Road". */
+function normalizeRoad(name: string | null | undefined): string {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")   // remove codes like "(A2)", "(A104)"
+    .replace(
+      /\b(road|rd|street|st|avenue|ave|highway|hwy|superhighway|way|bypass|lane|drive|dr|place)\b/g,
+      ""
+    )
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True when the two road names refer to the same road.
+ *  Returns true when either side is absent — no road name means we cannot
+ *  exclude the incident, so fall back to distance-only (never silent-drop). */
+function roadsMatch(
+  driverRoad: string | null | undefined,
+  incidentRoad: string | null | undefined,
+): boolean {
+  if (!driverRoad || !incidentRoad) return true;
+  const a = normalizeRoad(driverRoad);
+  const b = normalizeRoad(incidentRoad);
+  if (!a || !b) return true;
+  // One name containing the other covers "Thika" ↔ "Thika Superhighway" etc.
+  return a === b || a.includes(b) || b.includes(a);
 }
 
 function genId(): string {
@@ -842,16 +879,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consecutive GPS fixes where distance to the active alert zone increased;
   // when this reaches 2 we dismiss (driver has passed or turned away).
   const alertZoneIncreasingCountRef = useRef(0);
-  // Per-zone cooldown after auto-dismiss (ms timestamp). Prevents an alert that
-  // was just dismissed from immediately re-triggering due to the heading
-  // activation window (60°) being wider than the dismissal window (90°).
-  // Maps dismissed alert id → { expiry, peakDistM }.
+  // Per-zone cooldown after auto-dismiss. Prevents an alert from immediately
+  // re-triggering due to GPS jitter briefly re-entering the 1 km alert radius
+  // after a dismiss. Maps dismissed alert id → { expiry, peakDistM }.
   // peakDistM starts at the distance when the alert was dismissed and is
   // updated upward on every GPS tick while in cooldown.  When the driver
   // re-approaches to within (peakDistM − 300 m) the cooldown is cancelled
   // early — a genuine U-turn or loop will have built enough peak distance for
   // the threshold to be reachable; brief GPS jitter never will.
   const alertDismissCooldownRef = useRef<Map<string, { expiry: number; peakDistM: number }>>(new Map());
+  // Road name the driver is currently on. Resolved from the active navigation
+  // step (precise, from Google Routes) or via periodic server reverse-geocoding
+  // (≤once per 500 m / 60 s outside navigation).
+  //   • null  = unknown road  → distance-only fallback (no alert silently dropped)
+  //   • ""    = never used; always set to a road string or null
+  // IMPORTANT: always write the result explicitly, including null, so a stale
+  // road name from a previous road is never kept when the new one is unknown.
+  const currentRoadRef        = useRef<string | null>(null);
+  const lastRoadFetchCoordRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastRoadFetchTimeRef  = useRef<number>(0);
+  // Monotonically-increasing counter for road-name geocode requests.
+  // Each outgoing fetch captures the current value; the .then() callback
+  // discards the result if the counter has since advanced (stale response).
+  const roadFetchSeqRef       = useRef<number>(0);
   const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1257,35 +1307,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastHeadingRef.current = driverHeading ?? lastHeadingRef.current;
     drStateRef.current = { lat, lng, speedMps: Math.max(0, kmh / 3.6), heading: lastHeadingRef.current ?? 0 };
 
+    // ── Current road resolution ───────────────────────────────────────────────
+    // During navigation the active step already carries a road name supplied by
+    // the Google Routes API. Outside navigation we ask the server to reverse-
+    // geocode the position at most once per 500 m or 60 s — never every GPS tick.
+    if (navActiveRef.current && routeRef.current) {
+      // Nav step carries the road name from Google Routes API.
+      // Write the result unconditionally — including null for unnamed steps —
+      // so a stale road from a previous leg is never kept past a turn.
+      const stepRoad = routeRef.current.steps[stepIdxRef.current]?.roadName;
+      currentRoadRef.current = stepRoad || null;
+    } else {
+      const nowMs = Date.now();
+      const lastFetch = lastRoadFetchCoordRef.current;
+      const distSinceLastFetch = lastFetch
+        ? haversine(lat, lng, lastFetch.lat, lastFetch.lng)
+        : Infinity;
+      if (distSinceLastFetch > 500 || nowMs - lastRoadFetchTimeRef.current > 60_000) {
+        lastRoadFetchCoordRef.current = { lat, lng };
+        lastRoadFetchTimeRef.current  = nowMs;
+        // Capture sequence before the async boundary so out-of-order responses
+        // (e.g. slow cell signal after a fast Wi-Fi response) are discarded.
+        const seq = ++roadFetchSeqRef.current;
+        void getRoadName(lat, lng).then((road) => {
+          if (roadFetchSeqRef.current === seq) currentRoadRef.current = road;
+        });
+      }
+    }
+
     // ── Unified alert panel: zones + community reports ────────────────────────
     //
-    // (1) Zone candidate — tight 45° forward cone to avoid alerting on cameras
-    //     the driver has just passed or turned away from.
+    // Activation gate: driver is moving + within 1 km + road matches.
+    // Falls back to distance-only when the driver's current road is unknown
+    // (first fix, offline, API failure) or the incident has no road recorded —
+    // roadsMatch() returns true in those cases so no alert is silently dropped.
+    //
+    // (1) Zone candidate — closest in-range zone on the driver's current road.
     //     All zone/camera types appear regardless of current speed so the driver
-    //     can see the upcoming limit and slow down before reaching it — not only
-    //     after already exceeding it.
-    //     Items the driver is already moving away from (distance increasing vs
-    //     the previous fix) are suppressed so a passed item never re-activates
-    //     even if GPS jitter briefly puts it inside the cone.
+    //     can see the upcoming limit and slow down before reaching it.
     const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
     const zoneCandidate = (() => {
-      const fwd = driverHeading != null
-        ? inRangeZones.filter((z) => {
-            if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, z.lat, z.lng)) > 45) return false;
-            // Suppress if the driver is moving away from this item (already passed it).
-            if (prevFix) {
-              const prevDist = haversine(prevFix.lat, prevFix.lng, z.lat, z.lng);
-              if (prevDist < z.distance) return false;
-            }
-            return true;
-          })
-        : inRangeZones;
-      return fwd[0] ?? null;
+      if (!isDriving) return null;
+      // Pick the closest in-range zone whose road matches the driver's road.
+      // Iterating in distance order (withDist is sorted) so the first match is
+      // already the nearest; the explicit comparison handles unsorted edge cases.
+      let best: typeof inRangeZones[0] | null = null;
+      for (const z of inRangeZones) {
+        if (!roadsMatch(currentRoadRef.current, z.road)) continue;
+        if (best === null || z.distance < best.distance) best = z;
+      }
+      return best;
     })();
 
-    // (2) Report candidate — nearest forward-cone (≤45°) active report < 2 h old.
-    //     Items the driver is already moving away from are suppressed (same
-    //     passed-point rule as zone candidates above).
+    // (2) Report candidate — closest active report < 2 h old on the driver's road.
     const reportCandidate = (() => {
       if (!isDriving) return null;
       let best: (typeof communityReportsRef.current)[0] | null = null;
@@ -1295,16 +1369,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (now - r.timestamp > 7200000) continue;
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
-        // Widen to 90° for community reports. On curved roads the straight-line
-        // bearing to a report 600 m ahead can differ from the driving direction
-        // by more than 45° mid-bend, silently dropping genuine upcoming hazards.
-        // The 90° cone still excludes incidents squarely behind the driver
-        // (~180° off heading), so no separate "moving-away" check is needed —
-        // a passed report will be well outside this cone at its next appearance.
-        // (Haversine distance also temporarily increases on curves even while
-        //  approaching, making the old "prevDist < d → skip" check produce false
-        //  negatives on any route that bends.)
-        if (driverHeading != null && angleDiffDeg(driverHeading, bearingDeg(lat, lng, r.lat, r.lng)) > 90) continue;
+        // Road match: skip reports on clearly different roads.
+        // roadsMatch() returns true when either road name is absent →
+        // distance-only fallback so incidents without a roadName still fire.
+        if (!roadsMatch(currentRoadRef.current, r.roadName)) continue;
         best = r;
         bestDist = d;
       }
@@ -1356,12 +1424,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
-        // 75° heading threshold — wide enough to absorb GPS heading jitter and
-        // road curves, while still dismissing when the driver clearly turns away.
-        // Hysteresis: activation requires ≤45°, dismissal triggers at >75°.
-        if (driverHeading != null && curItemLat != null && curItemLng != null) {
-          if (angleDiffDeg(driverHeading, bearingDeg(lat, lng, curItemLat, curItemLng)) > 75) return true;
-        }
+        // Road-departure check: dismiss when the driver has moved to a different
+        // road from the alert item. Guards against parallel-road false-positives
+        // that distance alone would keep alive. Falls back to keeping the alert
+        // live when road is unknown (null) — distance-only mode is safer than
+        // premature dismissal.
+        const curItemRoad = curZone?.road ?? curReport?.roadName;
+        if (currentRoadRef.current && curItemRoad &&
+            !roadsMatch(currentRoadRef.current, curItemRoad)) return true;
         const lastDist = alertZoneLastDistRef.current;
         if (lastDist != null && curDist > lastDist) {
           alertZoneIncreasingCountRef.current += 1;

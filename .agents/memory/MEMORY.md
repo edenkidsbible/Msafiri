@@ -20,6 +20,7 @@
 - [GPS dead reckoning pattern](gps-dead-reckoning.md) — signal-loss interval in AppContext; drStateRef holds last real fix; setCurrentLat/Lng advance from it; off-route detection gated by !gpsLostRef.current.
 - [Mobile API client pattern](mobile-api-client-pattern.md) — mobile app uses a hand-written apiGet/apiPost wrapper, not generated api-client-react hooks like the web artifacts.
 - [Speed corridor confidence matching](speed-corridor-confidence-matching.md) — a stricter confidence check must exclude the data feeding a looser legacy check, not just be given fallback priority over it.
+- [Road-based alert gating](road-based-alert-gating.md) — heading cones replaced by road-name match; roadsMatch() returns true on unknown road (distance-only fallback); road resolved from nav step or periodic server geocode (≤500m/60s).
 - [Speed gauge stationary jitter](speed-gauge-stationary-jitter.md) — GPS phantom motion while parked; fix needs accuracy-based noise floor + dead-band + rolling median together, not just one.
 - [expo-audio in-app sound](expo-audio-inapp-sound.md) — createAudioPlayer (imperative) for a shared sound utility, not useAudioPlayer hook; unrelated to push notification sound (OS handles that).
 - [Android notification channels](android-notification-channels.md) — Android ignores importance updates on existing channel IDs; expo-notifications pre-creates "default" at DEFAULT importance; always use new IDs (msafiri_general, msafiri_alerts).

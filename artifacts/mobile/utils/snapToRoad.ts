@@ -20,3 +20,25 @@ export async function snapToRoad(
     return { lat, lng };
   }
 }
+
+/**
+ * Reverse-geocodes a GPS coordinate to the name of the road the driver is on.
+ * Returns null when the road cannot be determined (offline, API error, no key).
+ * Callers should treat null as "unknown" and fall back to distance-only logic.
+ */
+export async function getRoadName(
+  lat: number,
+  lng: number
+): Promise<string | null> {
+  try {
+    if (!API_BASE) return null;
+    const res = await fetch(
+      `${API_BASE}/routing/road-name?lat=${lat}&lng=${lng}`
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { road: string | null };
+    return data.road ?? null;
+  } catch {
+    return null;
+  }
+}

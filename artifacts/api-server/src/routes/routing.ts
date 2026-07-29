@@ -235,4 +235,49 @@ router.get("/routing/snap", async (req, res) => {
   }
 });
 
+/**
+ * GET /routing/road-name?lat=&lng=
+ *
+ * Reverse-geocodes a GPS coordinate to the name of the road the driver is on.
+ * Uses Google Geocoding API (same key as routing). Returns { road: string|null }
+ * and never errors — callers treat a null road as "unknown" and fall back to
+ * distance-only alert logic.
+ */
+router.get("/routing/road-name", async (req, res) => {
+  const lat = parseCoord(req.query.lat);
+  const lng = parseCoord(req.query.lng);
+  if (lat === null || lng === null) {
+    res.status(400).json({ error: "Invalid params" });
+    return;
+  }
+
+  const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
+  if (!apiKey) {
+    res.json({ road: null });
+    return;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const url =
+      `https://maps.googleapis.com/maps/api/geocode/json` +
+      `?latlng=${lat},${lng}&result_type=route&key=${apiKey}`;
+    const gRes = await fetch(url, { signal: controller.signal });
+    if (!gRes.ok) { res.json({ road: null }); return; }
+
+    const data = (await gRes.json()) as any;
+    const result = data.results?.[0];
+    const routeComp = result?.address_components?.find(
+      (c: any) => Array.isArray(c.types) && c.types.includes("route")
+    );
+    res.json({ road: routeComp?.long_name ?? null });
+  } catch {
+    res.json({ road: null });
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
 export default router;
