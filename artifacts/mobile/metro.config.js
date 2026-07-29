@@ -1,5 +1,4 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withSentryConfig } = require("@sentry/react-native/metro");
 
 const config = getDefaultConfig(__dirname);
 
@@ -12,14 +11,7 @@ const config = getDefaultConfig(__dirname);
 // hermesc ever sees it. babel-preset-expo already includes the class
 // properties transform, so no extra Babel plugin is needed.
 config.transformer.transformIgnorePatterns = [
-  "node_modules/(?!(react-native|@react-native(-community)?|react-native-worklets|react-native-reanimated|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-gesture-handler|react-native-screens|react-native-safe-area-context|react-native-maps|react-native-keyboard-controller|@sentry/.*|react-native-purchases)/).*",
+  "node_modules/(?!(react-native|@react-native(-community)?|react-native-worklets|react-native-reanimated|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|react-native-gesture-handler|react-native-screens|react-native-safe-area-context|react-native-maps|react-native-keyboard-controller|react-native-purchases)/).*",
 ];
 
-// Only wrap with Sentry's Metro plugin during EAS production builds.
-// In Expo Go (development), withSentryConfig tries to inject a Debug ID into
-// the bundle via a custom serializer that conflicts with Expo's dev-server
-// bundling pipeline — Metro crashes with "Debug ID was not found in the bundle".
-// Source maps are only uploaded during EAS builds anyway, so restricting the
-// wrapper to that context loses nothing while keeping Expo Go working.
-const isEasBuild = process.env.EAS_BUILD === "true";
-module.exports = isEasBuild ? withSentryConfig(config) : config;
+module.exports = config;

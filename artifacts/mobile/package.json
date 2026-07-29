@@ -12,8 +12,7 @@
     "fix-cameras": "node scripts/validateCameras.mjs --fix",
     "check-expo-versions": "expo install --check",
     "test": "node --test __tests__/driveAlerts.test.mjs __tests__/driveAlertGating.test.mjs",
-    "validate:build": "EXPO_PUBLIC_DOMAIN=msafirikenya.com expo export --platform ios --output-dir /tmp/expo-export-validate",
-    "sentry:sourcemaps": "EXPO_PUBLIC_DOMAIN=msafirikenya.com expo export --platform ios --output-dir /tmp/expo-export-validate && npx @sentry/cli sourcemaps upload --org alfrex-labs --project react-native /tmp/expo-export-validate/bundles/"
+    "validate:build": "EXPO_PUBLIC_DOMAIN=msafirikenya.com expo export --platform ios --output-dir /tmp/expo-export-validate"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -65,7 +64,6 @@
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "11.4.1",
-    "@sentry/react-native": "~7.3.0",
     "expo-audio": "~1.1.1",
     "expo-file-system": "~19.0.23",
     "expo-keep-awake": "^15.0.8",

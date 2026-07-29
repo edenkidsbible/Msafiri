@@ -16,7 +16,6 @@
     "@opentelemetry/api": "^1.9.1",
     "@replit/connectors-sdk": "latest",
     "@replit/revenuecat-sdk": "latest",
-    "@sentry/node": "^10.68.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/permissions": "workspace:*",

@@ -98,13 +98,6 @@ module.exports = {
       "./plugins/withDisableUnusedAudioServices.js",
       "./plugins/withR8Optimization.js",
       "./plugins/withGeoIntentFilter.js",
-      [
-        "@sentry/react-native/expo",
-        {
-          organization: "alfrex-labs",
-          project: "react-native",
-        },
-      ],
     ],
     updates: {
       url: "https://u.expo.dev/465586c3-648b-459e-b3c9-1983e1a62ffb",
