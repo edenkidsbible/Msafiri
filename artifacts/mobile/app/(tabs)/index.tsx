@@ -1013,6 +1013,26 @@ export default function DriveScreen() {
       {!isMapMode && !showResults && (
         <View style={[styles.driveNavActionRow, { bottom: bottomBase + 8 + speedStripHeight + 8 }]}>
 
+          {/* Recenter — shown when map has drifted from GPS position */}
+          {mapDrifted && (
+            <TouchableOpacity
+              style={[styles.driveActionPill, {
+                backgroundColor: "#FFFFFFEE",
+                borderWidth: 1.5, borderColor: "#1565C0",
+                shadowColor: "#1565C0",
+              }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                driveMapRef.current?.recenter();
+                setMapDrifted(false);
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="locate" size={14} color="#1565C0" />
+              <Text style={[styles.driveActionPillTxt, { color: "#1565C0" }]}>Recenter</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Share Location — Kenya green when actively sharing */}
           <TouchableOpacity
             style={[styles.driveActionPill, {
