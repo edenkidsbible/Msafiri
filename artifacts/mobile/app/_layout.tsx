@@ -27,11 +27,6 @@ import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
 import { defineNavBackgroundTask } from "@/utils/backgroundNavLocation";
-import { initSentry, Sentry } from "@/utils/sentry";
-
-// ── Sentry — must initialise before any component mounts so the error boundary
-// and native crash handler are registered as early as possible.
-initSentry();
 
 try {
   initializeRevenueCat();
@@ -384,10 +379,7 @@ function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary
-        // Also report ErrorBoundary catches to Sentry
-        onError={(err) => Sentry.captureException(err)}
-      >
+      <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <SubscriptionProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
@@ -404,9 +396,7 @@ function RootLayout() {
   );
 }
 
-// Wrap with Sentry so the native crash handler and React error boundary are
-// both active. Sentry.wrap is a no-op when EXPO_PUBLIC_SENTRY_DSN is absent.
-export default Sentry.wrap(RootLayout);
+export default RootLayout;
 
 const styles = StyleSheet.create({
   offlineBanner: {

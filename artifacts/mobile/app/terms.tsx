@@ -326,8 +326,8 @@ export default function TermsScreen() {
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>18. Third-Party Services and App Stores</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The App integrates with third-party services including RevenueCat (subscription management),
-        Google Maps (map rendering and routing), ElevenLabs (voice
-        guidance), and Sentry (crash reporting). Your use of these third-party services is governed by
+        Google Maps (map rendering and routing), and ElevenLabs (voice
+        guidance). Your use of these third-party services is governed by
         their own terms and conditions. Msafiri Kenya is not responsible for the acts or omissions of
         any third-party service provider.
       </Text>

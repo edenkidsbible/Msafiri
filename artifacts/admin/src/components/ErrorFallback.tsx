@@ -1,7 +1,6 @@
 /**
- * Friendly full-page fallback rendered by the Sentry ErrorBoundary when the
- * admin UI crashes. The crash has already been reported to Sentry by the
- * boundary — this screen just keeps the admin out of a blank white page.
+ * Friendly full-page fallback rendered by AppErrorBoundary when the
+ * admin UI crashes. Keeps the admin out of a blank white page.
  */
 export function ErrorFallback({ resetError }: { resetError: () => void }) {
   return (
@@ -9,8 +8,7 @@ export function ErrorFallback({ resetError }: { resetError: () => void }) {
       <div className="text-5xl">⚠️</div>
       <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
       <p className="max-w-md text-sm text-muted-foreground">
-        An unexpected error occurred and has been reported to the team. You can
-        try again, or reload the page if the problem persists.
+        An unexpected error occurred. You can try again, or reload the page if the problem persists.
       </p>
       <div className="flex gap-3">
         <button

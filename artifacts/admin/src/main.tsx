@@ -1,17 +1,13 @@
 import { StrictMode, Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { setupApiClient } from "./lib/auth";
-import { initSentry } from "./lib/sentry";
 import { ErrorFallback } from "./components/ErrorFallback";
 import App from "./App";
 import "./index.css";
 
-// No-op — kept so lib/sentry import is preserved for future re-enabling.
-initSentry();
-
 setupApiClient();
 
-// ── Plain React ErrorBoundary (replaces Sentry.ErrorBoundary) ──────────────
+// ── Plain React ErrorBoundary ──────────────────────────────────────────────
 interface EBState { hasError: boolean; resetKey: number }
 class AppErrorBoundary extends Component<{ children: ReactNode }, EBState> {
   state: EBState = { hasError: false, resetKey: 0 };

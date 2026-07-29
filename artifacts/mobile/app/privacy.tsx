@@ -132,15 +132,7 @@ export default function PrivacyScreen() {
       <Li>{"When on-demand TTS is used, a "}<B>short text phrase</B>{" (e.g., \"Turn right onto Ngong Road\") is sent to ElevenLabs' API servers to generate an audio clip. No location data, device ID, or personal information is included in these requests."}</Li>
       <Li>{"Generated audio clips are "}<B>cached on your device for up to 90 days</B>{" to minimise repeated network requests."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.9 Crash and Error Reporting</Text>
-      <Text style={[s.p, { color: c.mutedForeground }]}>
-        We use <B>Sentry</B> (sentry.io) to automatically capture crash reports and performance data
-        when the App encounters an unexpected error. Sentry payloads are scrubbed of GPS coordinates
-        and location-related fields before transmission. Reports include:
-      </Text>
-      <Li>{"Device model, manufacturer, and OS version."}</Li>
-      <Li>{"App version and build number."}</Li>
-      <Li>{"Error type and stack trace (no personal data or GPS coordinates)."}</Li>
+      <Text style={[s.h3, { color: c.primary }]}>1.9 Server and API Logs</Text>
       <Li>{"API request logs (server-side): IP address, endpoint, and timestamp — retained for up to 30 days for security monitoring."}</Li>
 
       {/* 2 */}
@@ -153,7 +145,7 @@ export default function PrivacyScreen() {
       <Li><B>Voice guidance</B>{" — generating navigation and hazard announcements via on-device audio and ElevenLabs TTS."}</Li>
       <Li><B>Subscription management</B>{" — verifying your Msafiri Pro subscription status via RevenueCat to unlock premium features."}</Li>
       <Li><B>Safety features</B>{" — enabling the SOS emergency SMS feature to function correctly."}</Li>
-      <Li><B>App improvement</B>{" — analysing crash data and error logs via Sentry to fix bugs and improve performance."}</Li>
+      <Li><B>App improvement</B>{" — analysing server-side error logs to fix bugs and improve performance."}</Li>
       <Li><B>Security and fraud prevention</B>{" — detecting and preventing spam reports, abuse, or unauthorised access to our API."}</Li>
       <Li><B>Legal compliance</B>{" — complying with applicable laws, regulations, and lawful requests from Kenyan authorities."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
@@ -173,7 +165,6 @@ export default function PrivacyScreen() {
 
       <Text style={[s.h3, { color: c.primary }]}>3.2 With Service Providers</Text>
       <Li><B>RevenueCat</B>{" — subscription management. Receives your device ID and subscription events. Privacy: revenuecat.com/privacy."}</Li>
-      <Li><B>Sentry</B>{" — crash and error reporting. Receives device model, OS version, App version, and error stack traces. Location data is scrubbed before transmission. Privacy: sentry.io/privacy."}</Li>
       <Li><B>ElevenLabs</B>{" — on-demand voice guidance synthesis. Receives short text phrases only (no location or personal data). Privacy: elevenlabs.io/privacy."}</Li>
       <Li><B>Google Maps SDK</B>{" — map rendering on Android and iOS. Privacy: policies.google.com/privacy."}</Li>
       <Li><B>Google Maps Routes API</B>{" — route calculation. Your origin and destination GPS coordinates are sent to the Google Maps platform to calculate driving routes. No personal information included. Privacy: policies.google.com/privacy."}</Li>
@@ -202,7 +193,6 @@ export default function PrivacyScreen() {
       <Li><B>Device ID and push notification token</B>{" — retained for up to 12 months of inactivity, then permanently deleted or anonymised."}</Li>
       <Li><B>API access logs (IP addresses)</B>{" — retained for up to 30 days for security monitoring."}</Li>
       <Li><B>Subscription records</B>{" — retained for the duration of your subscription and up to 12 months after cancellation."}</Li>
-      <Li><B>Crash reports (Sentry)</B>{" — retained for up to 90 days to assist with bug resolution."}</Li>
       <Li><B>Cached voice audio</B>{" — stored locally on your device for up to 90 days; clearing the App's storage removes these files."}</Li>
 
       {/* 5 */}
@@ -304,7 +294,6 @@ export default function PrivacyScreen() {
         respective privacy policies:
       </Text>
       <Li><B>RevenueCat</B>{" — revenuecat.com/privacy — in-app subscription management."}</Li>
-      <Li><B>Sentry</B>{" — sentry.io/privacy — crash and error reporting (location-scrubbed)."}</Li>
       <Li><B>ElevenLabs</B>{" — elevenlabs.io/privacy — on-demand voice guidance text-to-speech."}</Li>
       <Li><B>Google Maps</B>{" — policies.google.com/privacy — map rendering and geocoding."}</Li>
       <Li><B>Google Maps Routes API</B>{" — policies.google.com/privacy — routing engine for navigation directions and road snapping."}</Li>
@@ -321,7 +310,7 @@ export default function PrivacyScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri Kenya is based in Kenya. Your data may be processed on servers located outside Kenya,
         including in the European Union and the United States, by our infrastructure and service providers
-        (including Sentry, ElevenLabs, RevenueCat, and Google Maps). We take reasonable steps to ensure that
+        (including ElevenLabs, RevenueCat, and Google Maps). We take reasonable steps to ensure that
         any international transfer of data complies with applicable data protection laws and that your
         data receives an adequate level of protection.
       </Text>
