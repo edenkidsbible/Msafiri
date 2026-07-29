@@ -84,7 +84,9 @@ export default function RouteIncidentsPanel() {
   if (!routeIncidentsExpanded) {
     // Off the Drive tab, surface a small floating chip so the incident list
     // stays reachable no matter which screen the driver is on.
-    if (isDriveTab || routeIncidentsAhead.length === 0) return null;
+    // Drive tab has inline incidents in the nav bar; Map tab now shows them in
+    // the bottom action row — suppress the floating chip on both.
+    if (isDriveTab || isMapTab || routeIncidentsAhead.length === 0) return null;
 
     // On the Map tab the Report button sits at left:16,bottom:+96. Float the
     // chip immediately to its right at the same height so they read as a pair.

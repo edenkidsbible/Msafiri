@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
@@ -194,6 +194,7 @@ export default function MapViewScreen() {
     driverHeading,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
+    routeIncidentsAhead, setRouteIncidentsExpanded,
   } = useApp();
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -232,6 +233,20 @@ export default function MapViewScreen() {
   const mapRef = useRef<MapView>(null);
   const openedAtRef = useRef(0);
   const now = Date.now();
+
+  // Kenya-red pulse on the Report button — gentle heartbeat so it draws the
+  // eye without being distracting.
+  const reportPulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(reportPulse, { toValue: 1.07, duration: 700, useNativeDriver: true }),
+        Animated.timing(reportPulse, { toValue: 1.0,  duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reportPulse]);
 
   // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
   // for the full explanation. The freeze optimisation caused tap hit-detection
@@ -501,25 +516,46 @@ export default function MapViewScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Find Nearby — left side, above the Report button */}
-      <TouchableOpacity
-        style={[styles.findNearbyBtn, { bottom: insets.bottom + 152 }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowFindNearby(true); }}
-        activeOpacity={0.88}
-      >
-        <Ionicons name="search" size={14} color="#FFF" />
-        <Text style={styles.findNearbyBtnText}>Find Nearby</Text>
-      </TouchableOpacity>
+      {/* ── Bottom action row: Report · Find Nearby · X ahead ────────────────
+          All pills share the same height. Report pulses in Kenya red.
+          The incidents chip appears inline when a route has active alerts. */}
+      <View style={[styles.mapActionRow, { bottom: insets.bottom + 96 }]}>
 
-      {/* Report button — left side so it never conflicts with the right controls */}
-      <TouchableOpacity
-        style={[styles.reportBtn, { backgroundColor: c.primary, bottom: insets.bottom + 96 }]}
-        onPress={() => setShowReport(true)}
-        activeOpacity={0.88}
-      >
-        <Ionicons name="warning" size={16} color="#FFF" />
-        <Text style={[styles.reportBtnText, { color: "#FFF" }]}>Report</Text>
-      </TouchableOpacity>
+        {/* Report — Kenya red, pulsing */}
+        <Animated.View style={{ transform: [{ scale: reportPulse }] }}>
+          <TouchableOpacity
+            style={[styles.mapPill, { backgroundColor: "#CE1126" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="warning" size={14} color="#FFF" />
+            <Text style={styles.mapPillTxt}>Report</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Find Nearby — Kenya black */}
+        <TouchableOpacity
+          style={[styles.mapPill, { backgroundColor: "#1A1A1A" }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowFindNearby(true); }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="search" size={14} color="#FFF" />
+          <Text style={styles.mapPillTxt}>Find Nearby</Text>
+        </TouchableOpacity>
+
+        {/* Incidents chip — Kenya green, inline so all three fit one row */}
+        {routeIncidentsAhead.length > 0 && (
+          <TouchableOpacity
+            style={[styles.mapPill, { backgroundColor: "#006600" }]}
+            onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="warning" size={14} color="#FFF" />
+            <Text style={styles.mapPillTxt}>{routeIncidentsAhead.length} ahead ›</Text>
+          </TouchableOpacity>
+        )}
+
+      </View>
 
       {/* Recenter — appears whenever the driver has panned away from their position */}
       {mapDrifted && currentLat && currentLng && (
@@ -996,15 +1032,18 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15, shadowRadius: 5, elevation: 5,
   },
-  findNearbyBtn: {
-    position: "absolute", left: 16,
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#37474F",
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18, shadowRadius: 6, elevation: 6,
+  // ── Map page bottom action row (Kenya-colors pill set) ───────────────────
+  mapActionRow: {
+    position: "absolute", left: 16, zIndex: 15,
+    flexDirection: "row", gap: 8, alignItems: "center",
   },
-  findNearbyBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  mapPill: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28, shadowRadius: 7, elevation: 9,
+  },
+  mapPillTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   recenterBtn: {
     position: "absolute", left: 16,
     flexDirection: "row", alignItems: "center", gap: 6,
@@ -1014,14 +1053,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 6, elevation: 6,
   },
   recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
-  reportBtn: {
-    position: "absolute", left: 16,
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 28,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
-  },
-  reportBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  // Legacy refs kept to avoid TS errors on any surviving references
+  findNearbyBtn: { flexDirection: "row" as const },
+  findNearbyBtnText: { fontSize: 13, color: "#FFF" },
+  reportBtn:     { flexDirection: "row" as const },
+  reportBtnText: { fontSize: 14 },
   clusterWrap: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   clusterGrid: { width: 36, height: 36, flexWrap: "wrap", flexDirection: "row", gap: 2, borderRadius: 10, overflow: "hidden" },
   clusterCell: { width: 16, height: 16, alignItems: "center", justifyContent: "center", borderRadius: 4 },

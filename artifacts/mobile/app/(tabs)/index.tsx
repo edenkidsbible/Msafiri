@@ -186,6 +186,20 @@ export default function DriveScreen() {
   const [mapDrifted, setMapDrifted] = useState(false);
   const [navBarHeight, setNavBarHeight] = useState(0);
 
+  // Kenya-red heartbeat on the Report button — draws the eye without being
+  // distracting; runs continuously so it's always visible when relevant.
+  const reportPulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(reportPulseAnim, { toValue: 1.07, duration: 750, useNativeDriver: true }),
+        Animated.timing(reportPulseAnim, { toValue: 1.0,  duration: 750, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reportPulseAnim]);
+
   // overviewMode removed — the map is always freely pannable during navigation.
   // mapDrifted tracks whether the driver has panned away from their GPS position;
   // the Recenter button appears when drifted and snaps back on tap.
@@ -857,7 +871,9 @@ export default function DriveScreen() {
             // During navigation the nav bar (~390 px) is much taller than
             // bottomBase + 80, so use the measured navBarHeight instead of
             // the old fixed offset that buried the button inside the bar.
-            bottom: (navBarHeight > 0 ? navBarHeight : bottomBase + speedStripHeight) + 14,
+            // During nav: clear the Kenyan action row (≈38 px tall at bottom: navBarHeight+8)
+          // so Recenter sits visibly above it. Outside nav: sits above speed strip.
+          bottom: (navBarHeight > 0 ? navBarHeight + 54 : bottomBase + speedStripHeight) + 14,
             left: 16,
           }]}
           onPress={() => {
@@ -872,37 +888,30 @@ export default function DriveScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Right-side FABs: Find Nearby + Report Incident — always visible (not just during navigation) */}
-      {!showResults && (
-        <View style={[styles.navFabCol, {
-          // During navigation these sit below the nav card; outside navigation
-          // they sit below the 3 utility FABs (locate/traffic/night) which stack
-          // ~158 px from topInset+72, so topInset+240 clears them cleanly.
-          top: navigationActive ? topInset + 118 : topInset + 240,
-          right: 12,
-        }]}>
-          {/* Find Nearby */}
+      {/* ── During-navigation Kenyan-colors action row ──────────────────────
+          Floats just above the nav bar. Find Nearby (black) + Report (red, pulsing).
+          Replaces the old top-right vertical FAB column. */}
+      {!showResults && navigationActive && (
+        <View style={[styles.driveNavActionRow, { bottom: navBarHeight + 8 }]}>
           <TouchableOpacity
-            style={[styles.navReportBtn, { backgroundColor: "#37474F" }]}
+            style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="search" size={14} color="#FFF" />
-            <Text style={styles.navReportTxt}>Find Nearby</Text>
+            <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
           </TouchableOpacity>
 
-          {/* Report incident — only during navigation; the orange reportBar
-              covers this in normal (non-nav) mode to avoid a duplicate */}
-          {navigationActive && (
+          <Animated.View style={{ transform: [{ scale: reportPulseAnim }] }}>
             <TouchableOpacity
-              style={styles.navReportBtn}
+              style={[styles.driveActionPill, { backgroundColor: "#CE1126" }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-              activeOpacity={0.85}
+              activeOpacity={0.82}
             >
               <Ionicons name="camera" size={14} color="#FFF" />
-              <Text style={styles.navReportTxt}>Report Incident</Text>
+              <Text style={styles.driveActionPillTxt}>Report</Text>
             </TouchableOpacity>
-          )}
+          </Animated.View>
         </View>
       )}
 
@@ -1007,53 +1016,61 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM: Prominent Report button (below speed strip, above tab bar)
-      ══════════════════════════════════════════════════════════════════ */}
+      {/* ── Pre-navigation Kenyan-colors action row ──────────────────────────
+          Sits above the speed strip when there is no active route or nav.
+          Share Location (green when live) · Find Nearby (black) · Report (red, pulsing).
+          Replaces the old separate reportBar + idleShareBtn + Find Nearby FAB. */}
       {!isMapMode && !showResults && (
-        <TouchableOpacity
-          style={[styles.reportBar, { bottom: bottomBase + 8 + speedStripHeight + 8, right: 16 }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-          activeOpacity={0.82}
-        >
-          <Ionicons name="camera" size={16} color="#FFF" />
-          <Text style={styles.reportBarTxt}>Report Incident</Text>
-        </TouchableOpacity>
-      )}
+        <View style={[styles.driveNavActionRow, { bottom: bottomBase + 8 + speedStripHeight + 8 }]}>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM-LEFT: Share Trip button — visible whenever not navigating
-          (mirrors the nav-bar share button for freeform "track me" sessions)
-      ══════════════════════════════════════════════════════════════════ */}
-      {!isMapMode && !showResults && (
-        <TouchableOpacity
-          style={[
-            styles.idleShareBtn,
-            {
-              bottom: bottomBase + 8 + speedStripHeight + 8,
-              left: 16,
-              backgroundColor: isSharingTrip ? "#00C853" : fabBg,
-            },
-          ]}
-          onPress={handleSharePress}
-          disabled={sharingLoading}
-          activeOpacity={0.85}
-        >
-          {sharingLoading ? (
-            <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
-          ) : (
-            <>
-              <Ionicons
-                name={isSharingTrip ? "radio" : "share-social-outline"}
-                size={14}
-                color={isSharingTrip ? "#fff" : fgMuted}
-              />
-              <Text style={[styles.idleShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]}>
-                {isSharingTrip ? "● Sharing" : "Share Location"}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+          {/* Share Location — Kenya green when actively sharing */}
+          <TouchableOpacity
+            style={[styles.driveActionPill, {
+              backgroundColor: isSharingTrip ? "#006600" : fabBg,
+            }]}
+            onPress={handleSharePress}
+            disabled={sharingLoading}
+            activeOpacity={0.85}
+          >
+            {sharingLoading ? (
+              <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
+            ) : (
+              <>
+                <Ionicons
+                  name={isSharingTrip ? "radio" : "share-social-outline"}
+                  size={14}
+                  color={isSharingTrip ? "#FFF" : fgMuted}
+                />
+                <Text style={[styles.driveActionPillTxt, { color: isSharingTrip ? "#FFF" : fgMuted }]} numberOfLines={1}>
+                  {isSharingTrip ? "● Sharing" : "Share"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Find Nearby — Kenya black */}
+          <TouchableOpacity
+            style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="search" size={14} color="#FFF" />
+            <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
+          </TouchableOpacity>
+
+          {/* Report — Kenya red with pulse */}
+          <Animated.View style={{ transform: [{ scale: reportPulseAnim }] }}>
+            <TouchableOpacity
+              style={[styles.driveActionPill, { backgroundColor: "#CE1126" }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="camera" size={14} color="#FFF" />
+              <Text style={styles.driveActionPillTxt}>Report</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+        </View>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -1900,7 +1917,21 @@ const styles = StyleSheet.create({
   },
   navReportTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
 
-  // ── Nav-mode right-side FAB column (search + report) ────────────────────
+  // ── Kenyan-colors bottom action row (replaces old vertical FAB column) ───
+  // Used for both the pre-nav row (above speed strip) and the nav row (above nav bar).
+  driveNavActionRow: {
+    position: "absolute", left: 12, zIndex: 14,
+    flexDirection: "row", alignItems: "center", gap: 8,
+  },
+  driveActionPill: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28, shadowRadius: 7, elevation: 9,
+  },
+  driveActionPillTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  // ── Nav-mode right-side FAB column (legacy — kept to avoid TS errors) ────
   navFabCol: {
     position: "absolute", zIndex: 14,
     alignItems: "flex-end", gap: 8,
