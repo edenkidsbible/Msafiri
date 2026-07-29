@@ -285,31 +285,20 @@ export default function DriveScreen() {
       const link = await startSharingTrip();
       if (link) {
         const trimmed = name.trim();
+        // Use a link-only message so no static ETA can go stale if traffic
+        // refreshes mid-trip. Recipients see live ETA on the tracker page.
         const namePrefix = trimmed
-          ? `${trimmed} is sharing their live ETA 📍`
+          ? `${trimmed} is sharing their live trip 📍`
           : "Follow my live trip 📍";
-        // Build an ETA suffix when navigation is active and we have duration data.
-        let etaSuffix = "";
-        if (durationRemainingS != null && durationRemainingS > 0) {
-          const arrive = new Date(Date.now() + durationRemainingS * 1000);
-          const hh = arrive.getHours();
-          const mm = arrive.getMinutes().toString().padStart(2, "0");
-          const minLeft = Math.round(durationRemainingS / 60);
-          etaSuffix = `\nETA: ${hh}:${mm} (${minLeft} min away)`;
-          if (distanceRemainingM != null) {
-            const km = (distanceRemainingM / 1000).toFixed(1);
-            etaSuffix += `, ${km} km remaining`;
-          }
-        }
         await Share.share({
-          message: `${namePrefix}${etaSuffix}\n${link}`,
+          message: `${namePrefix}\nTap the link for real-time ETA and location:\n${link}`,
           title: "Track my trip — Msafiri Kenya",
         });
       }
     } finally {
       setSharingLoading(false);
     }
-  }, [startSharingTrip, durationRemainingS, distanceRemainingM]);
+  }, [startSharingTrip]);
 
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
