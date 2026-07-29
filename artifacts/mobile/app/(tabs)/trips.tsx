@@ -22,7 +22,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
-import { loadRecentSearches, saveRecentSearch } from "@/utils/recentSearches";
+import { loadRecentSearches, saveRecentSearch, removeRecentSearch } from "@/utils/recentSearches";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import TripCard from "@/components/TripCard";
 import RouteCheckModal from "@/components/RouteCheckModal";
@@ -815,19 +815,29 @@ export default function TripsScreen() {
                     <View style={[styles.resultsBox, { borderColor: c.border }]}>
                       <Text style={[styles.recentsLabel, { color: c.mutedForeground }]}>Recent</Text>
                       {recentSearches.map((r, idx) => (
-                        <TouchableOpacity
+                        <View
                           key={`recent-place-${idx}`}
-                          style={styles.resultRow}
-                          onPress={() => {
-                            setPlaceSelected(r);
-                            setPlaceSearch(r.short);
-                            setPlaceResults([]);
-                            Keyboard.dismiss();
-                          }}
+                          style={[styles.resultRow, { alignItems: "center" }]}
                         >
-                          <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
-                          <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
-                        </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}
+                            onPress={() => {
+                              setPlaceSelected(r);
+                              setPlaceSearch(r.short);
+                              setPlaceResults([]);
+                              Keyboard.dismiss();
+                            }}
+                          >
+                            <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
+                            <Text style={[styles.resultText, { color: c.foreground, flex: 1 }]} numberOfLines={1}>{r.display}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => removeRecentSearch(r).then(setRecentSearches)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Ionicons name="close-circle" size={17} color={c.mutedForeground} />
+                          </TouchableOpacity>
+                        </View>
                       ))}
                     </View>
                   )}
@@ -957,18 +967,28 @@ export default function TripsScreen() {
                 <View style={[styles.resultsBox, { borderColor: c.border, marginTop: 8 }]}>
                   <Text style={[styles.recentsLabel, { color: c.mutedForeground }]}>Recent</Text>
                   {recentSearches.map((r, idx) => (
-                    <TouchableOpacity
+                    <View
                       key={`recent-trip-${idx}`}
-                      style={styles.resultRow}
-                      onPress={() => {
-                        setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
-                        setTripSearch(r.short);
-                        Keyboard.dismiss();
-                      }}
+                      style={[styles.resultRow, { alignItems: "center" }]}
                     >
-                      <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
-                      <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}
+                        onPress={() => {
+                          setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
+                          setTripSearch(r.short);
+                          Keyboard.dismiss();
+                        }}
+                      >
+                        <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
+                        <Text style={[styles.resultText, { color: c.foreground, flex: 1 }]} numberOfLines={1}>{r.display}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => removeRecentSearch(r).then(setRecentSearches)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close-circle" size={17} color={c.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               )}
