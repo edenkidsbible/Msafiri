@@ -883,6 +883,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const divergenceRoutesRef  = useRef<AppRoute[]>([]);
   /** Guard: true while a divergence fetch is in-flight to prevent concurrent calls. */
   const divergenceFetchingRef = useRef(false);
+  /** Timestamp (ms) of the last completed divergence fetch — used by the reroute
+   *  callback to decide whether the cached routes are still fresh enough to reuse. */
+  const divergenceFetchedAtRef = useRef<number>(0);
   const [navigationActive, setNavigationActive] = useState(false);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [distToNextM, setDistToNextM] = useState<number | null>(null);
@@ -2071,6 +2074,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 if (alts.length > 0 && navActiveRef.current) {
                   setDivergenceRoutes(alts);
                   divergenceRoutesRef.current = alts;
+                  divergenceFetchedAtRef.current = Date.now();
                 }
               })
               .catch(() => {})
@@ -2318,6 +2322,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const dest = navDestRef.current;
       isReroutingRef.current = true;
       setRouteLoading(true);
+
+      // ── Divergence-cache fast path ─────────────────────────────────────────
+      // The divergence-preview fetch (triggered on the 1st bad GPS fix) already
+      // called fetchGoogleRoute from nearly the same position to the same
+      // destination.  If that result is ≤10 s old, reuse it directly and skip
+      // the redundant network round-trip that would otherwise follow on the 2nd
+      // bad fix.  If the cache is stale or empty, fall through to a fresh fetch.
+      const _cachedRoutes = divergenceRoutesRef.current;
+      const _cacheAge     = Date.now() - divergenceFetchedAtRef.current;
+      if (_cachedRoutes.length > 0 && _cacheAge <= 10_000) {
+        const [primary, ...alts] = _cachedRoutes;
+        setActiveRoute(primary);
+        routeRef.current = primary;
+        stepIdxRef.current = 0;
+        setCurrentStepIdx(0);
+        routeProjIdxRef.current = 0;
+        routeMaxDistMRef.current = 0;
+        announcedReportsRef.current = new Set(
+          communityReportsRef.current
+            .filter((r) => r.isOwn && announcedReportsRef.current.has(r.id))
+            .map((r) => r.id)
+        );
+        lastSpokenRef.current = "";
+        approachingAnnouncedRef.current = false;
+        setDivergenceRoutes([]);
+        divergenceRoutesRef.current = [];
+        setAltRoutes(alts);
+        const _vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+        setZonesOnRoute(
+          getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
+            ...z, speedLimit: capSpeedLimit(z.speedLimit, _vehicle),
+          }))
+        );
+        rerouteSettledUntilRef.current = Date.now() + 5_000;
+        const _firstActionable = primary.steps.find(
+          (s) => s.distanceM > 0 && s.maneuverType !== "arrive"
+        ) ?? primary.steps[0];
+        if (_firstActionable?.instruction) {
+          const dM = _firstActionable.distanceM;
+          const distPrefix =
+            dM >= 350 ? "In 350 metres, " :
+            dM >= 250 ? "In 300 metres, " :
+            dM >= 150 ? "In 200 metres, " :
+            dM >= 80  ? "In 100 metres, " : "";
+          speakText(distPrefix + _firstActionable.instruction);
+          lastAnnounceCueAtRef.current = Date.now();
+          lastSpokenRef.current = "step_0";
+        }
+        setRouteLoading(false);
+        isReroutingRef.current = false;
+        return;
+      }
+
       fetchGoogleRoute(lat, lng, dest.lat, dest.lng)
         .then((routes) => {
           if (!routes.length) return;
