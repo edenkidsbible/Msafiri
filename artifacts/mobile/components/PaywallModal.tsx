@@ -170,6 +170,18 @@ export function PaywallModal({ visible, onClose }: Props) {
           {/* Plan picker */}
           {offeringsLoading ? (
             <ActivityIndicator color={c.primary} style={{ marginVertical: 24 }} />
+          ) : !monthlyPkg && !weeklyPkg ? (
+            // Offerings loaded but App Store hasn't made the products available yet
+            // (common right after a new app is approved — IAPs go through separate review)
+            <View style={[styles.plansComingSoon, { borderColor: c.border, backgroundColor: c.card }]}>
+              <Ionicons name="time-outline" size={28} color={c.mutedForeground} />
+              <Text style={[styles.plansComingSoonTitle, { color: c.foreground }]}>
+                Plans coming soon
+              </Text>
+              <Text style={[styles.plansComingSoonSub, { color: c.mutedForeground }]}>
+                Subscription plans are being finalised in the App Store. Please check back in a few minutes.
+              </Text>
+            </View>
           ) : (
             <View style={styles.plans}>
               {/* Monthly — shown first as recommended */}
@@ -408,6 +420,12 @@ const styles = StyleSheet.create({
   featureRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   featureIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   featureLabel: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+
+  plansComingSoon: {
+    borderRadius: 16, borderWidth: 1, padding: 20, alignItems: "center", gap: 10, marginBottom: 16,
+  },
+  plansComingSoonTitle: { fontSize: 16, fontFamily: "Inter_700Bold", textAlign: "center" },
+  plansComingSoonSub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
 
   plans: { gap: 12, marginBottom: 16 },
   planCard: {

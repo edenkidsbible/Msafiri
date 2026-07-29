@@ -385,7 +385,8 @@ export default function PaywallScreen() {
         {/* Plan picker */}
         {offeringsLoading ? (
           <ActivityIndicator color={c.primary} style={{ marginVertical: 28 }} />
-        ) : offeringsError || (!monthlyPkg && !weeklyPkg) ? (
+        ) : offeringsError ? (
+          // Genuine network / RevenueCat API failure
           <View style={[styles.offeringsError, { borderColor: c.border, backgroundColor: c.card }]}>
             <Ionicons name="cloud-offline-outline" size={28} color={c.mutedForeground} />
             <Text style={[styles.offeringsErrorTitle, { color: c.foreground }]}>
@@ -393,6 +394,26 @@ export default function PaywallScreen() {
             </Text>
             <Text style={[styles.offeringsErrorSub, { color: c.mutedForeground }]}>
               Check your connection and try again.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { borderColor: c.primary }]}
+              onPress={() => refetchOfferings()}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="refresh" size={15} color={c.primary} />
+              <Text style={[styles.retryTxt, { color: c.primary }]}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !monthlyPkg && !weeklyPkg ? (
+          // Offerings loaded but App Store hasn't made the products available yet
+          // (common right after a new app is approved — IAPs go through separate review)
+          <View style={[styles.offeringsError, { borderColor: c.border, backgroundColor: c.card }]}>
+            <Ionicons name="time-outline" size={28} color={c.mutedForeground} />
+            <Text style={[styles.offeringsErrorTitle, { color: c.foreground }]}>
+              Plans coming soon
+            </Text>
+            <Text style={[styles.offeringsErrorSub, { color: c.mutedForeground }]}>
+              Subscription plans are being finalised in the App Store. Please check back in a few minutes.
             </Text>
             <TouchableOpacity
               style={[styles.retryBtn, { borderColor: c.primary }]}
