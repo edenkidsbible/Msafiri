@@ -456,7 +456,11 @@ function buildInstruction(maneuver: { type?: string; modifier?: string; exit?: n
 
 async function fetchGoogleRoute(
   fromLat: number, fromLng: number,
-  toLat: number, toLng: number
+  toLat: number, toLng: number,
+  /** Driver bearing (0–359°). When provided the server snaps the origin to
+   *  the correct carriageway on divided roads and avoids routing backward.
+   *  Pass null / omit for cold-start or GPS-unavailable situations. */
+  heading?: number | null,
 ): Promise<AppRoute[]> {
   type ServerStep = {
     instruction: string;
@@ -477,8 +481,9 @@ async function fetchGoogleRoute(
     steps: ServerStep[];
   };
 
+  const headingParam = heading != null ? `&heading=${Math.round(heading)}` : "";
   const data = await apiGet<{ routes: ServerRoute[] }>(
-    `/routing/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`,
+    `/routing/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}${headingParam}`,
     15000
   );
   if (!data.routes?.length) return [];
@@ -2068,7 +2073,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (driverHeading == null || angleDiffDeg(driverHeading, destBearing) <= 120) {
             const _dest = navDestRef.current;
             divergenceFetchingRef.current = true;
-            fetchGoogleRoute(lat, lng, _dest.lat, _dest.lng)
+            fetchGoogleRoute(lat, lng, _dest.lat, _dest.lng, driverHeading)
               .then((routes) => {
                 const alts = routes.slice(0, 2);
                 if (alts.length > 0 && navActiveRef.current) {
@@ -2295,7 +2300,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     routeProjIdxRef.current = 0;
     routeMaxDistMRef.current = 0;
 
-    fetchGoogleRoute(currentLat, currentLng, navDestination.lat, navDestination.lng)
+    fetchGoogleRoute(currentLat, currentLng, navDestination.lat, navDestination.lng, lastHeadingRef.current)
       .then((routes) => {
         if (cancelled || !routes.length) return;
         const [primary, ...alts] = routes;
@@ -2375,7 +2380,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      fetchGoogleRoute(lat, lng, dest.lat, dest.lng)
+      fetchGoogleRoute(lat, lng, dest.lat, dest.lng, lastHeadingRef.current)
         .then((routes) => {
           if (!routes.length) return;
           const [primary, ...alts] = routes;
@@ -2745,7 +2750,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const lat = currentLatRef.current;
     const lng = currentLngRef.current;
     if (lat == null || lng == null) return null;
-    const routes = await fetchGoogleRoute(lat, lng, destLat, destLng);
+    const routes = await fetchGoogleRoute(lat, lng, destLat, destLng, lastHeadingRef.current);
     if (!routes.length) return null;
     const route = routes[0];
     const cumDist = buildCumulativeDistances(route.coords);
@@ -2852,7 +2857,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (b.remainingS != null && b.remainingS < TRAFFIC_REFRESH_THR_S) return;
 
       try {
-        const routes = await fetchGoogleRoute(b.lat, b.lng, b.dest.lat, b.dest.lng);
+        const routes = await fetchGoogleRoute(b.lat, b.lng, b.dest.lat, b.dest.lng, lastHeadingRef.current);
         if (!routes.length) return;
 
         // routes[0].durationS is the REMAINING time from current position, not

@@ -149,11 +149,20 @@ function parseCoord(v: unknown): number | null {
 const router = Router();
 
 /**
- * GET /routing/route?fromLat=&fromLng=&toLat=&toLng=
+ * GET /routing/route?fromLat=&fromLng=&toLat=&toLng=[&heading=]
  *
  * Proxies a driving route request to the Google Routes API and returns a
  * normalised response the mobile app can consume directly.  The Google API
  * key never leaves the server.
+ *
+ * Dual-carriageway snapping (Kenya drives on the left):
+ *  • `heading` (optional, 0–359°) — added to the origin so Google snaps the
+ *    start point to the correct carriageway and avoids routing backward against
+ *    the direction of travel.  Omit for cold-start / GPS-unavailable cases.
+ *  • `sideOfRoad: true` on the destination — asks Google to snap the arrival
+ *    point to the carriageway the driver approaches from, preventing "turn
+ *    around and enter from the other side" instructions on divided roads such
+ *    as the Eastern Bypass or Thika Superhighway.
  */
 router.get("/routing/route", async (req, res) => {
   const fromLat = parseCoord(req.query.fromLat);
@@ -164,6 +173,12 @@ router.get("/routing/route", async (req, res) => {
     res.status(400).json({ error: "Invalid query params" });
     return;
   }
+
+  // Optional driver heading — used to snap to the correct carriageway.
+  const rawHeading = Number(req.query.heading);
+  const heading    = isFinite(rawHeading) && req.query.heading !== undefined
+    ? Math.round(rawHeading) % 360
+    : null;
 
   const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
   if (!apiKey) {
@@ -183,9 +198,20 @@ router.get("/routing/route", async (req, res) => {
     "routes.legs.steps.polyline",
   ].join(",");
 
+  // Build origin — include heading when available so Google snaps to the
+  // correct carriageway on divided roads instead of assuming the driver could
+  // be on either side.
+  const origin: Record<string, unknown> = {
+    location: { latLng: { latitude: fromLat, longitude: fromLng } },
+  };
+  if (heading !== null) origin.heading = heading;
+
   const body = {
-    origin:      { location: { latLng: { latitude: fromLat, longitude: fromLng } } },
-    destination: { location: { latLng: { latitude: toLat,   longitude: toLng   } } },
+    origin,
+    // sideOfRoad: true snaps the destination to the same-side carriageway the
+    // driver approaches from, preventing "U-turn and enter from the other side"
+    // arrival instructions on divided roads.
+    destination: { location: { latLng: { latitude: toLat, longitude: toLng } }, sideOfRoad: true },
     travelMode: "DRIVE",
     computeAlternativeRoutes: true,
     routingPreference: "TRAFFIC_AWARE",
