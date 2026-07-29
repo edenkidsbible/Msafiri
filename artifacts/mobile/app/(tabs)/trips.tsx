@@ -25,6 +25,7 @@ import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import TripCard from "@/components/TripCard";
 import RouteCheckModal from "@/components/RouteCheckModal";
+import { SavedPlaceMapPicker } from "@/components/SavedPlaceMapPicker";
 import BackgroundLocationDisclosureModal, {
   BG_LOCATION_DISCLOSED_KEY,
 } from "@/components/BackgroundLocationDisclosureModal";
@@ -70,7 +71,7 @@ export default function TripsScreen() {
   const {
     deviceId, tripHistory, clearTripHistory, currentTrip,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip, navigationActive,
-    driverName,
+    driverName, currentLat, currentLng,
   } = useApp();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
@@ -92,6 +93,7 @@ export default function TripsScreen() {
   const [placeSearching, setPlaceSearching] = useState(false);
   const [placeSelected, setPlaceSelected] = useState<GeoResult | null>(null);
   const [placeSaving, setPlaceSaving] = useState(false);
+  const [placeLocMode, setPlaceLocMode] = useState<"search" | "map">("search");
   const placeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Plan-a-trip modal
@@ -186,6 +188,7 @@ export default function TripsScreen() {
     setPlaceSearch("");
     setPlaceResults([]);
     setPlaceSelected(null);
+    setPlaceLocMode("search");
     setPlaceModal(true);
   };
 
@@ -196,6 +199,7 @@ export default function TripsScreen() {
     setPlaceSearch(p.address ?? "");
     setPlaceResults([]);
     setPlaceSelected({ display: p.address ?? p.label, short: p.label, lat: p.lat, lng: p.lng });
+    setPlaceLocMode("search");
     setPlaceModal(true);
   };
 
@@ -755,34 +759,97 @@ export default function TripsScreen() {
                 ))}
               </View>
 
-              <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginTop: 14 }]}>Location</Text>
-              <TextInput
-                style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background }]}
-                placeholder="Search for an address…"
-                placeholderTextColor={c.mutedForeground}
-                value={placeSearch}
-                onChangeText={handlePlaceSearchChange}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-              {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
-              {!placeSelected && placeResults.length > 0 && (
-                <View style={[styles.resultsBox, { borderColor: c.border }]}>
-                  {placeResults.map((r, idx) => (
+              <View style={styles.locModeHeader}>
+                <Text style={[styles.fieldLabel, { color: c.mutedForeground, marginBottom: 0 }]}>Location</Text>
+                {Platform.OS !== "web" && (
+                  <View style={[styles.locModeToggle, { backgroundColor: c.muted }]}>
                     <TouchableOpacity
-                      key={`${r.lat}-${r.lng}-${idx}`}
-                      style={styles.resultRow}
-                      onPress={() => {
-                        setPlaceSelected(r);
-                        setPlaceSearch(r.short);
-                        setPlaceResults([]);
-                        Keyboard.dismiss();
-                      }}
+                      style={[styles.locModeBtn, placeLocMode === "search" && { backgroundColor: c.card }]}
+                      onPress={() => setPlaceLocMode("search")}
                     >
-                      <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
-                      <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                      <Ionicons name="search" size={12} color={placeLocMode === "search" ? c.primary : c.mutedForeground} />
+                      <Text style={[styles.locModeBtnText, { color: placeLocMode === "search" ? c.primary : c.mutedForeground }]}>
+                        Search
+                      </Text>
                     </TouchableOpacity>
-                  ))}
+                    <TouchableOpacity
+                      style={[styles.locModeBtn, placeLocMode === "map" && { backgroundColor: c.card }]}
+                      onPress={() => setPlaceLocMode("map")}
+                    >
+                      <Ionicons name="map" size={12} color={placeLocMode === "map" ? c.primary : c.mutedForeground} />
+                      <Text style={[styles.locModeBtnText, { color: placeLocMode === "map" ? c.primary : c.mutedForeground }]}>
+                        Map
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              {/* ── Search mode ── */}
+              {placeLocMode === "search" && (
+                <>
+                  <TextInput
+                    style={[styles.input, { color: c.foreground, borderColor: c.border, backgroundColor: c.background, marginTop: 6 }]}
+                    placeholder="Search for an address…"
+                    placeholderTextColor={c.mutedForeground}
+                    value={placeSearch}
+                    onChangeText={handlePlaceSearchChange}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
+                  {!placeSelected && placeResults.length > 0 && (
+                    <View style={[styles.resultsBox, { borderColor: c.border }]}>
+                      {placeResults.map((r, idx) => (
+                        <TouchableOpacity
+                          key={`${r.lat}-${r.lng}-${idx}`}
+                          style={styles.resultRow}
+                          onPress={() => {
+                            setPlaceSelected(r);
+                            setPlaceSearch(r.short);
+                            setPlaceResults([]);
+                            Keyboard.dismiss();
+                          }}
+                        >
+                          <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
+                          <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  {placeSelected && (
+                    <View style={[styles.selectedRow, { backgroundColor: c.primary + "10", borderColor: c.primary + "33" }]}>
+                      <Ionicons name="checkmark-circle" size={15} color={c.primary} />
+                      <Text style={[styles.selectedText, { color: c.foreground }]} numberOfLines={1}>
+                        {placeSelected.short}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* ── Map mode (native only) ── */}
+              {placeLocMode === "map" && Platform.OS !== "web" && (
+                <View style={{ marginTop: 6 }}>
+                  <SavedPlaceMapPicker
+                    key={`place-map-${placeModal}`}
+                    initialLat={placeSelected?.lat ?? currentLat ?? -1.2921}
+                    initialLng={placeSelected?.lng ?? currentLng ?? 36.8219}
+                    mapHeight={240}
+                    onLocationChange={(lat, lng, address) => {
+                      const label = address ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                      setPlaceSelected({ display: label, short: label, lat, lng });
+                      setPlaceSearch(label);
+                    }}
+                  />
+                  {placeSelected && (
+                    <View style={[styles.selectedRow, { backgroundColor: c.primary + "10", borderColor: c.primary + "33", marginTop: 8 }]}>
+                      <Ionicons name="checkmark-circle" size={15} color={c.primary} />
+                      <Text style={[styles.selectedText, { color: c.foreground }]} numberOfLines={1}>
+                        {placeSelected.short}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -1042,6 +1109,21 @@ const styles = StyleSheet.create({
   resultsBox: { borderWidth: 1, borderRadius: 12, marginTop: 8, overflow: "hidden" },
   resultRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   resultText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  selectedRow: {
+    flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 7, marginTop: 6,
+  },
+  selectedText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  locModeHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    marginTop: 14, marginBottom: 0,
+  },
+  locModeToggle: { flexDirection: "row", borderRadius: 10, padding: 2 },
+  locModeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+  },
+  locModeBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   savedPickRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   dateRow: { flexDirection: "row", gap: 10 },
   dateBtn: {
