@@ -1944,8 +1944,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // skip the ANNOUNCE cue entirely and advance lastSpokenRef to `key` so
           // that the REMIND and NOW cues still fire normally on the next ticks.
           if (dist < remindM) {
-            // Already past the ANNOUNCE window — silently mark it done.
-            lastSpokenRef.current = key;
+            // Already past the ANNOUNCE window.
+            // If we are ALSO inside the NOW bubble (dist < nowM), skip REMIND
+            // too — advancing to nearKey means only the NOW cue fires on the
+            // next tick.  Without this, a post-reroute step with <nowM left
+            // would fire REMIND immediately followed by NOW ~1 s later,
+            // producing double-speak on very short first steps.
+            lastSpokenRef.current = dist < nowM ? nearKey : key;
           } else {
             lastAnnounceCueAtRef.current = Date.now();
             lastSpokenRef.current = key;
