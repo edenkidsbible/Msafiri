@@ -2997,6 +2997,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
+    // Reset announced reports so a new trip over the same road re-announces them.
+    announcedReportsRef.current = new Set();
     setRouteIncidentsExpanded(false);
     // Stop any active trip-sharing session when navigation ends
     if (sharePingIntervalRef.current) {
