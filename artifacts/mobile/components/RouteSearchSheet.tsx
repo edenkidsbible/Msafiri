@@ -280,6 +280,11 @@ function formatDistAhead(m: number): string {
   return `${(m / 1000).toFixed(1)} km ahead`;
 }
 
+function formatDistNearby(m: number): string {
+  if (m < 1000) return `${Math.round(m / 50) * 50 || 50} m away`;
+  return `${(m / 1000).toFixed(1)} km away`;
+}
+
 function etaMin(distM: number, speedKmh: number): number {
   return Math.round((distM / 1000) / Math.max(speedKmh, 30) * 60);
 }
@@ -321,7 +326,8 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
   const isDark = c.isDark;
 
   const runSearch = useCallback(async (q: string, forceCat?: QueryCategory) => {
-    if (!activeRoute || currentLat == null || currentLng == null) return;
+    // Require location; a route is optional — without one we search by proximity.
+    if (currentLat == null || currentLng == null) return;
 
     const cat = forceCat ?? resolveCategory(q);
     if (!cat) {
@@ -335,10 +341,15 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
     setSearched(false);
 
     try {
-      // Radius = 40% of remaining route length, min 8 km, max 35 km.
-      // This keeps queries fast while covering a useful stretch ahead.
-      const routeLen = routeTotalLengthM(activeRoute.coords);
-      const radiusM  = Math.min(Math.max(routeLen * 0.4, 8_000), 35_000);
+      let radiusM: number;
+      if (activeRoute) {
+        // Route active: 40% of remaining route length, min 8 km, max 35 km.
+        const routeLen = routeTotalLengthM(activeRoute.coords);
+        radiusM = Math.min(Math.max(routeLen * 0.4, 8_000), 35_000);
+      } else {
+        // No active route: 5 km proximity search around current location.
+        radiusM = 5_000;
+      }
 
       const elements = await queryOverpass(cat, currentLat, currentLng, radiusM);
       const catDef = CATEGORIES[cat];
@@ -356,8 +367,15 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
           tags["addr:city"] || tags["addr:suburb"],
         ].filter(Boolean).join(", ");
 
-        const distAheadM = projectAhead(activeRoute.coords, currentLat, currentLng, lat, lng);
-        if (distAheadM < -500) continue; // more than 500 m behind — skip
+        let distAheadM: number;
+        if (activeRoute) {
+          // Project onto route polyline — negative means behind the driver.
+          distAheadM = projectAhead(activeRoute.coords, currentLat, currentLng, lat, lng);
+          if (distAheadM < -500) continue; // skip if >500 m behind
+        } else {
+          // No route — straight-line distance from current location.
+          distAheadM = hav(currentLat, currentLng, lat, lng);
+        }
 
         found.push({
           id: el.id,
@@ -429,7 +447,9 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
           {/* Header */}
           <View style={styles.header}>
             <Ionicons name="search" size={18} color={c.mutedForeground} />
-            <Text style={[styles.headerTitle, { color: c.foreground }]}>Search Along Route</Text>
+            <Text style={[styles.headerTitle, { color: c.foreground }]}>
+              {activeRoute ? "Search Along Route" : "Find Nearby"}
+            </Text>
             <TouchableOpacity onPress={handleClose} hitSlop={10}>
               <Ionicons name="close" size={20} color={c.mutedForeground} />
             </TouchableOpacity>
@@ -506,7 +526,7 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
             <View style={styles.emptyState}>
               <Ionicons name="locate-outline" size={28} color={c.mutedForeground} />
               <Text style={[styles.emptyTxt, { color: c.mutedForeground }]}>
-                Nothing found along this route.
+                {activeRoute ? "Nothing found along this route." : "Nothing found nearby."}
               </Text>
             </View>
           )}
@@ -553,7 +573,7 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
                     {/* Distance + Go */}
                     <View style={styles.cardRight}>
                       <Text style={[styles.cardDist, { color: item.subtypeColor }]}>
-                        {formatDistAhead(dist)}
+                        {activeRoute ? formatDistAhead(dist) : formatDistNearby(dist)}
                       </Text>
                       {speedKmh > 5 && (
                         <Text style={[styles.cardEta, { color: c.mutedForeground }]}>

@@ -69,7 +69,7 @@ const TAB_META: Record<
     sfSelected: "map.fill",
   },
   browse: {
-    label: "Browse",
+    label: "Learn",
     feather: "compass",
     sfDefault: "location",
     sfSelected: "location.fill",
