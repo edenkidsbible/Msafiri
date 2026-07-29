@@ -99,6 +99,14 @@ export interface RouteStep {
   /** Distance from the route start to this step's maneuver point, measured along the polyline.
    *  Used for along-road voice cue timing instead of straight-line haversine. */
   stepAlongRouteM: number;
+  /** Per-step road geometry decoded from the server-supplied step polyline.
+   *  When present, distance-to-maneuver is measured along this sub-polyline
+   *  rather than the overall route projection, giving accurate readings on
+   *  curves and winding roads. */
+  stepCoords?: RouteCoord[];
+  /** Cumulative distances (metres) along stepCoords — parallel array, same length.
+   *  stepCumDist[last] equals the total along-road length of this step. */
+  stepCumDist?: number[];
 }
 
 export interface AppRoute {
@@ -458,6 +466,8 @@ async function fetchGoogleRoute(
     maneuverType: string;
     maneuverModifier: string;
     roadName: string;
+    /** Per-step road geometry returned by the server (decoded from the step polyline). */
+    stepCoords?: RouteCoord[];
   };
   type ServerRoute = {
     index: number;
@@ -482,6 +492,12 @@ async function fetchGoogleRoute(
     const steps: RouteStep[] = r.steps.map((s) => {
       const stepLoc: RouteCoord = { latitude: s.lat, longitude: s.lng };
       const proj = projectOntoRoute(coords, cumDist, stepLoc.latitude, stepLoc.longitude);
+      // Pre-compute cumulative distances along the step's own road geometry so
+      // the GPS handler can measure remaining distance along the actual road
+      // shape, not a straight line between the step's start and end points.
+      const stepCumDist = s.stepCoords?.length
+        ? buildCumulativeDistances(s.stepCoords)
+        : undefined;
       return {
         instruction:     s.instruction,
         distanceM:       s.distanceM,
@@ -489,6 +505,8 @@ async function fetchGoogleRoute(
         maneuverType:    s.maneuverType,
         roadName:        s.roadName,
         stepAlongRouteM: proj?.alongRouteM ?? 0,
+        stepCoords:      s.stepCoords,
+        stepCumDist,
       };
     });
 
@@ -1832,11 +1850,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const isLastStep = idx === steps.length - 1;
 
         // ── Along-route distance to next maneuver ──────────────────────────
-        // Project the driver's GPS fix onto the route polyline and measure
-        // distance-along-the-road to the next maneuver point.  This eliminates
-        // the "signals early on curves" bug that straight-line haversine caused:
-        // a tight bend could read 80 m haversine while 200 m of road remain.
-        // Falls back to haversine when cumDist is unavailable (edge case).
+        // Always keep the overall-route projection up-to-date: it is used by
+        // off-route detection (below) and the remaining-route corridor check
+        // for community-report filtering, both of which need routeProjIdxRef.
         let driverAlongM: number | null = null;
         if (route.cumDist?.length) {
           const prior  = routeProjIdxRef.current;
@@ -1844,12 +1860,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const wEnd   = Math.min(route.coords.length - 1, prior + 40);
           const proj   = projectOntoRoute(route.coords, route.cumDist, lat, lng, wStart, wEnd)
                       ?? projectOntoRoute(route.coords, route.cumDist, lat, lng);
-          if (proj) routeProjIdxRef.current = proj.matchedIdx;
-          driverAlongM = proj?.alongRouteM ?? null;
+          if (proj) {
+            routeProjIdxRef.current = proj.matchedIdx;
+            driverAlongM = proj.alongRouteM;
+          }
         }
-        const dist = driverAlongM != null
-          ? Math.max(0, step.stepAlongRouteM - driverAlongM)
-          : haversine(lat, lng, step.location.latitude, step.location.longitude);
+
+        // Measure remaining distance to the maneuver point along the step's
+        // own road geometry (step-level polyline) when it is available.  This
+        // eliminates the "signals early on curves" bug: the overall-route
+        // projection underestimates on tight bends because it measures the
+        // chord, not the arc.  Fall back to the overall-route projection (or
+        // haversine) when the server didn't supply a step polyline.
+        let dist: number;
+        if (step.stepCoords?.length && step.stepCumDist?.length) {
+          const stepLen = step.stepCumDist[step.stepCumDist.length - 1];
+          const proj    = projectOntoRoute(step.stepCoords, step.stepCumDist, lat, lng);
+          dist = Math.max(0, stepLen - (proj?.alongRouteM ?? 0));
+        } else {
+          dist = driverAlongM != null
+            ? Math.max(0, step.stepAlongRouteM - driverAlongM)
+            : haversine(lat, lng, step.location.latitude, step.location.longitude);
+        }
 
         setDistToNextM(Math.round(dist));
 

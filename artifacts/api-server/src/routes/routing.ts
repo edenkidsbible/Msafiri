@@ -243,6 +243,13 @@ router.get("/routing/route", async (req, res) => {
         const instruction = scrubCodes(rewritten.instruction, loc.latitude, loc.longitude) || "Continue";
         const spokenRoad  = scrubCodes(rewritten.roadName,    loc.latitude, loc.longitude);
 
+        // Decode the per-step polyline so the mobile client can measure
+        // remaining distance along the actual road geometry, not a straight
+        // line between the step's start and end coordinates.
+        const stepCoords = s.polyline?.encodedPolyline
+          ? decodePolyline(s.polyline.encodedPolyline)
+          : undefined;
+
         return {
           instruction,
           distanceM:        s.distanceMeters ?? 0,
@@ -251,6 +258,7 @@ router.get("/routing/route", async (req, res) => {
           maneuverType:     googleManeuverToType(maneuver),
           maneuverModifier: googleManeuverToModifier(maneuver),
           roadName:         spokenRoad,
+          stepCoords,
         };
       });
 
