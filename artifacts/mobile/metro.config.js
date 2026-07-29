@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require("expo/metro-config");
+const { withSentryConfig } = require("@sentry/react-native/metro");
 
 const config = getDefaultConfig(__dirname);
 
@@ -14,4 +15,6 @@ config.transformer.transformIgnorePatterns = [
   "node_modules/(?!(react-native|@react-native(-community)?|react-native-worklets|react-native-reanimated|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-gesture-handler|react-native-screens|react-native-safe-area-context|react-native-maps|react-native-keyboard-controller|@sentry/.*|react-native-purchases)/).*",
 ];
 
-module.exports = config;
+// Wrap with Sentry so every bundle gets an embedded Debug ID that maps it back
+// to the original TypeScript source when source maps are uploaded.
+module.exports = withSentryConfig(config);

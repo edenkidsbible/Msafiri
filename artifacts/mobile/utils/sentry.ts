@@ -24,7 +24,22 @@ const GPS_FIELDS = new Set([
   "heading", "altitude",
 ]);
 
+/** Returns true when the top stack frame originates from Metro HMR machinery. */
+function isHmrNoise(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames?.length) return false;
+  // Frames are ordered innermost-last; the "top" frame is the last one.
+  const top = frames[frames.length - 1];
+  const fn = top?.function ?? "";
+  const file = top?.filename ?? top?.abs_path ?? "";
+  return fn.includes("HMRClient") || file.includes("HMRClient");
+}
+
 function scrubGps(event: ErrorEvent, _hint: unknown): ErrorEvent | null {
+  // Drop Metro HMR noise — these events are dev-only bundle reload errors,
+  // not real application crashes.
+  if (isHmrNoise(event)) return null;
+
   // Strip from contexts (device, runtime, custom contexts)
   if (event.contexts) {
     for (const ctx of Object.values(event.contexts)) {
