@@ -22,6 +22,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import { loadRecentSearches, saveRecentSearch } from "@/utils/recentSearches";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import TripCard from "@/components/TripCard";
 import RouteCheckModal from "@/components/RouteCheckModal";
@@ -108,6 +109,9 @@ export default function TripsScreen() {
   const [tripSaving, setTripSaving] = useState(false);
   const tripTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Shared recent searches (both modals read from / write to same list) ───
+  const [recentSearches, setRecentSearches] = useState<GeoResult[]>([]);
+
   // ── Background-location prominent disclosure ──────────────────────────────
   // Shown once, the first time the driver taps "Start Live Sharing", before
   // the OS background-location runtime prompt fires (required by Google Play
@@ -189,6 +193,7 @@ export default function TripsScreen() {
     setPlaceResults([]);
     setPlaceSelected(null);
     setPlaceLocMode("search");
+    loadRecentSearches().then(setRecentSearches);
     setPlaceModal(true);
   };
 
@@ -304,6 +309,7 @@ export default function TripsScreen() {
     }
     setTripResults([]);
     setTripDate(new Date(Date.now() + 60 * 60 * 1000));
+    loadRecentSearches().then(setRecentSearches);
     setTripModal(true);
   };
 
@@ -798,6 +804,26 @@ export default function TripsScreen() {
                     autoCapitalize="none"
                   />
                   {placeSearching && <ActivityIndicator style={{ marginTop: 8 }} color={c.primary} />}
+                  {!placeSelected && placeSearch.length === 0 && recentSearches.length > 0 && (
+                    <View style={[styles.resultsBox, { borderColor: c.border }]}>
+                      <Text style={[styles.recentsLabel, { color: c.mutedForeground }]}>Recent</Text>
+                      {recentSearches.map((r, idx) => (
+                        <TouchableOpacity
+                          key={`recent-place-${idx}`}
+                          style={styles.resultRow}
+                          onPress={() => {
+                            setPlaceSelected(r);
+                            setPlaceSearch(r.short);
+                            setPlaceResults([]);
+                            Keyboard.dismiss();
+                          }}
+                        >
+                          <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
+                          <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                   {!placeSelected && placeResults.length > 0 && (
                     <View style={[styles.resultsBox, { borderColor: c.border }]}>
                       {placeResults.map((r, idx) => (
@@ -805,6 +831,7 @@ export default function TripsScreen() {
                           key={`${r.lat}-${r.lng}-${idx}`}
                           style={styles.resultRow}
                           onPress={() => {
+                            saveRecentSearch(r).then(setRecentSearches);
                             setPlaceSelected(r);
                             setPlaceSearch(r.short);
                             setPlaceResults([]);
@@ -903,6 +930,7 @@ export default function TripsScreen() {
                       key={`${r.lat}-${r.lng}-${idx}`}
                       style={styles.resultRow}
                       onPress={() => {
+                        saveRecentSearch(r).then(setRecentSearches);
                         setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
                         setTripSearch(r.short);
                         setTripResults([]);
@@ -910,6 +938,26 @@ export default function TripsScreen() {
                       }}
                     >
                       <Ionicons name="location-outline" size={15} color={c.mutedForeground} />
+                      <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {!tripDest && tripSearch.length === 0 && recentSearches.length > 0 && (
+                <View style={[styles.resultsBox, { borderColor: c.border, marginTop: 8 }]}>
+                  <Text style={[styles.recentsLabel, { color: c.mutedForeground }]}>Recent</Text>
+                  {recentSearches.map((r, idx) => (
+                    <TouchableOpacity
+                      key={`recent-trip-${idx}`}
+                      style={styles.resultRow}
+                      onPress={() => {
+                        setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
+                        setTripSearch(r.short);
+                        Keyboard.dismiss();
+                      }}
+                    >
+                      <Ionicons name="time-outline" size={15} color={c.mutedForeground} />
                       <Text style={[styles.resultText, { color: c.foreground }]} numberOfLines={1}>{r.display}</Text>
                     </TouchableOpacity>
                   ))}
@@ -1109,6 +1157,7 @@ const styles = StyleSheet.create({
   resultsBox: { borderWidth: 1, borderRadius: 12, marginTop: 8, overflow: "hidden" },
   resultRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   resultText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  recentsLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 },
   selectedRow: {
     flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10,
     paddingHorizontal: 10, paddingVertical: 7, marginTop: 6,
