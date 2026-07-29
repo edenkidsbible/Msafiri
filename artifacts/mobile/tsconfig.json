@@ -9,6 +9,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      // expo-file-system ships TS sources; its legacy entry re-exports src/,
+      // which our moduleSuffixes ordering mis-resolves (picks .web shim on a
+      // native check). Point tsc at the prebuilt declarations instead.
+      "expo-file-system/legacy": [
+        "./node_modules/expo-file-system/build/legacy/index.d.ts"
       ]
     }
   },
