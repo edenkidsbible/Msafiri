@@ -5,7 +5,7 @@
  *  • 74 structural phrases (turn left, in 200m, police ahead, etc.) are
  *    pre-recorded MP3s bundled with the app → zero latency, works offline.
  *  • Road names (e.g. "Ngong Road.") are fetched on-demand from POST /api/tts
- *    → cached to device storage for 90 days so the second play is instant.
+ *    → cached to device storage for 1 year so the second play is instant.
  *  • All playback is sequential; stopping mid-phrase is instant via generation
  *    counter cancellation.
  *  • Falls back to expo-speech if a token file is missing or ElevenLabs
@@ -346,7 +346,7 @@ function parseToSegments(input: string): Segment[] {
 
 // ─── On-demand audio cache ────────────────────────────────────────────────────
 const CACHE_DIR    = (FileSystem.cacheDirectory ?? "") + "nav-audio/";
-const CACHE_TTL_MS = 90 * 24 * 3600 * 1000; // 90 days
+const CACHE_TTL_MS = 365 * 24 * 3600 * 1000; // 1 year — road names & Keli voice are stable
 const sessionCache = new Map<string, string>(); // text → file URI
 
 /** djb2 hash — good enough for short road-name strings */
@@ -596,7 +596,7 @@ export async function prewarmRouteAudio(
  * heard when two clips are stitched end-to-end.
  *
  * Called from startNavigation() with an 8 s timeout guard.  Any clips
- * already in the 90-day disk cache are a no-op.  On cancellation
+ * already in the 1-year disk cache are a no-op.  On cancellation
  * (stopNavigation → cancelPrewarm), remaining fetches are abandoned.
  *
  * @param steps  The active route's step array.

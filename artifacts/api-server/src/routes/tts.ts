@@ -108,8 +108,9 @@ router.post("/tts", async (req: Request, res: Response): Promise<void> => {
     }
 
     res.setHeader("Content-Type", "audio/mpeg");
-    // Cache for 1 day — road names don't change
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    // Cache for 1 year — road names and the Keli voice model are stable.
+    // Convention: max-age=31536000 is the standard "immutable" ceiling for CDNs.
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
 
     const upstreamBody = upstream.body as ReadableStream<Uint8Array> | null;
     if (!upstreamBody) {
