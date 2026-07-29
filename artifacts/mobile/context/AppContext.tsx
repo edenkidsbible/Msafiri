@@ -1647,6 +1647,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (now - report.timestamp > 7200000) continue; // ignore reports > 2 h old
       const distToReport = haversine(lat, lng, report.lat, report.lng);
       if (distToReport > REPORT_ANNOUNCE_DIST || distToReport <= IN_ZONE_DIST) continue;
+
+      // ── Route-corridor gate (navigation only) ────────────────────────────
+      // When actively navigating, only announce reports that lie within
+      // ROUTE_CORRIDOR_M (250 m) of the REMAINING route polyline.
+      // Without this, a driver who takes an alternate road that later rejoins
+      // the original route keeps receiving alerts for incidents on the bypassed
+      // section — the simple bearing check can't distinguish "incident on the
+      // road I'm about to use" from "incident on a parallel road I already
+      // passed via a different turn".
+      // Not applied when off-route / rerouting, since routeRef is cleared.
+      if (navActiveRef.current && routeRef.current) {
+        const remainingCoords = routeRef.current.coords.slice(
+          Math.max(0, routeProjIdxRef.current - 5)
+        );
+        const isOnRemainingRoute = remainingCoords.some(
+          (c) => haversine(report.lat, report.lng, c.latitude, c.longitude) <= ROUTE_CORRIDOR_M
+        );
+        if (!isOnRemainingRoute) continue;
+      }
+
       // Only announce when the report is ahead of the driver. If heading is
       // unknown (first fix) we fall back to distance-only and announce anyway.
       // Do NOT add to announcedReportsRef when skipping direction: the driver
@@ -3077,6 +3097,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { syncReportToServerRef.current = syncReportToServer; }, [syncReportToServer]);
 
   const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
+    // ── Duplicate-prevention pre-check ───────────────────────────────────────
+    // Before creating an optimistic local report, scan the in-memory cache for
+    // an existing active/confirmed report of the same type within 50 m.
+    // If found: confirm the existing report instead of adding a duplicate.
+    // This prevents the confusing "report flashes on map then disappears" UX
+    // that happens when the server clusters the submission.  The server's own
+    // 50-m deduplication (POST /reports) handles any race conditions or reports
+    // not yet in the local cache.
+    const nearbyExisting = communityReportsRef.current.find((r) =>
+      r.type === type &&
+      !r.isOwn && // can't confirm own report
+      (r.status === "active" || r.status === "confirmed" || r.status === "admin_review") &&
+      haversine(lat, lng, r.lat, r.lng) < 50
+    );
+    if (nearbyExisting) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      speakText("Report confirmed.");
+      if (!isOfflineRef.current && deviceIdRef.current && nearbyExisting.serverId) {
+        apiPost<{ confirmCount: number; status: string }>(
+          `/reports/${nearbyExisting.serverId}/confirm`,
+          { deviceId: deviceIdRef.current }
+        ).then((result) => {
+          setCommunityReports((prev) => {
+            const u = prev.map((r) =>
+              r.id === nearbyExisting.id
+                ? { ...r, confirmCount: result.confirmCount, status: result.status as CommunityReport["status"] }
+                : r
+            );
+            AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+            return u;
+          });
+        }).catch(() => {/* best-effort — local display already correct */});
+      }
+      return nearbyExisting.id;
+    }
+
     const localId = genId();
     const r: CommunityReport = {
       id: localId, type, lat, lng, timestamp: Date.now(), confirmed: 1,

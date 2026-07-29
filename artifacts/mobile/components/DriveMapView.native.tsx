@@ -465,7 +465,24 @@ const DriveMapView = forwardRef(function DriveMapView(
   // and showing every camera/zone gives drivers the most complete picture.
   const visibleZones = allZones;
 
-  const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
+  // Only render reports that are actively visible to drivers.
+  // Denied ("Gone now"), expired, flagged, and cleared reports must not appear
+  // on the map — the server already excludes them from GET /reports, but
+  // locally-cached reports keep their old status until the next poll cycle.
+  // This filter mirrors the server's isActive() allow-list so the map stays
+  // clean immediately after a "Gone now" vote, without waiting up to 60 s for
+  // the next server refresh.
+  const visibleReports = useMemo(
+    () => communityReports.filter(
+      (r) => !r.status ||
+             r.status === "active" ||
+             r.status === "confirmed" ||
+             r.status === "admin_review" ||
+             r.status === "pending_review"
+    ),
+    [communityReports]
+  );
+  const clusters = useMemo(() => clusterReports(visibleReports), [visibleReports]);
 
   // Community report cluster markers always keep tracksViewChanges={true}.
   // The freeze optimisation (set to false after 1.5 s) caused tap hit-detection
@@ -621,36 +638,31 @@ const DriveMapView = forwardRef(function DriveMapView(
           <Polyline key={r.id} coordinates={r.coords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(r)} />
         ))}
 
-        {/* Active route — split into passed (grey) + remaining (blue) while navigating */}
+        {/* Active route — during navigation only show the section ahead of the driver.
+            The passed section is hidden entirely so the driver sees a clean,
+            uncluttered line from their current position to the destination. */}
         {activeRoute && (() => {
           if (navigationActive && currentLat != null && currentLng != null) {
             const coords = activeRoute.coords;
-            // Find nearest coord index to driver position
+            // Find the nearest polyline coordinate to the driver's GPS position.
             let bestIdx = 0;
             let bestDist = Infinity;
             for (let i = 0; i < coords.length; i++) {
               const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
               if (d < bestDist) { bestDist = d; bestIdx = i; }
             }
-            const passed    = coords.slice(0, bestIdx + 1);
+            // Only render the remaining (ahead) portion — start from bestIdx so
+            // the polyline begins right at the driver's current position.
             const remaining = coords.slice(bestIdx);
+            if (remaining.length < 2) return null;
             return (
               <>
-                {passed.length >= 2 && (
-                  <>
-                    <Polyline coordinates={passed} strokeColor="#33333344" strokeWidth={10} lineCap="round" lineJoin="round" />
-                    <Polyline coordinates={passed} strokeColor="#66666666" strokeWidth={6} lineCap="round" lineJoin="round" />
-                  </>
-                )}
-                {remaining.length >= 2 && (
-                  <>
-                    <Polyline coordinates={remaining} strokeColor="#0D47A1AA" strokeWidth={10} lineCap="round" lineJoin="round" />
-                    <Polyline coordinates={remaining} strokeColor="#1976D2" strokeWidth={6} lineCap="round" lineJoin="round" />
-                  </>
-                )}
+                <Polyline coordinates={remaining} strokeColor="#0D47A1AA" strokeWidth={10} lineCap="round" lineJoin="round" />
+                <Polyline coordinates={remaining} strokeColor="#1976D2" strokeWidth={6} lineCap="round" lineJoin="round" />
               </>
             );
           }
+          // Pre-navigation (route selected but not yet started): show full route
           return (
             <>
               <Polyline coordinates={activeRoute.coords} strokeColor="#1565C0AA" strokeWidth={10} lineCap="round" lineJoin="round" />
