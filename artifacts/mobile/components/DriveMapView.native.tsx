@@ -195,7 +195,7 @@ const DriveMapView = forwardRef(function DriveMapView(
 ) {
   const {
     currentLat, currentLng,
-    activeRoute, altRoutes, divergenceRoutes, selectRoute,
+    activeRoute, altRoutes, divergenceRoutes, selectRoute, startNavigation,
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport, flagReport,
     vehicleType, allZones,
@@ -644,8 +644,26 @@ const DriveMapView = forwardRef(function DriveMapView(
             driver sees all options without losing the main corridor. */}
         {divergenceRoutes.map((r) => (
           <React.Fragment key={r.id}>
-            <Polyline coordinates={r.coords} strokeColor="#FF2D7855" strokeWidth={9} lineCap="round" lineJoin="round" />
-            <Polyline coordinates={r.coords} strokeColor="#FF2D78" strokeWidth={5} lineCap="round" lineJoin="round" />
+            {/* Wide glow layer — provides a generous tap target */}
+            <Polyline
+              coordinates={r.coords}
+              strokeColor="#FF2D7855"
+              strokeWidth={9}
+              lineCap="round"
+              lineJoin="round"
+              tappable
+              onPress={() => { selectRoute(r); void startNavigation(); }}
+            />
+            {/* Bright inner stroke — visually the pink line */}
+            <Polyline
+              coordinates={r.coords}
+              strokeColor="#FF2D78"
+              strokeWidth={5}
+              lineCap="round"
+              lineJoin="round"
+              tappable
+              onPress={() => { selectRoute(r); void startNavigation(); }}
+            />
           </React.Fragment>
         ))}
 

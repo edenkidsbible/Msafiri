@@ -1173,14 +1173,28 @@ export default function DriveScreen() {
           Floats above the action-pill row while the driver is off-route and
           pink alternative polylines are visible on the map. */}
       {!showResults && navigationActive && divergenceRoutes.length > 0 && (
+        // box-none so the containing row doesn't eat map touches outside the pill
         <View
-          pointerEvents="none"
-          style={[styles.divergenceChip, { bottom: navBarHeight + 54 }]}
+          pointerEvents="box-none"
+          style={[styles.divergenceChipRow, { bottom: navBarHeight + 54 }]}
         >
-          <Ionicons name="git-branch-outline" size={13} color="#FF2D78" />
-          <Text style={styles.divergenceChipTxt}>
-            {divergenceRoutes.length === 1 ? "1 alternative ahead" : `${divergenceRoutes.length} routes found ahead`}
-          </Text>
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={styles.divergenceChip}
+            onPress={() => {
+              // Commit to the first (best) divergence route instantly
+              selectRoute(divergenceRoutes[0]);
+              void startNavigation();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+          >
+            <Ionicons name="git-branch-outline" size={13} color="#FF2D78" />
+            <Text style={styles.divergenceChipTxt}>
+              {divergenceRoutes.length === 1
+                ? "Tap to take this route"
+                : `${divergenceRoutes.length} alternatives — tap one`}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -2041,14 +2055,20 @@ const styles = StyleSheet.create({
   driveActionPillTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
 
   // ── Divergence preview chip ───────────────────────────────────────────────
-  divergenceChip: {
-    position: "absolute", alignSelf: "center", left: 0, right: 0,
+  // Row: absolute-positioned, full-width, centres the pill. box-none so
+  // touches outside the pill pass straight through to the map.
+  divergenceChipRow: {
+    position: "absolute", left: 0, right: 0,
     alignItems: "center", justifyContent: "center",
+    zIndex: 13,
+  } as const,
+  // Pill: the actual tappable badge the driver sees.
+  divergenceChip: {
     flexDirection: "row", gap: 5,
+    alignItems: "center", justifyContent: "center",
     backgroundColor: "#FF2D7820",
     borderWidth: 1, borderColor: "#FF2D7866",
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
-    zIndex: 13,
   } as const,
   divergenceChipTxt: {
     fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FF2D78",
