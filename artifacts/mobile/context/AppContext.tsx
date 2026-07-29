@@ -1888,7 +1888,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (step.stepCoords?.length && step.stepCumDist?.length) {
           const stepLen = step.stepCumDist[step.stepCumDist.length - 1];
           const proj    = projectOntoRoute(step.stepCoords, step.stepCumDist, lat, lng);
-          dist = Math.max(0, stepLen - (proj?.alongRouteM ?? 0));
+          // Reject GPS outliers: if the nearest step-coord is >100 m away the fix
+          // has jumped off the step polyline.  Hold the previous distance for this
+          // tick rather than snapping to a misleading position.
+          if (proj && proj.offRouteM > 100 && distToNextMRef.current != null) {
+            dist = distToNextMRef.current;
+          } else {
+            dist = Math.max(0, stepLen - (proj?.alongRouteM ?? 0));
+          }
         } else {
           dist = driverAlongM != null
             ? Math.max(0, step.stepAlongRouteM - driverAlongM)
