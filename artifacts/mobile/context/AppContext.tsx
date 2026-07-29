@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
-import { speakPhrase, prewarmRouteAudio, prebuildRouteAudio, cancelPrewarm, isNavVoicePlaying, purgeStaleTtsCache } from "@/utils/tts";
+import { speakPhrase, prewarmRouteAudio, prebuildRouteAudio, cancelPrewarm, isNavVoicePlaying, purgeStaleTtsCache, retryMissingClipsForStep } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -908,6 +908,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const notifGranted = useRef(false);
   const routeRef = useRef<AppRoute | null>(null);
   const stepIdxRef = useRef(0);
+  // Tracks instructions for which a background clip-retry has been triggered.
+  // Prevents duplicate retries on successive GPS ticks. Cleared when navigation
+  // starts or stops so reroutes always get a fresh retry opportunity.
+  const stepRetrySetRef = useRef<Set<string>>(new Set());
   const lastSpokenRef = useRef<string>("");
   const navActiveRef = useRef(false);
   const lastLocationAtRef = useRef(0);
@@ -1699,6 +1703,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const nowKey  = `step_${idx}_now`;
 
         const { announceM, remindM, nowM, distWord } = stepTriggers(kmh, dist);
+
+        // ── Background clip retry ──────────────────────────────────────────
+        // When the driver enters the ~800 m window and the step's clip is not
+        // yet cached, kick off a single background fetch.  If it completes
+        // before the ANNOUNCE cue fires, speakPhrase finds it in sessionCache
+        // and plays the seamless single-clip.  If the driver reaches the NOW
+        // cue first, the clip sits in cache unused — never played late.
+        // Gated on dist > nowM so we don't fire a useless fetch at the junction.
+        if (dist < 800 && dist > nowM && !stepRetrySetRef.current.has(step.instruction)) {
+          stepRetrySetRef.current.add(step.instruction);
+          retryMissingClipsForStep(step.instruction);
+        }
 
         // ── Compound instruction ───────────────────────────────────────────
         // When the next maneuver is < 100 m after this one (tight chicanes,
@@ -2680,13 +2696,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // ── Phase 2: Pre-build full-sentence Keli clips before starting ─────────
     // Fetches each step's instruction as ONE complete MP3 so REMIND cues play
     // as a single seamless clip rather than a stitched token + road-name pair.
-    // Cap at 8 s so a slow connection doesn't block the driver indefinitely;
-    // any un-fetched instructions fall back to the token+segment path at drive time.
+    // prebuildRouteAudio() aborts early (after 3 consecutive failures) when the
+    // server is unreachable, so the spinner typically clears in <1 s rather than
+    // waiting the full timeout.  The 5 s timeout is a backstop for slow-but-
+    // working connections; un-fetched clips fall back to the token+segment path
+    // at drive time, with a second chance via retryMissingClipsForStep().
     setVoicePreparing(true);
     try {
       await Promise.race([
         prebuildRouteAudio(activeRoute.steps),
-        new Promise<void>(r => setTimeout(r, 8000)),
+        new Promise<void>(r => setTimeout(r, 5000)),
       ]);
     } catch { /* ignore */ }
     setVoicePreparing(false);
@@ -2695,6 +2714,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!routeRef.current) return;
 
     stepIdxRef.current = 0;
+    stepRetrySetRef.current.clear(); // fresh retry opportunities for this route
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
@@ -2753,6 +2773,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stopVoice();
     // Abandon any in-flight prewarm/prebuild fetches for the route being discarded.
     cancelPrewarm();
+    // Clear clip-retry tracking so a subsequent startNavigation gets fresh retries.
+    stepRetrySetRef.current.clear();
     // Clear the "Preparing voice guidance" spinner if the user cancelled mid-prebuild.
     setVoicePreparing(false);
 

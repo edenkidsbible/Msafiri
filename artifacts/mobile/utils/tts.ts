@@ -393,7 +393,7 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
-async function resolveRawClip(text: string): Promise<string | null> {
+async function resolveRawClip(text: string, maxAttempts = 3): Promise<string | null> {
   if (!API_BASE || Platform.OS === "web") return null;
 
   // Session cache hit
@@ -417,11 +417,11 @@ async function resolveRawClip(text: string): Promise<string | null> {
       }
     }
 
-    // Fetch from API proxy — up to 3 attempts with 1 s back-off.
+    // Fetch from API proxy — up to maxAttempts attempts with 1 s back-off.
     // Retrying here (rather than at the call-site) keeps the caller simple and
     // means route-prewarm + playback-time fetches both benefit automatically.
     let lastErr: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
         const res = await fetch(`${API_BASE}/tts`, {
@@ -674,12 +674,16 @@ export async function prewarmRouteAudio(
  * (not split into token + road-name segments), eliminating the micro-gaps
  * heard when two clips are stitched end-to-end.
  *
- * Called from startNavigation() with an 8 s timeout guard.  Any clips
- * already in the 1-year disk cache are a no-op.  On cancellation
+ * Called from startNavigation() with a timeout guard.  Any clips already in
+ * the 1-year disk cache are a no-op (instant).  On cancellation
  * (stopNavigation → cancelPrewarm), remaining fetches are abandoned.
  *
+ * Early-abort: if the first EARLY_ABORT_LIMIT non-cached fetches all fail
+ * (server unreachable), the loop exits immediately instead of waiting for
+ * the outer timeout — navigation starts in ~1–2 s rather than after 8 s.
+ *
  * @param steps  The active route's step array.
- * @returns      Resolves when all clips are fetched (or as many as time allows).
+ * @returns      Resolves when all clips are fetched (or as many as possible).
  */
 export async function prebuildRouteAudio(
   steps: { instruction: string }[]
@@ -694,14 +698,74 @@ export async function prebuildRouteAudio(
     if (step.instruction) seen.add(step.instruction);
   }
 
+  // Abort after this many consecutive non-cached failures. Three fast-fails
+  // (e.g. connection refused) take ~50 ms total, clearing the spinner immediately.
+  const EARLY_ABORT_LIMIT = 3;
+  let consecutiveFails = 0;
+
   for (const instruction of seen) {
-    if (prewarmGen !== myGen) return;  // cancelled by stopNavigation
-    try {
-      await resolveRawClip(instruction);
-    } catch {
-      // Non-critical — will fall back to token+segment playback at drive time.
+    if (prewarmGen !== myGen) return; // cancelled by stopNavigation
+
+    // Session-cache hit — already downloaded this session.  Reset failure
+    // streak so a few cached clips don't mask a later server outage.
+    if (sessionCache.has(instruction)) {
+      consecutiveFails = 0;
+      continue;
+    }
+
+    // Single attempt, no retry backoff — pre-build is best-effort.  A missed
+    // clip is retried in the background via retryMissingClipsForStep() while
+    // the driver approaches the manoeuvre, and the segment fallback in
+    // speakPhrase() handles the worst case gracefully.
+    const uri = await resolveRawClip(instruction, 1).catch(() => null);
+    if (prewarmGen !== myGen) return; // cancelled during fetch
+
+    if (uri == null) {
+      consecutiveFails++;
+      if (consecutiveFails >= EARLY_ABORT_LIMIT) {
+        // Server appears unreachable — abort so the "Preparing voice guidance"
+        // spinner clears immediately instead of waiting for the outer timeout.
+        return;
+      }
+    } else {
+      consecutiveFails = 0;
     }
   }
+}
+
+/**
+ * Background retry for a single navigation step's voice clips.
+ *
+ * Called from AppContext while the driver is still approaching the manoeuvre
+ * (typically when entering the ~800 m window).  Fires a single attempt to
+ * fetch the full-instruction clip (used by speakPhrase's fast path) and each
+ * raw segment (used by the fallback path).  Results go into the disk + session
+ * cache so speakPhrase finds them ready when the ANNOUNCE or REMIND cue fires.
+ *
+ * Never blocks the caller, never plays anything.  A clip that finishes loading
+ * after the cue point passes just sits in cache unused — it is never played late.
+ * Uses the prewarmGen counter so stopNavigation() implicitly abandons any
+ * in-flight fetches.
+ */
+export function retryMissingClipsForStep(instruction: string): void {
+  if (Platform.OS === "web" || !instruction) return;
+  const myGen = prewarmGen; // snapshot — don't start a new prebuild pass
+
+  void (async () => {
+    // Full-instruction clip (used by speakPhrase's pre-built fast path).
+    if (!sessionCache.has(instruction)) {
+      await resolveRawClip(instruction, 1).catch(() => {});
+    }
+    if (prewarmGen !== myGen) return; // navigation stopped
+
+    // Individual raw segments (used by speakPhrase's segment fallback path).
+    for (const seg of parseToSegments(instruction)) {
+      if (seg.kind !== "raw") continue;
+      if (sessionCache.has(seg.text)) continue;
+      if (prewarmGen !== myGen) return;
+      await resolveRawClip(seg.text, 1).catch(() => {});
+    }
+  })();
 }
 
 /**
