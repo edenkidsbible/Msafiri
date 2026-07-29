@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
 import { speakPhrase, isNavVoicePlaying } from "@/utils/tts";
+import { getDestinationSide } from "@/utils/navigationSide";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -1935,7 +1936,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCurrentStepIdx(nextIdx);
 
           if (nextIdx >= steps.length) {
-            speakText("You have arrived at your destination.");
+            // Chain the side announcement after the arrival phrase finishes.
+            // lastHeadingRef holds the most recent valid heading (persists even
+            // when the driver slows to a stop and driverHeadingDeg returns null).
+            const dest = navDestRef.current;
+            const side = dest
+              ? getDestinationSide(lastHeadingRef.current, lat, lng, dest.lat, dest.lng)
+              : null;
+            speakPhrase("You have arrived at your destination.")
+              .then(() => {
+                if (side) {
+                  return speakPhrase(`Your destination is on the ${side}.`);
+                }
+              })
+              .catch(() => {});
             navActiveRef.current = false;
             navStartRef.current = null;
             approachingAnnouncedRef.current = false;

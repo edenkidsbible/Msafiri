@@ -7,11 +7,31 @@
  *  • No cached MP3s — nothing to download, prewarm, or stitch
  *  • Clean interruption — Speech.stop() before every new utterance
  *  • iOS voice  : Daniel (British English, Enhanced quality if installed)
- *  • Android    : Google UK English Female, fallback to any en-GB, then en-US
+ *                 identifier: "com.apple.ttsbundle.Daniel-compact"
+ *  • Android    : Google UK English Female (en-gb-x-gbd-network),
+ *                 fallback to any en-GB female, any en-GB, then en-US
+ *
+ * All navigation and road-alert TTS (arrival, turn-by-turn, incident alerts)
+ * MUST go through `speakPhrase` or `speakText` so that NAV_VOICE is applied
+ * consistently. Do not call Speech.speak() directly from other modules.
  */
 
 import { Platform } from "react-native";
 import * as Speech from "expo-speech";
+
+// ─── Canonical NAV_VOICE config ──────────────────────────────────────────────
+//
+// The preferred voice identifiers for navigation speech on each platform.
+// Actual voice resolution is performed asynchronously by resolveBestVoiceId()
+// at startup (and lazily on first use). These constants document the intent
+// and can be referenced by other modules that need to know which voice is
+// preferred without triggering the async lookup themselves.
+
+/** Preferred iOS TTS voice identifier for navigation. */
+export const NAV_VOICE_IOS = "com.apple.ttsbundle.Daniel-compact";
+
+/** Preferred Android TTS voice identifier for navigation (Google UK English Female). */
+export const NAV_VOICE_ANDROID = "en-gb-x-gbd-network";
 
 // ─── Voice resolution ─────────────────────────────────────────────────────────
 //
