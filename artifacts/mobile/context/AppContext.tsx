@@ -902,6 +902,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Each outgoing fetch captures the current value; the .then() callback
   // discards the result if the counter has since advanced (stale response).
   const roadFetchSeqRef       = useRef<number>(0);
+  // Road-name warm-up: fired the instant driving begins so the first
+  // kilometre of a non-navigating trip uses a real road name rather than
+  // the distance-only fallback.
+  const prevIsDrivingRef     = useRef<boolean>(false);
+  const drivingStartCoordRef = useRef<{ lat: number; lng: number } | null>(null);
+  /** True from the moment the warm-up fetch is dispatched until it settles
+   *  (resolve or error).  Used by the road-ready gate below. */
+  const roadWarmupPendingRef = useRef<boolean>(false);
   const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1322,36 +1330,72 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const stepRoad = routeRef.current.steps[stepIdxRef.current]?.roadName;
       currentRoadRef.current = stepRoad || null;
     } else {
-      const nowMs = Date.now();
-      const lastFetch = lastRoadFetchCoordRef.current;
-      const distSinceLastFetch = lastFetch
-        ? haversine(lat, lng, lastFetch.lat, lastFetch.lng)
-        : Infinity;
-      if (distSinceLastFetch > 500 || nowMs - lastRoadFetchTimeRef.current > 60_000) {
+      // ── Warm-up fetch on drive start ──────────────────────────────────────
+      // When driving transitions false → true, fire an immediate getRoadName
+      // regardless of the 500 m / 60 s throttle so the first kilometre uses a
+      // real road name rather than the distance-only fallback.
+      const justStartedDriving = isDriving && !prevIsDrivingRef.current;
+      if (justStartedDriving) {
+        drivingStartCoordRef.current  = { lat, lng };
+        roadWarmupPendingRef.current  = true;
         lastRoadFetchCoordRef.current = { lat, lng };
-        lastRoadFetchTimeRef.current  = nowMs;
-        // Capture sequence before the async boundary so out-of-order responses
-        // (e.g. slow cell signal after a fast Wi-Fi response) are discarded.
+        lastRoadFetchTimeRef.current  = Date.now();
         const seq = ++roadFetchSeqRef.current;
         void getRoadName(lat, lng).then((road) => {
-          if (roadFetchSeqRef.current === seq) currentRoadRef.current = road;
+          if (roadFetchSeqRef.current === seq) {
+            currentRoadRef.current      = road;
+            roadWarmupPendingRef.current = false;
+          }
         });
+      } else {
+        const nowMs = Date.now();
+        const lastFetch = lastRoadFetchCoordRef.current;
+        const distSinceLastFetch = lastFetch
+          ? haversine(lat, lng, lastFetch.lat, lastFetch.lng)
+          : Infinity;
+        if (distSinceLastFetch > 500 || nowMs - lastRoadFetchTimeRef.current > 60_000) {
+          lastRoadFetchCoordRef.current = { lat, lng };
+          lastRoadFetchTimeRef.current  = nowMs;
+          // Capture sequence before the async boundary so out-of-order responses
+          // (e.g. slow cell signal after a fast Wi-Fi response) are discarded.
+          const seq = ++roadFetchSeqRef.current;
+          void getRoadName(lat, lng).then((road) => {
+            if (roadFetchSeqRef.current === seq) currentRoadRef.current = road;
+          });
+        }
+      }
+      // Clear warm-up state when driving stops so the next departure gets a
+      // fresh fetch even if it happens from the same spot.
+      if (!isDriving && prevIsDrivingRef.current) {
+        drivingStartCoordRef.current = null;
+        roadWarmupPendingRef.current = false;
       }
     }
+    prevIsDrivingRef.current = isDriving;
 
     // ── Unified alert panel: zones + community reports ────────────────────────
     //
-    // Activation gate: driver is moving + within 1 km + road matches.
+    // Activation gate: driver is moving + road is ready + within 1 km + road matches.
     // Falls back to distance-only when the driver's current road is unknown
     // (first fix, offline, API failure) or the incident has no road recorded —
     // roadsMatch() returns true in those cases so no alert is silently dropped.
     //
+    // Road-ready gate: after a drive begins, suppress all alerts until either
+    //   (a) the warm-up road-name fetch resolves (pending → settled), OR
+    //   (b) the driver has moved > 200 m from the departure point.
+    // This prevents a parallel-road camera from firing in the first few seconds
+    // while road identity is still being resolved.
+    const roadReady =
+      !roadWarmupPendingRef.current ||
+      !drivingStartCoordRef.current ||
+      haversine(lat, lng, drivingStartCoordRef.current.lat, drivingStartCoordRef.current.lng) > 200;
+
     // (1) Zone candidate — closest in-range zone on the driver's current road.
     //     All zone/camera types appear regardless of current speed so the driver
     //     can see the upcoming limit and slow down before reaching it.
     const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
     const zoneCandidate = (() => {
-      if (!isDriving) return null;
+      if (!isDriving || !roadReady) return null;
       // Pick the closest in-range zone whose road matches the driver's road.
       // Iterating in distance order (withDist is sorted) so the first match is
       // already the nearest; the explicit comparison handles unsorted edge cases.
@@ -1365,7 +1409,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // (2) Report candidate — closest active report < 2 h old on the driver's road.
     const reportCandidate = (() => {
-      if (!isDriving) return null;
+      if (!isDriving || !roadReady) return null;
       let best: (typeof communityReportsRef.current)[0] | null = null;
       let bestDist = Infinity;
       for (const r of communityReportsRef.current) {
