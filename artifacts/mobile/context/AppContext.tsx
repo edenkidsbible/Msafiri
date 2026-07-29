@@ -368,6 +368,37 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
 
+// ── Report cache pruning ──────────────────────────────────────────────────────
+//
+// Denied and expired reports are hidden from the map and alert system, but
+// without an active sweep they accumulate indefinitely in AsyncStorage and the
+// in-memory array.  On a phone used for months by a heavy reporter this can
+// grow into thousands of dead entries, slowing JSON.parse on startup and every
+// AsyncStorage.setItem call that persists the array.
+//
+// Pruning rules (applied at startup and on every foreground transition):
+//  • Always keep own pending_review reports — the user must be able to see
+//    their submitted camera awaiting moderation even across app restarts.
+//  • Evict denied/expired reports that are older than 2 h.  Two hours covers
+//    the shortest server TTL (traffic: 2 h) so a denied report is guaranteed
+//    to have been purged server-side by this point.
+//  • Hard age cap of 24 h for everything else — matches the longest server TTL
+//    (hazard/pothole/etc.).  Reports that survived beyond that are either
+//    offline-only leftovers or stale confirmed reports from a prior session;
+//    the next GET /reports will re-populate anything still active.
+function pruneReportCache(reports: CommunityReport[], now: number): CommunityReport[] {
+  return reports.filter((r) => {
+    // Never evict the user's own camera/report that is still awaiting admin review.
+    if (r.isOwn && r.status === "pending_review") return true;
+    // Denied and expired entries are no longer visible anywhere; remove after 2 h.
+    if (r.status === "denied" || r.status === "expired") {
+      return now - r.timestamp < 7_200_000;
+    }
+    // Hard cap: 24 h.
+    return now - r.timestamp < 86_400_000;
+  });
+}
+
 /** Decode a JWT payload and verify the role + expiry without a library. */
 function isAdminTokenValid(token: string): boolean {
   try {
@@ -1044,7 +1075,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (trips) setTripHistory(JSON.parse(trips));
       if (reports) {
         const parsed: CommunityReport[] = JSON.parse(reports);
-        setCommunityReports(parsed.filter((r) => Date.now() - r.timestamp < 86400000));
+        const pruned = pruneReportCache(parsed, Date.now());
+        setCommunityReports(pruned);
+        // Persist the pruned list immediately so evicted entries don't reload
+        // the next time the app starts.
+        if (pruned.length < parsed.length) {
+          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(pruned)).catch(() => {});
+        }
       }
       if (hud) setHudModeState(JSON.parse(hud));
       if (sos) setSosContactState(JSON.parse(sos));
@@ -3029,6 +3066,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   // shareTokenRef is a ref — stable; no deps needed beyond mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Stale report cache sweep on foreground ────────────────────────────────
+  // On every return to foreground, evict denied/expired entries that are past
+  // the pruning age thresholds.  This bounds AsyncStorage size and keeps the
+  // in-memory communityReports array lean on long-running sessions.  It also
+  // runs at startup (see the startup load above), so together the two hooks
+  // guarantee the cache never grows unboundedly.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState !== "active") return;
+      setCommunityReports((prev) => {
+        const pruned = pruneReportCache(prev, Date.now());
+        if (pruned.length === prev.length) return prev; // nothing evicted — skip re-render + write
+        AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(pruned)).catch(() => {});
+        return pruned;
+      });
+    };
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => sub.remove();
   }, []);
 
   const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
