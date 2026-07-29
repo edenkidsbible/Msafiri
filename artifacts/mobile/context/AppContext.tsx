@@ -765,10 +765,10 @@ const MIN_NAV_ANNOUNCE_GAP_MS = 5000;
 //      NOW      — "Turn left"  (maneuver only, driver is at the junction)
 //
 // Clip duration estimates (Keli, Flash v2.5):
-const CLIP_DUR_ANNOUNCE_S = 4.5; // "In 300 metres, turn left onto Ngong Road"
-const CLIP_DUR_REMIND_S   = 2.5; // "Turn left onto Ngong Road"
-const CLIP_DUR_NOW_S      = 1.2; // "Turn left"
-const AUDIO_STARTUP_S     = 0.5; // token load + speaker warm-up
+const CLIP_DUR_ANNOUNCE_S = 3.8; // "In 300 metres, turn left onto Ngong Road" (~9 words @ 2.5 wpm)
+const CLIP_DUR_REMIND_S   = 2.0; // "Turn left onto Ngong Road"                (~5 words)
+const CLIP_DUR_NOW_S      = 0.9; // "Turn left"                                (~2 words)
+const AUDIO_STARTUP_S     = 0.05; // expo-speech warm-up <50 ms (was 0.5 for ElevenLabs download)
 
 /**
  * Returns speed-adaptive trigger thresholds and the pre-compensated spoken

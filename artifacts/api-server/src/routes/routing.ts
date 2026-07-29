@@ -178,6 +178,9 @@ router.get("/routing/route", async (req, res) => {
     "routes.legs.steps.distanceMeters",
     "routes.legs.steps.navigationInstruction",
     "routes.legs.steps.startLocation",
+    // Per-step polyline so step boundaries are measured along the actual road
+    // geometry, not straight lines between start points.
+    "routes.legs.steps.polyline",
   ].join(",");
 
   const body = {
@@ -188,6 +191,9 @@ router.get("/routing/route", async (req, res) => {
     routingPreference: "TRAFFIC_AWARE",
     polylineQuality: "HIGH_QUALITY",
     polylineEncoding: "ENCODED_POLYLINE",
+    // Explicitly allow U-turns so that a forward-direction U-turn on a divided
+    // road is treated as a valid maneuver rather than a routing blocker.
+    routeModifiers: { avoidUTurns: false },
   };
 
   const controller = new AbortController();
@@ -213,6 +219,10 @@ router.get("/routing/route", async (req, res) => {
     }
 
     const data = (await gRes.json()) as any;
+
+    // Log route count so we can confirm whether Google returns alternatives for
+    // specific corridors (e.g. Eastern Bypass) without verbose payload logging.
+    req.log.info({ routeCount: data.routes?.length ?? 0 }, "Google Routes API returned routes");
 
     const routes = (data.routes ?? []).map((r: any, idx: number) => {
       const coords = decodePolyline(r.polyline?.encodedPolyline ?? "");
