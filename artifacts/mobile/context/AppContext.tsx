@@ -1240,7 +1240,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Core location handler ─────────────────────────────────────────────────
-  const handleLocation = useCallback((lat: number, lng: number, speedMs: number | null, accuracyM: number | null = null) => {
+  const handleLocation = useCallback((lat: number, lng: number, speedMs: number | null, accuracyM: number | null = null, nativeHeading: number | null = null) => {
     // Device-reported GPS speed is often 0/-1/null even while genuinely
     // moving (common on many phones, especially right after a fix or when
     // Doppler-based speed sensing hasn't locked yet). Fall back to a
@@ -1376,10 +1376,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastSpeedingWarnRef.current = 0;
     }
 
-    // Driver heading derived from the displacement since the previous fix.
-    // Null when there is no prior fix or movement is below the noise threshold
-    // — in that case all direction checks degrade to distance-only behaviour.
-    const driverHeading = driverHeadingDeg(prevFix, lat, lng);
+    // Driver heading — prefer the device-native GPS bearing from the Expo fix
+    // (available on the very first fix, even before two consecutive positions
+    // exist).  Fall back to the computed bearing between consecutive fixes when
+    // the native value is absent or unavailable (Expo returns -1 in that case).
+    const computedHeading = driverHeadingDeg(prevFix, lat, lng);
+    const driverHeading = (nativeHeading != null && nativeHeading >= 0)
+      ? nativeHeading
+      : computedHeading;
     setDriverHeading(driverHeading);
     // Update dead reckoning baseline — used by the DR interval when signal is lost.
     lastHeadingRef.current = driverHeading ?? lastHeadingRef.current;
@@ -2198,7 +2202,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 },
             (loc) => {
               lastLocationAtRef.current = Date.now();
-              handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy);
+              // Pass the native GPS heading so the first fix already carries a
+              // valid bearing for carriageway snapping.  Expo returns -1 when
+              // heading is unavailable; handleLocation treats that as absent.
+              const nativeHdg = typeof loc.coords.heading === "number" ? loc.coords.heading : null;
+              handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy, nativeHdg);
             }
           );
           // Guard 2: discard if a newer subscribe already completed.
