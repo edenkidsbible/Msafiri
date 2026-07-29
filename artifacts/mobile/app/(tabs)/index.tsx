@@ -179,47 +179,9 @@ export default function DriveScreen() {
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
 
-  // ── Route overview mode ───────────────────────────────────────────────────
-  const [overviewMode, setOverviewMode] = useState(false);
-  const overviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Toast shown when overview auto-exits due to approaching turn
-  const overviewToastOpacity = useRef(new Animated.Value(0)).current;
-  const overviewToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showOverviewToast = useCallback(() => {
-    if (overviewToastTimerRef.current) clearTimeout(overviewToastTimerRef.current);
-    Animated.timing(overviewToastOpacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
-    overviewToastTimerRef.current = setTimeout(() => {
-      Animated.timing(overviewToastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }).start();
-    }, 2200);
-  }, [overviewToastOpacity]);
-
-  // Auto-exit overview after 8 seconds so the driver doesn't have to tap again.
-  // Also clears any drift state — entering overview is an implicit "I see the
-  // map now" action, so the Recenter button doesn't need to stay visible.
-  const enterOverview = useCallback(() => {
-    if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
-    setOverviewMode(true);
-    setMapDrifted(false);
-    overviewTimerRef.current = setTimeout(() => {
-      setOverviewMode(false);
-    }, 8000);
-  }, []);
-
-  const exitOverview = useCallback(() => {
-    if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
-    setOverviewMode(false);
-  }, []);
-
-  // Auto-exit overview when approaching the next turn (within 500 m)
-  useEffect(() => {
-    if (!overviewMode || distToNextM == null) return;
-    if (distToNextM < 500) {
-      exitOverview();
-      showOverviewToast();
-    }
-  }, [overviewMode, distToNextM, exitOverview, showOverviewToast]);
+  // overviewMode removed — the map is always freely pannable during navigation.
+  // mapDrifted tracks whether the driver has panned away from their GPS position;
+  // the Recenter button appears when drifted and snaps back on tap.
 
   // ── Night mode auto-switch (Task #38) ────────────────────────────────────────
   // Derives civil twilight from the driver's GPS position — no network call.
@@ -258,12 +220,9 @@ export default function DriveScreen() {
     return () => clearInterval(id);
   }, [triggerAutoSwitch]);
 
-  // Clear overview + drift when navigation ends (e.g. driver taps Stop)
+  // Clear drift state when navigation ends (e.g. driver taps Stop)
   useEffect(() => {
     if (!navigationActive) {
-      if (overviewTimerRef.current) clearTimeout(overviewTimerRef.current);
-      if (overviewToastTimerRef.current) clearTimeout(overviewToastTimerRef.current);
-      setOverviewMode(false);
       setMapDrifted(false);
     }
   }, [navigationActive]);
@@ -580,7 +539,7 @@ export default function DriveScreen() {
 
       {/* ── Base layer: full-screen map ── */}
       <View style={StyleSheet.absoluteFillObject}>
-        <DriveMapView ref={driveMapRef} overviewMode={overviewMode} onDriftChange={setMapDrifted} />
+        <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} />
       </View>
 
       {/* ── Drive alert overlay (bottom-anchored, slides up) ── */}
@@ -835,7 +794,7 @@ export default function DriveScreen() {
           away from their GPS position during navigation. Tapping snaps the
           map back to street-level tracking, just like Apple / Google Maps.
       ══════════════════════════════════════════════════════════════════ */}
-      {!showResults && navigationActive && !overviewMode && mapDrifted && (
+      {!showResults && navigationActive && mapDrifted && (
         <TouchableOpacity
           style={[styles.recenterBtn, { bottom: bottomBase + speedStripHeight + 80, left: 16 }]}
           onPress={() => {
@@ -850,32 +809,9 @@ export default function DriveScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Navigation right-side FABs: overview toggle + report incident */}
+      {/* Navigation right-side FABs: search + report incident */}
       {!showResults && navigationActive && (
         <View style={[styles.navFabCol, { top: topInset + 118, right: 12 }]}>
-          {/* Route overview toggle — zooms out to show the full route */}
-          <TouchableOpacity
-            style={[
-              styles.overviewBtn,
-              overviewMode && styles.overviewBtnActive,
-              { backgroundColor: overviewMode ? "#1565C0" : fabBg },
-            ]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              overviewMode ? exitOverview() : enterOverview();
-            }}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name="map-outline"
-              size={16}
-              color={overviewMode ? "#FFF" : (isDark ? "#CCC" : "#555")}
-            />
-            <Text style={[styles.overviewBtnTxt, { color: overviewMode ? "#FFF" : (isDark ? "#CCC" : "#555") }]}>
-              {overviewMode ? "Tracking" : "Overview"}
-            </Text>
-          </TouchableOpacity>
-
           {/* Search along route (#34) */}
           <TouchableOpacity
             style={[styles.navReportBtn, { backgroundColor: "#37474F" }]}
@@ -1528,15 +1464,6 @@ export default function DriveScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── Overview auto-exit toast ─────────────────────────────────────────── */}
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.overviewToast, { opacity: overviewToastOpacity }]}
-      >
-        <Ionicons name="navigate" size={14} color="#FFF" />
-        <Text style={styles.overviewToastTxt}>Returning to tracking</Text>
-      </Animated.View>
-
       {/* Incident confirmation prompt — proximity-triggered or push-notification deep-link */}
       {pendingConfirmationReport && (
         <IncidentConfirmationPrompt
@@ -1853,21 +1780,11 @@ const styles = StyleSheet.create({
   },
   navReportTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
 
-  // ── Nav-mode right-side FAB column (overview + report) ───────────────────
+  // ── Nav-mode right-side FAB column (search + report) ────────────────────
   navFabCol: {
     position: "absolute", zIndex: 14,
     alignItems: "flex-end", gap: 8,
   },
-  overviewBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 13, paddingVertical: 9, borderRadius: 22,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18, shadowRadius: 6, elevation: 7,
-  },
-  overviewBtnActive: {
-    shadowColor: "#1565C0", shadowOpacity: 0.45,
-  },
-  overviewBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold" },
 
   // ── Recenter button (left-side, appears when map drifts during nav) ────────
   recenterBtn: {
@@ -1880,20 +1797,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22, shadowRadius: 8, elevation: 8,
   },
   recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
-
-  // ── Overview auto-exit toast ──────────────────────────────────────────────
-  overviewToast: {
-    position: "absolute", zIndex: 30,
-    alignSelf: "center", top: "35%",
-    flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: "#1565C0EE",
-    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 10, elevation: 12,
-  },
-  overviewToastTxt: {
-    color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold",
-  },
 
   // ── Arrival card ────────────────────────────────────────────────────────
   arrivalOverlay: {

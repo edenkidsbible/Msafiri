@@ -181,32 +181,14 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 
 // ─── Main map component ───────────────────────────────────────────────────────
 
-// Return the slice of `coords` from the point nearest to (lat, lng) onward.
-// Used by overview mode to fit only the road still ahead, not the portion
-// the driver has already passed.
-function remainingCoords(
-  coords: { latitude: number; longitude: number }[],
-  lat: number,
-  lng: number,
-): { latitude: number; longitude: number }[] {
-  if (coords.length === 0) return coords;
-  let bestIdx = 0;
-  let bestDist = Infinity;
-  for (let i = 0; i < coords.length; i++) {
-    const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
-    if (d < bestDist) { bestDist = d; bestIdx = i; }
-  }
-  // Keep at least the last 2 points so fitToCoordinates always has a valid bbox
-  const slice = coords.slice(bestIdx);
-  return slice.length >= 2 ? slice : coords.slice(Math.max(0, coords.length - 2));
-}
-
 const DriveMapView = forwardRef(function DriveMapView(
   {
-    overviewMode = false,
+    mapDrifted = false,
     onDriftChange,
   }: {
-    overviewMode?: boolean;
+    /** True when the driver has panned/zoomed away from their GPS position.
+     *  Auto-follow is suspended while drifted; recenter() clears it. */
+    mapDrifted?: boolean;
     onDriftChange?: (drifted: boolean) => void;
   },
   ref: React.ForwardedRef<DriveMapViewHandle>,
@@ -228,24 +210,10 @@ const DriveMapView = forwardRef(function DriveMapView(
   const hasCenteredRef = useRef(false);
   const now = Date.now();
 
-  // Persists the driver's last manual zoom level during overview so returning to
-  // overview snaps back to the same zoom instead of re-fitting the full polyline.
-  // Stored as a Region (lat + deltas) captured from an actual gesture.
-  const savedOverviewRegionRef = useRef<Region | null>(null);
-
-  // Mirror overviewMode in a ref so the onRegionChangeComplete callback can read
-  // the current value without recreating itself on every mode toggle.
-  const overviewModeRef = useRef(overviewMode);
-  useEffect(() => { overviewModeRef.current = overviewMode; }, [overviewMode]);
-
-  // Reset saved zoom whenever the active route changes (new destination chosen).
-  const prevRouteIdRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (activeRoute?.id !== prevRouteIdRef.current) {
-      prevRouteIdRef.current = activeRoute?.id;
-      savedOverviewRegionRef.current = null;
-    }
-  }, [activeRoute?.id]);
+  // Mirror mapDrifted in a ref so the onRegionChangeComplete callback can read
+  // the current value without recreating itself on every prop change.
+  const mapDriftedRef = useRef(mapDrifted);
+  useEffect(() => { mapDriftedRef.current = mapDrifted; }, [mapDrifted]);
 
   // Always-current mirror of navigationActive — read inside deferred callbacks
   // to avoid stale-closure bugs where a setTimeout captures the wrong value.
@@ -409,11 +377,10 @@ const DriveMapView = forwardRef(function DriveMapView(
       return;
     }
 
-    // While in overview mode the driver is panning/zooming freely — don't
-    // fight them by slamming the camera back to the first-person position.
-    // The overview effect below handles the zoom-out; this effect resumes
-    // auto-tracking only once the driver exits overview mode.
-    if (overviewMode) return;
+    // While the driver has drifted (panned/zoomed away), don't fight them by
+    // slamming the camera back to the GPS position. Auto-tracking resumes once
+    // they tap Recenter (which sets mapDrifted = false via onDriftChange).
+    if (mapDrifted) return;
 
     if (currentLat == null || currentLng == null) return;
 
@@ -442,81 +409,16 @@ const DriveMapView = forwardRef(function DriveMapView(
         { duration: 500 }
       );
     }
-  }, [navigationActive, currentLat, currentLng, overviewMode]);
-
-  // Track the driver's GPS position via a ref so the overview effect can read
-  // the latest value without adding it to the dependency array (which would
-  // re-trigger the fit on every GPS tick while overview is active).
-  const currentLatRef = useRef(currentLat);
-  const currentLngRef = useRef(currentLng);
-  useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
-  useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
-
-  // Overview mode — zoom out to show the full remaining route.
-  // fitToCoordinates is unreliable on iOS Apple Maps (silent no-op), so we
-  // compute the bounding box manually and call animateToRegion instead, which
-  // works consistently on both platforms.
-  // A 120 ms delay lets the navigation camera effect (which also fires on
-  // overviewMode change and returns early) fully settle before we move the
-  // camera, avoiding a race that can produce a blank or wrong viewport.
-  useEffect(() => {
-    if (!navigationActive || !overviewMode) return;
-    if (!activeRoute?.coords.length) return;
-
-    savedOverviewRegionRef.current = null;
-
-    const t = setTimeout(() => {
-      if (!overviewModeRef.current) return; // already exited before timer fired
-
-      const lat = currentLatRef.current;
-      const lng = currentLngRef.current;
-      const coords =
-        lat != null && lng != null
-          ? remainingCoords(activeRoute.coords, lat, lng)
-          : activeRoute.coords;
-
-      if (coords.length < 2) return;
-
-      const lats = coords.map((c) => c.latitude);
-      const lngs = coords.map((c) => c.longitude);
-      const minLat = Math.min(...lats);
-      const maxLat = Math.max(...lats);
-      const minLng = Math.min(...lngs);
-      const maxLng = Math.max(...lngs);
-
-      // 35 % padding so the route isn't edge-to-edge; bottom gets extra room
-      // for the navigation bar that sits over the lower portion of the map.
-      const latDelta = Math.max((maxLat - minLat) * 1.5, 0.02);
-      const lngDelta = Math.max((maxLng - minLng) * 1.5, 0.02);
-
-      mapRef.current?.animateToRegion(
-        {
-          latitude: (minLat + maxLat) / 2,
-          longitude: (minLng + maxLng) / 2,
-          latitudeDelta: latDelta,
-          longitudeDelta: lngDelta,
-        },
-        700,
-      );
-    }, 120);
-
-    return () => clearTimeout(t);
-  }, [overviewMode, navigationActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [navigationActive, currentLat, currentLng, mapDrifted]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
-  // active (and not in overview mode). That drift means their view has left
-  // the GPS position — surface a Recenter button so they can snap back.
-  // During overview mode, panning is expected; save the region for reference
-  // but don't signal drift (there is no separate recenter needed there —
-  // tapping the Overview button again or waiting for auto-exit handles it).
+  // active. That drift means their view has left the GPS position — surface
+  // the Recenter button so they can snap back with a single tap.
   const handleRegionChangeComplete = useCallback(
-    (region: Region, details: { isGesture?: boolean }) => {
+    (_region: Region, details: { isGesture?: boolean }) => {
       if (!details?.isGesture) return;
-      if (overviewModeRef.current) {
-        // Save manual zoom within an overview session (for possible future use)
-        savedOverviewRegionRef.current = region;
-      } else if (navActiveRef.current) {
-        // Driver panned/zoomed during navigation — signal drift to parent
+      if (navActiveRef.current && !mapDriftedRef.current) {
+        // First gesture during navigation — signal drift to parent
         onDriftChange?.(true);
       }
     },
