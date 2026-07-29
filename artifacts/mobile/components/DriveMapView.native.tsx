@@ -202,6 +202,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     pendingFocusCoords, setPendingFocusCoords,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone,
+    driverHeading,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -357,8 +358,9 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     if (!navigationActive) {
       if (wasActive) {
-        // Navigation just ended — restore free-map view so the driver can
-        // see where they are after arriving.
+        // Navigation just ended — restore north-up orientation first, then
+        // fit to the completed route (or pan to current position).
+        mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
         if (activeRoute?.coords.length) {
           const coords = activeRoute.coords;
           setTimeout(() => {
@@ -400,19 +402,29 @@ const DriveMapView = forwardRef(function DriveMapView(
     // manually via pinch is preserved.
     const justStarted = !wasActive;
     if (justStarted) {
+      // Zoom to street level first, then immediately orient the map to match
+      // the driver's heading so the road ahead points up (track-up mode).
       mapRef.current?.animateToRegion(
         { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
         300
       );
+      if (driverHeading != null) {
+        setTimeout(() => {
+          mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
+        }, 350);
+      }
     } else {
-      // Pan only — duration slightly under 1 s so each animation finishes before
-      // the next GPS fix arrives, preventing native bridge saturation.
+      // Pan + rotate — no zoom/pitch so the driver's manual pinch-zoom is
+      // preserved. heading rotates the map to keep the road pointing up.
       mapRef.current?.animateCamera(
-        { center: { latitude: currentLat, longitude: currentLng } },
+        {
+          center: { latitude: currentLat, longitude: currentLng },
+          ...(driverHeading != null ? { heading: driverHeading } : {}),
+        },
         { duration: 500 }
       );
     }
-  }, [navigationActive, currentLat, currentLng, mapDrifted]);
+  }, [navigationActive, currentLat, currentLng, mapDrifted, driverHeading]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
   // active. That drift means their view has left the GPS position — surface
@@ -478,13 +490,19 @@ const DriveMapView = forwardRef(function DriveMapView(
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
-    // Snap back to a tight street-level view identical to nav-start zoom.
+    // Snap back to street-level and restore heading-up orientation so the
+    // road ahead points up again (matching the original nav-start behaviour).
     mapRef.current?.animateToRegion(
       { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
       500
     );
+    if (driverHeading != null) {
+      setTimeout(() => {
+        mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
+      }, 550);
+    }
     onDriftChange?.(false);
-  }, [currentLat, currentLng, onDriftChange]);
+  }, [currentLat, currentLng, driverHeading, onDriftChange]);
 
   useImperativeHandle(ref, () => ({ recenter }), [recenter]);
 
