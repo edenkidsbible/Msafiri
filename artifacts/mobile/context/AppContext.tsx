@@ -1941,6 +1941,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const dest = navDestRef.current;
       isReroutingRef.current = true;
       setRouteLoading(true);
+      // Immediately play the bundled "Recalculating route." token so the driver
+      // hears Keli's voice the instant rerouting is triggered — before the new
+      // OSRM route has even arrived.
+      speakText("Recalculating route.");
       fetchOSRM(lat, lng, dest.lat, dest.lng)
         .then((routes) => {
           if (!routes.length) return;
@@ -1959,8 +1963,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
             }))
           );
-          // Pre-warm road-name audio for the new route.
+          // Pre-warm road-name segments for the new route.
           prewarmRouteAudio(primary.steps);
+          // Pre-build full-sentence clips — first steps are fetched first so
+          // the driver hears Keli seamlessly as soon as the new route settles.
+          // Fire-and-forget; any step that isn't ready yet falls back to the
+          // bundled-token-only path (maneuver without road name) — still Keli.
+          void prebuildRouteAudio(primary.steps);
         })
         .catch((e) => console.warn("[reroute] OSRM:", e))
         .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });

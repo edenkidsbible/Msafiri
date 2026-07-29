@@ -57,3 +57,20 @@ Gives the driver confirmation they turned correctly, then goes silent until next
 
 ### Key design rule
 `sessionCache` (Map<text→filePath>) is the bridge between prebuild and speakPhrase; both use the exact `step.instruction` string as the cache key, so the lookup always matches.
+
+## Phase 3 — All-Keli offline audio (DONE, pending Keli regeneration)
+
+### Bundled clips
+- Token vocabulary now ~120 clips (added all cleared-alert phrases to TOKENS list in `generateNavTokens.mjs`)
+- Existing bundled files still use **Alice** voice — to switch all to Keli, run: `node artifacts/mobile/scripts/generateNavTokens.mjs --force` with a creator-tier ElevenLabs API key. The script now calls the `/api/tts` proxy (Keli, centralised settings) instead of ElevenLabs directly.
+- 6 new cleared clips (checkpoint-cleared, camera-cleared, traffic-cleared, incident-cleared, road-closure-cleared, incident-ahead-cleared) are in TOKENS but **not yet in TOKEN_ASSETS** (files don't exist yet). Add `require()` entries to TOKEN_ASSETS in `utils/tts.ts` after generating them.
+
+### expo-speech removed
+- Import and `Speech.stop()` call removed from `utils/tts.ts`. Package removed from `package.json`. No device-TTS fallback anywhere.
+
+### Reroute flow
+- `speakText("Recalculating route.")` now fires at the TOP of the reroute callback (before the OSRM fetch) — was previously silent.
+- After new route arrives: `void prebuildRouteAudio(primary.steps)` fires alongside the existing `prewarmRouteAudio` call. First steps fetch first (natural array order). Interim cues use bundled token without road name.
+
+### Cleared-alert EXACT entries
+Five cleared phrases now map to bundled tokens in `EXACT` lookup: police-cleared, accident-cleared, roadblock-cleared, roadworks-cleared, hazard-cleared. The remaining six fall through to on-demand TTS until clips are generated.

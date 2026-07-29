@@ -1,11 +1,23 @@
 /**
  * One-time script: generates the Keli (ElevenLabs) navigation audio token library.
- * Run from the repo root:
+ *
+ * Run from the repo root with the API server running:
+ *
  *   node artifacts/mobile/scripts/generateNavTokens.mjs
  *
- * Requires ELEVENLABS_API_KEY in the environment.
- * Outputs to: artifacts/mobile/assets/nav-audio/<key>.mp3
- * Skips any file that already exists (idempotent).
+ * The script calls the /api/tts proxy (POST) so the Keli voice settings stay
+ * centralised in api-server/src/routes/tts.ts.  The proxy endpoint requires
+ * a creator-tier ElevenLabs API key (ELEVENLABS_API_KEY) — free-tier keys will
+ * receive a 400 from ElevenLabs and the clip will be skipped.
+ *
+ * Options:
+ *   --force    Re-generate clips that already exist on disk.
+ *   --dry-run  Print what would be generated without making any requests.
+ *
+ * Environment:
+ *   TTS_BASE_URL   Base URL of the running API server (default: http://localhost:8080)
+ *
+ * Output:  artifacts/mobile/assets/nav-audio/<key>.mp3
  */
 
 import { writeFile, mkdir, access } from "fs/promises";
@@ -13,23 +25,18 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = join(__dirname, "../assets/nav-audio");
+const OUT_DIR   = join(__dirname, "../assets/nav-audio");
 
-const VOICE_ID = "Xb7hH8MSUJpSbSDYk0k2"; // Alice — British, clear/engaging, free-tier
-const MODEL_ID  = "eleven_flash_v2_5";
+const BASE_URL  = process.env.TTS_BASE_URL ?? "http://localhost:8080";
+const TTS_URL   = `${BASE_URL}/api/tts`;
+const FORCE     = process.argv.includes("--force");
+const DRY_RUN   = process.argv.includes("--dry-run");
 
-const VOICE_SETTINGS = {
-  stability:        0.45,
-  similarity_boost: 0.82,
-  style:            0,
-  use_speaker_boost: true,
-};
-
-// ── Complete token list ───────────────────────────────────────────────────────
-// key → text sent to ElevenLabs TTS.
+// ── Complete token list ────────────────────────────────────────────────────────
+// key → text sent to the /api/tts proxy.
 // Keys without a trailing period/comma are mid-phrase clips (road-name follows).
 export const TOKENS = [
-  // Distance intro prefixes (comma creates natural pause)
+  // ── Distance intro prefixes ──────────────────────────────────────────────────
   { key: "in-100m",  text: "In 100 metres," },
   { key: "in-150m",  text: "In 150 metres," },
   { key: "in-200m",  text: "In 200 metres," },
@@ -37,7 +44,7 @@ export const TOKENS = [
   { key: "in-300m",  text: "In 300 metres," },
   { key: "in-350m",  text: "In 350 metres," },
 
-  // Standalone maneuvers (complete sentence — no road name follows)
+  // ── Standalone maneuvers ─────────────────────────────────────────────────────
   { key: "turn-left",           text: "Turn left." },
   { key: "turn-right",          text: "Turn right." },
   { key: "turn-slight-left",    text: "Turn slightly left." },
@@ -54,7 +61,7 @@ export const TOKENS = [
   { key: "merge-left",          text: "Merge left." },
   { key: "merge-right",         text: "Merge right." },
 
-  // Maneuvers + "onto" (road name follows — no period, open inflection)
+  // ── Maneuvers + "onto" (road name follows) ───────────────────────────────────
   { key: "turn-left-onto",          text: "Turn left onto" },
   { key: "turn-right-onto",         text: "Turn right onto" },
   { key: "turn-slight-left-onto",   text: "Turn slightly left onto" },
@@ -67,21 +74,21 @@ export const TOKENS = [
   { key: "merge-left-onto",         text: "Merge left onto" },
   { key: "merge-right-onto",        text: "Merge right onto" },
 
-  // Roundabout — standalone
+  // ── Roundabout — standalone ──────────────────────────────────────────────────
   { key: "roundabout-1st",  text: "At the roundabout, take the 1st exit." },
   { key: "roundabout-2nd",  text: "At the roundabout, take the 2nd exit." },
   { key: "roundabout-3rd",  text: "At the roundabout, take the 3rd exit." },
   { key: "roundabout-4th",  text: "At the roundabout, take the 4th exit." },
   { key: "roundabout-5th",  text: "At the roundabout, take the 5th exit." },
 
-  // Roundabout — with road name following
+  // ── Roundabout — with road name following ────────────────────────────────────
   { key: "roundabout-1st-onto",  text: "At the roundabout, take the 1st exit onto" },
   { key: "roundabout-2nd-onto",  text: "At the roundabout, take the 2nd exit onto" },
   { key: "roundabout-3rd-onto",  text: "At the roundabout, take the 3rd exit onto" },
   { key: "roundabout-4th-onto",  text: "At the roundabout, take the 4th exit onto" },
   { key: "roundabout-5th-onto",  text: "At the roundabout, take the 5th exit onto" },
 
-  // Roundabout exit-count cues (speakRoundaboutExitCue in sound.ts)
+  // ── Roundabout exit-count cues ───────────────────────────────────────────────
   { key: "the-1st-exit",   text: "The 1st exit." },
   { key: "the-2nd-exit",   text: "The 2nd exit." },
   { key: "the-3rd-exit",   text: "The 3rd exit." },
@@ -90,10 +97,10 @@ export const TOKENS = [
   { key: "the-6th-exit",   text: "The 6th exit." },
   { key: "take-this-exit", text: "Take this exit." },
 
-  // Depart step — replaces "Head north/south/..." to avoid on-demand TTS latency
+  // ── Depart step ──────────────────────────────────────────────────────────────
   { key: "follow-the-route",        text: "Follow the route." },
 
-  // Depart step — directional variants standalone (no road name)
+  // ── Depart step — directional (standalone) ───────────────────────────────────
   { key: "head-north",          text: "Head north." },
   { key: "head-northeast",      text: "Head northeast." },
   { key: "head-east",           text: "Head east." },
@@ -104,7 +111,7 @@ export const TOKENS = [
   { key: "head-northwest",      text: "Head northwest." },
   { key: "head-forward",        text: "Head forward." },
 
-  // Depart step — directional variants + "onto" (road name follows — open inflection)
+  // ── Depart step — directional + "onto" ───────────────────────────────────────
   { key: "head-north-onto",     text: "Head north onto" },
   { key: "head-northeast-onto", text: "Head northeast onto" },
   { key: "head-east-onto",      text: "Head east onto" },
@@ -115,7 +122,7 @@ export const TOKENS = [
   { key: "head-northwest-onto", text: "Head northwest onto" },
   { key: "head-forward-onto",   text: "Head forward onto" },
 
-  // Fixed navigation phrases
+  // ── Fixed navigation phrases ─────────────────────────────────────────────────
   { key: "approaching-destination", text: "Approaching your destination." },
   { key: "arrived",                 text: "You have arrived at your destination." },
   { key: "arriving",                text: "Arriving at your destination." },
@@ -124,7 +131,7 @@ export const TOKENS = [
   { key: "report-submitted",        text: "Report submitted." },
   { key: "speed-limit-exceeded",    text: "You are exceeding the speed limit." },
 
-  // Road alert phrases
+  // ── Road alert phrases ───────────────────────────────────────────────────────
   { key: "speed-camera-ahead",       text: "Speed camera ahead." },
   { key: "speed-camera-ahead-slow",  text: "Speed camera ahead. Reduce your speed." },
   { key: "police-ahead",             text: "Police checkpoint ahead." },
@@ -143,57 +150,52 @@ export const TOKENS = [
   { key: "breakdown-ahead",          text: "Vehicle breakdown ahead." },
   { key: "weather-hazard-ahead",     text: "Weather hazard ahead." },
   { key: "road-closure-ahead",       text: "Road closure ahead." },
+
+  // ── Alert cleared phrases ────────────────────────────────────────────────────
+  { key: "police-cleared",           text: "Police checkpoint cleared." },
+  { key: "checkpoint-cleared",       text: "Checkpoint cleared." },
+  { key: "accident-cleared",         text: "Accident cleared." },
+  { key: "roadblock-cleared",        text: "Road block cleared." },
+  { key: "roadworks-cleared",        text: "Road works cleared." },
+  { key: "hazard-cleared",           text: "Hazard cleared." },
+  { key: "camera-cleared",           text: "Speed camera report cleared." },
+  { key: "traffic-cleared",          text: "Traffic cleared." },
+  { key: "incident-cleared",         text: "Incident cleared." },
+  { key: "road-closure-cleared",     text: "Road closure cleared." },
+  { key: "incident-ahead-cleared",   text: "Incident ahead cleared." },
 ];
 
-// ── ElevenLabs API call ───────────────────────────────────────────────────────
+// ── Proxy call ─────────────────────────────────────────────────────────────────
 
-async function generateClip(text, apiKey) {
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: MODEL_ID,
-        voice_settings: VOICE_SETTINGS,
-      }),
-    }
-  );
+async function generateClip(text) {
+  const res = await fetch(TTS_URL, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ text }),
+  });
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`ElevenLabs ${res.status}: ${body}`);
+    const body = await res.text().catch(() => "(no body)");
+    throw new Error(`TTS proxy ${res.status}: ${body}`);
   }
   return Buffer.from(await res.arrayBuffer());
 }
 
 async function fileExists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
+  try { await access(path); return true; }
+  catch { return false; }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const apiKey = process.env.ELEVENLABS_API_KEY;
-if (!apiKey) {
-  console.error("❌  ELEVENLABS_API_KEY not set");
-  process.exit(1);
-}
-
 await mkdir(OUT_DIR, { recursive: true });
 
 const totalChars = TOKENS.reduce((s, t) => s + t.text.length, 0);
-console.log(`\n🎙  Generating ${TOKENS.length} navigation audio clips`);
+console.log(`\n🎙  Keli navigation audio — ${TOKENS.length} clips`);
+console.log(`   Proxy:            ${TTS_URL}`);
 console.log(`   Total characters: ${totalChars.toLocaleString()}`);
-console.log(`   Estimated ElevenLabs cost: ~$${(totalChars * 0.00005).toFixed(3)}\n`);
+if (FORCE)   console.log("   --force: existing files will be regenerated");
+if (DRY_RUN) console.log("   --dry-run: no files will be written\n");
+else         console.log();
 
 let generated = 0;
 let skipped   = 0;
@@ -202,13 +204,19 @@ let errors    = 0;
 for (const { key, text } of TOKENS) {
   const outPath = join(OUT_DIR, `${key}.mp3`);
 
-  if (await fileExists(outPath)) {
+  if (!FORCE && await fileExists(outPath)) {
     skipped++;
     continue;
   }
 
+  if (DRY_RUN) {
+    console.log(`  (dry) ${key}  "${text}"`);
+    generated++;
+    continue;
+  }
+
   try {
-    const buf = await generateClip(text, apiKey);
+    const buf = await generateClip(text);
     await writeFile(outPath, buf);
     generated++;
     process.stdout.write(`  ✓  ${key}\n`);
@@ -222,4 +230,4 @@ for (const { key, text } of TOKENS) {
 }
 
 console.log(`\n✅  Done — ${generated} generated, ${skipped} skipped, ${errors} errors`);
-console.log(`   Output: ${OUT_DIR}\n`);
+if (!DRY_RUN) console.log(`   Output: ${OUT_DIR}\n`);

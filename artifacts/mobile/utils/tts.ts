@@ -2,20 +2,20 @@
  * tts.ts — Navigation voice guidance via ElevenLabs (Keli voice)
  *
  * Architecture:
- *  • 74 structural phrases (turn left, in 200m, police ahead, etc.) are
- *    pre-recorded MP3s bundled with the app → zero latency, works offline.
+ *  • ~120 structural phrases (turn left, in 200m, police ahead, cleared alerts, etc.)
+ *    are pre-recorded Keli MP3s bundled with the app → zero latency, works offline.
  *  • Road names (e.g. "Ngong Road.") are fetched on-demand from POST /api/tts
  *    → cached to device storage for 1 year so the second play is instant.
+ *  • Before navigation starts, prebuildRouteAudio() downloads each full-sentence
+ *    instruction as a single MP3, eliminating mid-phrase gaps during the drive.
  *  • All playback is sequential; stopping mid-phrase is instant via generation
  *    counter cancellation.
- *  • Falls back to expo-speech if a token file is missing or ElevenLabs
- *    is unreachable and the road name isn't cached.
+ *  • No device-TTS fallback — every utterance is Keli's voice.
  */
 
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Speech from "expo-speech";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "@/utils/apiClient";
 
@@ -129,6 +129,18 @@ const TOKEN_ASSETS: Record<string, number> = {
   "breakdown-ahead":          require("@/assets/nav-audio/breakdown-ahead.mp3"),
   "weather-hazard-ahead":     require("@/assets/nav-audio/weather-hazard-ahead.mp3"),
   "road-closure-ahead":       require("@/assets/nav-audio/road-closure-ahead.mp3"),
+
+  // ── Alert cleared phrases ────────────────────────────────────────────────────
+  // These are the exact strings emitted by AppContext's CLEARED_TEXT map.
+  // New clips (camera-cleared, traffic-cleared, incident-cleared,
+  // road-closure-cleared, checkpoint-cleared, incident-ahead-cleared) are listed
+  // in generateNavTokens.mjs — add require() entries here after running the
+  // script with a creator-tier ElevenLabs API key.
+  "police-cleared":      require("@/assets/nav-audio/police-cleared.mp3"),
+  "accident-cleared":    require("@/assets/nav-audio/accident-cleared.mp3"),
+  "roadblock-cleared":   require("@/assets/nav-audio/roadblock-cleared.mp3"),
+  "roadworks-cleared":   require("@/assets/nav-audio/roadworks-cleared.mp3"),
+  "hazard-cleared":      require("@/assets/nav-audio/hazard-cleared.mp3"),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -143,6 +155,12 @@ const EXACT: Record<string, string> = {
   "arriving at your destination":          "arriving",
   "you are exceeding the speed limit":     "speed-limit-exceeded",
   "recalculating route":                   "recalculating",
+  // Cleared alerts (exact strings from AppContext CLEARED_TEXT map)
+  "police checkpoint cleared":             "police-cleared",
+  "accident cleared":                      "accident-cleared",
+  "road block cleared":                    "roadblock-cleared",
+  "road works cleared":                    "roadworks-cleared",
+  "hazard cleared":                        "hazard-cleared",
   // Alerts
   "speed camera ahead. reduce your speed": "speed-camera-ahead-slow",
   "speed camera ahead":                    "speed-camera-ahead",
@@ -542,8 +560,7 @@ export function stopNavVoice(): void {
   gen++;
   try { activePlayer?.remove(); } catch { /* ignore */ }
   activePlayer = null;
-  // Also stop any fallback expo-speech utterance
-  try { Speech.stop(); } catch { /* ignore */ }
+  // (No expo-speech fallback — all voice is Keli via ElevenLabs)
   // Restore music volume immediately — don't leave it ducked after interruption
   restoreAudioMode();
 }
