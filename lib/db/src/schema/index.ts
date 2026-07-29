@@ -9,4 +9,3 @@ export * from "./creators";
 export * from "./promoCodes";
 export * from "./sharingSessions";
 export * from "./course";
-export * from "./settings";

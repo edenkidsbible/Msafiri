@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -36,7 +35,7 @@ export default function PaywallScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { requestLocationPermission, isAdmin, adminLogout } = useApp();
-  const { offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings, purchase, isPurchasing, restore, isRestoring, isTrialEligible, setReviewerMode } =
+  const { offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings, purchase, isPurchasing, restore, isRestoring, isTrialEligible } =
     useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -114,36 +113,6 @@ export default function PaywallScreen() {
       }
     } else {
       adminTapTimer.current = setTimeout(() => { adminTapCount.current = 0; }, 2000);
-    }
-  }
-
-  // Hidden reviewer bypass — tap the logo 4 times quickly.
-  // Unlocks full access and routes straight into the app so store reviewers
-  // can evaluate the complete experience without a subscription.
-  const logoTapCount = useRef(0);
-  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function handleLogoTap() {
-    logoTapCount.current += 1;
-    if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
-    if (logoTapCount.current >= 4) {
-      logoTapCount.current = 0;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Reviewer Mode",
-        "Enable Reviewer Mode? Full app access will be unlocked so you can review the complete experience without a subscription.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Enable",
-            onPress: async () => {
-              await setReviewerMode(true);
-              await handleEnterApp();
-            },
-          },
-        ]
-      );
-    } else {
-      logoTapTimer.current = setTimeout(() => { logoTapCount.current = 0; }, 1500);
     }
   }
 
@@ -320,16 +289,10 @@ export default function PaywallScreen() {
       <View style={styles.logoRow}>
         {/* Spacer so logo stays centred */}
         <View style={styles.logoSide} />
-        {/* "Msafiri" text — hidden 4-tap gesture unlocks Reviewer Mode for store reviewers */}
-        <TouchableOpacity
-          style={styles.logoCenter}
-          onPress={handleLogoTap}
-          activeOpacity={1}
-          accessibilityLabel="Msafiri"
-        >
+        <View style={styles.logoCenter}>
           <Ionicons name="navigate" size={22} color={c.primary} />
           <Text style={[styles.logoText, { color: c.foreground }]}>Msafiri</Text>
-        </TouchableOpacity>
+        </View>
         {/* Clearly visible dismiss button — required by store subscription policies */}
         <TouchableOpacity
           style={[styles.dismissBtn, { backgroundColor: c.card, borderColor: c.border }]}

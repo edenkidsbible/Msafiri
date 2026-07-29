@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from "react";
-import { Platform, AppState } from "react-native";
+import { Platform } from "react-native";
 import Purchases from "react-native-purchases";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
@@ -51,8 +51,6 @@ export function initializeRevenueCat() {
   Purchases.configure({ apiKey });
   console.log("RevenueCat configured");
 }
-
-const REVIEWER_MODE_KEY = "sdk_reviewer_mode";
 
 function useSubscriptionContext() {
   const customerInfoQuery = useQuery({
@@ -138,59 +136,8 @@ function useSubscriptionContext() {
     onSuccess: () => customerInfoQuery.refetch(),
   });
 
-  // Reviewer mode — toggled by a hidden 4-tap gesture on the paywall logo.
-  // Persisted to AsyncStorage so it survives restarts during store review.
-  // We check the public API endpoint on startup AND every time the app comes
-  // back to the foreground: if an admin disables it from the dashboard, all
-  // devices lose the bypass on their next foreground event (no restart needed).
-  const [reviewerMode, setReviewerModeState] = React.useState(false);
-
-  const syncReviewerMode = React.useCallback(async () => {
-    try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      if (domain) {
-        const res = await fetch(`https://${domain}/api/settings/reviewer-mode`);
-        if (res.ok) {
-          const { enabled } = (await res.json()) as { enabled: boolean };
-          if (!enabled) {
-            // Admin killed reviewer mode remotely — wipe the local flag
-            await AsyncStorage.removeItem(REVIEWER_MODE_KEY);
-            setReviewerModeState(false);
-            return;
-          }
-        }
-      }
-    } catch { /* network unavailable — fall back to local storage */ }
-    // Remote allows it (or unreachable) — restore from local storage
-    AsyncStorage.getItem(REVIEWER_MODE_KEY)
-      .then(v => { if (v === "true") setReviewerModeState(true); })
-      .catch(() => {});
-  }, []);
-
-  React.useEffect(() => {
-    // Initial check on mount
-    syncReviewerMode();
-
-    // Re-check whenever the app comes to the foreground so that an admin
-    // disabling reviewer mode in the dashboard takes effect immediately on
-    // the next app resume, without requiring a full restart.
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") syncReviewerMode();
-    });
-    return () => sub.remove();
-  }, [syncReviewerMode]);
-  const setReviewerMode = async (enabled: boolean) => {
-    setReviewerModeState(enabled);
-    if (enabled) {
-      await AsyncStorage.setItem(REVIEWER_MODE_KEY, "true");
-    } else {
-      await AsyncStorage.removeItem(REVIEWER_MODE_KEY);
-    }
-  };
-
   const isSubscribed =
     BYPASS_PAYWALL ||
-    reviewerMode ||
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
   return {
@@ -211,8 +158,6 @@ function useSubscriptionContext() {
     isRestoring: restoreMutation.isPending,
     isTrialEligible,
     error: customerInfoQuery.error ?? offeringsQuery.error ?? purchaseMutation.error ?? null,
-    reviewerMode,
-    setReviewerMode,
   };
 }
 

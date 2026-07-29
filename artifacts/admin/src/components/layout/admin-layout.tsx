@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const adminOnlyNavAll: Array<{ href: string; label: string; icon: typeof LayoutDashboard; feature: FeatureKey }> = [
     { href: "/dashboard", label: "Dashboard",    icon: LayoutDashboard, feature: "dashboard" },
     { href: "/users",     label: "Team Members", icon: Users,           feature: "team" },
-    { href: "/settings",  label: "App Settings", icon: Settings,        feature: "app_settings" },
   ];
   const adminOnlyNav = adminOnlyNavAll.filter((item) => can(item.feature));
 

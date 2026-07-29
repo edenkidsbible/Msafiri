@@ -429,6 +429,16 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
     onClose();
   };
 
+  // Collapse results + keyboard when the driver taps any inert area of the
+  // sheet (grabber, title, gaps between chips, etc.) while results are visible.
+  // Reset all search-outcome state so no misleading empty/error message appears.
+  const dismissResults = useCallback(() => {
+    setResults([]);
+    setSearched(false);
+    setError(null);
+    Keyboard.dismiss();
+  }, []);
+
   const speedKmh = currentSpeed ?? 0;
 
   return (
@@ -442,10 +452,14 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
           backgroundColor: c.card,
           paddingBottom: insets.bottom + 12,
         }]}>
-          <View style={[styles.grabber, { backgroundColor: c.border }]} />
+          {/* Grabber — inert strip; tap dismisses results */}
+          <Pressable onPress={dismissResults}
+            hitSlop={{ top: 10, bottom: 10, left: 60, right: 60 }}>
+            <View style={[styles.grabber, { backgroundColor: c.border }]} />
+          </Pressable>
 
-          {/* Header */}
-          <View style={styles.header}>
+          {/* Header — title text is inert (tap dismisses); close button handles its own tap */}
+          <Pressable style={styles.header} onPress={dismissResults}>
             <Ionicons name="search" size={18} color={c.mutedForeground} />
             <Text style={[styles.headerTitle, { color: c.foreground }]}>
               {activeRoute ? "Search Along Route" : "Find Nearby"}
@@ -453,7 +467,7 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
             <TouchableOpacity onPress={handleClose} hitSlop={10}>
               <Ionicons name="close" size={20} color={c.mutedForeground} />
             </TouchableOpacity>
-          </View>
+          </Pressable>
 
           {/* Search input */}
           <View style={[styles.inputRow, {
@@ -486,8 +500,9 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
             </TouchableOpacity>
           </View>
 
-          {/* Category chips */}
-          <View style={styles.chips}>
+          {/* Category chips — chip TouchableOpacity items handle their own taps;
+              tapping the gaps between chips fires dismissResults via the Pressable */}
+          <Pressable style={styles.chips} onPress={dismissResults}>
             {CHIPS.map(({ label, cat }) => {
               const isActive = activeChip === cat;
               const catColor = CATEGORIES[cat].color;
@@ -511,7 +526,7 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </Pressable>
 
           {/* Error */}
           {error && !loading && (

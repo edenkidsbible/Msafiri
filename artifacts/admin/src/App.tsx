@@ -25,7 +25,6 @@ import PushCampaigns from "@/pages/push-campaigns";
 import Releases from "@/pages/releases";
 import Blog from "@/pages/blog";
 import Creators from "@/pages/creators";
-import AppSettings from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
@@ -115,7 +114,6 @@ function Router() {
       <Route path="/releases"><ProtectedRoute component={Releases} feature="releases" /></Route>
       <Route path="/blog"><ProtectedRoute component={Blog} feature="blog" /></Route>
       <Route path="/creators"><ProtectedRoute component={Creators} feature="creators" /></Route>
-      <Route path="/settings"><ProtectedRoute component={AppSettings} feature="app_settings" /></Route>
       <Route component={NotFound} />
     </Switch>
   );
