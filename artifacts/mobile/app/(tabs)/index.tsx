@@ -135,7 +135,7 @@ export default function DriveScreen() {
     setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, selectRoute, routeLoading,
-    navigationActive, startNavigation, stopNavigation,
+    navigationActive, voicePreparing, startNavigation, stopNavigation,
     currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, zonesOnRoute,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
@@ -1134,11 +1134,21 @@ export default function DriveScreen() {
             </TouchableOpacity>
             <SOSButton compact />
             <TouchableOpacity
-              style={[styles.startBtn, { backgroundColor: c.primary }]}
+              style={[styles.startBtn, { backgroundColor: c.primary, opacity: voicePreparing ? 0.75 : 1 }]}
               onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+              disabled={voicePreparing}
             >
-              <Ionicons name="navigate" size={17} color="#FFF" />
-              <Text style={styles.startBtnTxt}>Start</Text>
+              {voicePreparing ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.startBtnTxt}>Preparing…</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="navigate" size={17} color="#FFF" />
+                  <Text style={styles.startBtnTxt}>Start</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>

@@ -14,7 +14,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { stopVoice } from "@/utils/sound";
-import { speakPhrase, prewarmRouteAudio, cancelPrewarm, isNavVoicePlaying } from "@/utils/tts";
+import { speakPhrase, prewarmRouteAudio, prebuildRouteAudio, cancelPrewarm, isNavVoicePlaying } from "@/utils/tts";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
 import { SPEED_ZONES, SpeedZone } from "@/data/speedZones";
@@ -208,7 +208,10 @@ interface AppContextValue {
   altRoutes: AppRoute[];
   selectRoute: (r: AppRoute) => void;
   navigationActive: boolean;
-  startNavigation: () => void;
+  /** True while route voice clips are being pre-fetched before navigation starts.
+   *  The UI shows a "Preparing voice guidance…" spinner during this window. */
+  voicePreparing: boolean;
+  startNavigation: () => Promise<void>;
   stopNavigation: () => void;
   isSharingTrip: boolean;
   shareToken: string | null;
@@ -776,6 +779,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
   const [altRoutes, setAltRoutes] = useState<AppRoute[]>([]);
   const [navigationActive, setNavigationActive] = useState(false);
+  const [voicePreparing, setVoicePreparing] = useState(false);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [distToNextM, setDistToNextM] = useState<number | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -2390,8 +2394,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const startNavigation = useCallback(() => {
+  const startNavigation = useCallback(async () => {
     if (!activeRoute) return;
+
+    // ── Phase 2: Pre-build full-sentence Keli clips before starting ─────────
+    // Fetches each step's instruction as ONE complete MP3 so REMIND cues play
+    // as a single seamless clip rather than a stitched token + road-name pair.
+    // Cap at 8 s so a slow connection doesn't block the driver indefinitely;
+    // any un-fetched instructions fall back to the token+segment path at drive time.
+    setVoicePreparing(true);
+    try {
+      await Promise.race([
+        prebuildRouteAudio(activeRoute.steps),
+        new Promise<void>(r => setTimeout(r, 8000)),
+      ]);
+    } catch { /* ignore */ }
+    setVoicePreparing(false);
+
+    // If the user tapped Cancel during prebuild (route was cleared), abort.
+    if (!routeRef.current) return;
+
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     lastSpokenRef.current = "";
@@ -2442,8 +2464,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // cleanup. Stop TTS (with a trailing follow-up to catch any narrowly-missed
     // utterance that slipped through on some Android TTS engines).
     stopVoice();
-    // Abandon any in-flight prewarm fetches for the route being discarded.
+    // Abandon any in-flight prewarm/prebuild fetches for the route being discarded.
     cancelPrewarm();
+    // Clear the "Preparing voice guidance" spinner if the user cancelled mid-prebuild.
+    setVoicePreparing(false);
 
     // Cancel any pending opening-cue timer so it cannot fire in a subsequent
     // session (e.g. driver stops then immediately starts a new route within 2.2 s).
@@ -3012,7 +3036,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       vehicleType, setVehicleType,
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
-      navigationActive, startNavigation, stopNavigation,
+      navigationActive, voicePreparing, startNavigation, stopNavigation,
       isSharingTrip: shareToken !== null,
       shareToken,
       shareLink: (shareCode || shareToken) ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareCode ?? shareToken}` : null,

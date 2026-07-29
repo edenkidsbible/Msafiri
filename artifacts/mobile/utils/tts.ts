@@ -531,7 +531,6 @@ let activePlayer: AudioPlayer | null = null;
  *  abandons remaining fetches without interfering with playback. */
 let prewarmGen = 0;
 
-/** Stop any in-progress navigation voice clip immediately. */
 /** True while a navigation voice clip is actively playing.
  *  Use this in AppContext to gate REMIND/NOW cues so they do not fire
  *  mid-sentence and kill the in-progress clip. */
@@ -584,17 +583,63 @@ export async function prewarmRouteAudio(
     try {
       await resolveRawClip(text);
     } catch {
-      // Non-critical — playback will fall back to expo-speech if the cache
-      // miss persists at instruction time.
+      // Non-critical — if the cache miss persists at instruction time the
+      // segment is silently skipped (Keli maneuver token still plays).
+    }
+  }
+}
+
+/**
+ * Pre-build full-sentence Keli clips for every step instruction before
+ * navigation starts.  Each instruction is fetched as ONE complete MP3
+ * (not split into token + road-name segments), eliminating the micro-gaps
+ * heard when two clips are stitched end-to-end.
+ *
+ * Called from startNavigation() with an 8 s timeout guard.  Any clips
+ * already in the 90-day disk cache are a no-op.  On cancellation
+ * (stopNavigation → cancelPrewarm), remaining fetches are abandoned.
+ *
+ * @param steps  The active route's step array.
+ * @returns      Resolves when all clips are fetched (or as many as time allows).
+ */
+export async function prebuildRouteAudio(
+  steps: { instruction: string }[]
+): Promise<void> {
+  if (Platform.OS === "web") return;
+
+  const myGen = ++prewarmGen;
+
+  // Deduplicate instructions — identical steps on loop routes only need one fetch.
+  const seen = new Set<string>();
+  for (const step of steps) {
+    if (step.instruction) seen.add(step.instruction);
+  }
+
+  for (const instruction of seen) {
+    if (prewarmGen !== myGen) return;  // cancelled by stopNavigation
+    try {
+      await resolveRawClip(instruction);
+    } catch {
+      // Non-critical — will fall back to token+segment playback at drive time.
     }
   }
 }
 
 /**
  * Speak a navigation phrase using the Keli (ElevenLabs) voice.
- * Structural phrases play from bundled tokens (zero latency).
- * Road names are fetched once and cached permanently on device.
- * Falls back to expo-speech if audio is unavailable.
+ *
+ * Fast path — pre-built single-clip playback:
+ *   prebuildRouteAudio() fetches each step's instruction as ONE complete Keli
+ *   MP3 before navigation starts.  speakPhrase checks the session cache first:
+ *
+ *   1. Full match  — "Turn left onto Ngong Road" (REMIND cue): play that clip
+ *      directly, no segment stitching, no micro-gaps.
+ *   2. Prefix match — "In 300 metres, Turn left onto Ngong Road" (ANNOUNCE cue):
+ *      play the distance tokens, then the pre-built instruction clip.  The only
+ *      gap is the natural pause between the distance and the instruction, which
+ *      actually sounds correct to the ear.
+ *
+ * Slow path — token + on-demand segments (fallback for reroutes, first drive, etc.)
  */
 export async function speakPhrase(text: string): Promise<void> {
   if (Platform.OS === "web" || !text.trim()) return;
@@ -606,9 +651,70 @@ export async function speakPhrase(text: string): Promise<void> {
   await duckForVoice();
   const myGen = gen; // snapshot after stopNavVoice incremented gen
 
-  const segments = parseToSegments(text);
-
   try {
+    // ── Pre-built single-clip fast path ──────────────────────────────────────
+    // 1. Full-text match (REMIND, NOW, arrival phrases)
+    const fullUri = sessionCache.get(text);
+    if (fullUri) {
+      let player: AudioPlayer | null = null;
+      try {
+        player = createAudioPlayer({ uri: fullUri });
+        activePlayer = player;
+        await playAndWait(player);
+      } catch (err) {
+        console.warn("[tts] prebuilt playback error:", err);
+      } finally {
+        if (activePlayer === player) activePlayer = null;
+        try { player?.remove(); } catch { /* ignore */ }
+      }
+      return;
+    }
+
+    // 2. Prefix match — "In X metres, {instruction}" (ANNOUNCE cue)
+    //    Play distance token(s) from bundled, then the pre-built instruction clip.
+    const prefixMatch = text.match(/^(in \d+ metres?,?\s*)/i);
+    if (prefixMatch) {
+      const remainder = text.slice(prefixMatch[0].length);
+      const remainderUri = sessionCache.get(remainder);
+      if (remainderUri) {
+        // Play distance prefix as bundled tokens
+        for (const seg of parseToSegments(prefixMatch[0])) {
+          if (gen !== myGen) return;
+          if (seg.kind === "token") {
+            const asset = TOKEN_ASSETS[seg.key];
+            if (asset != null) {
+              let player: AudioPlayer | null = null;
+              try {
+                player = createAudioPlayer(asset);
+                activePlayer = player;
+                await playAndWait(player);
+              } catch { /* ignore */ } finally {
+                if (activePlayer === player) activePlayer = null;
+                try { player?.remove(); } catch { /* ignore */ }
+              }
+            }
+          }
+        }
+        if (gen !== myGen) return;
+        // Play pre-built instruction clip
+        let player: AudioPlayer | null = null;
+        try {
+          player = createAudioPlayer({ uri: remainderUri });
+          activePlayer = player;
+          await playAndWait(player);
+        } catch (err) {
+          console.warn("[tts] prebuilt remainder playback error:", err);
+        } finally {
+          if (activePlayer === player) activePlayer = null;
+          try { player?.remove(); } catch { /* ignore */ }
+        }
+        return;
+      }
+    }
+
+    // ── Standard segment path (fallback) ─────────────────────────────────────
+    const segments = parseToSegments(text);
+
     for (const seg of segments) {
       if (gen !== myGen) return; // cancelled
 

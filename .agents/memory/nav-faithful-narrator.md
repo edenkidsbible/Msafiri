@@ -42,7 +42,18 @@ Gives the driver confirmation they turned correctly, then goes silent until next
 - expo-speech fallback removed; road-name segment silently skipped on persistent cache miss (Keli maneuver token still plays without road name)
 - `resolveRawClip` retries 3× with 1 s back-off before returning null
 
-## What Phase 2 still needs
-- Bundled ~120-clip fixed Keli vocabulary shipped in app
-- Route-start pre-fetch of all full-sentence clips ("Preparing voice guidance" spinner)
-- Reroute flow using bundled "Rerouting" clip + priority-ordered clip fetch
+## Phase 2 — Pre-built full-sentence clips (DONE)
+
+### prebuildRouteAudio
+- Fetches each `step.instruction` as ONE complete Keli MP3 before nav starts (uses same `resolveRawClip` + 90-day disk cache)
+- Called from `startNavigation` (now async) with an 8 s timeout
+- Shows `voicePreparing: boolean` state → "Preparing…" spinner on Start button in index.tsx
+- `stopNavigation` calls `cancelPrewarm()` + `setVoicePreparing(false)` to abort mid-prebuild
+
+### speakPhrase fast paths
+1. Full-text match: `sessionCache.get(text)` → play as single clip (covers REMIND — most important)
+2. Prefix match: "In X metres, {instruction}" → play distance tokens, then pre-built instruction clip
+3. Standard segment fallback for anything not yet pre-built (reroutes, first few seconds of nav)
+
+### Key design rule
+`sessionCache` (Map<text→filePath>) is the bridge between prebuild and speakPhrase; both use the exact `step.instruction` string as the cache key, so the lookup always matches.
