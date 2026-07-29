@@ -107,7 +107,6 @@ const TOKEN_ASSETS: Record<string, number> = {
   "arrived":                 require("@/assets/nav-audio/arrived.mp3"),
   "arriving":                require("@/assets/nav-audio/arriving.mp3"),
   "navigation-started":      require("@/assets/nav-audio/navigation-started.mp3"),
-  "recalculating":           require("@/assets/nav-audio/recalculating.mp3"),
   "report-submitted":        require("@/assets/nav-audio/report-submitted.mp3"),
   "speed-limit-exceeded":    require("@/assets/nav-audio/speed-limit-exceeded.mp3"),
   // Road alert phrases
@@ -154,7 +153,6 @@ const EXACT: Record<string, string> = {
   "you have arrived at your destination":  "arrived",
   "arriving at your destination":          "arriving",
   "you are exceeding the speed limit":     "speed-limit-exceeded",
-  "recalculating route":                   "recalculating",
   // Cleared alerts (exact strings from AppContext CLEARED_TEXT map)
   "police checkpoint cleared":             "police-cleared",
   "accident cleared":                      "accident-cleared",

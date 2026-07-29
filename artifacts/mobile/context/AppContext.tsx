@@ -964,8 +964,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // full stop without needing it in its dependency array.
   const stopNavigationRef = useRef<() => void>(() => {});
   // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
-  const offRouteCountRef = useRef(0);
-  const isReroutingRef   = useRef(false);
+  const offRouteCountRef        = useRef(0);
+  const isReroutingRef          = useRef(false);
+  // After any reroute we block the arrival check for 5 s so that GPS drift
+  // or immediate step-cascade on the new route can't trigger a false arrival.
+  const rerouteSettledUntilRef  = useRef(0);
   // Ref bag for the periodic traffic-refresh interval — holds the latest
   // nav state so the fixed-schedule interval never captures stale closures.
   const trafficBagRef = useRef<{
@@ -1830,9 +1833,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           speakText("Approaching your destination");
         }
 
-        const arrived = isLastStep
-          ? (dist < ARRIVAL_DIST || distToDest < ARRIVAL_DIST)
-          : dist < STEP_ADVANCE_DIST;
+        // Suppress arrival for 5 s after any reroute: the step cascade that
+        // fires immediately after a reroute (depart step at 0 m → advance →
+        // next step → advance…) can land on isLastStep with a stale or drifted
+        // distToDest and trigger a completely false "You have arrived" popup.
+        const rerouteSettled = Date.now() > rerouteSettledUntilRef.current;
+        const arrived = rerouteSettled && (
+          isLastStep
+            ? (dist < ARRIVAL_DIST || distToDest < ARRIVAL_DIST)
+            : dist < STEP_ADVANCE_DIST
+        );
 
         if (arrived) {
           const nextIdx = idx + 1;
@@ -1898,13 +1908,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (minOff > 50) {
         offRouteCountRef.current += 1;
-        if (offRouteCountRef.current >= 3 && !isReroutingRef.current) {
+        if (offRouteCountRef.current >= 2 && !isReroutingRef.current) {
           offRouteCountRef.current = 0;
           // Suppress off-route for 10 s after triggering a reroute so GPS
           // jitter at complex junctions doesn't immediately loop back here.
           rerouteGraceUntilRef.current = Date.now() + 10_000;
-          speakText("Rerouting.");
-          lastAnnounceCueAtRef.current = Date.now();
           triggerRerouteRef.current?.(lat, lng);
         }
       } else {
@@ -2137,10 +2145,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const dest = navDestRef.current;
       isReroutingRef.current = true;
       setRouteLoading(true);
-      // Immediately play the bundled "Recalculating route." token so the driver
-      // hears Keli's voice the instant rerouting is triggered — before the new
-      // OSRM route has even arrived.
-      speakText("Recalculating route.");
       fetchGoogleRoute(lat, lng, dest.lat, dest.lng)
         .then((routes) => {
           if (!routes.length) return;
@@ -2151,6 +2155,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCurrentStepIdx(0);
           routeProjIdxRef.current = 0;
           routeMaxDistMRef.current = 0;
+          // Clear spoken state so the GPS tick immediately evaluates the new
+          // route steps — no stale key from the old route blocks the cue.
           lastSpokenRef.current = "";
           approachingAnnouncedRef.current = false;
           setAltRoutes(alts);
@@ -2167,8 +2173,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Fire-and-forget; any step that isn't ready yet falls back to the
           // bundled-token-only path (maneuver without road name) — still Keli.
           void prebuildRouteAudio(primary.steps);
+          // Immediately announce the first actionable step of the new route.
+          // Without this the driver is silent until the next GPS tick evaluates
+          // the cue window — up to ~1–2 s on a good signal, longer on weak GPS.
+          // We skip the depart step (distanceM is typically 0) and use the first
+          // step with real distance so the driver gets an actual maneuver cue.
+          const firstActionable = primary.steps.find(
+            (s) => s.distanceM > 0 && s.maneuverType !== "arrive"
+          ) ?? primary.steps[0];
+          // Block arrival detection for 5 s so the rapid depart-step cascade
+          // on the new route (step 0 at 0 m → advance → step 1 …) can't
+          // trigger a false "You have arrived" before the route settles.
+          rerouteSettledUntilRef.current = Date.now() + 5_000;
+
+          if (firstActionable?.instruction) {
+            // Build a distance prefix matching the announce-cue logic so the
+            // driver hears "In 300 metres, turn left onto Ngong Road" not just
+            // "turn left onto Ngong Road" when they still have distance to cover.
+            const dM = firstActionable.distanceM;
+            const distPrefix =
+              dM >= 350 ? "In 350 metres, " :
+              dM >= 250 ? "In 300 metres, " :
+              dM >= 150 ? "In 200 metres, " :
+              dM >= 80  ? "In 100 metres, " : "";
+            speakText(distPrefix + firstActionable.instruction);
+            lastAnnounceCueAtRef.current = Date.now();
+            // Use the same key format the GPS handler uses ("step_0") so the
+            // next fix doesn't immediately re-announce the same step.
+            // Note: underscores match `step_${idx}` in handleLocation.
+            lastSpokenRef.current = `step_0`;
+          }
         })
-        .catch((e) => console.warn("[reroute] Routing:", e))
+        .catch((e) => {
+          console.warn("[reroute] Routing:", e);
+          // On failure, push the grace window out further so a transient
+          // network error doesn't cause a rapid re-trigger loop — the driver
+          // will get a fresh reroute attempt once the grace period expires.
+          rerouteGraceUntilRef.current = Date.now() + 30_000;
+        })
         .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
