@@ -195,7 +195,7 @@ const DriveMapView = forwardRef(function DriveMapView(
 ) {
   const {
     currentLat, currentLng,
-    activeRoute, altRoutes, selectRoute,
+    activeRoute, altRoutes, divergenceRoutes, selectRoute,
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport, flagReport,
     vehicleType, allZones,
@@ -633,9 +633,20 @@ const DriveMapView = forwardRef(function DriveMapView(
           </Marker>
         ))}
 
-        {/* Alternative routes */}
+        {/* Alternative routes (grey, selectable) */}
         {altRoutes.map((r) => (
           <Polyline key={r.id} coordinates={r.coords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(r)} />
+        ))}
+
+        {/* Divergence preview — pink "what's ahead" alternatives shown the moment
+            the driver leaves the planned path, before the full reroute commits.
+            Rendered above grey alts but below the primary blue route so the
+            driver sees all options without losing the main corridor. */}
+        {divergenceRoutes.map((r) => (
+          <React.Fragment key={r.id}>
+            <Polyline coordinates={r.coords} strokeColor="#FF2D7855" strokeWidth={9} lineCap="round" lineJoin="round" />
+            <Polyline coordinates={r.coords} strokeColor="#FF2D78" strokeWidth={5} lineCap="round" lineJoin="round" />
+          </React.Fragment>
         ))}
 
         {/* Active route — during navigation only show the section ahead of the driver.

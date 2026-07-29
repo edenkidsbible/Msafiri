@@ -140,7 +140,7 @@ export default function DriveScreen() {
     currentSpeed, currentSpeedLimit, activeAlert, dismissAlert, nearbyZones, communityReports,
     setThemeOverride,
     navDestination, setNavDestination,
-    activeRoute, altRoutes, selectRoute, routeLoading,
+    activeRoute, altRoutes, divergenceRoutes, selectRoute, routeLoading,
     navigationActive, startNavigation, stopNavigation,
     currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, zonesOnRoute,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
@@ -1152,6 +1152,21 @@ export default function DriveScreen() {
         </View>
       )}
 
+      {/* ── Divergence preview chip ─────────────────────────────────────────
+          Floats above the action-pill row while the driver is off-route and
+          pink alternative polylines are visible on the map. */}
+      {!showResults && navigationActive && divergenceRoutes.length > 0 && (
+        <View
+          pointerEvents="none"
+          style={[styles.divergenceChip, { bottom: navBarHeight + 54 }]}
+        >
+          <Ionicons name="git-branch-outline" size={13} color="#FF2D78" />
+          <Text style={styles.divergenceChipTxt}>
+            {divergenceRoutes.length === 1 ? "1 alternative ahead" : `${divergenceRoutes.length} routes found ahead`}
+          </Text>
+        </View>
+      )}
+
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Route preview sheet
       ══════════════════════════════════════════════════════════════════ */}
@@ -2007,6 +2022,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.28, shadowRadius: 7, elevation: 9,
   },
   driveActionPillTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  // ── Divergence preview chip ───────────────────────────────────────────────
+  divergenceChip: {
+    position: "absolute", alignSelf: "center", left: 0, right: 0,
+    alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 5,
+    backgroundColor: "#FF2D7820",
+    borderWidth: 1, borderColor: "#FF2D7866",
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
+    zIndex: 13,
+  } as const,
+  divergenceChipTxt: {
+    fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FF2D78",
+  },
 
   // ── Nav-mode right-side FAB column (legacy — kept to avoid TS errors) ────
   navFabCol: {

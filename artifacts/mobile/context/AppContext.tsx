@@ -208,6 +208,10 @@ interface AppContextValue {
   setNavDestination: (d: NavDestination | null) => void;
   activeRoute: AppRoute | null;
   altRoutes: AppRoute[];
+  /** Pink alternative polylines shown on the map while the driver is off-route.
+   *  Populated as soon as the first diverged GPS fix is detected, cleared when the
+   *  driver returns to the route or a full reroute commits. Max 2 routes. */
+  divergenceRoutes: AppRoute[];
   selectRoute: (r: AppRoute) => void;
   navigationActive: boolean;
   startNavigation: () => Promise<void>;
@@ -855,6 +859,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
   const [altRoutes, setAltRoutes] = useState<AppRoute[]>([]);
+  /** Pink "what's ahead" alternatives shown while the driver is off-route. */
+  const [divergenceRoutes, setDivergenceRoutes] = useState<AppRoute[]>([]);
+  /** Ref mirror so the GPS handler can check/clear without stale closure values. */
+  const divergenceRoutesRef  = useRef<AppRoute[]>([]);
+  /** Guard: true while a divergence fetch is in-flight to prevent concurrent calls. */
+  const divergenceFetchingRef = useRef(false);
   const [navigationActive, setNavigationActive] = useState(false);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [distToNextM, setDistToNextM] = useState<number | null>(null);
@@ -2007,6 +2017,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (minOff > 50) {
         offRouteCountRef.current += 1;
+
+        // ── Divergence preview: fetch alternatives on the FIRST bad fix ─────
+        // Shows up to 2 pink polylines immediately so the driver can see what
+        // roads ahead lead to their destination before the full reroute commits.
+        // Gates: moving (>10 km/h), not near a maneuver (>200 m), not already
+        // fetching, and driver is not heading away from the destination.
+        if (offRouteCountRef.current === 1
+            && !divergenceFetchingRef.current
+            && !isReroutingRef.current
+            && navDestRef.current
+            && kmh > 10
+            && (distToNextMRef.current == null || distToNextMRef.current > 200)) {
+          const destBearing = bearingDeg(lat, lng, navDestRef.current.lat, navDestRef.current.lng);
+          if (driverHeading == null || angleDiffDeg(driverHeading, destBearing) <= 120) {
+            const _dest = navDestRef.current;
+            divergenceFetchingRef.current = true;
+            fetchGoogleRoute(lat, lng, _dest.lat, _dest.lng)
+              .then((routes) => {
+                const alts = routes.slice(0, 2);
+                if (alts.length > 0 && navActiveRef.current) {
+                  setDivergenceRoutes(alts);
+                  divergenceRoutesRef.current = alts;
+                }
+              })
+              .catch(() => {})
+              .finally(() => { divergenceFetchingRef.current = false; });
+          }
+        }
+
         if (offRouteCountRef.current >= 2 && !isReroutingRef.current) {
           offRouteCountRef.current = 0;
           // Suppress off-route for 10 s after triggering a reroute so GPS
@@ -2016,6 +2055,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         offRouteCountRef.current = 0;
+        // Driver returned to route — clear divergence overlays.
+        if (divergenceRoutesRef.current.length > 0) {
+          setDivergenceRoutes([]);
+          divergenceRoutesRef.current = [];
+        }
       }
     }
 
@@ -2267,6 +2311,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // route steps — no stale key from the old route blocks the cue.
           lastSpokenRef.current = "";
           approachingAnnouncedRef.current = false;
+          // Reroute committed — dismiss the divergence preview immediately.
+          setDivergenceRoutes([]);
+          divergenceRoutesRef.current = [];
           setAltRoutes(alts);
           const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
           setZonesOnRoute(
@@ -2958,6 +3005,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     destAnnouncedRef.current = false;
     setActiveRoute(null);
     setAltRoutes([]);
+    setDivergenceRoutes([]);
+    divergenceRoutesRef.current = [];
+    divergenceFetchingRef.current = false;
     setZonesOnRoute([]);
     routeRef.current = null;
     stepIdxRef.current = 0;
@@ -3645,7 +3695,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isOffline,
       vehicleType, setVehicleType,
       navDestination, setNavDestination,
-      activeRoute, altRoutes, selectRoute,
+      activeRoute, altRoutes, divergenceRoutes, selectRoute,
       navigationActive, startNavigation, stopNavigation,
       isSharingTrip: shareToken !== null,
       shareToken,
