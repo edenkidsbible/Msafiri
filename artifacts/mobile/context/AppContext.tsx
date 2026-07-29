@@ -576,16 +576,19 @@ function apiZoneToStretch(z: ApiSpeedZone): SpeedStretch | null {
 // we approximate an "expect X min delay" figure from crowd-sourced reports
 // that actually slow traffic down along the route. Static zones (cameras,
 // police checkpoints) don't congest the road, so they're excluded.
+// These weights are intentionally modest — Google Routes API already accounts
+// for baseline traffic congestion. Community reports supplement it with fresh
+// driver-reported incidents that may not yet be reflected in Google's data.
 const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
-  closure: 15,
-  accident: 12,
-  roadblock: 10,
-  traffic: 8,
-  roadworks: 5,
-  breakdown: 4,
-  weather: 3,
+  closure: 8,
+  accident: 6,
+  roadblock: 5,
+  traffic: 4,
+  roadworks: 3,
+  breakdown: 2,
+  weather: 2,
 };
-const MAX_TRAFFIC_DELAY_MIN = 45;
+const MAX_TRAFFIC_DELAY_MIN = 20;
 
 /** Estimates total traffic delay (seconds) from community reports ahead on
  *  the route. Each report's weight scales with how many drivers confirmed
@@ -2270,10 +2273,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const durationRemainingS = useMemo(() => {
     if (!activeRoute || distanceRemainingM == null) return null;
-    const totalWithDelay = activeRoute.durationS + routeTrafficDelayS;
-    if (activeRoute.distanceM <= 0) return totalWithDelay;
-    return Math.round((distanceRemainingM / activeRoute.distanceM) * totalWithDelay);
-  }, [activeRoute, distanceRemainingM, routeTrafficDelayS]);
+    // Google's durationS is already traffic-aware — scale by remaining distance
+    // fraction only. Community report delay (routeTrafficDelayS) is shown as a
+    // separate supplemental indicator, not baked into the ETA.
+    if (activeRoute.distanceM <= 0) return activeRoute.durationS;
+    return Math.round((distanceRemainingM / activeRoute.distanceM) * activeRoute.durationS);
+  }, [activeRoute, distanceRemainingM]);
   // Keep refs in sync so the share-trip ping interval always reads fresh values
   useEffect(() => { durationRemainingRef.current = durationRemainingS; }, [durationRemainingS]);
   useEffect(() => { distanceRemainingRef.current = distanceRemainingM; }, [distanceRemainingM]);

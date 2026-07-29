@@ -116,10 +116,10 @@ export default function RouteIncidentsPanel() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.delayBannerTitle}>
-                Expect ~{delayMinutesLabel(routeTrafficDelayS)} delay in traffic
+                Community reports: +{delayMinutesLabel(routeTrafficDelayS)} extra
               </Text>
               <Text style={[styles.delayBannerSub, { color: c.mutedForeground }]}>
-                Based on driver reports along this route
+                Driver-reported incidents not yet in Google traffic data
               </Text>
             </View>
           </View>

@@ -127,14 +127,14 @@ export default function MapViewScreen() {
                   {navDestination.name.split(",")[0]}
                 </Text>
                 <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
-                  {durationStr(durationRemainingS ?? (activeRoute.durationS + routeTrafficDelayS))} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
+                  {durationStr(durationRemainingS ?? activeRoute.durationS)} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
                 </Text>
                 <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFAA" : c.mutedForeground, marginTop: 1 }]}>
-                  {arrivalTimeStr(durationRemainingS ?? (activeRoute.durationS + routeTrafficDelayS))}
+                  {arrivalTimeStr(durationRemainingS ?? activeRoute.durationS)}
                 </Text>
                 {routeTrafficDelayS > 0 && (
                   <Text style={[styles.routeMeta, { color: navigationActive ? "#FFD180" : "#E65100", marginTop: 1 }]}>
-                    incl. ~{Math.round(routeTrafficDelayS / 60)} min traffic delay
+                    Community reports: +{Math.round(routeTrafficDelayS / 60)} min
                   </Text>
                 )}
               </View>

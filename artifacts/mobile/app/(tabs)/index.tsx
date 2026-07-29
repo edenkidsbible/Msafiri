@@ -1048,7 +1048,7 @@ export default function DriveScreen() {
           <View style={styles.etaRow}>
             <View>
               <Text style={[styles.etaTime, { color: fgMain }]}>
-                {durationStr(activeRoute.durationS + routeTrafficDelayS)}
+                {durationStr(activeRoute.durationS)}
               </Text>
               <Text style={[styles.etaDist, { color: fgMuted }]}>
                 {distStr(activeRoute.distanceM)}
@@ -1062,7 +1062,7 @@ export default function DriveScreen() {
                 >
                   <Ionicons name="time-outline" size={11} color="#E65100" />
                   <Text style={styles.trafficDelayTxt}>
-                    Expect ~{Math.round(routeTrafficDelayS / 60)} min delay in traffic
+                    Community reports: +{Math.round(routeTrafficDelayS / 60)} min
                   </Text>
                   <Ionicons name="chevron-forward" size={10} color="#E65100" />
                 </TouchableOpacity>
@@ -1095,20 +1095,24 @@ export default function DriveScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <View style={[styles.altPill, { backgroundColor: c.primary }]}>
                   <Text style={[styles.altPillTxt, { color: "#FFF" }]}>
-                    Fastest · {durationStr(activeRoute.durationS + routeTrafficDelayS)}
+                    Fastest · {durationStr(activeRoute.durationS)}
                   </Text>
                 </View>
-                {altRoutes.map((r, i) => (
-                  <TouchableOpacity
-                    key={r.id}
-                    style={[styles.altPill, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}
-                    onPress={() => { selectRoute(r); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                  >
-                    <Text style={[styles.altPillTxt, { color: fgMain }]}>
-                      Alt {i + 1} · {durationStr(r.durationS)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {altRoutes.map((r) => {
+                  const diffS = r.durationS - activeRoute.durationS;
+                  const diffLabel = diffS > 0 ? `+${Math.round(diffS / 60)} min` : durationStr(r.durationS);
+                  return (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={[styles.altPill, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}
+                      onPress={() => { selectRoute(r); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                    >
+                      <Text style={[styles.altPillTxt, { color: fgMain }]}>
+                        {diffLabel} · {durationStr(r.durationS)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </ScrollView>
           )}
@@ -1197,11 +1201,11 @@ export default function DriveScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.navEta, { color: fgMain }]}>
-                    {durationStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
+                    {durationStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
                   </Text>
                   {/* Arrival clock time — updates every GPS fix via durationRemainingS */}
                   <Text style={[styles.navArrive, { color: fgMuted }]}>
-                    {arrivalTimeStr(durationRemainingS ?? ((activeRoute?.durationS ?? 0) + routeTrafficDelayS))}
+                    {arrivalTimeStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
                     {distanceRemainingM != null ? ` · ${distStr(distanceRemainingM)}` : ""}
                   </Text>
                   <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>

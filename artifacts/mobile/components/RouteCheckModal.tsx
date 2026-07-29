@@ -159,7 +159,7 @@ export default function RouteCheckModal({
                   </Text>
                   {result.trafficDelayS > 0 && (
                     <Text style={[styles.statusSub, { color: c.mutedForeground }]}>
-                      Expect ~{delayMinutesLabel(result.trafficDelayS)} extra delay
+                      Community reports: +{delayMinutesLabel(result.trafficDelayS)} extra
                     </Text>
                   )}
                   {checkedAt != null && (
@@ -181,7 +181,7 @@ export default function RouteCheckModal({
                 <View style={styles.metaItem}>
                   <Ionicons name="time-outline" size={14} color={c.mutedForeground} />
                   <Text style={[styles.metaText, { color: c.foreground }]}>
-                    {durationStr(result.durationS + result.trafficDelayS)}
+                    {durationStr(result.durationS)}
                   </Text>
                 </View>
               </View>
