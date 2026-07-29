@@ -32,6 +32,87 @@ const CLUSTER_DIST_M = 35;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Returns the coordinate at a fractional position (0–1) along a polyline,
+ *  walking cumulative chord lengths so the result is distance-accurate. */
+function midpointCoord(
+  coords: { latitude: number; longitude: number }[],
+  fraction = 0.5,
+): { latitude: number; longitude: number } {
+  if (coords.length === 0) return { latitude: 0, longitude: 0 };
+  if (coords.length === 1) return coords[0];
+
+  // Compute total chord length
+  let total = 0;
+  const segs: number[] = [];
+  for (let i = 1; i < coords.length; i++) {
+    const d = Math.hypot(
+      coords[i].latitude - coords[i - 1].latitude,
+      coords[i].longitude - coords[i - 1].longitude,
+    );
+    segs.push(d);
+    total += d;
+  }
+
+  const target = total * Math.max(0, Math.min(1, fraction));
+  let walked = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (walked + segs[i] >= target) {
+      const t = segs[i] > 0 ? (target - walked) / segs[i] : 0;
+      return {
+        latitude: coords[i].latitude + t * (coords[i + 1].latitude - coords[i].latitude),
+        longitude: coords[i].longitude + t * (coords[i + 1].longitude - coords[i].longitude),
+      };
+    }
+    walked += segs[i];
+  }
+  return coords[coords.length - 1];
+}
+
+/** Format seconds as "X min" or "Xh Ym". */
+function fmtDuration(s: number): string {
+  if (s < 3600) return `${Math.round(s / 60)} min`;
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+/** Format metres as "X.X km" or "X m". */
+function fmtDistance(m: number): string {
+  if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
+  return `${Math.round(m)} m`;
+}
+
+/** Format a signed delta as e.g. "+2 min · +1.4 km" or "−1 min · −0.8 km". */
+function fmtDelta(deltaS: number, deltaM: number): string {
+  const sign = (n: number) => (n >= 0 ? "+" : "−");
+  const time = `${sign(deltaS)}${fmtDuration(Math.abs(deltaS))}`;
+  const dist = `${sign(deltaM)}${fmtDistance(Math.abs(deltaM))}`;
+  return `${time} · ${dist}`;
+}
+
+// ─── Divergence badge — mid-route pill with time/distance delta ───────────────
+
+function DivergenceBadge({
+  label,
+  isRecommended,
+}: {
+  label: string;
+  isRecommended: boolean;
+}) {
+  return (
+    <View collapsable={false} style={ms.divBadgeWrap}>
+      {isRecommended && (
+        <View style={ms.divBadgeRec}>
+          <Text style={ms.divBadgeRecTxt}>✓ Recommended</Text>
+        </View>
+      )}
+      <View style={[ms.divBadgePill, isRecommended && ms.divBadgePillRec]}>
+        <Text style={ms.divBadgeTxt}>{label}</Text>
+      </View>
+    </View>
+  );
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const φ1 = (lat1 * Math.PI) / 180, φ2 = (lat2 * Math.PI) / 180;
@@ -642,30 +723,74 @@ const DriveMapView = forwardRef(function DriveMapView(
             the driver leaves the planned path, before the full reroute commits.
             Rendered above grey alts but below the primary blue route so the
             driver sees all options without losing the main corridor. */}
-        {divergenceRoutes.map((r) => (
-          <React.Fragment key={r.id}>
-            {/* Wide glow layer — provides a generous tap target */}
-            <Polyline
-              coordinates={r.coords}
-              strokeColor="#FF2D7855"
-              strokeWidth={9}
-              lineCap="round"
-              lineJoin="round"
-              tappable
-              onPress={() => { selectRoute(r); void startNavigation(); }}
-            />
-            {/* Bright inner stroke — visually the pink line */}
-            <Polyline
-              coordinates={r.coords}
-              strokeColor="#FF2D78"
-              strokeWidth={5}
-              lineCap="round"
-              lineJoin="round"
-              tappable
-              onPress={() => { selectRoute(r); void startNavigation(); }}
-            />
-          </React.Fragment>
-        ))}
+        {(() => {
+          if (!divergenceRoutes.length) return null;
+
+          // Identify the fastest divergence route so we can label it
+          // "Recommended" and render it slightly brighter.
+          const fastestDurationS = Math.min(...divergenceRoutes.map((r) => r.durationS));
+
+          // Spread badge positions along the polyline so two badges don't
+          // stack on top of each other when the routes share a long common
+          // prefix before diverging.  With 2 routes we use 40 % and 60 %;
+          // a single route uses the 50 % midpoint.
+          const fractions =
+            divergenceRoutes.length === 1
+              ? [0.5]
+              : divergenceRoutes.length === 2
+              ? [0.38, 0.62]
+              : divergenceRoutes.map((_, i) => 0.3 + (i / (divergenceRoutes.length - 1)) * 0.4);
+
+          return divergenceRoutes.map((r, idx) => {
+            const isRecommended = r.durationS === fastestDurationS;
+            const innerColor = isRecommended ? "#FF2D78" : "#FF6FA0";
+            const outerColor = isRecommended ? "#FF2D7855" : "#FF6FA033";
+
+            // Delta vs. the original active route (null if no active route yet)
+            const deltaS = activeRoute ? r.durationS - activeRoute.durationS : 0;
+            const deltaM = activeRoute ? r.distanceM - activeRoute.distanceM : 0;
+            const label = activeRoute ? fmtDelta(deltaS, deltaM) : fmtDuration(r.durationS);
+
+            const badgeCoord = midpointCoord(r.coords, fractions[idx]);
+
+            return (
+              <React.Fragment key={r.id}>
+                {/* Wide glow layer — provides a generous tap target */}
+                <Polyline
+                  coordinates={r.coords}
+                  strokeColor={outerColor}
+                  strokeWidth={9}
+                  lineCap="round"
+                  lineJoin="round"
+                  tappable
+                  onPress={() => { selectRoute(r); void startNavigation(); }}
+                />
+                {/* Bright inner stroke — visually the pink line */}
+                <Polyline
+                  coordinates={r.coords}
+                  strokeColor={innerColor}
+                  strokeWidth={5}
+                  lineCap="round"
+                  lineJoin="round"
+                  tappable
+                  onPress={() => { selectRoute(r); void startNavigation(); }}
+                />
+                {/* Mid-route badge showing time & distance delta */}
+                {r.coords.length >= 2 && (
+                  <Marker
+                    coordinate={badgeCoord}
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    tracksViewChanges={false}
+                    zIndex={20}
+                    onPress={() => { selectRoute(r); void startNavigation(); }}
+                  >
+                    <DivergenceBadge label={label} isRecommended={isRecommended} />
+                  </Marker>
+                )}
+              </React.Fragment>
+            );
+          });
+        })()}
 
         {/* Active route — during navigation only show the section ahead of the driver.
             The passed section is hidden entirely so the driver sees a clean,
@@ -1190,4 +1315,38 @@ const ms = StyleSheet.create({
     marginTop: 8,
   },
   zoneManagedTxt: { fontSize: 12, color: "#1565C0", flex: 1 },
+  // ── Divergence route badges ─────────────────────────────────────────────────
+  divBadgeWrap: {
+    alignItems: "center",
+  },
+  divBadgeRec: {
+    backgroundColor: "#FF2D78",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginBottom: 3,
+  },
+  divBadgeRecTxt: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFF",
+    letterSpacing: 0.3,
+  },
+  divBadgePill: {
+    backgroundColor: "rgba(30,30,30,0.82)",
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderWidth: 1.5,
+    borderColor: "#FF6FA0",
+  },
+  divBadgePillRec: {
+    borderColor: "#FF2D78",
+  },
+  divBadgeTxt: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFF",
+    letterSpacing: 0.2,
+  },
 });
