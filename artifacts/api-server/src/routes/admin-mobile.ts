@@ -405,4 +405,36 @@ router.delete(
   }
 );
 
+// ─── POST /admin-mobile/zones/sync-static ────────────────────────────────────
+// One-time backfill: reads every speedZonesTable row that has a staticId and
+// calls patchStaticZoneFile for each one.  This bakes all past admin relocations
+// into speedZones.ts so that fresh installs (offline first-launch) see the
+// corrected coordinates without needing an API round-trip.
+router.post(
+  "/admin-mobile/zones/sync-static",
+  adminMobileAuth,
+  async (_req: Request, res: Response) => {
+    try {
+      const rows = await db
+        .select()
+        .from(speedZonesTable)
+        .where(isNotNull(speedZonesTable.staticId));
+
+      let synced = 0;
+      for (const row of rows) {
+        if (row.staticId && row.lat != null && row.lng != null) {
+          patchStaticZoneFile(row.staticId, row.lat, row.lng);
+          synced++;
+        }
+      }
+
+      console.info(`[zone-sync] bulk sync complete — ${synced} zone(s) patched`);
+      return res.json({ synced, total: rows.length });
+    } catch (err) {
+      console.error("[admin-mobile/zones/sync-static]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 export default router;

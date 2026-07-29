@@ -188,7 +188,7 @@ export default function MapViewScreen() {
     confirmReport, denyReport, flagReport,
     driverHeading,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
-    adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
+    adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
   } = useApp();
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -672,6 +672,39 @@ export default function MapViewScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Bulk sync — writes every DB-relocated zone back into speedZones.ts */}
+              {isAdmin && (
+                <TouchableOpacity
+                  style={ms.adminSyncBtn}
+                  onPress={() => {
+                    Alert.alert(
+                      "Sync All Zones to Static File",
+                      "This writes every admin-relocated zone back into speedZones.ts so fresh installs load correct pin positions without an API call. Continue?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Sync Now",
+                          onPress: async () => {
+                            try {
+                              const { synced, total } = await adminSyncStaticZones();
+                              Alert.alert(
+                                "Sync Complete",
+                                `${synced} of ${total} relocated zone(s) written to speedZones.ts.`
+                              );
+                            } catch (err: any) {
+                              Alert.alert("Sync Failed", err?.message ?? "Check server logs.");
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="sync-outline" size={14} color="#6A1B9A" />
+                  <Text style={[ms.adminBtnTxt, { color: "#6A1B9A" }]}>Sync All Zones → Static File</Text>
+                </TouchableOpacity>
+              )}
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
@@ -995,6 +1028,12 @@ const ms = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1,
   },
   adminBtnTxt: { fontSize: 11, fontWeight: "600" },
+  adminSyncBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1,
+    borderColor: "#6A1B9A40", backgroundColor: "#F3E5F520",
+    marginTop: 6, alignSelf: "flex-start",
+  },
   pendingReviewBanner: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#FFF8E1", borderRadius: 10, borderWidth: 1, borderColor: "#FFD54F",

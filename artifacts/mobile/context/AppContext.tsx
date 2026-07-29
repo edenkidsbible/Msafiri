@@ -263,6 +263,9 @@ interface AppContextValue {
   adminUpdateZoneLocation: (id: string, lat: number, lng: number, staticZone?: SpeedZone) => Promise<void>;
   adminRemoveZone: (id: string, staticZone?: SpeedZone) => Promise<void>;
   adminVerifyZone: (id: string, staticZone?: SpeedZone) => Promise<void>;
+  /** One-time backfill: writes every DB-relocated zone back into speedZones.ts.
+   *  Returns the number of zones patched in the static file. */
+  adminSyncStaticZones: () => Promise<{ synced: number; total: number }>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -3216,6 +3219,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const adminSyncStaticZones = useCallback(async (): Promise<{ synced: number; total: number }> => {
+    return adminApiFetch<{ synced: number; total: number }>("POST", "/admin-mobile/zones/sync-static");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const adminVerifyZone = useCallback(async (id: string, staticZone?: SpeedZone): Promise<void> => {
     const body: Record<string, unknown> = {};
     if (staticZone) {
@@ -3300,7 +3307,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       gpsLost,
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
-      adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
+      adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
     }}>
       {children}
     </AppContext.Provider>
