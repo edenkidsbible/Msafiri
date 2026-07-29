@@ -38,4 +38,4 @@ RESEND_FROM = "Msafiri Kenya <noreply@msafirikenya.com>"
 REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
 
 [objectStorage]
-defaultBucketID = "replit-objstore-3f7ce5e4-05d3-410b-a2f7-71e00e8a88fd"
+defaultBucketID = "replit-objstore-2ebffed8-724d-4389-bba9-25b992262289"
