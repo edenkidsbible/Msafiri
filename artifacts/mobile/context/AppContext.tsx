@@ -1927,12 +1927,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Gated on isDriving: if the driver is stopped (red light, traffic jam)
           // we skip the cue WITHOUT advancing lastSpokenRef — so it fires
           // automatically the moment they start moving again.
-          lastAnnounceCueAtRef.current = Date.now();
-          lastSpokenRef.current = key;
-          speakText(distWord + announceText);
-          // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
-          const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
-          if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
+          //
+          // Post-reroute guard: if we entered this step already inside the REMIND
+          // bubble (e.g. after a reroute the first new step has only 80 m left),
+          // skip the ANNOUNCE cue entirely and advance lastSpokenRef to `key` so
+          // that the REMIND and NOW cues still fire normally on the next ticks.
+          if (dist < remindM) {
+            // Already past the ANNOUNCE window — silently mark it done.
+            lastSpokenRef.current = key;
+          } else {
+            lastAnnounceCueAtRef.current = Date.now();
+            lastSpokenRef.current = key;
+            speakText(distWord + announceText);
+            // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
+            const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
+            if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
+          }
 
         } else if (isDriving && !isLastStep && dist < remindM
             && lastSpokenRef.current === key
