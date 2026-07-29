@@ -86,13 +86,13 @@ export default function RouteIncidentsPanel() {
     // stays reachable no matter which screen the driver is on.
     if (isDriveTab || routeIncidentsAhead.length === 0) return null;
 
-    // On the Map tab the Report button sits at left:16,bottom:+96 and the
-    // controls column occupies right:12,bottom:+96. The default right:16,+90
-    // position collides with both. Instead, float the chip on the LEFT above
-    // the Report button so the two never overlap.
+    // On the Map tab the Report button sits at left:16,bottom:+96. Float the
+    // chip immediately to its right at the same height so they read as a pair.
+    // The base fab style has no `right` anchor — chipStyle provides it for the
+    // default position — so the button never stretches full-width.
     const chipStyle = isMapTab
-      ? { left: 16,  bottom: insets.bottom + 152 }   // above the Report button
-      : { right: 16, bottom: insets.bottom + 90  };  // default: bottom-right
+      ? { left: 128, bottom: insets.bottom + 96 }    // beside the Report button
+      : { right: 16, bottom: insets.bottom + 90 };   // default: bottom-right
 
     return (
       <TouchableOpacity
@@ -228,7 +228,6 @@ export default function RouteIncidentsPanel() {
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    right: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
