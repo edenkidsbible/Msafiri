@@ -278,6 +278,21 @@ export function usePushNotifications() {
           }
         } else if (type === "incident") {
           router.push("/(tabs)/map" as any);
+        } else if (type === "app_update") {
+          // Push notification from admin publishing a new release.
+          // Navigate to the update screen — isForceUpdate in the payload
+          // controls whether the screen is dismissible or blocks the app.
+          const isForce = data?.isForceUpdate === true || data?.isForceUpdate === "true";
+          router.push({
+            pathname: "/force-update",
+            params: {
+              latestVersion:   (data?.version as string) ?? "",
+              releaseNotes:    (data?.releaseNotes as string) ?? "",
+              storeUrlIos:     (data?.storeUrlIos as string) ?? "",
+              storeUrlAndroid: (data?.storeUrlAndroid as string) ?? "",
+              isSoft:          isForce ? "false" : "true",
+            },
+          } as any);
         } else {
           // All other types: go to home/map tab
           router.push("/(tabs)" as any);

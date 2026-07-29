@@ -208,8 +208,15 @@ function RootLayoutNav() {
     if (!hydrated) return;
     if (checked.current) return;
 
-    // Check for required update before anything else
-    if (versionCheck.checked && versionCheck.isForceRequired) {
+    // Always wait for the version check API call to resolve before routing.
+    // Without this guard, the effect could fall through to the
+    // onboarding/paywall path and lock `checked.current = true` before
+    // we know whether a force update is required — the force-update route
+    // would then never fire even if the server returns isForceRequired: true.
+    if (!versionCheck.checked) return;
+
+    // Force update takes absolute priority over every other routing decision.
+    if (versionCheck.isForceRequired) {
       checked.current = true;
       router.replace({
         pathname: "/force-update",
