@@ -1,6 +1,4 @@
 import { Router, type Request, type Response } from "express";
-import path from "path";
-import fs from "fs";
 import {
   db,
   courseChaptersTable,
@@ -9,6 +7,7 @@ import {
   userCourseProgressTable,
   userCourseBookmarksTable,
 } from "@workspace/db";
+import { objectStorageClient } from "../lib/objectStorage";
 import { eq, asc, and, sql } from "drizzle-orm";
 
 const router = Router();
@@ -80,7 +79,7 @@ router.get("/course/lessons/:slug", async (req: Request, res: Response) => {
   }
 });
 
-// GET /course/audio/:slug — serve lesson audio from local filesystem (no auth; course content is public)
+// GET /course/audio/:slug — stream lesson audio from Object Storage (no auth; course content is public)
 router.get("/course/audio/:slug", async (req: Request, res: Response) => {
   try {
     const { slug } = req.params as { slug: string };
@@ -94,22 +93,50 @@ router.get("/course/audio/:slug", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "No audio for this lesson" });
     }
 
-    // audioUrl stored as "audio/filename.mp3" — strip prefix, resolve to public/course-audio/
-    const filename = lesson.audioUrl.replace(/^audio\//, "");
-    const filePath = path.resolve(process.cwd(), "public", "course-audio", filename);
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) {
+      return res.status(503).json({ error: "Object storage not configured" });
+    }
 
-    if (!fs.existsSync(filePath)) {
+    // audioUrl stored as GCS object path e.g. "audio/lesson-slug.mp3"
+    const gcsPath = lesson.audioUrl;
+    const file = objectStorageClient.bucket(bucketId).file(gcsPath);
+
+    const [exists] = await file.exists();
+    if (!exists) {
       return res.status(404).json({ error: "Audio file not found" });
     }
 
-    // sendFile uses the `send` package which handles Range requests automatically,
-    // so audio scrubbing works correctly in the mobile player.
-    return res.sendFile(filePath, {
-      headers: {
+    const [metadata] = await file.getMetadata();
+    const totalSize = Number(metadata.size);
+
+    // Handle Range requests so the mobile audio player can scrub correctly.
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const [startStr, endStr] = rangeHeader.replace(/bytes=/, "").split("-");
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : totalSize - 1;
+      const chunkSize = end - start + 1;
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": String(chunkSize),
         "Content-Type": "audio/mpeg",
         "Cache-Control": "public, max-age=86400",
-      },
-    });
+      });
+      file.createReadStream({ start, end }).pipe(res);
+      return;
+    } else {
+      res.writeHead(200, {
+        "Accept-Ranges": "bytes",
+        "Content-Length": String(totalSize),
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "public, max-age=86400",
+      });
+      file.createReadStream().pipe(res);
+      return;
+    }
   } catch (err) {
     console.error("GET /course/audio/:slug error:", err);
     return res.status(404).json({ error: "Audio file not found" });

@@ -150,26 +150,35 @@ for (let i = 0; i < files.length; i++) {
 
     // ── DB update step ───────────────────────────────────────────────────────
     // The audio_url column stores the GCS object path (e.g. audio/lesson-slug.mp3).
-    // Update it whenever the stored value differs from what we just uploaded.
-    const currentUrl = dbMap[slug];
+    // Some lesson slugs are longer than 60 chars; TTS filenames were capped at
+    // 60 chars during generation, so we must match on the first 60 chars of
+    // the slug when looking up the DB row.
+    const currentUrl = dbMap[slug] ?? Object.entries(dbMap).find(([k]) => k.startsWith(slug))?.[1];
     const targetUrl  = gcsPath;
+    // Find matching DB slug: exact first, then prefix-truncation fallback
+    const dbSlug = dbMap[slug] !== undefined
+      ? slug
+      : Object.keys(dbMap).find(k => k.startsWith(slug)) ?? null;
 
     if (currentUrl !== targetUrl) {
       if (DRY_RUN) {
-        process.stdout.write(`       DB: ${currentUrl ?? '(null)'} → ${targetUrl}  (dry run)\n`);
+        process.stdout.write(`       DB: ${currentUrl ?? '(null)'} → ${targetUrl}  (dry run, slug: ${dbSlug ?? '?'})\n`);
         dbUpdated++;
+      } else if (!dbSlug) {
+        process.stdout.write(`       ⚠  No DB row for slug "${slug}" — file uploaded but audio_url not set\n`);
+        problems.push(`No DB row for slug: ${slug}`);
       } else {
         const result = await db.query(
           'UPDATE course_lessons SET audio_url = $1 WHERE slug = $2',
-          [targetUrl, slug]
+          [targetUrl, dbSlug]
         );
         if (result.rowCount > 0) {
-          process.stdout.write(`       DB: ${currentUrl ?? '(null)'} → ${targetUrl}\n`);
+          const note = dbSlug !== slug ? ` (DB slug: ${dbSlug})` : '';
+          process.stdout.write(`       DB: ${currentUrl ?? '(null)'} → ${targetUrl}${note}\n`);
           dbUpdated++;
         } else {
-          // File exists but no matching DB row — warn without failing.
-          process.stdout.write(`       ⚠  No DB row for slug "${slug}" — file uploaded but audio_url not set\n`);
-          problems.push(`No DB row for slug: ${slug}`);
+          process.stdout.write(`       ⚠  UPDATE found 0 rows for slug "${dbSlug}"\n`);
+          problems.push(`0 rows updated for slug: ${dbSlug}`);
         }
       }
     }
