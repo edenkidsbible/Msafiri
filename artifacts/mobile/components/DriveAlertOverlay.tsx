@@ -35,6 +35,7 @@ import { useColors } from "@/hooks/useColors";
 import { DriveAlert } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
+import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
 
 interface Props {
   alert: DriveAlert;
@@ -106,21 +107,17 @@ export default function DriveAlertOverlay({
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const slideY     = useRef(new Animated.Value(ANIM_OFFSCREEN)).current;
-  const pulse      = useRef(new Animated.Value(1)).current;
-  const prevId     = useRef<string | null>(null);
-  const prevUrgent = useRef(false);
+  const slideY = useRef(new Animated.Value(ANIM_OFFSCREEN)).current;
+  const prevId = useRef<string | null>(null);
 
   const urgent = alert.distance < 200;
   const bg     = urgencyColor(alert.distance, colors);
+  const pulse  = useHeartbeatPulse(urgent);
 
   // ── Slide in + sound on first appearance of a new alert ──────────────────
   useEffect(() => {
     if (alert.id !== prevId.current) {
-      prevId.current    = alert.id;
-      prevUrgent.current = false;
-      pulse.stopAnimation();
-      pulse.setValue(1);
+      prevId.current = alert.id;
       slideY.setValue(ANIM_OFFSCREEN);
       Animated.spring(slideY, {
         toValue:         0,
@@ -131,23 +128,6 @@ export default function DriveAlertOverlay({
       void playSound("alert");
     }
   }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Pulse when entering 200 m danger zone ────────────────────────────────
-  useEffect(() => {
-    if (urgent && !prevUrgent.current) {
-      prevUrgent.current = true;
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.06, duration: 360, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1.00, duration: 360, useNativeDriver: true }),
-        ])
-      ).start();
-    } else if (!urgent && prevUrgent.current) {
-      prevUrgent.current = false;
-      pulse.stopAnimation();
-      pulse.setValue(1);
-    }
-  }, [urgent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Resolve display values ────────────────────────────────────────────────
   const isZone    = alert.source === "zone";

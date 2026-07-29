@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { SpeedZone } from "@/data/speedZones";
 import { playSound } from "@/utils/sound";
+import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
 
 type AlertZone = SpeedZone & { distance: number };
 
@@ -18,6 +19,7 @@ const TYPE_ICONS = { camera: "camera" as const, police: "person" as const, zone:
 export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
   const colors = useColors();
   const slide = useRef(new Animated.Value(-100)).current;
+  const pulse = useHeartbeatPulse(true);
 
   useEffect(() => {
     Animated.spring(slide, {
@@ -42,9 +44,9 @@ export default function AlertBanner({ zone, onDismiss }: AlertBannerProps) {
     <Animated.View
       style={[styles.banner, { backgroundColor: bg, transform: [{ translateY: slide }] }]}
     >
-      <View style={styles.iconWrap}>
+      <Animated.View style={[styles.iconWrap, { transform: [{ scale: pulse }] }]}>
         <Ionicons name={TYPE_ICONS[zone.type]} size={26} color={fg} />
-      </View>
+      </Animated.View>
       <View style={styles.text}>
         <Text style={[styles.type, { color: fg }]}>{TYPE_LABELS[zone.type].toUpperCase()}</Text>
         <Text style={[styles.name, { color: fg }]} numberOfLines={1}>
