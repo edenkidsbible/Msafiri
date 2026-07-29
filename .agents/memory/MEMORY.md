@@ -50,3 +50,5 @@
 - [ElevenLabs direct API tier gate](elevenlabs-direct-tier-gate.md) — direct ElevenLabs API calls with the Keli voice fail 400 "creator tier required"; new voice tokens must use on-demand TTS (/api/tts proxy → cached 90 days) instead of pre-generating MP3s.
 - [SDK-major package mismatch crash](sdk-major-package-mismatch.md) — SDK 55-era deps on SDK 54 Hermes crash at boot (missing DOMException); run `expo install --check` after any dep change; VM-eval the dev bundle to repro.
 - [Phase 1 faithful narrator](nav-faithful-narrator.md) — along-road dist replaces haversine, REMIND gated on !isNavVoicePlaying(), compound instructions, post-turn confirmation, reroute grace, uturn type.
+- [GPS subscription leak via async watchdog](gps-subscription-leak.md) — isSubscribing flag + generation counter required; distanceInterval:0 prevents endless stall/resubscribe loop for stationary users.
+- [RevenueCat double-init on Expo Go hot reload](revenuecat-hot-reload-double-init.md) — module-level configure() re-runs on every Metro hot reload; guard with _rcInitialized flag.

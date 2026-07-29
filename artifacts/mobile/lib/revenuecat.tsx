@@ -37,7 +37,14 @@ function getRevenueCatApiKey() {
   return REVENUECAT_TEST_API_KEY;
 }
 
+let _rcInitialized = false;
+
 export function initializeRevenueCat() {
+  // Guard against double-init: Expo Go hot-reload re-evaluates module-level
+  // code on every file save, which would call Purchases.configure() again and
+  // corrupt any in-flight purchase or subscription state.
+  if (_rcInitialized) return;
+  _rcInitialized = true;
   const apiKey = getRevenueCatApiKey();
   if (!apiKey) throw new Error("RevenueCat Public API Key not found");
   Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);

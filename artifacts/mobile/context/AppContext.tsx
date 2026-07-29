@@ -1805,11 +1805,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // location entitlements, or the screen dimming during a drive). A watchdog
   // below detects a stalled subscription and transparently resubscribes so
   // position/speed/turn-instructions keep advancing instead of freezing.
+  //
+  // IMPORTANT — subscription leak prevention:
+  // `watchPositionAsync` is async and can take several seconds to resolve when
+  // GPS hardware is initialising or the device is indoors. If the watchdog
+  // fires while a previous `subscribe()` call is still awaiting the promise,
+  // two concurrent subscriptions could both resolve and the earlier one would
+  // overwrite `liveSub`, leaking the later subscription forever. Seven stalls
+  // in a row = seven leaked subscriptions = OOM hard crash.
+  //
+  // Two guards prevent this:
+  //   1. `isSubscribing` — skips the watchdog tick if a subscribe is already
+  //      in flight (no new subscription started while one is pending).
+  //   2. Generation counter (`gen`) — each subscribe captures its generation
+  //      before the await; if a newer subscribe ran before this one resolved,
+  //      the stale result is discarded with sub.remove() rather than stored.
   useEffect(() => {
     if (!locationGranted) return;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let liveSub: { remove: () => void } | null = null;
+    let isSubscribing = false;
+    let generation = 0;
 
     const teardown = () => {
       liveSub?.remove();
@@ -1817,7 +1834,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const subscribe = async () => {
-      if (cancelled) return;
+      if (cancelled || isSubscribing) return;
+      isSubscribing = true;
+      const myGen = ++generation;
       teardown();
       // Reset the freshness baseline on every (re)subscribe attempt so the
       // watchdog also catches a subscription that never delivers a fix.
@@ -1825,15 +1844,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         if (Platform.OS !== "web") {
           const sub = await Location.watchPositionAsync(
-            { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 10 },
+            // distanceInterval: 0 — always fire on the timeInterval tick
+            // regardless of movement so the watchdog doesn't endlessly fire
+            // for stationary users. Speed-gauge jitter is handled in
+            // handleLocation via rolling-median + accuracy dead-band.
+            { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 },
             (loc) => {
               lastLocationAtRef.current = Date.now();
               handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy);
             }
           );
-          if (cancelled) { sub.remove(); return; }
+          // Guard 2: discard if a newer subscribe already completed.
+          if (cancelled || myGen !== generation) { sub.remove(); return; }
           liveSub = sub;
         } else if ("geolocation" in navigator) {
+          if (cancelled || myGen !== generation) return;
           const id = navigator.geolocation.watchPosition(
             (pos) => {
               lastLocationAtRef.current = Date.now();
@@ -1847,13 +1872,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.warn("Location watch failed to start, retrying:", e);
         if (!cancelled) retryTimer = setTimeout(subscribe, 4000);
+      } finally {
+        isSubscribing = false;
       }
     };
 
     subscribe();
 
     const watchdog = setInterval(() => {
-      if (cancelled) return;
+      if (cancelled || isSubscribing) return; // Guard 1: skip if already subscribing
       if (Date.now() - lastLocationAtRef.current > 8000) {
         console.warn("GPS watch stalled — resubscribing");
         subscribe();
