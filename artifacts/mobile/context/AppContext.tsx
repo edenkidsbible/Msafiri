@@ -347,16 +347,16 @@ function normalizeRoad(name: string | null | undefined): string {
 }
 
 /** True when the two road names refer to the same road.
- *  Returns true when either side is absent — no road name means we cannot
- *  exclude the incident, so fall back to distance-only (never silent-drop). */
+ *  Returns FALSE when either side is absent — unknown road = no match,
+ *  so alerts are suppressed rather than spilling onto unrelated roads. */
 function roadsMatch(
   driverRoad: string | null | undefined,
   incidentRoad: string | null | undefined,
 ): boolean {
-  if (!driverRoad || !incidentRoad) return true;
+  if (!driverRoad || !incidentRoad) return false;
   const a = normalizeRoad(driverRoad);
   const b = normalizeRoad(incidentRoad);
-  if (!a || !b) return true;
+  if (!a || !b) return false;
   // One name containing the other covers "Thika" ↔ "Thika Superhighway" etc.
   return a === b || a.includes(b) || b.includes(a);
 }
@@ -731,7 +731,7 @@ function warnIfBlockedDevice(err: unknown): boolean {
   return false;
 }
 
-const ALERT_DIST = 1000, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
+const ALERT_DIST = 600, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
 const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
 // Minimum gap between ANNOUNCE voice cues (the "In 300 metres, turn left…" cue).
 // Prevents rapid-fire repeats when: (a) consecutive short steps advance in one GPS burst,
@@ -1323,7 +1323,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const canSpeakGeneralAlert = () => Date.now() - lastGeneralAlertAtRef.current >= GENERAL_ALERT_COOLDOWN_MS;
     const speakGeneralAlert = (text: string) => { lastGeneralAlertAtRef.current = Date.now(); speakText(text); };
 
-    const isDriving = kmh > 5;
+    const isDriving = kmh > 10;
 
     // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
     if (activeLimitZone && kmh > activeLimitZone.speedLimit) {
@@ -1404,10 +1404,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // ── Unified alert panel: zones + community reports ────────────────────────
     //
-    // Activation gate: driver is moving + road is ready + within 1 km + road matches.
-    // Falls back to distance-only when the driver's current road is unknown
-    // (first fix, offline, API failure) or the incident has no road recorded —
-    // roadsMatch() returns true in those cases so no alert is silently dropped.
+    // Activation gates (ALL must pass):
+    //   • isDriving  — speed > 10 km/h; filters GPS jitter while parked/indoors
+    //   • roadReady  — road name resolved or driver moved > 200 m from start
+    //   • alertAccuracyOk — GPS fix is reliable enough (≤ 40 m horizontal error)
+    //   • roadsMatch — driver and incident are on the same road; unknown road
+    //                  means NO match (fail-safe — never spill onto other roads)
     //
     // Road-ready gate: after a drive begins, suppress all alerts until either
     //   (a) the warm-up road-name fetch resolves (pending → settled), OR
@@ -1419,26 +1421,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       !drivingStartCoordRef.current ||
       haversine(lat, lng, drivingStartCoordRef.current.lat, drivingStartCoordRef.current.lng) > 200;
 
+    // Suppress alerts when the GPS fix is too inaccurate to trust road position.
+    // Indoors and low-signal positions often report 50-100 m accuracy; at that
+    // level we cannot confidently say the driver is on any particular road.
+    const alertAccuracyOk = accuracyM == null || accuracyM <= 40;
+
     // (1) Zone candidate — closest in-range zone on the driver's current road.
     //     All zone/camera types appear regardless of current speed so the driver
     //     can see the upcoming limit and slow down before reaching it.
+    //     Legacy zones with no road stored are allowed through (admin-verified).
     const inRangeZones = withDist.filter((z) => z.distance > IN_ZONE_DIST && z.distance <= ALERT_DIST);
     const zoneCandidate = (() => {
-      if (!isDriving || !roadReady) return null;
+      if (!isDriving || !roadReady || !alertAccuracyOk) return null;
       // Pick the closest in-range zone whose road matches the driver's road.
       // Iterating in distance order (withDist is sorted) so the first match is
       // already the nearest; the explicit comparison handles unsorted edge cases.
       let best: typeof inRangeZones[0] | null = null;
       for (const z of inRangeZones) {
-        if (!roadsMatch(currentRoadRef.current, z.road)) continue;
+        // Allow zones with no road stored (legacy admin entries without road tag).
+        // For zones that do have a road, require a strict match.
+        if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
         if (best === null || z.distance < best.distance) best = z;
       }
       return best;
     })();
 
     // (2) Report candidate — closest active report < 2 h old on the driver's road.
+    //     Community reports always have a roadName (geocoded at submission time),
+    //     so roadsMatch() returning false on unknown names is safe here.
     const reportCandidate = (() => {
-      if (!isDriving || !roadReady) return null;
+      if (!isDriving || !roadReady || !alertAccuracyOk) return null;
       let best: (typeof communityReportsRef.current)[0] | null = null;
       let bestDist = Infinity;
       for (const r of communityReportsRef.current) {
@@ -1446,9 +1458,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (now - r.timestamp > 7200000) continue;
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
-        // Road match: skip reports on clearly different roads.
-        // roadsMatch() returns true when either road name is absent →
-        // distance-only fallback so incidents without a roadName still fire.
+        // Strict road match — roadsMatch() returns false when either road is
+        // unknown, so reports without a confirmed road never fire.
         if (!roadsMatch(currentRoadRef.current, r.roadName)) continue;
         best = r;
         bestDist = d;
