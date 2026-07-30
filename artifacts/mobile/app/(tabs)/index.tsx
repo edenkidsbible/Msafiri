@@ -1158,29 +1158,30 @@ export default function DriveScreen() {
                 if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
               }}
             >
-              {/* Colour-coded "NEARBY ALERTS" badge with multi-emoji */}
+              {/* Colour-coded "NEARBY ALERTS" badge with multi-emoji — full-width row */}
               <View style={[styles.nearbyAlertBadge, {
                 backgroundColor: primaryAlert.color + "22",
                 borderColor:     primaryAlert.color + "55",
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 4,
+                alignSelf: "stretch",
+                gap: 6,
               }]}>
-                <Ionicons name="alert-circle" size={11} color={primaryAlert.color} />
+                <Ionicons name="alert-circle" size={14} color={primaryAlert.color} />
                 <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color }]}>
                   NEARBY ALERTS
                 </Text>
                 {nearbyAlertCandidates.length > 1 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 4, gap: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 4, gap: 2 }}>
                     {nearbyAlertCandidates.slice(0, 4).map((c, i) => (
-                      <Text key={c.id + i} style={{ fontSize: 11 }}>{c.emoji}</Text>
+                      <Text key={c.id + i} style={{ fontSize: 15 }}>{c.emoji}</Text>
                     ))}
                     {nearbyAlertCandidates.length > 4 && (
                       <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
                         +{nearbyAlertCandidates.length - 4}
                       </Text>
                     )}
-                    <Ionicons name="chevron-forward" size={10} color={primaryAlert.color} style={{ marginLeft: 2 }} />
+                    <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
                   </View>
                 )}
               </View>
@@ -1211,10 +1212,9 @@ export default function DriveScreen() {
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1, paddingRight: isSmall ? 56 : 70 }]}>Clear ahead</Text>
           )}
 
-          {/* SOS — floats at the right edge without displacing flex siblings.
-              right matches the strip's own paddingHorizontal so the button
-              sits flush with the content area, not the outer border edge. */}
-          <View style={{ position: "absolute", right: isSmall ? 8 : 12, top: 0, bottom: 0, justifyContent: "center" }}>
+          {/* SOS — anchored to the bottom-right of the strip so it stays out
+              of the way of the taller alert badge row above it. */}
+          <View style={{ position: "absolute", right: isSmall ? 8 : 12, bottom: isSmall ? 10 : 12 }}>
             <SOSButton compact small={isSmall} />
           </View>
         </View>
@@ -2191,12 +2191,12 @@ const styles = StyleSheet.create({
 
   // NEARBY ALERT badge — colour-coded pill above the alert type name
   nearbyAlertBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
+    flexDirection: "row", alignItems: "center", gap: 6,
     alignSelf: "flex-start",
-    paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: 8, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 10, borderWidth: 1,
   },
-  nearbyAlertLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.9 },
+  nearbyAlertLabel: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.9 },
   // Emoji marker — same rounded-square style as the map incident markers
   alertMarker: {
     width: 32, height: 32, borderRadius: 8,
