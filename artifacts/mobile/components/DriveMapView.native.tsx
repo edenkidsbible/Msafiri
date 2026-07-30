@@ -1031,7 +1031,7 @@ const DriveMapView = forwardRef(function DriveMapView(
           </Marker>
         ))}
 
-        {/* Alternative routes (grey, selectable) */}
+        {/* Alternative routes — traffic-coloured (same bands as active route), selectable */}
         {altRoutes.map((r) => {
           // ── Crash guard ── filter out any coordinate where lat or lng is not a finite
           // number. Strict typeof check avoids isFinite(null)===true coercion trap.
@@ -1046,8 +1046,38 @@ const DriveMapView = forwardRef(function DriveMapView(
           );
           if (safeCoords.length < 2) return null;
           const safeRoute = { ...r, coords: safeCoords };
+          // Build traffic-coloured segments using the same helper as the active
+          // route. startOffset=0 because speedIntervals index into the full
+          // route coords array which starts at index 0 for every alt route.
+          const segs = buildTrafficSegments(safeCoords, r.speedIntervals, 0);
           return (
-            <Polyline key={r.id} coordinates={safeCoords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(safeRoute)} />
+            <React.Fragment key={r.id}>
+              {segs.map((seg, i) => (
+                <React.Fragment key={i}>
+                  {/* Halo — slightly narrower than the active route (8 vs 10)
+                      so alt routes stay visually subordinate */}
+                  <Polyline
+                    coordinates={seg.coords}
+                    strokeColor={seg.halo}
+                    strokeWidth={8}
+                    lineCap="round"
+                    lineJoin="round"
+                    tappable
+                    onPress={() => selectRoute(safeRoute)}
+                  />
+                  {/* Traffic-coloured inner stroke */}
+                  <Polyline
+                    coordinates={seg.coords}
+                    strokeColor={seg.color}
+                    strokeWidth={4}
+                    lineCap="round"
+                    lineJoin="round"
+                    tappable
+                    onPress={() => selectRoute(safeRoute)}
+                  />
+                </React.Fragment>
+              ))}
+            </React.Fragment>
           );
         })}
 
