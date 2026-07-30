@@ -196,6 +196,8 @@ router.get("/routing/route", async (req, res) => {
     // Per-step polyline so step boundaries are measured along the actual road
     // geometry, not straight lines between start points.
     "routes.legs.steps.polyline",
+    // Speed-reading intervals for traffic-coloured polyline rendering.
+    "routes.travelAdvisory.speedReadingIntervals",
   ].join(",");
 
   // Build origin — include heading when available so Google snaps to the
@@ -287,12 +289,24 @@ router.get("/routing/route", async (req, res) => {
         };
       });
 
+      // Extract speed-reading intervals so the mobile client can colour the
+      // polyline by traffic band (blue/yellow/red).  Each entry maps a range
+      // of decoded-polyline indices to a speed category.
+      const rawIntervals: any[] = r.travelAdvisory?.speedReadingIntervals ?? [];
+      const speedIntervals = rawIntervals.map((si: any) => ({
+        startIndex: si.startPolylinePointIndex ?? 0,
+        endIndex:   si.endPolylinePointIndex   ?? 0,
+        speed:      (si.speed ?? "SPEED_UNSPECIFIED") as
+          "NORMAL" | "SLOW" | "TRAFFIC_JAM" | "SPEED_UNSPECIFIED",
+      }));
+
       return {
         index:     idx,
         distanceM: r.distanceMeters ?? 0,
         durationS,
         coords,
         steps,
+        speedIntervals,
       };
     });
 

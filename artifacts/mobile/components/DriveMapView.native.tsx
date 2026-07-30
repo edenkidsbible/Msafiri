@@ -21,7 +21,7 @@ import {
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
-import type { CommunityReport } from "@/context/AppContext";
+import type { CommunityReport, SpeedInterval } from "@/context/AppContext";
 import type { SpeedZone } from "@/data/speedZones";
 import { useColors } from "@/hooks/useColors";
 import { POIS } from "@/data/pois";
@@ -262,6 +262,54 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
       </View>
     </View>
   );
+}
+
+// ─── Traffic-coloured polyline helpers ───────────────────────────────────────
+
+type SpeedBand = "NORMAL" | "SLOW" | "TRAFFIC_JAM" | "SPEED_UNSPECIFIED";
+
+const TRAFFIC_COLOR: Record<SpeedBand, string> = {
+  NORMAL:           "#1976D2",
+  SPEED_UNSPECIFIED:"#1976D2",
+  SLOW:             "#FFC107",
+  TRAFFIC_JAM:      "#F44336",
+};
+const TRAFFIC_HALO: Record<SpeedBand, string> = {
+  NORMAL:           "#0D47A1AA",
+  SPEED_UNSPECIFIED:"#0D47A1AA",
+  SLOW:             "#E65100AA",
+  TRAFFIC_JAM:      "#B71C1CAA",
+};
+
+/** Slice `coords` into coloured segments according to speed-reading intervals.
+ *  `startOffset` is the index into the full route coords array where `coords`
+ *  begins (0 for the full route, bestIdx for the remaining-ahead slice).
+ *  Falls back to a single blue segment when no interval data is available. */
+function buildTrafficSegments(
+  coords: { latitude: number; longitude: number }[],
+  speedIntervals: SpeedInterval[] | undefined,
+  startOffset = 0,
+): Array<{ coords: { latitude: number; longitude: number }[]; color: string; halo: string }> {
+  if (!speedIntervals?.length) {
+    return [{ coords, color: "#1976D2", halo: "#0D47A1AA" }];
+  }
+  const segments: Array<{ coords: { latitude: number; longitude: number }[]; color: string; halo: string }> = [];
+  const end = startOffset + coords.length - 1;
+  for (const iv of speedIntervals) {
+    // Clamp interval to the visible window
+    const s = Math.max(iv.startIndex, startOffset) - startOffset;
+    const e = Math.min(iv.endIndex,   end)           - startOffset;
+    if (s >= coords.length || e < 0 || s > e) continue;
+    const seg = coords.slice(s, e + 1);
+    if (seg.length < 2) continue;
+    const band = (iv.speed as SpeedBand) ?? "NORMAL";
+    segments.push({
+      coords: seg,
+      color:  TRAFFIC_COLOR[band]  ?? "#1976D2",
+      halo:   TRAFFIC_HALO[band]   ?? "#0D47A1AA",
+    });
+  }
+  return segments.length ? segments : [{ coords, color: "#1976D2", halo: "#0D47A1AA" }];
 }
 
 // ─── Speed-adaptive zoom ──────────────────────────────────────────────────────
@@ -1138,18 +1186,32 @@ const DriveMapView = forwardRef(function DriveMapView(
             // the polyline begins right at the driver's current position.
             const remaining = coords.slice(bestIdx);
             if (remaining.length < 2) return null;
+            // Build traffic-coloured segments. Pass bestIdx as the offset so
+            // interval indices (which reference the full coords array) are
+            // remapped correctly onto the `remaining` slice.
+            const segs = buildTrafficSegments(remaining, activeRoute.speedIntervals, bestIdx);
             return (
               <>
-                <Polyline coordinates={remaining} strokeColor="#0D47A1AA" strokeWidth={10} lineCap="round" lineJoin="round" />
-                <Polyline coordinates={remaining} strokeColor="#1976D2" strokeWidth={6} lineCap="round" lineJoin="round" />
+                {segs.map((seg, i) => (
+                  <React.Fragment key={i}>
+                    <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
+                    <Polyline coordinates={seg.coords} strokeColor={seg.color} strokeWidth={6} lineCap="round" lineJoin="round" />
+                  </React.Fragment>
+                ))}
               </>
             );
           }
           // Pre-navigation (route selected but not yet started): show full route
+          // with traffic colouring when available, falling back to solid blue.
+          const segs = buildTrafficSegments(activeRoute.coords, activeRoute.speedIntervals);
           return (
             <>
-              <Polyline coordinates={activeRoute.coords} strokeColor="#1565C0AA" strokeWidth={10} lineCap="round" lineJoin="round" />
-              <Polyline coordinates={activeRoute.coords} strokeColor="#2196F3" strokeWidth={6} lineCap="round" lineJoin="round" />
+              {segs.map((seg, i) => (
+                <React.Fragment key={i}>
+                  <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
+                  <Polyline coordinates={seg.coords} strokeColor={seg.color} strokeWidth={6} lineCap="round" lineJoin="round" />
+                </React.Fragment>
+              ))}
             </>
           );
         })()}

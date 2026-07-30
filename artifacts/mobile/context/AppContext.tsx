@@ -86,6 +86,14 @@ export interface NavDestination {
 
 export interface RouteCoord { latitude: number; longitude: number }
 
+/** One entry from Google's speedReadingIntervals — maps a polyline index range
+ *  to a traffic speed band. */
+export interface SpeedInterval {
+  startIndex: number;
+  endIndex:   number;
+  speed: "NORMAL" | "SLOW" | "TRAFFIC_JAM" | "SPEED_UNSPECIFIED";
+}
+
 export interface RouteStep {
   instruction: string;
   distanceM: number;
@@ -119,6 +127,10 @@ export interface AppRoute {
    *  use along-road distances without rescanning the whole polyline each tick. */
   cumDist: number[];
   steps: RouteStep[];
+  /** Google speed-reading intervals for traffic-coloured polyline rendering.
+   *  Each entry maps a range of polyline coordinate indices to a speed band.
+   *  Empty / absent when Google returns no traffic data for this route. */
+  speedIntervals?: SpeedInterval[];
 }
 
 /** A single hazard/checkpoint located along the active route — merges static
@@ -496,6 +508,7 @@ async function fetchGoogleRoute(
     durationS: number;
     coords: RouteCoord[];
     steps: ServerStep[];
+    speedIntervals?: SpeedInterval[];
   };
 
   const headingParam = heading != null ? `&heading=${Math.round(heading)}` : "";
@@ -553,6 +566,7 @@ async function fetchGoogleRoute(
       coords,
       cumDist,
       steps,
+      speedIntervals: r.speedIntervals?.length ? r.speedIntervals : undefined,
     });
   }
   return validRoutes;
