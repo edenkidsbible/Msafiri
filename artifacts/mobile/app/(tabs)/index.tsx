@@ -1556,6 +1556,34 @@ export default function DriveScreen() {
                 )}
               </Animated.View>
 
+              {/* Alert chip — nearest incident on the active route.
+                  Uses primaryAlert which, during navigation, is sourced from
+                  routeIncidentsAhead[0] — already sorted by distance ahead.
+                  Tapping opens the same nearby-alerts sheet as the speed strip. */}
+              {primaryAlert && (
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowNearbySheet(true);
+                  }}
+                  activeOpacity={0.8}
+                  style={[styles.navAlertChip, {
+                    backgroundColor: primaryAlert.color + "22",
+                    borderColor: primaryAlert.color + "55",
+                  }]}
+                >
+                  <Text style={{ fontSize: 13, fontFamily: EMOJI_FONT_FAMILY }}>
+                    {resolveIncidentType(primaryAlert.type).emoji}
+                  </Text>
+                  <Text style={[styles.navAlertChipTxt, { color: primaryAlert.color }]}>
+                    {distStr(primaryAlert.distanceM)}
+                  </Text>
+                  {nearbyAlertCandidates.length > 1 && (
+                    <Ionicons name="chevron-forward" size={10} color={primaryAlert.color} />
+                  )}
+                </TouchableOpacity>
+              )}
+
               {/* Action row: Share (flex) · SOS · Stop — own row, never squishes */}
               <View style={styles.navActionRow}>
                 <TouchableOpacity
@@ -2030,6 +2058,15 @@ const styles = StyleSheet.create({
   },
   navDist: {
     fontSize: 24, fontFamily: "Inter_700Bold", color: "#90CAF9", marginTop: 4,
+  },
+  navAlertChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 12, borderWidth: 1,
+  },
+  navAlertChipTxt: {
+    fontSize: 12, fontFamily: "Inter_600SemiBold",
   },
 
   // ── Roundabout exit counter ───────────────────────────────────────────────
