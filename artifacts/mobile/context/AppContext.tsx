@@ -1081,6 +1081,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
+      try {
       const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
@@ -1164,7 +1165,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (onboarded === "true") {
         notifGranted.current = await requestNotificationPermissionInternal();
       }
-
+      } catch (e) {
+        console.warn("[AppContext] startup load failed:", e);
+        // Still mark hydrated so the UI doesn't hang on a blank screen
+        setHydrated(true);
+      }
     })();
   }, []);
 
@@ -1416,7 +1421,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             currentRoadRef.current      = road;
             roadWarmupPendingRef.current = false;
           }
-        });
+        }).catch(() => { roadWarmupPendingRef.current = false; });
       } else {
         const nowMs = Date.now();
         const lastFetch = lastRoadFetchCoordRef.current;
@@ -1431,7 +1436,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const seq = ++roadFetchSeqRef.current;
           void getRoadName(lat, lng).then((road) => {
             if (roadFetchSeqRef.current === seq) currentRoadRef.current = road;
-          });
+          }).catch(() => {});
         }
       }
       // Clear warm-up state when driving stops so the next departure gets a
@@ -3051,6 +3056,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // overlap or cut each other off.  Awaiting the clip guarantees sequential
     // playback regardless of device speed or audio session latency.
     void (async () => {
+      try {
       await speakPhrase("Navigation started.");
       if (!firstInstruction) return;
       // Guard against three races after the await:
@@ -3069,6 +3075,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Re-check after the pause — Stop or GPS announce may have fired.
       if (navActiveRef.current && navSessionGenRef.current === mySession && !lastSpokenRef.current) {
         speakText(firstInstruction);
+      }
+      } catch (e) {
+        console.warn("[nav] opening voice cue failed:", e);
       }
     })();
   }, [activeRoute]);
@@ -3167,21 +3176,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (Platform.OS === "web") return;
 
     const handleAppStateChange = async (nextState: AppStateStatus) => {
-      const isSharing = shareTokenRef.current != null;
-      if (!isSharing) return;
+      try {
+        const isSharing = shareTokenRef.current != null;
+        if (!isSharing) return;
 
-      if (nextState === "background" || nextState === "inactive") {
-        // App leaving foreground — hand off location pings to the bg task.
-        // First ensure we have "always" / background location permission;
-        // if the driver hasn't granted it yet, silently request it now
-        // (the OS shows the prompt; if denied we skip the bg task and the
-        // foreground interval resumes the moment they return to the app).
-        await requestBackgroundLocationPermission();
-        void startBackgroundShareTask();
-      } else if (nextState === "active") {
-        // App returned to foreground — foreground interval resumes, so the
-        // background task is no longer needed.
-        void stopBackgroundShareTask();
+        if (nextState === "background" || nextState === "inactive") {
+          // App leaving foreground — hand off location pings to the bg task.
+          // First ensure we have "always" / background location permission;
+          // if the driver hasn't granted it yet, silently request it now
+          // (the OS shows the prompt; if denied we skip the bg task and the
+          // foreground interval resumes the moment they return to the app).
+          await requestBackgroundLocationPermission();
+          void startBackgroundShareTask().catch(() => {});
+        } else if (nextState === "active") {
+          // App returned to foreground — foreground interval resumes, so the
+          // background task is no longer needed.
+          void stopBackgroundShareTask().catch(() => {});
+        }
+      } catch (e) {
+        console.warn("[AppState] handleAppStateChange error:", e);
       }
     };
 
@@ -3541,7 +3554,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const trimmed = name.trim();
     driverNameRef.current = trimmed;
     setDriverNameState(trimmed);
-    void AsyncStorage.setItem(KEYS.DRIVER_NAME, trimmed);
+    void AsyncStorage.setItem(KEYS.DRIVER_NAME, trimmed).catch(() => {});
   }, []);
 
   // ─── Admin mode ──────────────────────────────────────────────────────────────
@@ -3553,8 +3566,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void AsyncStorage.getItem("admin_mobile_token").then((t) => {
       if (t && isAdminTokenValid(t)) setAdminToken(t);
-      else if (t) void AsyncStorage.removeItem("admin_mobile_token");
-    });
+      else if (t) void AsyncStorage.removeItem("admin_mobile_token").catch(() => {});
+    }).catch(() => {});
   }, []);
 
   const isAdmin = !!adminToken && isAdminTokenValid(adminToken);

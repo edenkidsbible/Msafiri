@@ -147,7 +147,19 @@ export async function speakPhrase(text: string): Promise<void> {
     if (gen !== myGen) return; // cancelled during async voice lookup
 
     await new Promise<void>((resolve) => {
+      // Safety timeout: if the native TTS engine never fires onDone/onStopped/
+      // onError (a known edge-case on some Android engines and after audio
+      // session interruptions), isPlaying would stay true forever and block
+      // every subsequent voice cue for the rest of the navigation session.
+      // 12 s covers the longest realistic instruction; real utterances resolve
+      // in 1-4 s.
+      const safeguard = setTimeout(() => {
+        if (gen === myGen) isPlaying = false;
+        resolve();
+      }, 12_000);
+
       const done = () => {
+        clearTimeout(safeguard);
         if (gen === myGen) isPlaying = false;
         resolve();
       };

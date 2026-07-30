@@ -46,6 +46,7 @@ export function defineShareBackgroundTask(): void {
   if (TaskManager.isTaskDefined(SHARE_BACKGROUND_TASK)) return;
 
   TaskManager.defineTask(SHARE_BACKGROUND_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
+    try {
     if (error) {
       console.warn("[shareTask] error:", error.message);
       return;
@@ -141,6 +142,9 @@ export function defineShareBackgroundTask(): void {
         queuedAt: Date.now(),
       };
       await AsyncStorage.setItem(PENDING_PING_KEY, JSON.stringify(pending));
+    }
+    } catch (e) {
+      console.warn("[shareTask] unhandled error:", e);
     }
   });
 }
