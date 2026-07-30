@@ -1522,6 +1522,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Normal pass-through uses the existing 60 s window.
       let extendedCooldown = false;
 
+      // ── Step-bearing fallback ─────────────────────────────────────────────
+      // lastHeadingRef.current is null whenever the driver has moved < 5 m
+      // since the last GPS fix (e.g. just after a slow-speed turn at a light).
+      // During active navigation we can proxy the driver's heading from the
+      // current route step's direction — from step[n].location → step[n+1].location.
+      // This fallback is used ONLY inside the divert-detection checks below;
+      // it never affects heading-dependent UI (speed label, map camera).
+      const stepFallbackHdg: number | null = (() => {
+        if (lastHeadingRef.current != null) return null; // real heading available
+        if (!navActiveRef.current) return null;           // not navigating
+        const steps = routeRef.current?.steps;
+        if (!steps) return null;
+        const idx   = stepIdxRef.current;
+        const cur   = steps[idx]?.location;
+        const next  = steps[idx + 1]?.location;
+        if (!cur || !next) return null;
+        return bearingDeg(cur.latitude, cur.longitude, next.latitude, next.longitude);
+      })();
+
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
 
@@ -1537,7 +1556,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             currentRoadRef.current === null) {
           const iLat = alertItemLatRef.current;
           const iLng = alertItemLngRef.current;
-          const hdg  = lastHeadingRef.current;
+          const hdg  = lastHeadingRef.current ?? stepFallbackHdg;
           if (iLat != null && iLng != null && hdg != null) {
             if (angleDiffDeg(hdg, bearingDeg(lat, lng, iLat, iLng)) >= 90) {
               extendedCooldown = true;
@@ -1558,7 +1577,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         {
           const iLat = alertItemLatRef.current;
           const iLng = alertItemLngRef.current;
-          const hdg  = lastHeadingRef.current;
+          const hdg  = lastHeadingRef.current ?? stepFallbackHdg;
           if (iLat != null && iLng != null && hdg != null) {
             if (angleDiffDeg(hdg, bearingDeg(lat, lng, iLat, iLng)) > 110) {
               alertBearingDivCountRef.current += 1;
