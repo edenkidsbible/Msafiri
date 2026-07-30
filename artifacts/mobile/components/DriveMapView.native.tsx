@@ -260,6 +260,26 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
   );
 }
 
+// ─── Speed-adaptive zoom ──────────────────────────────────────────────────────
+//
+// Maps the driver's current speed (km/h) to a latitudeDelta value for the map
+// camera. Higher speed → larger delta (more road visible ahead). Four bands
+// cover the spectrum from stopped to highway:
+//
+//   <  15 km/h  →  0.004  (street-level  — tight view for parking/slow urban)
+//   15–60 km/h  →  0.004…0.010  (urban arterial)
+//   60–100 km/h →  0.010…0.018  (dual-carriageway / fast road)
+//   > 100 km/h  →  0.030  (highway — shows ~3 km ahead)
+//
+// The caller is responsible for smoothing successive values so the zoom
+// doesn't jump on a single noisy GPS fix.
+function speedToLatDelta(kmh: number): number {
+  if (kmh < 15)  return 0.004;
+  if (kmh < 60)  return 0.004 + (0.006 * (kmh - 15) / 45);
+  if (kmh < 100) return 0.010 + (0.008 * (kmh - 60) / 40);
+  return 0.030;
+}
+
 // ─── Main map component ───────────────────────────────────────────────────────
 
 const DriveMapView = forwardRef(function DriveMapView(
@@ -275,7 +295,7 @@ const DriveMapView = forwardRef(function DriveMapView(
   ref: React.ForwardedRef<DriveMapViewHandle>,
 ) {
   const {
-    currentLat, currentLng,
+    currentLat, currentLng, currentSpeed,
     activeRoute, altRoutes, divergenceRoutes, selectRoute, startNavigation,
     navigationActive, communityReports, showTraffic,
     confirmReport, denyReport, flagReport,
@@ -292,6 +312,11 @@ const DriveMapView = forwardRef(function DriveMapView(
   const mapRef = useRef<MapView>(null);
   const hasCenteredRef = useRef(false);
   const now = Date.now();
+
+  // Tracks the last latitudeDelta applied to the map camera so successive GPS
+  // fixes can smoothly interpolate toward the speed-appropriate zoom rather than
+  // snapping abruptly. Initialised to the browsing default (0.015).
+  const lastDeltaRef = useRef(0.015);
 
   // Mirror mapDrifted in a ref so the onRegionChangeComplete callback can read
   // the current value without recreating itself on every prop change.
@@ -462,8 +487,8 @@ const DriveMapView = forwardRef(function DriveMapView(
 
       // ── Browsing follow (no active route, no navigation) ─────────────────
       // Keep the driver's dot in the centre of the screen while they're just
-      // driving around without a set destination — smooth pan only (north-up,
-      // no zoom change, no heading rotation so the map stays readable).
+      // driving around without a set destination — pan + speed-adaptive zoom,
+      // north-up so the map remains easy to read.
       // Pauses automatically as soon as they manually pan/zoom (drift flag),
       // resuming the moment they tap Recenter.
       if (
@@ -473,9 +498,12 @@ const DriveMapView = forwardRef(function DriveMapView(
         currentLng != null &&
         hasCenteredRef.current    // initial center already done — safe to animate
       ) {
-        mapRef.current?.animateCamera(
-          { center: { latitude: currentLat, longitude: currentLng } },
-          { duration: 800 },
+        const targetDelta = speedToLatDelta(currentSpeed);
+        const smoothed = lastDeltaRef.current + (targetDelta - lastDeltaRef.current) * 0.35;
+        lastDeltaRef.current = smoothed;
+        mapRef.current?.animateToRegion(
+          { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
+          800,
         );
       }
       return;
@@ -502,12 +530,20 @@ const DriveMapView = forwardRef(function DriveMapView(
     // zoom, no pitch. This just pans the camera to follow the driver's position
     // without touching the zoom level at all, so any zoom the driver has set
     // manually via pinch is preserved.
+    // ── Speed-adaptive zoom ─────────────────────────────────────────────────
+    // Compute a smooth latitudeDelta for this GPS fix. We apply exponential
+    // smoothing (35% step) so the zoom drifts gradually rather than jumping
+    // when speed changes abruptly (hard brake, speed bump, GPS noise).
+    const targetDelta = speedToLatDelta(currentSpeed);
+    const smoothed = lastDeltaRef.current + (targetDelta - lastDeltaRef.current) * 0.35;
+    lastDeltaRef.current = smoothed;
+
     const justStarted = !wasActive;
     if (justStarted) {
-      // Zoom to street level first, then immediately orient the map to match
+      // Zoom to street-level (speed-adaptive) first, then orient the map to
       // the driver's heading so the road ahead points up (track-up mode).
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
         300
       );
       if (driverHeading != null) {
@@ -516,17 +552,20 @@ const DriveMapView = forwardRef(function DriveMapView(
         }, 350);
       }
     } else {
-      // Pan + rotate — no zoom/pitch so the driver's manual pinch-zoom is
-      // preserved. heading rotates the map to keep the road pointing up.
-      mapRef.current?.animateCamera(
-        {
-          center: { latitude: currentLat, longitude: currentLng },
-          ...(driverHeading != null ? { heading: driverHeading } : {}),
-        },
-        { duration: 500 }
+      // Pan to the new GPS position with the speed-adaptive zoom applied, then
+      // rotate to the current heading. Two calls mirrors the justStarted path
+      // and avoids the iOS altitude-drift bug that plagues animateCamera+zoom.
+      mapRef.current?.animateToRegion(
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
+        500
       );
+      if (driverHeading != null) {
+        setTimeout(() => {
+          mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 200 });
+        }, 200);
+      }
     }
-  }, [navigationActive, currentLat, currentLng, mapDrifted, driverHeading]);
+  }, [navigationActive, currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
   // active. That drift means their view has left the GPS position — surface
@@ -610,11 +649,16 @@ const DriveMapView = forwardRef(function DriveMapView(
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
+    // Use the speed-appropriate delta and reset the smoothing ref so the
+    // next GPS fix starts from the right baseline rather than the stale value
+    // that was active before the driver panned away.
+    const snapDelta = speedToLatDelta(currentSpeed);
+    lastDeltaRef.current = snapDelta;
     if (navActiveRef.current) {
-      // During navigation: snap to street-level and restore heading-up so the
-      // road ahead points up (track-up mode).
+      // During navigation: snap to speed-adaptive zoom and restore heading-up
+      // (track-up mode) so the road ahead points up.
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         500,
       );
       if (driverHeading != null) {
@@ -623,15 +667,14 @@ const DriveMapView = forwardRef(function DriveMapView(
         }, 550);
       }
     } else {
-      // Browsing: use a wider city-block zoom, stay north-up so the map
-      // remains easy to read without a destination set.
+      // Browsing: speed-adaptive zoom, stay north-up so the map is easy to read.
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.015, longitudeDelta: 0.015 },
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         500,
       );
     }
     onDriftChange?.(false);
-  }, [currentLat, currentLng, driverHeading, onDriftChange]);
+  }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
 
   useImperativeHandle(ref, () => ({ recenter }), [recenter]);
 
