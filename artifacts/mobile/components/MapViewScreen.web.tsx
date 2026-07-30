@@ -53,6 +53,7 @@ export default function MapViewScreen() {
     currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS,
     startNavigation, stopNavigation,
     vehicleType, routeTrafficDelayS, allZones,
+    fasterRoute, acceptFasterRoute, dismissFasterRoute,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
@@ -166,6 +167,22 @@ export default function MapViewScreen() {
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* Faster route banner (nav active) */}
+            {navigationActive && !!fasterRoute && durationRemainingS != null && (
+              <View style={styles.fasterRouteBanner}>
+                <Ionicons name="flash" size={14} color="#00BCD4" />
+                <Text style={styles.fasterRouteTxt} numberOfLines={1}>
+                  Faster route — save {Math.max(1, Math.round((durationRemainingS - fasterRoute.durationS) / 60))} min
+                </Text>
+                <TouchableOpacity style={styles.fasterRouteSwitch} onPress={acceptFasterRoute}>
+                  <Text style={styles.fasterRouteSwitchTxt}>Switch</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.fasterRouteDismiss} onPress={dismissFasterRoute}>
+                  <Ionicons name="close" size={14} color="#FFFFFFAA" />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Current instruction (nav active) */}
             {navigationActive && currentStep && (
@@ -356,6 +373,11 @@ const styles = StyleSheet.create({
   stepNumText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   stepText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular" },
   stepDist: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  fasterRouteBanner: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#FFFFFF22" },
+  fasterRouteTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#00BCD4" },
+  fasterRouteSwitch: { backgroundColor: "#00BCD4", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  fasterRouteSwitchTxt: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF" },
+  fasterRouteDismiss: { padding: 2 },
   filters: { flexDirection: "row", gap: 8 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   filterLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },

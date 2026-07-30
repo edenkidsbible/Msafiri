@@ -368,6 +368,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     adminUpdateZoneLocation, adminRemoveZone,
     driverHeading,
     durationRemainingS, distanceRemainingM,
+    fasterRoute,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -1212,6 +1213,40 @@ const DriveMapView = forwardRef(function DriveMapView(
               </React.Fragment>
             );
           });
+        })()}
+
+        {/* Faster-route preview — teal/cyan polyline shown while the "Faster route"
+            banner is visible so the driver can see exactly where the alternative
+            diverges before deciding to switch.  Rendered above divergence routes
+            but below the primary blue route so the active corridor remains clear. */}
+        {navigationActive && fasterRoute && (() => {
+          const coords = (fasterRoute.coords ?? []).filter(
+            (c) =>
+              c != null &&
+              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
+              typeof c.longitude === "number" && Number.isFinite(c.longitude),
+          );
+          if (coords.length < 2) return null;
+          return (
+            <React.Fragment key={`faster-${fasterRoute.id}`}>
+              {/* Wide glow layer */}
+              <Polyline
+                coordinates={coords}
+                strokeColor="#00BCD455"
+                strokeWidth={9}
+                lineCap="round"
+                lineJoin="round"
+              />
+              {/* Bright teal inner stroke */}
+              <Polyline
+                coordinates={coords}
+                strokeColor="#00BCD4"
+                strokeWidth={5}
+                lineCap="round"
+                lineJoin="round"
+              />
+            </React.Fragment>
+          );
         })()}
 
         {/* Active route — during navigation only show the section ahead of the driver.
