@@ -29,7 +29,7 @@ import {
 } from "@/utils/backgroundNavLocation";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
-import { speakAlertPhrase } from "@/utils/alertTts";
+import { speakAlert } from "@/utils/alertTts";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -1554,7 +1554,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertZoneIncreasingCountRef.current = 0;
         alertDismissed.current = false;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        speakAlertPhrase(`${winner.name} ahead`).catch(() => {});
+        speakAlert(winner.type).catch(() => {});
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
       if (!alertDismissed.current && winner.id === alertZoneRef.current) {

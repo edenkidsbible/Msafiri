@@ -1,16 +1,36 @@
 /**
- * alertTts.ts — on-demand Yna Agalo voice for road alerts and incident reports.
+ * alertTts.ts — Yna Agalo voice for road alerts and incident reports.
  *
- * Fetches audio from the /api/tts proxy (which caches each phrase 90 days in
- * object storage so ElevenLabs is only billed once per unique phrase).
- * Uses expo-audio in duckOthers mode so music/podcasts fade briefly while the
- * alert plays, then recover.
+ * All 15 alert phrases are pre-generated and bundled as MP3 assets so they
+ * play instantly with zero network dependency. The server /api/tts route
+ * acts as fallback for any type not covered here.
  *
- * Silent-fails on any network/playback error so the visual alert still shows.
+ * Audio mode: playsInSilentMode + duckOthers — music/podcasts fade briefly
+ * while the alert speaks, then recover automatically.
  */
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 import { API_BASE } from "@/utils/apiClient";
+
+// ─── Bundled assets (pre-generated via ElevenLabs Multilingual v2, Yna Agalo) ─
+
+const ALERT_AUDIO: Record<string, unknown> = {
+  camera:    require("@/assets/sounds/alerts/camera.mp3"),
+  police:    require("@/assets/sounds/alerts/police.mp3"),
+  zone:      require("@/assets/sounds/alerts/zone.mp3"),
+  alcoblow:  require("@/assets/sounds/alerts/alcoblow.mp3"),
+  accident:  require("@/assets/sounds/alerts/accident.mp3"),
+  traffic:   require("@/assets/sounds/alerts/traffic.mp3"),
+  roadblock: require("@/assets/sounds/alerts/roadblock.mp3"),
+  roadworks: require("@/assets/sounds/alerts/roadworks.mp3"),
+  hazard:    require("@/assets/sounds/alerts/hazard.mp3"),
+  pothole:   require("@/assets/sounds/alerts/pothole.mp3"),
+  debris:    require("@/assets/sounds/alerts/debris.mp3"),
+  breakdown: require("@/assets/sounds/alerts/breakdown.mp3"),
+  weather:   require("@/assets/sounds/alerts/weather.mp3"),
+  closure:   require("@/assets/sounds/alerts/closure.mp3"),
+  clear:     require("@/assets/sounds/alerts/clear.mp3"),
+};
 
 // ─── Audio mode ───────────────────────────────────────────────────────────────
 
@@ -21,8 +41,8 @@ async function ensureAlertAudioMode() {
   audioModeReady = true;
   try {
     await setAudioModeAsync({
-      playsInSilentMode:          true,   // play even when ringer is silenced
-      interruptionMode:           "duckOthers", // lower music, don't pause it
+      playsInSilentMode:          true,
+      interruptionMode:           "duckOthers",
       allowsRecording:            false,
       shouldPlayInBackground:     true,
       shouldRouteThroughEarpiece: false,
@@ -37,7 +57,6 @@ async function ensureAlertAudioMode() {
 let currentPlayer: AudioPlayer | null = null;
 let voiceDisabled = false;
 
-/** Globally enable/disable alert voice (e.g. from a settings toggle). */
 export function setAlertVoiceDisabled(disabled: boolean) {
   voiceDisabled = disabled;
   if (disabled) stopAlertVoice();
@@ -47,37 +66,55 @@ export function getAlertVoiceDisabled(): boolean {
   return voiceDisabled;
 }
 
-/** Immediately stop any currently-playing alert voice. */
 export function stopAlertVoice() {
-  try {
-    currentPlayer?.pause();
-    // expo-audio players don't need an explicit destroy but release the ref
-  } catch {}
+  try { currentPlayer?.pause(); } catch {}
   currentPlayer = null;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Speak an alert phrase using the Yna Agalo voice.
+ * Play the Yna Agalo advisory phrase for the given incident/zone type.
  *
- * - Stops any currently-playing alert to avoid overlap.
- * - Fetches audio from /api/tts (cached server-side, so repeated calls are fast).
- * - No-ops on web or when the voice is disabled.
+ * Uses the pre-generated bundled MP3 when available; falls back to the
+ * /api/tts server proxy for unknown types so nothing ever plays silently.
+ * Stops any currently-playing alert to avoid overlap.
  */
-export async function speakAlertPhrase(text: string): Promise<void> {
+export async function speakAlert(type: string): Promise<void> {
   if (voiceDisabled || Platform.OS === "web") return;
-  if (!API_BASE) return; // API not configured (dev without domain)
-
   stopAlertVoice();
   await ensureAlertAudioMode();
 
+  const bundled = ALERT_AUDIO[type];
   try {
-    const url = `${API_BASE}/tts?text=${encodeURIComponent(text)}`;
-    const player = createAudioPlayer({ uri: url });
+    const source = bundled
+      ? bundled                                         // local require()
+      : API_BASE
+        ? { uri: `${API_BASE}/tts?text=${encodeURIComponent(type + " ahead")}` }
+        : null;
+
+    if (!source) return;
+    const player = createAudioPlayer(source as Parameters<typeof createAudioPlayer>[0]);
     currentPlayer = player;
     player.play();
   } catch (err) {
     console.warn("[alertTts] playback failed:", err);
+  }
+}
+
+/**
+ * Speak an arbitrary phrase via the /api/tts server proxy (Yna Agalo voice).
+ * Used for ad-hoc alerts that don't have a pre-generated bundled file.
+ */
+export async function speakAlertPhrase(text: string): Promise<void> {
+  if (voiceDisabled || Platform.OS === "web" || !API_BASE) return;
+  stopAlertVoice();
+  await ensureAlertAudioMode();
+  try {
+    const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
+    currentPlayer = player;
+    player.play();
+  } catch (err) {
+    console.warn("[alertTts] speakAlertPhrase failed:", err);
   }
 }
