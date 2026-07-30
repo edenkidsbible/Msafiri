@@ -1027,7 +1027,10 @@ const DriveMapView = forwardRef(function DriveMapView(
         })}
 
         {/* Nearby POIs */}
-        {nearbyPOIs.map((p) => (
+        {nearbyPOIs.map((p) => {
+          // Defensive: skip any POI whose coordinates are null, undefined, or NaN
+          if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return null;
+          return (
           <Marker
             key={p.id}
             coordinate={{ latitude: p.lat, longitude: p.lng }}
@@ -1043,7 +1046,8 @@ const DriveMapView = forwardRef(function DriveMapView(
               size={28}
             />
           </Marker>
-        ))}
+          );
+        })}
 
         {/* Alternative routes — traffic-coloured (same bands as active route), selectable */}
         {altRoutes.map((r) => {
