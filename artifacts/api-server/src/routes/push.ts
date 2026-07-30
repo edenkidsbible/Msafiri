@@ -7,6 +7,9 @@ const router = Router();
 
 // POST /push/register
 router.post("/push/register", async (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
   const { deviceId, token, platform, lat, lng } = req.body as {
     deviceId: string;
     token: string;
@@ -57,6 +60,9 @@ router.post("/push/register", async (req: Request, res: Response) => {
 
 // POST /push/location — update the last-known position for a registered device
 router.post("/push/location", async (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
   const { deviceId, lat, lng } = req.body as {
     deviceId: string;
     lat: number;
@@ -89,6 +95,9 @@ const WELCOME_MESSAGES = [
 // POST /push/welcome — send a one-time welcome notification after a subscription purchase.
 // The server gates on welcomeSentAt so duplicate calls from the mobile app are silently ignored.
 router.post("/push/welcome", async (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
   const { deviceId } = req.body as { deviceId: string };
   if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
@@ -134,6 +143,9 @@ const TRIP_COMPLETE_MESSAGES = [
 // POST /push/trip-complete — nudge the driver to report road conditions after navigation ends.
 // Rate-limited to once per 24 hours per device to avoid fatigue.
 router.post("/push/trip-complete", async (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
   const { deviceId } = req.body as { deviceId: string };
   if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
@@ -176,6 +188,9 @@ router.post("/push/trip-complete", async (req: Request, res: Response) => {
 
 // DELETE /push/deregister
 router.delete("/push/deregister", async (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
   const { deviceId } = req.body as { deviceId: string };
 
   if (!deviceId) {

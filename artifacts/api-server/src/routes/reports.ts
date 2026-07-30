@@ -193,8 +193,11 @@ router.get("/reports", async (req: Request, res: Response) => {
       speedLimit: r.speedLimit,
       roadName: r.roadName,
       adminVerified: r.adminVerified ?? false,
-      createdAt: r.createdAt.getTime(),
-      expiresAt: r.expiresAt?.getTime() ?? null,
+      // Guard against a non-Date value arriving from the DB driver — e.g. a
+      // string timestamp on a misconfigured connection — so serialisation never
+      // throws an uncaught TypeError.
+      createdAt: r.createdAt instanceof Date ? r.createdAt.getTime() : Date.now(),
+      expiresAt: r.expiresAt instanceof Date ? r.expiresAt.getTime() : null,
     });
 
     // When no coordinates are supplied return all active reports so the

@@ -1,3 +1,7 @@
+// Per-tab error boundary — isolates a crash in this tab from the other tabs
+// and the navigation shell. Expo Router picks this up automatically.
+export { ErrorBoundary } from "@/components/ErrorBoundary";
+
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,

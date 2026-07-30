@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
@@ -45,5 +45,29 @@ app.use(
 );
 
 app.use("/api", router);
+
+// ── Global Express error handler ───────────────────────────────────────────────
+// Must be the *last* app.use() call so it catches errors from every route above.
+// Express identifies error-handling middleware by its 4-argument signature.
+// Any synchronous throw or next(err) call from any route lands here and is
+// returned to the client as a JSON body — never as an empty 500 or HTML page.
+app.use(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    const status =
+      typeof (err as any)?.status === "number" ? (err as any).status : 500;
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof (err as any)?.message === "string"
+          ? (err as any).message
+          : "Internal server error";
+    logger.error({ err }, "Unhandled route error");
+    // Avoid sending headers twice if a partial response was already started.
+    if (!res.headersSent) {
+      res.status(status).json({ error: message });
+    }
+  }
+);
 
 export default app;

@@ -1,3 +1,42 @@
+// ── Global crash safety nets ──────────────────────────────────────────────────
+// Registered synchronously at module load time, before any component mounts,
+// so async throws and fatal errors that escape all component-level try/catch
+// are caught here instead of producing a blank screen or force-close.
+
+// 1. Synchronous / fatal JS errors (RN ErrorUtils — works on iOS, Android, web).
+if (typeof global !== "undefined" && (global as any).ErrorUtils) {
+  const _prevGlobalHandler = (global as any).ErrorUtils.getGlobalHandler?.();
+  (global as any).ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+    console.error(
+      `[GlobalErrorHandler] ${isFatal ? "FATAL" : "non-fatal"}:`,
+      error?.message ?? error,
+      error?.stack ?? ""
+    );
+    // Keep the existing handler (Expo dev overlay, etc.) in the chain.
+    if (typeof _prevGlobalHandler === "function") {
+      _prevGlobalHandler(error, isFatal);
+    }
+  });
+}
+
+// 2. Unhandled Promise rejections (Hermes engine tracker — RN 0.71+ / Expo 49+).
+if (typeof global !== "undefined" && (global as any).HermesInternal?.enablePromiseRejectionTracker) {
+  try {
+    (global as any).HermesInternal.enablePromiseRejectionTracker({
+      allRejections: true,
+      onUnhandled: (id: number, error: unknown) => {
+        console.error(
+          "[UnhandledRejection id=" + id + "]",
+          error instanceof Error ? error.message + "\n" + (error.stack ?? "") : error
+        );
+      },
+      onHandled: () => {},
+    });
+  } catch {
+    // Tracker may already be registered on Expo Go hot reload — ignore.
+  }
+}
+
 import {
   Inter_400Regular,
   Inter_500Medium,

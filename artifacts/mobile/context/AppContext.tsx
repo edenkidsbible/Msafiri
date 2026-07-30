@@ -488,7 +488,21 @@ async function fetchGoogleRoute(
   );
   if (!data.routes?.length) return [];
 
-  return data.routes.map((r, idx) => {
+  const validRoutes: AppRoute[] = [];
+  for (let idx = 0; idx < data.routes.length; idx++) {
+    const r = data.routes[idx]!;
+
+    // Skip any route that is missing coords or steps — passing an empty / null
+    // array into buildCumulativeDistances or the step mapper would throw later.
+    if (!Array.isArray(r.coords) || r.coords.length === 0) {
+      console.warn(`[fetchGoogleRoute] route ${idx} missing coords — skipped`);
+      continue;
+    }
+    if (!Array.isArray(r.steps)) {
+      console.warn(`[fetchGoogleRoute] route ${idx} missing steps — skipped`);
+      continue;
+    }
+
     // Build coords first so we can compute cumulative distances and project
     // each step's location onto the polyline (giving stepAlongRouteM).
     const coords: RouteCoord[] = r.coords; // already {latitude, longitude}
@@ -515,15 +529,16 @@ async function fetchGoogleRoute(
       };
     });
 
-    return {
+    validRoutes.push({
       id: `route-${idx}-${Date.now()}`,
       distanceM: r.distanceM,
       durationS: r.durationS,
       coords,
       cumDist,
       steps,
-    };
-  });
+    });
+  }
+  return validRoutes;
 }
 
 function getZonesOnRoute(route: AppRoute, zones: SpeedZone[]): SpeedZone[] {
@@ -538,8 +553,20 @@ const ROUTE_CORRIDOR_M = 250; // matches getZonesOnRoute's "on this route" thres
 function buildCumulativeDistances(coords: RouteCoord[]): number[] {
   const dists = [0];
   for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1];
+    const curr = coords[i];
+    // Guard against malformed coord entries (missing lat/lng) so the loop
+    // never throws a TypeError deep inside navigation logic.
+    if (
+      !prev || !curr ||
+      prev.latitude == null || prev.longitude == null ||
+      curr.latitude == null || curr.longitude == null
+    ) {
+      dists.push(dists[i - 1]!);
+      continue;
+    }
     dists.push(
-      dists[i - 1] + haversine(coords[i - 1].latitude, coords[i - 1].longitude, coords[i].latitude, coords[i].longitude)
+      dists[i - 1]! + haversine(prev.latitude, prev.longitude, curr.latitude, curr.longitude)
     );
   }
   return dists;
@@ -1837,7 +1864,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dest.poiType === "shopping"  ? "shopping centre" :
           dest.poiType === "hospital"  ? "hospital" :
           dest.poiType === "nightlife" ? "venue" : "restaurant";
-        const shortName = dest.name.split(",")[0].trim();
+        const shortName = typeof dest.name === "string" ? dest.name.split(",")[0].trim() : "";
         speakText(`${shortName} ${typeWord} is approximately ${distText} ahead. Prepare to turn.`);
       }
     }
@@ -2048,7 +2075,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setNavigationActive(false);
             const trip = tripRef.current;
             setArrivedInfo({
-              destName: navDestRef.current?.name.split(",")[0] ?? "your destination",
+              destName: (typeof navDestRef.current?.name === "string" ? navDestRef.current.name.split(",")[0] : null) ?? "your destination",
               distM: trip?.distance ?? routeRef.current?.distanceM ?? 0,
               durationS: Math.round((Date.now() - (trip?.startTime ?? Date.now())) / 1000),
               maxSpeedKmh: trip?.maxSpeed ?? 0,
@@ -3015,7 +3042,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const route = routeRef.current;
           const stepIdx = stepIdxRef.current;
           if (route?.steps[stepIdx]?.instruction) pingBody.nextInstruction = route.steps[stepIdx].instruction;
-          if (navDestRef.current?.name) pingBody.destinationName = navDestRef.current.name.split(",")[0];
+          if (typeof navDestRef.current?.name === "string") pingBody.destinationName = navDestRef.current.name.split(",")[0];
           pingBody.isSharingTrip = true;
           await apiPatch(`/share/${tk}/ping`, pingBody);
         } catch { /* ignore ping failures — next interval will retry */ }

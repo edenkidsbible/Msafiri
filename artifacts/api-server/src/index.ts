@@ -62,12 +62,26 @@ app.listen(port, async (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  await migrateSchema();
-  await seedDefaultAdmin();
-  await syncStaticZones();
-  await seedCourseIfEmpty();
-  await backfillCourseAudio();
-  await dedupPushTokens();
+
+  // ── Startup tasks wrapped in an aggregate catch ───────────────────────────
+  // A failure in any one task (e.g. a DB migration hiccup, an empty seed file)
+  // must not leave the process stuck in a half-started state with no error
+  // message.  We log the error and exit cleanly so the process manager can
+  // restart the server rather than serving requests from a broken state.
+  try {
+    await migrateSchema();
+    await seedDefaultAdmin();
+    await syncStaticZones();
+    await seedCourseIfEmpty();
+    await backfillCourseAudio();
+    await dedupPushTokens();
+  } catch (startupErr) {
+    logger.error({ err: startupErr }, "Startup task failed — exiting");
+    process.exit(1);
+  }
+
+  // Background jobs are started after all startup tasks succeed so they
+  // never run against a partially-migrated schema.
   startExpireReportsJob();
   startPushNotificationsJob();
 });
