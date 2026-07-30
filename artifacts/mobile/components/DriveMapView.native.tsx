@@ -965,6 +965,7 @@ const DriveMapView = forwardRef(function DriveMapView(
             badge at each end so you can see how the speed changes along the
             road, instead of a straight line cutting across the map. */}
         {visibleZones.map((z) => {
+          if (z.lat == null || z.lng == null || isNaN(z.lat) || isNaN(z.lng)) return null;
           const bg = z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100";
           return (
             <React.Fragment key={z.id}>
