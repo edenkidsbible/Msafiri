@@ -124,6 +124,7 @@ export default function DriveScreen() {
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, setDriverName,
     gpsLost,
+    fasterRoute, acceptFasterRoute, dismissFasterRoute,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -154,6 +155,7 @@ export default function DriveScreen() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
+  const [navCardHeight, setNavCardHeight] = useState(0);
   const [showNearbySheet, setShowNearbySheet] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
   // #34 — Search Along Route
@@ -692,10 +694,13 @@ export default function DriveScreen() {
           TOP: Navigation instruction card (during active navigation)
       ══════════════════════════════════════════════════════════════════ */}
       {navigationActive && currentStep && (
-        <View style={[styles.navCard, {
-          top: topInset + 4,
-          backgroundColor: isDark ? "#0F2040F5" : "#1565C0F5",
-        }]}>
+        <View
+          style={[styles.navCard, {
+            top: topInset + 4,
+            backgroundColor: isDark ? "#0F2040F5" : "#1565C0F5",
+          }]}
+          onLayout={(e) => setNavCardHeight(e.nativeEvent.layout.height)}
+        >
           <View style={styles.navCardIcon}>
             <Ionicons name={maneuverIcon(currentStep.instruction)} size={30} color="#FFF" />
             {currentStep.exitNumber != null && (
@@ -750,6 +755,39 @@ export default function DriveScreen() {
               <Text style={[styles.navDist, { opacity: 0.7 }]}>{distStr(distToNextM)}</Text>
             )}
           </View>
+        </View>
+      )}
+
+      {/* ── Faster route available banner ────────────────────────────────────
+          Appears during active navigation when the periodic background check
+          finds a route ≥ 3 min faster than the current remaining ETA.
+          Positioned just below the nav instruction card. */}
+      {navigationActive && !!fasterRoute && durationRemainingS != null && (
+        <View style={[styles.fasterRouteBanner, { top: topInset + 4 + navCardHeight + 6 }]}>
+          <Ionicons name="flash" size={14} color="#FFF" style={{ marginLeft: 12 }} />
+          <Text style={styles.fasterRouteTxt} numberOfLines={1}>
+            Faster route — save {Math.max(1, Math.round((durationRemainingS - fasterRoute.durationS) / 60))} min
+          </Text>
+          <TouchableOpacity
+            style={styles.fasterRouteSwitch}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              acceptFasterRoute();
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          >
+            <Text style={styles.fasterRouteSwitchTxt}>Switch</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 10, paddingVertical: 8 }}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              dismissFasterRoute();
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          >
+            <Ionicons name="close" size={16} color="#FFFFFFCC" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -2212,6 +2250,31 @@ const styles = StyleSheet.create({
   navResumeSub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2, opacity: 0.9 },
   gpsLostChip:  { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#E65100EE", zIndex: 30 },
   gpsLostText:  { color: "#FFF", fontSize: 11, fontFamily: "Inter_500Medium" },
+
+  // ── Faster-route banner ───────────────────────────────────────────────────
+  // Appears just below the nav instruction card when a periodic background
+  // check finds a route ≥ 3 min faster than the current remaining ETA.
+  fasterRouteBanner: {
+    position: "absolute", left: 12, right: 12, zIndex: 19,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#1B5E20EE",
+    borderRadius: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22, shadowRadius: 8, elevation: 10,
+  },
+  fasterRouteTxt: {
+    flex: 1, color: "#FFF", fontSize: 13, fontFamily: "Inter_600SemiBold",
+    paddingVertical: 11,
+  },
+  fasterRouteSwitch: {
+    backgroundColor: "#FFFFFF28",
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 10,
+    marginRight: 2,
+  },
+  fasterRouteSwitchTxt: {
+    color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold",
+  },
   stopBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "#E53935",

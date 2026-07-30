@@ -296,6 +296,16 @@ interface AppContextValue {
    *  polyline. Returns null when no route is active; the caller should then
    *  fall back to snapToRoad() (Google Roads API) or raw GPS. */
   snapToActiveRoute: (lat: number, lng: number) => { lat: number; lng: number } | null;
+  /** A faster route found during the periodic background check while
+   *  navigating. Non-null when an alternative saves ≥ 3 minutes over the
+   *  remaining time on the active route. Cleared on dismiss, accept, reroute,
+   *  or navigation stop. */
+  fasterRoute: AppRoute | null;
+  /** Switch to the suggested faster route and clear the banner. */
+  acceptFasterRoute: () => void;
+  /** Dismiss the faster-route banner without switching routes. The next
+   *  periodic check (≈2 min) can surface a new suggestion if conditions hold. */
+  dismissFasterRoute: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -887,6 +897,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [showTraffic, setShowTrafficState] = useState(false);
   const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
   const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
+  const [fasterRoute, setFasterRoute] = useState<AppRoute | null>(null);
+  /** Ref mirror so interval callbacks can read/clear without stale closures. */
+  const fasterRouteRef = useRef<AppRoute | null>(null);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
   const [suppressedStaticIds, setSuppressedStaticIds] = useState<string[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
@@ -2296,6 +2309,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDivergenceRoutes([]);
       divergenceRoutesRef.current = [];
       setAltRoutes(alts);
+      // Clear any faster-route suggestion — the rerouted path is already optimal.
+      setFasterRoute(null);
+      fasterRouteRef.current = null;
       const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
       setZonesOnRoute(
         getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
@@ -2750,11 +2766,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { distanceRemainingRef.current = distanceRemainingM; }, [distanceRemainingM]);
 
   // ── Periodic traffic refresh ───────────────────────────────────────────────
-  // Re-fetches route duration from Google every 10 min during active navigation.
-  // Updates only activeRoute.durationS (polyline and steps are unchanged) when
-  // the fresh ETA differs from the current remaining time by more than 5 minutes.
-  const TRAFFIC_REFRESH_MS    = 10 * 60 * 1000; // 10 minutes between checks
-  const TRAFFIC_REFRESH_THR_S = 5 * 60;          // 5 min drift triggers an update
+  // Periodic background check fired every 2 min during active navigation.
+  // Two responsibilities per tick:
+  //   1. Faster-route detection — if Google's fastest route from the current
+  //      position saves ≥ 3 min over the remaining ETA, surface a dismissible
+  //      banner in the drive HUD so the driver can switch with one tap.
+  //   2. ETA drift patch — if the active-route ETA has drifted by > 5 min due
+  //      to changing traffic, silently update activeRoute.durationS so the
+  //      nav-bar arrival time stays accurate (polyline/steps unchanged).
+  const TRAFFIC_REFRESH_MS    = 2 * 60 * 1000; // 2 minutes between checks
+  const TRAFFIC_REFRESH_THR_S = 5 * 60;          // 5 min drift triggers an ETA patch
+  const FASTER_ROUTE_THR_S    = 3 * 60;          // 3 min saving triggers the banner
 
   // Keep the bag current after every render so the fixed-interval callback
   // always reads fresh state without being re-registered on every GPS fix.
@@ -2776,34 +2798,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const b = trafficBagRef.current;
       if (!b.navActive || !b.route || !b.dest || b.lat == null || b.lng == null) return;
       if (isReroutingRef.current) return;
-      // Skip when almost arrived — a 5-min drift would be larger than the trip itself.
-      if (b.remainingS != null && b.remainingS < TRAFFIC_REFRESH_THR_S) return;
+      // Skip when almost arrived — savings threshold would exceed trip length.
+      if (b.remainingS != null && b.remainingS < FASTER_ROUTE_THR_S + 60) return;
 
       try {
         const routes = await fetchGoogleRoute(b.lat, b.lng, b.dest.lat, b.dest.lng, lastHeadingRef.current);
         if (!routes.length) return;
 
-        // routes[0].durationS is the REMAINING time from current position, not
-        // the total trip duration.  Compare it against durationRemainingS (also
+        // routes[0].durationS is the REMAINING time from current position on
+        // Google's fastest route.  Compare it against durationRemainingS (also
         // remaining) so the threshold check is apples-to-apples.
-        const newRemainingS = routes[0].durationS;
-        const currentS      = b.remainingS ?? b.route.durationS;
-        if (Math.abs(newRemainingS - currentS) < TRAFFIC_REFRESH_THR_S) return;
+        const fastest      = routes[0];
+        const currentS     = b.remainingS ?? b.route.durationS;
+        const saving       = currentS - fastest.durationS;
 
-        // activeRoute.durationS is a TOTAL baseline; durationRemainingS is
-        // computed as (distanceRemainingM / totalDistanceM) * durationS.
-        // To make that formula yield newRemainingS at the current position we
-        // must back-convert: equivalentTotal = newRemainingS * (total / remaining).
-        const distRem   = b.distanceRemainingM;
-        const distTotal = b.route.distanceM;
-        const equivalentTotalS =
-          distRem != null && distRem > 0 && distTotal > 0
-            ? Math.round(newRemainingS * (distTotal / distRem))
-            : newRemainingS; // edge-case: at trip start remaining ≈ total
+        // ── 1. Faster-route detection ────────────────────────────────────────
+        if (saving >= FASTER_ROUTE_THR_S) {
+          setFasterRoute(fastest);
+          fasterRouteRef.current = fastest;
+        } else {
+          // Conditions improved or route converged — clear any stale suggestion.
+          if (fasterRouteRef.current != null) {
+            setFasterRoute(null);
+            fasterRouteRef.current = null;
+          }
+        }
 
-        // Silently patch durationS only — polyline, steps, and route id are
-        // unchanged so the driver stays on the same road without any visual jump.
-        setActiveRoute((prev) => prev ? { ...prev, durationS: equivalentTotalS } : prev);
+        // ── 2. ETA drift patch (only when NOT showing a faster-route banner) ─
+        // When a faster-route banner is already visible we leave activeRoute
+        // untouched so the driver can compare the two ETAs clearly.
+        if (saving < FASTER_ROUTE_THR_S) {
+          const drift = Math.abs(fastest.durationS - currentS);
+          if (drift < TRAFFIC_REFRESH_THR_S) return;
+
+          // activeRoute.durationS is a TOTAL baseline; durationRemainingS is
+          // computed as (distanceRemainingM / totalDistanceM) * durationS.
+          // Back-convert: equivalentTotal = newRemainingS * (total / remaining).
+          const distRem   = b.distanceRemainingM;
+          const distTotal = b.route.distanceM;
+          const equivalentTotalS =
+            distRem != null && distRem > 0 && distTotal > 0
+              ? Math.round(fastest.durationS * (distTotal / distRem))
+              : fastest.durationS; // edge-case: at trip start remaining ≈ total
+
+          // Silently patch durationS only — polyline, steps, and route id are
+          // unchanged so the driver stays on the same road without any visual jump.
+          setActiveRoute((prev) => prev ? { ...prev, durationS: equivalentTotalS } : prev);
+        }
       } catch { /* network error — silently keep current ETA */ }
     }, TRAFFIC_REFRESH_MS);
     return () => clearInterval(id);
@@ -2827,6 +2868,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     setDistToNextM(null);
+    // Clear any pending faster-route suggestion when destination changes.
+    setFasterRoute(null);
+    fasterRouteRef.current = null;
   }, []);
 
   const selectRoute = useCallback((r: AppRoute) => {
@@ -2848,6 +2892,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.warn("[selectRoute] error:", e);
     }
   }, [activeRoute]);
+
+  /** Switch to the suggested faster route and clear the banner. */
+  const acceptFasterRoute = useCallback(() => {
+    const route = fasterRouteRef.current;
+    setFasterRoute(null);
+    fasterRouteRef.current = null;
+    if (route) selectRoute(route);
+  }, [selectRoute]);
+
+  /** Dismiss the banner without switching routes. */
+  const dismissFasterRoute = useCallback(() => {
+    setFasterRoute(null);
+    fasterRouteRef.current = null;
+  }, []);
 
   // ── Trip sharing ─────────────────────────────────────────────────────────────
 
@@ -2973,6 +3031,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIdx(0);
     routeProjIdxRef.current = 0;
     setRouteIncidentsExpanded(false);
+    // Clear any pending faster-route suggestion when navigation stops.
+    setFasterRoute(null);
+    fasterRouteRef.current = null;
     // Stop any active trip-sharing session when navigation ends
     if (sharePingIntervalRef.current) {
       clearInterval(sharePingIntervalRef.current);
@@ -3712,6 +3773,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
       snapToActiveRoute,
+      fasterRoute, acceptFasterRoute, dismissFasterRoute,
     }}>
       {children}
     </AppContext.Provider>
