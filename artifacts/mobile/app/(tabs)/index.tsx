@@ -162,6 +162,11 @@ export default function DriveScreen() {
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
+  // When an alert is tapped in the Nearby sheet we force drift=true so GPS
+  // follow stops before focusCoords animates. This flag tells the auto-resume
+  // effect to use a shorter 8 s window (peek) instead of the 30 s manual-pan
+  // window, so the driver is snapped back quickly without waiting.
+  const alertFocusModeRef = useRef(false);
   const [navBarHeight, setNavBarHeight] = useState(0);
   // Brief toast shown after a cluster dismiss — tells the driver how long alerts
   // are paused near this area so they know what to expect if they pass again.
@@ -237,17 +242,21 @@ export default function DriveScreen() {
   }, [navigationActive]);
 
   // ── Auto-resume map follow ────────────────────────────────────────────────
-  // When the driver pans away (mapDrifted = true), start a 30-second timer.
-  // If they haven't tapped Recenter manually by then, snap back automatically
-  // so the map never stays lost for long while driving.
+  // When the driver pans away (mapDrifted = true), start a timer.
+  // • Manual pan/zoom  → 30 s (gives the driver time to explore)
+  // • Alert peek       → 8 s  (quick glance then snap back; flagged via
+  //                            alertFocusModeRef set before setMapDrifted)
   // Cancels immediately if the driver taps Recenter (mapDrifted → false).
   const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (mapDrifted) {
+      // Consume the flag synchronously so a subsequent manual pan uses 30 s.
+      const delay = alertFocusModeRef.current ? 8_000 : 30_000;
+      alertFocusModeRef.current = false;
       autoResumeTimerRef.current = setTimeout(() => {
         driveMapRef.current?.recenter();
         setMapDrifted(false);
-      }, 30_000);
+      }, delay);
     } else {
       if (autoResumeTimerRef.current) {
         clearTimeout(autoResumeTimerRef.current);
@@ -1730,6 +1739,12 @@ export default function DriveScreen() {
                     onPress={() => {
                       setShowNearbySheet(false);
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      // Pause GPS follow BEFORE animating so the follow loop
+                      // can't yank the camera back mid-flight. alertFocusModeRef
+                      // tells the auto-resume effect to snap back after 8 s
+                      // instead of the usual 30 s manual-pan window.
+                      alertFocusModeRef.current = true;
+                      setMapDrifted(true);
                       driveMapRef.current?.focusCoords(item.lat, item.lng);
                     }}
                   >
