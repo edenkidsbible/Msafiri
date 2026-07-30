@@ -327,6 +327,14 @@ const DriveMapView = forwardRef(function DriveMapView(
   const mapDriftedRef = useRef(mapDrifted);
   useEffect(() => { mapDriftedRef.current = mapDrifted; }, [mapDrifted]);
 
+  // Auto-resume timer — fires ~8 s after the last pan gesture to snap back to
+  // the driver's GPS position without requiring a manual Recenter tap.
+  const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Stable ref to the latest `recenter` callback so the auto-resume timer can
+  // invoke it without capturing a stale closure at the time setTimeout was called.
+  const recenterRef = useRef<(() => void) | null>(null);
+
   // Always-current mirror of navigationActive — read inside deferred callbacks
   // to avoid stale-closure bugs where a setTimeout captures the wrong value.
   const navActiveRef = useRef(navigationActive);
@@ -649,13 +657,33 @@ const DriveMapView = forwardRef(function DriveMapView(
   // camera-follow effect from firing animateCamera before the React state
   // update (onDriftChange → parent setState) has had a chance to propagate.
   const handlePanDrag = useCallback(() => {
-    if (mapDriftedRef.current) return; // already drifted — no-op
-    mapDriftedRef.current = true;      // synchronous guard — stops GPS follow instantly
-    onDriftChange?.(true);
+    // Always reset the auto-resume timer on every new pan gesture so a long
+    // deliberate look doesn't snap back mid-inspection.
+    if (autoResumeTimerRef.current) {
+      clearTimeout(autoResumeTimerRef.current);
+      autoResumeTimerRef.current = null;
+    }
+    if (!mapDriftedRef.current) {
+      mapDriftedRef.current = true;    // synchronous guard — stops GPS follow instantly
+      onDriftChange?.(true);
+    }
+    // Start an 8-second countdown. If the driver doesn't tap Recenter, the map
+    // snaps back automatically — mirrors Google Maps / Waze behaviour.
+    autoResumeTimerRef.current = setTimeout(() => {
+      autoResumeTimerRef.current = null;
+      // Call recenter imperatively so this file owns the entire auto-resume
+      // path (camera animation + heading restore + drift-flag clear).
+      recenterRef.current?.();
+    }, 8_000);
   }, [onDriftChange]);
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
+    // Cancel any pending auto-resume — manual tap takes priority.
+    if (autoResumeTimerRef.current) {
+      clearTimeout(autoResumeTimerRef.current);
+      autoResumeTimerRef.current = null;
+    }
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
     // Use the speed-appropriate delta and reset the smoothing ref so the
     // next GPS fix starts from the right baseline rather than the stale value
@@ -683,6 +711,20 @@ const DriveMapView = forwardRef(function DriveMapView(
     }
     onDriftChange?.(false);
   }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
+
+  // Keep recenterRef current so the auto-resume setTimeout can always call
+  // the latest version of recenter (with up-to-date currentLat/Lng/heading).
+  useEffect(() => { recenterRef.current = recenter; }, [recenter]);
+
+  // When drift is cleared externally (e.g. navigation ends → parent resets
+  // mapDrifted to false), cancel any pending auto-resume timer so it doesn't
+  // fire later and fight other camera animations.
+  useEffect(() => {
+    if (!mapDrifted && autoResumeTimerRef.current) {
+      clearTimeout(autoResumeTimerRef.current);
+      autoResumeTimerRef.current = null;
+    }
+  }, [mapDrifted]);
 
   const focusCoords = useCallback((lat: number, lng: number) => {
     // Pan the map to the alert's location
