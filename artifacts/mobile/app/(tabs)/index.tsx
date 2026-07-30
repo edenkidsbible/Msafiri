@@ -1129,7 +1129,9 @@ export default function DriveScreen() {
 
           <View style={[styles.vdivider, { backgroundColor: divBg }]} />
 
-          {/* Right: contextual alert info */}
+          {/* Right: contextual alert info.
+              paddingRight reserves space for the absolutely-positioned SOS
+              button so text never hides behind it. */}
           {!locationGranted ? (
             <TouchableOpacity
               style={[styles.gpsBtn, { backgroundColor: c.primary }]}
@@ -1139,19 +1141,19 @@ export default function DriveScreen() {
               <Text style={styles.gpsBtnTxt}>Enable GPS</Text>
             </TouchableOpacity>
           ) : overLimit ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, paddingRight: isSmall ? 56 : 70 }}>
               <Ionicons name="alert-circle" size={20} color="#E53935" />
               <Text style={{ color: "#E53935", fontSize: 16, fontFamily: "Inter_700Bold" }}>Slow down!</Text>
             </View>
           ) : routeLoading ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flex: 1, paddingRight: isSmall ? 56 : 70 }}>
               <ActivityIndicator size="small" color={c.primary} />
               <Text style={[styles.clearTxt, { color: fgMuted }]}>Calculating route…</Text>
             </View>
           ) : primaryAlert ? (
             <TouchableOpacity
               activeOpacity={0.8}
-              style={{ flex: 1, gap: 5 }}
+              style={{ flex: 1, gap: 5, paddingRight: isSmall ? 56 : 70 }}
               onPress={() => {
                 if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
               }}
@@ -1206,11 +1208,13 @@ export default function DriveScreen() {
               </Text>
             </TouchableOpacity>
           ) : (
-            <Text style={[styles.clearTxt, { color: fgMuted, flex: 1 }]}>Clear ahead</Text>
+            <Text style={[styles.clearTxt, { color: fgMuted, flex: 1, paddingRight: isSmall ? 56 : 70 }]}>Clear ahead</Text>
           )}
 
-          {/* SOS */}
-          <SOSButton compact small={isSmall} />
+          {/* SOS — floats at the right edge without displacing flex siblings */}
+          <View style={{ position: "absolute", right: 0, top: 0, bottom: 0, justifyContent: "center" }}>
+            <SOSButton compact small={isSmall} />
+          </View>
         </View>
       )}
 
