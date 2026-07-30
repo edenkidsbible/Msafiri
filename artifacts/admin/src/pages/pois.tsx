@@ -381,6 +381,15 @@ function PoiForm({
     form.setValue("lng", parseFloat(pickedLng.toFixed(6)), { shouldValidate: true });
   };
 
+  const handleAddressResult = (address: string, pickedLat: number, pickedLng: number) => {
+    form.setValue("lat", parseFloat(pickedLat.toFixed(6)), { shouldValidate: true });
+    form.setValue("lng", parseFloat(pickedLng.toFixed(6)), { shouldValidate: true });
+    // Only pre-fill address if the field is currently empty
+    if (!form.getValues("address")) {
+      form.setValue("address", address, { shouldValidate: true });
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -439,10 +448,10 @@ function PoiForm({
           <p className="text-sm font-medium leading-none">
             Location
             <span className="ml-2 text-xs font-normal text-muted-foreground">
-              Click the map to place a pin, or type coordinates below
+              Search for a location or click the map to place a pin
             </span>
           </p>
-          <PoiPickerMap lat={lat} lng={lng} onPick={handleMapPick} />
+          <PoiPickerMap lat={lat} lng={lng} onPick={handleMapPick} onAddressResult={handleAddressResult} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
