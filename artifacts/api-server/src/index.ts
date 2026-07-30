@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { startExpireReportsJob } from "./jobs/expireReports";
 import { startPushNotificationsJob } from "./jobs/pushNotifications";
+import { startDailyBackupJob } from "./jobs/dailyBackup";
 import { seedCourseIfEmpty } from "./startup/seedCourse";
 import { backfillCourseAudio } from "./startup/backfillCourseAudio";
 import { dedupPushTokens } from "./startup/dedupPushTokens";
@@ -84,4 +85,5 @@ app.listen(port, async (err) => {
   // never run against a partially-migrated schema.
   startExpireReportsJob();
   startPushNotificationsJob();
+  startDailyBackupJob();
 });
