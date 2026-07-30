@@ -904,6 +904,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    *  Prevents re-announcing on subsequent 2-min checks while the same banner
    *  is still visible. Reset whenever fasterRouteRef is cleared. */
   const fasterRouteAnnouncedRef = useRef(false);
+  /** Saving (seconds) of the most-recently-shown faster-route suggestion.
+   *  Updated alongside fasterRouteRef; read by dismissFasterRoute. */
+  const fasterRouteSavingRef = useRef<number>(0);
+  /** ms timestamp when the driver last dismissed the faster-route banner.
+   *  Enforces a 10-minute cooldown before re-showing the same suggestion. */
+  const fasterRouteDismissedAtRef = useRef<number | null>(null);
+  /** Saving (seconds) of the dismissed suggestion.  A new suggestion is only
+   *  surfaced during the cooldown window when it saves ≥ (dismissed saving + 2 min),
+   *  which signals a meaningfully different option rather than the same nagging one. */
+  const fasterRouteDismissedSavingRef = useRef<number>(0);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
   const [suppressedStaticIds, setSuppressedStaticIds] = useState<string[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
@@ -2317,6 +2327,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setFasterRoute(null);
       fasterRouteRef.current = null;
       fasterRouteAnnouncedRef.current = false;
+      fasterRouteDismissedAtRef.current = null;
+      fasterRouteDismissedSavingRef.current = 0;
       const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
       setZonesOnRoute(
         getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
@@ -2819,17 +2831,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // ── 1. Faster-route detection ────────────────────────────────────────
         if (saving >= FASTER_ROUTE_THR_S) {
-          const wasNull = fasterRouteRef.current == null;
-          setFasterRoute(fastest);
-          fasterRouteRef.current = fastest;
-          // Announce once on first detection; skip if a turn cue is playing.
-          if (wasNull && !fasterRouteAnnouncedRef.current && !isAlertVoicePlaying()) {
-            fasterRouteAnnouncedRef.current = true;
-            const savingMin = Math.round(saving / 60);
-            const phrase = savingMin === 1
-              ? "Faster route found, saving 1 minute"
-              : `Faster route found, saving ${savingMin} minutes`;
-            speakAlertPhrase(phrase).catch(() => {});
+          // Respect the dismiss cooldown: suppress if the driver dismissed
+          // within the last 10 min AND the new saving is not meaningfully
+          // better (< dismissed saving + 2 min) than what they already saw.
+          const dismissedAt = fasterRouteDismissedAtRef.current;
+          const dismissedSavingS = fasterRouteDismissedSavingRef.current;
+          const DISMISS_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+          const DISMISS_EXTRA_S     = 2 * 60;          // must save 2 min more to break cooldown
+          const inCooldown =
+            dismissedAt != null &&
+            Date.now() - dismissedAt < DISMISS_COOLDOWN_MS &&
+            saving < dismissedSavingS + DISMISS_EXTRA_S;
+
+          if (!inCooldown) {
+            const wasNull = fasterRouteRef.current == null;
+            setFasterRoute(fastest);
+            fasterRouteRef.current = fastest;
+            fasterRouteSavingRef.current = saving;
+            // Announce once on first detection; skip if a turn cue is playing.
+            if (wasNull && !fasterRouteAnnouncedRef.current && !isAlertVoicePlaying()) {
+              fasterRouteAnnouncedRef.current = true;
+              const savingMin = Math.round(saving / 60);
+              const phrase = savingMin === 1
+                ? "Faster route found, saving 1 minute"
+                : `Faster route found, saving ${savingMin} minutes`;
+              speakAlertPhrase(phrase).catch(() => {});
+            }
           }
         } else {
           // Conditions improved or route converged — clear any stale suggestion.
@@ -2888,6 +2915,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFasterRoute(null);
     fasterRouteRef.current = null;
     fasterRouteAnnouncedRef.current = false;
+    fasterRouteDismissedAtRef.current = null;
+    fasterRouteDismissedSavingRef.current = 0;
   }, []);
 
   const selectRoute = useCallback((r: AppRoute) => {
@@ -2916,11 +2945,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFasterRoute(null);
     fasterRouteRef.current = null;
     fasterRouteAnnouncedRef.current = false;
+    fasterRouteDismissedAtRef.current = null;
+    fasterRouteDismissedSavingRef.current = 0;
     if (route) selectRoute(route);
   }, [selectRoute]);
 
-  /** Dismiss the banner without switching routes. */
+  /** Dismiss the banner without switching routes.  Records a cooldown so the
+   *  same suggestion is suppressed for 10 min (or until a meaningfully better
+   *  option — ≥ 2 min more saving — is detected). */
   const dismissFasterRoute = useCallback(() => {
+    fasterRouteDismissedAtRef.current = Date.now();
+    fasterRouteDismissedSavingRef.current = fasterRouteSavingRef.current;
     setFasterRoute(null);
     fasterRouteRef.current = null;
     fasterRouteAnnouncedRef.current = false;
@@ -3054,6 +3089,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFasterRoute(null);
     fasterRouteRef.current = null;
     fasterRouteAnnouncedRef.current = false;
+    fasterRouteDismissedAtRef.current = null;
+    fasterRouteDismissedSavingRef.current = 0;
     // Stop any active trip-sharing session when navigation ends
     if (sharePingIntervalRef.current) {
       clearInterval(sharePingIntervalRef.current);
