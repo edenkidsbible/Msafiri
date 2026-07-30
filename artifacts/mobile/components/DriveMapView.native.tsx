@@ -284,6 +284,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone,
     driverHeading,
+    durationRemainingS, distanceRemainingM,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -754,9 +755,19 @@ const DriveMapView = forwardRef(function DriveMapView(
             const innerColor = isRecommended ? "#FF2D78" : "#FF6FA0";
             const outerColor = isRecommended ? "#FF2D7855" : "#FF6FA033";
 
-            // Delta vs. the original active route (null if no active route yet)
-            const deltaS = activeRoute ? r.durationS - activeRoute.durationS : 0;
-            const deltaM = activeRoute ? r.distanceM - activeRoute.distanceM : 0;
+            // Delta vs. remaining travel time/distance on the original route.
+            // During active navigation, durationRemainingS/distanceRemainingM
+            // reflect how far is still to go from the driver's current position —
+            // a much more accurate baseline than the full route total.
+            // Falls back to the full-route totals when these are null (pre-navigation).
+            const baseS = activeRoute
+              ? (durationRemainingS ?? activeRoute.durationS)
+              : null;
+            const baseM = activeRoute
+              ? (distanceRemainingM ?? activeRoute.distanceM)
+              : null;
+            const deltaS = baseS != null ? r.durationS - baseS : 0;
+            const deltaM = baseM != null ? r.distanceM - baseM : 0;
             const label = activeRoute ? fmtDelta(deltaS, deltaM) : fmtDuration(r.durationS);
 
             const badgeCoord = midpointCoord(r.coords, fractions[idx]);
