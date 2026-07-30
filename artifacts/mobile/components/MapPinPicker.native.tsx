@@ -4,7 +4,7 @@
  * Used inside ReportModal for the "Pin on Map" location mode.
  */
 import React, { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -28,7 +28,7 @@ export function MapPinPicker({ initialLat, initialLng, onLocationChange, mapHeig
     <View style={styles.wrap}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         style={[styles.map, { height: mapHeight }]}
         initialRegion={{
           latitude: initialLat,

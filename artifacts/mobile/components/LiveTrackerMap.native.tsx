@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 interface Props {
@@ -49,7 +49,7 @@ export default function LiveTrackerMap({
   return (
     <MapView
       ref={mapRef}
-      provider={PROVIDER_GOOGLE}
+      provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
       style={StyleSheet.absoluteFill}
       initialRegion={NAIROBI}
       showsUserLocation={false}
