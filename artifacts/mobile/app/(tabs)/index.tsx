@@ -1009,14 +1009,17 @@ export default function DriveScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="search" size={14} color="#FFF" />
-            <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
-          </TouchableOpacity>
+          {/* Find Nearby — hidden when Recenter is visible to protect Report pill space */}
+          {!mapDrifted && (
+            <TouchableOpacity
+              style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="search" size={14} color="#FFF" />
+              <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
@@ -1225,15 +1228,17 @@ export default function DriveScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Find Nearby — Kenya black */}
-          <TouchableOpacity
-            style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="search" size={14} color="#FFF" />
-            <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
-          </TouchableOpacity>
+          {/* Find Nearby — hidden when Recenter is visible to protect Report pill space */}
+          {!mapDrifted && (
+            <TouchableOpacity
+              style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="search" size={14} color="#FFF" />
+              <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Report — Kenya flag color cycle */}
           <TouchableOpacity
