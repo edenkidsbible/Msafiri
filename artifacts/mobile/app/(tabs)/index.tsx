@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useApp } from "@/context/AppContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
@@ -1288,8 +1289,11 @@ export default function DriveScreen() {
 
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Route preview sheet
+          Wrapped in ErrorBoundary so a malformed activeRoute object
+          (empty steps, NaN distance, etc.) hides the sheet rather than
+          crashing the whole drive screen.
       ══════════════════════════════════════════════════════════════════ */}
-      {isMapMode && !navigationActive && activeRoute && (
+      {isMapMode && !navigationActive && activeRoute && (<ErrorBoundary FallbackComponent={() => null}>
         <View style={[styles.routeSheet, {
           backgroundColor: bg,
           paddingBottom: bottomBase,
@@ -1420,7 +1424,7 @@ export default function DriveScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      </ErrorBoundary>)}
 
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Navigation active bar

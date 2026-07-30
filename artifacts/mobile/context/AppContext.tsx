@@ -511,65 +511,82 @@ async function fetchGoogleRoute(
     speedIntervals?: SpeedInterval[];
   };
 
-  const headingParam = heading != null ? `&heading=${Math.round(heading)}` : "";
-  const data = await apiGet<{ routes: ServerRoute[] }>(
-    `/routing/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}${headingParam}`,
-    15000
-  );
-  if (!data.routes?.length) return [];
+  try {
+    const headingParam = heading != null ? `&heading=${Math.round(heading)}` : "";
+    const data = await apiGet<{ routes: ServerRoute[] }>(
+      `/routing/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}${headingParam}`,
+      15000
+    );
+    // Guard against a null / empty API response — data itself can be null if
+    // the server returns a non-JSON body or the request times out.
+    if (!data?.routes?.length) return [];
 
-  const validRoutes: AppRoute[] = [];
-  for (let idx = 0; idx < data.routes.length; idx++) {
-    const r = data.routes[idx]!;
+    const validRoutes: AppRoute[] = [];
+    for (let idx = 0; idx < data.routes.length; idx++) {
+      const r = data.routes[idx];
+      // Null entry is possible if the server serialises a sparse array.
+      if (!r) { console.warn(`[fetchGoogleRoute] route ${idx} is null — skipped`); continue; }
 
-    // Skip any route that is missing coords or steps — passing an empty / null
-    // array into buildCumulativeDistances or the step mapper would throw later.
-    if (!Array.isArray(r.coords) || r.coords.length === 0) {
-      console.warn(`[fetchGoogleRoute] route ${idx} missing coords — skipped`);
-      continue;
+      // Skip any route that is missing coords or steps — passing an empty / null
+      // array into buildCumulativeDistances or the step mapper would throw later.
+      if (!Array.isArray(r.coords) || r.coords.length === 0) {
+        console.warn(`[fetchGoogleRoute] route ${idx} missing coords — skipped`);
+        continue;
+      }
+      if (!Array.isArray(r.steps)) {
+        console.warn(`[fetchGoogleRoute] route ${idx} missing steps — skipped`);
+        continue;
+      }
+
+      // Build coords first so we can compute cumulative distances and project
+      // each step's location onto the polyline (giving stepAlongRouteM).
+      const coords: RouteCoord[] = r.coords; // already {latitude, longitude}
+      const cumDist = buildCumulativeDistances(coords);
+
+      // Filter falsy step entries before mapping — a single null/undefined step
+      // from the server must not crash the entire route fetch.
+      const steps: RouteStep[] = r.steps.filter(Boolean).map((s) => {
+        const stepLoc: RouteCoord = {
+          latitude:  typeof s.lat === "number" ? s.lat : 0,
+          longitude: typeof s.lng === "number" ? s.lng : 0,
+        };
+        const proj = projectOntoRoute(coords, cumDist, stepLoc.latitude, stepLoc.longitude);
+        // Pre-compute cumulative distances along the step's own road geometry so
+        // the GPS handler can measure remaining distance along the actual road
+        // shape, not a straight line between the step's start and end points.
+        const stepCumDist = s.stepCoords?.length
+          ? buildCumulativeDistances(s.stepCoords)
+          : undefined;
+        return {
+          instruction:     s.instruction     ?? "",
+          distanceM:       s.distanceM       ?? 0,
+          location:        stepLoc,
+          maneuverType:    s.maneuverType    ?? "continue",
+          roadName:        s.roadName        ?? "",
+          stepAlongRouteM: proj?.alongRouteM ?? 0,
+          stepCoords:      s.stepCoords,
+          stepCumDist,
+        };
+      });
+
+      validRoutes.push({
+        id: `route-${idx}-${Date.now()}`,
+        distanceM: r.distanceM ?? 0,
+        durationS: r.durationS ?? 0,
+        coords,
+        cumDist,
+        steps,
+        speedIntervals: r.speedIntervals?.length ? r.speedIntervals : undefined,
+      });
     }
-    if (!Array.isArray(r.steps)) {
-      console.warn(`[fetchGoogleRoute] route ${idx} missing steps — skipped`);
-      continue;
-    }
-
-    // Build coords first so we can compute cumulative distances and project
-    // each step's location onto the polyline (giving stepAlongRouteM).
-    const coords: RouteCoord[] = r.coords; // already {latitude, longitude}
-    const cumDist = buildCumulativeDistances(coords);
-
-    const steps: RouteStep[] = r.steps.map((s) => {
-      const stepLoc: RouteCoord = { latitude: s.lat, longitude: s.lng };
-      const proj = projectOntoRoute(coords, cumDist, stepLoc.latitude, stepLoc.longitude);
-      // Pre-compute cumulative distances along the step's own road geometry so
-      // the GPS handler can measure remaining distance along the actual road
-      // shape, not a straight line between the step's start and end points.
-      const stepCumDist = s.stepCoords?.length
-        ? buildCumulativeDistances(s.stepCoords)
-        : undefined;
-      return {
-        instruction:     s.instruction,
-        distanceM:       s.distanceM,
-        location:        stepLoc,
-        maneuverType:    s.maneuverType,
-        roadName:        s.roadName,
-        stepAlongRouteM: proj?.alongRouteM ?? 0,
-        stepCoords:      s.stepCoords,
-        stepCumDist,
-      };
-    });
-
-    validRoutes.push({
-      id: `route-${idx}-${Date.now()}`,
-      distanceM: r.distanceM,
-      durationS: r.durationS,
-      coords,
-      cumDist,
-      steps,
-      speedIntervals: r.speedIntervals?.length ? r.speedIntervals : undefined,
-    });
+    return validRoutes;
+  } catch (e) {
+    // Any unexpected shape (missing field, bad JSON, network error already
+    // unwrapped by apiGet) must return [] rather than propagating an uncaught
+    // rejection that would crash the reroute flow.
+    console.warn("[fetchGoogleRoute] unexpected error:", e);
+    return [];
   }
-  return validRoutes;
 }
 
 function getZonesOnRoute(route: AppRoute, zones: SpeedZone[]): SpeedZone[] {
@@ -2017,7 +2034,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   divergenceFetchedAtRef.current = Date.now();
                 }
               })
-              .catch(() => {})
+              .catch((e) => console.warn("[divergence] fetch failed:", e))
               .finally(() => { divergenceFetchingRef.current = false; });
           }
         }
@@ -2339,10 +2356,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cacheAge     = Date.now() - divergenceFetchedAtRef.current;
       if (cachedRoutes.length > 0 && cacheAge <= 10_000) {
         const [primary, ...alts] = cachedRoutes;
-        commitReroute(primary, alts);
-        setRouteLoading(false);
-        isReroutingRef.current = false;
-        return;
+        // Guard: a route with no steps cannot be committed — the step-projection
+        // logic would immediately fault.  Extend grace and fall through to a
+        // fresh fetch instead.
+        if (!primary || primary.steps.length === 0) {
+          console.warn("[reroute] cached primary has no steps — skipping cache, fetching fresh");
+          rerouteGraceUntilRef.current = Date.now() + 5_000;
+          // fall through to fresh fetch below
+        } else {
+          commitReroute(primary, alts);
+          setRouteLoading(false);
+          isReroutingRef.current = false;
+          return;
+        }
       }
 
       fetchGoogleRoute(lat, lng, dest.lat, dest.lng, lastHeadingRef.current)
@@ -2909,9 +2935,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const startNavigation = useCallback(async () => {
-    if (!activeRoute) return;
-
-    // If the route was cleared before navigation started, abort.
+    // Use routeRef.current (updated synchronously by selectRoute) instead of
+    // the activeRoute closure so that a divergence-route tap — which calls
+    // selectRoute(r) then immediately startNavigation() — always operates on
+    // the newly selected route even before React flushes the state update.
     if (!routeRef.current) return;
 
     stepIdxRef.current = 0;
@@ -2924,7 +2951,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // driver locks the screen. Fire-and-forget — failure is non-fatal (the
     // foreground watcher still works; the bg task just adds resilience).
     startBackgroundNavTask().catch(() => {});
-  }, [activeRoute]);
+  }, []); // no closure dependencies — activeRoute replaced by routeRef.current
 
   const stopNavigation = useCallback(() => {
     navActiveRef.current = false;
