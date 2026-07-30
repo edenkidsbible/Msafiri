@@ -83,42 +83,6 @@ function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
   return "arrow-up-circle";
 }
 
-function ZoneIcon({ type, size = 14, color }: { type: string; size?: number; color: string }) {
-  const name: keyof typeof Ionicons.glyphMap =
-    type === "camera"    ? "camera"      :
-    type === "police"    ? "person"      :
-    type === "accident"  ? "car-sport"   :
-    type === "pothole"   ? "warning"     :
-    type === "roadblock" ? "ban"         :
-    type === "roadworks" ? "construct"   :
-    type === "alcoblow"  ? "wine"        :
-    type === "flooding"  ? "water"       :
-    type === "traffic"   ? "car"         :
-    type === "landslide" ? "earth"       :
-                           "speedometer";
-  return <Ionicons name={name} size={size} color={color} />;
-}
-
-function zoneColor(type: string) {
-  return type === "camera" ? "#E53935" : type === "police" ? "#1565C0" : "#E65100";
-}
-
-/** Accent colour for any alert type — uses the canonical incidentTypes palette
- *  so the badge and emoji marker always match the map markers exactly. */
-function alertColor(type: string): string {
-  return resolveIncidentType(type).color;
-}
-
-/** Human-readable label for any alert type. */
-function alertTypeName(type: string): string {
-  const MAP: Record<string, string> = {
-    camera: "Speed Camera", police: "Police Check", zone: "Speed Zone",
-    accident: "Accident", roadblock: "Road Block", pothole: "Pothole",
-    alcoblow: "Alcoblow", flooding: "Flooding", roadworks: "Road Works",
-    traffic: "Traffic Jam", landslide: "Landslide",
-  };
-  return MAP[type] ?? (type.charAt(0).toUpperCase() + type.slice(1));
-}
 
 function incidentSummaryParts(incidents: { type: string; source: string }[]): { emoji: string; label: string }[] {
   const camCount = incidents.filter((i) => i.type === "camera").length;
@@ -504,10 +468,10 @@ export default function DriveScreen() {
       const inc = routeIncidentsAhead[0];
       return {
         type:       inc.type,
-        typeName:   alertTypeName(inc.type),
+        typeName:   resolveIncidentType(inc.type).label,
         speedLimit: inc.speedLimit,
         distanceM:  inc.aheadDistanceM ?? 0,
-        color:      alertColor(inc.type),
+        color:      resolveIncidentType(inc.type).color,
       };
     }
 
@@ -523,8 +487,8 @@ export default function DriveScreen() {
     if (nearbyZones.length > 0) {
       const z = nearbyZones[0];
       candidates.push({
-        type: z.type, typeName: alertTypeName(z.type),
-        speedLimit: z.speedLimit, distanceM: z.distance, color: alertColor(z.type),
+        type: z.type, typeName: resolveIncidentType(z.type).label,
+        speedLimit: z.speedLimit, distanceM: z.distance, color: resolveIncidentType(z.type).color,
       });
     }
 
@@ -545,9 +509,9 @@ export default function DriveScreen() {
       }
       if (nearestReport) {
         candidates.push({
-          type: nearestReport.type, typeName: alertTypeName(nearestReport.type),
+          type: nearestReport.type, typeName: resolveIncidentType(nearestReport.type).label,
           speedLimit: nearestReport.speedLimit ?? undefined,
-          distanceM: nearestDist, color: alertColor(nearestReport.type),
+          distanceM: nearestDist, color: resolveIncidentType(nearestReport.type).color,
         });
       }
     }

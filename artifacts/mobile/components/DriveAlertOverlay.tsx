@@ -79,17 +79,8 @@ function tierBg(baseBg: string, tier: "new" | "confirmed" | "reliable"): string 
 }
 
 // ── Zone-type helpers ─────────────────────────────────────────────────────────
-
-const ZONE_LABELS: Record<string, string> = {
-  camera: "Speed Camera",
-  police: "Police Check",
-  zone:   "Speed Zone",
-};
-const ZONE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
-  camera: "camera",
-  police: "shield",
-  zone:   "warning",
-};
+// Labels and icons for all alert types (including zone sources) come from the
+// canonical INCIDENT_TYPES table in incidentTypes.ts — no local duplicates.
 
 function urgencyColor(distance: number, colors: ReturnType<typeof useColors>) {
   if (distance < 200) return colors.speedDanger;
@@ -163,13 +154,12 @@ export default function DriveAlertOverlay({
 
   // ── Resolve display values ────────────────────────────────────────────────
   const isZone    = alert.source === "zone";
-  const typeLabel = isZone
-    ? (ZONE_LABELS[alert.type] ?? "Speed Zone")
-    : resolveIncidentType(alert.type).label;
-  const typeIcon: React.ComponentProps<typeof Ionicons>["name"] = isZone
-    ? (ZONE_ICONS[alert.type] ?? "warning")
-    : "warning";
-  const emoji = !isZone ? resolveIncidentType(alert.type).emoji : null;
+  const resolved  = resolveIncidentType(alert.type);
+  const typeLabel = resolved.label;
+  const typeIcon  = resolved.icon as React.ComponentProps<typeof Ionicons>["name"];
+  // Zone alerts (speed cameras, police checkpoints, generic zones) render using
+  // the Ionicons vector icon; community-report alerts render their emoji marker.
+  const emoji = !isZone ? resolved.emoji : null;
 
   const hasSpeedBadges = isZone && alert.speedLimit != null;
   const overLimit      = hasSpeedBadges && currentSpeed > alert.speedLimit!;

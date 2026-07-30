@@ -13,7 +13,8 @@ export type IncidentTypeDef = {
 
 export const INCIDENT_TYPES: Record<string, IncidentTypeDef> = {
   camera:    { label: "Speed Camera",      icon: "camera",           iconSet: "Ionicons",               color: "#E53935", emoji: "📷"  },
-  police:    { label: "Police Checkpoint", icon: "person",           iconSet: "Ionicons",               color: "#1565C0", emoji: "👮"  },
+  police:    { label: "Police Checkpoint", icon: "shield",           iconSet: "Ionicons",               color: "#1565C0", emoji: "👮"  },
+  zone:      { label: "Speed Zone",        icon: "speedometer",      iconSet: "Ionicons",               color: "#E65100", emoji: "🚗"  },
   alcoblow:  { label: "Alcoblow",          icon: "beer",             iconSet: "Ionicons",               color: "#283593", emoji: "🍺"  },
   accident:  { label: "Accident",          icon: "warning",          iconSet: "Ionicons",               color: "#B71C1C", emoji: "💥"  },
   traffic:   { label: "Traffic Jam",       icon: "traffic-light",    iconSet: "MaterialCommunityIcons", color: "#C62828", emoji: "🚦"  },
