@@ -142,6 +142,10 @@ export default function DriveScreen() {
   const { width: screenW } = useWindowDimensions();
   const isSmall = screenW <= 390;
 
+  // Measured pixel width of the emoji row — updated by onLayout.
+  // Used to derive how many emojis fit without hardcoding a count.
+  const emojiRowWidthRef = useRef(0);
+
   const [searchText, setSearchText] = useState("");
   const [searchInputFocused, setSearchInputFocused] = useState(false);
   const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
@@ -1172,20 +1176,33 @@ export default function DriveScreen() {
                   NEARBY ALERTS
                 </Text>
               </View>
-              {/* Row 2: Emoji row — capped at 3 (small) / 4 (large) to prevent overflow */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                {nearbyAlertCandidates.slice(0, isSmall ? 3 : 4).map((c, i) => (
-                  <Text key={c.id + i} style={{ fontSize: 18 }}>{c.emoji}</Text>
-                ))}
-                {nearbyAlertCandidates.length > (isSmall ? 3 : 4) && (
-                  <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
-                    +{nearbyAlertCandidates.length - (isSmall ? 3 : 4)}
-                  </Text>
-                )}
-                {nearbyAlertCandidates.length > 1 && (
-                  <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
-                )}
-              </View>
+              {/* Row 2: Emoji row — only shown when 2+ alerts are nearby.
+                  Width is measured at render time so the number of visible
+                  emojis adapts to the actual available space automatically. */}
+              {nearbyAlertCandidates.length > 1 && (() => {
+                // Slot width: 18px emoji + 4px gap between items.
+                // Reserve 46px for the "+N" label (~28px) + gap (4px) + chevron (12px) + marginLeft (2px).
+                const maxVisible = emojiRowWidthRef.current > 0
+                  ? Math.max(1, Math.floor((emojiRowWidthRef.current - 46) / 22))
+                  : nearbyAlertCandidates.length; // unmeasured: show all, clipped by parent
+                const overflow = nearbyAlertCandidates.length - maxVisible;
+                return (
+                  <View
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                    onLayout={(e) => { emojiRowWidthRef.current = e.nativeEvent.layout.width; }}
+                  >
+                    {nearbyAlertCandidates.slice(0, maxVisible).map((c, i) => (
+                      <Text key={c.id + i} style={{ fontSize: 18 }}>{c.emoji}</Text>
+                    ))}
+                    {overflow > 0 && (
+                      <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
+                        +{overflow}
+                      </Text>
+                    )}
+                    <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
+                  </View>
+                );
+              })()}
               {/* Row 3: Marker + [type name above distance] — SOS floats bottom-right.
                   paddingRight is narrower now that SOS is a square icon button. */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingRight: isSmall ? 46 : 54 }}>

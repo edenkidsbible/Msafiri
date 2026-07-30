@@ -940,6 +940,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingFocusCoords, setPendingFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const votedReportIdsRef = useRef<Set<string>>(new Set());
   const hasVotedOnReport = useCallback((id: string) => votedReportIdsRef.current.has(id), []);
+  // Tracks server IDs the driver denied locally; prevents the 60-s poll from
+  // re-inserting the report before the server records the denial.
+  const locallyDeniedServerIdsRef = useRef<Set<string>>(new Set());
 
   const sessionPromptedIdsRef = useRef<Set<string>>(new Set());
   const markReportPrompted = useCallback((id: string) => { sessionPromptedIdsRef.current.add(id); }, []);
@@ -2479,11 +2482,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         prevPollServerIdsRef.current = new Set(remote.map((r) => r.id));
 
+        // Clean up locallyDeniedServerIdsRef: once the server no longer
+        // returns a report (it has recorded the denial), we don't need to
+        // block it any more. Keep only IDs that are still in the response.
+        const remoteIdSet = new Set(remote.map((r) => r.id));
+        for (const sid of locallyDeniedServerIdsRef.current) {
+          if (remoteIdSet.has(sid)) {
+            // Server still returns it — keep blocking.
+          } else {
+            locallyDeniedServerIdsRef.current.delete(sid);
+          }
+        }
+
         setCommunityReports((prev) => {
           const owned = prev.filter((r) => r.isOwn);
-          const remoteNew = remote.filter((rem) => !owned.some((o) => o.serverId === rem.id));
+          // Exclude any remote report whose server ID was locally denied but
+          // the server hasn't yet reflected the denial — prevents the 60-s
+          // poll from re-inserting a report the driver just voted "Gone Now" on.
+          const filteredRemote = remote.filter(
+            (rem) => !locallyDeniedServerIdsRef.current.has(rem.id)
+          );
+          const remoteNew = filteredRemote.filter((rem) => !owned.some((o) => o.serverId === rem.id));
           const ownedUpdated = owned.map((o) => {
-            const match = remote.find((r) => r.id === o.serverId);
+            const match = filteredRemote.find((r) => r.id === o.serverId);
             return match
               ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount, adminVerified: match.adminVerified }
               : o;
@@ -3511,6 +3532,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
     } else {
       removedReport = report;
+      // Mark server ID as locally denied *before* the async POST so the
+      // 60-s background poll cannot race-restore the report.
+      locallyDeniedServerIdsRef.current.add(serverId);
       setCommunityReports((prev) => {
         const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
         AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
@@ -3560,6 +3584,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         // For non-camera, restore the report so the driver can retry.
         if (!isCamera && removedReport) {
+          // Roll back the deny-block so the next poll can restore the report too.
+          locallyDeniedServerIdsRef.current.delete(serverId);
           setCommunityReports((prev) => {
             const u = [...prev, removedReport!];
             AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
@@ -3571,6 +3597,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       // Network or unknown error — restore for non-camera so the driver can retry.
       if (!isCamera && removedReport) {
+        // Roll back the deny-block so the next poll can restore the report too.
+        locallyDeniedServerIdsRef.current.delete(serverId);
         setCommunityReports((prev) => {
           const u = [...prev, removedReport!];
           AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
