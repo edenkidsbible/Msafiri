@@ -727,12 +727,23 @@ const DriveMapView = forwardRef(function DriveMapView(
         {(() => {
           if (!divergenceRoutes.length) return null;
 
+          // Drop routes with incomplete data before any math — a partial
+          // response from the routing API (missing durationS, empty coords)
+          // would cause Math.min to return NaN/Infinity and Polyline to crash.
+          const validRoutes = divergenceRoutes.filter(
+            (r) =>
+              Array.isArray(r.coords) && r.coords.length >= 2 &&
+              typeof r.durationS === "number" && isFinite(r.durationS) &&
+              typeof r.distanceM === "number" && isFinite(r.distanceM),
+          );
+          if (!validRoutes.length) return null;
+
           // Identify the recommended divergence route — fastest time wins; ties
           // broken by shortest distance.  If both duration AND distance are
           // equal, neither route is labelled "Recommended" (they show identical
           // deltas, which is accurate and avoids a misleading label).
-          const fastestDurationS = Math.min(...divergenceRoutes.map((r) => r.durationS));
-          const tiedRoutes = divergenceRoutes.filter((r) => r.durationS === fastestDurationS);
+          const fastestDurationS = Math.min(...validRoutes.map((r) => r.durationS));
+          const tiedRoutes = validRoutes.filter((r) => r.durationS === fastestDurationS);
           const shortestDistM = Math.min(...tiedRoutes.map((r) => r.distanceM));
           // Only a unique winner earns the label: if two routes still tie on
           // distance after the duration tiebreak, recommendedId stays null.
@@ -744,13 +755,13 @@ const DriveMapView = forwardRef(function DriveMapView(
           // prefix before diverging.  With 2 routes we use 40 % and 60 %;
           // a single route uses the 50 % midpoint.
           const fractions =
-            divergenceRoutes.length === 1
+            validRoutes.length === 1
               ? [0.5]
-              : divergenceRoutes.length === 2
+              : validRoutes.length === 2
               ? [0.38, 0.62]
-              : divergenceRoutes.map((_, i) => 0.3 + (i / (divergenceRoutes.length - 1)) * 0.4);
+              : validRoutes.map((_, i) => 0.3 + (i / (validRoutes.length - 1)) * 0.4);
 
-          return divergenceRoutes.map((r, idx) => {
+          return validRoutes.map((r, idx) => {
             const isRecommended = recommendedId !== null && r.id === recommendedId;
             const innerColor = isRecommended ? "#FF2D78" : "#FF6FA0";
             const outerColor = isRecommended ? "#FF2D7855" : "#FF6FA033";

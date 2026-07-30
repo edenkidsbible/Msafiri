@@ -19,7 +19,10 @@ export type SoundKey = keyof typeof SOURCES;
 const players: Partial<Record<SoundKey, AudioPlayer>> = {};
 let audioModeReady = false;
 
-async function ensureAudioMode() {
+/** Set the global audio session mode once. Exported so alertTts.ts shares the
+ *  same flag — ensures setAudioModeAsync is only ever called once, preventing
+ *  the rapid double-call that briefly resets the session and stops background music. */
+export async function ensureAudioMode() {
   if (audioModeReady || Platform.OS === "web") return;
   audioModeReady = true;
   try {

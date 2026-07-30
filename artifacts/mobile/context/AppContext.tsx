@@ -30,6 +30,7 @@ import {
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { speakAlert } from "@/utils/alertTts";
+import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -1684,6 +1685,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             navActiveRef.current = false;
             navStartRef.current = null;
             setNavigationActive(false);
+            playSound("confirm").catch(() => {}); // arrival tone
             const trip = tripRef.current;
             setArrivedInfo({
               destName: (typeof navDestRef.current?.name === "string" ? navDestRef.current.name.split(",")[0] : null) ?? "your destination",
@@ -1695,7 +1697,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (deviceIdRef.current) {
               apiPost("/push/trip-complete", { deviceId: deviceIdRef.current }).catch(() => {});
             }
-          } else {
           }
         }
       }
@@ -1740,7 +1741,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             fetchGoogleRoute(lat, lng, _dest.lat, _dest.lng, driverHeading)
               .then((routes) => {
                 const alts = routes.slice(0, 2);
-                if (alts.length > 0 && navActiveRef.current) {
+                // Reject stale responses: destination may have changed since fetch fired
+              if (alts.length > 0 && navActiveRef.current && navDestRef.current === _dest) {
                   setDivergenceRoutes(alts);
                   divergenceRoutesRef.current = alts;
                   divergenceFetchedAtRef.current = Date.now();

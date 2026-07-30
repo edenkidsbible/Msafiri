@@ -52,6 +52,7 @@ export function MapPinPicker({ initialLat, initialLng, onLocationChange, mapHeig
         <Marker
           coordinate={pos}
           draggable
+          tracksViewChanges={false}
           onDragEnd={(e) => {
             const { latitude, longitude } = e.nativeEvent.coordinate;
             update(latitude, longitude);

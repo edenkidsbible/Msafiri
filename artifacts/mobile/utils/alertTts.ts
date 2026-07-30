@@ -5,11 +5,13 @@
  * play instantly with zero network dependency. The server /api/tts route
  * acts as fallback for any type not covered here.
  *
- * Audio mode: playsInSilentMode + duckOthers — music/podcasts fade briefly
- * while the alert speaks, then recover automatically.
+ * Audio mode is owned by sound.ts (shared flag) so setAudioModeAsync only
+ * ever fires once across the whole app, preventing the brief session reset
+ * that would stop background music instead of just ducking it.
  */
 import { Platform } from "react-native";
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import { createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { ensureAudioMode } from "@/utils/sound";
 import { API_BASE } from "@/utils/apiClient";
 
 // ─── Bundled assets (pre-generated via ElevenLabs Multilingual v2, Yna Agalo) ─
@@ -31,26 +33,6 @@ const ALERT_AUDIO: Record<string, unknown> = {
   closure:   require("@/assets/sounds/alerts/closure.mp3"),
   clear:     require("@/assets/sounds/alerts/clear.mp3"),
 };
-
-// ─── Audio mode ───────────────────────────────────────────────────────────────
-
-let audioModeReady = false;
-
-async function ensureAlertAudioMode() {
-  if (audioModeReady || Platform.OS === "web") return;
-  audioModeReady = true;
-  try {
-    await setAudioModeAsync({
-      playsInSilentMode:          true,
-      interruptionMode:           "duckOthers",
-      allowsRecording:            false,
-      shouldPlayInBackground:     true,
-      shouldRouteThroughEarpiece: false,
-    });
-  } catch {
-    // Non-critical — audio still works with system defaults
-  }
-}
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -81,14 +63,14 @@ export function stopAlertVoice() {
  * Stops any currently-playing alert to avoid overlap.
  */
 export async function speakAlert(type: string): Promise<void> {
-  if (voiceDisabled || Platform.OS === "web") return;
+  if (!type || voiceDisabled || Platform.OS === "web") return;
   stopAlertVoice();
-  await ensureAlertAudioMode();
+  await ensureAudioMode(); // shared with sound.ts — fires setAudioModeAsync only once
 
   const bundled = ALERT_AUDIO[type];
   try {
     const source = bundled
-      ? bundled                                         // local require()
+      ? bundled
       : API_BASE
         ? { uri: `${API_BASE}/tts?text=${encodeURIComponent(type + " ahead")}` }
         : null;
@@ -99,22 +81,5 @@ export async function speakAlert(type: string): Promise<void> {
     player.play();
   } catch (err) {
     console.warn("[alertTts] playback failed:", err);
-  }
-}
-
-/**
- * Speak an arbitrary phrase via the /api/tts server proxy (Yna Agalo voice).
- * Used for ad-hoc alerts that don't have a pre-generated bundled file.
- */
-export async function speakAlertPhrase(text: string): Promise<void> {
-  if (voiceDisabled || Platform.OS === "web" || !API_BASE) return;
-  stopAlertVoice();
-  await ensureAlertAudioMode();
-  try {
-    const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
-    currentPlayer = player;
-    player.play();
-  } catch (err) {
-    console.warn("[alertTts] speakAlertPhrase failed:", err);
   }
 }

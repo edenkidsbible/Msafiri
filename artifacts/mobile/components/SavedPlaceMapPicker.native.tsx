@@ -98,6 +98,7 @@ export function SavedPlaceMapPicker({
         <Marker
           coordinate={pos}
           draggable
+          tracksViewChanges={false}
           onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
             const { latitude, longitude } = e.nativeEvent.coordinate;
             update(latitude, longitude);
