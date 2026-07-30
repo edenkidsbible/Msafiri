@@ -887,6 +887,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consecutive GPS fixes where distance to the active alert zone increased;
   // when this reaches 2 we dismiss (driver has passed or turned away).
   const alertZoneIncreasingCountRef = useRef(0);
+  // Coordinates of the alert item at the moment the alert activated — stored
+  // once so dismiss logic can compute bearing-to-alert on every GPS tick
+  // without a per-tick zone/report lookup.  Cleared on any dismiss path.
+  const alertItemLatRef  = useRef<number | null>(null);
+  const alertItemLngRef  = useRef<number | null>(null);
+  // Road the driver was on when the alert activated.  Used by the null-road
+  // divert gate: if the current road becomes null after a turn, we know the
+  // driver was originally on a named road and can use bearing to confirm a divert.
+  const alertApproachRoadRef = useRef<string | null>(null);
+  // Consecutive GPS fixes where the bearing from driver to alert differs from
+  // the driver's heading by > 110°.  Two consecutive diverged fixes trigger a
+  // divert-away dismiss.  Reset to 0 on any non-diverged fix or dismiss.
+  const alertBearingDivCountRef = useRef(0);
   // Per-zone cooldown after auto-dismiss. Prevents an alert from immediately
   // re-triggering due to GPS jitter briefly re-entering the 1 km alert radius
   // after a dismiss. Maps dismissed alert id → { expiry, peakDistM }.
@@ -1490,9 +1503,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               confirmCount: reportCandidate!.report.confirmCount,
             };
 
-    // (4) Dismiss active alert if it has moved out of range, the driver has
-    //     turned away (> 75°), or the driver has passed it (2 consecutive fixes
-    //     of increasing distance).
+    // (4) Dismiss active alert when:
+    //   • it has moved out of the 1 km radius, OR
+    //   • the driver has definitively turned away (bearing-divergence gate), OR
+    //   • the driver is on a different named road (road-departure gate), OR
+    //   • the road became null after a known-road approach + bearing confirms divert, OR
+    //   • the driver has passed it (2 consecutive increasing-distance fixes).
     if (alertZoneRef.current && !alertDismissed.current) {
       const curZone   = withDist.find((z) => z.id === alertZoneRef.current);
       const curReport = curZone ? null : communityReportsRef.current.find((r) => r.id === alertZoneRef.current);
@@ -1501,16 +1517,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const curDist    = curZone?.distance
         ?? (curItemLat != null && curItemLng != null ? haversine(lat, lng, curItemLat, curItemLng) : null);
 
+      // Extended cooldown (3 min) is used for divert-away dismissals to prevent
+      // the same alert from immediately re-triggering on a parallel road.
+      // Normal pass-through uses the existing 60 s window.
+      let extendedCooldown = false;
+
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
-        // Road-departure check: dismiss when the driver has moved to a different
-        // road from the alert item. Guards against parallel-road false-positives
-        // that distance alone would keep alive. Falls back to keeping the alert
-        // live when road is unknown (null) — distance-only mode is safer than
-        // premature dismissal.
+
         const curItemRoad = curZone?.road ?? curReport?.roadName;
+
+        // ── Gap 1: null-road + bearing gate ──────────────────────────────────
+        // Current road flipped to null (geocode latency after a turn).  If both
+        // the approach road and the alert road are known we cannot rely on name
+        // matching, but a bearing ≥ 90° from the approach road confirms a real
+        // divert, so we dismiss with an extended cooldown rather than silently
+        // keeping the alert alive indefinitely.
+        if (curItemRoad && alertApproachRoadRef.current &&
+            currentRoadRef.current === null) {
+          const iLat = alertItemLatRef.current;
+          const iLng = alertItemLngRef.current;
+          const hdg  = lastHeadingRef.current;
+          if (iLat != null && iLng != null && hdg != null) {
+            if (angleDiffDeg(hdg, bearingDeg(lat, lng, iLat, iLng)) >= 90) {
+              extendedCooldown = true;
+              return true;
+            }
+          }
+        }
+
+        // ── Original road-departure check ─────────────────────────────────────
+        // Dismiss immediately when the driver is definitively on a different named road.
         if (currentRoadRef.current && curItemRoad &&
             !roadsMatch(currentRoadRef.current, curItemRoad)) return true;
+
+        // ── Gap 2: bearing-divergence check ───────────────────────────────────
+        // Alert is sharply behind or off to the side — clearest signal of a divert.
+        // Require 2 consecutive GPS fixes above the 110° threshold before dismissing
+        // to absorb GPS heading noise that can produce one spurious bad reading.
+        {
+          const iLat = alertItemLatRef.current;
+          const iLng = alertItemLngRef.current;
+          const hdg  = lastHeadingRef.current;
+          if (iLat != null && iLng != null && hdg != null) {
+            if (angleDiffDeg(hdg, bearingDeg(lat, lng, iLat, iLng)) > 110) {
+              alertBearingDivCountRef.current += 1;
+              if (alertBearingDivCountRef.current >= 2) {
+                extendedCooldown = true;
+                return true;
+              }
+            } else {
+              alertBearingDivCountRef.current = 0;
+            }
+          }
+        }
+
+        // ── Pass-through: two consecutive increasing-distance fixes ───────────
         const lastDist = alertZoneLastDistRef.current;
         if (lastDist != null && curDist > lastDist) {
           alertZoneIncreasingCountRef.current += 1;
@@ -1526,19 +1588,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (shouldDismiss) {
         const dismissedId = alertZoneRef.current!;
-        // 60-second cooldown. peakDistM starts at the dismiss distance and is
-        // updated upward each GPS tick so the early-cancel check can tell whether
-        // the driver has made a genuine detour (built up enough distance) vs jitter.
+        const cooldownMs  = extendedCooldown ? 180_000 : 60_000;
         alertDismissCooldownRef.current.set(dismissedId, {
-          expiry: Date.now() + 60_000,
+          expiry: Date.now() + cooldownMs,
           peakDistM: curDist ?? 0,
         });
-        alertZoneRef.current = null;
-        alertSourceRef.current = null;
-        alertDismissed.current = false;
-        alertZoneLastDistRef.current = null;
+        alertZoneRef.current            = null;
+        alertSourceRef.current          = null;
+        alertDismissed.current          = false;
+        alertZoneLastDistRef.current    = null;
         alertZoneIncreasingCountRef.current = 0;
-        lastSetAlertRef.current = null;
+        alertItemLatRef.current         = null;
+        alertItemLngRef.current         = null;
+        alertApproachRoadRef.current    = null;
+        alertBearingDivCountRef.current = 0;
+        lastSetAlertRef.current         = null;
         setActiveAlert(null);
       }
     }
@@ -1661,6 +1725,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertZoneLastDistRef.current = winner.distance;
         alertZoneIncreasingCountRef.current = 0;
         alertDismissed.current = false;
+        // Record alert item position and approach road for divert-away detection.
+        alertItemLatRef.current       = winner.lat ?? null;
+        alertItemLngRef.current       = winner.lng ?? null;
+        alertApproachRoadRef.current  = currentRoadRef.current;
+        alertBearingDivCountRef.current = 0;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         if (extraCandidates.length > 0) {
           // Multi-alert cluster: set geo-anchor and play bundled multi phrase
@@ -1703,13 +1772,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return haversine(lat, lng, r.lat, r.lng) <= ALERT_DIST;
           });
         if (!stillInRange) {
-          alertZoneRef.current = null;
-          alertSourceRef.current = null;
-          alertDismissed.current = false;
-          alertZoneLastDistRef.current = null;
+          alertZoneRef.current            = null;
+          alertSourceRef.current          = null;
+          alertDismissed.current          = false;
+          alertZoneLastDistRef.current    = null;
           alertZoneIncreasingCountRef.current = 0;
-          lastSetAlertRef.current = null;
-          lastExtrasKeyRef.current = "";
+          alertItemLatRef.current         = null;
+          alertItemLngRef.current         = null;
+          alertApproachRoadRef.current    = null;
+          alertBearingDivCountRef.current = 0;
+          lastSetAlertRef.current         = null;
+          lastExtrasKeyRef.current        = "";
           setActiveAlert(null);
           setActiveAlertExtras([]);
         }
@@ -2148,6 +2221,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // the new route (step 0 at 0 m → advance → step 1 …) can't trigger a
       // false "You have arrived" before the route settles.
       rerouteSettledUntilRef.current = Date.now() + 5_000;
+
+      // ── Gap 3 fix: dismiss active alert if it's no longer on the new route ──
+      // An alert from the old route polyline must not persist after a reroute.
+      // Test: is the alert's stored position within 300 m of any point on the
+      // new polyline?  If not, dismiss with a 3-minute cooldown so it doesn't
+      // re-trigger immediately on the new road.
+      if (alertZoneRef.current) {
+        const iLat = alertItemLatRef.current;
+        const iLng = alertItemLngRef.current;
+        if (iLat != null && iLng != null) {
+          const onNewRoute = primary.coords.some(
+            (pt: RouteCoord) => haversine(iLat, iLng, pt.latitude, pt.longitude) < 300,
+          );
+          if (!onNewRoute) {
+            const dismissedId = alertZoneRef.current;
+            alertDismissCooldownRef.current.set(dismissedId, {
+              expiry: Date.now() + 180_000,
+              peakDistM: alertZoneLastDistRef.current ?? 0,
+            });
+            alertZoneRef.current            = null;
+            alertSourceRef.current          = null;
+            alertDismissed.current          = false;
+            alertZoneLastDistRef.current    = null;
+            alertZoneIncreasingCountRef.current = 0;
+            alertItemLatRef.current         = null;
+            alertItemLngRef.current         = null;
+            alertApproachRoadRef.current    = null;
+            alertBearingDivCountRef.current = 0;
+            lastSetAlertRef.current         = null;
+            setActiveAlert(null);
+          }
+        }
+      }
     }
 
     triggerRerouteRef.current = (lat: number, lng: number) => {

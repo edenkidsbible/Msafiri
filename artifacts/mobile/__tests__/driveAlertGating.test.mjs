@@ -20,6 +20,21 @@ import assert from "node:assert/strict";
 
 // ─── Verbatim copies of AppContext.tsx private helpers ────────────────────────
 
+/** Initial bearing from point A → B in degrees (0–360°). */
+function bearingDeg(fromLat, fromLng, toLat, toLng) {
+  const f1 = (fromLat * Math.PI) / 180, f2 = (toLat * Math.PI) / 180;
+  const dl = ((toLng - fromLng) * Math.PI) / 180;
+  const y = Math.sin(dl) * Math.cos(f2);
+  const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+/** Shortest angular difference between two headings (0–180°). */
+function angleDiffDeg(a, b) {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
 /** Haversine great-circle distance in metres. */
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -636,5 +651,330 @@ describe("Passing a camera: dismiss logic over consecutive GPS fixes", () => {
     assert.equal(tick3.shouldDismiss, false,
       "must not dismiss — only one increase since counter reset");
     assert.equal(tick3.nextIncreasingCount, 1);
+  });
+});
+
+// ─── New dismiss-geometry helpers (verbatim from AppContext.tsx) ───────────────
+
+/**
+ * Bearing-divergence dismiss check (verbatim model of the Gap 2 fix in
+ * AppContext's shouldDismiss IIFE).
+ *
+ * Returns { shouldDismiss, extendedCooldown, nextBearingDivCount }.
+ * extendedCooldown is true when the dismiss is caused by a divert (not a normal pass-through).
+ */
+function evaluateBearingDivergence({ driverLat, driverLng, driverHeading, itemLat, itemLng, bearingDivCount }) {
+  if (itemLat == null || itemLng == null || driverHeading == null) {
+    return { shouldDismiss: false, extendedCooldown: false, nextBearingDivCount: bearingDivCount };
+  }
+  const brgToAlert = bearingDeg(driverLat, driverLng, itemLat, itemLng);
+  if (angleDiffDeg(driverHeading, brgToAlert) > 110) {
+    const next = bearingDivCount + 1;
+    if (next >= 2) return { shouldDismiss: true, extendedCooldown: true, nextBearingDivCount: 0 };
+    return { shouldDismiss: false, extendedCooldown: false, nextBearingDivCount: next };
+  }
+  return { shouldDismiss: false, extendedCooldown: false, nextBearingDivCount: 0 };
+}
+
+/**
+ * Null-road + bearing gate (verbatim model of the Gap 1 fix in AppContext's shouldDismiss IIFE).
+ *
+ * Returns { shouldDismiss, extendedCooldown }.
+ */
+function evaluateNullRoadBearingGate({ currentRoad, itemRoad, approachRoad, driverLat, driverLng, driverHeading, itemLat, itemLng }) {
+  // Only fires when: (a) alert has a known road, (b) approach road was known, (c) current road is null.
+  if (!itemRoad || !approachRoad || currentRoad !== null) {
+    return { shouldDismiss: false, extendedCooldown: false };
+  }
+  if (itemLat == null || itemLng == null || driverHeading == null) {
+    return { shouldDismiss: false, extendedCooldown: false };
+  }
+  const brgToAlert = bearingDeg(driverLat, driverLng, itemLat, itemLng);
+  if (angleDiffDeg(driverHeading, brgToAlert) >= 90) {
+    return { shouldDismiss: true, extendedCooldown: true };
+  }
+  return { shouldDismiss: false, extendedCooldown: false };
+}
+
+// ─── 8. Bearing-divergence dismissal (Gap 2 fix) ──────────────────────────────
+
+describe("Bearing-divergence: alert dismisses after driver turns away", () => {
+  // Alert camera is 500 m to the NE (bearing ~45°).
+  // Driver's heading is 225° (SW — directly away from the alert).
+  // angleDiff(225°, 45°) = 180° — well above the 110° threshold.
+
+  const alertPos = destPoint(DRIVER_LAT, DRIVER_LNG, 45, 500); // 500 m NE
+  const HEADING_AWAY = 225; // SW — directly away from the alert
+  const HEADING_TOWARDS = 45; // NE — directly towards the alert
+
+  it("single diverged fix does NOT dismiss (need 2 consecutive)", () => {
+    const result = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+      bearingDivCount: 0,
+    });
+    assert.equal(result.shouldDismiss, false, "first diverged fix alone must not dismiss");
+    assert.equal(result.nextBearingDivCount, 1);
+  });
+
+  it("two consecutive diverged fixes → dismiss with extended cooldown", () => {
+    // Fix 1: bearingDivCount becomes 1
+    const fix1 = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+      bearingDivCount: 0,
+    });
+    assert.equal(fix1.shouldDismiss, false);
+    assert.equal(fix1.nextBearingDivCount, 1);
+
+    // Fix 2: bearingDivCount reaches 2 → dismiss
+    const fix2 = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+      bearingDivCount: fix1.nextBearingDivCount,
+    });
+    assert.equal(fix2.shouldDismiss, true, "two consecutive diverged fixes must dismiss");
+    assert.equal(fix2.extendedCooldown, true, "divert dismiss must use extended (3-min) cooldown");
+  });
+
+  it("non-diverged fix between two diverged fixes resets counter (no dismiss)", () => {
+    // Fix 1: diverged → count 1
+    const fix1 = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+      bearingDivCount: 0,
+    });
+    assert.equal(fix1.nextBearingDivCount, 1);
+
+    // Fix 2: heading towards alert (not diverged) → counter resets
+    const fix2 = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_TOWARDS,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+      bearingDivCount: fix1.nextBearingDivCount,
+    });
+    assert.equal(fix2.shouldDismiss, false);
+    assert.equal(fix2.nextBearingDivCount, 0, "non-diverged fix must reset counter");
+  });
+
+  it("null heading skips bearing check (no dismiss, no counter change)", () => {
+    const result = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: null,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+      bearingDivCount: 0,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "without a valid heading the bearing check must be skipped");
+    assert.equal(result.nextBearingDivCount, 0,
+      "counter must not increment when heading is unknown");
+  });
+
+  it("angleDiff at exactly 111° (just above threshold) counts as diverged", () => {
+    // Place the alert at bearing 0° (due north). Drive heading 111°.
+    // angleDiff(111°, 0°) = 111° → above threshold.
+    const alertNorth = destPoint(DRIVER_LAT, DRIVER_LNG, 0, 500);
+    const fix1 = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: 111,
+      itemLat: alertNorth.lat, itemLng: alertNorth.lng,
+      bearingDivCount: 0,
+    });
+    assert.equal(fix1.nextBearingDivCount, 1, "angleDiff > 110° must count as diverged");
+  });
+
+  it("angleDiff at exactly 110° (at threshold) does NOT count as diverged", () => {
+    // angleDiff(110°, 0°) = 110° → NOT above threshold (strict >).
+    const alertNorth = destPoint(DRIVER_LAT, DRIVER_LNG, 0, 500);
+    const fix1 = evaluateBearingDivergence({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: 110,
+      itemLat: alertNorth.lat, itemLng: alertNorth.lng,
+      bearingDivCount: 0,
+    });
+    assert.equal(fix1.nextBearingDivCount, 0, "angleDiff exactly 110° must NOT be diverged");
+    assert.equal(fix1.shouldDismiss, false);
+  });
+});
+
+// ─── 9. Null-road + bearing gate (Gap 1 fix) ──────────────────────────────────
+
+describe("Null-road + bearing gate: dismiss when road is null and driver is pointing away", () => {
+  // Alert camera is 500 m to the NE (bearing ~45°).
+  const alertPos = destPoint(DRIVER_LAT, DRIVER_LNG, 45, 500);
+  const HEADING_AWAY = 225; // SW — pointing away (angleDiff = 180°, well above 90°)
+  const HEADING_SIDE = 136; // SE — bearing to alert is ~45° (NE), angleDiff ≈ 91° → safely above 90° threshold
+  const HEADING_FORWARD = 45; // NE — pointing at the alert (angleDiff = 0°)
+
+  it("current road null + approach road known + alert road known + heading away → dismiss", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: null,
+      itemRoad: "Thika Superhighway (A2)",
+      approachRoad: "Thika Superhighway (A2)",
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    assert.equal(result.shouldDismiss, true,
+      "null road + known approach road + pointing away must dismiss");
+    assert.equal(result.extendedCooldown, true, "must use extended cooldown");
+  });
+
+  it("current road null + heading exactly at 90° boundary → dismiss", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: null,
+      itemRoad: "Thika Superhighway (A2)",
+      approachRoad: "Thika Road",
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_SIDE,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    // HEADING_SIDE = 135°, alert bearing = ~45°, angleDiff = 90° — exactly the ≥ 90° threshold
+    assert.equal(result.shouldDismiss, true, "angleDiff exactly 90° must dismiss on null-road gate");
+  });
+
+  it("current road null + heading towards alert (angleDiff < 90°) → no dismiss", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: null,
+      itemRoad: "Thika Superhighway (A2)",
+      approachRoad: "Thika Superhighway (A2)",
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_FORWARD,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "heading towards the alert must NOT dismiss even if road is null (GPS latency)");
+  });
+
+  it("current road known → null-road gate does not fire", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: "Northern Bypass", // known, different road — but that's handled by existing check
+      itemRoad: "Thika Superhighway (A2)",
+      approachRoad: "Thika Superhighway (A2)",
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "null-road gate must only fire when currentRoad is null (known roads handled by road-departure check)");
+  });
+
+  it("approach road null → null-road gate does not fire (can't confirm a divert)", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: null,
+      itemRoad: "Thika Superhighway (A2)",
+      approachRoad: null, // was unknown at activation
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "if approach road was unknown we have no baseline to confirm a divert");
+  });
+
+  it("alert road null → null-road gate does not fire (no road to mismatch against)", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: null,
+      itemRoad: null,
+      approachRoad: "Thika Superhighway (A2)",
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: HEADING_AWAY,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "alert without a road cannot trigger the null-road gate");
+  });
+
+  it("null heading → null-road gate does not fire (bearing undetermined)", () => {
+    const result = evaluateNullRoadBearingGate({
+      currentRoad: null,
+      itemRoad: "Thika Superhighway (A2)",
+      approachRoad: "Thika Superhighway (A2)",
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG,
+      driverHeading: null,
+      itemLat: alertPos.lat, itemLng: alertPos.lng,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "unknown heading must not trigger the null-road gate");
+  });
+});
+
+// ─── 10. Reroute dismiss: alert not on new route is cleared ───────────────────
+
+/**
+ * Minimal reroute dismiss model:
+ *   given the alert's coords and an array of {latitude, longitude} route coords,
+ *   decide whether the alert is still on the route (any point within 300 m).
+ */
+function alertOnNewRoute(alertLat, alertLng, routeCoords) {
+  return routeCoords.some(
+    (pt) => haversine(alertLat, alertLng, pt.latitude, pt.longitude) < 300,
+  );
+}
+
+describe("Reroute dismiss: alert off the new route is cleared", () => {
+  // Alert camera 500 m NE of driver.
+  const alertPos = destPoint(DRIVER_LAT, DRIVER_LNG, 45, 500);
+
+  it("alert within 300 m of a new-route point → stays active", () => {
+    // New route passes 200 m from the alert.
+    const nearPoint = destPoint(alertPos.lat, alertPos.lng, 90, 200); // 200 m east of alert
+    const routeCoords = [
+      { latitude: DRIVER_LAT, longitude: DRIVER_LNG }, // driver position
+      { latitude: nearPoint.lat, longitude: nearPoint.lng }, // close to alert
+      { latitude: destPoint(DRIVER_LAT, DRIVER_LNG, 45, 1500).lat, longitude: destPoint(DRIVER_LAT, DRIVER_LNG, 45, 1500).lng },
+    ];
+    assert.equal(
+      alertOnNewRoute(alertPos.lat, alertPos.lng, routeCoords),
+      true,
+      "alert 200 m from a route point is still on the new route — must NOT dismiss",
+    );
+  });
+
+  it("alert > 300 m from every new-route point → dismisses", () => {
+    // New route takes a right turn: heads SE away from the NE alert.
+    const routeCoords = [
+      { latitude: DRIVER_LAT, longitude: DRIVER_LNG },
+      { latitude: destPoint(DRIVER_LAT, DRIVER_LNG, 135, 500).lat, longitude: destPoint(DRIVER_LAT, DRIVER_LNG, 135, 500).lng },
+      { latitude: destPoint(DRIVER_LAT, DRIVER_LNG, 135, 1000).lat, longitude: destPoint(DRIVER_LAT, DRIVER_LNG, 135, 1000).lng },
+    ];
+    // Verify the closest new-route point is indeed > 300 m from the alert.
+    const minDist = Math.min(...routeCoords.map(
+      (pt) => haversine(alertPos.lat, alertPos.lng, pt.latitude, pt.longitude),
+    ));
+    assert.ok(minDist > 300, `test sanity: closest route point must be > 300 m from alert, got ${minDist.toFixed(0)} m`);
+
+    assert.equal(
+      alertOnNewRoute(alertPos.lat, alertPos.lng, routeCoords),
+      false,
+      "alert more than 300 m from every new-route point must be dismissed on reroute",
+    );
+  });
+
+  it("300 m boundary: alert exactly 299 m away → stays (within threshold)", () => {
+    const nearlyAt = destPoint(alertPos.lat, alertPos.lng, 0, 299); // 299 m north of alert
+    const routeCoords = [{ latitude: nearlyAt.lat, longitude: nearlyAt.lng }];
+    assert.equal(
+      alertOnNewRoute(alertPos.lat, alertPos.lng, routeCoords),
+      true,
+      "alert 299 m from a route point must stay active (< 300 m threshold)",
+    );
+  });
+
+  it("300 m boundary: alert exactly 300 m away → dismisses (at or above threshold)", () => {
+    const atBoundary = destPoint(alertPos.lat, alertPos.lng, 0, 300); // exactly 300 m away
+    const routeCoords = [{ latitude: atBoundary.lat, longitude: atBoundary.lng }];
+    // haversine gives a float; 300 m placed with destPoint will be fractionally above 300 m
+    const dist = haversine(alertPos.lat, alertPos.lng, atBoundary.lat, atBoundary.lng);
+    assert.ok(dist >= 300, `sanity check: expected dist ≥ 300 m, got ${dist.toFixed(2)} m`);
+    assert.equal(
+      alertOnNewRoute(alertPos.lat, alertPos.lng, routeCoords),
+      false,
+      "alert at or beyond 300 m from every route point must be dismissed",
+    );
   });
 });
