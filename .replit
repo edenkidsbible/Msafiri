@@ -56,6 +56,7 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
 ADMIN_JWT_SECRET = "lMuenV2uOsO8mh5upcwclnsZoYGHV1vugJvhhCwFsxDexta2Bu-BrPMiOO2oHHk8"
 RESEND_FROM = "Msafiri Kenya <noreply@msafirikenya.com>"
 REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
+BACKUP_EMAIL_ADDRESS = "alfrexlabs@gmail.com"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-64f5521e-41df-4fa8-a53c-52757dee4d28"
