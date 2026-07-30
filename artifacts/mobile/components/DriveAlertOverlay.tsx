@@ -17,16 +17,17 @@
  *   •  400–200 m  →  orange  (caution)
  *   •    < 200 m  →  red     (danger, pulsing)
  *
+ * When extraAlerts is non-empty (multi-alert cluster), the overlay renders
+ * a stacked layout:
+ *   • Lead section: full camera gauge OR standard header (unchanged)
+ *   • Divider
+ *   • Compact rows for each extra (emoji + name + distance)
+ *   • "Got it — dismiss all" button
+ *
  * Height:
  *   The caller passes `minPanelHeight` — computed from the drive gauge's
  *   measured size — so the sheet always covers the gauge area exactly,
  *   making it the dominant element on screen while the alert is active.
- *
- * Speed camera layout:
- *   Two large side-by-side panels: YOUR SPEED (left) and SPEED LIMIT (right).
- *   Because the gauge below is hidden by the overlay, all speed info the
- *   driver needs is right here, at a glance, with a red "OVER LIMIT" pill
- *   when they're above the camera's limit.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -44,9 +45,12 @@ import { DriveAlert } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
 import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
 interface Props {
   alert: DriveAlert;
+  /** Additional alerts within 1 km of the lead, sorted by distance. */
+  extraAlerts?: DriveAlert[];
   onDismiss: () => void;
   currentSpeed: number;
   /**
@@ -56,6 +60,9 @@ interface Props {
    */
   minPanelHeight?: number;
 }
+
+// Distance at which an alert is considered "passed" (driver is inside/past it)
+const IN_ZONE_DIST = 250; // metres — must match AppContext constant
 
 // ── Confidence tier helpers ───────────────────────────────────────────────────
 
@@ -79,8 +86,6 @@ function tierBg(baseBg: string, tier: "new" | "confirmed" | "reliable"): string 
 }
 
 // ── Zone-type helpers ─────────────────────────────────────────────────────────
-// Labels and icons for all alert types (including zone sources) come from the
-// canonical INCIDENT_TYPES table in incidentTypes.ts — no local duplicates.
 
 function urgencyColor(distance: number, colors: ReturnType<typeof useColors>) {
   if (distance < 200) return colors.speedDanger;
@@ -96,10 +101,41 @@ function formatDist(m: number) {
 // The sheet always starts off-screen by at least this much before animating in.
 const ANIM_OFFSCREEN = 520;
 
+// ── Extra-alert compact row ───────────────────────────────────────────────────
+
+function ExtraAlertRow({ extra, colors }: { extra: DriveAlert; colors: ReturnType<typeof useColors> }) {
+  const resolved = resolveIncidentType(extra.type);
+  const isZone = extra.source === "zone";
+  const emoji = !isZone ? resolved.emoji : null;
+  const isPassed = extra.distance < IN_ZONE_DIST;
+  const opacity = isPassed ? 0.35 : 1;
+
+  return (
+    <View style={[styles.extraRow, { opacity, borderColor: colors.border }]}>
+      {emoji ? (
+        <Text style={styles.extraEmoji}>{emoji}</Text>
+      ) : (
+        <Ionicons
+          name={resolved.icon as React.ComponentProps<typeof Ionicons>["name"]}
+          size={18}
+          color={colors.mutedForeground}
+        />
+      )}
+      <Text style={[styles.extraName, { color: colors.text }]} numberOfLines={1}>
+        {resolved.label}
+      </Text>
+      <Text style={[styles.extraDist, { color: colors.mutedForeground }]}>
+        {formatDist(extra.distance)}
+      </Text>
+    </View>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function DriveAlertOverlay({
   alert,
+  extraAlerts = [],
   onDismiss,
   currentSpeed,
   minPanelHeight = 340,
@@ -111,6 +147,8 @@ export default function DriveAlertOverlay({
   // Always holds the latest alert.id so the dismiss callback can compare.
   const activeIdRef  = useRef(alert.id);
   const [dismissing, setDismissing] = useState(false);
+
+  const hasExtras = extraAlerts.length > 0;
 
   // Keep activeIdRef in sync with the prop so the callback sees the current ID.
   useEffect(() => { activeIdRef.current = alert.id; }, [alert.id]);
@@ -137,9 +175,6 @@ export default function DriveAlertOverlay({
   }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dismiss: stop pulse immediately, slide out, then notify parent ─────────
-  // Capture the alert ID at tap-time. If a different alert becomes active
-  // before the 280 ms animation completes, the callback is a no-op so the
-  // newly-surfaced alert is not accidentally dismissed.
   const handleDismiss = () => {
     const dismissedId = alert.id;
     setDismissing(true);
@@ -157,8 +192,6 @@ export default function DriveAlertOverlay({
   const resolved  = resolveIncidentType(alert.type);
   const typeLabel = resolved.label;
   const typeIcon  = resolved.icon as React.ComponentProps<typeof Ionicons>["name"];
-  // Zone alerts (speed cameras, police checkpoints, generic zones) render using
-  // the Ionicons vector icon; community-report alerts render their emoji marker.
   const emoji = !isZone ? resolved.emoji : null;
 
   const hasSpeedBadges = isZone && alert.speedLimit != null;
@@ -187,7 +220,7 @@ export default function DriveAlertOverlay({
       {/* ── Header: coloured band with icon + label + distance + close ── */}
       <View style={[styles.header, { backgroundColor: effectiveBg }]}>
         {emoji ? (
-          <Text style={styles.headerEmoji}>{emoji}</Text>
+          <Text style={[styles.headerEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{emoji}</Text>
         ) : (
           <Ionicons name={typeIcon} size={34} color="#FFF" />
         )}
@@ -273,30 +306,44 @@ export default function DriveAlertOverlay({
         </View>
       )}
 
-      {/* ── Location name + road ── */}
-      <View style={styles.locationRow}>
-        <Ionicons name="location-sharp" size={16} color={effectiveBg} style={{ marginTop: 1 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.zoneName, { color: colors.text }]} numberOfLines={1}>
-            {alert.name}
-          </Text>
-          {alert.road ? (
-            <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {alert.road}
+      {/* ── Location name + road (single-alert only, skip when extras present to save space) ── */}
+      {!hasExtras && (
+        <View style={styles.locationRow}>
+          <Ionicons name="location-sharp" size={16} color={effectiveBg} style={{ marginTop: 1 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.zoneName, { color: colors.text }]} numberOfLines={1}>
+              {alert.name}
             </Text>
-          ) : null}
-          {tier === "new" && (
-            <Text style={[styles.zoneRoad, { color: colors.mutedForeground, fontStyle: "italic" }]}>
-              Reported by a driver · unconfirmed
-            </Text>
-          )}
-          {tier === "confirmed" && (
-            <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]}>
-              {tierLabel(alert.confirmCount)}
-            </Text>
-          )}
+            {alert.road ? (
+              <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {alert.road}
+              </Text>
+            ) : null}
+            {tier === "new" && (
+              <Text style={[styles.zoneRoad, { color: colors.mutedForeground, fontStyle: "italic" }]}>
+                Reported by a driver · unconfirmed
+              </Text>
+            )}
+            {tier === "confirmed" && (
+              <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]}>
+                {tierLabel(alert.confirmCount)}
+              </Text>
+            )}
+          </View>
         </View>
-      </View>
+      )}
+
+      {/* ── Extra alerts section (multi-alert cluster) ── */}
+      {hasExtras && (
+        <>
+          <View style={[styles.extraDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.extraList}>
+            {extraAlerts.map((extra) => (
+              <ExtraAlertRow key={extra.id} extra={extra} colors={colors} />
+            ))}
+          </View>
+        </>
+      )}
 
       {/* ── Dismiss button (filled — more actionable than outline) ── */}
       <TouchableOpacity
@@ -305,7 +352,9 @@ export default function DriveAlertOverlay({
         style={[styles.dismissBtn, { backgroundColor: bg }]}
       >
         <Ionicons name="checkmark-circle-outline" size={19} color="#FFF" />
-        <Text style={styles.dismissTxt}>Got it — dismiss</Text>
+        <Text style={styles.dismissTxt}>
+          {hasExtras ? "Got it — dismiss all" : "Got it — dismiss"}
+        </Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -479,6 +528,40 @@ const styles = StyleSheet.create({
     fontSize:      10,
     fontFamily:    "Inter_700Bold",
     letterSpacing: 0.5,
+  },
+
+  // ── Extra alerts (multi-alert cluster) ───────────────────────────────────
+  extraDivider: {
+    height:           1,
+    marginHorizontal: 16,
+    marginTop:        12,
+  },
+  extraList: {
+    marginHorizontal: 16,
+    marginTop:        8,
+    gap:              2,
+  },
+  extraRow: {
+    flexDirection:    "row",
+    alignItems:       "center",
+    gap:              10,
+    paddingVertical:  9,
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  extraEmoji: {
+    fontSize:   18,
+    width:      24,
+    textAlign:  "center",
+  },
+  extraName: {
+    flex:       1,
+    fontSize:   14,
+    fontFamily: "Inter_500Medium",
+  },
+  extraDist: {
+    fontSize:   13,
+    fontFamily: "Inter_600SemiBold",
   },
 
   // ── Dismiss button (solid fill) ──────────────────────────────────────────

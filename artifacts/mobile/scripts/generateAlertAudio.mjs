@@ -17,21 +17,41 @@ const VOICE_ID = "ijKilL5CnjXKMWDHOJH8"; // Yna Agalo
 const MODEL_ID = "eleven_multilingual_v2";
 
 const PHRASES = [
-  { text: "Speed Camera ahead",     file: "speed_camera_ahead.mp3"     },
-  { text: "Police Checkpoint ahead", file: "police_checkpoint_ahead.mp3" },
-  { text: "Speed Zone ahead",       file: "speed_zone_ahead.mp3"        },
-  { text: "Alcoblow ahead",         file: "alcoblow_ahead.mp3"           },
-  { text: "Accident ahead",         file: "accident_ahead.mp3"           },
-  { text: "Traffic Jam ahead",      file: "traffic_jam_ahead.mp3"        },
-  { text: "Roadblock ahead",        file: "roadblock_ahead.mp3"          },
-  { text: "Road Works ahead",       file: "road_works_ahead.mp3"         },
-  { text: "Hazard ahead",           file: "hazard_ahead.mp3"             },
-  { text: "Pothole ahead",          file: "pothole_ahead.mp3"            },
-  { text: "Debris ahead",           file: "debris_ahead.mp3"             },
-  { text: "Broken Down ahead",      file: "broken_down_ahead.mp3"        },
-  { text: "Bad Weather ahead",      file: "bad_weather_ahead.mp3"        },
-  { text: "Road Closed ahead",      file: "road_closed_ahead.mp3"        },
-  { text: "Road Clear ahead",       file: "road_clear_ahead.mp3"         },
+  { text: "Speed Camera ahead",     file: "camera.mp3"    },
+  { text: "Police Checkpoint ahead", file: "police.mp3"   },
+  { text: "Speed Zone ahead",       file: "zone.mp3"      },
+  { text: "Alcoblow ahead",         file: "alcoblow.mp3"  },
+  { text: "Accident ahead",         file: "accident.mp3"  },
+  { text: "Traffic Jam ahead",      file: "traffic.mp3"   },
+  { text: "Roadblock ahead",        file: "roadblock.mp3" },
+  { text: "Road Works ahead",       file: "roadworks.mp3" },
+  { text: "Hazard ahead",           file: "hazard.mp3"    },
+  { text: "Pothole ahead",          file: "pothole.mp3"   },
+  { text: "Debris ahead",           file: "debris.mp3"    },
+  { text: "Broken Down ahead",      file: "breakdown.mp3" },
+  { text: "Bad Weather ahead",      file: "weather.mp3"   },
+  { text: "Road Closed ahead",      file: "closure.mp3"   },
+  { text: "Road Clear ahead",       file: "clear.mp3"     },
+];
+
+// Multi-alert variants — played when lead alert has additional incidents nearby
+const MULTI_PHRASES = [
+  { text: "Speed Camera and more alerts ahead — please slow down.",          file: "camera_multi.mp3"    },
+  { text: "Police Checkpoint and more alerts ahead — please stay cautious.", file: "police_multi.mp3"   },
+  { text: "Speed Zone and more alerts ahead — please slow down.",            file: "zone_multi.mp3"     },
+  { text: "Alcoblow checkpoint and more alerts ahead — please stay cautious.", file: "alcoblow_multi.mp3" },
+  { text: "Accident and more alerts ahead — please drive carefully.",        file: "accident_multi.mp3"  },
+  { text: "Traffic Jam and more alerts ahead — please drive carefully.",     file: "traffic_multi.mp3"   },
+  { text: "Roadblock and more alerts ahead — please drive carefully.",       file: "roadblock_multi.mp3" },
+  { text: "Road Works and more alerts ahead — please stay cautious.",        file: "roadworks_multi.mp3" },
+  { text: "Hazard and more alerts ahead — please stay cautious.",            file: "hazard_multi.mp3"    },
+  { text: "Pothole and more alerts ahead — please stay cautious.",           file: "pothole_multi.mp3"   },
+  { text: "Debris and more alerts ahead — please stay cautious.",            file: "debris_multi.mp3"    },
+  { text: "Broken down vehicle and more alerts ahead — please drive carefully.", file: "breakdown_multi.mp3" },
+  { text: "Bad Weather and more alerts ahead — please stay cautious.",       file: "weather_multi.mp3"   },
+  { text: "Road Closed and more alerts ahead — please drive carefully.",     file: "closure_multi.mp3"   },
+  { text: "Road Clear and more alerts ahead — please drive safely.",         file: "clear_multi.mp3"     },
+  { text: "Report submitted. Thank you for keeping Msafiri safe.",           file: "report_submitted.mp3" },
 ];
 
 async function generate(phrase) {
@@ -77,10 +97,11 @@ if (!apiKey) {
 
 mkdirSync(OUT_DIR, { recursive: true });
 
-console.log(`Generating ${PHRASES.length} alert phrases via ElevenLabs Multilingual v2…\n`);
+const ALL_PHRASES = [...PHRASES, ...MULTI_PHRASES];
+console.log(`Generating ${ALL_PHRASES.length} alert phrases via ElevenLabs Multilingual v2…\n`);
 
 let ok = 0, fail = 0;
-for (const phrase of PHRASES) {
+for (const phrase of ALL_PHRASES) {
   const success = await generate(phrase);
   if (success) ok++; else fail++;
   // Small delay to avoid rate-limit bursts

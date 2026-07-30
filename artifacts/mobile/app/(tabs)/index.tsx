@@ -47,6 +47,8 @@ import { snapToRoad } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
+import { playSound } from "@/utils/sound";
+import { speakAlert } from "@/utils/alertTts";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -105,7 +107,7 @@ export default function DriveScreen() {
   const insets = useSafeAreaInsets();
   const {
     locationGranted, requestLocationPermission,
-    currentSpeed, currentSpeedLimit, activeAlert, dismissAlert, nearbyZones, communityReports,
+    currentSpeed, currentSpeedLimit, activeAlert, activeAlertExtras, dismissAlert, nearbyZones, communityReports,
     setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, divergenceRoutes, selectRoute, routeLoading,
@@ -145,6 +147,7 @@ export default function DriveScreen() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
+  const [showNearbySheet, setShowNearbySheet] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
   // #34 — Search Along Route
   const [showRouteSearch, setShowRouteSearch] = useState(false);
@@ -437,6 +440,45 @@ export default function DriveScreen() {
 
   // Nearest incident ahead — considers BOTH static speed zones AND community
   // reports so a just-reported broken-down vehicle beats a distant speed camera.
+  // All nearby alerts for the badge + bottom sheet (non-navigation mode)
+  const nearbyAlertCandidates = useMemo(() => {
+    type NearbyCandidate = {
+      id: string; type: string; typeName: string; distanceM: number;
+      road?: string; speedLimit?: number; emoji: string;
+    };
+    const results: NearbyCandidate[] = [];
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    const NEARBY_RADIUS_M = 3000;
+    const now = Date.now();
+
+    // Speed zones within 3 km
+    for (const z of nearbyZones) {
+      if (z.distance > NEARBY_RADIUS_M) break; // sorted ascending
+      results.push({
+        id: z.id, type: z.type, typeName: resolveIncidentType(z.type).label,
+        distanceM: z.distance, road: z.road, speedLimit: z.speedLimit,
+        emoji: resolveIncidentType(z.type).emoji,
+      });
+    }
+
+    // Community reports within 3 km, < 2 h old
+    if (currentLat != null && currentLng != null) {
+      for (const r of communityReports) {
+        if (r.status === "expired" || r.status === "denied") continue;
+        if (now - r.timestamp > TWO_HOURS) continue;
+        const d = haversineM(currentLat, currentLng, r.lat, r.lng);
+        if (d > NEARBY_RADIUS_M) continue;
+        results.push({
+          id: r.id, type: r.type, typeName: resolveIncidentType(r.type).label,
+          distanceM: d, road: r.roadName, speedLimit: r.speedLimit ?? undefined,
+          emoji: resolveIncidentType(r.type).emoji,
+        });
+      }
+    }
+
+    return results.sort((a, b) => a.distanceM - b.distanceM);
+  }, [nearbyZones, communityReports, currentLat, currentLng]);
+
   const primaryAlert = useMemo(() => {
     // While navigating, routeIncidentsAhead already merges zones + reports on
     // the route and sorts by distance remaining — use it directly.
@@ -580,6 +622,7 @@ export default function DriveScreen() {
       {activeAlert && (
         <DriveAlertOverlay
           alert={activeAlert}
+          extraAlerts={activeAlertExtras}
           onDismiss={dismissAlert}
           currentSpeed={currentSpeed}
           // Cover the gauge exactly: in nav mode cover the nav bar; in normal
@@ -994,16 +1037,38 @@ export default function DriveScreen() {
               <Text style={[styles.clearTxt, { color: fgMuted }]}>Calculating route…</Text>
             </View>
           ) : primaryAlert ? (
-            <View style={{ flex: 1, gap: 5 }}>
-              {/* Colour-coded "NEARBY ALERT" badge */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={{ flex: 1, gap: 5 }}
+              onPress={() => {
+                if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
+              }}
+            >
+              {/* Colour-coded "NEARBY ALERTS" badge with multi-emoji */}
               <View style={[styles.nearbyAlertBadge, {
                 backgroundColor: primaryAlert.color + "22",
                 borderColor:     primaryAlert.color + "55",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
               }]}>
                 <Ionicons name="alert-circle" size={11} color={primaryAlert.color} />
                 <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color }]}>
-                  NEARBY ALERT
+                  NEARBY ALERTS
                 </Text>
+                {nearbyAlertCandidates.length > 1 && (
+                  <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 4, gap: 1 }}>
+                    {nearbyAlertCandidates.slice(0, 4).map((c, i) => (
+                      <Text key={c.id + i} style={{ fontSize: 11 }}>{c.emoji}</Text>
+                    ))}
+                    {nearbyAlertCandidates.length > 4 && (
+                      <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
+                        +{nearbyAlertCandidates.length - 4}
+                      </Text>
+                    )}
+                    <Ionicons name="chevron-forward" size={10} color={primaryAlert.color} style={{ marginLeft: 2 }} />
+                  </View>
+                )}
               </View>
               {/* Emoji marker (matches map) + type name + optional speed */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -1027,7 +1092,7 @@ export default function DriveScreen() {
               <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
                 {distStr(primaryAlert.distanceM)} ahead
               </Text>
-            </View>
+            </TouchableOpacity>
           ) : (
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1 }]}>Clear ahead</Text>
           )}
@@ -1567,8 +1632,55 @@ export default function DriveScreen() {
             const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
             addReport(type, snapped.lat, snapped.lng, speedLimit);
           }
+          // Play confirmation audio after the report is submitted
+          playSound("confirm").catch(() => {});
+          speakAlert("report_submitted").catch(() => {});
         }}
       />
+
+      {/* ── Nearby Alerts bottom sheet ────────────────────────────────────────── */}
+      <Modal
+        visible={showNearbySheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNearbySheet(false)}
+      >
+        <Pressable style={styles.nearbySheetBackdrop} onPress={() => setShowNearbySheet(false)} />
+        <View style={[styles.nearbySheetContainer, { backgroundColor: c.card }]}>
+          <View style={styles.nearbySheetHandle} />
+          <Text style={[styles.nearbySheetTitle, { color: c.foreground }]}>
+            Nearby Alerts
+          </Text>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+            {nearbyAlertCandidates.map((item) => {
+              const resolved = resolveIncidentType(item.type);
+              return (
+                <View
+                  key={item.id}
+                  style={[styles.nearbySheetRow, { borderBottomColor: c.border }]}
+                >
+                  <View style={[styles.nearbySheetIconWrap, { backgroundColor: resolved.color + "22" }]}>
+                    <Text style={{ fontSize: 20 }}>{resolved.emoji}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
+                      {resolved.label}
+                    </Text>
+                    {item.road ? (
+                      <Text style={[styles.nearbySheetRowSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                        {item.road}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.nearbySheetDist, { color: c.mutedForeground }]}>
+                    {distStr(item.distanceM)}
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* ── Driver name prompt (shown once before first live share) ─────────── */}
       <Modal
@@ -2096,6 +2208,66 @@ const styles = StyleSheet.create({
   arrivalResumeDest: { fontSize: 17, fontFamily: "Inter_700Bold", textAlign: "center", marginBottom: 4 },
   arrivalDeclineBtn: { alignItems: "center", paddingVertical: 14 },
   arrivalDeclineTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  // ── Nearby Alerts sheet ───────────────────────────────────────────────────
+  nearbySheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  nearbySheetContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "60%",
+    paddingBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 24,
+  },
+  nearbySheetHandle: {
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 6,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  nearbySheetTitle: {
+    fontSize: 17,
+    fontFamily: "Inter_700Bold",
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  nearbySheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  nearbySheetIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nearbySheetRowTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  nearbySheetRowSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  nearbySheetDist: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
 
   // ── Driver name prompt modal ───────────────────────────────────────────────
   namePromptOverlay: {

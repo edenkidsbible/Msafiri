@@ -15,6 +15,8 @@ import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
+import { playSound } from "@/utils/sound";
+import { speakAlert } from "@/utils/alertTts";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
 import { formatTimeAgo } from "@/lib/timeAgo";
@@ -265,7 +267,12 @@ export default function MapViewScreen() {
       const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
       id = addReport(type, snapped.lat, snapped.lng, speedLimit);
     }
-    if (id) setUndoReport({ id, type });
+    if (id) {
+      setUndoReport({ id, type });
+      // Play confirmation audio after the report is submitted and the undo toast appears
+      playSound("confirm").catch(() => {});
+      speakAlert("report_submitted").catch(() => {});
+    }
   };
 
   const undoLastReport = () => {

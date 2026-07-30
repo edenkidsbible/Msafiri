@@ -29,11 +29,11 @@ import {
 } from "@/utils/backgroundNavLocation";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
-import { speakAlert } from "@/utils/alertTts";
 import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+import { speakAlert, speakAlertMulti } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -179,6 +179,9 @@ interface AppContextValue {
   currentLng: number | null;
   currentSpeed: number;
   activeAlert: DriveAlert | null;
+  /** Additional alerts within 1 km of the lead alert, sorted by distance.
+   *  Non-empty only when the driver is in a cluster zone. Cleared with activeAlert. */
+  activeAlertExtras: DriveAlert[];
   currentSpeedLimit: number | null;
   nearbyZones: Array<SpeedZone & { distance: number }>;
   allZones: SpeedZone[];
@@ -793,6 +796,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentLng, setCurrentLng] = useState<number | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [activeAlert, setActiveAlert] = useState<DriveAlert | null>(null);
+  const [activeAlertExtras, setActiveAlertExtras] = useState<DriveAlert[]>([]);
   const [currentSpeedLimit, setCurrentSpeedLimit] = useState<number | null>(null);
   const [nearbyZones, setNearbyZones] = useState<Array<SpeedZone & { distance: number }>>([]);
   const [hudMode, setHudModeState] = useState(false);
@@ -990,6 +994,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const drStateRef      = useRef<{ lat: number; lng: number; speedMps: number; heading: number } | null>(null);
   const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
   const alertSourceRef = useRef<"zone" | "report" | null>(null);
+  // Geo-anchor for multi-alert clusters: set when a cluster (lead + extras) is
+  // announced. New cluster activation is suppressed until the driver travels
+  // > 1 km from this anchor point.
+  const alertAnchorLatRef = useRef<number | null>(null);
+  const alertAnchorLngRef = useRef<number | null>(null);
+  // Tracks the last extras array we called setActiveAlertExtras with, as a
+  // sorted ID string, to avoid re-rendering on every GPS tick.
+  const lastExtrasKeyRef  = useRef<string>("");
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
   const syncReportToServerRef = useRef<((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void) | null>(null);
@@ -1528,6 +1540,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // near a zone while parked should not trigger the panel).
     const isStationary = stationaryStreakRef.current >= 3;
 
+    // ── Extra alerts within 1 km (multi-alert cluster) ───────────────────────
+    // Collect all zone and report candidates within 1 km that are NOT the lead
+    // winner.  These appear as compact rows below the lead in the overlay.
+    const MULTI_RADIUS = 1000; // 1 km
+    const extraCandidates: DriveAlert[] = [];
+    if (winner && isDriving && roadReady && alertAccuracyOk && !isStationary) {
+      for (const z of withDist) {
+        if (z.distance <= IN_ZONE_DIST || z.distance > MULTI_RADIUS) continue;
+        if (z.isStretchEndpoint) continue;
+        if (z.id === winner.id) continue;
+        if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        extraCandidates.push({
+          id: z.id, source: "zone" as const, type: z.type, name: z.name,
+          road: z.road, description: z.description, distance: z.distance,
+          speedLimit: z.speedLimit, lat: z.lat, lng: z.lng,
+        });
+      }
+      for (const r of communityReportsRef.current) {
+        if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
+        if (now - r.timestamp > 7200000) continue;
+        if (r.id === winner.id) continue;
+        const d = haversine(lat, lng, r.lat, r.lng);
+        if (d <= IN_ZONE_DIST || d > MULTI_RADIUS) continue;
+        if (r.roadName && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        extraCandidates.push({
+          id: r.id, source: "report" as const, type: r.type,
+          name: resolveIncidentType(r.type).label,
+          road: r.roadName, distance: d,
+          speedLimit: r.speedLimit,
+          lat: r.lat, lng: r.lng,
+          confirmCount: r.confirmCount,
+        });
+      }
+      extraCandidates.sort((a, b) => a.distance - b.distance);
+    }
+
     // (5) Activate a new alert or refresh the ongoing one
     // Prune expired cooldown entries to avoid unbounded map growth.
     // Bug #4 fix: when a cooldown expires for the zone that's currently
@@ -1541,6 +1589,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (alertZoneRef.current === k) alertZoneRef.current = null;
       }
     }
+
+    // Geo-anchor check: if a multi-alert cluster was announced, suppress new
+    // cluster activation until the driver travels > 1 km from the anchor point.
+    const anchorLat = alertAnchorLatRef.current;
+    const anchorLng = alertAnchorLngRef.current;
+    if (anchorLat != null && anchorLng != null) {
+      const distFromAnchor = haversine(lat, lng, anchorLat, anchorLng);
+      if (distFromAnchor >= 1000) {
+        // Driver has moved far enough — clear the anchor so a new cluster can fire.
+        alertAnchorLatRef.current = null;
+        alertAnchorLngRef.current = null;
+      }
+    }
+    const anchorActive = alertAnchorLatRef.current != null;
 
     if (winner && !isStationary) {
       // If this winner is under a 60 s cooldown, first update the running peak
@@ -1566,15 +1628,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // else: still too close to the peak → suppress via the has() check below.
       }
 
-      // Activate a new alert (only when not in cooldown).
-      if (!alertDismissCooldownRef.current.has(winner.id) && winner.id !== alertZoneRef.current) {
+      // Activate a new alert when:
+      //  • Not in the per-ID 60 s cooldown
+      //  • Not already the currently-tracked alert
+      //  • Not suppressed by geo-anchor — BUT the anchor only blocks NEW CLUSTERS
+      //    (candidates that themselves have extras). A single hazard that appears
+      //    within the anchor radius must still announce so drivers don't miss it.
+      const isNewAlert = !alertDismissCooldownRef.current.has(winner.id) &&
+        winner.id !== alertZoneRef.current &&
+        (!anchorActive || extraCandidates.length === 0);
+      if (isNewAlert) {
         alertZoneRef.current = winner.id;
         alertSourceRef.current = winner.source;
         alertZoneLastDistRef.current = winner.distance;
         alertZoneIncreasingCountRef.current = 0;
         alertDismissed.current = false;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        speakAlert(winner.type).catch(() => {});
+        if (extraCandidates.length > 0) {
+          // Multi-alert cluster: set geo-anchor and play bundled multi phrase
+          alertAnchorLatRef.current = lat;
+          alertAnchorLngRef.current = lng;
+          speakAlertMulti(winner.type).catch(() => {});
+        } else {
+          // Single alert: play normal bundled phrase (60 s per-ID cooldown on dismiss)
+          speakAlert(winner.type).catch(() => {});
+        }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
       if (!alertDismissed.current && winner.id === alertZoneRef.current) {
@@ -1587,6 +1665,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!prev || prev.id !== winner.id || prev.tier !== tier || Math.abs(prev.distM - winner.distance) > 20) {
           lastSetAlertRef.current = { id: winner.id, tier, distM: winner.distance };
           setActiveAlert(winner);
+        }
+        // Update extras: only re-render when the set of IDs changes or any
+        // distance moves > 20 m (same throttle as the lead alert).
+        const extrasKey = extraCandidates.map(e => `${e.id}:${Math.round(e.distance / 20)}`).join(",");
+        if (extrasKey !== lastExtrasKeyRef.current) {
+          lastExtrasKeyRef.current = extrasKey;
+          setActiveAlertExtras(extraCandidates);
         }
       }
     } else if (!winner) {
@@ -1605,7 +1690,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           alertZoneLastDistRef.current = null;
           alertZoneIncreasingCountRef.current = 0;
           lastSetAlertRef.current = null;
+          lastExtrasKeyRef.current = "";
           setActiveAlert(null);
+          setActiveAlertExtras([]);
         }
       }
     }
@@ -2776,7 +2863,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dismissAlert = useCallback(() => {
     alertDismissed.current = true;
     lastSetAlertRef.current = null;
+    lastExtrasKeyRef.current = "";
+    // Clear geo-anchor so the next cluster can fire immediately after a manual
+    // dismiss (the driver intentionally acknowledged and dismissed).
+    alertAnchorLatRef.current = null;
+    alertAnchorLngRef.current = null;
     setActiveAlert(null);
+    setActiveAlertExtras([]);
   }, []);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setThemeOverride = useCallback((v: "system" | "light" | "dark") => {
@@ -3330,7 +3423,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       locationGranted, requestLocationPermission, requestNotificationPermission,
       currentLat, currentLng, currentSpeed,
-      activeAlert, currentSpeedLimit, nearbyZones, allZones, stretchZones: dbStretches, dismissAlert,
+      activeAlert, activeAlertExtras, currentSpeedLimit, nearbyZones, allZones, stretchZones: dbStretches, dismissAlert,
       hudMode, setHudMode,
       themeOverride, setThemeOverride,
       clearAllData,
