@@ -326,6 +326,20 @@ function angleDiffDeg(a: number, b: number): number {
   return diff > 180 ? 360 - diff : diff;
 }
 
+/** Signed along-track distance from the driver to a target, in metres.
+ *  Positive  = target is ahead of the driver on their current heading.
+ *  Negative  = target is behind the driver (they have passed it).
+ *  Formula:  dist × cos(bearingToTarget − driverHeading) */
+function alongTrackDistanceM(
+  driverLat: number, driverLng: number, driverHeading: number,
+  targetLat: number, targetLng: number,
+): number {
+  const dist = haversine(driverLat, driverLng, targetLat, targetLng);
+  const brgToTarget = bearingDeg(driverLat, driverLng, targetLat, targetLng);
+  const deltaRad = ((brgToTarget - driverHeading + 540) % 360 - 180) * (Math.PI / 180);
+  return dist * Math.cos(deltaRad);
+}
+
 /** Driver heading (0–360°) derived from the previous GPS fix.
  *  Returns null when there is no previous fix or movement is below the noise
  *  threshold (< 5 m), which means direction is indeterminate. */
@@ -881,12 +895,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // to re-render every second, which saturates the JS bridge and makes the map
   // unresponsive to pan/zoom/drag gestures.
   const lastSetAlertRef = useRef<{ id: string; tier: number; distM: number } | null>(null);
-  // Distance to the active alert zone at the last GPS fix — used to detect
-  // when the driver is moving away so we can dismiss the alert early.
+  // Last known haversine distance to the active alert zone — kept solely so
+  // the dismiss cooldown's peakDistM is seeded with a real value on commit.
+  // No longer used for the consecutive-increase pass-through logic.
   const alertZoneLastDistRef = useRef<number | null>(null);
-  // Consecutive GPS fixes where distance to the active alert zone increased;
-  // when this reaches 2 we dismiss (driver has passed or turned away).
-  const alertZoneIncreasingCountRef = useRef(0);
+  // Ref that mirrors the routeIncidents memo so the GPS handler (a useEffect
+  // closure) can look up a zone's along-route distance without closure staleness.
+  const routeIncidentsRef = useRef<RouteIncident[]>([]);
   // Coordinates of the alert item at the moment the alert activated — stored
   // once so dismiss logic can compute bearing-to-alert on every GPS tick
   // without a per-tick zone/report lookup.  Cleared on any dismiss path.
@@ -1591,16 +1606,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // ── Pass-through: two consecutive increasing-distance fixes ───────────
-        const lastDist = alertZoneLastDistRef.current;
-        if (lastDist != null && curDist > lastDist) {
-          alertZoneIncreasingCountRef.current += 1;
-          if (alertZoneIncreasingCountRef.current >= 2) return true;
-        } else {
-          alertZoneIncreasingCountRef.current = 0;
+        // ── Pass-through: along-track signed distance ─────────────────────────
+        // Dismiss when the alert has crossed from ahead to ≥ 10 m behind the
+        // driver on their current heading.  This fires at the exact moment the
+        // driver passes the alert pin regardless of GPS jitter (a brief position
+        // wobble that inflates haversine distance can't flip the sign).
+        //
+        // Hold the overlay open when heading is unavailable (speed < ~5 km/h or
+        // freshly connected GPS) — along-track is meaningless without direction.
+        const hdgAt = lastHeadingRef.current ?? stepFallbackHdg;
+        if (hdgAt == null) {
+          // No valid heading — keep overlay open until we can compute direction.
+          alertZoneLastDistRef.current = curDist;
+          return false;
         }
-        // Always keep the last-distance up to date so the increasing counter
-        // only fires when the distance genuinely grows over multiple fixes.
+        const iLatAt = alertItemLatRef.current;
+        const iLngAt = alertItemLngRef.current;
+        if (iLatAt != null && iLngAt != null) {
+          const atd = alongTrackDistanceM(lat, lng, hdgAt, iLatAt, iLngAt);
+          if (atd <= -10) return true; // alert is 10 m or more behind the driver
+        }
+        // ── Polyline redundancy when navigating ────────────────────────────────
+        // Belt-and-suspenders: if the route's high-water mark has already advanced
+        // past the alert's along-route position by ≥ 10 m, the driver has
+        // physically driven through it even if GPS briefly snapped back.
+        if (navActiveRef.current && routeMaxDistMRef.current > 0) {
+          const alertId = alertZoneRef.current!;
+          const incident = routeIncidentsRef.current.find(
+            (i) => i.id === `static-${alertId}` || i.id === `report-${alertId}`,
+          );
+          if (incident && routeMaxDistMRef.current > incident.distanceAlongRouteM + 10) {
+            return true;
+          }
+        }
         alertZoneLastDistRef.current = curDist;
         return false;
       })();
@@ -1616,7 +1654,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertSourceRef.current          = null;
         alertDismissed.current          = false;
         alertZoneLastDistRef.current    = null;
-        alertZoneIncreasingCountRef.current = 0;
         alertItemLatRef.current         = null;
         alertItemLngRef.current         = null;
         alertApproachRoadRef.current    = null;
@@ -1742,7 +1779,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertZoneRef.current = winner.id;
         alertSourceRef.current = winner.source;
         alertZoneLastDistRef.current = winner.distance;
-        alertZoneIncreasingCountRef.current = 0;
         alertDismissed.current = false;
         // Record alert item position and approach road for divert-away detection.
         alertItemLatRef.current       = winner.lat ?? null;
@@ -1795,7 +1831,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           alertSourceRef.current          = null;
           alertDismissed.current          = false;
           alertZoneLastDistRef.current    = null;
-          alertZoneIncreasingCountRef.current = 0;
           alertItemLatRef.current         = null;
           alertItemLngRef.current         = null;
           alertApproachRoadRef.current    = null;
@@ -2263,7 +2298,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             alertSourceRef.current          = null;
             alertDismissed.current          = false;
             alertZoneLastDistRef.current    = null;
-            alertZoneIncreasingCountRef.current = 0;
             alertItemLatRef.current         = null;
             alertItemLngRef.current         = null;
             alertApproachRoadRef.current    = null;
@@ -2562,6 +2596,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       routeIncidents.filter((inc) => inc.distanceAlongRouteM >= effectiveDist - 15)
     );
   }, [routeIncidents, navigationActive, currentRouteDistanceM]);
+
+  // Keep routeIncidentsRef in sync so the GPS handler (a stable useEffect
+  // closure) can look up along-route positions without closure staleness.
+  useEffect(() => { routeIncidentsRef.current = routeIncidents; }, [routeIncidents]);
 
   // ── Snap to active route ─────────────────────────────────────────────────
   // When the driver is navigating, snapping a newly-reported incident to the

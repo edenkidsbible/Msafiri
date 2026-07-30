@@ -654,6 +654,28 @@ describe("Passing a camera: dismiss logic over consecutive GPS fixes", () => {
   });
 });
 
+// ─── Along-track helper (verbatim from AppContext.tsx) ────────────────────────
+
+/** Signed along-track distance from the driver to a target, metres.
+ *  Positive = target ahead; negative = target behind. */
+function alongTrackDistanceM(driverLat, driverLng, driverHeading, targetLat, targetLng) {
+  const dist = haversine(driverLat, driverLng, targetLat, targetLng);
+  const brgToTarget = bearingDeg(driverLat, driverLng, targetLat, targetLng);
+  const deltaRad = ((brgToTarget - driverHeading + 540) % 360 - 180) * (Math.PI / 180);
+  return dist * Math.cos(deltaRad);
+}
+
+/**
+ * Along-track pass-through dismiss check (models the GPS-tick logic in AppContext).
+ * Returns { shouldDismiss }.
+ */
+function evaluateAlongTrackDismiss({ driverLat, driverLng, driverHeading, itemLat, itemLng }) {
+  if (driverHeading == null) return { shouldDismiss: false };
+  if (itemLat == null || itemLng == null) return { shouldDismiss: false };
+  const atd = alongTrackDistanceM(driverLat, driverLng, driverHeading, itemLat, itemLng);
+  return { shouldDismiss: atd <= -10, atd };
+}
+
 // ─── New dismiss-geometry helpers (verbatim from AppContext.tsx) ───────────────
 
 /**
@@ -695,6 +717,101 @@ function evaluateNullRoadBearingGate({ currentRoad, itemRoad, approachRoad, driv
   }
   return { shouldDismiss: false, extendedCooldown: false };
 }
+
+// ─── 8. alongTrackDistanceM unit tests ────────────────────────────────────────
+
+describe("alongTrackDistanceM — signed along-track projection", () => {
+  // Camera placed 500 m due north of driver (bearing 0°).
+  const CAM_NORTH = destPoint(DRIVER_LAT, DRIVER_LNG, 0, 500);
+
+  it("driver heading north, camera 500 m north → positive (~500 m ahead)", () => {
+    const atd = alongTrackDistanceM(DRIVER_LAT, DRIVER_LNG, 0, CAM_NORTH.lat, CAM_NORTH.lng);
+    assert.ok(atd > 490 && atd < 510, `expected ~500, got ${atd.toFixed(1)}`);
+  });
+
+  it("driver heading south (180°), camera 500 m north → negative (~−500 m behind)", () => {
+    const atd = alongTrackDistanceM(DRIVER_LAT, DRIVER_LNG, 180, CAM_NORTH.lat, CAM_NORTH.lng);
+    assert.ok(atd < -490 && atd > -510, `expected ~-500, got ${atd.toFixed(1)}`);
+  });
+
+  it("driver heading east (90°), camera due north → ~0 (perpendicular)", () => {
+    const atd = alongTrackDistanceM(DRIVER_LAT, DRIVER_LNG, 90, CAM_NORTH.lat, CAM_NORTH.lng);
+    // cos(90°) = 0, so atd should be very close to 0
+    assert.ok(Math.abs(atd) < 5, `expected near 0, got ${atd.toFixed(2)}`);
+  });
+
+  it("driver 10 m past the camera (heading N, camera is 10 m south) → negative", () => {
+    // Driver is now 10 m north of the camera
+    const pastCam = destPoint(CAM_NORTH.lat, CAM_NORTH.lng, 0, 10); // driver has gone 10 m past
+    const atd = alongTrackDistanceM(pastCam.lat, pastCam.lng, 0, CAM_NORTH.lat, CAM_NORTH.lng);
+    assert.ok(atd < -8 && atd > -12, `expected ~-10, got ${atd.toFixed(2)}`);
+  });
+
+  it("dismiss triggers when driver is 15 m past the camera", () => {
+    // Use 15 m to stay clear of the floating-point boundary at exactly −10 m.
+    const pastCam = destPoint(CAM_NORTH.lat, CAM_NORTH.lng, 0, 15);
+    const result = evaluateAlongTrackDismiss({
+      driverLat: pastCam.lat, driverLng: pastCam.lng, driverHeading: 0,
+      itemLat: CAM_NORTH.lat, itemLng: CAM_NORTH.lng,
+    });
+    assert.equal(result.shouldDismiss, true, "driver 15 m past must dismiss");
+    assert.ok(result.atd < -10, `expected atd < -10, got ${result.atd?.toFixed(2)}`);
+  });
+
+  it("no dismiss when 5 m past (below −10 m threshold)", () => {
+    const nearlyPast = destPoint(CAM_NORTH.lat, CAM_NORTH.lng, 0, 5);
+    const result = evaluateAlongTrackDismiss({
+      driverLat: nearlyPast.lat, driverLng: nearlyPast.lng, driverHeading: 0,
+      itemLat: CAM_NORTH.lat, itemLng: CAM_NORTH.lng,
+    });
+    assert.equal(result.shouldDismiss, false, "5 m past must NOT yet dismiss (atd > −10)");
+  });
+
+  it("no dismiss when still 100 m ahead of camera", () => {
+    // Driver 400 m north of origin, camera 500 m north — driver is 100 m before it
+    const approaching = destPoint(DRIVER_LAT, DRIVER_LNG, 0, 400);
+    const result = evaluateAlongTrackDismiss({
+      driverLat: approaching.lat, driverLng: approaching.lng, driverHeading: 0,
+      itemLat: CAM_NORTH.lat, itemLng: CAM_NORTH.lng,
+    });
+    assert.equal(result.shouldDismiss, false, "camera still ahead — must not dismiss");
+  });
+
+  it("null heading → no dismiss (holds overlay open)", () => {
+    const pastCam = destPoint(CAM_NORTH.lat, CAM_NORTH.lng, 0, 50); // well past
+    const result = evaluateAlongTrackDismiss({
+      driverLat: pastCam.lat, driverLng: pastCam.lng, driverHeading: null,
+      itemLat: CAM_NORTH.lat, itemLng: CAM_NORTH.lng,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "null heading (slow/stopped) must hold overlay open");
+  });
+
+  it("GPS jitter: ±8 m back-and-forth around stationary point never dismisses", () => {
+    // Camera 300 m ahead. Simulate GPS bouncing ±8 m around the same spot.
+    const cam = destPoint(DRIVER_LAT, DRIVER_LNG, 0, 300);
+    const jitter = [-8, 5, -3, 7, -6, 4]; // metres of N/S jitter
+    for (const j of jitter) {
+      const jPos = destPoint(DRIVER_LAT, DRIVER_LNG, j >= 0 ? 0 : 180, Math.abs(j));
+      const result = evaluateAlongTrackDismiss({
+        driverLat: jPos.lat, driverLng: jPos.lng, driverHeading: 0,
+        itemLat: cam.lat, itemLng: cam.lng,
+      });
+      assert.equal(result.shouldDismiss, false,
+        `jitter of ${j} m must not dismiss (camera still ahead)`);
+    }
+  });
+
+  it("camera exactly at driver position → atd ≈ 0 (no dismiss)", () => {
+    // haversine = 0 → atd = 0, above −10 threshold
+    const result = evaluateAlongTrackDismiss({
+      driverLat: DRIVER_LAT, driverLng: DRIVER_LNG, driverHeading: 0,
+      itemLat: DRIVER_LAT, itemLng: DRIVER_LNG,
+    });
+    assert.equal(result.shouldDismiss, false,
+      "camera at driver position must not dismiss (0 m along-track)");
+  });
+});
 
 // ─── 8. Bearing-divergence dismissal (Gap 2 fix) ──────────────────────────────
 
