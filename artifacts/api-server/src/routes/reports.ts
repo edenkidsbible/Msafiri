@@ -615,7 +615,8 @@ router.post("/reports/:id/flag", async (req: Request, res: Response) => {
 });
 
 // Number of distinct deny votes required to auto-remove a non-camera report.
-const DENY_THRESHOLD = 2;
+// Set to 1 so the first driver who taps "Gone now" removes the report instantly.
+const DENY_THRESHOLD = 1;
 
 // ── POST /reports/:id/deny — "Gone now" ───────────────────────────────────────
 // Driver-side vote: signals the incident may no longer be present.

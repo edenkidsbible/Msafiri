@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import {
+  Alert,
   Modal,
   StyleSheet,
   Text,
@@ -57,7 +58,14 @@ export default function IncidentConfirmationPrompt({ report, onDismiss }: Props)
   const handleGoneNow = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     onDismiss();
-    await denyReport(id);
+    const result = await denyReport(id);
+    if (report.type === "camera" && result.ok) {
+      Alert.alert(
+        "Sent for review",
+        "Speed cameras are fixed infrastructure, so your report has been flagged for an admin to review. The camera stays visible until a moderator confirms it's gone.",
+        [{ text: "OK" }]
+      );
+    }
   };
 
   return (
