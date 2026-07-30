@@ -457,6 +457,26 @@ const DriveMapView = forwardRef(function DriveMapView(
             600
           );
         }
+        return;
+      }
+
+      // ── Browsing follow (no active route, no navigation) ─────────────────
+      // Keep the driver's dot in the centre of the screen while they're just
+      // driving around without a set destination — smooth pan only (north-up,
+      // no zoom change, no heading rotation so the map stays readable).
+      // Pauses automatically as soon as they manually pan/zoom (drift flag),
+      // resuming the moment they tap Recenter.
+      if (
+        !mapDriftedRef.current &&
+        !activeRoute &&           // route preview overrides follow — don't fight fitToCoordinates
+        currentLat != null &&
+        currentLng != null &&
+        hasCenteredRef.current    // initial center already done — safe to animate
+      ) {
+        mapRef.current?.animateCamera(
+          { center: { latitude: currentLat, longitude: currentLng } },
+          { duration: 800 },
+        );
       }
       return;
     }
@@ -514,8 +534,10 @@ const DriveMapView = forwardRef(function DriveMapView(
   const handleRegionChangeComplete = useCallback(
     (_region: Region, details: { isGesture?: boolean }) => {
       if (!details?.isGesture) return;
-      if (navActiveRef.current && !mapDriftedRef.current) {
-        // First gesture during navigation — signal drift to parent
+      // Signal drift on any gesture — whether navigating or just browsing —
+      // so the Recenter button surfaces and the GPS-follow effect pauses.
+      if (!mapDriftedRef.current) {
+        mapDriftedRef.current = true;
         onDriftChange?.(true);
       }
     },
@@ -580,25 +602,33 @@ const DriveMapView = forwardRef(function DriveMapView(
   // camera-follow effect from firing animateCamera before the React state
   // update (onDriftChange → parent setState) has had a chance to propagate.
   const handlePanDrag = useCallback(() => {
-    if (!navActiveRef.current) return;
     if (mapDriftedRef.current) return; // already drifted — no-op
-    mapDriftedRef.current = true;      // synchronous guard
+    mapDriftedRef.current = true;      // synchronous guard — stops GPS follow instantly
     onDriftChange?.(true);
   }, [onDriftChange]);
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
-    // Snap back to street-level and restore heading-up orientation so the
-    // road ahead points up again (matching the original nav-start behaviour).
-    mapRef.current?.animateToRegion(
-      { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
-      500
-    );
-    if (driverHeading != null) {
-      setTimeout(() => {
-        mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
-      }, 550);
+    if (navActiveRef.current) {
+      // During navigation: snap to street-level and restore heading-up so the
+      // road ahead points up (track-up mode).
+      mapRef.current?.animateToRegion(
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+        500,
+      );
+      if (driverHeading != null) {
+        setTimeout(() => {
+          mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
+        }, 550);
+      }
+    } else {
+      // Browsing: use a wider city-block zoom, stay north-up so the map
+      // remains easy to read without a destination set.
+      mapRef.current?.animateToRegion(
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.015, longitudeDelta: 0.015 },
+        500,
+      );
     }
     onDriftChange?.(false);
   }, [currentLat, currentLng, driverHeading, onDriftChange]);
