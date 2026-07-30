@@ -59,7 +59,11 @@ export default function IncidentConfirmationPrompt({ report, onDismiss }: Props)
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     onDismiss();
     const result = await denyReport(id);
-    if (report.type === "camera" && result.ok) {
+    if (!result.ok) {
+      if (result.message) {
+        Alert.alert("Couldn't send vote", result.message, [{ text: "OK" }]);
+      }
+    } else if (report.type === "camera") {
       Alert.alert(
         "Sent for review",
         "Speed cameras are fixed infrastructure, so your report has been flagged for an admin to review. The camera stays visible until a moderator confirms it's gone.",

@@ -3494,33 +3494,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "This report hasn't finished syncing yet. Try again in a moment." };
     }
     const serverId = report.serverId;
+    const isCamera = report.type === "camera";
     // Track that this device has voted on this report
     votedReportIdsRef.current.add(id);
     if (report.serverId) votedReportIdsRef.current.add(report.serverId);
-    // Optimistic: increment denyCount — report stays visible until we hear back
-    // from the server (which may remove it or queue it for admin review).
-    const originalDenyCount = report.denyCount ?? 0;
-    setCommunityReports((prev) =>
-      prev.map((r) =>
-        r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount + 1 } : r
-      )
-    );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const originalDenyCount = report.denyCount ?? 0;
+    // Optimistic update — camera stays visible until admin action; non-camera
+    // is removed immediately so the driver gets instant feedback.
+    let removedReport: CommunityReport | null = null;
+    if (isCamera) {
+      setCommunityReports((prev) =>
+        prev.map((r) =>
+          r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount + 1 } : r
+        )
+      );
+    } else {
+      removedReport = report;
+      setCommunityReports((prev) => {
+        const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
+        AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+        return u;
+      });
+    }
     try {
       const result = await apiPost<{ denyCount: number; status: string }>(
         `/reports/${serverId}/deny`,
         { deviceId: deviceIdRef.current }
       );
-      if (result.status === "denied") {
-        // Non-camera report hit the deny threshold — remove it from the local map
-        // immediately so the driver sees a clean map without waiting for the next poll.
-        setCommunityReports((prev) => {
-          const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
-          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
-          return u;
-        });
-      } else {
-        // Camera (admin_review) or below-threshold: just sync the authoritative count.
+      if (isCamera) {
+        // Camera: sync the authoritative count/status returned by the server.
         setCommunityReports((prev) =>
           prev.map((r) =>
             r.id === id || r.serverId === id
@@ -3529,27 +3532,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           )
         );
       }
+      // Non-camera: already removed optimistically — nothing more to do.
       return { ok: true };
     } catch (err) {
-      // Roll back optimistic increment
-      setCommunityReports((prev) =>
-        prev.map((r) =>
-          r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount } : r
-        )
-      );
+      if (isCamera) {
+        // Roll back optimistic denyCount increment for camera reports.
+        setCommunityReports((prev) =>
+          prev.map((r) =>
+            r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount } : r
+          )
+        );
+      }
       if (warnIfBlockedDevice(err)) return { ok: false }; // alert already shown
       if (err instanceof ApiError) {
         if (err.status === 404) {
-          // Gone on the server (expired or admin-removed) — clean up locally.
+          // Report is already gone on the server (expired or admin-removed).
+          // For camera reports, clean up locally too. For non-camera the
+          // optimistic removal already happened — skip the restore.
+          if (isCamera) {
+            setCommunityReports((prev) => {
+              const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
+              AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+              return u;
+            });
+          }
+          return { ok: false, message: "This report was already removed from the map." };
+        }
+        // For non-camera, restore the report so the driver can retry.
+        if (!isCamera && removedReport) {
           setCommunityReports((prev) => {
-            const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
+            const u = [...prev, removedReport!];
             AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
             return u;
           });
-          return { ok: false, message: "This report was already removed from the map." };
         }
         // Surface the server's real reason (own-report protection, already voted…)
         return { ok: false, message: err.message };
+      }
+      // Network or unknown error — restore for non-camera so the driver can retry.
+      if (!isCamera && removedReport) {
+        setCommunityReports((prev) => {
+          const u = [...prev, removedReport!];
+          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
+          return u;
+        });
       }
       return { ok: false, message: "Check your connection and try again." };
     }
