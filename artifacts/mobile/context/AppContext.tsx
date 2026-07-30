@@ -1015,19 +1015,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setVehicleTypeState(v);
         vehicleTypeRef.current = v;
       }
-      if (trips) setTripHistory(JSON.parse(trips));
-      if (reports) {
-        const parsed: CommunityReport[] = JSON.parse(reports);
-        const pruned = pruneReportCache(parsed, Date.now());
-        setCommunityReports(pruned);
-        // Persist the pruned list immediately so evicted entries don't reload
-        // the next time the app starts.
-        if (pruned.length < parsed.length) {
-          AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(pruned)).catch(() => {});
-        }
+      if (trips) {
+        try {
+          const parsed = JSON.parse(trips);
+          if (Array.isArray(parsed)) setTripHistory(parsed);
+        } catch { /* corrupt cache — silently reset */ }
       }
-      if (hud) setHudModeState(JSON.parse(hud));
-      if (sos) setSosContactState(JSON.parse(sos));
+      if (reports) {
+        try {
+          const parsed: CommunityReport[] = JSON.parse(reports);
+          if (Array.isArray(parsed)) {
+            const pruned = pruneReportCache(parsed, Date.now());
+            setCommunityReports(pruned);
+            // Persist the pruned list immediately so evicted entries don't reload
+            // the next time the app starts.
+            if (pruned.length < parsed.length) {
+              AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(pruned)).catch(() => {});
+            }
+          }
+        } catch { /* corrupt cache — silently reset */ }
+      }
+      if (hud) {
+        try {
+          const parsed = JSON.parse(hud);
+          if (typeof parsed === "boolean") setHudModeState(parsed);
+        } catch { /* corrupt — ignore */ }
+      }
+      if (sos) {
+        try {
+          const parsed = JSON.parse(sos);
+          if (parsed && typeof parsed === "object") setSosContactState(parsed);
+        } catch { /* corrupt — ignore */ }
+      }
       if (storedTheme) {
         const t = storedTheme as "system" | "light" | "dark";
         setThemeOverrideState(t);
@@ -1712,6 +1731,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (navActiveRef.current && routeRef.current && !gpsLostRef.current
         && Date.now() > rerouteGraceUntilRef.current) {
       const coords  = routeRef.current.coords;
+      // A route needs at least 2 points for the window scan to be meaningful;
+      // bail early so no code below ever indexes into an empty array.
+      if (coords.length >= 2) {
       const prior   = Math.max(0, Math.min(routeProjIdxRef.current, coords.length - 1));
       const wStart  = Math.max(0, prior - 10);
       const wEnd    = Math.min(coords.length - 1, prior + 30);
@@ -1768,6 +1790,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           divergenceRoutesRef.current = [];
         }
       }
+      } // end: coords.length >= 2 guard
     }
 
     // Trip tracking
@@ -1784,7 +1807,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const added = last ? haversine(last.lat, last.lng, lat, lng) : 0;
         const newPos = [...positions, { lat, lng, speed: kmh, time: Date.now() }];
         const trimmed = newPos.length > 300 ? newPos.slice(-150) : newPos;
-        const updated: Partial<TripData> = { ...t, distance: (t.distance ?? 0) + added, maxSpeed: Math.max(t.maxSpeed ?? 0, kmh), avgSpeed: trimmed.reduce((s, p) => s + p.speed, 0) / trimmed.length, positions: trimmed };
+        const updated: Partial<TripData> = { ...t, distance: (t.distance ?? 0) + added, maxSpeed: Math.max(t.maxSpeed ?? 0, kmh), avgSpeed: trimmed.length > 0 ? trimmed.reduce((s, p) => s + p.speed, 0) / trimmed.length : (t.avgSpeed ?? 0), positions: trimmed };
         tripRef.current = updated;
         setCurrentTrip({ ...updated });
       }
@@ -2045,6 +2068,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       fetchGoogleRoute(lat, lng, dest.lat, dest.lng, lastHeadingRef.current)
         .then((routes) => {
+          // Reject stale callbacks: destination or nav session changed while
+          // the network round-trip was in flight.
+          if (!navActiveRef.current || navDestRef.current !== dest) return;
           if (!routes.length) return;
           const [primary, ...alts] = routes;
           commitReroute(primary, alts);
@@ -2317,7 +2343,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!activeRoute || !routeCumDist) return null;
       const proj = projectOntoRoute(activeRoute.coords, routeCumDist, lat, lng);
       if (!proj) return null;
-      const c = activeRoute.coords[proj.matchedIdx];
+      const coords = activeRoute.coords;
+      if (proj.matchedIdx < 0 || proj.matchedIdx >= coords.length) return null;
+      const c = coords[proj.matchedIdx];
+      if (!c) return null;
       return { lat: c.latitude, lng: c.longitude };
     },
     [activeRoute, routeCumDist],

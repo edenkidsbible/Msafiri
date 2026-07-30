@@ -828,6 +828,9 @@ const DriveMapView = forwardRef(function DriveMapView(
         {activeRoute && (() => {
           if (navigationActive && currentLat != null && currentLng != null) {
             const coords = activeRoute.coords;
+            // Guard: a route with fewer than 2 points cannot be rendered as a
+            // polyline and would cause an out-of-bounds index below.
+            if (!Array.isArray(coords) || coords.length < 2) return null;
             // Find the nearest polyline coordinate to the driver's GPS position.
             let bestIdx = 0;
             let bestDist = Infinity;

@@ -247,7 +247,10 @@ export default function OnboardingScreen() {
   };
 
   const isLast = activeIdx === SLIDES.length - 1;
-  const accent  = SLIDES[activeIdx].accentColor;
+  // Clamp defensively — rapid swipe gestures can momentarily push activeIdx
+  // out of range before the state settles, causing a crash on `.accentColor`.
+  const safeIdx = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
+  const accent  = SLIDES[safeIdx].accentColor;
 
   return (
     <View style={[styles.screen, { backgroundColor: "#FFFFFF" }]}>
