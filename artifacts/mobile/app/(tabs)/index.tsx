@@ -1211,8 +1211,10 @@ export default function DriveScreen() {
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1, paddingRight: isSmall ? 56 : 70 }]}>Clear ahead</Text>
           )}
 
-          {/* SOS — floats at the right edge without displacing flex siblings */}
-          <View style={{ position: "absolute", right: 0, top: 0, bottom: 0, justifyContent: "center" }}>
+          {/* SOS — floats at the right edge without displacing flex siblings.
+              right matches the strip's own paddingHorizontal so the button
+              sits flush with the content area, not the outer border edge. */}
+          <View style={{ position: "absolute", right: isSmall ? 8 : 12, top: 0, bottom: 0, justifyContent: "center" }}>
             <SOSButton compact small={isSmall} />
           </View>
         </View>

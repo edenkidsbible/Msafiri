@@ -22,6 +22,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { PoiPickerMap } from "@/components/poi-picker-map";
 
 const TYPE_LABELS: Record<string, string> = {
   fuel:     "⛽ Fuel",
@@ -292,7 +293,7 @@ export default function Pois() {
 
       {/* ── Add POI dialog ──────────────────────────────────────────────────── */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Point of Interest</DialogTitle>
             <DialogDescription>Add a new POI that will appear on the driver map.</DialogDescription>
@@ -303,7 +304,7 @@ export default function Pois() {
 
       {/* ── Edit POI dialog ─────────────────────────────────────────────────── */}
       <Dialog open={!!editPoi} onOpenChange={(open) => { if (!open) setEditPoi(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit POI</DialogTitle>
             <DialogDescription>Update the name, coordinates, hours, or status.</DialogDescription>
@@ -372,6 +373,14 @@ function PoiForm({
   submitLabel: string;
   showStatus?: boolean;
 }) {
+  const lat = form.watch("lat");
+  const lng = form.watch("lng");
+
+  const handleMapPick = (pickedLat: number, pickedLng: number) => {
+    form.setValue("lat", parseFloat(pickedLat.toFixed(6)), { shouldValidate: true });
+    form.setValue("lng", parseFloat(pickedLng.toFixed(6)), { shouldValidate: true });
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -423,6 +432,17 @@ function PoiForm({
               </FormItem>
             )} />
           )}
+        </div>
+
+        {/* ── Map picker ─────────────────────────────────────────────────────── */}
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium leading-none">
+            Location
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              Click the map to place a pin, or type coordinates below
+            </span>
+          </p>
+          <PoiPickerMap lat={lat} lng={lng} onPick={handleMapPick} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
