@@ -29,7 +29,11 @@ async function ensureAudioMode() {
       playsInSilentMode: true,
       interruptionMode: "duckOthers",
       allowsRecording: false,
-      shouldPlayInBackground: false,
+      // Allow navigation voice to continue when the screen locks or the app
+      // moves to the background (e.g. driver checks another app mid-trip).
+      // Works in conjunction with UIBackgroundModes "audio" in app.config.js
+      // and the background location task that keeps the iOS process alive.
+      shouldPlayInBackground: true,
       shouldRouteThroughEarpiece: false,
     });
   } catch {

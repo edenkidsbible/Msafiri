@@ -28,7 +28,10 @@ module.exports = {
           "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
         NSLocationAlwaysUsageDescription:
           "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
-        UIBackgroundModes: ["location"],
+        // "location" keeps watchPositionAsync alive when screen locks (nav cues).
+        // "audio" lets the TTS voice play through even when the app is backgrounded
+        // or the screen is off — required for navigation voice on a locked phone.
+        UIBackgroundModes: ["location", "audio"],
         ITSAppUsesNonExemptEncryption: false,
       },
     },
