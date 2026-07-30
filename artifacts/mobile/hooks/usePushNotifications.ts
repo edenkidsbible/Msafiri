@@ -61,6 +61,16 @@ async function ensureAndroidChannels(): Promise<void> {
       vibrationPattern: [0, 200, 100, 200],
       lightColor: "#00C853",
     });
+    // Silent channel for the persistent navigation status tile in the shade.
+    // LOW importance = no sound, no heads-up banner, no vibration — it only
+    // appears as a quiet sticky bar while navigation or sharing is active.
+    await Notifications.setNotificationChannelAsync("msafiri_nav", {
+      name: "Navigation Status",
+      importance: Notifications.AndroidImportance.LOW,
+      sound: undefined,
+      vibrationPattern: undefined,
+      enableVibrate: false,
+    });
   } catch (err) {
     console.warn("[usePushNotifications] Failed to set up Android channels:", err);
   }

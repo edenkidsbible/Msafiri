@@ -714,18 +714,10 @@ function speakText(text: string) {
 }
 
 // ─── Notification setup ───────────────────────────────────────────────────────
-
-if (Platform.OS !== "web") {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-}
+// NOTE: setNotificationHandler is registered ONCE in usePushNotifications.ts
+// at module scope. Do NOT register it here — two handlers on the same process
+// both fire for every incoming notification, causing iOS to show each remote
+// push twice (once per handler registration).
 
 async function requestNotificationPermissionInternal(): Promise<boolean> {
   if (Platform.OS === "web") return false;
@@ -743,7 +735,13 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
       body: `${zone.name} is ${d} away on ${zone.road}.`,
       data: { zoneId: zone.id },
     },
-    trigger: null,
+    // On Android the channel must be specified on the trigger, not in content.
+    // { channelId } without a time value fires immediately, same as trigger:null.
+    // Without this Android 8+ silently discards the notification because it
+    // falls back to the "default" channel which is permanently low-importance.
+    trigger: Platform.OS === "android"
+      ? { channelId: "msafiri_alerts" } as any
+      : null,
   });
 }
 
