@@ -1704,58 +1704,60 @@ export default function DriveScreen() {
         animationType="slide"
         onRequestClose={() => setShowNearbySheet(false)}
       >
-        {/* flex:1 + justifyContent:"flex-end" anchors the sheet to the screen
-            bottom. The backdrop sits behind via absoluteFill so it fills the
-            remaining space without pushing the container off-screen. */}
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        {/* Spacer-pressable pattern: backdrop Pressable fills all space above
+            the sheet via flex:1, so the sheet sits naturally at the column
+            bottom without absoluteFill or justifyContent tricks. */}
+        <View style={{ flex: 1 }}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]}
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
             onPress={() => setShowNearbySheet(false)}
           />
-        <View style={[styles.nearbySheetContainer, { backgroundColor: c.card, paddingBottom: bottomInset + 12 }]}>
-          <View style={styles.nearbySheetHandle} />
-          <Text style={[styles.nearbySheetTitle, { color: c.foreground }]}>
-            Nearby Alerts
-          </Text>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-            {nearbyAlertCandidates.map((item) => {
-              const resolved = resolveIncidentType(item.type);
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.nearbySheetRow, { borderBottomColor: c.border }]}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    setShowNearbySheet(false);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    driveMapRef.current?.focusCoords(item.lat, item.lng);
-                  }}
-                >
-                  <View style={[styles.nearbySheetIconWrap, { backgroundColor: resolved.color + "22" }]}>
-                    <Text style={{ fontSize: 20 }}>{resolved.emoji}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
-                      {resolved.label}
-                    </Text>
-                    {item.road ? (
-                      <Text style={[styles.nearbySheetRowSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                        {item.road}
+          <View style={[styles.nearbySheetContainer, { backgroundColor: c.card, paddingBottom: bottomInset + 12 }]}>
+            <View style={styles.nearbySheetHandle} />
+            <Text style={[styles.nearbySheetTitle, { color: c.foreground }]}>
+              Nearby Alerts
+            </Text>
+            {/* No flex:1 on ScrollView — the container's maxHeight caps overall
+                height; ScrollView expands to its content then becomes scrollable. */}
+            <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
+              {nearbyAlertCandidates.map((item) => {
+                const resolved = resolveIncidentType(item.type);
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.nearbySheetRow, { borderBottomColor: c.border }]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setShowNearbySheet(false);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      driveMapRef.current?.focusCoords(item.lat, item.lng);
+                    }}
+                  >
+                    <View style={[styles.nearbySheetIconWrap, { backgroundColor: resolved.color + "22" }]}>
+                      <Text style={{ fontSize: 20 }}>{resolved.emoji}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
+                        {resolved.label}
                       </Text>
-                    ) : null}
-                  </View>
-                  <View style={{ alignItems: "flex-end", gap: 2 }}>
-                    <Text style={[styles.nearbySheetDist, { color: c.mutedForeground }]}>
-                      {distStr(item.distanceM)}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={12} color={c.mutedForeground} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                      {item.road ? (
+                        <Text style={[styles.nearbySheetRowSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                          {item.road}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={{ alignItems: "flex-end", gap: 2 }}>
+                      <Text style={[styles.nearbySheetDist, { color: c.mutedForeground }]}>
+                        {distStr(item.distanceM)}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={12} color={c.mutedForeground} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
         </View>
-        </View>{/* end flex:1 justifyContent:flex-end wrapper */}
       </Modal>
 
       {/* ── Driver name prompt (shown once before first live share) ─────────── */}
