@@ -1,0 +1,95 @@
+import { Router, type Request, type Response } from "express";
+import { createHash } from "crypto";
+import { objectStorageClient } from "../lib/objectStorage.js";
+
+const router = Router();
+
+const VOICE_ID  = "ijKilL5CnjXKMWDHOJH8"; // Yna Agalo
+const MODEL_ID  = "eleven_flash_v2_5";      // lowest latency, good for short phrases
+const CACHE_DIR = "tts/alert";              // object-storage prefix
+const MAX_TEXT  = 300;                      // characters
+
+/** Stable cache key: sha256(text) → first 24 hex chars */
+function objPath(text: string): string {
+  const hash = createHash("sha256").update(text).digest("hex").slice(0, 24);
+  return `${CACHE_DIR}/${hash}.mp3`;
+}
+
+// GET /tts?text=...
+// Returns audio/mpeg of Yna Agalo speaking the given text.
+// Results are cached in object storage for 90 days so each phrase is only
+// generated once (ElevenLabs is billed per character).
+router.get("/tts", async (req: Request, res: Response) => {
+  const text = String(req.query.text ?? "").trim();
+  if (!text)              return res.status(400).json({ error: "text is required" });
+  if (text.length > MAX_TEXT)
+    return res.status(400).json({ error: `text must be ≤ ${MAX_TEXT} characters` });
+
+  const apiKey  = process.env.ELEVENLABS_API_KEY;
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!apiKey)   return res.status(503).json({ error: "TTS not configured" });
+  if (!bucketId) return res.status(503).json({ error: "Storage not configured" });
+
+  const path = objPath(text);
+  const file = objectStorageClient.bucket(bucketId).file(path);
+
+  // ── Try cache first ────────────────────────────────────────────────────────
+  try {
+    const [exists] = await file.exists();
+    if (exists) {
+      const [meta] = await file.getMetadata();
+      res.setHeader("Content-Type",   "audio/mpeg");
+      res.setHeader("Cache-Control",  "public, max-age=7776000"); // 90 days
+      res.setHeader("Content-Length", String(meta.size));
+      res.setHeader("X-TTS-Cache",    "HIT");
+      file.createReadStream().pipe(res);
+      return;
+    }
+  } catch (err) {
+    // Cache miss or storage error — fall through to generate
+    console.warn("[tts] cache check failed:", err);
+  }
+
+  // ── Generate via ElevenLabs ────────────────────────────────────────────────
+  try {
+    const elRes = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_128`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key":   apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          model_id: MODEL_ID,
+          voice_settings: { stability: 0.45, similarity_boost: 0.80, style: 0.0 },
+        }),
+      }
+    );
+
+    if (!elRes.ok) {
+      const detail = await elRes.text().catch(() => "");
+      console.error(`[tts] ElevenLabs ${elRes.status}:`, detail);
+      return res.status(502).json({ error: "TTS generation failed" });
+    }
+
+    const buf = Buffer.from(await elRes.arrayBuffer());
+
+    // Save to cache non-blocking — don't let a storage hiccup delay the response
+    file
+      .save(buf, { metadata: { contentType: "audio/mpeg" } })
+      .catch((err) => console.warn("[tts] cache save failed:", err));
+
+    res.setHeader("Content-Type",   "audio/mpeg");
+    res.setHeader("Cache-Control",  "public, max-age=7776000");
+    res.setHeader("Content-Length", String(buf.length));
+    res.setHeader("X-TTS-Cache",    "MISS");
+    return res.send(buf);
+  } catch (err) {
+    console.error("[tts] error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+export default router;
