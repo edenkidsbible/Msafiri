@@ -11,6 +11,7 @@ export const FEATURE_GROUPS = [
     features: [
       { key: "reports", label: "Incident Reports (view / edit / create)" },
       { key: "speed_zones", label: "Speed Zones (view / edit / create)" },
+      { key: "pois", label: "Points of Interest (view / edit / create)" },
       { key: "blog", label: "Blog Management" },
       { key: "creators", label: "Creator Applications" },
     ],
@@ -45,6 +46,7 @@ export const ROLE_DEFAULTS: Record<AdminRole, FeatureKey[]> = {
   moderator: [
     "reports",
     "speed_zones",
+    "pois",
     "blog",
     "creators",
     "reports_bulk",
@@ -55,7 +57,7 @@ export const ROLE_DEFAULTS: Record<AdminRole, FeatureKey[]> = {
     "subscribers",
     "audit_log",
   ],
-  staff: ["reports", "speed_zones"],
+  staff: ["reports", "speed_zones", "pois"],
 };
 
 export function isFeatureKey(value: string): value is FeatureKey {

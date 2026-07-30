@@ -1055,8 +1055,7 @@ export default function DriveScreen() {
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
               activeOpacity={0.85}
             >
-              <Ionicons name="search" size={14} color="#FFF" />
-              <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
+              <Text style={styles.driveActionPillTxt}>🔍 Nearby</Text>
             </TouchableOpacity>
           )}
 
@@ -1277,8 +1276,7 @@ export default function DriveScreen() {
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
               activeOpacity={0.85}
             >
-              <Ionicons name="search" size={14} color="#FFF" />
-              <Text style={styles.driveActionPillTxt}>Find Nearby</Text>
+              <Text style={styles.driveActionPillTxt}>🔍 Nearby</Text>
             </TouchableOpacity>
           )}
 

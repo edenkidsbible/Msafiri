@@ -11,6 +11,7 @@ import { backfillCourseAudio } from "./startup/backfillCourseAudio";
 import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
+import { seedPois } from "./startup/seedPois";
 
 const rawPort = process.env["PORT"];
 
@@ -76,6 +77,7 @@ app.listen(port, async (err) => {
     await seedCourseIfEmpty();
     await backfillCourseAudio();
     await dedupPushTokens();
+    await seedPois();
   } catch (startupErr) {
     logger.error({ err: startupErr }, "Startup task failed — exiting");
     process.exit(1);

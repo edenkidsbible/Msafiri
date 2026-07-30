@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/reports",            label: "Incident Reports",  icon: AlertCircle,  feature: "reports" },
     { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck,  feature: "reports" },
     { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge,        feature: "speed_zones" },
+    { href: "/pois",               label: "Points of Interest",icon: MapPin,       feature: "pois" },
   ];
   const coreNav = coreNavAll.filter((item) => can(item.feature));
 

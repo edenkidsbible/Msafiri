@@ -546,8 +546,7 @@ export default function MapViewScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowFindNearby(true); }}
           activeOpacity={0.85}
         >
-          <Ionicons name="search" size={14} color="#FFF" />
-          <Text style={styles.mapPillTxt}>Find Nearby</Text>
+          <Text style={styles.mapPillTxt}>🔍 Nearby</Text>
         </TouchableOpacity>
 
         {/* Incidents chip — Kenya green, inline so all fit one row */}

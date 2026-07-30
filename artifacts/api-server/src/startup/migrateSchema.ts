@@ -31,6 +31,25 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS denied_by jsonb NOT NULL DEFAULT '[]'::jsonb
     `);
 
+    // pois — points of interest managed from the admin panel.
+    // CREATE TABLE IF NOT EXISTS is fully idempotent across re-runs.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS pois (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name       TEXT NOT NULL,
+        brand      TEXT NOT NULL,
+        type       TEXT NOT NULL,
+        lat        DOUBLE PRECISION NOT NULL,
+        lng        DOUBLE PRECISION NOT NULL,
+        address    TEXT NOT NULL,
+        hours      TEXT,
+        status     TEXT NOT NULL DEFAULT 'active',
+        static_id  TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

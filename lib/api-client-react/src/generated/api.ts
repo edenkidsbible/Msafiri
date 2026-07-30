@@ -20,6 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminPoi,
+  AdminPoiInput,
+  AdminPoiList,
+  AdminListPoisParams,
   AdminBlogPost,
   AdminBlogPostInput,
   AdminBlogPostList,
@@ -4610,3 +4614,176 @@ export function useAdminGetBlogStats<TData = Awaited<ReturnType<typeof adminGetB
 
 
 
+
+// ── Admin POI hooks ───────────────────────────────────────────────────────────
+
+export const getAdminListPoisUrl = (params?: AdminListPoisParams) => {
+  const stringifiedParams = params
+    ? Object.entries(params)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+        .join("&")
+    : "";
+  return stringifiedParams.length > 0
+    ? `/api/admin/pois?${stringifiedParams}`
+    : `/api/admin/pois`;
+};
+
+export const adminListPois = async (
+  params?: AdminListPoisParams,
+  options?: RequestInit,
+): Promise<AdminPoiList> => {
+  return customFetch<AdminPoiList>(getAdminListPoisUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListPoisQueryKey = (params?: AdminListPoisParams) =>
+  [`/api/admin/pois`, ...(params ? [params] : [])] as const;
+
+export const getAdminListPoisQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListPois>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListPoisParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getAdminListPoisQueryKey(params);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListPois>>> = ({ signal }) =>
+    adminListPois(params, { signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListPois>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export function useAdminListPois<
+  TData = Awaited<ReturnType<typeof adminListPois>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListPoisParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListPoisQueryOptions(params, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+// create
+export const adminCreatePoi = async (
+  data: AdminPoiInput,
+  options?: RequestInit,
+): Promise<AdminPoi> => {
+  return customFetch<AdminPoi>(`/api/admin/pois`, {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(data),
+  });
+};
+
+export const useAdminCreatePoi = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCreatePoi>>,
+      TError,
+      { data: BodyType<AdminPoiInput> },
+      TContext
+    >;
+  },
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCreatePoi>>,
+  TError,
+  { data: BodyType<AdminPoiInput> },
+  TContext
+> => {
+  const mutationKey = ["adminCreatePoi"];
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCreatePoi>>,
+    { data: BodyType<AdminPoiInput> }
+  > = ({ data }) => adminCreatePoi(data);
+  return useMutation({ mutationKey, mutationFn, ...options?.mutation });
+};
+
+// update
+export const adminUpdatePoi = async (
+  id: string,
+  data: Partial<AdminPoiInput>,
+  options?: RequestInit,
+): Promise<AdminPoi> => {
+  return customFetch<AdminPoi>(`/api/admin/pois/${id}`, {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(data),
+  });
+};
+
+export const useAdminUpdatePoi = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminUpdatePoi>>,
+      TError,
+      { id: string; data: Partial<AdminPoiInput> },
+      TContext
+    >;
+  },
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdatePoi>>,
+  TError,
+  { id: string; data: Partial<AdminPoiInput> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdatePoi"];
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdatePoi>>,
+    { id: string; data: Partial<AdminPoiInput> }
+  > = ({ id, data }) => adminUpdatePoi(id, data);
+  return useMutation({ mutationKey, mutationFn, ...options?.mutation });
+};
+
+// delete / deactivate
+export const adminDeletePoi = async (
+  id: string,
+  hard = false,
+  options?: RequestInit,
+): Promise<AdminPoi | { deleted: boolean }> => {
+  return customFetch<AdminPoi | { deleted: boolean }>(
+    `/api/admin/pois/${id}${hard ? "?hard=1" : ""}`,
+    { ...options, method: "DELETE" },
+  );
+};
+
+export const useAdminDeletePoi = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminDeletePoi>>,
+      TError,
+      { id: string; hard?: boolean },
+      TContext
+    >;
+  },
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeletePoi>>,
+  TError,
+  { id: string; hard?: boolean },
+  TContext
+> => {
+  const mutationKey = ["adminDeletePoi"];
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeletePoi>>,
+    { id: string; hard?: boolean }
+  > = ({ id, hard }) => adminDeletePoi(id, hard);
+  return useMutation({ mutationKey, mutationFn, ...options?.mutation });
+};
+
+export const getAdminListPoisQueryKeyString = () => `/api/admin/pois`;

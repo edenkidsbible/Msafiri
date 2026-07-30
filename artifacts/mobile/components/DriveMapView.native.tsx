@@ -24,7 +24,8 @@ import { useApp } from "@/context/AppContext";
 import type { CommunityReport, SpeedInterval } from "@/context/AppContext";
 import type { SpeedZone } from "@/data/speedZones";
 import { useColors } from "@/hooks/useColors";
-import { POIS } from "@/data/pois";
+import type { POI } from "@/data/pois";
+import { apiGet } from "@/utils/apiClient";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
@@ -798,10 +799,24 @@ const DriveMapView = forwardRef(function DriveMapView(
     setPendingFocusCoords(null);
   }, [pendingFocusCoords]);
 
-  const nearbyPOIs = useMemo(() => {
-    if (currentLat == null || currentLng == null) return [];
-    return POIS.filter((p) => haversine(currentLat, currentLng, p.lat, p.lng) <= POI_RADIUS_M).slice(0, 25);
+  // ── POI fetch — reload when the driver moves > 1 km from the last fetch ────
+  const [fetchedPOIs, setFetchedPOIs] = useState<POI[]>([]);
+  const lastPoiFetchRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (currentLat == null || currentLng == null) return;
+    const last = lastPoiFetchRef.current;
+    // Only re-fetch when the driver has moved > 1 km since the last call.
+    if (last && haversine(last.lat, last.lng, currentLat, currentLng) < 1000) return;
+    lastPoiFetchRef.current = { lat: currentLat, lng: currentLng };
+    apiGet<{ pois: POI[] }>(
+      `/pois?lat=${currentLat}&lng=${currentLng}&radius=${POI_RADIUS_M}`,
+    )
+      .then((data) => setFetchedPOIs(data.pois ?? []))
+      .catch(() => {}); // silently ignore network errors — stale POIs remain
   }, [currentLat, currentLng]);
+
+  const nearbyPOIs = fetchedPOIs.slice(0, 25);
 
   // Render all zones — no radius cap, no slice limit. The full dataset is
   // small enough (few hundred markers) that react-native-maps handles it fine,
