@@ -1203,10 +1203,13 @@ export default function DriveScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Share Location — Kenya green when actively sharing */}
+          {/* Share Location — Kenya green when actively sharing.
+              flexShrink: 1 lets this pill compress first on narrow screens (375pt)
+              before the row can overflow its right: 12 boundary. */}
           <TouchableOpacity
             style={[styles.driveActionPill, {
               backgroundColor: isSharingTrip ? "#006600" : fabBg,
+              flexShrink: 1, minWidth: 0,
             }]}
             onPress={handleSharePress}
             disabled={sharingLoading}
@@ -2240,8 +2243,11 @@ const styles = StyleSheet.create({
 
   // ── Kenyan-colors bottom action row (replaces old vertical FAB column) ───
   // Used for both the pre-nav row (above speed strip) and the nav row (above nav bar).
+  // right: 12 gives the row a defined right edge so pills cannot overflow off-screen
+  // on narrow devices (iPhone SE, 375pt). Variable-width pills (Share Location) get
+  // flexShrink: 1 inline so they compress first before the row overflows.
   driveNavActionRow: {
-    position: "absolute", left: 12, zIndex: 14,
+    position: "absolute", left: 12, right: 12, zIndex: 14,
     flexDirection: "row", alignItems: "center", gap: 8,
   },
   driveActionPill: {
