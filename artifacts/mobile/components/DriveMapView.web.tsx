@@ -3,7 +3,11 @@ import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
-export type DriveMapViewHandle = { recenter: () => void };
+export type DriveMapViewHandle = {
+  recenter: () => void;
+  /** Pan the map to the given coordinates and briefly show a highlight ring. */
+  focusCoords: (lat: number, lng: number) => void;
+};
 
 const DriveMapView = forwardRef(function DriveMapView(
   _: { mapDrifted?: boolean; onDriftChange?: (drifted: boolean) => void },

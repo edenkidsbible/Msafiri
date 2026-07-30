@@ -449,6 +449,7 @@ export default function DriveScreen() {
     type NearbyCandidate = {
       id: string; type: string; typeName: string; distanceM: number;
       road?: string; speedLimit?: number; emoji: string;
+      lat: number; lng: number;
     };
     const results: NearbyCandidate[] = [];
     const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -462,6 +463,7 @@ export default function DriveScreen() {
         id: z.id, type: z.type, typeName: resolveIncidentType(z.type).label,
         distanceM: z.distance, road: z.road, speedLimit: z.speedLimit,
         emoji: resolveIncidentType(z.type).emoji,
+        lat: z.lat, lng: z.lng,
       });
     }
 
@@ -476,6 +478,7 @@ export default function DriveScreen() {
           id: r.id, type: r.type, typeName: resolveIncidentType(r.type).label,
           distanceM: d, road: r.roadName, speedLimit: r.speedLimit ?? undefined,
           emoji: resolveIncidentType(r.type).emoji,
+          lat: r.lat, lng: r.lng,
         });
       }
     }
@@ -1685,9 +1688,15 @@ export default function DriveScreen() {
             {nearbyAlertCandidates.map((item) => {
               const resolved = resolveIncidentType(item.type);
               return (
-                <View
+                <TouchableOpacity
                   key={item.id}
                   style={[styles.nearbySheetRow, { borderBottomColor: c.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setShowNearbySheet(false);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    driveMapRef.current?.focusCoords(item.lat, item.lng);
+                  }}
                 >
                   <View style={[styles.nearbySheetIconWrap, { backgroundColor: resolved.color + "22" }]}>
                     <Text style={{ fontSize: 20 }}>{resolved.emoji}</Text>
@@ -1702,10 +1711,13 @@ export default function DriveScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <Text style={[styles.nearbySheetDist, { color: c.mutedForeground }]}>
-                    {distStr(item.distanceM)}
-                  </Text>
-                </View>
+                  <View style={{ alignItems: "flex-end", gap: 2 }}>
+                    <Text style={[styles.nearbySheetDist, { color: c.mutedForeground }]}>
+                      {distStr(item.distanceM)}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={12} color={c.mutedForeground} />
+                  </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>

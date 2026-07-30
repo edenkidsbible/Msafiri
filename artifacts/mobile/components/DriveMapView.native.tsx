@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { AdminLocationPickerModal } from "./AdminLocationPickerModal";
 
-export type DriveMapViewHandle = { recenter: () => void };
+export type DriveMapViewHandle = {
+  recenter: () => void;
+  /** Pan the map to the given coordinates and briefly show a highlight ring. */
+  focusCoords: (lat: number, lng: number) => void;
+};
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
@@ -349,6 +353,10 @@ const DriveMapView = forwardRef(function DriveMapView(
     return () => clearTimeout(t);
   }, []);
 
+  // Temporary focus highlight — shown for 2.5 s after a Nearby Alert row tap
+  const [focusHighlight, setFocusHighlight] = useState<{ lat: number; lng: number } | null>(null);
+  const focusHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleFlagReport = (id: string) => {
     Alert.alert(
       "Report to moderators",
@@ -676,7 +684,19 @@ const DriveMapView = forwardRef(function DriveMapView(
     onDriftChange?.(false);
   }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
 
-  useImperativeHandle(ref, () => ({ recenter }), [recenter]);
+  const focusCoords = useCallback((lat: number, lng: number) => {
+    // Pan the map to the alert's location
+    mapRef.current?.animateToRegion(
+      { latitude: lat, longitude: lng, latitudeDelta: 0.008, longitudeDelta: 0.008 },
+      700,
+    );
+    // Show a temporary highlight ring for 2.5 s
+    if (focusHighlightTimerRef.current) clearTimeout(focusHighlightTimerRef.current);
+    setFocusHighlight({ lat, lng });
+    focusHighlightTimerRef.current = setTimeout(() => setFocusHighlight(null), 2500);
+  }, []);
+
+  useImperativeHandle(ref, () => ({ recenter, focusCoords }), [recenter, focusCoords]);
 
   return (
     <>
@@ -718,6 +738,27 @@ const DriveMapView = forwardRef(function DriveMapView(
         // react-native-maps builds). This is the primary drift-detection path.
         onPanDrag={handlePanDrag}
       >
+        {/* Nearby-alert focus highlight — temporary ring shown after tapping
+            a row in the Nearby Alerts sheet. Cleared after 2.5 s. */}
+        {focusHighlight && (
+          <>
+            <Circle
+              center={{ latitude: focusHighlight.lat, longitude: focusHighlight.lng }}
+              radius={120}
+              strokeColor="#FFD600CC"
+              fillColor="#FFD60022"
+              strokeWidth={3}
+            />
+            <Circle
+              center={{ latitude: focusHighlight.lat, longitude: focusHighlight.lng }}
+              radius={60}
+              strokeColor="#FFD600AA"
+              fillColor="#FFD60044"
+              strokeWidth={2}
+            />
+          </>
+        )}
+
         {/* Speed zone markers — road-stretch corridors show their limit as a
             badge at each end so you can see how the speed changes along the
             road, instead of a straight line cutting across the map. */}
