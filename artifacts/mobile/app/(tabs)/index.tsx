@@ -1704,8 +1704,15 @@ export default function DriveScreen() {
         animationType="slide"
         onRequestClose={() => setShowNearbySheet(false)}
       >
-        <Pressable style={styles.nearbySheetBackdrop} onPress={() => setShowNearbySheet(false)} />
-        <View style={[styles.nearbySheetContainer, { backgroundColor: c.card }]}>
+        {/* flex:1 + justifyContent:"flex-end" anchors the sheet to the screen
+            bottom. The backdrop sits behind via absoluteFill so it fills the
+            remaining space without pushing the container off-screen. */}
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]}
+            onPress={() => setShowNearbySheet(false)}
+          />
+        <View style={[styles.nearbySheetContainer, { backgroundColor: c.card, paddingBottom: bottomInset + 12 }]}>
           <View style={styles.nearbySheetHandle} />
           <Text style={[styles.nearbySheetTitle, { color: c.foreground }]}>
             Nearby Alerts
@@ -1748,6 +1755,7 @@ export default function DriveScreen() {
             })}
           </ScrollView>
         </View>
+        </View>{/* end flex:1 justifyContent:flex-end wrapper */}
       </Modal>
 
       {/* ── Driver name prompt (shown once before first live share) ─────────── */}
@@ -1959,10 +1967,7 @@ const styles = StyleSheet.create({
 
   // ── Search bar + results ─────────────────────────────────────────────────
   searchArea: {
-    // right: 60 leaves a ~48 px slot at the top-right for the native map
-    // compass, which otherwise sits behind the search pill on Android where
-    // the safe-area top inset is 0.
-    position: "absolute", left: 12, right: 60, zIndex: 18, gap: 6,
+    position: "absolute", left: 12, right: 12, zIndex: 18, gap: 6,
   },
   searchPill: {
     flexDirection: "row", alignItems: "center", height: 52, borderRadius: 26,

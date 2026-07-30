@@ -15,7 +15,12 @@ router.get("/places/search", async (req, res) => {
       return;
     }
 
-    const apiKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+    // GOOGLE_MAPS_ANDROID_API_KEY is device-restricted; GOOGLE_MAPS_API_KEY is
+    // the server-unrestricted key. Accept either so ops can configure the right
+    // one without changing code.
+    const apiKey =
+      process.env.GOOGLE_MAPS_ANDROID_API_KEY ??
+      process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       res.status(500).json({ error: "Places API not configured" });
       return;

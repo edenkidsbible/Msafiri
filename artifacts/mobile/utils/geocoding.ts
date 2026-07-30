@@ -8,7 +8,8 @@ export interface GeoResult {
 }
 
 /** Google Places Text Search proxied through our API server. Falls back to
- *  Nominatim on error so the search box never goes entirely dark. */
+ *  Photon (komoot) on error — Photon works from the Replit server environment
+ *  unlike Nominatim which returns 403. */
 export async function nominatimSearch(q: string): Promise<GeoResult[]> {
   return googlePlacesSearch(q);
 }
@@ -37,27 +38,35 @@ async function googlePlacesSearch(q: string): Promise<GeoResult[]> {
       };
     }).filter((r: GeoResult) => r.lat !== 0 || r.lng !== 0);
   } catch {
-    // Fallback to Nominatim when the proxy is unreachable (e.g. dev without network)
-    return nominatimFallback(q);
+    // Google Places proxy failed — fall back to Photon which is reliably
+    // reachable from the Replit server environment (Nominatim blocks our IPs).
+    return photonFallback(q);
   }
 }
 
-async function nominatimFallback(q: string): Promise<GeoResult[]> {
+/** Photon geocoder (https://photon.komoot.io) — open, no key required.
+ *  Biased to Kenya's bounding box so results stay local. */
+async function photonFallback(q: string): Promise<GeoResult[]> {
+  // Kenya bounding box: roughly SW (33.9°E, 4.7°S) → NE (41.9°E, 4.7°N)
   const url =
-    `https://nominatim.openstreetmap.org/search?format=json&limit=7&countrycodes=ke` +
-    `&q=${encodeURIComponent(q)}`;
+    `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}` +
+    `&limit=7&bbox=33.9,-4.7,41.9,4.7`;
   try {
-    const res  = await fetchWithTimeout(
-      url,
-      { headers: { "User-Agent": "MsafiriKenya/1.0", "Accept-Language": "en" } },
-      9000
-    );
-    const data = await res.json();
-    return (data as any[]).map((r) => {
-      const parts = (r.display_name as string).split(",");
-      const short = parts.slice(0, 2).join(",").trim();
-      return { display: r.display_name as string, short, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
-    });
+    const res  = await fetchWithTimeout(url, {}, 9000);
+    const data = await res.json() as { features?: any[] };
+    if (!Array.isArray(data.features)) return [];
+    return data.features
+      .map((f: any) => {
+        const p    = f.properties ?? {};
+        const name = (p.name as string) ?? "";
+        const city = (p.city as string) ?? (p.county as string) ?? "";
+        const country = (p.country as string) ?? "";
+        const display = [name, city, country].filter(Boolean).join(", ");
+        const short   = [name, city].filter(Boolean).join(", ").substring(0, 80);
+        const [lng, lat] = (f.geometry?.coordinates as [number, number]) ?? [0, 0];
+        return { display, short, lat: Number(lat) || 0, lng: Number(lng) || 0 };
+      })
+      .filter((r: GeoResult) => r.lat !== 0 || r.lng !== 0);
   } catch {
     return [];
   }
