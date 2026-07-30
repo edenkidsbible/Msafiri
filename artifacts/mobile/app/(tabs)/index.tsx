@@ -1129,7 +1129,7 @@ export default function DriveScreen() {
             activeOpacity={0.82}
           >
             <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
-              <Ionicons name="camera" size={14} color="#FFF" />
+              <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📣</Text>
               <Text style={styles.driveActionPillTxt}>Report</Text>
             </Animated.View>
           </TouchableOpacity>
@@ -1204,7 +1204,7 @@ export default function DriveScreen() {
           </View>
 
           {/* Incidents ahead — dedicated full-width bar, not squeezed into the ETA row */}
-          {routeIncidentsAhead.length > 0 && (
+          {routeIncidentsAhead.length > 0 ? (
             <TouchableOpacity
               style={[styles.incidentsBar, { backgroundColor: "#E5393512", borderColor: "#E5393530" }]}
               onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -1220,25 +1220,46 @@ export default function DriveScreen() {
               </Text>
               <Ionicons name="chevron-forward" size={16} color="#E53935" />
             </TouchableOpacity>
+          ) : (
+            <View style={[styles.incidentsBar, { backgroundColor: "#2E7D3210", borderColor: "#2E7D3225" }]}>
+              <Text style={{ fontFamily: EMOJI_FONT_FAMILY, fontSize: 14 }}>✅</Text>
+              <Text style={[styles.incidentsBarTxt, { color: "#2E7D32", flex: 1 }]}>Route looks clear — no cameras or reports ahead</Text>
+            </View>
           )}
 
           {/* Alt routes */}
           {altRoutes.length > 0 && (
             <ScrollView {...SCROLL_PROPS} horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={[styles.altPill, { backgroundColor: c.primary }]}>
-                  <Text style={[styles.altPillTxt, { color: "#FFF" }]}>
-                    Fastest · {durationStr(activeRoute.durationS)}
-                  </Text>
-                </View>
+                {/* Primary pill — only call it "Fastest" when no alt is actually shorter */}
+                {(() => {
+                  const isActuallyFastest = altRoutes.every((r) => r.durationS >= activeRoute.durationS);
+                  return (
+                    <View style={[styles.altPill, { backgroundColor: c.primary }]}>
+                      <Text style={[styles.altPillTxt, { color: "#FFF" }]}>
+                        {isActuallyFastest ? "Fastest" : "Selected"} · {durationStr(activeRoute.durationS)}
+                      </Text>
+                    </View>
+                  );
+                })()}
                 {altRoutes.map((r) => {
                   const diffS = r.durationS - activeRoute.durationS;
-                  const diffLabel = diffS > 0 ? `+${Math.round(diffS / 60)} min` : durationStr(r.durationS);
+                  const diffLabel =
+                    diffS > 60 ? `+${Math.round(diffS / 60)} min` :
+                    diffS < -60 ? `${Math.round(Math.abs(diffS) / 60)} min faster` :
+                    durationStr(r.durationS);
                   return (
                     <TouchableOpacity
                       key={r.id}
                       style={[styles.altPill, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}
-                      onPress={() => { selectRoute(r); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                      onPress={() => {
+                        try {
+                          selectRoute(r);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        } catch (e) {
+                          console.warn("[altRoute] selectRoute error:", e);
+                        }
+                      }}
                     >
                       <Text style={[styles.altPillTxt, { color: fgMain }]}>
                         {diffLabel} · {durationStr(r.durationS)}
@@ -1782,7 +1803,10 @@ const styles = StyleSheet.create({
 
   // ── Search bar + results ─────────────────────────────────────────────────
   searchArea: {
-    position: "absolute", left: 12, right: 12, zIndex: 18, gap: 6,
+    // right: 60 leaves a ~48 px slot at the top-right for the native map
+    // compass, which otherwise sits behind the search pill on Android where
+    // the safe-area top inset is 0.
+    position: "absolute", left: 12, right: 60, zIndex: 18, gap: 6,
   },
   searchPill: {
     flexDirection: "row", alignItems: "center", height: 52, borderRadius: 26,

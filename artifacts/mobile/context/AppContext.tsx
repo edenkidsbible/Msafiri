@@ -2920,19 +2920,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const selectRoute = useCallback((r: AppRoute) => {
-    setAltRoutes((prev) => {
-      const others = (activeRoute ? [activeRoute, ...prev] : prev).filter((x) => x.id !== r.id);
-      return others;
-    });
-    setActiveRoute(r);
-    routeRef.current = r;
-    const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-    setZonesOnRoute(getZonesOnRoute(r, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
-    stepIdxRef.current = 0;
-    setCurrentStepIdx(0);
-    lastSpokenRef.current = "";
-    setDistToNextM(null);
-    routeProjIdxRef.current = 0;
+    try {
+      setAltRoutes((prev) => {
+        const others = (activeRoute ? [activeRoute, ...prev] : prev).filter((x) => x.id !== r.id);
+        return others;
+      });
+      setActiveRoute(r);
+      routeRef.current = r;
+      const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
+      setZonesOnRoute(getZonesOnRoute(r, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
+      stepIdxRef.current = 0;
+      setCurrentStepIdx(0);
+      lastSpokenRef.current = "";
+      setDistToNextM(null);
+      routeProjIdxRef.current = 0;
+      routeMaxDistMRef.current = 0;
+    } catch (e) {
+      console.warn("[selectRoute] error:", e);
+    }
   }, [activeRoute]);
 
   // ── Trip sharing ─────────────────────────────────────────────────────────────

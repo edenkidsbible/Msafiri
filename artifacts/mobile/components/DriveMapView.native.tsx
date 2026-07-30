@@ -228,10 +228,10 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
         <View style={[ms.emojiMarker, { backgroundColor: markerBg }]}>
           <Text style={ms.emojiMarkerText}>{def.emoji}</Text>
         </View>
-        {/* Confirm count badge for 2+ confirms */}
-        {confirms >= 2 && (
-          <View style={[ms.confirmBadge, { backgroundColor: tier === "reliable" ? "#1B5E20" : "#37474F" }]}>
-            <Text style={ms.confirmBadgeTxt}>{confirms > 99 ? "99+" : confirms}</Text>
+        {/* Confirm count badge — show shield for admin-verified, numeric for community confirms */}
+        {(r.adminVerified || confirms >= 2) && (
+          <View style={[ms.confirmBadge, { backgroundColor: r.adminVerified ? "#1565C0" : (tier === "reliable" ? "#1B5E20" : "#37474F") }]}>
+            <Text style={ms.confirmBadgeTxt}>{r.adminVerified ? "✓" : (confirms > 99 ? "99+" : confirms)}</Text>
           </View>
         )}
       </View>
@@ -932,8 +932,9 @@ const DriveMapView = forwardRef(function DriveMapView(
                         ) : null}
                         <Text style={ms.incidentMeta}>
                           {r.type === "camera" ? "Speed camera — permanent" : ageStr}
-                          {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount > 99 ? "99+" : r.confirmCount} say still here` : ""}
-                          {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
+                          {r.type !== "camera" && !r.adminVerified && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount > 99 ? "99+" : r.confirmCount} say still here` : ""}
+                          {r.type !== "camera" && r.adminVerified ? "  ·  Admin verified" : ""}
+                          {r.type !== "camera" && !r.adminVerified && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
                         {r.type === "camera" ? (
