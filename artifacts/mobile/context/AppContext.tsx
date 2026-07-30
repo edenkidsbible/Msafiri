@@ -1502,9 +1502,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (now - r.timestamp > 7200000) continue;
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
-        // Strict road match — roadsMatch() returns false when either road is
-        // unknown, so reports without a confirmed road never fire.
-        if (!roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        // Road match: skip only when BOTH roads are known but disagree.
+        // Reports without a roadName (unnamed roads) are allowed through on
+        // distance alone — mirrors the zone-candidate logic ("Allow zones with
+        // no road stored").  This prevents silent blackout on dirt tracks,
+        // industrial roads, and newly-opened roads not yet in OSM.
+        if (r.roadName && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
         best = r;
         bestDist = d;
       }
@@ -1970,10 +1973,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Gated on !isNavVoicePlaying() so we never interrupt the ANNOUNCE
           // clip mid-sentence.  If Cue 1 is still playing we wait for the next
           // GPS tick (≈ 1 s) — by then the clip will have finished naturally.
+          //
+          // Skip REMIND when we're already inside the NOW bubble: this means
+          // ANNOUNCE was still playing when we crossed remindM (common at
+          // highway speeds where the 3.8 s clip covers 80–100 m).  Speaking
+          // a 2 s REMIND phrase at, say, 50 m means the driver hears the full
+          // road name right at the junction — or after it.  Instead, advance
+          // lastSpokenRef to nearKey immediately so the NOW cue fires on the
+          // very next GPS tick (≤ 1 s away).
           lastSpokenRef.current = nearKey;
-          speakText(remindText);
-          const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
-          if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
+          if (dist >= nowM) {
+            speakText(remindText);
+            const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
+            if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
+          }
 
         } else if (isDriving && !isLastStep && dist < nowM && lastSpokenRef.current === nearKey) {
           // ── Cue 3: Now — "Turn left" ───────────────────────────────────────
@@ -3229,8 +3242,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
-
-
 
 
   // ── Other actions ─────────────────────────────────────────────────────────
