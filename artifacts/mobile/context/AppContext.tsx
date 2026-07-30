@@ -2880,16 +2880,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => {
+    // Capture before clearing so we can record the cooldown distance correctly.
+    const dismissedId  = alertZoneRef.current;
+    const lastDist     = lastSetAlertRef.current?.distM ?? 0;
+
     alertDismissed.current = true;
     lastSetAlertRef.current = null;
     lastExtrasKeyRef.current = "";
-    // When a CLUSTER alert is manually dismissed, keep the geo-anchor locked
-    // for 10 minutes instead of clearing it immediately.  A parked driver who
-    // taps "Got it — dismiss all" near a hazard cluster won't be re-announced
-    // every time they edge past the 250 m proximity threshold.
-    // The anchor is still released instantly if the driver drives > 1 km away
-    // (handled in the per-GPS-fix anchor check in handleLocation).
-    // For a single-alert dismiss (no anchor was set), this branch is a no-op.
+
+    // ── Single-alert dismiss cooldown ─────────────────────────────────────
+    // The auto-dismiss path (driver passes a zone) already writes a 60 s entry
+    // into alertDismissCooldownRef, but it only fires when alertDismissed is
+    // false.  For a MANUAL dismiss alertDismissed is set to true first, so that
+    // path never runs — meaning a driver who leaves and circles back within the
+    // window gets no cooldown protection at all.
+    //
+    // Fix: write the cooldown here for single-alert dismissals (clusters are
+    // handled via the geo-anchor TTL below, so skip when an anchor is set).
+    //   • Stationary driver (stationaryStreakRef ≥ 3): 5 min — prevents
+    //     repeated re-fires while parked near a zone.
+    //   • Moving driver: 60 s — matches the existing auto-dismiss behaviour.
+    //
+    // The existing early-cancel rule (winner.distance ≤ peakDistM − 300 m)
+    // already handles "driving away resets the cooldown" for both windows.
+    if (dismissedId && alertAnchorLatRef.current == null) {
+      const isStationary = stationaryStreakRef.current >= 3;
+      alertDismissCooldownRef.current.set(dismissedId, {
+        expiry:    Date.now() + (isStationary ? 5 * 60_000 : 60_000),
+        peakDistM: lastDist,
+      });
+    }
+
+    // ── Cluster dismiss: lock geo-anchor for 10 min ───────────────────────
+    // A parked driver who taps "Got it — dismiss all" near a hazard cluster
+    // won't be re-announced every time they edge past the 250 m threshold.
+    // The anchor is released instantly when the driver drives > 1 km away.
     if (alertAnchorLatRef.current != null) {
       alertAnchorExpiryRef.current = Date.now() + 10 * 60 * 1000;
     }
