@@ -247,35 +247,12 @@ export default function DriveScreen() {
     }
   }, [navigationActive]);
 
-  // ── Auto-resume map follow ────────────────────────────────────────────────
-  // When the driver pans away (mapDrifted = true), start a timer.
-  // • Manual pan/zoom  → 30 s (gives the driver time to explore)
-  // • Alert peek       → 8 s  (quick glance then snap back; flagged via
-  //                            alertFocusModeRef set before setMapDrifted)
-  // Cancels immediately if the driver taps Recenter (mapDrifted → false).
-  const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (mapDrifted) {
-      // Consume the flag synchronously so a subsequent manual pan uses 30 s.
-      const delay = alertFocusModeRef.current ? 8_000 : 30_000;
-      alertFocusModeRef.current = false;
-      autoResumeTimerRef.current = setTimeout(() => {
-        driveMapRef.current?.recenter();
-        setMapDrifted(false);
-      }, delay);
-    } else {
-      if (autoResumeTimerRef.current) {
-        clearTimeout(autoResumeTimerRef.current);
-        autoResumeTimerRef.current = null;
-      }
-    }
-    return () => {
-      if (autoResumeTimerRef.current) {
-        clearTimeout(autoResumeTimerRef.current);
-        autoResumeTimerRef.current = null;
-      }
-    };
-  }, [mapDrifted]);
+  // Auto-resume timers (8 s / 30 s) have been intentionally removed.
+  // The map now stays wherever the driver panned it until they explicitly tap
+  // the Recenter button.  This gives the driver full control and removes the
+  // disorienting snap-back that was happening mid-inspection.
+  // alertFocusModeRef is kept for callers that set it, but it no longer
+  // triggers an auto-resume countdown.
 
   // Safety net: clear resumeDestination whenever navigation ends without an arrival.
   // When the driver arrives naturally, both navigationActive→false and arrivedInfo are

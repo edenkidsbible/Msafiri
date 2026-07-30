@@ -275,13 +275,24 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
 //   60–100 km/h →  0.010…0.018  (dual-carriageway / fast road)
 //   > 100 km/h  →  0.030  (highway — shows ~3 km ahead)
 //
-// The caller is responsible for smoothing successive values so the zoom
-// doesn't jump on a single noisy GPS fix.
+// Zoom band changes are gated by a 5-second hysteresis in the camera effect —
+// the target band must be sustained before the camera animates to it.
 function speedToLatDelta(kmh: number): number {
   if (kmh < 15)  return 0.004;
   if (kmh < 60)  return 0.004 + (0.006 * (kmh - 15) / 45);
   if (kmh < 100) return 0.010 + (0.008 * (kmh - 60) / 40);
   return 0.030;
+}
+
+// Low-pass filter for compass heading, handling the 360°/0° wraparound so
+// the camera never spins the long way round when crossing north.
+// alpha = 0.25 → heading tracks changes in ~4–6 GPS fixes (~4–6 s).
+function smoothHeading(current: number | null, target: number, alpha = 0.25): number {
+  if (current == null) return target;
+  let diff = target - current;
+  if (diff >  180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return (current + diff * alpha + 360) % 360;
 }
 
 // ─── Main map component ───────────────────────────────────────────────────────
@@ -317,9 +328,9 @@ const DriveMapView = forwardRef(function DriveMapView(
   const hasCenteredRef = useRef(false);
   const now = Date.now();
 
-  // Tracks the last latitudeDelta applied to the map camera so successive GPS
-  // fixes can smoothly interpolate toward the speed-appropriate zoom rather than
-  // snapping abruptly. Initialised to the browsing default (0.015).
+  // Tracks the last latitudeDelta applied to the map camera so recenter() can
+  // reset the smoothing baseline after a manual pan.  Kept in sync with
+  // appliedDeltaRef below; both refs serve slightly different callsites.
   const lastDeltaRef = useRef(0.015);
 
   // Mirror mapDrifted in a ref so the onRegionChangeComplete callback can read
@@ -327,13 +338,28 @@ const DriveMapView = forwardRef(function DriveMapView(
   const mapDriftedRef = useRef(mapDrifted);
   useEffect(() => { mapDriftedRef.current = mapDrifted; }, [mapDrifted]);
 
-  // Auto-resume timer — fires ~8 s after the last pan gesture to snap back to
-  // the driver's GPS position without requiring a manual Recenter tap.
-  const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Camera-smoothing refs ─────────────────────────────────────────────────
+  // These are camera-only; raw GPS values consumed by alerts/navigation are
+  // untouched.
 
-  // Stable ref to the latest `recenter` callback so the auto-resume timer can
-  // invoke it without capturing a stale closure at the time setTimeout was called.
-  const recenterRef = useRef<(() => void) | null>(null);
+  // Low-pass filtered heading — avoids snap-rotations when GPS bearing jumps.
+  // null = not yet initialised (use raw target on first fix).
+  const camHeadingRef = useRef<number | null>(null);
+
+  // The latitudeDelta currently displayed on screen.  Only changes after the
+  // target zoom band has been sustained for ZOOM_SUSTAIN_MS milliseconds so
+  // noisy per-fix speed readings don't pulse the zoom level.
+  const appliedDeltaRef = useRef(0.015);
+
+  // Timestamp (Date.now()) when the target zoom band first diverged from the
+  // applied band.  Cleared back to null once they converge again.
+  const zoomBandTimestampRef = useRef<number | null>(null);
+
+  // Camera position at the last issued camera update — used for the stationary
+  // freeze: if speed is near-zero and position hasn't moved meaningfully since
+  // the last update we skip re-animating so a parked map is rock-steady.
+  const camLatRef = useRef<number | null>(null);
+  const camLngRef = useRef<number | null>(null);
 
   // Always-current mirror of navigationActive — read inside deferred callbacks
   // to avoid stale-closure bugs where a setTimeout captures the wrong value.
@@ -474,7 +500,31 @@ const DriveMapView = forwardRef(function DriveMapView(
     return () => clearTimeout(t);
   }, [activeRoute?.id, navigationActive]);
 
+  // How long a new zoom band must be sustained before the camera animates to it.
+  // This prevents the zoom from pulsing on every noisy per-fix speed reading.
+  const ZOOM_SUSTAIN_MS = 5_000;
+
+  // Positional threshold below which we consider the driver stationary and
+  // suppress camera panning entirely to avoid GPS-noise shake while parked.
+  const STATIONARY_SPEED_KMH = 3.0;   // m/s × 3.6 — below this, apply freeze
+  const STATIONARY_MOVE_M    = 5;     // metres — ignore smaller position jitter
+
   // Steps 2 & 4 — navigation camera + post-nav restore.
+  //
+  // Design principles:
+  //   • Stationary freeze  — when speed < 3 km/h and position hasn't moved
+  //     more than STATIONARY_MOVE_M since the last camera update, skip the
+  //     pan entirely so a parked map is rock-steady.
+  //   • Low-pass heading   — smooth heading through smoothHeading() so the map
+  //     rotates gracefully instead of snap-jumping on noisy GPS bearing fixes.
+  //   • Unified animation  — a single animateCamera({center, heading}) per fix
+  //     supersedes the previous animation instead of stacking overlapping ones.
+  //     We deliberately avoid passing zoom/altitude to animateCamera because on
+  //     iOS Apple Maps that parameter drifts the altitude on every call; zoom
+  //     changes go through animateToRegion (latitudeDelta) instead.
+  //   • Zoom hysteresis    — the target zoom band must be sustained for
+  //     ZOOM_SUSTAIN_MS before the camera zooms, so a single noisy speed spike
+  //     never pulses the camera.
   useEffect(() => {
     const wasActive = prevNavActiveRef.current;
     prevNavActiveRef.current = navigationActive;
@@ -483,6 +533,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       if (wasActive) {
         // Navigation just ended — restore north-up orientation first, then
         // fit to the completed route (or pan to current position).
+        camHeadingRef.current = 0;
         mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
         if (activeRoute?.coords.length) {
           const coords = activeRoute.coords;
@@ -514,72 +565,156 @@ const DriveMapView = forwardRef(function DriveMapView(
         currentLng != null &&
         hasCenteredRef.current    // initial center already done — safe to animate
       ) {
-        const targetDelta = speedToLatDelta(currentSpeed);
-        const smoothed = lastDeltaRef.current + (targetDelta - lastDeltaRef.current) * 0.35;
-        lastDeltaRef.current = smoothed;
-        mapRef.current?.animateToRegion(
-          { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
-          800,
+        // Stationary freeze: skip pan when parked and GPS hasn't moved meaningfully.
+        const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
+        if (isStationary && camLatRef.current != null && camLngRef.current != null) {
+          const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
+          if (moved < STATIONARY_MOVE_M) return;
+        }
+        camLatRef.current = currentLat;
+        camLngRef.current = currentLng;
+
+        // Zoom hysteresis: only apply new zoom band after it's been stable for
+        // ZOOM_SUSTAIN_MS milliseconds so a single noisy speed spike never pulses
+        // the view.
+        const targetDelta = speedToLatDelta(currentSpeed ?? 0);
+        const now = Date.now();
+        if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
+          if (zoomBandTimestampRef.current == null) {
+            zoomBandTimestampRef.current = now;
+          } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
+            // Sustained long enough — glide toward new zoom, then return.
+            const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
+            appliedDeltaRef.current = smoothed;
+            lastDeltaRef.current    = smoothed;
+            zoomBandTimestampRef.current = null;
+            mapRef.current?.animateToRegion(
+              { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
+              500,
+            );
+            return;
+          }
+          // Not yet sustained — pan only, don't zoom.
+        } else {
+          zoomBandTimestampRef.current = null; // back in the stable band
+        }
+
+        // North-up browsing: pan only — no heading change.
+        mapRef.current?.animateCamera(
+          { center: { latitude: currentLat, longitude: currentLng } },
+          { duration: 300 },
         );
       }
       return;
     }
 
-    // While the driver has drifted (panned/zoomed away), don't fight them by
-    // slamming the camera back to the GPS position. Auto-tracking resumes once
-    // they tap Recenter (which sets mapDriftedRef.current = false synchronously).
-    // We read the ref — not the mapDrifted prop — so the guard takes effect
-    // immediately on the first onPanDrag call, before React has batched and
-    // propagated the parent state update.
+    // ── Navigation active ─────────────────────────────────────────────────
+    // While the driver has drifted (panned/zoomed away), don't fight them.
+    // Auto-tracking resumes only when they tap Recenter.
     if (mapDriftedRef.current) return;
 
     if (currentLat == null || currentLng == null) return;
 
-    // When navigation first starts, zoom in to a tight street-level view using
-    // animateToRegion (latitudeDelta/longitudeDelta works reliably on both iOS
-    // Apple Maps and Android Google Maps). We deliberately avoid animateCamera
-    // with a `zoom` value here: on iOS Apple Maps, `zoom` is not a native
-    // concept and react-native-maps' altitude conversion can drift on each
-    // successive call, causing the map to progressively zoom out to world-level.
-    //
-    // For subsequent GPS fixes we call animateCamera with ONLY `center` — no
-    // zoom, no pitch. This just pans the camera to follow the driver's position
-    // without touching the zoom level at all, so any zoom the driver has set
-    // manually via pinch is preserved.
-    // ── Speed-adaptive zoom ─────────────────────────────────────────────────
-    // Compute a smooth latitudeDelta for this GPS fix. We apply exponential
-    // smoothing (35% step) so the zoom drifts gradually rather than jumping
-    // when speed changes abruptly (hard brake, speed bump, GPS noise).
-    const targetDelta = speedToLatDelta(currentSpeed);
-    const smoothed = lastDeltaRef.current + (targetDelta - lastDeltaRef.current) * 0.35;
-    lastDeltaRef.current = smoothed;
-
     const justStarted = !wasActive;
+
     if (justStarted) {
-      // Zoom to street-level (speed-adaptive) first, then orient the map to
-      // the driver's heading so the road ahead points up (track-up mode).
+      // Nav start: zoom to street-level view and orient the map to the
+      // driver's heading.  Use animateToRegion for zoom (iOS altitude-safe),
+      // then animateCamera for heading separately.
+      const snapDelta = speedToLatDelta(currentSpeed ?? 0);
+      appliedDeltaRef.current = snapDelta;
+      lastDeltaRef.current    = snapDelta;
+      camLatRef.current       = currentLat;
+      camLngRef.current       = currentLng;
+      const initialHeading = (driverHeading != null && driverHeading >= 0) ? driverHeading : 0;
+      camHeadingRef.current   = initialHeading;
+      zoomBandTimestampRef.current = null;
+
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         300
       );
-      if (driverHeading != null) {
+      if (driverHeading != null && driverHeading >= 0) {
         setTimeout(() => {
           mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
         }, 350);
       }
-    } else {
-      // Pan to the new GPS position with the speed-adaptive zoom applied, then
-      // rotate to the current heading. Two calls mirrors the justStarted path
-      // and avoids the iOS altitude-drift bug that plagues animateCamera+zoom.
-      mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
-        500
-      );
-      if (driverHeading != null) {
-        setTimeout(() => {
-          mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 200 });
-        }, 200);
+      return;
+    }
+
+    // ── Normal navigation follow ─────────────────────────────────────────
+    // Stationary freeze: don't pan when the driver is parked and GPS position
+    // hasn't moved meaningfully.  Still allow heading to drift slowly.
+    const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
+    if (isStationary && camLatRef.current != null && camLngRef.current != null) {
+      const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
+      if (moved < STATIONARY_MOVE_M) {
+        // Parked: only softly update heading so we don't fight the user's view.
+        if (driverHeading != null && driverHeading >= 0) {
+          const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
+          if (Math.abs(smoothedHdg - (camHeadingRef.current ?? smoothedHdg)) > 1.5) {
+            camHeadingRef.current = smoothedHdg;
+            mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
+          }
+        }
+        return;
       }
+    }
+    camLatRef.current = currentLat;
+    camLngRef.current = currentLng;
+
+    // Low-pass filter the heading to avoid snap-rotations.
+    let smoothedHdg: number | null = null;
+    if (driverHeading != null && driverHeading >= 0) {
+      smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
+      camHeadingRef.current = smoothedHdg;
+    }
+
+    // Zoom hysteresis: only change zoom when the target band has been sustained
+    // for ZOOM_SUSTAIN_MS.  When the band is stable, skip animateToRegion
+    // entirely and use a single animateCamera({center, heading}) instead —
+    // this prevents overlapping animations from stacking on every GPS fix.
+    const targetDelta = speedToLatDelta(currentSpeed ?? 0);
+    const now = Date.now();
+    let zoomChanged = false;
+
+    if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
+      if (zoomBandTimestampRef.current == null) {
+        zoomBandTimestampRef.current = now;
+      } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
+        const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
+        appliedDeltaRef.current = smoothed;
+        lastDeltaRef.current    = smoothed;
+        zoomBandTimestampRef.current = null;
+        zoomChanged = true;
+      }
+    } else {
+      zoomBandTimestampRef.current = null;
+    }
+
+    if (zoomChanged) {
+      // Zoom changed: use animateToRegion for the zoom (iOS altitude-safe),
+      // then a trailing heading update to keep the two animations short and
+      // non-overlapping.
+      mapRef.current?.animateToRegion(
+        { latitude: currentLat, longitude: currentLng, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
+        300
+      );
+      if (smoothedHdg != null) {
+        setTimeout(() => {
+          mapRef.current?.animateCamera({ heading: smoothedHdg! }, { duration: 200 });
+        }, 150);
+      }
+    } else {
+      // No zoom change: single animateCamera({center, heading}) — one animation
+      // supersedes the previous one cleanly with no overlap.
+      // We deliberately omit zoom/altitude here to avoid the iOS altitude-drift
+      // bug that appears when animateCamera touches those fields on Apple Maps.
+      const cameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
+        center: { latitude: currentLat, longitude: currentLng },
+      };
+      if (smoothedHdg != null) cameraUpdate.heading = smoothedHdg;
+      mapRef.current?.animateCamera(cameraUpdate, { duration: 300 });
     }
   }, [navigationActive, currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
@@ -656,40 +791,29 @@ const DriveMapView = forwardRef(function DriveMapView(
   // Setting mapDriftedRef.current synchronously here prevents the GPS
   // camera-follow effect from firing animateCamera before the React state
   // update (onDriftChange → parent setState) has had a chance to propagate.
+  //
+  // Auto-resume timers have been intentionally removed: the map stays at
+  // wherever the driver left it until they explicitly tap Recenter.  This
+  // gives the driver full control and avoids the disorienting snap-back that
+  // was happening mid-inspection.
   const handlePanDrag = useCallback(() => {
-    // Always reset the auto-resume timer on every new pan gesture so a long
-    // deliberate look doesn't snap back mid-inspection.
-    if (autoResumeTimerRef.current) {
-      clearTimeout(autoResumeTimerRef.current);
-      autoResumeTimerRef.current = null;
-    }
     if (!mapDriftedRef.current) {
       mapDriftedRef.current = true;    // synchronous guard — stops GPS follow instantly
       onDriftChange?.(true);
     }
-    // Start an 8-second countdown. If the driver doesn't tap Recenter, the map
-    // snaps back automatically — mirrors Google Maps / Waze behaviour.
-    autoResumeTimerRef.current = setTimeout(() => {
-      autoResumeTimerRef.current = null;
-      // Call recenter imperatively so this file owns the entire auto-resume
-      // path (camera animation + heading restore + drift-flag clear).
-      recenterRef.current?.();
-    }, 8_000);
   }, [onDriftChange]);
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
-    // Cancel any pending auto-resume — manual tap takes priority.
-    if (autoResumeTimerRef.current) {
-      clearTimeout(autoResumeTimerRef.current);
-      autoResumeTimerRef.current = null;
-    }
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
-    // Use the speed-appropriate delta and reset the smoothing ref so the
-    // next GPS fix starts from the right baseline rather than the stale value
-    // that was active before the driver panned away.
-    const snapDelta = speedToLatDelta(currentSpeed);
-    lastDeltaRef.current = snapDelta;
+    // Reset the smoothing refs so the next GPS fix starts from the right
+    // baseline rather than whatever stale values were active before the pan.
+    const snapDelta = speedToLatDelta(currentSpeed ?? 0);
+    appliedDeltaRef.current      = snapDelta;
+    lastDeltaRef.current         = snapDelta;
+    camLatRef.current            = currentLat;
+    camLngRef.current            = currentLng;
+    zoomBandTimestampRef.current = null;
     if (navActiveRef.current) {
       // During navigation: snap to speed-adaptive zoom and restore heading-up
       // (track-up mode) so the road ahead points up.
@@ -697,9 +821,11 @@ const DriveMapView = forwardRef(function DriveMapView(
         { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         500,
       );
-      if (driverHeading != null) {
+      if (driverHeading != null && driverHeading >= 0) {
+        const hdg = smoothHeading(null, driverHeading); // snap, not smooth
+        camHeadingRef.current = hdg;
         setTimeout(() => {
-          mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
+          mapRef.current?.animateCamera({ heading: hdg }, { duration: 300 });
         }, 550);
       }
     } else {
@@ -711,20 +837,6 @@ const DriveMapView = forwardRef(function DriveMapView(
     }
     onDriftChange?.(false);
   }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
-
-  // Keep recenterRef current so the auto-resume setTimeout can always call
-  // the latest version of recenter (with up-to-date currentLat/Lng/heading).
-  useEffect(() => { recenterRef.current = recenter; }, [recenter]);
-
-  // When drift is cleared externally (e.g. navigation ends → parent resets
-  // mapDrifted to false), cancel any pending auto-resume timer so it doesn't
-  // fire later and fight other camera animations.
-  useEffect(() => {
-    if (!mapDrifted && autoResumeTimerRef.current) {
-      clearTimeout(autoResumeTimerRef.current);
-      autoResumeTimerRef.current = null;
-    }
-  }, [mapDrifted]);
 
   const focusCoords = useCallback((lat: number, lng: number) => {
     // Pan the map to the alert's location
