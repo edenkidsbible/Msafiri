@@ -5,7 +5,7 @@ import { objectStorageClient } from "../lib/objectStorage.js";
 const router = Router();
 
 const VOICE_ID  = "ijKilL5CnjXKMWDHOJH8"; // Yna Agalo
-const MODEL_ID  = "eleven_flash_v2_5";      // lowest latency, good for short phrases
+const MODEL_ID  = "eleven_multilingual_v2"; // highest quality for alert voices
 const CACHE_DIR = "tts/alert";              // object-storage prefix
 const MAX_TEXT  = 300;                      // characters
 
