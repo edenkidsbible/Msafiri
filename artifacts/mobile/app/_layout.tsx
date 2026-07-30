@@ -284,7 +284,7 @@ function RootLayoutNav() {
     if (!isSubscribed && !wasSubscribed.current) {
       router.replace("/paywall");
     } else {
-      requestLocationPermission();
+      requestLocationPermission().catch(() => {});
     }
   }, [hydrated, onboardingComplete, isSubscribed, subLoading, versionCheck]);
 
@@ -307,9 +307,11 @@ function RootLayoutNav() {
 
   useEffect(() => {
     // Cold start: app was launched by tapping a location link
-    Linking.getInitialURL().then((url) => {
-      if (url) handleNavigationUrl(url);
-    });
+    Linking.getInitialURL()
+      .then((url) => {
+        if (url) handleNavigationUrl(url);
+      })
+      .catch(() => {});
 
     // Warm start: app was already running when a location link was tapped
     const sub = Linking.addEventListener("url", ({ url }) => handleNavigationUrl(url));
@@ -341,7 +343,7 @@ function RootLayoutNav() {
             <TouchableOpacity
               onPress={() => {
                 const url = Platform.OS === "ios" ? versionCheck.storeUrlIos : versionCheck.storeUrlAndroid;
-                if (url) void Linking.openURL(url);
+                if (url) Linking.openURL(url).catch(() => {});
               }}
               hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
             >
@@ -418,7 +420,7 @@ function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync();
+    if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
   if (!ready) return null;

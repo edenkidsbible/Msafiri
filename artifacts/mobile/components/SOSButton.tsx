@@ -7,9 +7,11 @@ import { useApp } from "@/context/AppContext";
 interface Props {
   // compact = smaller inline pill for use inside nav bars / action rows
   compact?: boolean;
+  // small = further reduced for narrow screens (≤390pt)
+  small?: boolean;
 }
 
-export default function SOSButton({ compact = false }: Props) {
+export default function SOSButton({ compact = false, small = false }: Props) {
   const colors = useColors();
   const { sosContact, currentLat, currentLng } = useApp();
   const scale = useRef(new Animated.Value(1)).current;
@@ -68,14 +70,14 @@ export default function SOSButton({ compact = false }: Props) {
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
         style={[
-          compact ? styles.btnCompact : styles.btn,
+          compact ? (small ? styles.btnCompactSmall : styles.btnCompact) : styles.btn,
           { backgroundColor: colors.speedDanger },
         ]}
         onPress={handlePress}
         activeOpacity={0.85}
         testID="sos-button"
       >
-        <Text style={compact ? styles.labelCompact : styles.label}>SOS</Text>
+        <Text style={compact ? (small ? styles.labelCompactSmall : styles.labelCompact) : styles.label}>SOS</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -106,6 +108,19 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
+  // Further reduced for narrow screens (≤390pt)
+  btnCompactSmall: {
+    paddingHorizontal: 10,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#FF3D00",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 5,
+  },
   label: {
     color: "#FFFFFF",
     fontSize: 14,
@@ -117,5 +132,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_700Bold",
     letterSpacing: 1.2,
+  },
+  labelCompactSmall: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.0,
   },
 });

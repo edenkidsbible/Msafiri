@@ -20,6 +20,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -134,6 +135,11 @@ export default function DriveScreen() {
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const tabBarH     = Platform.OS === "web" ? 84 : 96;
 
+  // Responsive scaling — iPhone SE / 13 mini / older Pros are 375-390pt wide.
+  // At that width the speed strip becomes too cramped at full size.
+  const { width: screenW } = useWindowDimensions();
+  const isSmall = screenW <= 390;
+
   const [searchText, setSearchText] = useState("");
   const [searchInputFocused, setSearchInputFocused] = useState(false);
   const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
@@ -182,7 +188,7 @@ export default function DriveScreen() {
   });
   // Load recent searches from AsyncStorage on mount
   useEffect(() => {
-    loadRecentSearches().then(setRecentSearches);
+    loadRecentSearches().then(setRecentSearches).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1054,28 +1060,48 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {!isMapMode && !showResults && (
         <View
-          style={[styles.speedStrip, { bottom: bottomBase + 8, backgroundColor: bg }]}
+          style={[styles.speedStrip, {
+            bottom: bottomBase + 8,
+            backgroundColor: bg,
+            gap: isSmall ? 6 : 10,
+            paddingHorizontal: isSmall ? 8 : 12,
+          }]}
           onLayout={(e) => setSpeedStripHeight(e.nativeEvent.layout.height)}
         >
 
           {/* Left: large speed digit + optional LIMIT ring below it */}
           <View style={[styles.speedGroup, {
             backgroundColor: overLimit ? "#E5393510" : (isDark ? "#FFFFFF08" : "#00000005"),
-            borderRadius: 16, paddingHorizontal: 10, paddingVertical: 8,
+            borderRadius: 16,
+            paddingHorizontal: isSmall ? 6 : 10,
+            paddingVertical: isSmall ? 6 : 8,
+            minWidth: isSmall ? 96 : 130,
           }]}>
             <Text style={[styles.speedLabel, { color: overLimit ? "#E5393380" : fgMuted }]}>
               YOUR SPEED
             </Text>
-            <Text style={[styles.speedNum, { color: speedClr }]}>
+            <Text style={[styles.speedNum, {
+              color: speedClr,
+              fontSize: isSmall ? 60 : 84,
+              lineHeight: isSmall ? 72 : 100,
+            }]}>
               {Math.round(currentSpeed)}
             </Text>
             <Text style={[styles.speedUnit, { color: overLimit ? "#E5393380" : fgMuted }]}>km/h</Text>
             {/* Limit ring — stacked below, same column as speed */}
             {currentSpeedLimit != null && (
-              <View style={{ alignItems: "center", gap: 2, marginTop: 6 }}>
+              <View style={{ alignItems: "center", gap: 2, marginTop: isSmall ? 4 : 6 }}>
                 <Text style={[styles.limitLabel, { color: fgMuted }]}>LIMIT</Text>
-                <View style={[styles.limitRing, { borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A") }]}>
-                  <Text style={[styles.limitNum, { color: overLimit ? "#E53935" : fgMain }]}>
+                <View style={[styles.limitRing, {
+                  borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A"),
+                  width: isSmall ? 38 : 46,
+                  height: isSmall ? 38 : 46,
+                  borderRadius: isSmall ? 19 : 23,
+                }]}>
+                  <Text style={[styles.limitNum, {
+                    color: overLimit ? "#E53935" : fgMain,
+                    fontSize: isSmall ? 13 : 16,
+                  }]}>
                     {currentSpeedLimit}
                   </Text>
                 </View>
@@ -1166,7 +1192,7 @@ export default function DriveScreen() {
           )}
 
           {/* SOS */}
-          <SOSButton compact />
+          <SOSButton compact small={isSmall} />
         </View>
       )}
 
@@ -1399,7 +1425,7 @@ export default function DriveScreen() {
               <Ionicons name="close" size={16} color={fgMain} />
               <Text style={[styles.cancelBtnTxt, { color: fgMain }]}>Cancel</Text>
             </TouchableOpacity>
-            <SOSButton compact />
+            <SOSButton compact small={isSmall} />
             <TouchableOpacity
               style={[styles.startBtn, { backgroundColor: c.primary }]}
               onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
@@ -1424,23 +1450,34 @@ export default function DriveScreen() {
             {/* Left: speed digit + current limit ring + upcoming zone chip */}
             <View style={[styles.navSpeedBlock, {
               backgroundColor: overLimit ? "#E5393518" : (isDark ? "#00E67618" : "#E8F5E9"),
+              paddingHorizontal: isSmall ? 10 : 14,
             }]}>
               <Text style={[styles.navSpeedLabel, { color: overLimit ? "#E5393380" : (isDark ? "#00E67680" : "#2E7D3280") }]}>
                 YOUR SPEED
               </Text>
-              <Text style={[styles.navSpeedNum, { color: overLimit ? "#E53935" : (isDark ? "#00E676" : "#2E7D32") }]}>
+              <Text style={[styles.navSpeedNum, {
+                color: overLimit ? "#E53935" : (isDark ? "#00E676" : "#2E7D32"),
+                fontSize: isSmall ? 54 : 70,
+                lineHeight: isSmall ? 66 : 84,
+              }]}>
                 {Math.round(currentSpeed)}
               </Text>
               <Text style={[styles.navSpeedUnit, { color: overLimit ? "#E5393380" : (isDark ? "#00E67680" : "#2E7D3280") }]}>
                 km/h
               </Text>
               {currentSpeedLimit != null && (
-                <View style={{ alignItems: "center", marginTop: 6, gap: 2 }}>
+                <View style={{ alignItems: "center", marginTop: isSmall ? 4 : 6, gap: 2 }}>
                   <Text style={[styles.navSpeedLabel, { color: fgMuted }]}>LIMIT</Text>
                   <View style={[styles.navLimitRing, {
                     borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#333"),
+                    width: isSmall ? 32 : 38,
+                    height: isSmall ? 32 : 38,
+                    borderRadius: isSmall ? 16 : 19,
                   }]}>
-                    <Text style={[styles.navLimitNum, { color: overLimit ? "#E53935" : fgMain }]}>
+                    <Text style={[styles.navLimitNum, {
+                      color: overLimit ? "#E53935" : fgMain,
+                      fontSize: isSmall ? 12 : 14,
+                    }]}>
                       {currentSpeedLimit}
                     </Text>
                   </View>
@@ -1479,11 +1516,11 @@ export default function DriveScreen() {
                   {distanceRemainingM != null ? ` · ${distStr(distanceRemainingM)}` : ""}
                 </Text>
                 <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
-                  {navDestination?.name.split(",")[0]}
+                  {navDestination?.name?.split(",")[0]}
                 </Text>
                 {resumeDestination && (
                   <Text style={[styles.navResumeSub, { color: c.primary }]} numberOfLines={1}>
-                    ↩ en route to {resumeDestination.name.split(",")[0]}
+                    ↩ en route to {resumeDestination.name?.split(",")[0]}
                   </Text>
                 )}
               </Animated.View>
@@ -1514,7 +1551,7 @@ export default function DriveScreen() {
                     </>
                   )}
                 </TouchableOpacity>
-                <SOSButton compact />
+                <SOSButton compact small={isSmall} />
                 <TouchableOpacity
                   style={styles.stopBtn}
                   onPress={handleStopPress}
@@ -1617,7 +1654,7 @@ export default function DriveScreen() {
                     Original destination:
                   </Text>
                   <Text style={[styles.arrivalResumeDest, { color: c.foreground }]} numberOfLines={2}>
-                    {resumeDestination.name.split(",")[0]}
+                    {resumeDestination.name?.split(",")[0]}
                   </Text>
 
                   {/* Continue button */}
@@ -1628,14 +1665,14 @@ export default function DriveScreen() {
                       clearArrival();
                       setResumeDestination(null);
                       setNavDestination(dest);
-                      startNavigation();
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      startNavigation().catch(() => {});
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                     }}
                     activeOpacity={0.85}
                   >
                     <Ionicons name="navigate" size={16} color={c.primaryForeground} style={{ marginRight: 6 }} />
                     <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>
-                      Continue to {resumeDestination.name.split(",")[0]}
+                      Continue to {resumeDestination.name?.split(",")[0]}
                     </Text>
                   </TouchableOpacity>
 
@@ -1696,9 +1733,14 @@ export default function DriveScreen() {
             // Prefer the route polyline when navigating — it pins the marker on
             // the exact road the driver is using, not just the nearest road in
             // Google's database (which can be the wrong lane or a parallel road).
-            const routeSnap = snapToActiveRoute(currentLat, currentLng);
-            const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
-            addReport(type, snapped.lat, snapped.lng, speedLimit);
+            try {
+              const routeSnap = snapToActiveRoute(currentLat, currentLng);
+              const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
+              addReport(type, snapped.lat, snapped.lng, speedLimit);
+            } catch {
+              // Fall back to raw GPS coords if snap fails
+              addReport(type, currentLat, currentLng, speedLimit);
+            }
           }
           // Play confirmation audio after the report is submitted
           playSound("confirm").catch(() => {});
@@ -1812,12 +1854,14 @@ export default function DriveScreen() {
               style={[styles.namePromptPrimary, { backgroundColor: c.primary }]}
               activeOpacity={0.85}
               onPress={async () => {
-                const trimmed = nameInput.trim();
-                if (trimmed) setDriverName(trimmed);
-                await AsyncStorage.setItem("sdk_share_name_prompted", "1");
-                setShowNamePrompt(false);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                await doStartSharing(trimmed);
+                try {
+                  const trimmed = nameInput.trim();
+                  if (trimmed) setDriverName(trimmed);
+                  await AsyncStorage.setItem("sdk_share_name_prompted", "1");
+                  setShowNamePrompt(false);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  await doStartSharing(trimmed);
+                } catch { /* non-fatal */ }
               }}
             >
               <Ionicons name="share-social-outline" size={17} color={c.primaryForeground} style={{ marginRight: 6 }} />
@@ -1830,9 +1874,11 @@ export default function DriveScreen() {
               style={styles.namePromptSkip}
               activeOpacity={0.7}
               onPress={async () => {
-                await AsyncStorage.setItem("sdk_share_name_prompted", "1");
-                setShowNamePrompt(false);
-                await doStartSharing(driverName);
+                try {
+                  await AsyncStorage.setItem("sdk_share_name_prompted", "1");
+                  setShowNamePrompt(false);
+                  await doStartSharing(driverName);
+                } catch { /* non-fatal */ }
               }}
             >
               <Text style={[styles.namePromptSkipTxt, { color: c.mutedForeground }]}>Skip for now</Text>

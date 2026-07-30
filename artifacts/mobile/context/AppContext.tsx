@@ -2654,7 +2654,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sharePingIntervalRef.current = null;
     }
     // Also stop any active background location task
-    void stopBackgroundShareTask();
+    stopBackgroundShareTask().catch(() => {});
     const token = shareTokenRef.current;
     shareTokenRef.current = null;
     setShareToken(null);
@@ -2723,7 +2723,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // foreground interval still works; the background task just won't start
       // when they switch away (the AppState watcher re-checks the permission
       // at that point and skips the task gracefully).
-      void requestBackgroundLocationPermission();
+      requestBackgroundLocationPermission().catch(() => {});
       return `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${code}`;
     } catch (e) {
       console.warn("startSharingTrip failed:", e);
@@ -2746,7 +2746,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Start the iOS background location task so GPS keeps flowing when the
     // driver locks the screen. Fire-and-forget — failure is non-fatal (the
     // foreground watcher still works; the bg task just adds resilience).
-    void startBackgroundNavTask();
+    startBackgroundNavTask().catch(() => {});
   }, [activeRoute]);
 
   const stopNavigation = useCallback(() => {
@@ -2754,7 +2754,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navStartRef.current = null;
     setNavigationActive(false);
     // Stop the background nav task — no longer needed once navigation ends.
-    void stopBackgroundNavTask();
+    stopBackgroundNavTask().catch(() => {});
     setDistToNextM(null);
     setNavDestState(null);
     navDestRef.current = null;
@@ -2774,7 +2774,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(sharePingIntervalRef.current);
       sharePingIntervalRef.current = null;
     }
-    void stopBackgroundShareTask();
+    stopBackgroundShareTask().catch(() => {});
     const _tok = shareTokenRef.current;
     shareTokenRef.current = null;
     setShareToken(null);
@@ -2802,9 +2802,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (!navActiveRef.current) return;
       if (nextState === "background" || nextState === "inactive") {
-        void startBackgroundNavTask();
+        startBackgroundNavTask().catch(() => {});
       } else if (nextState === "active") {
-        void stopBackgroundNavTask();
+        stopBackgroundNavTask().catch(() => {});
       }
     };
 
