@@ -236,6 +236,32 @@ export default function DriveScreen() {
     }
   }, [navigationActive]);
 
+  // ── Auto-resume map follow ────────────────────────────────────────────────
+  // When the driver pans away (mapDrifted = true), start a 30-second timer.
+  // If they haven't tapped Recenter manually by then, snap back automatically
+  // so the map never stays lost for long while driving.
+  // Cancels immediately if the driver taps Recenter (mapDrifted → false).
+  const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (mapDrifted) {
+      autoResumeTimerRef.current = setTimeout(() => {
+        driveMapRef.current?.recenter();
+        setMapDrifted(false);
+      }, 30_000);
+    } else {
+      if (autoResumeTimerRef.current) {
+        clearTimeout(autoResumeTimerRef.current);
+        autoResumeTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (autoResumeTimerRef.current) {
+        clearTimeout(autoResumeTimerRef.current);
+        autoResumeTimerRef.current = null;
+      }
+    };
+  }, [mapDrifted]);
+
   // Safety net: clear resumeDestination whenever navigation ends without an arrival.
   // When the driver arrives naturally, both navigationActive→false and arrivedInfo are
   // set in the same React batch, so arrivedInfo is non-null here and we leave
