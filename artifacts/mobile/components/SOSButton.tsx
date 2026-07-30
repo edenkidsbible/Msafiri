@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
-import { Alert, Animated, Platform, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Alert, Animated, Platform, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -77,7 +78,11 @@ export default function SOSButton({ compact = false, small = false }: Props) {
         activeOpacity={0.85}
         testID="sos-button"
       >
-        <Text style={compact ? (small ? styles.labelCompactSmall : styles.labelCompact) : styles.label}>SOS</Text>
+        <Ionicons
+          name="call"
+          size={compact ? (small ? 16 : 18) : 22}
+          color="#FFFFFF"
+        />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -96,10 +101,11 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 10,
   },
+  // Square icon-only button — no text, so no paddingHorizontal needed
   btnCompact: {
-    paddingHorizontal: 14,
-    height: 44,
-    borderRadius: 14,
+    width: 42,
+    height: 36,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#FF3D00",
@@ -110,8 +116,8 @@ const styles = StyleSheet.create({
   },
   // Further reduced for narrow screens (≤390pt)
   btnCompactSmall: {
-    paddingHorizontal: 10,
-    height: 36,
+    width: 36,
+    height: 30,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -120,23 +126,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 4,
     elevation: 5,
-  },
-  label: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 1.5,
-  },
-  labelCompact: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 1.2,
-  },
-  labelCompactSmall: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 1.0,
   },
 });

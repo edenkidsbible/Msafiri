@@ -1186,20 +1186,22 @@ export default function DriveScreen() {
                   <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
                 )}
               </View>
-              {/* Row 3: Alert marker + type name + distance all on one line.
-                  paddingRight clears the SOS button so text never slides under it. */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingRight: isSmall ? 56 : 70 }}>
+              {/* Row 3: Marker + [type name above distance] — SOS floats bottom-right.
+                  paddingRight is narrower now that SOS is a square icon button. */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingRight: isSmall ? 46 : 54 }}>
                 <View style={[styles.alertMarker, { backgroundColor: primaryAlert.color }]}>
                   <Text style={styles.alertMarkerEmoji}>
                     {resolveIncidentType(primaryAlert.type).emoji}
                   </Text>
                 </View>
-                <Text style={[styles.zoneTypeName, { color: fgMain, flex: 1 }]} numberOfLines={1}>
-                  {primaryAlert.typeName}{primaryAlert.speedLimit ? ` · ${primaryAlert.speedLimit} km/h` : ""}
-                </Text>
-                <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
-                  {distStr(primaryAlert.distanceM)} ahead
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.zoneTypeName, { color: fgMain }]}>
+                    {primaryAlert.typeName}{primaryAlert.speedLimit ? ` · ${primaryAlert.speedLimit} km/h` : ""}
+                  </Text>
+                  <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
+                    {distStr(primaryAlert.distanceM)} ahead
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           ) : (
