@@ -56,7 +56,7 @@ export default function BlogsScreen() {
     try {
       setError(null);
       const data = await apiGet<{ posts: BlogPost[] }>("/blog/posts?limit=20");
-      setPosts(data.posts);
+      setPosts(data.posts ?? []);
     } catch (e: any) {
       setError(e.message ?? "Failed to load articles");
     }

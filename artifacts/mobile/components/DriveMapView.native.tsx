@@ -41,8 +41,8 @@ const CLUSTER_DIST_M = 35;
 function midpointCoord(
   coords: { latitude: number; longitude: number }[],
   fraction = 0.5,
-): { latitude: number; longitude: number } {
-  if (coords.length === 0) return { latitude: 0, longitude: 0 };
+): { latitude: number; longitude: number } | null {
+  if (coords.length === 0) return null;
   if (coords.length === 1) return coords[0];
 
   // Compute total chord length
@@ -872,9 +872,24 @@ const DriveMapView = forwardRef(function DriveMapView(
         ))}
 
         {/* Alternative routes (grey, selectable) */}
-        {altRoutes.map((r) => (
-          <Polyline key={r.id} coordinates={r.coords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(r)} />
-        ))}
+        {altRoutes.map((r) => {
+          // ── Crash guard ── filter out any coordinate where lat or lng is not a finite
+          // number. Strict typeof check avoids isFinite(null)===true coercion trap.
+          // The sanitized route object is used for BOTH display and selection so that
+          // selectRoute() (and the subsequent activeRoute render paths) never receive
+          // corrupt coordinates that would crash the native polyline layer.
+          const safeCoords = (r.coords ?? []).filter(
+            (c) =>
+              c != null &&
+              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
+              typeof c.longitude === "number" && Number.isFinite(c.longitude),
+          );
+          if (safeCoords.length < 2) return null;
+          const safeRoute = { ...r, coords: safeCoords };
+          return (
+            <Polyline key={r.id} coordinates={safeCoords} strokeColor="#88888877" strokeWidth={5} tappable onPress={() => selectRoute(safeRoute)} />
+          );
+        })}
 
         {/* Divergence preview — pink "what's ahead" alternatives shown the moment
             the driver leaves the planned path, before the full reroute commits.
@@ -884,14 +899,27 @@ const DriveMapView = forwardRef(function DriveMapView(
           if (!divergenceRoutes.length) return null;
 
           // Drop routes with incomplete data before any math — a partial
-          // response from the routing API (missing durationS, empty coords)
-          // would cause Math.min to return NaN/Infinity and Polyline to crash.
-          const validRoutes = divergenceRoutes.filter(
-            (r) =>
-              Array.isArray(r.coords) && r.coords.length >= 2 &&
-              typeof r.durationS === "number" && isFinite(r.durationS) &&
-              typeof r.distanceM === "number" && isFinite(r.distanceM),
-          );
+          // response from the routing API (missing durationS, empty coords, or
+          // any NaN coordinate) would cause Math.min to return NaN/Infinity and
+          // Polyline to crash.
+          const validRoutes = divergenceRoutes
+            .map((r) => ({
+              ...r,
+              // ── Crash guard ── strip any coordinate where lat or lng is null/undefined/NaN ──
+              // ── Crash guard ── strict typeof avoids isFinite(null)===true coercion trap ──
+              coords: (r.coords ?? []).filter(
+                (c) =>
+                  c != null &&
+                  typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
+                  typeof c.longitude === "number" && Number.isFinite(c.longitude),
+              ),
+            }))
+            .filter(
+              (r) =>
+                r.coords.length >= 2 &&
+                typeof r.durationS === "number" && isFinite(r.durationS) &&
+                typeof r.distanceM === "number" && isFinite(r.distanceM),
+            );
           if (!validRoutes.length) return null;
 
           // Identify the recommended divergence route — fastest time wins; ties
@@ -962,7 +990,7 @@ const DriveMapView = forwardRef(function DriveMapView(
                   onPress={() => { selectRoute(r); void startNavigation(); }}
                 />
                 {/* Mid-route badge showing time & distance delta */}
-                {r.coords.length >= 2 && (
+                {r.coords.length >= 2 && badgeCoord != null && (
                   <Marker
                     coordinate={badgeCoord}
                     anchor={{ x: 0.5, y: 0.5 }}

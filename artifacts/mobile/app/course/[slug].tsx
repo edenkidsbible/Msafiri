@@ -195,7 +195,7 @@ export default function LessonReaderScreen() {
       `/course/bookmarks?deviceId=${encodeURIComponent(deviceId)}`
     )
       .then((data) => {
-        setBookmarked(data.bookmarks.some((b) => b.lessonSlug === slug));
+        setBookmarked((data.bookmarks ?? []).some((b) => b.lessonSlug === slug));
       })
       .catch(() => {});
   }, [deviceId, slug]);
