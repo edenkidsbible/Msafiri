@@ -13,8 +13,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
-import { stopVoice } from "@/utils/sound";
-import { speakPhrase, isNavVoicePlaying } from "@/utils/tts";
 import { getDestinationSide } from "@/utils/navigationSide";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import NetInfo from "@react-native-community/netinfo";
@@ -734,12 +732,6 @@ function estimateTrafficDelayS(incidents: RouteIncident[]): number {
   return Math.min(totalMin, MAX_TRAFFIC_DELAY_MIN) * 60;
 }
 
-/** Speak navigation guidance via ElevenLabs (Keli voice) using bundled tokens
- *  for structural phrases and on-demand cached clips for road names. */
-function speakText(text: string) {
-  speakPhrase(text).catch((e) => console.warn("[speakText]", e));
-}
-
 // ─── Notification setup ───────────────────────────────────────────────────────
 // NOTE: setNotificationHandler is registered ONCE in usePushNotifications.ts
 // at module scope. Do NOT register it here — two handlers on the same process
@@ -786,90 +778,11 @@ function warnIfBlockedDevice(err: unknown): boolean {
 
 const ALERT_DIST = 600, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
 const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
-// Minimum gap between ANNOUNCE voice cues (the "In 300 metres, turn left…" cue).
-// Prevents rapid-fire repeats when: (a) consecutive short steps advance in one GPS burst,
-// (b) off-route detection resets lastSpokenRef and re-triggers the cue before the
-// rerouted route arrives.  REMIND and NOW cues are NOT gated by this — they must
-// fire quickly right before a turn.
-const MIN_NAV_ANNOUNCE_GAP_MS = 5000;
-
-// ─── Navigation voice timing ─────────────────────────────────────────────────
-// Fixed trigger distances break at both ends: 350 m at 30 km/h = 42 s
-// (too early); 350 m at 100 km/h = 12.6 s (too late for a highway turn).
-// Google Maps and Bolt solve this with two ideas combined:
-//
-//   1. Speed-adaptive spoken distance
-//      Target ~8 seconds of travel time, snapped to available token grid.
-//      e.g. at 50 km/h → 100 m token; at 100 km/h → 250 m token.
-//
-//   2. Audio pre-compensation (the formula they actually use)
-//      triggerM = spokenDistM + speed × clipDuration
-//      This advances the trigger so the SPOKEN distance is still accurate
-//      when the driver HEARS it, after 4-5 s of clip playback have elapsed.
-//
-//   3. Three-cue system (industry standard)
-//      ANNOUNCE — "In [N] metres, turn left onto Ngong Road"  (~8 s of travel)
-//      REMIND   — "Turn left onto Ngong Road"                 (~2.5 s of travel)
-//      NOW      — "Turn left"  (maneuver only, driver is at the junction)
-//
-// Clip duration estimates (Keli, Flash v2.5):
-const CLIP_DUR_ANNOUNCE_S = 3.8; // "In 300 metres, turn left onto Ngong Road" (~9 words @ 2.5 wpm)
-const CLIP_DUR_REMIND_S   = 2.0; // "Turn left onto Ngong Road"                (~5 words)
-const CLIP_DUR_NOW_S      = 0.9; // "Turn left"                                (~2 words)
-const AUDIO_STARTUP_S     = 0.05; // expo-speech warm-up <50 ms (was 0.5 for ElevenLabs download)
-
-/**
- * Returns speed-adaptive trigger thresholds and the pre-compensated spoken
- * distance word for the ANNOUNCE cue.
- *
- * @param speedKmh  Current GPS speed (km/h)
- * @param distM     Current distance to next maneuver point (metres)
- */
-function stepTriggers(speedKmh: number, distM: number) {
-  const s = Math.max(5, speedKmh) / 3.6; // m/s; floor prevents division issues at 0
-
-  // ── ANNOUNCE ─────────────────────────────────────────────────────────────
-  // Target spoken distance: ~8 s of travel, snapped to 50 m token grid (100–350 m)
-  const spokenAnnounceM = Math.min(350, Math.max(100, Math.round(s * 8 / 50) * 50));
-  const announceM       = spokenAnnounceM + s * (CLIP_DUR_ANNOUNCE_S + AUDIO_STARTUP_S);
-
-  // Actual spoken distance at trigger time = where driver will be when audio ends.
-  // Differs from spokenAnnounceM when nav starts inside the bubble or speed changed.
-  const actualSpokenM = Math.max(0, Math.round((distM - s * CLIP_DUR_ANNOUNCE_S) / 50) * 50);
-  const distWord      = actualSpokenM >= 100 ? `In ${actualSpokenM} metres, ` : "";
-
-  // ── REMIND ───────────────────────────────────────────────────────────────
-  // Spoken distance not needed; just need trigger threshold.
-  const spokenRemindM = Math.min(100, Math.max(30, Math.round(s * 2.5 / 10) * 10));
-  const remindM       = spokenRemindM + s * (CLIP_DUR_REMIND_S + AUDIO_STARTUP_S);
-
-  // ── NOW ──────────────────────────────────────────────────────────────────
-  // Must fire BEFORE STEP_ADVANCE_DIST (50 m) or the step advances first and
-  // the cue is silently skipped. Minimum is therefore STEP_ADVANCE_DIST + 10 = 60 m.
-  const nowM = Math.max(60, 20 + s * (CLIP_DUR_NOW_S + AUDIO_STARTUP_S));
-
-  return { announceM, remindM, nowM, distWord };
-}
-
-/** Strip "onto [road]" for the NOW cue — driver is at the junction, no road name needed. */
-function maneuverOnly(instruction: string): string {
-  return instruction.replace(/\s+onto\s+.+$/i, "").replace(/\s+on\s+.+$/i, "").trim();
-}
-const ARRIVAL_DIST = 30;        // m — trigger arrival voice + advance final step
-const APPROACHING_DIST = 65;   // m — one early "approaching your destination" cue
+const ARRIVAL_DIST = 30;        // m — advance final step + trigger arrival UI
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
 // readout, so we only claim confidence in a posted limit when squarely
 // inside the admin-defined corridor — not just "somewhere nearby".
 const STRETCH_CORRIDOR_M = 80;
-// Minimum gap between spoken *supplementary* hazard alerts (zone/camera/
-// police-ahead, community reports, repeat speeding warning). On corridors
-// with several zones or reports packed close together this previously let
-// the voice guide talk almost continuously; the visual banner + haptic buzz
-// still fire immediately and unthrottled, only the voice is paced. Turn-by-
-// turn navigation instructions and the arrival announcement are core
-// wayfinding and are intentionally NOT subject to this cooldown.
-const GENERAL_ALERT_COOLDOWN_MS = 20000;
-
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -1005,8 +918,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const notifGranted = useRef(false);
   const routeRef = useRef<AppRoute | null>(null);
   const stepIdxRef = useRef(0);
-  // Tracks instructions for which a background clip-retry has been triggered.
-  const lastSpokenRef = useRef<string>("");
   const navActiveRef = useRef(false);
   const lastLocationAtRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
@@ -1028,18 +939,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // reappear as "ahead" with growing distances. The high-water mark is used
   // instead of the raw projection value for incident filtering / aheadDistanceM.
   const routeMaxDistMRef = useRef(0);
-  // Proximity voice refs
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
-  const announcedReportsRef = useRef<Set<string>>(new Set());
-  const destAnnouncedRef = useRef(false);
   // When the current turn-by-turn session started — used to auto-end a
   // navigation session that's run far longer than the route could ever
   // reasonably take (see the staleness check in handleLocation below).
   const navStartRef = useRef<number | null>(null);
-  // Shared cooldown gate for supplementary hazard voice alerts — see
-  // GENERAL_ALERT_COOLDOWN_MS above.
-  const lastGeneralAlertAtRef = useRef<number>(0);
   // Tracks server IDs seen in the previous poll — used to detect reports that
   // were removed (expired / denied) while the driver is en route.
   const prevPollServerIdsRef = useRef<Set<string>>(new Set());
@@ -1070,10 +975,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // reroute fires.  Prevents the reroute-loop where GPS jitter at a complex
   // junction immediately triggers another reroute before the new route arrives.
   const rerouteGraceUntilRef = useRef<number>(0);
-  // Timestamp of the last ANNOUNCE voice cue (the "In N metres, turn…" cue).
-  // Used to enforce MIN_NAV_ANNOUNCE_GAP_MS so rapid step chains and reroute
-  // resets don't cause the same instruction to be spoken every second.
-  const lastAnnounceCueAtRef = useRef<number>(0);
   // ── GPS signal-loss detection + dead reckoning ────────────────────────────
   // When navigating, we track the time of the last real GPS fix. If fixes stop
   // arriving for >5 s (tunnel, underpass, parking structure) we set gpsLost and
@@ -1086,18 +987,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastHeadingRef  = useRef<number | null>(null); // last known heading (°)
   const drStateRef      = useRef<{ lat: number; lng: number; speedMps: number; heading: number } | null>(null);
   const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
-  // Tracks whether we've already spoken the "approaching destination" cue this
-  // navigation session so it fires exactly once per trip.
-  const approachingAnnouncedRef = useRef(false);
-  // Timeout handle for the delayed opening-step cue in startNavigation.
-  // Stored in a ref so stopNavigation (and a rapid re-start) can cancel it
-  // before it fires, preventing a stale instruction from bleeding into a
-  // new session or playing after the driver has already stopped.
-  const openingCueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Monotonically-incrementing session ID — incremented on every startNavigation
-  // and stopNavigation call.  The opening-cue callback captures its value at
-  // schedule time and bails out if the session has advanced since then.
-  const navSessionGenRef = useRef(0);
   const alertSourceRef = useRef<"zone" | "report" | null>(null);
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
@@ -1381,26 +1270,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const activeLimitZone = inZone ?? stretchMatch;
     setCurrentSpeedLimit(activeLimitZone?.speedLimit ?? null);
 
-    // Supplementary hazard alerts (zone/camera/police-ahead, community
-    // reports, repeat speeding warning) share this cooldown so back-to-back
-    // triggers — e.g. several zones packed within a km on the same corridor
-    // — don't make the voice guide talk almost continuously. The visual
-    // banner and haptic buzz below are NOT gated by this — only the spoken
-    // line is paced.
-    const canSpeakGeneralAlert = () => Date.now() - lastGeneralAlertAtRef.current >= GENERAL_ALERT_COOLDOWN_MS;
-    const speakGeneralAlert = (text: string) => { lastGeneralAlertAtRef.current = Date.now(); speakText(text); };
-
     const isDriving = kmh > 10;
 
-    // ── Repeat voice warning when speeding inside a zone (every 25 s) ──────
+    // ── Haptic feedback when speeding inside a zone (every 25 s) ──────────
     if (activeLimitZone && kmh > activeLimitZone.speedLimit) {
       const warnNow = Date.now();
       if (warnNow - lastSpeedingWarnRef.current > 25000) {
         lastSpeedingWarnRef.current = warnNow;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        if (canSpeakGeneralAlert()) {
-          speakGeneralAlert("You are exceeding the speed limit.");
-        }
       }
     } else {
       lastSpeedingWarnRef.current = 0;
@@ -1676,40 +1553,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertZoneIncreasingCountRef.current = 0;
         alertDismissed.current = false;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        if (canSpeakGeneralAlert()) {
-          const isClose = winner.distance <= 600;
-          if (winner.source === "zone") {
-            if (winner.type === "camera") speakGeneralAlert(isClose ? "Speed camera ahead. Reduce your speed." : "Speed camera ahead.");
-            else if (winner.type === "police") speakGeneralAlert(isClose ? "Police checkpoint ahead. Reduce your speed." : "Police checkpoint ahead.");
-            else {
-              // #33: Speak the actual speed limit when entering a zone
-              const limit = winner.speedLimit;
-              if (limit != null) speakGeneralAlert(`${limit} kilometre per hour zone.`);
-              else speakGeneralAlert("Speed zone ahead.");
-            }
-          } else {
-            // #33: Include distance (rounded to nearest 50 m) in community report cues
-            const roundedDist = Math.round(winner.distance / 50) * 50;
-            const distText = roundedDist >= 1000 ? "one kilometre" : `${roundedDist} metres`;
-            const REPORT_TEXT_MAP: Partial<Record<string, string>> = {
-              accident:  `Accident in ${distText}.`,
-              pothole:   `Pothole in ${distText}.`,
-              roadblock: `Road block in ${distText}.`,
-              police:    `Police checkpoint in ${distText}.`,
-              alcoblow:  `Alcoblow checkpoint in ${distText}.`,
-              roadworks: `Road works in ${distText}.`,
-              camera:    `Speed camera in ${distText}.`,
-              traffic:   `Traffic congestion in ${distText}.`,
-              hazard:    `Road hazard in ${distText}.`,
-              debris:    `Debris on road, ${distText}.`,
-              breakdown: `Vehicle breakdown in ${distText}.`,
-              weather:   `Weather hazard in ${distText}.`,
-              closure:   `Road closure in ${distText}.`,
-            };
-            const alertText = REPORT_TEXT_MAP[winner.type];
-            if (alertText) speakGeneralAlert(alertText);
-          }
-        }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }
       if (!alertDismissed.current && winner.id === alertZoneRef.current) {
@@ -1745,129 +1588,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // ── Community report proximity voice alerts (1 km) ──────────────────────
-    // Only announce while actually driving (same moving threshold used for
-    // trip tracking below) — otherwise a driver parked/at home who merely has
-    // the app open with location permission would get spoken alerts for
-    // reports near their static position, which is exactly the annoyance we
-    // want to avoid. Reports aren't marked as announced while not driving, so
-    // they'll still be announced once the driver starts moving near them.
-    const REPORT_ANNOUNCE_DIST = 1000;
-    for (const report of isDriving ? communityReportsRef.current : []) {
-      if (announcedReportsRef.current.has(report.id)) continue;
-
-      // Skip non-visible statuses — mirrors the server-side isActive() filter.
-      // Denied ("Gone now"), expired, cleared, and flagged reports must never
-      // be announced.  Using status rather than a fixed age gate means reports
-      // that are still active on the server (police, road works, hazards with
-      // TTLs of 3–24 h) are not silently skipped.
-      if (
-        report.status === "expired" ||
-        report.status === "denied"
-      ) continue;
-
-      // Fallback age guard: 24 h.  For online devices the server's TTL system
-      // will have set status to "expired" long before this fires.  For
-      // offline-created reports that were never synced it provides a last-resort
-      // staleness guard.
-      // IMPORTANT: the previous value was 2 h, which silenced all police,
-      // road-works, and hazard reports older than 2 h even though they remained
-      // fully active on the server — those types have TTLs of 3–24 h.
-      if (now - report.timestamp > 86400000) continue; // 24 h
-
-      const distToReport = haversine(lat, lng, report.lat, report.lng);
-      if (distToReport > REPORT_ANNOUNCE_DIST || distToReport <= IN_ZONE_DIST) continue;
-
-      // ── Route-corridor gate (navigation only) ────────────────────────────
-      // When actively navigating, only announce reports that lie within
-      // ROUTE_CORRIDOR_M (250 m) of the REMAINING route polyline.
-      // Without this, a driver who takes an alternate road that later rejoins
-      // the original route keeps receiving alerts for incidents on the bypassed
-      // section — the simple bearing check can't distinguish "incident on the
-      // road I'm about to use" from "incident on a parallel road I already
-      // passed via a different turn".
-      // Not applied when off-route / rerouting, since routeRef is cleared.
-      if (navActiveRef.current && routeRef.current) {
-        const remainingCoords = routeRef.current.coords.slice(
-          Math.max(0, routeProjIdxRef.current - 5)
-        );
-        const isOnRemainingRoute = remainingCoords.some(
-          (c) => haversine(report.lat, report.lng, c.latitude, c.longitude) <= ROUTE_CORRIDOR_M
-        );
-        if (!isOnRemainingRoute) continue;
-      }
-
-      // Only announce when the report is ahead of the driver. If heading is
-      // unknown (first fix) we fall back to distance-only and announce anyway.
-      // Do NOT add to announcedReportsRef when skipping direction: the driver
-      // may later turn toward the report and should hear the announcement then.
-      const bearingToReport = bearingDeg(lat, lng, report.lat, report.lng);
-      const reportIsAhead = driverHeading == null || angleDiffDeg(driverHeading, bearingToReport) <= 90;
-      if (!reportIsAhead) continue;
-
-      // ── Cross-track gate (non-navigation only) ───────────────────────────
-      // When no active route is available, gate on the perpendicular distance
-      // from the report to the driver's current heading line.  A large
-      // cross-track value means the incident is on a parallel road, not the
-      // driver's own road.  The bearing check above (≤ 90°) is too wide on
-      // its own — an incident 400 m away and 80° off-bearing is clearly on an
-      // adjacent road yet still passes the 90° cone.
-      //
-      // cross_track_m = distToReport × |sin(angle_between_heading_and_bearing)|
-      //
-      // Threshold: 150 m ≈ one road width (7–10 m) plus a generous GPS error
-      // margin so the filter doesn't fire on minor GPS wander.
-      // Falls back to direction-only when heading is unknown (driverHeading==null
-      // case is already handled above by the reportIsAhead fallback).
-      if (!navActiveRef.current && driverHeading != null) {
-        const angleDiff = angleDiffDeg(driverHeading, bearingToReport); // 0–90 at this point
-        const crossTrackM = distToReport * Math.abs(Math.sin(angleDiff * Math.PI / 180));
-        if (crossTrackM > 150) continue;
-      }
-
-      announcedReportsRef.current.add(report.id);
-      // #33: Include distance (rounded to nearest 50 m) in the spoken cue
-      const roundedAnnDist = Math.round(distToReport / 50) * 50;
-      const annDistText = roundedAnnDist >= 1000 ? "one kilometre" : `${roundedAnnDist} metres`;
-      const REPORT_TEXT: Partial<Record<string, string>> = {
-        accident:  `Accident in ${annDistText}.`,
-        pothole:   `Pothole in ${annDistText}.`,
-        roadblock: `Road block in ${annDistText}.`,
-        police:    `Police checkpoint in ${annDistText}.`,
-        alcoblow:  `Alcoblow checkpoint in ${annDistText}.`,
-        roadworks: `Road works in ${annDistText}.`,
-        camera:    `Speed camera in ${annDistText}.`,
-        traffic:   `Traffic congestion in ${annDistText}.`,
-        hazard:    `Road hazard in ${annDistText}.`,
-        debris:    `Debris on road, ${annDistText}.`,
-        breakdown: `Vehicle breakdown in ${annDistText}.`,
-        weather:   `Weather hazard in ${annDistText}.`,
-        closure:   `Road closure in ${annDistText}.`,
-      };
-      const reportText = REPORT_TEXT[report.type];
-      if (reportText && canSpeakGeneralAlert()) {
-        speakGeneralAlert(reportText);
-      }
-    }
-
-    // ── POI destination proximity announcement ───────────────────────────────
-    const dest = navDestRef.current;
-    if (dest?.poiType && !destAnnouncedRef.current) {
-      const distToDest = haversine(lat, lng, dest.lat, dest.lng);
-      if (distToDest <= 1500 && distToDest > 50) {
-        destAnnouncedRef.current = true;
-        const distText = distToDest >= 1000
-          ? `${(distToDest / 1000).toFixed(1)} kilometres`
-          : `${Math.round(distToDest / 50) * 50} metres`;
-        const typeWord =
-          dest.poiType === "fuel"      ? "fuel station" :
-          dest.poiType === "shopping"  ? "shopping centre" :
-          dest.poiType === "hospital"  ? "hospital" :
-          dest.poiType === "nightlife" ? "venue" : "restaurant";
-        const shortName = typeof dest.name === "string" ? dest.name.split(",")[0].trim() : "";
-        speakText(`${shortName} ${typeWord} is approximately ${distText} ahead. Prepare to turn.`);
-      }
-    }
 
     // Safety net: if a navigation session has been running far longer than
     // the route could realistically take, silently end it instead of
@@ -1937,106 +1657,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         setDistToNextM(Math.round(dist));
 
-        const key     = `step_${idx}`;
-        const nearKey = `step_${idx}_near`;
-        const nowKey  = `step_${idx}_now`;
-
-        const { announceM, remindM, nowM, distWord } = stepTriggers(kmh, dist);
-
-        // ── Compound instruction ───────────────────────────────────────────
-        // When the next maneuver is < 100 m after this one (tight chicanes,
-        // compact junctions), fold both into a single spoken instruction so
-        // the driver has the full picture before committing to the first turn.
-        const nextStep      = idx + 1 < steps.length ? steps[idx + 1] : null;
-        const useCompound   = !isLastStep
-          && nextStep != null
-          && step.distanceM > 0
-          && step.distanceM < 100
-          && nextStep.maneuverType !== "arrive";
-        const remindText    = useCompound && nextStep
-          ? `${step.instruction}, then ${maneuverOnly(nextStep.instruction).toLowerCase()}`
-          : step.instruction;
-        const announceText  = useCompound && nextStep
-          ? `${step.instruction}, then ${nextStep.instruction.charAt(0).toLowerCase() + nextStep.instruction.slice(1)}`
-          : step.instruction;
-
-        if (isDriving && dist < announceM
-            && lastSpokenRef.current !== key
-            && lastSpokenRef.current !== nearKey
-            && lastSpokenRef.current !== nowKey
-            && Date.now() - lastAnnounceCueAtRef.current > MIN_NAV_ANNOUNCE_GAP_MS) {
-          // ── Cue 1: Announce — "In 300 metres, turn left onto Ngong Road" ──
-          // distWord is pre-compensated: it reflects where the driver will BE
-          // when they hear the distance word, not where they were when we fired.
-          // Gated on isDriving: if the driver is stopped (red light, traffic jam)
-          // we skip the cue WITHOUT advancing lastSpokenRef — so it fires
-          // automatically the moment they start moving again.
-          //
-          // Post-reroute guard: if we entered this step already inside the REMIND
-          // bubble (e.g. after a reroute the first new step has only 80 m left),
-          // skip the ANNOUNCE cue entirely and advance lastSpokenRef to `key` so
-          // that the REMIND and NOW cues still fire normally on the next ticks.
-          if (dist < remindM) {
-            // Already past the ANNOUNCE window.
-            // If we are ALSO inside the NOW bubble (dist < nowM), skip REMIND
-            // too — advancing to nearKey means only the NOW cue fires on the
-            // next tick.  Without this, a post-reroute step with <nowM left
-            // would fire REMIND immediately followed by NOW ~1 s later,
-            // producing double-speak on very short first steps.
-            lastSpokenRef.current = dist < nowM ? nearKey : key;
-          } else {
-            lastAnnounceCueAtRef.current = Date.now();
-            lastSpokenRef.current = key;
-            speakText(distWord + announceText);
-            // Protect the clip chain (~5–6 s) from supplementary hazard alerts.
-            const protect6s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 6000);
-            if (lastGeneralAlertAtRef.current < protect6s) lastGeneralAlertAtRef.current = protect6s;
-          }
-
-        } else if (isDriving && !isLastStep && dist < remindM
-            && lastSpokenRef.current === key
-            && !isNavVoicePlaying()) {
-          // ── Cue 2: Remind — "Turn left onto Ngong Road" ────────────────────
-          // Gated on !isNavVoicePlaying() so we never interrupt the ANNOUNCE
-          // clip mid-sentence.  If Cue 1 is still playing we wait for the next
-          // GPS tick (≈ 1 s) — by then the clip will have finished naturally.
-          //
-          // Skip REMIND when we're already inside the NOW bubble: this means
-          // ANNOUNCE was still playing when we crossed remindM (common at
-          // highway speeds where the 3.8 s clip covers 80–100 m).  Speaking
-          // a 2 s REMIND phrase at, say, 50 m means the driver hears the full
-          // road name right at the junction — or after it.  Instead, advance
-          // lastSpokenRef to nearKey immediately so the NOW cue fires on the
-          // very next GPS tick (≤ 1 s away).
-          lastSpokenRef.current = nearKey;
-          if (dist >= nowM) {
-            speakText(remindText);
-            const protect4s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 4000);
-            if (lastGeneralAlertAtRef.current < protect4s) lastGeneralAlertAtRef.current = protect4s;
-          }
-
-        } else if (isDriving && !isLastStep && dist < nowM && lastSpokenRef.current === nearKey) {
-          // ── Cue 3: Now — "Turn left" ───────────────────────────────────────
-          // Driver is at the junction. Maneuver word only — no distance, no road
-          // name. Allowed to preempt a still-playing REMIND clip because the
-          // driver is physically at the turn and needs the instruction now.
-          lastSpokenRef.current = nowKey;
-          speakText(maneuverOnly(step.instruction));
-          const protect2s = Date.now() - (GENERAL_ALERT_COOLDOWN_MS - 2000);
-          if (lastGeneralAlertAtRef.current < protect2s) lastGeneralAlertAtRef.current = protect2s;
-        }
-
         // The final step gets a wider arrival radius than intermediate turns:
         // urban GPS drift in dense areas can easily bias a fix by 30-40 m.
         const dest = navDestRef.current;
         const distToDest = dest ? haversine(lat, lng, dest.lat, dest.lng) : dist;
-
-        // One-shot "approaching your destination" cue
-        if (isLastStep && !approachingAnnouncedRef.current
-            && distToDest < APPROACHING_DIST && distToDest >= ARRIVAL_DIST) {
-          approachingAnnouncedRef.current = true;
-          speakText("Approaching your destination");
-        }
 
         // Suppress arrival for 5 s after any reroute: the step cascade that
         // fires immediately after a reroute (depart step at 0 m → advance →
@@ -2055,23 +1679,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCurrentStepIdx(nextIdx);
 
           if (nextIdx >= steps.length) {
-            // Chain the side announcement after the arrival phrase finishes.
-            // lastHeadingRef holds the most recent valid heading (persists even
-            // when the driver slows to a stop and driverHeadingDeg returns null).
-            const dest = navDestRef.current;
-            const side = dest
-              ? getDestinationSide(lastHeadingRef.current, lat, lng, dest.lat, dest.lng)
-              : null;
-            speakPhrase("You have arrived at your destination.")
-              .then(() => {
-                if (side) {
-                  return speakPhrase(`Your destination is on the ${side}.`);
-                }
-              })
-              .catch(() => {});
             navActiveRef.current = false;
             navStartRef.current = null;
-            approachingAnnouncedRef.current = false;
             setNavigationActive(false);
             const trip = tripRef.current;
             setArrivedInfo({
@@ -2085,22 +1694,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               apiPost("/push/trip-complete", { deviceId: deviceIdRef.current }).catch(() => {});
             }
           } else {
-            // ── Post-turn confirmation ───────────────────────────────────────
-            // After completing a maneuver, confirm the driver is on the right
-            // road: "Continue on Ngong Road."  Then go silent until the next
-            // decision point approaches.
-            // Only fires when the next leg is long enough (≥ 250 m) — short legs
-            // will immediately trigger an ANNOUNCE cue for the next turn and a
-            // confirmation would stack on top.  Also skipped when voice is still
-            // playing (the NOW clip may still be in progress at the exact moment
-            // of step advance), and when the road is unnamed.
-            const confirmedStep = steps[nextIdx];
-            if (!isNavVoicePlaying()
-                && confirmedStep.roadName
-                && confirmedStep.distanceM >= 250
-                && confirmedStep.maneuverType !== "arrive") {
-              speakText(`Continue on ${confirmedStep.roadName}`);
-            }
           }
         }
       }
@@ -2408,20 +2001,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrentStepIdx(0);
       routeProjIdxRef.current = 0;
       routeMaxDistMRef.current = 0;
-      // Clear the announced-reports set so every incident on the new route is
-      // evaluated fresh. Own reports stay announced — the driver submitted them
-      // and doesn't need a second alert for their own pin.  Non-own reports are
-      // cleared so they re-announce if they fall on the new corridor, and
-      // previously-suppressed reports on the new route are no longer skipped.
-      announcedReportsRef.current = new Set(
-        communityReportsRef.current
-          .filter((r) => r.isOwn && announcedReportsRef.current.has(r.id))
-          .map((r) => r.id)
-      );
-      // Clear spoken state so the GPS tick immediately evaluates the new route
-      // steps — no stale key from the old route blocks the cue.
-      lastSpokenRef.current = "";
-      approachingAnnouncedRef.current = false;
       // Dismiss the divergence preview — the new route has been committed.
       setDivergenceRoutes([]);
       divergenceRoutesRef.current = [];
@@ -2436,28 +2015,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // the new route (step 0 at 0 m → advance → step 1 …) can't trigger a
       // false "You have arrived" before the route settles.
       rerouteSettledUntilRef.current = Date.now() + 5_000;
-      // Immediately announce the first actionable step so the driver isn't
-      // silent until the next GPS tick (~1–2 s).  We skip the depart step
-      // (distanceM is typically 0) and use the first step with real distance.
-      const firstActionable = primary.steps.find(
-        (s) => s.distanceM > 0 && s.maneuverType !== "arrive"
-      ) ?? primary.steps[0];
-      if (firstActionable?.instruction) {
-        // Build a distance prefix matching the announce-cue logic so the
-        // driver hears "In 300 metres, turn left onto Ngong Road" not just
-        // "turn left onto Ngong Road" when they still have distance to cover.
-        const dM = firstActionable.distanceM;
-        const distPrefix =
-          dM >= 350 ? "In 350 metres, " :
-          dM >= 250 ? "In 300 metres, " :
-          dM >= 150 ? "In 200 metres, " :
-          dM >= 80  ? "In 100 metres, " : "";
-        speakText(distPrefix + firstActionable.instruction);
-        lastAnnounceCueAtRef.current = Date.now();
-        // Use the same key format the GPS handler uses ("step_0") so the next
-        // fix doesn't immediately re-announce the same step.
-        lastSpokenRef.current = "step_0";
-      }
     }
 
     triggerRerouteRef.current = (lat: number, lng: number) => {
@@ -2546,28 +2103,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           for (const prev of communityReportsRef.current) {
             if (!prev.serverId) continue;
             if (newIds.has(prev.serverId)) continue; // still active on server
-            if (!announcedReportsRef.current.has(prev.id)) continue; // not spoken to driver
             if (!loc) continue;
             const dist = haversine(loc.lat, loc.lng, prev.lat, prev.lng);
-            // Only if report is still ahead (not yet passed, not too far)
             if (dist < IN_ZONE_DIST || dist > ALERT_DIST * 3) continue;
-            const CLEARED_TEXT: Partial<Record<string, string>> = {
-              police:    "Police checkpoint cleared.",
-              alcoblow:  "Checkpoint cleared.",
-              accident:  "Accident cleared.",
-              roadblock: "Road block cleared.",
-              roadworks: "Road works cleared.",
-              hazard:    "Hazard cleared.",
-              pothole:   "Hazard cleared.",
-              camera:    "Speed camera report cleared.",
-              traffic:   "Traffic cleared.",
-              debris:    "Hazard cleared.",
-              breakdown: "Incident cleared.",
-              weather:   "Hazard cleared.",
-              closure:   "Road closure cleared.",
-            };
-            speakText(CLEARED_TEXT[prev.type] ?? "Incident ahead cleared.");
-            break; // one cue per poll cycle
+            break;
           }
         }
         prevPollServerIdsRef.current = new Set(remote.map((r) => r.id));
@@ -2923,12 +2462,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Silently patch durationS only — polyline, steps, and route id are
         // unchanged so the driver stays on the same road without any visual jump.
         setActiveRoute((prev) => prev ? { ...prev, durationS: equivalentTotalS } : prev);
-
-        // Announce updated arrival time (on-demand Keli TTS, cached per minute).
-        const d  = new Date(Date.now() + newRemainingS * 1000);
-        const hh = d.getHours();
-        const mm = d.getMinutes().toString().padStart(2, "0");
-        speakText(`Traffic update. New arrival time is ${hh}:${mm}.`);
       } catch { /* network error — silently keep current ETA */ }
     }, TRAFFIC_REFRESH_MS);
     return () => clearInterval(id);
@@ -2938,8 +2471,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
     navDestRef.current = d;
-    destAnnouncedRef.current = false;
-    approachingAnnouncedRef.current = false;
     offRouteCountRef.current = 0;
     if (!d) {
       setActiveRoute(null);
@@ -2953,7 +2484,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navStartRef.current = null;
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
-    lastSpokenRef.current = "";
     setDistToNextM(null);
   }, []);
 
@@ -2969,7 +2499,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setZonesOnRoute(getZonesOnRoute(r, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
       stepIdxRef.current = 0;
       setCurrentStepIdx(0);
-      lastSpokenRef.current = "";
       setDistToNextM(null);
       routeProjIdxRef.current = 0;
       routeMaxDistMRef.current = 0;
@@ -3071,7 +2600,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
-    lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
     navActiveRef.current = true;
     navStartRef.current = Date.now();
@@ -3080,65 +2608,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // driver locks the screen. Fire-and-forget — failure is non-fatal (the
     // foreground watcher still works; the bg task just adds resilience).
     void startBackgroundNavTask();
-    // Advance the session generation so any timer from a previous session
-    // (rapid stop → start scenario) knows it is stale.
-    const mySession = ++navSessionGenRef.current;
-    // Cancel any leftover opening-cue timer from a previous session.
-    if (openingCueTimerRef.current != null) {
-      clearTimeout(openingCueTimerRef.current);
-      openingCueTimerRef.current = null;
-    }
-
-    lastAnnounceCueAtRef.current = Date.now();
-    const firstInstruction = activeRoute.steps[0]?.instruction;
-    // Await "Navigation started." completion before queuing the first step cue
-    // instead of using a fixed 2.2 s wall-clock timer.  A fixed timer fires
-    // while the clip is still playing when the audio session initialises slowly
-    // (first clip of the day needs ensureAudioBase + duckForVoice + player
-    // startup, easily 200-400 ms before audio begins), causing both phrases to
-    // overlap or cut each other off.  Awaiting the clip guarantees sequential
-    // playback regardless of device speed or audio session latency.
-    void (async () => {
-      try {
-      await speakPhrase("Navigation started.");
-      if (!firstInstruction) return;
-      // Guard against three races after the await:
-      //   (a) User tapped Stop — navActiveRef will be false.
-      //   (b) Stop then Start within the clip duration — session gen advanced.
-      //   (c) GPS already announced step 0 during prebuild/clip — lastSpokenRef set.
-      if (!navActiveRef.current || navSessionGenRef.current !== mySession) return;
-      if (lastSpokenRef.current) return;
-      // Short breath pause so the two cues feel distinct rather than merged.
-      await new Promise<void>(r => {
-        openingCueTimerRef.current = setTimeout(() => {
-          openingCueTimerRef.current = null;
-          r();
-        }, 400);
-      });
-      // Re-check after the pause — Stop or GPS announce may have fired.
-      if (navActiveRef.current && navSessionGenRef.current === mySession && !lastSpokenRef.current) {
-        speakText(firstInstruction);
-      }
-      } catch (e) {
-        console.warn("[nav] opening voice cue failed:", e);
-      }
-    })();
   }, [activeRoute]);
 
   const stopNavigation = useCallback(() => {
-    // Silence the voice guide first and foremost — everything else is state
-    // cleanup. Stop TTS (with a trailing follow-up to catch any narrowly-missed
-    // utterance that slipped through on some Android TTS engines).
-    stopVoice();
-
-    // Cancel any pending opening-cue timer so it cannot fire in a subsequent
-    // session (e.g. driver stops then immediately starts a new route within 2.2 s).
-    if (openingCueTimerRef.current != null) {
-      clearTimeout(openingCueTimerRef.current);
-      openingCueTimerRef.current = null;
-    }
-    navSessionGenRef.current++;
-
     navActiveRef.current = false;
     navStartRef.current = null;
     setNavigationActive(false);
@@ -3147,7 +2619,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDistToNextM(null);
     setNavDestState(null);
     navDestRef.current = null;
-    destAnnouncedRef.current = false;
     setActiveRoute(null);
     setAltRoutes([]);
     setDivergenceRoutes([]);
@@ -3157,10 +2628,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     routeRef.current = null;
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
-    lastSpokenRef.current = "";
     routeProjIdxRef.current = 0;
-    // Reset announced reports so a new trip over the same road re-announces them.
-    announcedReportsRef.current = new Set();
     setRouteIncidentsExpanded(false);
     // Stop any active trip-sharing session when navigation ends
     if (sharePingIntervalRef.current) {
@@ -3388,7 +2856,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
     if (nearbyExisting) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      speakText("Report confirmed.");
       if (!isOfflineRef.current && deviceIdRef.current && nearbyExisting.serverId) {
         apiPost<{ confirmCount: number; status: string }>(
           `/reports/${nearbyExisting.serverId}/confirm`,
@@ -3417,7 +2884,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCommunityReports((prev) => { const u = [r, ...prev]; AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u)); return u; });
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    speakText("Report submitted.");
     // Submit to API; keep local copy as offline fallback (retried on reconnect)
     if (!isOfflineRef.current && deviceIdRef.current) {
       syncReportToServer(localId, type, lat, lng, speedLimit);

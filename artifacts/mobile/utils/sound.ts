@@ -29,10 +29,6 @@ async function ensureAudioMode() {
       playsInSilentMode: true,
       interruptionMode: "duckOthers",
       allowsRecording: false,
-      // Allow navigation voice to continue when the screen locks or the app
-      // moves to the background (e.g. driver checks another app mid-trip).
-      // Works in conjunction with UIBackgroundModes "audio" in app.config.js
-      // and the background location task that keeps the iOS process alive.
       shouldPlayInBackground: true,
       shouldRouteThroughEarpiece: false,
     });
@@ -81,40 +77,3 @@ export async function playSound(key: SoundKey) {
   }
 }
 
-// ─── Navigation voice ─────────────────────────────────────────────────────────
-//
-// All navigation voice guidance uses device TTS (expo-speech) via tts.ts.
-// iOS: Daniel (British English). Android: Google UK English Female.
-
-import { speakPhrase, stopNavVoice } from "@/utils/tts";
-
-/**
- * Stop any in-progress navigation voice utterance immediately.
- */
-export function stopVoice() {
-  stopNavVoice();
-}
-
-/**
- * Announce the arm the driver just swept past inside a roundabout.
- * e.g. exitsPassed=2 → "The 2nd exit."
- * No-op when muted or on web.
- */
-export async function speakRoundaboutExitCue(n: number): Promise<void> {
-  if (soundsMuted || Platform.OS === "web") return;
-  const cues: Record<number, string> = {
-    1: "The 1st exit.", 2: "The 2nd exit.", 3: "The 3rd exit.",
-    4: "The 4th exit.", 5: "The 5th exit.", 6: "The 6th exit.",
-  };
-  const text = cues[n] ?? `The ${n}th exit.`;
-  await speakPhrase(text);
-}
-
-/**
- * Announce "Take this exit." when the driver's target roundabout exit is next.
- * No-op when muted or on web.
- */
-export async function speakTakeThisExit(): Promise<void> {
-  if (soundsMuted || Platform.OS === "web") return;
-  await speakPhrase("Take this exit.");
-}

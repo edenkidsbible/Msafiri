@@ -46,7 +46,6 @@ import {
 import { snapToRoad } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
-import { speakRoundaboutExitCue, speakTakeThisExit } from "@/utils/sound";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -422,34 +421,7 @@ export default function DriveScreen() {
     return undefined;
   }, [targetExitIsNext, exitBadgePulse]);
 
-  // ── Roundabout voice cues ─────────────────────────────────────────────────
-  // Track the previous exitsPassed so we only speak on genuine increments,
-  // not on the reset back to 0 when the driver leaves the roundabout.
-  const prevExitsPassedRef = useRef(0);
-  useEffect(() => {
-    const prev = prevExitsPassedRef.current;
-    prevExitsPassedRef.current = exitsPassed;
-
-    // Only fire when the count genuinely increased
-    if (exitsPassed <= 0 || exitsPassed <= prev) return;
-
-    // If targetExitIsNext is already true for this render, the "take this exit"
-    // effect below will speak — skip the arm-count cue to avoid two overlapping clips.
-    if (targetExitIsNext) return;
-
-    void speakRoundaboutExitCue(exitsPassed);
-  }, [exitsPassed]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const prevTargetExitIsNextRef = useRef(false);
-  useEffect(() => {
-    const prev = prevTargetExitIsNextRef.current;
-    prevTargetExitIsNextRef.current = targetExitIsNext;
-
-    // Only fire on the transition false → true
-    if (targetExitIsNext && !prev) {
-      void speakTakeThisExit();
-    }
-  }, [targetExitIsNext]);
 
   // Fade the ETA bar on large jumps (traffic refresh >60 s); ignore GPS drift.
   useEffect(() => {
