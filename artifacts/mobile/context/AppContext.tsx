@@ -33,7 +33,7 @@ import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -900,6 +900,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [fasterRoute, setFasterRoute] = useState<AppRoute | null>(null);
   /** Ref mirror so interval callbacks can read/clear without stale closures. */
   const fasterRouteRef = useRef<AppRoute | null>(null);
+  /** True once the current faster-route suggestion has been announced by voice.
+   *  Prevents re-announcing on subsequent 2-min checks while the same banner
+   *  is still visible. Reset whenever fasterRouteRef is cleared. */
+  const fasterRouteAnnouncedRef = useRef(false);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
   const [suppressedStaticIds, setSuppressedStaticIds] = useState<string[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
@@ -2312,6 +2316,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Clear any faster-route suggestion — the rerouted path is already optimal.
       setFasterRoute(null);
       fasterRouteRef.current = null;
+      fasterRouteAnnouncedRef.current = false;
       const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
       setZonesOnRoute(
         getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
@@ -2814,13 +2819,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // ── 1. Faster-route detection ────────────────────────────────────────
         if (saving >= FASTER_ROUTE_THR_S) {
+          const wasNull = fasterRouteRef.current == null;
           setFasterRoute(fastest);
           fasterRouteRef.current = fastest;
+          // Announce once on first detection; skip if a turn cue is playing.
+          if (wasNull && !fasterRouteAnnouncedRef.current && !isAlertVoicePlaying()) {
+            fasterRouteAnnouncedRef.current = true;
+            const savingMin = Math.round(saving / 60);
+            const phrase = savingMin === 1
+              ? "Faster route found, saving 1 minute"
+              : `Faster route found, saving ${savingMin} minutes`;
+            speakAlertPhrase(phrase).catch(() => {});
+          }
         } else {
           // Conditions improved or route converged — clear any stale suggestion.
           if (fasterRouteRef.current != null) {
             setFasterRoute(null);
             fasterRouteRef.current = null;
+            fasterRouteAnnouncedRef.current = false;
           }
         }
 
@@ -2871,6 +2887,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Clear any pending faster-route suggestion when destination changes.
     setFasterRoute(null);
     fasterRouteRef.current = null;
+    fasterRouteAnnouncedRef.current = false;
   }, []);
 
   const selectRoute = useCallback((r: AppRoute) => {
@@ -2898,6 +2915,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const route = fasterRouteRef.current;
     setFasterRoute(null);
     fasterRouteRef.current = null;
+    fasterRouteAnnouncedRef.current = false;
     if (route) selectRoute(route);
   }, [selectRoute]);
 
@@ -2905,6 +2923,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dismissFasterRoute = useCallback(() => {
     setFasterRoute(null);
     fasterRouteRef.current = null;
+    fasterRouteAnnouncedRef.current = false;
   }, []);
 
   // ── Trip sharing ─────────────────────────────────────────────────────────────
@@ -3034,6 +3053,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Clear any pending faster-route suggestion when navigation stops.
     setFasterRoute(null);
     fasterRouteRef.current = null;
+    fasterRouteAnnouncedRef.current = false;
     // Stop any active trip-sharing session when navigation ends
     if (sharePingIntervalRef.current) {
       clearInterval(sharePingIntervalRef.current);

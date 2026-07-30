@@ -73,6 +73,12 @@ export function stopAlertVoice() {
   currentPlayer = null;
 }
 
+/** True while an alert or phrase is actively playing. Used by callers that
+ *  want to avoid interrupting a turn instruction or other in-progress cue. */
+export function isAlertVoicePlaying(): boolean {
+  try { return currentPlayer?.playing ?? false; } catch { return false; }
+}
+
 // ─── Internal playback helper ─────────────────────────────────────────────────
 
 async function playKey(key: string): Promise<void> {
