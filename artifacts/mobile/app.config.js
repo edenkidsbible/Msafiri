@@ -37,7 +37,7 @@ module.exports = {
     },
     android: {
       package: "com.msafirikenya.app",
-      versionCode: 1,
+      versionCode: 2,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       permissions: [
         "ACCESS_FINE_LOCATION",
