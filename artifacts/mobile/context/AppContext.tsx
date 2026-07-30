@@ -999,6 +999,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // > 1 km from this anchor point.
   const alertAnchorLatRef = useRef<number | null>(null);
   const alertAnchorLngRef = useRef<number | null>(null);
+  // When the driver manually dismisses a cluster while parked, we keep the
+  // anchor locked for 10 minutes (ANCHOR_DISMISS_TTL_MS) instead of clearing
+  // it immediately.  This prevents the cluster from re-announcing every time
+  // the driver inches past the 250 m pass threshold and then approaches again.
+  // The anchor still clears if the driver travels > 1 km (driving-through),
+  // or when this TTL expires naturally.
+  const alertAnchorExpiryRef = useRef<number | null>(null);
   // Tracks the last extras array we called setActiveAlertExtras with, as a
   // sorted ID string, to avoid re-rendering on every GPS tick.
   const lastExtrasKeyRef  = useRef<string>("");
@@ -1591,15 +1598,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Geo-anchor check: if a multi-alert cluster was announced, suppress new
-    // cluster activation until the driver travels > 1 km from the anchor point.
+    // cluster activation until the driver travels > 1 km from the anchor point
+    // OR a dismiss-TTL (set on manual dismissal) expires.
+    const ANCHOR_DISMISS_TTL_MS = 10 * 60 * 1000; // 10 minutes // eslint-disable-line @typescript-eslint/no-unused-vars
     const anchorLat = alertAnchorLatRef.current;
     const anchorLng = alertAnchorLngRef.current;
     if (anchorLat != null && anchorLng != null) {
       const distFromAnchor = haversine(lat, lng, anchorLat, anchorLng);
       if (distFromAnchor >= 1000) {
-        // Driver has moved far enough — clear the anchor so a new cluster can fire.
+        // Driver has driven far enough away — clear anchor regardless of TTL.
         alertAnchorLatRef.current = null;
         alertAnchorLngRef.current = null;
+        alertAnchorExpiryRef.current = null;
+      } else if (
+        alertAnchorExpiryRef.current != null &&
+        Date.now() > alertAnchorExpiryRef.current
+      ) {
+        // Dismiss-TTL has elapsed — allow new clusters again.
+        alertAnchorLatRef.current = null;
+        alertAnchorLngRef.current = null;
+        alertAnchorExpiryRef.current = null;
       }
     }
     const anchorActive = alertAnchorLatRef.current != null;
@@ -1648,6 +1666,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Multi-alert cluster: set geo-anchor and play bundled multi phrase
           alertAnchorLatRef.current = lat;
           alertAnchorLngRef.current = lng;
+          alertAnchorExpiryRef.current = null; // fresh anchor — no TTL until driver dismisses
           speakAlertMulti(winner.type).catch(() => {});
         } else {
           // Single alert: play normal bundled phrase (60 s per-ID cooldown on dismiss)
@@ -2864,10 +2883,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     alertDismissed.current = true;
     lastSetAlertRef.current = null;
     lastExtrasKeyRef.current = "";
-    // Clear geo-anchor so the next cluster can fire immediately after a manual
-    // dismiss (the driver intentionally acknowledged and dismissed).
-    alertAnchorLatRef.current = null;
-    alertAnchorLngRef.current = null;
+    // When a CLUSTER alert is manually dismissed, keep the geo-anchor locked
+    // for 10 minutes instead of clearing it immediately.  A parked driver who
+    // taps "Got it — dismiss all" near a hazard cluster won't be re-announced
+    // every time they edge past the 250 m proximity threshold.
+    // The anchor is still released instantly if the driver drives > 1 km away
+    // (handled in the per-GPS-fix anchor check in handleLocation).
+    // For a single-alert dismiss (no anchor was set), this branch is a no-op.
+    if (alertAnchorLatRef.current != null) {
+      alertAnchorExpiryRef.current = Date.now() + 10 * 60 * 1000;
+    }
     setActiveAlert(null);
     setActiveAlertExtras([]);
   }, []);
