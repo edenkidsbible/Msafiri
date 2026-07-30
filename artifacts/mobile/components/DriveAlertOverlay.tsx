@@ -52,6 +52,9 @@ interface Props {
   /** Additional alerts within 1 km of the lead, sorted by distance. */
   extraAlerts?: DriveAlert[];
   onDismiss: () => void;
+  /** Called (in addition to onDismiss) when the driver taps "Got it — dismiss
+   *  all" on a multi-alert cluster. Use this to surface the re-arm hint. */
+  onDismissAll?: () => void;
   currentSpeed: number;
   /**
    * Minimum panel height in points. The caller should pass a value that
@@ -137,6 +140,7 @@ export default function DriveAlertOverlay({
   alert,
   extraAlerts = [],
   onDismiss,
+  onDismissAll,
   currentSpeed,
   minPanelHeight = 340,
 }: Props) {
@@ -177,13 +181,19 @@ export default function DriveAlertOverlay({
   // ── Dismiss: stop pulse immediately, slide out, then notify parent ─────────
   const handleDismiss = () => {
     const dismissedId = alert.id;
+    const wasCluster  = hasExtras; // capture now — avoids stale closure on animation end
     setDismissing(true);
     Animated.timing(slideY, {
       toValue:         ANIM_OFFSCREEN,
       duration:        280,
       useNativeDriver: true,
     }).start(() => {
-      if (activeIdRef.current === dismissedId) onDismiss();
+      if (activeIdRef.current === dismissedId) {
+        onDismiss();
+        // For cluster dismissals, fire the secondary callback so the parent can
+        // surface a brief re-arm hint ("Alerts paused near this area for 10 min").
+        if (wasCluster) onDismissAll?.();
+      }
     });
   };
 

@@ -163,6 +163,10 @@ export default function DriveScreen() {
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
   const [navBarHeight, setNavBarHeight] = useState(0);
+  // Brief toast shown after a cluster dismiss — tells the driver how long alerts
+  // are paused near this area so they know what to expect if they pass again.
+  const [pauseNote, setPauseNote] = useState<string | null>(null);
+  const pauseNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Kenya flag color-cycle on the Report button — cycles Red→Black→Green→Red
   // so it's impossible to miss. useNativeDriver must be false for color animation.
@@ -624,6 +628,12 @@ export default function DriveScreen() {
           alert={activeAlert}
           extraAlerts={activeAlertExtras}
           onDismiss={dismissAlert}
+          onDismissAll={() => {
+            // Show a 4-second re-arm hint after the overlay has slid away.
+            if (pauseNoteTimerRef.current) clearTimeout(pauseNoteTimerRef.current);
+            setPauseNote("Alerts paused near this area for 10 min");
+            pauseNoteTimerRef.current = setTimeout(() => setPauseNote(null), 4000);
+          }}
           currentSpeed={currentSpeed}
           // Cover the gauge exactly: in nav mode cover the nav bar; in normal
           // mode cover the speed strip up to just above the report buttons.
@@ -634,6 +644,26 @@ export default function DriveScreen() {
               : bottomBase + speedStripHeight + 20
           }
         />
+      )}
+
+      {/* ── Cluster-dismiss re-arm hint ─────────────────────────────────────
+          Appears for 4 s after "Got it — dismiss all" so the driver knows
+          alerts near this spot are paused and when they will re-arm. */}
+      {pauseNote && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.pauseNotePill,
+            {
+              bottom: navigationActive && navBarHeight > 0
+                ? navBarHeight + 64
+                : bottomBase + speedStripHeight + 64,
+            },
+          ]}
+        >
+          <Ionicons name="time-outline" size={14} color="#FFF" />
+          <Text style={styles.pauseNoteTxt}>{pauseNote}</Text>
+        </View>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -2133,6 +2163,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.28, shadowRadius: 7, elevation: 9,
   },
   driveActionPillTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  // ── Cluster-dismiss re-arm hint pill ─────────────────────────────────────
+  pauseNotePill: {
+    position:          "absolute",
+    alignSelf:         "center",
+    flexDirection:     "row",
+    alignItems:        "center",
+    gap:               6,
+    paddingHorizontal: 18,
+    paddingVertical:   11,
+    borderRadius:      24,
+    backgroundColor:   "rgba(0,0,0,0.78)",
+    zIndex:            16,
+    shadowColor:       "#000",
+    shadowOffset:      { width: 0, height: 3 },
+    shadowOpacity:     0.30,
+    shadowRadius:      6,
+    elevation:         10,
+  },
+  pauseNoteTxt: { color: "#FFF", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   // ── Divergence preview chip ───────────────────────────────────────────────
   // Row: absolute-positioned, full-width, centres the pill. box-none so
