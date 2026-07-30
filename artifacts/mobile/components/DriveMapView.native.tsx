@@ -816,11 +816,18 @@ const DriveMapView = forwardRef(function DriveMapView(
   // the next server refresh.
   const visibleReports = useMemo(
     () => communityReports.filter(
-      (r) => !r.status ||
-             r.status === "active" ||
-             r.status === "confirmed" ||
-             r.status === "admin_review" ||
-             r.status === "pending_review"
+      (r) =>
+        // Guard: skip any report with a null, undefined, or NaN coordinate —
+        // a corrupt record would otherwise crash the Marker render.
+        typeof r.lat === "number" && Number.isFinite(r.lat) &&
+        typeof r.lng === "number" && Number.isFinite(r.lng) &&
+        (
+          !r.status ||
+          r.status === "active" ||
+          r.status === "confirmed" ||
+          r.status === "admin_review" ||
+          r.status === "pending_review"
+        )
     ),
     [communityReports]
   );
@@ -998,6 +1005,12 @@ const DriveMapView = forwardRef(function DriveMapView(
 
         {/* Community report clusters */}
         {clusters.map((group) => {
+          // Defensive: skip any cluster whose centroid ended up invalid
+          // (visibleReports already filters member coords, but guard here too).
+          if (
+            !Number.isFinite(group.lat) ||
+            !Number.isFinite(group.lng)
+          ) return null;
           const clusterKey = group.members.map((m) => m.id).sort().join("-");
           return (
             <Marker
