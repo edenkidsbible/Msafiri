@@ -1153,12 +1153,12 @@ export default function DriveScreen() {
           ) : primaryAlert ? (
             <TouchableOpacity
               activeOpacity={0.8}
-              style={{ flex: 1, gap: 5, paddingRight: isSmall ? 56 : 70 }}
+              style={{ flex: 1, gap: 4 }}
               onPress={() => {
                 if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
               }}
             >
-              {/* Colour-coded "NEARBY ALERTS" badge with multi-emoji — full-width row */}
+              {/* Row 1: "NEARBY ALERTS" label — full-width badge, text only */}
               <View style={[styles.nearbyAlertBadge, {
                 backgroundColor: primaryAlert.color + "22",
                 borderColor:     primaryAlert.color + "55",
@@ -1171,42 +1171,36 @@ export default function DriveScreen() {
                 <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color }]}>
                   NEARBY ALERTS
                 </Text>
+              </View>
+              {/* Row 2: Emoji row — capped at 3 (small) / 4 (large) to prevent overflow */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {nearbyAlertCandidates.slice(0, isSmall ? 3 : 4).map((c, i) => (
+                  <Text key={c.id + i} style={{ fontSize: 18 }}>{c.emoji}</Text>
+                ))}
+                {nearbyAlertCandidates.length > (isSmall ? 3 : 4) && (
+                  <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
+                    +{nearbyAlertCandidates.length - (isSmall ? 3 : 4)}
+                  </Text>
+                )}
                 {nearbyAlertCandidates.length > 1 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 4, gap: 2 }}>
-                    {nearbyAlertCandidates.slice(0, 4).map((c, i) => (
-                      <Text key={c.id + i} style={{ fontSize: 15 }}>{c.emoji}</Text>
-                    ))}
-                    {nearbyAlertCandidates.length > 4 && (
-                      <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
-                        +{nearbyAlertCandidates.length - 4}
-                      </Text>
-                    )}
-                    <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
-                  </View>
+                  <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
                 )}
               </View>
-              {/* Emoji marker (matches map) + type name + optional speed */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {/* Row 3: Alert marker + type name + distance all on one line.
+                  paddingRight clears the SOS button so text never slides under it. */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingRight: isSmall ? 56 : 70 }}>
                 <View style={[styles.alertMarker, { backgroundColor: primaryAlert.color }]}>
                   <Text style={styles.alertMarkerEmoji}>
                     {resolveIncidentType(primaryAlert.type).emoji}
                   </Text>
                 </View>
-                <View>
-                  <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
-                    {primaryAlert.typeName}
-                  </Text>
-                  {primaryAlert.speedLimit ? (
-                    <Text style={[styles.zoneSpeedLine, { color: fgMain }]}>
-                      {primaryAlert.speedLimit} km/h
-                    </Text>
-                  ) : null}
-                </View>
+                <Text style={[styles.zoneTypeName, { color: fgMain, flex: 1 }]} numberOfLines={1}>
+                  {primaryAlert.typeName}{primaryAlert.speedLimit ? ` · ${primaryAlert.speedLimit} km/h` : ""}
+                </Text>
+                <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
+                  {distStr(primaryAlert.distanceM)} ahead
+                </Text>
               </View>
-              {/* Distance */}
-              <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
-                {distStr(primaryAlert.distanceM)} ahead
-              </Text>
             </TouchableOpacity>
           ) : (
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1, paddingRight: isSmall ? 56 : 70 }]}>Clear ahead</Text>
