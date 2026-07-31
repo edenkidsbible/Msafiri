@@ -100,9 +100,9 @@ const styles = StyleSheet.create({
   },
   // Square icon-only button — no text, so no paddingHorizontal needed
   btnCompact: {
-    width: 46,
-    height: 38,
-    borderRadius: 12,
+    width: 52,
+    height: 42,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#FF3D00",
@@ -116,9 +116,9 @@ const styles = StyleSheet.create({
   sosTextSmall:   { fontSize: 12, fontWeight: "900", color: "#FFF", letterSpacing: 0.6 },
   // Further reduced for narrow screens (≤390pt)
   btnCompactSmall: {
-    width: 38,
-    height: 32,
-    borderRadius: 10,
+    width: 44,
+    height: 36,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#FF3D00",
