@@ -157,7 +157,7 @@ export default function MapViewScreen() {
                 )}
               </View>
               {navigationActive ? (
-                <TouchableOpacity style={styles.stopBtn} onPress={stopNavigation}>
+                <TouchableOpacity style={styles.stopBtn} onPress={() => stopNavigation("manual")}>
                   <Text style={styles.stopBtnText}>■ Stop</Text>
                 </TouchableOpacity>
               ) : (

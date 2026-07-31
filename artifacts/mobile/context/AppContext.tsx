@@ -251,7 +251,7 @@ interface AppContextValue {
   selectRoute: (r: AppRoute) => void;
   navigationActive: boolean;
   startNavigation: () => Promise<void>;
-  stopNavigation: () => void;
+  stopNavigation: (reason?: "arrived" | "manual" | "timeout") => void;
   isSharingTrip: boolean;
   shareToken: string | null;
   shareLink: string | null;
@@ -1069,7 +1069,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Forwards to the memoized `stopNavigation` below so handleLocation (a
   // stable useCallback defined earlier in this component) can trigger a
   // full stop without needing it in its dependency array.
-  const stopNavigationRef = useRef<() => void>(() => {});
+  const stopNavigationRef = useRef<(reason?: "arrived" | "manual" | "timeout") => void>(() => {});
   // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
   const offRouteCountRef        = useRef(0);
   const isReroutingRef          = useRef(false);
@@ -1992,7 +1992,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         4 * 60 * 60 * 1000,
       );
       if (Date.now() - navStartRef.current > maxDurationMs) {
-        stopNavigationRef.current();
+        stopNavigationRef.current("timeout");
       }
     }
 
@@ -2075,6 +2075,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             navStartRef.current = null;
             setNavigationActive(false);
             playSound("confirm").catch(() => {}); // arrival tone
+            speakNavEnd().catch(() => {}); // arrival sign-off ("You've arrived!")
             const trip = tripRef.current;
             setArrivedInfo({
               destName: (typeof navDestRef.current?.name === "string" ? navDestRef.current.name.split(",")[0] : null) ?? "your destination",
@@ -3213,12 +3214,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     startBackgroundNavTask().catch(() => {});
   }, []); // no closure dependencies — activeRoute replaced by routeRef.current
 
-  const stopNavigation = useCallback(() => {
+  const stopNavigation = useCallback((reason?: "arrived" | "manual" | "timeout") => {
     navActiveRef.current = false;
     navStartRef.current = null;
     setNavigationActive(false);
-    // Friendly Yna Agalo sign-off — fire-and-forget, non-blocking.
-    speakNavEnd().catch(() => {});
+    // Friendly Yna Agalo sign-off — only on genuine arrival, not manual cancel or timeout.
+    // The inline arrival block also fires speakNavEnd as the arrival card appears;
+    // this guard ensures it never plays on mid-trip cancellations or staleness timeouts.
+    if (reason === "arrived") speakNavEnd().catch(() => {});
     // Stop the background nav task — no longer needed once navigation ends.
     stopBackgroundNavTask().catch(() => {});
     setDistToNextM(null);

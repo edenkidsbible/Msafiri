@@ -389,7 +389,7 @@ export default function DriveScreen() {
             style: "destructive",
             onPress: () => {
               setResumeDestination(null);
-              stopNavigation();
+              stopNavigation("manual");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             },
           },
@@ -397,7 +397,7 @@ export default function DriveScreen() {
       );
     } else {
       setResumeDestination(null);
-      stopNavigation();
+      stopNavigation("manual");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   }, [resumeDestination, navDestination, setNavDestination, startNavigation, stopNavigation]);
@@ -699,7 +699,7 @@ export default function DriveScreen() {
 
   const clearDestination = () => {
     Keyboard.dismiss();
-    stopNavigation();
+    stopNavigation("manual");
     setNavDestination(null);
     setResumeDestination(null);
     setSearchText("");
@@ -1888,7 +1888,7 @@ export default function DriveScreen() {
           visible
           transparent
           animationType="slide"
-          onRequestClose={() => { clearArrival(); stopNavigation(); }}
+          onRequestClose={() => { clearArrival(); stopNavigation("arrived"); }}
         >
           <View style={styles.arrivalOverlay}>
             <View style={[styles.arrivalSheet, { backgroundColor: c.card }]}>
@@ -1974,7 +1974,7 @@ export default function DriveScreen() {
                   {/* Decline link */}
                   <TouchableOpacity
                     style={styles.arrivalDeclineBtn}
-                    onPress={() => { clearArrival(); stopNavigation(); setResumeDestination(null); }}
+                    onPress={() => { clearArrival(); stopNavigation("arrived"); setResumeDestination(null); }}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.arrivalDeclineTxt, { color: c.mutedForeground }]}>
@@ -1989,7 +1989,7 @@ export default function DriveScreen() {
                     style={[styles.arrivalParkBtn, { backgroundColor: c.muted, borderColor: c.border }]}
                     onPress={() => {
                       clearArrival();
-                      stopNavigation();
+                      stopNavigation("arrived");
                       setSearchText("parking near me");
                       runSearch("parking near me");
                     }}
@@ -2002,7 +2002,7 @@ export default function DriveScreen() {
                   {/* Done button */}
                   <TouchableOpacity
                     style={[styles.arrivalDoneBtn, { backgroundColor: c.primary }]}
-                    onPress={() => { clearArrival(); stopNavigation(); }}
+                    onPress={() => { clearArrival(); stopNavigation("arrived"); }}
                     activeOpacity={0.85}
                   >
                     <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>Done</Text>
