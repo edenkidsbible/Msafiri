@@ -33,7 +33,7 @@ import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, speakNavCancel, prewarmNavAudio } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, speakNavCancel, prewarmNavAudio, getAlertVoiceDisabled } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -3223,6 +3223,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // this guard ensures it never plays on mid-trip cancellations or staleness timeouts.
     if (reason === "arrived") speakNavEnd().catch(() => {});
     else if (reason === "manual") speakNavCancel().catch(() => {});
+    // Short neutral chime on manual cancel or staleness timeout — gives the driver
+    // audio confirmation that navigation stopped without any speech.  Respects the
+    // same voiceDisabled flag used by the TTS system.
+    if ((reason === "manual" || reason === "timeout") && !getAlertVoiceDisabled()) {
+      playSound("confirm").catch(() => {});
+    }
     // Stop the background nav task — no longer needed once navigation ends.
     stopBackgroundNavTask().catch(() => {});
     setDistToNextM(null);
