@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Linking,
   ScrollView,
   Image,
+  BackHandler,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -29,6 +30,20 @@ export default function ForceUpdateScreen() {
     Platform.OS === "ios"
       ? (params.storeUrlIos ?? "https://apps.apple.com")
       : (params.storeUrlAndroid ?? "https://play.google.com");
+
+  // Block Android hardware back button when a force update is active.
+  // Returning true from the handler swallows the event so the screen
+  // cannot be dismissed. For a soft update the back button works normally.
+  useEffect(() => {
+    if (!isForced || Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      // Open the store so the user has a clear path forward, then swallow
+      // the back event so they cannot return to the app without updating.
+      Linking.openURL(storeUrl).catch(() => {});
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isForced, storeUrl]);
 
   const handleUpdate = () => {
     Linking.openURL(storeUrl).catch(() => {});
