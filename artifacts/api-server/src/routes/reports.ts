@@ -339,6 +339,15 @@ router.post("/reports", async (req: Request, res: Response) => {
       logger.warn({ err, deviceId }, "Milestone push check failed")
     );
 
+    // ── Notify nearby drivers to refresh — only for reports that go live now ──
+    // Moderated types (camera, police) stay in pending_review and aren't visible
+    // to other drivers yet, so a refresh push would be a no-op for them.
+    if (!needsModeration) {
+      void notifyNearbyDevices(lat, lng, inserted.id, deviceId).catch((err) =>
+        logger.warn({ err, reportId: inserted.id }, "Nearby-driver refresh push failed (non-critical)")
+      );
+    }
+
     // ── Auto-clear nearby incidents when a driver marks the road as clear ────
     // A "clear" report is a positive signal that whatever was blocking or
     // hazardous at this location is no longer present.  Expire every active /
@@ -392,6 +401,53 @@ router.post("/reports", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// ── Silent push to nearby drivers on new report creation ─────────────────────
+// Called fire-and-forget immediately after a new active (non-moderated) report
+// is inserted. Devices within ~8 km that have been seen in the last 4 hours
+// receive a silent data-only push so they can poll for fresh reports right away,
+// rather than waiting up to 60 s for the next scheduled poll cycle.
+// The excluded deviceId is the report submitter — they already have the report.
+async function notifyNearbyDevices(
+  lat: number, lng: number, reportId: string, excludeDeviceId: string
+): Promise<void> {
+  const RADIUS_M = 8000;
+  const latDelta = RADIUS_M / 111320;
+  const lngDelta = RADIUS_M / (111320 * Math.cos((lat * Math.PI) / 180));
+  const cutoff   = new Date(Date.now() - 4 * 60 * 60 * 1000); // 4 h ago
+
+  const rows = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable)
+    .where(
+      and(
+        isNotNull(pushTokensTable.lastLat),
+        isNotNull(pushTokensTable.lastLng),
+        gte(pushTokensTable.lastLat,    lat - latDelta),
+        sql`${pushTokensTable.lastLat}  <= ${lat + latDelta}`,
+        gte(pushTokensTable.lastLng,    lng - lngDelta),
+        sql`${pushTokensTable.lastLng}  <= ${lng + lngDelta}`,
+        gte(pushTokensTable.lastSeenAt, cutoff),
+        ne(pushTokensTable.deviceId,    excludeDeviceId),
+      )
+    );
+
+  if (rows.length === 0) return;
+
+  // Silent push: empty title/body so no OS banner is shown; data payload
+  // carries the refresh signal. priority "normal" avoids aggressive wakeup.
+  await sendPushNotifications(rows.map((r) => ({
+    to:       r.token,
+    title:    "",
+    body:     "",
+    sound:    null,
+    badge:    0,
+    priority: "normal" as const,
+    data:     { type: "reports_refresh", reportId },
+  })));
+
+  logger.info({ count: rows.length, reportId }, "Nearby-driver refresh push sent");
+}
 
 // Best-effort push notice to the reporting device that their submission is
 // held for moderator review before it goes live to other drivers.

@@ -18,6 +18,10 @@ export interface MapPinPickerProps {
 export function MapPinPicker({ initialLat, initialLng, onLocationChange, mapHeight = 220 }: MapPinPickerProps) {
   const mapRef = useRef<MapView>(null);
   const [pos, setPos] = useState({ latitude: initialLat, longitude: initialLng });
+  // tracksViewChanges must be true while the marker is being dragged — leaving it
+  // false during a drag causes a native crash in react-native-maps. We toggle it
+  // on drag start and restore it once the drag ends to keep rendering efficient.
+  const [isDragging, setIsDragging] = useState(false);
 
   const update = (latitude: number, longitude: number) => {
     setPos({ latitude, longitude });
@@ -36,8 +40,12 @@ export function MapPinPicker({ initialLat, initialLng, onLocationChange, mapHeig
           latitudeDelta: 0.004,
           longitudeDelta: 0.004,
         }}
-        onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
-          const { latitude, longitude } = e.nativeEvent.coordinate;
+        onPress={(e: { nativeEvent?: { coordinate?: { latitude: number; longitude: number } } }) => {
+          // Guard: coordinate can be undefined if the press lands on a map control
+          // (compass, scale bar) rather than the map surface itself.
+          const coord = e.nativeEvent?.coordinate;
+          if (!coord) return;
+          const { latitude, longitude } = coord;
           update(latitude, longitude);
           mapRef.current?.animateToRegion(
             { latitude, longitude, latitudeDelta: 0.004, longitudeDelta: 0.004 },
@@ -52,9 +60,15 @@ export function MapPinPicker({ initialLat, initialLng, onLocationChange, mapHeig
         <Marker
           coordinate={pos}
           draggable
-          tracksViewChanges={false}
-          onDragEnd={(e) => {
-            const { latitude, longitude } = e.nativeEvent.coordinate;
+          // Keep tracksViewChanges true while dragging (required to avoid native
+          // crash); false at rest to avoid unnecessary re-renders.
+          tracksViewChanges={isDragging}
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={(e: { nativeEvent?: { coordinate?: { latitude: number; longitude: number } } }) => {
+            setIsDragging(false);
+            const coord = e.nativeEvent?.coordinate;
+            if (!coord) return;
+            const { latitude, longitude } = coord;
             update(latitude, longitude);
           }}
         />

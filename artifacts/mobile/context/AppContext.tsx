@@ -226,6 +226,10 @@ interface AppContextValue {
   sosContact: SOSContact | null;
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
+  /** Immediately fetches fresh reports from the server outside the normal poll
+   *  cycle. Called by usePushNotifications when a silent "reports_refresh" push
+   *  arrives so new pins appear within ~2 s of the original submission. */
+  refreshReports: () => Promise<void>;
   addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => string;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<{ ok: boolean; message?: string }>;
@@ -2737,89 +2741,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentLat, currentLng]);
 
-  // Remote report polling — fetch all active reports every 60 s when online.
+  // Remote report polling — poll when online.
   // No radius filter: show every incident on the map regardless of location.
+  //
+  // refreshReports is a stable callback ([] deps — all refs, no state) so it
+  // can be called out-of-cycle from usePushNotifications when a silent
+  // "reports_refresh" push arrives, making new reports appear within ~2 s.
+  const refreshReports = useCallback(async () => {
+    if (isOfflineRef.current || !deviceIdRef.current) return;
+    try {
+      const data = await apiGet<{ reports: Array<{
+        id: string; type: string; lat: number; lng: number;
+        status: string; confirmCount: number; denyCount: number;
+        createdAt: number; expiresAt: number | null;
+        speedLimit: number | null; roadName: string | null; adminVerified: boolean;
+      }> }>(`/reports`);
+      const remote: CommunityReport[] = data.reports.map((r) => ({
+        id: r.id,
+        type: r.type as CommunityReport["type"],
+        lat: r.lat,
+        lng: r.lng,
+        timestamp: r.createdAt,
+        confirmed: r.confirmCount,
+        serverId: r.id,
+        status: r.status as CommunityReport["status"],
+        confirmCount: r.confirmCount,
+        denyCount: r.denyCount,
+        speedLimit: r.speedLimit ?? undefined,
+        roadName: r.roadName ?? undefined,
+        adminVerified: r.adminVerified,
+        isOwn: false,
+      }));
+      // #32: Detect reports that vanished (expired / denied) while the driver
+      // is navigating and the report was within the alert window.
+      if (navActiveRef.current && prevPollServerIdsRef.current.size > 0) {
+        const newIds = new Set(remote.map((r) => r.id));
+        const loc = pollLocationRef.current;
+        for (const prev of communityReportsRef.current) {
+          if (!prev.serverId) continue;
+          if (newIds.has(prev.serverId)) continue; // still active on server
+          if (!loc) continue;
+          const dist = haversine(loc.lat, loc.lng, prev.lat, prev.lng);
+          if (dist < IN_ZONE_DIST || dist > ALERT_DIST * 3) continue;
+          break;
+        }
+      }
+      prevPollServerIdsRef.current = new Set(remote.map((r) => r.id));
+
+      // Clean up locallyDeniedServerIdsRef: once the server no longer
+      // returns a report (it has recorded the denial), we don't need to
+      // block it any more. Keep only IDs that are still in the response.
+      const remoteIdSet = new Set(remote.map((r) => r.id));
+      for (const sid of locallyDeniedServerIdsRef.current) {
+        if (remoteIdSet.has(sid)) {
+          // Server still returns it — keep blocking.
+        } else {
+          locallyDeniedServerIdsRef.current.delete(sid);
+        }
+      }
+
+      // Non-disruptive functional update: setCommunityReports only touches the
+      // communityReports state slice. It never reads or writes alertZoneRef,
+      // activeAlert, distToNextM, navActiveRef, routeRef, or any other navigation
+      // ref — active drives and in-flight voice cues are completely unaffected.
+      setCommunityReports((prev) => {
+        const owned = prev.filter((r) => r.isOwn);
+        // Exclude any remote report whose server ID was locally denied but
+        // the server hasn't yet reflected the denial — prevents the poll
+        // from re-inserting a report the driver just voted "Gone Now" on.
+        const filteredRemote = remote.filter(
+          (rem) => !locallyDeniedServerIdsRef.current.has(rem.id)
+        );
+        const remoteNew = filteredRemote.filter((rem) => !owned.some((o) => o.serverId === rem.id));
+        const ownedUpdated = owned.map((o) => {
+          const match = filteredRemote.find((r) => r.id === o.serverId);
+          return match
+            ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount, adminVerified: match.adminVerified }
+            : o;
+        });
+        return [...ownedUpdated, ...remoteNew].filter(
+          (r) => r.status !== "expired" && r.status !== "denied"
+        );
+      });
+    } catch { /* network error — keep local copy */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!locationGranted) return;
-    const poll = async () => {
-      if (isOfflineRef.current || !deviceIdRef.current) return;
-      try {
-        const data = await apiGet<{ reports: Array<{
-          id: string; type: string; lat: number; lng: number;
-          status: string; confirmCount: number; denyCount: number;
-          createdAt: number; expiresAt: number | null;
-          speedLimit: number | null; roadName: string | null; adminVerified: boolean;
-        }> }>(`/reports`);
-        const remote: CommunityReport[] = data.reports.map((r) => ({
-          id: r.id,
-          type: r.type as CommunityReport["type"],
-          lat: r.lat,
-          lng: r.lng,
-          timestamp: r.createdAt,
-          confirmed: r.confirmCount,
-          serverId: r.id,
-          status: r.status as CommunityReport["status"],
-          confirmCount: r.confirmCount,
-          denyCount: r.denyCount,
-          speedLimit: r.speedLimit ?? undefined,
-          roadName: r.roadName ?? undefined,
-          adminVerified: r.adminVerified,
-          isOwn: false,
-        }));
-        // #32: Detect reports that vanished (expired / denied) while the driver
-        // is navigating and the report was within the alert window.
-        if (navActiveRef.current && prevPollServerIdsRef.current.size > 0) {
-          const newIds = new Set(remote.map((r) => r.id));
-          const loc = pollLocationRef.current;
-          for (const prev of communityReportsRef.current) {
-            if (!prev.serverId) continue;
-            if (newIds.has(prev.serverId)) continue; // still active on server
-            if (!loc) continue;
-            const dist = haversine(loc.lat, loc.lng, prev.lat, prev.lng);
-            if (dist < IN_ZONE_DIST || dist > ALERT_DIST * 3) continue;
-            break;
-          }
-        }
-        prevPollServerIdsRef.current = new Set(remote.map((r) => r.id));
-
-        // Clean up locallyDeniedServerIdsRef: once the server no longer
-        // returns a report (it has recorded the denial), we don't need to
-        // block it any more. Keep only IDs that are still in the response.
-        const remoteIdSet = new Set(remote.map((r) => r.id));
-        for (const sid of locallyDeniedServerIdsRef.current) {
-          if (remoteIdSet.has(sid)) {
-            // Server still returns it — keep blocking.
-          } else {
-            locallyDeniedServerIdsRef.current.delete(sid);
-          }
-        }
-
-        setCommunityReports((prev) => {
-          const owned = prev.filter((r) => r.isOwn);
-          // Exclude any remote report whose server ID was locally denied but
-          // the server hasn't yet reflected the denial — prevents the 60-s
-          // poll from re-inserting a report the driver just voted "Gone Now" on.
-          const filteredRemote = remote.filter(
-            (rem) => !locallyDeniedServerIdsRef.current.has(rem.id)
-          );
-          const remoteNew = filteredRemote.filter((rem) => !owned.some((o) => o.serverId === rem.id));
-          const ownedUpdated = owned.map((o) => {
-            const match = filteredRemote.find((r) => r.id === o.serverId);
-            return match
-              ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount, adminVerified: match.adminVerified }
-              : o;
-          });
-          return [...ownedUpdated, ...remoteNew].filter(
-            (r) => r.status !== "expired" && r.status !== "denied"
-          );
-        });
-      } catch { /* network error — keep local copy */ }
-    };
-    poll(); // immediate on mount
-    const handle = setInterval(poll, 60000);
+    refreshReports(); // immediate poll on mount + whenever nav-state changes
+    // During active navigation use a 20 s fallback interval — fast enough that
+    // even if a silent push is dropped by iOS/Android, the report appears before
+    // the driver has travelled more than ~500 m at highway speed.
+    const intervalMs = navigationActive ? 20_000 : 60_000;
+    const handle = setInterval(refreshReports, intervalMs);
     return () => clearInterval(handle);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationGranted]);
+  }, [locationGranted, navigationActive, refreshReports]);
 
   // HERE Live Traffic incidents — poll every 5 minutes; server-side job refreshes
   // the HERE API on the same cadence, so the mobile always gets a fresh snapshot.
@@ -4219,7 +4235,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       themeOverride, setThemeOverride,
       clearAllData,
       sosContact, setSosContact,
-      communityReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
+      communityReports, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
       hydrated, onboardingComplete, completeOnboarding,
       isOffline,

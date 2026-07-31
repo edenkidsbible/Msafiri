@@ -284,7 +284,12 @@ export default function ReportModal({
             style={{ flex: 1 }}
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
+            // Disable parent scroll while the map picker is active — the MapView's
+            // own pan gesture and the ScrollView's scroll gesture compete for the
+            // same touch events, causing a native crash on iOS when both are live.
+            // In map mode the user interacts with the map, not the scroll container.
+            keyboardDismissMode={locationMode === "map" ? "none" : "on-drag"}
+            scrollEnabled={locationMode !== "map"}
           >
             {/* Location section */}
             <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>WHERE IS THIS HAPPENING?</Text>

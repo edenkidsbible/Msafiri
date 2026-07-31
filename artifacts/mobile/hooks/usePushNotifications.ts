@@ -145,15 +145,22 @@ async function syncLocation(lat: number, lng: number): Promise<void> {
   }
 }
 
-// Configure how notifications appear when the app is in the foreground
+// Configure how notifications appear when the app is in the foreground.
+// Silent background-refresh pushes (no title, no body) are suppressed entirely
+// so the driver sees no banner — the data payload is handled in the
+// addNotificationReceivedListener below, which triggers an immediate poll.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const { title, body } = notification.request.content;
+    const isSilent = !title && !body;
+    return {
+      shouldShowAlert:  !isSilent,
+      shouldPlaySound:  !isSilent,
+      shouldSetBadge:   false,
+      shouldShowBanner: !isSilent,
+      shouldShowList:   !isSilent,
+    };
+  },
 });
 
 export function usePushNotifications() {
@@ -178,6 +185,7 @@ export function usePushNotifications() {
   }, [navReady, router]);
   const {
     communityReports,
+    refreshReports,
     setPendingConfirmationReport,
     setPendingConfirmationSource,
     setPendingFocusCoords,
@@ -199,9 +207,11 @@ export function usePushNotifications() {
   // calls the latest version of these functions without going stale.
   const stopNavigationRef   = useRef(stopNavigation);
   const stopSharingTripRef  = useRef(stopSharingTrip);
+  const refreshReportsRef   = useRef(refreshReports);
 
   useEffect(() => { stopNavigationRef.current  = stopNavigation;  }, [stopNavigation]);
   useEffect(() => { stopSharingTripRef.current = stopSharingTrip; }, [stopSharingTrip]);
+  useEffect(() => { refreshReportsRef.current  = refreshReports;  }, [refreshReports]);
 
   // Keep a ref to the latest coordinates so the interval always uses fresh values
   const latRef = useRef<number | null>(currentLat);
@@ -358,6 +368,22 @@ export function usePushNotifications() {
     return () => {
       responseListener.current?.remove();
     };
+  }, []);
+
+  // Foreground silent-push handler — when the server notifies nearby devices of a
+  // new report, devices in the foreground receive a data-only push with no title
+  // or body. Intercept it here and trigger an immediate out-of-cycle report poll
+  // so the new pin appears on the map within ~2 s. The setNotificationHandler
+  // above suppresses any visible banner for silent pushes, so the driver sees nothing.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as Record<string, unknown>;
+      if (data?.type === "reports_refresh") {
+        refreshReportsRef.current().catch(() => {});
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   // Periodically sync location to the server so incident notifications are targeted
