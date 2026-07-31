@@ -33,7 +33,7 @@ import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, prewarmNavAudio } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -1238,6 +1238,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Keep voice refs in sync with state ───────────────────────────────────
+  // Pre-warm nav-start and nav-end TTS audio on mount so the server caches both
+  // MP3s before the driver's first trip. Fire-and-forget; no error surface.
+  useEffect(() => { prewarmNavAudio(); }, []);
+
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);

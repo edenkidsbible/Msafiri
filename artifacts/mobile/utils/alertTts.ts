@@ -144,6 +144,19 @@ const NAV_END_TEXT =
   "please update them so other drivers know. " +
   "Have a lovely time ahead, and remember to come back!";
 
+/**
+ * Silently pre-fetch the nav-start and nav-end TTS audio so the server warms
+ * its object-storage cache before the driver's first trip. No audio is played —
+ * two background GETs are fired and their responses discarded. Errors are
+ * swallowed; this is purely a best-effort cache-warm. Safe to call at app mount.
+ */
+export function prewarmNavAudio(): void {
+  if (Platform.OS === "web" || !API_BASE) return;
+  for (const text of [NAV_START_TEXT, NAV_END_TEXT]) {
+    fetch(`${API_BASE}/tts?text=${encodeURIComponent(text)}`).catch(() => {});
+  }
+}
+
 /** Play the friendly navigation-start briefing (Yna Agalo via /api/tts). */
 export async function speakNavStart(): Promise<void> {
   await speakAlertPhrase(NAV_START_TEXT);
