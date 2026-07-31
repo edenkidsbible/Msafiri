@@ -1320,15 +1320,28 @@ export default function DriveScreen() {
               Border colour shifts RED → ORANGE → AMBER → alert-colour as
               distance grows. SOS (zIndex 10) always floats on top. */}
           {locationGranted && !overLimit && !routeLoading && primaryAlert && (
-            <Animated.View
+            // Outer View is always fully opaque — hides the gauge + right-panel
+            // content underneath. A separate inner Animated.View ring pulses to
+            // give the heartbeat effect without making the background see-through.
+            <View
               style={[styles.alertOverlay, {
                 backgroundColor: bg,
                 borderLeftColor: overlayBorderColor,
                 borderLeftWidth: overlayBorderWidth,
-                opacity: alertOverlayPulse,
               }]}
-              pointerEvents="box-none"
             >
+              {/* Pulsing ring glow — only this opacity animates, not the whole overlay */}
+              <Animated.View
+                pointerEvents="none"
+                style={{
+                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                  borderRadius: 16,
+                  borderWidth: 2,
+                  borderColor: overlayBorderColor,
+                  opacity: alertOverlayPulse,
+                }}
+              />
+
               <TouchableOpacity
                 activeOpacity={0.92}
                 style={styles.alertOverlayInner}
@@ -1352,7 +1365,7 @@ export default function DriveScreen() {
                     <Text style={[styles.alertOverlayTypeName, {
                       color: primaryAlert.color,
                       fontSize: isSmall ? 19 : 22,
-                    }]} numberOfLines={1}>
+                    }]}>
                       {primaryAlert.typeName}
                     </Text>
                     {nearbyAlertCandidates.length > 1 && (
@@ -1430,7 +1443,7 @@ export default function DriveScreen() {
                   </View>
                 )}
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           )}
 
           {/* SOS — above the overlay via zIndex 10 */}
