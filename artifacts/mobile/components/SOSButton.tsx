@@ -1,6 +1,5 @@
 import React, { useRef } from "react";
-import { Alert, Animated, Platform, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Alert, Animated, Platform, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -78,11 +77,9 @@ export default function SOSButton({ compact = false, small = false }: Props) {
         activeOpacity={0.85}
         testID="sos-button"
       >
-        <Ionicons
-          name="call"
-          size={compact ? (small ? 16 : 18) : 22}
-          color="#FFFFFF"
-        />
+        <Text style={compact ? (small ? styles.sosTextSmall : styles.sosTextCompact) : styles.sosText}>
+          SOS
+        </Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -114,6 +111,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
+  sosText:        { fontSize: 15, fontWeight: "900", color: "#FFF", letterSpacing: 1 },
+  sosTextCompact: { fontSize: 13, fontWeight: "900", color: "#FFF", letterSpacing: 0.8 },
+  sosTextSmall:   { fontSize: 11, fontWeight: "900", color: "#FFF", letterSpacing: 0.6 },
   // Further reduced for narrow screens (≤390pt)
   btnCompactSmall: {
     width: 36,

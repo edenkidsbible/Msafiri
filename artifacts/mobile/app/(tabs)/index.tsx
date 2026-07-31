@@ -1247,8 +1247,8 @@ export default function DriveScreen() {
                     {resolveIncidentType(primaryAlert.type).emoji}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.zoneTypeName, { color: fgMain }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
                     {primaryAlert.typeName}{primaryAlert.speedLimit ? ` · ${primaryAlert.speedLimit} km/h` : ""}
                   </Text>
                   <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>

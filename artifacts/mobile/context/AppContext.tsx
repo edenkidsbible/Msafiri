@@ -151,7 +151,7 @@ export interface AppRoute {
  *  the UI can render them as a unified, sorted "what's ahead" list. */
 export interface RouteIncident {
   id: string;
-  source: "static" | "report";
+  source: "static" | "report" | "here";
   type: string;
   label: string;
   name: string;
