@@ -33,7 +33,7 @@ import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -3201,6 +3201,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navActiveRef.current = true;
     navStartRef.current = Date.now();
     setNavigationActive(true);
+    // Friendly Yna Agalo briefing — fire-and-forget, non-blocking.
+    speakNavStart().catch(() => {});
     // Start the iOS background location task so GPS keeps flowing when the
     // driver locks the screen. Fire-and-forget — failure is non-fatal (the
     // foreground watcher still works; the bg task just adds resilience).
@@ -3211,6 +3213,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     navActiveRef.current = false;
     navStartRef.current = null;
     setNavigationActive(false);
+    // Friendly Yna Agalo sign-off — fire-and-forget, non-blocking.
+    speakNavEnd().catch(() => {});
     // Stop the background nav task — no longer needed once navigation ends.
     stopBackgroundNavTask().catch(() => {});
     setDistToNextM(null);

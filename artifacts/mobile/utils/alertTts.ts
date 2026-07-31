@@ -127,6 +127,33 @@ export async function speakAlertMulti(type: string): Promise<void> {
   await playKey(ALERT_AUDIO[multiKey] ? multiKey : type);
 }
 
+// ─── Navigation lifecycle phrases ────────────────────────────────────────────
+// Spoken by Yna Agalo at the start and end of every trip. On-demand via
+// /api/tts (responses cached 90 days in object storage so the first playback
+// hits ElevenLabs once; every subsequent trip is instant and free).
+
+const NAV_START_TEXT =
+  "Navigation started! Your route is ready — follow along as I guide you. " +
+  "If you spot anything on the road, tap to report it. " +
+  "Watch out for incidents flagged by other drivers — " +
+  "I'll sound an alert before you reach them. " +
+  "Stay focused on the road, and have a safe journey!";
+
+const NAV_END_TEXT =
+  "You've arrived! If any of the incidents you passed are now clear, " +
+  "please update them so other drivers know. " +
+  "Have a lovely time ahead, and remember to come back!";
+
+/** Play the friendly navigation-start briefing (Yna Agalo via /api/tts). */
+export async function speakNavStart(): Promise<void> {
+  await speakAlertPhrase(NAV_START_TEXT);
+}
+
+/** Play the arrival / trip-end sign-off (Yna Agalo via /api/tts). */
+export async function speakNavEnd(): Promise<void> {
+  await speakAlertPhrase(NAV_END_TEXT);
+}
+
 /**
  * Speak an arbitrary phrase via the /api/tts server proxy (Yna Agalo voice).
  * Used for ad-hoc alerts that don't have a pre-generated bundled file.
