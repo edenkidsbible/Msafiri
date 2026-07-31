@@ -168,15 +168,16 @@ router.post("/releases/:id/publish", async (req: Request, res: Response) => {
     });
 
     // ── Automatically send a push notification to all registered devices ──
-    // Force updates get a more urgent title/body; soft updates are informational.
+    // Soft FOMO framing for both force and optional updates — avoids
+    // alarming language like "critical" that causes anxiety before driving.
     const notifTitle = release.isForceUpdate
-      ? "Critical Update Required"
-      : `New Update Available — v${release.version}`;
+      ? `Msafiri just got better 🚀`
+      : `What's new in Msafiri v${release.version} ✨`;
     const notifBody = release.isForceUpdate
-      ? `Version ${release.version} is required to continue using Msafiri. Please update now.`
+      ? `v${release.version} is ready for you — a quick update and you're back on the road.`
       : (release.releaseNotes
           ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
-          : `Msafiri v${release.version} is now available. Tap to update.`);
+          : `Msafiri v${release.version} is here. Tap to see what's new.`);
 
     const notifData = {
       type:           "app_update",

@@ -49,11 +49,13 @@ export default function ForceUpdateScreen() {
         </View>
 
         <Text style={styles.title}>
-          {isForced ? "Update Required" : "Update Available"}
+          {isForced
+            ? "A fresh Msafiri is waiting 🚀"
+            : `Msafiri${params.latestVersion ? ` v${params.latestVersion}` : ""} is here ✨`}
         </Text>
         <Text style={styles.subtitle}>
           {isForced
-            ? "A critical update is available. Please update Msafiri to continue using the app."
+            ? `Drivers on v${params.latestVersion || "the latest version"} are already on the road with the newest experience. Take 30 seconds to update and join them.`
             : `A new version of Msafiri is available${params.latestVersion ? ` (v${params.latestVersion})` : ""}. Update now for the latest features and safety improvements.`}
         </Text>
 

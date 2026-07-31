@@ -241,6 +241,25 @@ function RootLayoutNav() {
   // Soft-update banner: dismissed once per session, not blocking
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
 
+  // Dedicated force-update watchdog — runs independently of the one-shot
+  // routing guard below so that a force update published while the app is
+  // already in the foreground (or when the user brings it back from the
+  // background) locks the screen immediately without requiring a cold restart.
+  useEffect(() => {
+    if (!versionCheck.checked || !versionCheck.isForceRequired) return;
+    router.replace({
+      pathname: "/force-update",
+      params: {
+        latestVersion:   versionCheck.latestVersion ?? "",
+        releaseNotes:    versionCheck.releaseNotes ?? "",
+        storeUrlIos:     versionCheck.storeUrlIos ?? "",
+        storeUrlAndroid: versionCheck.storeUrlAndroid ?? "",
+        isSoft:          "false",
+      },
+    } as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [versionCheck.checked, versionCheck.isForceRequired]);
+
   useEffect(() => {
     // Wait until AppContext has hydrated from AsyncStorage and RevenueCat
     // has resolved subscription status before making routing decisions.
@@ -254,21 +273,9 @@ function RootLayoutNav() {
     // would then never fire even if the server returns isForceRequired: true.
     if (!versionCheck.checked) return;
 
-    // Force update takes absolute priority over every other routing decision.
-    if (versionCheck.isForceRequired) {
-      checked.current = true;
-      router.replace({
-        pathname: "/force-update",
-        params: {
-          latestVersion:   versionCheck.latestVersion ?? "",
-          releaseNotes:    versionCheck.releaseNotes ?? "",
-          storeUrlIos:     versionCheck.storeUrlIos ?? "",
-          storeUrlAndroid: versionCheck.storeUrlAndroid ?? "",
-          isSoft:          "false",
-        },
-      } as any);
-      return;
-    }
+    // Force update is handled by the dedicated watchdog above; skip here
+    // so the checked.current flag is not consumed before the watchdog fires.
+    if (versionCheck.isForceRequired) return;
 
     if (!onboardingComplete) {
       checked.current = true;

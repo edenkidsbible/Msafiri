@@ -20,7 +20,25 @@ import { useColors } from "@/hooks/useColors";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import { apiPost } from "@/utils/apiClient";
 
-const STORAGE_KEY = "creator_application_submitted";
+const STORAGE_KEY    = "creator_application_submitted";
+const DEVICE_ID_KEY  = "msafiri_device_id";
+
+/** Returns a stable per-install UUID, generating one on first call. */
+async function getOrCreateDeviceId(): Promise<string> {
+  const stored = await AsyncStorage.getItem(DEVICE_ID_KEY);
+  if (stored) return stored;
+  // crypto.randomUUID() is available on Hermes (Expo SDK 50+); fall back to
+  // a Math.random()-based v4 UUID for older environments.
+  const id: string =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+        });
+  await AsyncStorage.setItem(DEVICE_ID_KEY, id);
+  return id;
+}
 
 const PERKS = [
   { icon: "gift-outline",         text: "1 month free Msafiri Access" },
@@ -70,7 +88,7 @@ export default function CreatorProgramScreen() {
     setError(null);
     setSubmitState("submitting");
     try {
-      const deviceId = await AsyncStorage.getItem("sdk_device_id") ?? "unknown";
+      const deviceId = await getOrCreateDeviceId();
       const result = await apiPost("/creator-application", {
         deviceId,
         name:     name.trim() || null,

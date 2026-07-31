@@ -17,10 +17,17 @@ router.post("/creator-application", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid email address" });
     }
 
+    // Deduplicate by deviceId OR email so the same person can't slip in
+    // from a second device, and so a shared/unknown deviceId can't block
+    // unrelated users.
+    const { or } = await import("drizzle-orm");
     const [existing] = await db
       .select({ id: creatorApplicationsTable.id, status: creatorApplicationsTable.status })
       .from(creatorApplicationsTable)
-      .where(eq(creatorApplicationsTable.deviceId, deviceId))
+      .where(or(
+        eq(creatorApplicationsTable.deviceId, deviceId),
+        eq(creatorApplicationsTable.email, email.trim().toLowerCase()),
+      ))
       .limit(1);
 
     if (existing) {

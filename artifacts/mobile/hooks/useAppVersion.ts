@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, type AppStateStatus, Platform } from "react-native";
 import Constants from "expo-constants";
 import { apiGet } from "@/utils/apiClient";
 
@@ -41,17 +41,17 @@ export function getCurrentBuildNumber(): number {
 
 export function useAppVersion(): VersionCheckResult {
   const [result, setResult] = useState<VersionCheckResult>(INITIAL);
+  const appState = useRef(AppState.currentState);
 
-  useEffect(() => {
+  const runCheck = useCallback(() => {
     if (Platform.OS === "web") {
-      // Web always has the latest version — skip check
       setResult({ ...INITIAL, checked: true });
       return;
     }
 
-    const version = getCurrentAppVersion();
-    const build   = getCurrentBuildNumber();
-    const platform = Platform.OS; // "ios" | "android"
+    const version  = getCurrentAppVersion();
+    const build    = getCurrentBuildNumber();
+    const platform = Platform.OS;
 
     apiGet<VersionCheckResult & { error?: string }>(
       `/app/version?platform=${platform}&version=${encodeURIComponent(version)}&build=${build}`
@@ -72,6 +72,23 @@ export function useAppVersion(): VersionCheckResult {
         setResult({ ...INITIAL, checked: true });
       });
   }, []);
+
+  useEffect(() => {
+    // Initial check on mount
+    runCheck();
+
+    // Re-check every time the app comes back to the foreground so a force
+    // update published while the app was running is caught immediately —
+    // without this the user would need a cold restart to see the screen.
+    const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && next === "active") {
+        runCheck();
+      }
+      appState.current = next;
+    });
+
+    return () => sub.remove();
+  }, [runCheck]);
 
   return result;
 }
