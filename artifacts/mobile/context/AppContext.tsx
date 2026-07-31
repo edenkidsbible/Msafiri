@@ -2358,8 +2358,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           liveSub = { remove: () => navigator.geolocation.clearWatch(id) };
         }
       } catch (e) {
-        console.warn("Location watch failed to start, retrying:", e);
-        if (!cancelled) retryTimer = setTimeout(subscribe, 4000);
+        console.warn("Location watch failed to start:", e);
+        if (!cancelled) {
+          // Hard failure (e.g. permission revoked mid-session): don't retry
+          // blindly forever. If permission is gone, flip locationGranted so
+          // the UI degrades to its "location unavailable" state instead of
+          // looping a failing native call every 4 s.
+          if (Platform.OS !== "web") {
+            try {
+              const { status } = await Location.getForegroundPermissionsAsync();
+              if (status !== "granted") {
+                setLocationGranted(false);
+                return;
+              }
+            } catch { /* permission check itself failed — fall through to retry */ }
+          }
+          retryTimer = setTimeout(subscribe, 4000);
+        }
       } finally {
         isSubscribing = false;
       }
@@ -3010,8 +3025,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // currentRouteDistanceM updates (i.e. every GPS fix), unlike the route's
   // static total distanceM/durationS which never change once fetched.
   const distanceRemainingM = useMemo(() => {
-    if (!activeRoute) return null;
-    if (currentRouteDistanceM == null) return activeRoute.distanceM;
+    if (!activeRoute || !Number.isFinite(activeRoute.distanceM)) return null;
+    if (currentRouteDistanceM == null || !Number.isFinite(currentRouteDistanceM)) return activeRoute.distanceM;
     return Math.max(0, activeRoute.distanceM - currentRouteDistanceM);
   }, [activeRoute, currentRouteDistanceM]);
 
@@ -3020,8 +3035,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Google's durationS is already traffic-aware — scale by remaining distance
     // fraction only. Community report delay (routeTrafficDelayS) is shown as a
     // separate supplemental indicator, not baked into the ETA.
-    if (activeRoute.distanceM <= 0) return activeRoute.durationS;
-    return Math.round((distanceRemainingM / activeRoute.distanceM) * activeRoute.durationS);
+    if (!Number.isFinite(activeRoute.durationS)) return null;
+    if (!Number.isFinite(activeRoute.distanceM) || activeRoute.distanceM <= 0) return activeRoute.durationS;
+    const scaled = Math.round((distanceRemainingM / activeRoute.distanceM) * activeRoute.durationS);
+    return Number.isFinite(scaled) ? scaled : activeRoute.durationS;
   }, [activeRoute, distanceRemainingM]);
   // Keep refs in sync so the share-trip ping interval always reads fresh values
   useEffect(() => { durationRemainingRef.current = durationRemainingS; }, [durationRemainingS]);

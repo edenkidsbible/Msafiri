@@ -1710,7 +1710,7 @@ export default function DriveScreen() {
           )}
 
           {/* First step */}
-          {activeRoute.steps[0] && (
+          {activeRoute.steps?.[0] && (
             <View style={styles.firstStepRow}>
               <Ionicons name="arrow-forward-circle-outline" size={13} color={fgMuted} />
               <Text style={[styles.firstStepTxt, { color: fgMuted }]} numberOfLines={1}>

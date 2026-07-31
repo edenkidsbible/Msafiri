@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiGet } from "@/utils/apiClient";
 import { useApp, CommunityReport } from "@/context/AppContext";
@@ -158,6 +158,24 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const router = useRouter();
+  // Navigator-ready signal: cold launches via a notification tap can fire the
+  // response listener before the root Stack mounts; navigating then throws
+  // "attempted to navigate before mount". Instead of a blind retry, queue the
+  // route and flush it once the root navigation state gets a key.
+  const rootNavState = useRootNavigationState();
+  const navReady = !!rootNavState?.key;
+  const navReadyRef = useRef(navReady);
+  const pendingRouteRef = useRef<Parameters<typeof router.push>[0] | null>(null);
+  useEffect(() => {
+    navReadyRef.current = navReady;
+    if (navReady && pendingRouteRef.current) {
+      const route = pendingRouteRef.current;
+      pendingRouteRef.current = null;
+      try { router.push(route); } catch (e) {
+        console.warn("[usePushNotifications] deferred navigation failed:", e);
+      }
+    }
+  }, [navReady, router]);
   const {
     communityReports,
     setPendingConfirmationReport,
@@ -203,6 +221,15 @@ export function usePushNotifications() {
       console.warn("[usePushNotifications] registerToken error:", err)
     );
 
+    // Navigate now if the navigator is mounted, otherwise queue the route so
+    // the navReady effect above delivers it as soon as the Stack mounts.
+    const safePush = (route: Parameters<typeof router.push>[0]) => {
+      if (navReadyRef.current) {
+        try { router.push(route); return; } catch { /* fall through to queue */ }
+      }
+      pendingRouteRef.current = route;
+    };
+
     // Handle tapping a notification or pressing an action button
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
@@ -221,7 +248,7 @@ export function usePushNotifications() {
           const payloadLng = data?.lng as number | undefined;
 
           // Navigate to the map tab immediately
-          router.push("/(tabs)" as any);
+          safePush("/(tabs)" as any);
 
           // Center the map on the incident
           if (payloadLat != null && payloadLng != null) {
@@ -287,13 +314,13 @@ export function usePushNotifications() {
             }
           }
         } else if (type === "incident") {
-          router.push("/(tabs)/map" as any);
+          safePush("/(tabs)/map" as any);
         } else if (type === "app_update") {
           // Push notification from admin publishing a new release.
           // Navigate to the update screen — isForceUpdate in the payload
           // controls whether the screen is dismissible or blocks the app.
           const isForce = data?.isForceUpdate === true || data?.isForceUpdate === "true";
-          router.push({
+          safePush({
             pathname: "/force-update",
             params: {
               latestVersion:   (data?.version as string) ?? "",
@@ -305,7 +332,7 @@ export function usePushNotifications() {
           } as any);
         } else {
           // All other types: go to home/map tab
-          router.push("/(tabs)" as any);
+          safePush("/(tabs)" as any);
         }
       });
 

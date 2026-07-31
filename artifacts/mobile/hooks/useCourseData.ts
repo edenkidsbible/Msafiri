@@ -41,12 +41,18 @@ export function useCourseData() {
     try {
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
-        const parsed: CourseChapter[] = JSON.parse(cached);
-        setChapters(parsed);
-        setLoading(false);
+        const parsed: unknown = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setChapters(parsed as CourseChapter[]);
+          setLoading(false);
+        } else {
+          // Corrupt/unexpected shape — discard so it never crashes a render
+          void AsyncStorage.removeItem(CACHE_KEY);
+        }
       }
     } catch {
-      // ignore cache read errors
+      // Corrupt cache entry — discard and fall through to the fresh fetch
+      void AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
     }
 
     // 2. Fetch fresh from API

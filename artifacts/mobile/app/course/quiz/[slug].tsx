@@ -318,7 +318,16 @@ export default function QuizScreen() {
     AsyncStorage.getItem(cacheKey)
       .then(async (raw) => {
         if (raw) {
-          const parsed: FullLesson = JSON.parse(raw);
+          let parsed: FullLesson;
+          try {
+            parsed = JSON.parse(raw);
+            if (!parsed || !Array.isArray(parsed.quizQuestions)) throw new Error("bad shape");
+          } catch {
+            // Corrupt cache entry — discard it so re-opening the lesson refetches
+            await AsyncStorage.removeItem(cacheKey).catch(() => {});
+            setError("Quiz data was corrupted. Please re-open the lesson to reload it.");
+            return;
+          }
           setLesson(parsed);
 
           // Check for saved in-progress session

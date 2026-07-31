@@ -96,8 +96,16 @@ export function defineShareBackgroundTask(): void {
     // after a gap rather than a silent freeze.
     const pendingRaw = await AsyncStorage.getItem(PENDING_PING_KEY);
     if (pendingRaw) {
+      // Parse outside the network try/catch: a corrupted entry must be removed
+      // immediately, otherwise every future cycle re-throws on the same bytes.
+      let pending: PendingPing | null = null;
       try {
-        const pending: PendingPing = JSON.parse(pendingRaw);
+        pending = JSON.parse(pendingRaw);
+      } catch {
+        await AsyncStorage.removeItem(PENDING_PING_KEY).catch(() => {});
+      }
+      if (pending && typeof pending === "object") {
+      try {
         // Only replay if it's for the same session and not too old (15 min cap)
         const ageMs = Date.now() - pending.queuedAt;
         if (pending.token === token && ageMs < 15 * 60 * 1000) {
@@ -117,6 +125,7 @@ export function defineShareBackgroundTask(): void {
         await AsyncStorage.removeItem(PENDING_PING_KEY);
       } catch {
         // Still offline — leave the pending entry so the next cycle can retry
+      }
       }
     }
 

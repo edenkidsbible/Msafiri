@@ -291,7 +291,7 @@ function buildTrafficSegments(
   speedIntervals: SpeedInterval[] | undefined,
   startOffset = 0,
 ): Array<{ coords: { latitude: number; longitude: number }[]; color: string; halo: string }> {
-  if (!speedIntervals?.length) {
+  if (!speedIntervals?.length || coords.length < 2) {
     return [{ coords, color: "#1976D2", halo: "#0D47A1AA" }];
   }
   const segments: Array<{ coords: { latitude: number; longitude: number }[]; color: string; halo: string }> = [];
@@ -420,6 +420,12 @@ const DriveMapView = forwardRef(function DriveMapView(
   // Tracks the previous value of navigationActive so camera effects can detect
   // the false→true (nav start) and true→false (nav end) transitions.
   const prevNavActiveRef = useRef(navigationActive);
+  // Post-navigation route-fit timer — stored so unmount can cancel it and a
+  // late-firing callback never touches a dead map ref.
+  const postNavFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (postNavFitTimerRef.current) clearTimeout(postNavFitTimerRef.current);
+  }, []);
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [selectedHereIncident, setSelectedHereIncident] = useState<HereIncident | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
@@ -589,7 +595,9 @@ const DriveMapView = forwardRef(function DriveMapView(
         mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
         if (activeRoute?.coords.length) {
           const coords = activeRoute.coords;
-          setTimeout(() => {
+          if (postNavFitTimerRef.current) clearTimeout(postNavFitTimerRef.current);
+          postNavFitTimerRef.current = setTimeout(() => {
+            postNavFitTimerRef.current = null;
             mapRef.current?.fitToCoordinates(coords, {
               edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
               animated: true,

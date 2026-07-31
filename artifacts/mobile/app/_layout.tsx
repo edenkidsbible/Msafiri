@@ -47,7 +47,7 @@ import { StatusBar } from "expo-status-bar";
 import * as Font from "expo-font";
 import * as Linking from "expo-linking";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -229,6 +229,12 @@ function RootLayoutNav() {
   const { isSubscribed, isLoading: subLoading } = useSubscription();
   const c = useColors();
   const router = useRouter();
+  // Explicit navigator-ready signal: the root navigation state gets a key only
+  // once the Stack has mounted. Gating navigation on this (and including it in
+  // effect deps) guarantees a rerun after mount, instead of relying on
+  // catching "navigate before mount" exceptions.
+  const rootNavState = useRootNavigationState();
+  const navReady = !!rootNavState?.key;
   const checked = useRef(false);
   // Once we've confirmed a subscription, remember it across brief RevenueCat
   // refresh windows. This prevents a transient isSubscribed=false (which can
@@ -246,7 +252,10 @@ function RootLayoutNav() {
   // already in the foreground (or when the user brings it back from the
   // background) locks the screen immediately without requiring a cold restart.
   useEffect(() => {
-    if (!versionCheck.checked || !versionCheck.isForceRequired) return;
+    // navReady gate: on a fast cold start the version check can resolve before
+    // the Stack navigator mounts; navigating then throws "attempted to navigate
+    // before mount". navReady is in the deps, so the effect reruns post-mount.
+    if (!navReady || !versionCheck.checked || !versionCheck.isForceRequired) return;
     router.replace({
       pathname: "/force-update",
       params: {
@@ -258,12 +267,15 @@ function RootLayoutNav() {
       },
     } as any);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [versionCheck.checked, versionCheck.isForceRequired]);
+  }, [navReady, versionCheck.checked, versionCheck.isForceRequired]);
 
   useEffect(() => {
     // Wait until AppContext has hydrated from AsyncStorage and RevenueCat
     // has resolved subscription status before making routing decisions.
     if (!hydrated) return;
+    // Never route before the Stack navigator has mounted; navReady is a dep,
+    // so the effect is guaranteed to rerun once it flips true.
+    if (!navReady) return;
     if (checked.current) return;
 
     // Always wait for the version check API call to resolve before routing.
@@ -293,24 +305,40 @@ function RootLayoutNav() {
     } else {
       requestLocationPermission().catch(() => {});
     }
-  }, [hydrated, onboardingComplete, isSubscribed, subLoading, versionCheck]);
+  }, [hydrated, navReady, onboardingComplete, isSubscribed, subLoading, versionCheck]);
 
   // ── Deep link handler (geo: URIs and msafiri:// scheme) ────────────────────
   // Handles both cold-start (app launched from a location tap) and warm-start
   // (app already running in background when the user taps a location link).
   // Only navigates when the user has finished onboarding and is subscribed,
   // so the destination is never set before the main tab navigator is mounted.
+  // On cold start Linking.getInitialURL() can resolve before the Stack mounts;
+  // queue the parsed destination and flush it once navReady flips true.
+  const pendingDeepLinkRef = useRef<ReturnType<typeof parseNavigationUrl> | null>(null);
   const handleNavigationUrl = useCallback(
     (url: string) => {
       if (!hydrated || !onboardingComplete || (!isSubscribed && !wasSubscribed.current)) return;
       const dest = parseNavigationUrl(url);
       if (!dest) return;
+      if (!navReady) {
+        pendingDeepLinkRef.current = dest;
+        return;
+      }
       setNavDestination(dest);
       // Navigate to the Drive tab (index) where the map and navigation live
       router.replace("/(tabs)");
     },
-    [hydrated, onboardingComplete, isSubscribed, setNavDestination, router]
+    [hydrated, navReady, onboardingComplete, isSubscribed, setNavDestination, router]
   );
+
+  // Flush a queued deep link as soon as the navigator is ready
+  useEffect(() => {
+    if (!navReady || !pendingDeepLinkRef.current) return;
+    const dest = pendingDeepLinkRef.current;
+    pendingDeepLinkRef.current = null;
+    setNavDestination(dest);
+    router.replace("/(tabs)");
+  }, [navReady, setNavDestination, router]);
 
   useEffect(() => {
     // Cold start: app was launched by tapping a location link

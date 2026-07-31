@@ -5,6 +5,7 @@
 - [API server URL pattern](api-server-url.md) — proxy routes /api/* to port 8080; mobile uses https://${EXPO_PUBLIC_DOMAIN}/api
 - [Drizzle + Express 5 gotchas](drizzle-express5-gotchas.md) — ne() instead of not(inArray()), Express 5 req.params typed string|string[] so cast with as string
 - [Expo Router web nav crash fix](expo-router-web-nav.md) — router.replace() before Stack mounts crashes on web; fix: add hydrated flag to AppContext, gate navigation on it
+- [Expo Router navReady gating](expo-router-navready-gating.md) — gate cold-start navigation on useRootNavigationState().key in effect deps; queue listener-driven routes in a ref until ready; never rely on try/catch retries.
 - [NTSA Minor Offences fines](ntsa-fines.md) — LN 161/2016 real brackets: warning/500/3k/10k/court; 7-day pay window; 21+ km/h is court not fine
 - [RevenueCat proxy client](revenuecat-proxy-client.md) — createClient calls _fetch(Request); must check instanceof Request; proxy path needs /v2 prefix; OAuth token is project-scoped so cannot create projects.
 - [react-native-maps Marker tap closes/doesn't register](rnmaps-marker-onpress-quirk.md) — MapView onPress race clears marker state instantly; also Android needs collapsable={false} + stable cluster keys or taps land inconsistently.
