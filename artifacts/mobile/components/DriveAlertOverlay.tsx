@@ -243,7 +243,13 @@ export default function DriveAlertOverlay({
               </View>
             )}
           </View>
-          <Text style={styles.distLabel}>{formatDist(alert.distance)} ahead</Text>
+          <Text style={styles.distLabel}>
+            {alert.alongTrackM != null && alert.alongTrackM < 0
+              ? "Behind you"
+              : alert.alongTrackM != null && alert.alongTrackM < 50
+                ? "Passing now"
+                : `${formatDist(alert.distance)} ahead`}
+          </Text>
           {tier && tier !== "new" && (
             <View style={[
               styles.tierBadge,

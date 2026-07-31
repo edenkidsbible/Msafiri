@@ -194,6 +194,12 @@ export interface DriveAlert {
   lng: number;
   /** Community-report confirm count — used for confidence tier display. */
   confirmCount?: number;
+  /**
+   * Signed along-track distance to the alert pin (metres).
+   * Positive = alert is ahead of the driver; negative = driver has passed it.
+   * Null when GPS heading is unavailable.
+   */
+  alongTrackM?: number | null;
 }
 
 interface AppContextValue {
@@ -997,6 +1003,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // the driver's heading by > 110°.  Two consecutive diverged fixes trigger a
   // divert-away dismiss.  Reset to 0 on any non-diverged fix or dismiss.
   const alertBearingDivCountRef = useRef(0);
+  // Consecutive GPS fixes where haversine distance to the active alert is
+  // *increasing* while the driver was inside IN_ZONE_DIST and heading was
+  // unavailable.  Two consecutive fixes above the jitter threshold (15 m)
+  // trigger a pass-through dismiss — same hysteresis as bearing-divergence.
+  const alertDistReversalCountRef = useRef(0);
   // Per-zone cooldown after auto-dismiss. Prevents an alert from immediately
   // re-triggering due to GPS jitter briefly re-entering the 1 km alert radius
   // after a dismiss. Maps dismissed alert id → { expiry, peakDistM }.
@@ -1640,6 +1651,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 lng: hereCandidate!.incident.lng,
               };
 
+    // Signed along-track distance to the winner for the overlay distance label.
+    // Uses only the live GPS heading (not the step fallback) — display only,
+    // valid outside active navigation too.
+    const hdgForOverlay = lastHeadingRef.current;
+    const winnerAlongTrackM: number | null = (winner && hdgForOverlay != null)
+      ? alongTrackDistanceM(lat, lng, hdgForOverlay, winner.lat, winner.lng)
+      : null;
+
     // (4) Dismiss active alert when:
     //   • it has moved out of the 1 km radius, OR
     //   • the driver has definitively turned away (bearing-divergence gate), OR
@@ -1739,7 +1758,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // freshly connected GPS) — along-track is meaningless without direction.
         const hdgAt = lastHeadingRef.current ?? stepFallbackHdg;
         if (hdgAt == null) {
-          // No valid heading — keep overlay open until we can compute direction.
+          // No valid heading (slow roll / stop sign / tunnel entry).
+          // Normally hold the overlay open — but if the driver was already
+          // inside IN_ZONE_DIST and haversine is now *increasing*, they likely
+          // passed the pin without a heading lock.
+          //
+          // Guard against GPS jitter (typically 3–15 m) with two requirements:
+          //   1. The increase must be > 15 m (above the noise floor).
+          //   2. Two *consecutive* GPS fixes must both show an increase.
+          // This mirrors the 2-fix hysteresis used by the bearing-divergence
+          // gate and prevents a single noisy fix from triggering a false dismiss.
+          const lastDist = alertZoneLastDistRef.current;
+          if (
+            lastDist != null &&
+            lastDist <= IN_ZONE_DIST &&
+            curDist != null &&
+            curDist > lastDist + 15   // must exceed jitter noise floor
+          ) {
+            alertDistReversalCountRef.current += 1;
+            if (alertDistReversalCountRef.current >= 2) {
+              return true; // 2 consecutive growing fixes — driver passed the pin
+            }
+          } else {
+            alertDistReversalCountRef.current = 0; // reset on non-growing fix
+          }
           alertZoneLastDistRef.current = curDist;
           return false;
         }
@@ -1780,8 +1822,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertItemLatRef.current         = null;
         alertItemLngRef.current         = null;
         alertApproachRoadRef.current    = null;
-        alertBearingDivCountRef.current = 0;
-        lastSetAlertRef.current         = null;
+        alertBearingDivCountRef.current   = 0;
+        alertDistReversalCountRef.current = 0;
+        lastSetAlertRef.current           = null;
         setActiveAlert(null);
       }
     }
@@ -1850,7 +1893,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     for (const [k, cd] of alertDismissCooldownRef.current) {
       if (nowTs > cd.expiry) {
         alertDismissCooldownRef.current.delete(k);
-        if (alertZoneRef.current === k) alertZoneRef.current = null;
+        if (alertZoneRef.current === k) {
+          alertZoneRef.current              = null;
+          alertDistReversalCountRef.current = 0;
+        }
       }
     }
 
@@ -1944,7 +1990,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const prev = lastSetAlertRef.current;
         if (!prev || prev.id !== winner.id || prev.tier !== tier || Math.abs(prev.distM - winner.distance) > 20) {
           lastSetAlertRef.current = { id: winner.id, tier, distM: winner.distance };
-          setActiveAlert(winner);
+          setActiveAlert({ ...winner, alongTrackM: winnerAlongTrackM });
         }
         // Update extras: only re-render when the set of IDs changes or any
         // distance moves > 20 m (same throttle as the lead alert).
@@ -1964,16 +2010,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return haversine(lat, lng, r.lat, r.lng) <= ALERT_DIST;
           });
         if (!stillInRange) {
-          alertZoneRef.current            = null;
-          alertSourceRef.current          = null;
-          alertDismissed.current          = false;
-          alertZoneLastDistRef.current    = null;
-          alertItemLatRef.current         = null;
-          alertItemLngRef.current         = null;
-          alertApproachRoadRef.current    = null;
-          alertBearingDivCountRef.current = 0;
-          lastSetAlertRef.current         = null;
-          lastExtrasKeyRef.current        = "";
+          alertZoneRef.current              = null;
+          alertSourceRef.current            = null;
+          alertDismissed.current            = false;
+          alertZoneLastDistRef.current      = null;
+          alertItemLatRef.current           = null;
+          alertItemLngRef.current           = null;
+          alertApproachRoadRef.current      = null;
+          alertBearingDivCountRef.current   = 0;
+          alertDistReversalCountRef.current = 0;
+          lastSetAlertRef.current           = null;
+          lastExtrasKeyRef.current          = "";
           setActiveAlert(null);
           setActiveAlertExtras([]);
         }
@@ -2449,15 +2496,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               expiry: Date.now() + 180_000,
               peakDistM: alertZoneLastDistRef.current ?? 0,
             });
-            alertZoneRef.current            = null;
-            alertSourceRef.current          = null;
-            alertDismissed.current          = false;
-            alertZoneLastDistRef.current    = null;
-            alertItemLatRef.current         = null;
-            alertItemLngRef.current         = null;
-            alertApproachRoadRef.current    = null;
-            alertBearingDivCountRef.current = 0;
-            lastSetAlertRef.current         = null;
+            alertZoneRef.current              = null;
+            alertSourceRef.current            = null;
+            alertDismissed.current            = false;
+            alertZoneLastDistRef.current      = null;
+            alertItemLatRef.current           = null;
+            alertItemLngRef.current           = null;
+            alertApproachRoadRef.current      = null;
+            alertBearingDivCountRef.current   = 0;
+            alertDistReversalCountRef.current = 0;
+            lastSetAlertRef.current           = null;
             setActiveAlert(null);
           }
         }
@@ -3418,6 +3466,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (alertAnchorLatRef.current != null) {
       alertAnchorExpiryRef.current = Date.now() + 10 * 60 * 1000;
     }
+    alertDistReversalCountRef.current = 0;
     setActiveAlert(null);
     setActiveAlertExtras([]);
   }, []);
