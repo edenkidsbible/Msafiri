@@ -1248,7 +1248,7 @@ export default function DriveScreen() {
                   </Text>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
+                  <Text style={[styles.zoneTypeName, { color: fgMain }]}>
                     {primaryAlert.typeName}{primaryAlert.speedLimit ? ` · ${primaryAlert.speedLimit} km/h` : ""}
                   </Text>
                   <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
