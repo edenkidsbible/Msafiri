@@ -132,6 +132,15 @@ export default function DriveScreen() {
 
   const { markDismissed } = useIncidentConfirmationPrompt();
 
+  // Stable refs for currentLat/currentLng so effects that only need the
+  // *current* position for a calculation (not to re-trigger on every fix)
+  // can read from the ref instead of listing the state in their deps array.
+  // This prevents those effects from re-running at the full GPS rate (1 Hz).
+  const currentLatRef = useRef(currentLat);
+  const currentLngRef = useRef(currentLng);
+  useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
+  useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
+
   // Drive-page dark/light state mirrors the app-wide Appearance setting exactly
   // (Settings > Display > Appearance), so this FAB and that screen always agree.
   const isDark = c.isDark;
@@ -278,37 +287,52 @@ export default function DriveScreen() {
 
   // ── Auto-depart detection ────────────────────────────────────────────────
   // When the driver has a divert stop active AND navigation has ended (they've
-  // arrived at the stop or dismissed it), watch their GPS position.
+  // arrived at the stop or dismissed it), poll their GPS position every 5 s.
   // Once they've been within 200 m (arrived), then move >350 m away
   // (departed), automatically resume navigation to the saved destination.
+  //
+  // Uses an interval rather than GPS-state deps so this effect fires at 5 s
+  // granularity instead of re-running on every 1 Hz GPS fix — the detection
+  // does not need sub-second precision for departure timing.
   useEffect(() => {
     if (!resumeDestination) return;          // no divert in progress
     if (navigationActive) return;            // still navigating to the stop
     if (!arrivedInfo) return;                // arrival modal not showing
-    if (currentLat == null || currentLng == null) return;
 
-    const stop = divertStopRef.current;
-    if (!stop) return;
+    const check = () => {
+      const lat = currentLatRef.current;
+      const lng = currentLngRef.current;
+      if (lat == null || lng == null) return;
 
-    const distFromStop = haversineM(currentLat, currentLng, stop.lat, stop.lng);
+      const stop = divertStopRef.current;
+      if (!stop) return;
 
-    // Gate: mark as "arrived" once within 200 m of the divert stop
-    if (!divertArrivedRef.current && distFromStop <= 200) {
-      divertArrivedRef.current = true;
-    }
+      const distFromStop = haversineM(lat, lng, stop.lat, stop.lng);
 
-    // Depart: driver was close, now >350 m away → auto-resume
-    if (divertArrivedRef.current && distFromStop > 350) {
-      const dest = resumeDestination;
-      clearArrival();
-      setResumeDestination(null);
-      divertStopRef.current    = null;
-      divertArrivedRef.current = false;
-      setNavDestination(dest);
-      startNavigation();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [currentLat, currentLng, resumeDestination, navigationActive, arrivedInfo,
+      // Gate: mark as "arrived" once within 200 m of the divert stop
+      if (!divertArrivedRef.current && distFromStop <= 200) {
+        divertArrivedRef.current = true;
+      }
+
+      // Depart: driver was close, now >350 m away → auto-resume
+      if (divertArrivedRef.current && distFromStop > 350) {
+        const dest = resumeDestination;
+        clearArrival();
+        setResumeDestination(null);
+        divertStopRef.current    = null;
+        divertArrivedRef.current = false;
+        setNavDestination(dest);
+        startNavigation();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    };
+
+    check(); // run immediately on condition change
+    const id = setInterval(check, 5000);
+    return () => clearInterval(id);
+  // currentLat/currentLng intentionally omitted — read from refs above.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeDestination, navigationActive, arrivedInfo,
       clearArrival, setNavDestination, startNavigation]);
 
   // Extracted so both the direct path and the name-prompt confirm button can call it.

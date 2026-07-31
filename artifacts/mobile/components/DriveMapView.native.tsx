@@ -1737,7 +1737,11 @@ const DriveMapView = forwardRef(function DriveMapView(
   );
 });
 
-export default DriveMapView;
+// React.memo prevents re-renders when the parent re-renders for unrelated
+// reasons and passes the same mapDrifted/onDriftChange props. Context-driven
+// re-renders (via useApp()) are still gated by the adaptive GPS rate and
+// position dead-band in AppContext, which is the primary battery fix.
+export default React.memo(DriveMapView);
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 

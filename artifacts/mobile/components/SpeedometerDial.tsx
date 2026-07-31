@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 
@@ -35,17 +35,11 @@ function arc(startAngle: number, sweepDeg: number): string {
 
 export default function SpeedometerDial({ speed, speedLimit, hudMode = false }: SpeedometerDialProps) {
   const colors = useColors();
-  const prevSpeed = useRef(speed);
-  const animSpeed = useRef(new Animated.Value(speed)).current;
-
-  useEffect(() => {
-    Animated.timing(animSpeed, {
-      toValue: speed,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-    prevSpeed.current = speed;
-  }, [speed]);
+  // NOTE: The previous Animated.timing / animSpeed code was removed here.
+  // animSpeed was never referenced in the JSX — the arc path uses the raw
+  // `speed` prop directly — so the animation was dead code that ran an
+  // Animated.timing callback on the JS thread on every GPS fix (1 Hz) for
+  // no visual effect whatsoever. Removing it cuts ~1 Hz JS-thread wakeup.
 
   const clamp = Math.min(Math.max(speed, 0), MAX_SPD);
   const progressSweep = (clamp / MAX_SPD) * SWEEP;

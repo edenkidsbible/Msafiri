@@ -1398,8 +1398,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const sorted = [...hist].sort((a, b) => a - b);
     const kmh = sorted[Math.floor(sorted.length / 2)];
 
-    setCurrentLat(lat);
-    setCurrentLng(lng);
+    // ── Position dead-band guard ──────────────────────────────────────────────
+    // Skip the lat/lng state update when the phone is stationary and the GPS
+    // fix is noisy: haversine delta < 3 m *and* horizontal accuracy > 8 m means
+    // the coordinate change is measurement noise, not real movement. Skipping
+    // avoids three synchronous render cycles per second while parked.
+    // Speed is always updated so the speedometer stays at 0 while the map is frozen.
+    const prevSetLat = currentLatRef.current;
+    const prevSetLng = currentLngRef.current;
+    const isPosJitter =
+      prevSetLat != null && prevSetLng != null &&
+      haversine(prevSetLat, prevSetLng, lat, lng) < 3 &&
+      (accuracyM != null && accuracyM > 8);
+
+    if (!isPosJitter) {
+      setCurrentLat(lat);
+      setCurrentLng(lng);
+    }
     setCurrentSpeed(kmh);
 
     // Speed zones
@@ -2287,12 +2302,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastLocationAtRef.current = Date.now();
       try {
         if (Platform.OS !== "web") {
+          // ── Adaptive accuracy / rate ───────────────────────────────────────
+          // During active navigation we need high-accuracy 1 Hz updates for
+          // smooth turn-by-turn, off-route detection, and voice timing.
+          // In idle mode (map browsing, no active navigation) we drop to
+          // Balanced accuracy at 5 s / 10 m intervals — the CPU cost of
+          // Highest-accuracy GPS polling is the primary cause of overheating
+          // and battery drain while the app is sitting idle on a dashboard.
+          const isNavActive = navActiveRef.current;
+          const gpsOptions = isNavActive
+            ? { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 }
+            // Idle mode: drop to Balanced accuracy and fire every 5 s on time.
+            // distanceInterval must stay 0 — using a distance gate means a
+            // stationary or slow-moving user gets no fixes at all, which trips
+            // the 8 s watchdog and causes an endless resubscribe loop (defeating
+            // the battery fix entirely). The saving comes from slower polling and
+            // lower accuracy class alone.
+            : { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 0 };
+
           const sub = await Location.watchPositionAsync(
-            // distanceInterval: 0 — always fire on the timeInterval tick
-            // regardless of movement so the watchdog doesn't endlessly fire
-            // for stationary users. Speed-gauge jitter is handled in
-            // handleLocation via rolling-median + accuracy dead-band.
-            { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 },
+            gpsOptions,
             (loc) => {
               lastLocationAtRef.current = Date.now();
               // Pass the native GPS heading so the first fix already carries a
@@ -2352,7 +2381,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(watchdog);
       teardown();
     };
-  }, [locationGranted, handleLocation]);
+  // navigationActive is in the deps so the subscription is torn down and
+  // restarted whenever navigation starts or stops — idle uses Balanced/5 s,
+  // navigation uses Highest/1 s (see gpsOptions above in subscribe()).
+  }, [locationGranted, handleLocation, navigationActive]);
 
   // ── Dead reckoning interval ────────────────────────────────────────────────
   // Polls every second while the GPS subscription is active. When navigation
