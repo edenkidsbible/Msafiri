@@ -59,4 +59,4 @@ REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
 BACKUP_EMAIL_ADDRESS = "alfrexlabs@gmail.com"
 
 [objectStorage]
-defaultBucketID = "replit-objstore-64f5521e-41df-4fa8-a53c-52757dee4d28"
+defaultBucketID = "replit-objstore-916bd0a3-e59c-42e1-84ed-06831332a770"
