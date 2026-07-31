@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Rocket, Plus, MoreVertical, CheckCircle2, Clock, AlertTriangle,
-  XCircle, Smartphone, Zap, Globe, Apple, ChevronDown,
+  XCircle, Smartphone, Zap, Globe, Apple, ChevronDown, Bell,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -252,11 +252,117 @@ function ReleaseDialog({
   );
 }
 
+// Mirrors the notification copy logic in api-server/src/routes/admin/releases.ts
+function buildNotifCopy(release: Release, force: boolean) {
+  const title = force
+    ? `Msafiri just got better 🚀`
+    : `What's new in Msafiri v${release.version} ✨`;
+  const body = force
+    ? `v${release.version} is ready for you — a quick update and you're back on the road.`
+    : (release.releaseNotes
+        ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
+        : `Msafiri v${release.version} is here. Tap to see what's new.`);
+  return { title, body };
+}
+
+function NotifPreviewCard({ label, title, body, highlight }: {
+  label: string;
+  title: string;
+  body: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className={`rounded-lg border p-3 space-y-1.5 ${highlight ? "border-red-300 dark:border-red-700 bg-red-50/60 dark:bg-red-950/20" : "border-border bg-muted/30"}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wide ${highlight ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+        {label}
+      </p>
+      <div className="rounded-md border border-border bg-background px-3 py-2.5 space-y-0.5">
+        <p className="text-sm font-semibold leading-snug">{title}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function PublishConfirmDialog({
+  release,
+  onConfirm,
+  onClose,
+}: {
+  release: Release | null;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  if (!release) return null;
+  const forceNotif = buildNotifCopy(release, true);
+  const softNotif  = buildNotifCopy(release, false);
+
+  return (
+    <Dialog open={!!release} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-muted-foreground" />
+            Publish v{release.version}?
+          </DialogTitle>
+          <DialogDescription>
+            A push notification will be sent to all registered devices immediately.
+            Review the copy below before confirming.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          <NotifPreviewCard
+            label={release.isForceUpdate ? "Force update — what will send" : "Soft update — what will send"}
+            title={release.isForceUpdate ? forceNotif.title : softNotif.title}
+            body={release.isForceUpdate ? forceNotif.body : softNotif.body}
+            highlight={release.isForceUpdate}
+          />
+
+          {/* Show the other variant so the admin can verify they picked the right flag */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5 px-0.5">
+              {release.isForceUpdate
+                ? "If Force Update were off, it would say:"
+                : "If Force Update were on, it would say:"}
+            </p>
+            <NotifPreviewCard
+              label={release.isForceUpdate ? "Soft update (not active)" : "Force update (not active)"}
+              title={release.isForceUpdate ? softNotif.title : forceNotif.title}
+              body={release.isForceUpdate ? softNotif.body : forceNotif.body}
+            />
+          </div>
+
+          {release.isForceUpdate && (
+            <div className="flex items-start gap-2 rounded-md border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 px-3 py-2">
+              <Zap className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-red-700 dark:text-red-400">
+                Force update is <strong>on</strong> — devices below v{release.version} will be blocked until they update.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={onConfirm}
+            className={release.isForceUpdate ? "bg-red-600 hover:bg-red-700 text-white dark:bg-red-700 dark:hover:bg-red-600" : ""}
+          >
+            {release.isForceUpdate ? "Publish & Force Update" : "Publish Release"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Releases() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRelease, setEditRelease] = useState<Release | undefined>();
+  const [publishTarget, setPublishTarget] = useState<Release | null>(null);
 
   const { data, isLoading } = useQuery<{ releases: Release[] }>({
     queryKey: ["/api/admin/releases"],
@@ -436,9 +542,7 @@ export default function Releases() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="text-green-600 dark:text-green-400"
-                                  onClick={() => action(`/admin/releases/${r.id}/publish`).then(() =>
-                                    toast({ title: `v${r.version} published!`, description: r.isForceUpdate ? "Force update is now active." : undefined })
-                                  )}
+                                  onClick={() => setPublishTarget(r)}
                                 >
                                   Publish
                                 </DropdownMenuItem>
@@ -463,9 +567,7 @@ export default function Releases() {
                             )}
                             {r.status === "deprecated" && (
                               <DropdownMenuItem
-                                onClick={() => action(`/admin/releases/${r.id}/publish`).then(() =>
-                                  toast({ title: `v${r.version} re-published` })
-                                )}
+                                onClick={() => setPublishTarget(r)}
                               >
                                 Re-publish
                               </DropdownMenuItem>
@@ -487,6 +589,22 @@ export default function Releases() {
         onClose={() => { setDialogOpen(false); setEditRelease(undefined); }}
         existing={editRelease}
         onSaved={invalidate}
+      />
+
+      <PublishConfirmDialog
+        release={publishTarget}
+        onClose={() => setPublishTarget(null)}
+        onConfirm={() => {
+          if (!publishTarget) return;
+          const r = publishTarget;
+          setPublishTarget(null);
+          action(`/admin/releases/${r.id}/publish`).then(() =>
+            toast({
+              title: `v${r.version} published!`,
+              description: r.isForceUpdate ? "Force update is now active." : undefined,
+            })
+          );
+        }}
       />
     </AdminLayout>
   );
