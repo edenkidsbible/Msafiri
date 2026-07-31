@@ -17,6 +17,11 @@ export interface SpeedZoneInput {
   speedLimit?: number | null;
   /** @nullable */
   description?: string | null;
+  /**
+     * Direction of traffic the camera enforces (0–359°).
+     * @nullable
+     */
+  bearing?: number | null;
   /** @nullable */
   lat?: number | null;
   /** @nullable */

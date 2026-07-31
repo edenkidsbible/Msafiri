@@ -58,6 +58,7 @@ const zoneSchema = z.object({
   road: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   speedLimit: z.coerce.number().optional().nullable(),
+  bearing: z.coerce.number().int().min(0).max(359).optional().nullable(),
   lat: z.coerce.number().optional().nullable(),
   lng: z.coerce.number().optional().nullable(),
   startLat: z.coerce.number().optional().nullable(),
@@ -65,6 +66,13 @@ const zoneSchema = z.object({
   endLat: z.coerce.number().optional().nullable(),
   endLng: z.coerce.number().optional().nullable(),
 });
+
+/** Compass label for a bearing in degrees (0 = N, 90 = E, 180 = S, 270 = W). */
+function bearingLabel(deg: number | null | undefined): string {
+  if (deg == null || isNaN(deg)) return "";
+  const labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return labels[Math.round(deg / 45) % 8] ?? "";
+}
 
 type ZoneFormValues = z.infer<typeof zoneSchema>;
 
@@ -169,6 +177,7 @@ export default function SpeedZones() {
     road: "",
     description: "",
     speedLimit: 0,
+    bearing: null,
     lat: 0,
     lng: 0,
     startLat: 0,
@@ -200,6 +209,7 @@ export default function SpeedZones() {
     road: values.road || null,
     description: values.description || null,
     speedLimit: values.speedLimit || null,
+    bearing: values.bearing ?? null,
     lat: values.mode === "point" ? values.lat ?? null : null,
     lng: values.mode === "point" ? values.lng ?? null : null,
     startLat: values.mode === "stretch" ? values.startLat ?? null : null,
@@ -227,6 +237,7 @@ export default function SpeedZones() {
       road: zone.road || "",
       description: zone.description || "",
       speedLimit: zone.speedLimit || 0,
+      bearing: (zone as any).bearing ?? null,
       lat: zone.lat ?? 0,
       lng: zone.lng ?? 0,
       startLat: zone.startLat ?? 0,
@@ -472,6 +483,34 @@ export default function SpeedZones() {
                     </div>
                     <FormField control={createForm.control} name="description" render={({ field }) => (
                       <FormItem><FormLabel>Description</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
+                    )} />
+                    <FormField control={createForm.control} name="bearing" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Camera bearing (0–359°){" "}
+                          <span className="text-muted-foreground font-normal">— optional</span>
+                        </FormLabel>
+                        <div className="flex items-center gap-2">
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={359}
+                              placeholder="e.g. 90"
+                              value={field.value ?? ''}
+                              onChange={field.onChange}
+                              className="w-28"
+                            />
+                          </FormControl>
+                          {field.value != null && (
+                            <span className="text-sm text-muted-foreground font-medium">
+                              {bearingLabel(field.value as number)} — traffic heading {field.value}°
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Direction of traffic this camera enforces. Leave blank for omnidirectional cameras.</p>
+                        <FormMessage />
+                      </FormItem>
                     )} />
                     <DialogFooter className="pt-4">
                       <Button type="submit" disabled={createMutation.isPending} className="w-full">
@@ -838,6 +877,34 @@ export default function SpeedZones() {
               </div>
               <FormField control={editForm.control} name="description" render={({ field }) => (
                 <FormItem><FormLabel>Description</FormLabel><FormControl><Input value={field.value || ''} onChange={field.onChange} /></FormControl></FormItem>
+              )} />
+              <FormField control={editForm.control} name="bearing" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Camera bearing (0–359°){" "}
+                    <span className="text-muted-foreground font-normal">— optional</span>
+                  </FormLabel>
+                  <div className="flex items-center gap-2">
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={359}
+                        placeholder="e.g. 90"
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        className="w-28"
+                      />
+                    </FormControl>
+                    {field.value != null && (
+                      <span className="text-sm text-muted-foreground font-medium">
+                        {bearingLabel(field.value as number)} — traffic heading {field.value}°
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Direction of traffic this camera enforces. Leave blank for omnidirectional cameras.</p>
+                  <FormMessage />
+                </FormItem>
               )} />
               <DialogFooter className="pt-4">
                 <Button type="submit" disabled={updateMutation.isPending} className="w-full">

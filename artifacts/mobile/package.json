@@ -11,7 +11,7 @@
     "validate-cameras": "node scripts/validateCameras.mjs",
     "fix-cameras": "node scripts/validateCameras.mjs --fix",
     "check-expo-versions": "expo install --check",
-    "test": "node --test __tests__/driveAlerts.test.mjs __tests__/driveAlertGating.test.mjs",
+    "test": "node --test __tests__/driveAlerts.test.mjs __tests__/driveAlertGating.test.mjs __tests__/cameraCluster.test.mjs",
     "validate:build": "EXPO_PUBLIC_DOMAIN=msafirikenya.com expo export --platform ios --output-dir /tmp/expo-export-validate"
   },
   "devDependencies": {

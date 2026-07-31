@@ -17,6 +17,11 @@ export interface SpeedZonePublic {
   speedLimit?: number | null;
   /** @nullable */
   description?: string | null;
+  /**
+     * Direction of traffic the camera enforces (0–359°). Absent means no directional filter.
+     * @nullable
+     */
+  bearing?: number | null;
   /** @nullable */
   lat?: number | null;
   /** @nullable */

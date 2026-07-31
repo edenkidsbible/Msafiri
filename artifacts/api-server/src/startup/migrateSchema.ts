@@ -58,6 +58,14 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP
     `);
 
+    // speed_zones.bearing — optional camera bearing (0–359°).
+    // Stored as metadata for potential future directional filtering; the current
+    // alert logic treats all cameras as omnidirectional and does not filter on it.
+    await db.execute(sql`
+      ALTER TABLE speed_zones
+      ADD COLUMN IF NOT EXISTS bearing INTEGER
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

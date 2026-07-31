@@ -860,6 +860,11 @@ function warnIfBlockedDevice(err: unknown): boolean {
 }
 
 const ALERT_DIST = 600, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS = 180000;
+/** Maximum distance (metres) between two zone entries that are considered the
+ *  same physical enforcement cluster (e.g. roundabout cameras, opposing-lane
+ *  cameras at the same interchange).  Only the nearest member triggers an
+ *  alert so the driver sees exactly one warning per site. */
+const CAMERA_CLUSTER_RADIUS = 50;
 const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
 const ARRIVAL_DIST = 30;        // m — advance final step + trigger arrival UI
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
@@ -1116,6 +1121,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const drStateRef      = useRef<{ lat: number; lng: number; speedMps: number; heading: number } | null>(null);
   const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
   const alertSourceRef = useRef<"zone" | "report" | "here" | null>(null);
+  // Type and road of the currently active alert's zone (e.g. "camera", "Ngong Road").
+  // Needed for cluster deduplication: a nearby camera on the SAME road must not
+  // replace/re-announce an active camera alert from the same physical cluster.
+  const alertZoneTypeRef = useRef<string | null>(null);
+  const alertZoneRoadRef = useRef<string | null>(null);
   // Geo-anchor for multi-alert clusters: set when a cluster (lead + extras) is
   // announced. New cluster activation is suppressed until the driver travels
   // > 1 km from this anchor point.
@@ -1580,14 +1590,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // For zones that do have a road, require a strict match.
         if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
 
-        // Bearing gate: when a camera specifies which direction of traffic it
-        // enforces, only alert the driver if their heading is within ±70° of
-        // that bearing.  At low speed (< ~10 km/h) GPS heading is unreliable —
-        // skip the gate so parked/slow drivers still see nearby cameras.
-        if (z.bearing != null && speed > 10) {
-          const raw = Math.abs((heading - z.bearing + 540) % 360 - 180);
-          if (raw > 70) continue;
-        }
+        // Cluster deduplication: speed cameras at roundabouts and interchanges
+        // are often stored as multiple entries a few metres apart (one per
+        // approach lane).  Speed cameras are omnidirectional — all directions
+        // see the same limit — so once we have a camera representative for a
+        // cluster we skip any other camera within CAMERA_CLUSTER_RADIUS of it.
+        // Non-camera zones (police presence, road works, etc.) are independent
+        // hazards and must not be deduplicated by proximity.
+        if (
+          z.type === "camera" &&
+          best !== null && best.type === "camera" &&
+          haversine(z.lat, z.lng, best.lat, best.lng) <= CAMERA_CLUSTER_RADIUS
+        ) continue;
 
         if (best === null || z.distance < best.distance) best = z;
       }
@@ -1859,17 +1873,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (shouldDismiss) {
         const dismissedId = alertZoneRef.current!;
         const cooldownMs  = extendedCooldown ? 180_000 : 60_000;
-        alertDismissCooldownRef.current.set(dismissedId, {
-          expiry: Date.now() + cooldownMs,
-          peakDistM: curDist ?? 0,
-        });
-        alertZoneRef.current            = null;
-        alertSourceRef.current          = null;
-        alertDismissed.current          = false;
-        alertZoneLastDistRef.current    = null;
-        alertItemLatRef.current         = null;
-        alertItemLngRef.current         = null;
-        alertApproachRoadRef.current    = null;
+        const cooldownEntry = { expiry: Date.now() + cooldownMs, peakDistM: curDist ?? 0 };
+        alertDismissCooldownRef.current.set(dismissedId, cooldownEntry);
+
+        // Cluster-aware dismiss: when a speed camera is passed, also silence any
+        // other camera within CAMERA_CLUSTER_RADIUS on the SAME NAMED road.
+        // Both road values must be present and match — if either is unknown we
+        // cannot confirm same-road membership and leave the neighbour independent
+        // (fail-open) to avoid silencing cameras on intersecting streets.
+        // Restricted to cameras only — nearby police/zone hazards are independent.
+        if (curZone && curZone.type === "camera") {
+          for (const z of withDist) {
+            if (z.id === dismissedId) continue;
+            if (z.type !== "camera") continue;
+            // Require both roads known and matching; unknown road = independent.
+            if (!z.road || !curZone.road || !roadsMatch(z.road, curZone.road)) continue;
+            if (haversine(z.lat, z.lng, curZone.lat, curZone.lng) <= CAMERA_CLUSTER_RADIUS) {
+              alertDismissCooldownRef.current.set(z.id, { ...cooldownEntry });
+            }
+          }
+        }
+        alertZoneRef.current              = null;
+        alertSourceRef.current            = null;
+        alertZoneTypeRef.current          = null;
+        alertZoneRoadRef.current          = null;
+        alertDismissed.current            = false;
+        alertZoneLastDistRef.current      = null;
+        alertItemLatRef.current           = null;
+        alertItemLngRef.current           = null;
+        alertApproachRoadRef.current      = null;
         alertBearingDivCountRef.current   = 0;
         alertDistReversalCountRef.current = 0;
         lastSetAlertRef.current           = null;
@@ -1892,6 +1924,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (z.isStretchEndpoint) continue;
         if (z.id === winner.id) continue;
         if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        // Skip camera cluster members of a camera winner — same physical site.
+        // Non-camera zones are independent hazards and must not be filtered out.
+        if (
+          z.type === "camera" &&
+          winner.source === "zone" && winner.type === "camera" &&
+          winner.lat != null && winner.lng != null &&
+          haversine(z.lat, z.lng, winner.lat, winner.lng) <= CAMERA_CLUSTER_RADIUS
+        ) continue;
         extraCandidates.push({
           id: z.id, source: "zone" as const, type: z.type, name: z.name,
           road: z.road, description: z.description, distance: z.distance,
@@ -2000,15 +2040,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Activate a new alert when:
       //  • Not in the per-ID 60 s cooldown
       //  • Not already the currently-tracked alert
+      //  • Not a camera cluster member of the currently active camera alert
+      //    (a roundabout's neighbouring entry became nearest mid-alert — same site)
       //  • Not suppressed by geo-anchor — BUT the anchor only blocks NEW CLUSTERS
       //    (candidates that themselves have extras). A single hazard that appears
       //    within the anchor radius must still announce so drivers don't miss it.
+      // Road-scoped cluster check: suppress the winner only when it is a camera
+      // within 50 m of the active camera AND BOTH roads are known and match.
+      // If either road is missing we cannot confirm same-road membership, so we
+      // allow the new alert through (fail-open) to avoid silently dropping a
+      // camera that may be on a different street.
+      const activeRoad  = alertZoneRoadRef.current;
+      const winnerRoad  = winner.road ?? null;
+      const sameRoad    = !!(activeRoad && winnerRoad && roadsMatch(activeRoad, winnerRoad));
+      const winnerIsActiveClusterMember =
+        winner.type === "camera" &&
+        alertZoneTypeRef.current === "camera" &&
+        alertZoneRef.current !== null &&
+        sameRoad &&
+        alertItemLatRef.current != null &&
+        alertItemLngRef.current != null &&
+        haversine(winner.lat, winner.lng, alertItemLatRef.current, alertItemLngRef.current)
+          <= CAMERA_CLUSTER_RADIUS;
       const isNewAlert = !alertDismissCooldownRef.current.has(winner.id) &&
         winner.id !== alertZoneRef.current &&
+        !winnerIsActiveClusterMember &&
         (!anchorActive || extraCandidates.length === 0);
       if (isNewAlert) {
         alertZoneRef.current = winner.id;
         alertSourceRef.current = winner.source;
+        alertZoneTypeRef.current = winner.type ?? null;
+        alertZoneRoadRef.current = winner.road ?? null;
         alertZoneLastDistRef.current = winner.distance;
         alertDismissed.current = false;
         // Record alert item position and approach road for divert-away detection.
