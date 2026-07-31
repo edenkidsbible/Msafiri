@@ -33,7 +33,7 @@ import { playSound } from "@/utils/sound";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, prewarmNavAudio } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, speakNavCancel, prewarmNavAudio } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -3222,6 +3222,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // The inline arrival block also fires speakNavEnd as the arrival card appears;
     // this guard ensures it never plays on mid-trip cancellations or staleness timeouts.
     if (reason === "arrived") speakNavEnd().catch(() => {});
+    else if (reason === "manual") speakNavCancel().catch(() => {});
     // Stop the background nav task — no longer needed once navigation ends.
     stopBackgroundNavTask().catch(() => {});
     setDistToNextM(null);

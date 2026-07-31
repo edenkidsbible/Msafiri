@@ -52,6 +52,11 @@ const MULTI_PHRASES = [
   { text: "Road Closed and more alerts ahead — please drive carefully.",     file: "closure_multi.mp3"   },
   { text: "Road Clear and more alerts ahead — please drive safely.",         file: "clear_multi.mp3"     },
   { text: "Report submitted. Thank you for keeping Msafiri safe.",           file: "report_submitted.mp3" },
+
+  // Navigation lifecycle (Yna Agalo — bundled so playback is instant & offline)
+  { text: "Navigation started! Your route is ready — follow along as I guide you. If you spot anything on the road, tap to report it. Watch out for incidents flagged by other drivers — I will sound an alert before you reach them. Stay focused on the road, and have a safe journey!", file: "nav_start.mp3" },
+  { text: "You've arrived! If any of the incidents you passed are now clear, please update them so other drivers know. Have a lovely time ahead, and remember to come back!", file: "nav_end.mp3" },
+  { text: "Trip ended. As you head out, please update any hazards you passed on that route, or add what you saw. Your reports keep other Msafiri drivers safe. Drive well!", file: "nav_cancel.mp3" },
 ];
 
 async function generate(phrase) {

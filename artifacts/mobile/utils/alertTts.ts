@@ -52,6 +52,11 @@ const ALERT_AUDIO: Record<string, unknown> = {
 
   // Report confirmation
   report_submitted: require("@/assets/sounds/alerts/report_submitted.mp3"),
+
+  // Navigation lifecycle
+  nav_start:  require("@/assets/sounds/alerts/nav_start.mp3"),
+  nav_end:    require("@/assets/sounds/alerts/nav_end.mp3"),
+  nav_cancel: require("@/assets/sounds/alerts/nav_cancel.mp3"),
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -128,43 +133,26 @@ export async function speakAlertMulti(type: string): Promise<void> {
 }
 
 // ─── Navigation lifecycle phrases ────────────────────────────────────────────
-// Spoken by Yna Agalo at the start and end of every trip. On-demand via
-// /api/tts (responses cached 90 days in object storage so the first playback
-// hits ElevenLabs once; every subsequent trip is instant and free).
+// Bundled MP3s (Yna Agalo, generated once via ElevenLabs Multilingual v2).
+// Registered in ALERT_AUDIO above so playKey() resolves them from disk —
+// no network call, no latency, plays on first trip.
 
-const NAV_START_TEXT =
-  "Navigation started! Your route is ready — follow along as I guide you. " +
-  "If you spot anything on the road, tap to report it. " +
-  "Watch out for incidents flagged by other drivers — " +
-  "I'll sound an alert before you reach them. " +
-  "Stay focused on the road, and have a safe journey!";
+/** No-op kept for call-site compatibility. Bundled assets need no pre-warm. */
+export function prewarmNavAudio(): void { /* bundled — no network warm needed */ }
 
-const NAV_END_TEXT =
-  "You've arrived! If any of the incidents you passed are now clear, " +
-  "please update them so other drivers know. " +
-  "Have a lovely time ahead, and remember to come back!";
-
-/**
- * Silently pre-fetch the nav-start and nav-end TTS audio so the server warms
- * its object-storage cache before the driver's first trip. No audio is played —
- * two background GETs are fired and their responses discarded. Errors are
- * swallowed; this is purely a best-effort cache-warm. Safe to call at app mount.
- */
-export function prewarmNavAudio(): void {
-  if (Platform.OS === "web" || !API_BASE) return;
-  for (const text of [NAV_START_TEXT, NAV_END_TEXT]) {
-    fetch(`${API_BASE}/tts?text=${encodeURIComponent(text)}`).catch(() => {});
-  }
-}
-
-/** Play the friendly navigation-start briefing (Yna Agalo via /api/tts). */
+/** Play the navigation-start briefing (bundled MP3, instant playback). */
 export async function speakNavStart(): Promise<void> {
-  await speakAlertPhrase(NAV_START_TEXT);
+  await playKey("nav_start");
 }
 
-/** Play the arrival / trip-end sign-off (Yna Agalo via /api/tts). */
+/** Play the arrival sign-off (bundled MP3, instant playback). */
 export async function speakNavEnd(): Promise<void> {
-  await speakAlertPhrase(NAV_END_TEXT);
+  await playKey("nav_end");
+}
+
+/** Play the manual-cancel reminder to update road reports (bundled MP3). */
+export async function speakNavCancel(): Promise<void> {
+  await playKey("nav_cancel");
 }
 
 /**
