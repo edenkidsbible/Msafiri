@@ -21,7 +21,7 @@ import {
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
-import type { CommunityReport, SpeedInterval } from "@/context/AppContext";
+import type { CommunityReport, HereIncident, SpeedInterval } from "@/context/AppContext";
 import type { SpeedZone } from "@/data/speedZones";
 import { useColors } from "@/hooks/useColors";
 import type { POI } from "@/data/pois";
@@ -370,6 +370,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     driverHeading,
     durationRemainingS, distanceRemainingM,
     fasterRoute,
+    hereIncidents, dismissHereIncident,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -420,6 +421,7 @@ const DriveMapView = forwardRef(function DriveMapView(
   // the false→true (nav start) and true→false (nav end) transitions.
   const prevNavActiveRef = useRef(navigationActive);
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
+  const [selectedHereIncident, setSelectedHereIncident] = useState<HereIncident | null>(null);
   const [denyingId, setDenyingId] = useState<string | null>(null);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [adminLocationTarget, setAdminLocationTarget] = useState<CommunityReport | null>(null);
@@ -849,6 +851,16 @@ const DriveMapView = forwardRef(function DriveMapView(
   );
   const clusters = useMemo(() => clusterReports(visibleReports), [visibleReports]);
 
+  // HERE Live Traffic — filter to valid coordinates only; dismissed ones are
+  // already excluded by AppContext before reaching here.
+  const visibleHereIncidents = useMemo(
+    () => hereIncidents.filter(
+      (inc) => typeof inc.lat === "number" && Number.isFinite(inc.lat) &&
+               typeof inc.lng === "number" && Number.isFinite(inc.lng)
+    ),
+    [hereIncidents]
+  );
+
   // Community report cluster markers always keep tracksViewChanges={true}.
   // The freeze optimisation (set to false after 1.5 s) caused tap hit-detection
   // to become unreliable: Google Maps calculates touch areas when the flag
@@ -1038,6 +1050,32 @@ const DriveMapView = forwardRef(function DriveMapView(
               zIndex={10}
             >
               <ClusterMarker group={group} now={now} />
+            </Marker>
+          );
+        })}
+
+        {/* HERE Live Traffic incidents — rendered as semi-transparent markers so
+            they're visually subordinate to community reports. Tapping opens a
+            detail sheet with a "Hide for this session" option. */}
+        {visibleHereIncidents.map((inc) => {
+          const def = resolveIncidentType(inc.type);
+          return (
+            <Marker
+              key={inc.id}
+              coordinate={{ latitude: inc.lat, longitude: inc.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              onPress={() => setSelectedHereIncident(inc)}
+              zIndex={5}
+            >
+              <View style={{ alignItems: "center" }}>
+                <View style={[hms.hereMarker, { backgroundColor: def.color + "CC", borderColor: def.color }]}>
+                  <Text style={hms.hereEmoji}>{def.emoji}</Text>
+                </View>
+                <View style={hms.hereLiveBadge}>
+                  <Text style={hms.hereLiveTxt}>LIVE</Text>
+                </View>
+              </View>
             </Marker>
           );
         })}
@@ -1530,6 +1568,63 @@ const DriveMapView = forwardRef(function DriveMapView(
         </Modal>
       )}
 
+      {/* HERE Live Traffic incident detail sheet */}
+      {selectedHereIncident && (() => {
+        const def = resolveIncidentType(selectedHereIncident.type);
+        return (
+          <Modal transparent animationType="slide" visible onRequestClose={() => setSelectedHereIncident(null)}>
+            <TouchableOpacity style={ms.backdrop} activeOpacity={1} onPress={() => setSelectedHereIncident(null)}>
+              <TouchableOpacity activeOpacity={1} style={ms.sheet}>
+                <View style={ms.handle} />
+                <View style={ms.headerRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={ms.sheetTitle}>{def.label}</Text>
+                    <View style={hms.hereLiveRow}>
+                      <View style={hms.hereLivePill}>
+                        <Text style={hms.hereLivePillTxt}>LIVE · HERE Traffic</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={() => setSelectedHereIncident(null)} style={ms.closeBtn}>
+                    <Ionicons name="close" size={18} color="#555" />
+                  </TouchableOpacity>
+                </View>
+                <View style={ms.incidentRow}>
+                  <View style={[ms.incidentIcon, { backgroundColor: def.color + "22" }]}>
+                    <Text style={ms.incidentEmoji}>{def.emoji}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    {selectedHereIncident.roadName ? (
+                      <Text style={ms.incidentRoad}>{selectedHereIncident.roadName}</Text>
+                    ) : null}
+                    {selectedHereIncident.description ? (
+                      <Text style={ms.incidentMeta}>{selectedHereIncident.description}</Text>
+                    ) : null}
+                    <Text style={ms.incidentMeta}>
+                      {selectedHereIncident.endTime
+                        ? `Expected to clear ${new Date(selectedHereIncident.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                        : "Duration unknown"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[ms.voteRow, { marginTop: 8 }]}>
+                  <TouchableOpacity
+                    style={[ms.voteBtn, { backgroundColor: "#75757518", borderColor: "#75757555" }]}
+                    onPress={() => {
+                      dismissHereIncident(selectedHereIncident.id);
+                      setSelectedHereIncident(null);
+                    }}
+                  >
+                    <Ionicons name="eye-off-outline" size={13} color="#757575" />
+                    <Text style={[ms.voteTxt, { color: "#757575" }]}>Hide for this session</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
+        );
+      })()}
+
       {/* Admin location fixer — community reports */}
       {adminLocationTarget && (
         <AdminLocationPickerModal
@@ -1839,4 +1934,28 @@ const ms = StyleSheet.create({
     color: "#FFF",
     letterSpacing: 0.2,
   },
+});
+
+// HERE Live Traffic marker + sheet styles
+const hms = StyleSheet.create({
+  hereMarker: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5,
+  },
+  hereEmoji: { fontSize: 16 },
+  hereLiveBadge: {
+    backgroundColor: "#1565C0",
+    borderRadius: 4,
+    paddingHorizontal: 3, paddingVertical: 1,
+    marginTop: 2,
+  },
+  hereLiveTxt: { fontSize: 7, fontWeight: "800", color: "#FFF", letterSpacing: 0.5 },
+  hereLiveRow: { flexDirection: "row", marginTop: 4 },
+  hereLivePill: {
+    backgroundColor: "#1565C0",
+    borderRadius: 6,
+    paddingHorizontal: 7, paddingVertical: 3,
+  },
+  hereLivePillTxt: { fontSize: 10, fontWeight: "800", color: "#FFF", letterSpacing: 0.5 },
 });

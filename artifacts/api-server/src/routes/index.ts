@@ -16,6 +16,7 @@ import adminMobileRouter from "./admin-mobile.js";
 import routingRouter from "./routing.js";
 import ttsRouter from "./tts.js";
 import poisRouter from "./pois.js";
+import trafficRouter from "./traffic.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(adminMobileRouter);
 router.use(routingRouter);
 router.use(ttsRouter);
 router.use(poisRouter);
+router.use(trafficRouter);
 
 export default router;

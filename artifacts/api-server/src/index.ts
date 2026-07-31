@@ -12,6 +12,7 @@ import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
 import { seedPois } from "./startup/seedPois";
+import { startHereTrafficJob } from "./jobs/hereTraffic";
 
 const rawPort = process.env["PORT"];
 
@@ -88,4 +89,5 @@ app.listen(port, async (err) => {
   startExpireReportsJob();
   startPushNotificationsJob();
   startDailyBackupJob();
+  startHereTrafficJob();
 });

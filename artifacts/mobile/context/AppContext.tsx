@@ -53,6 +53,19 @@ export interface CommunityReport {
   adminVerified?: boolean;
 }
 
+// HERE Live Traffic incident — sourced from the HERE Traffic API, not community-reported.
+// Displayed on the map as a separate layer; dismissal is local-only.
+export interface HereIncident {
+  id: string;          // "here:{HERE_ID}"
+  type: string;        // Msafiri incident type key
+  lat: number;
+  lng: number;
+  description?: string;
+  roadName?: string;
+  startTime?: number;  // epoch ms
+  endTime?: number;    // epoch ms
+}
+
 export interface TripPoint { lat: number; lng: number; speed: number; time: number }
 
 export interface TripData {
@@ -279,6 +292,9 @@ interface AppContextValue {
    *  noise threshold (< 5 m). Used by the map to fade pins that are behind
    *  the driver (angle > 90° from the heading vector). */
   driverHeading: number | null;
+  // HERE Live Traffic
+  hereIncidents: HereIncident[];
+  dismissHereIncident: (id: string) => void;
   // Admin mode
   isAdmin: boolean;
   adminLogin: (pin: string) => Promise<void>;
@@ -858,6 +874,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [themeOverride, setThemeOverrideState] = useState<"system" | "light" | "dark">("system");
   const [sosContact, setSosContactState] = useState<SOSContact | null>(null);
   const [communityReports, setCommunityReports] = useState<CommunityReport[]>([]);
+  const [hereIncidents, setHereIncidents] = useState<HereIncident[]>([]);
+  const dismissedHereIdsRef = useRef<Set<string>>(new Set());
   const [currentTrip, setCurrentTrip] = useState<Partial<TripData> | null>(null);
   const [tripHistory, setTripHistory] = useState<TripData[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -2521,6 +2539,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationGranted]);
 
+  // HERE Live Traffic incidents — poll every 5 minutes; server-side job refreshes
+  // the HERE API on the same cadence, so the mobile always gets a fresh snapshot.
+  useEffect(() => {
+    if (!locationGranted) return;
+    const poll = async () => {
+      if (isOfflineRef.current) return;
+      try {
+        const data = await apiGet<{ incidents: HereIncident[] }>(`/traffic/incidents`);
+        setHereIncidents(
+          (data.incidents ?? []).filter(
+            (inc) => !dismissedHereIdsRef.current.has(inc.id)
+          )
+        );
+      } catch { /* network error — keep previous HERE incidents */ }
+    };
+    poll();
+    const handle = setInterval(poll, 5 * 60 * 1000);
+    return () => clearInterval(handle);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationGranted]);
+
+  const dismissHereIncident = useCallback((id: string) => {
+    dismissedHereIdsRef.current.add(id);
+    setHereIncidents((prev) => prev.filter((inc) => inc.id !== id));
+  }, []);
+
   // Admin-managed speed zones — fetch ALL DB zones every 5 min when online,
   // merged with the built-in static list (see allZones below).
   // No radius filter: show every camera and zone on the map regardless of location.
@@ -3885,6 +3929,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
       snapToActiveRoute,
       fasterRoute, acceptFasterRoute, dismissFasterRoute,
+      hereIncidents, dismissHereIncident,
     }}>
       {children}
     </AppContext.Provider>
