@@ -1266,9 +1266,111 @@ export default function DriveScreen() {
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1, paddingRight: isSmall ? 56 : 70 }]}>Clear ahead</Text>
           )}
 
-          {/* SOS — anchored to the bottom-right of the strip so it stays out
-              of the way of the taller alert badge row above it. */}
-          <View style={{ position: "absolute", right: isSmall ? 8 : 12, bottom: isSmall ? 10 : 12 }}>
+          {/* ── FULL-STRIP ALERT OVERLAY ──────────────────────────────────────
+              Covers the entire speed strip (gauge + right panel) when an alert
+              is active. Absolutely-positioned so the SOS button (zIndex 10)
+              always floats on top. Hidden when overLimit or routeLoading — those
+              states own the right panel directly. */}
+          {locationGranted && !overLimit && !routeLoading && primaryAlert && (
+            <TouchableOpacity
+              activeOpacity={0.92}
+              style={[styles.alertOverlay, {
+                backgroundColor: bg,
+                borderLeftColor: primaryAlert.color,
+              }]}
+              onPress={() => {
+                if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
+              }}
+            >
+              {/* Row 1: big emoji · type name · distance */}
+              <View style={[styles.alertOverlayTop, { paddingRight: isSmall ? 48 : 58 }]}>
+                <View style={[styles.alertOverlayIconWrap, {
+                  backgroundColor: primaryAlert.color + "20",
+                  width:  isSmall ? 44 : 52,
+                  height: isSmall ? 44 : 52,
+                  borderRadius: isSmall ? 12 : 14,
+                }]}>
+                  <Text style={[styles.alertOverlayEmoji, { fontSize: isSmall ? 22 : 28 }]}>
+                    {resolveIncidentType(primaryAlert.type).emoji}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.alertOverlayTypeName, {
+                    color: primaryAlert.color,
+                    fontSize: isSmall ? 17 : 20,
+                  }]} numberOfLines={1}>
+                    {primaryAlert.typeName}
+                  </Text>
+                  {nearbyAlertCandidates.length > 1 && (
+                    <Text style={[styles.alertOverlayMoreTxt, { color: fgMuted }]}>
+                      +{nearbyAlertCandidates.length - 1} more nearby · tap
+                    </Text>
+                  )}
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.alertOverlayDistNum, {
+                    color: fgMain,
+                    fontSize: isSmall ? 20 : 24,
+                  }]}>
+                    {distStr(primaryAlert.distanceM)}
+                  </Text>
+                  <Text style={[styles.alertOverlayDistLabel, { color: fgMuted }]}>ahead</Text>
+                </View>
+              </View>
+
+              {/* Row 2: speed comparison (camera/zone) or chips (reports) */}
+              {(primaryAlert.type === "camera" || primaryAlert.type === "zone") ? (
+                <View style={[styles.alertOverlaySpeedRow, { paddingRight: isSmall ? 48 : 58 }]}>
+                  <View style={[styles.alertOverlaySpeedCell, { backgroundColor: primaryAlert.color + "18" }]}>
+                    <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>ZONE LIMIT</Text>
+                    <Text style={[styles.alertOverlayCellNum, {
+                      color: primaryAlert.color,
+                      fontSize: isSmall ? 22 : 28,
+                    }]}>
+                      {primaryAlert.speedLimit != null ? `${primaryAlert.speedLimit}` : "—"}
+                    </Text>
+                    <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                  </View>
+                  <View style={[styles.alertOverlaySpeedCell, {
+                    backgroundColor: isDark ? "#FFFFFF08" : "#00000006",
+                  }]}>
+                    <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>YOUR SPEED</Text>
+                    <Text style={[styles.alertOverlayCellNum, {
+                      color: speedClr,
+                      fontSize: isSmall ? 22 : 28,
+                    }]}>
+                      {Math.round(currentSpeed)}
+                    </Text>
+                    <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={[styles.alertOverlayChipRow, { paddingRight: isSmall ? 48 : 58 }]}>
+                  {primaryAlert.speedLimit != null && (
+                    <View style={[styles.alertOverlayChip, {
+                      backgroundColor: primaryAlert.color + "18",
+                      borderColor: primaryAlert.color + "50",
+                    }]}>
+                      <Text style={[styles.alertOverlayChipTxt, { color: primaryAlert.color }]}>
+                        {primaryAlert.speedLimit} km/h zone
+                      </Text>
+                    </View>
+                  )}
+                  <View style={[styles.alertOverlayChip, {
+                    backgroundColor: fgMuted + "15",
+                    borderColor:     fgMuted + "30",
+                  }]}>
+                    <Text style={[styles.alertOverlayChipTxt, { color: fgMuted }]}>
+                      {primaryAlert.distanceM < 200 ? "⚠️ Very close" : "Community report"}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* SOS — above the overlay via zIndex 10 */}
+          <View style={{ position: "absolute", right: isSmall ? 8 : 12, bottom: isSmall ? 10 : 12, zIndex: 10 }}>
             <SOSButton compact small={isSmall} />
           </View>
         </View>
@@ -2267,6 +2369,90 @@ const styles = StyleSheet.create({
   zoneTypeName:     { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   zoneSpeedLine:    { fontSize: 13, fontFamily: "Inter_700Bold" },
   zoneDistAhead:    { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  // ── Full-strip alert overlay ──────────────────────────────────────────────
+  alertOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 16,
+    borderLeftWidth: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    zIndex: 5,
+    justifyContent: "center",
+  },
+  alertOverlayTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  alertOverlayIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertOverlayEmoji: {
+    lineHeight: 36,
+    fontFamily: EMOJI_FONT_FAMILY,
+  },
+  alertOverlayTypeName: {
+    fontFamily: "Inter_700Bold",
+  },
+  alertOverlayMoreTxt: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  alertOverlayDistNum: {
+    fontFamily: "Inter_700Bold",
+    textAlign: "right",
+  },
+  alertOverlayDistLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    textAlign: "right",
+    marginTop: 1,
+  },
+  alertOverlaySpeedRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  alertOverlaySpeedCell: {
+    flex: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+    gap: 1,
+  },
+  alertOverlayCellLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.8,
+  },
+  alertOverlayCellNum: {
+    fontFamily: "Inter_700Bold",
+    lineHeight: 32,
+  },
+  alertOverlayCellUnit: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+  },
+  alertOverlayChipRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  alertOverlayChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  alertOverlayChipTxt: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
 
   // ── Idle-mode share button (mirrors nav share button, shown when not navigating) ──
   idleShareBtn: {
