@@ -456,6 +456,10 @@ export default function DriveScreen() {
     return undefined;
   }, [targetExitIsNext, exitBadgePulse]);
 
+  // alertOverlayPulse ref declared early (rule of hooks: same order every render).
+  // The driving useEffect lives after primaryAlert's useMemo below.
+  const alertOverlayPulse = useRef(new Animated.Value(1)).current;
+
   const prevTargetExitIsNextRef = useRef(false);
 
   // Fade the ETA bar on large jumps (traffic refresh >60 s); ignore GPS drift.
@@ -607,6 +611,30 @@ export default function DriveScreen() {
     return candidates.sort((a, b) => a.distanceM - b.distanceM)[0];
   }, [navigationActive, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
+  // ── Alert overlay heartbeat pulse ────────────────────────────────────────
+  // Placed here (after primaryAlert useMemo) so alertDistM can read it safely.
+  // Speed and depth scale with proximity: fastest/deepest < 200 m,
+  // slowest/shallowest 500–1000 m. No animation beyond 1 km.
+  const alertDistM = primaryAlert?.distanceM ?? Infinity;
+  useEffect(() => {
+    const active = locationGranted && !overLimit && !routeLoading && primaryAlert != null;
+    if (!active || alertDistM >= 1000) {
+      alertOverlayPulse.setValue(1);
+      return undefined;
+    }
+    const duration = alertDistM < 200 ? 350 : alertDistM < 500 ? 600 : 1000;
+    const minVal   = alertDistM < 200 ? 0.55 : alertDistM < 500 ? 0.70 : 0.83;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(alertOverlayPulse, { toValue: minVal, duration, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(alertOverlayPulse, { toValue: 1,      duration, useNativeDriver: Platform.OS !== "web" }),
+      ]),
+    );
+    loop.start();
+    return () => { loop.stop(); alertOverlayPulse.setValue(1); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertDistM, locationGranted, overLimit, routeLoading, !!primaryAlert, alertOverlayPulse]);
+
   // HUD-aware colours
   const bg      = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
   const fgMain  = isDark ? "#F0F0F0"   : "#111111";
@@ -614,6 +642,19 @@ export default function DriveScreen() {
   const divBg   = isDark ? "#2A2A2A"   : "#E5E5E5";
   const fabBg   = isDark ? "#1A1A1AEE" : "#FFFFFFEE";
   const speedClr = overLimit ? "#E53935" : (isDark ? "#00E676" : "#1A237E");
+
+  // Distance-coded alert overlay border — red when very close, fading through
+  // orange → amber as the driver approaches, alert's own colour when distant.
+  const overlayBorderColor = primaryAlert == null ? "#E53935"
+    : primaryAlert.distanceM <  200 ? "#E53935"   // RED   — very close
+    : primaryAlert.distanceM <  500 ? "#FF6D00"   // ORANGE — approaching
+    : primaryAlert.distanceM < 1000 ? "#FBC02D"   // AMBER  — nearby
+    : primaryAlert.color;                          // alert's own colour
+  const overlayBorderWidth = primaryAlert == null ? 5
+    : primaryAlert.distanceM <  200 ? 8
+    : primaryAlert.distanceM <  500 ? 6
+    : primaryAlert.distanceM < 1000 ? 5
+    : 4;
 
   // ── Search ────────────────────────────────────────────────────────────────
 
@@ -1123,6 +1164,12 @@ export default function DriveScreen() {
             backgroundColor: bg,
             gap: isSmall ? 6 : 10,
             paddingHorizontal: isSmall ? 8 : 12,
+            // Guarantee enough height for the full-bleed alert overlay when
+            // it is active — without this, a route with no speed limit (no
+            // limit ring) collapses the gauge and clips the overlay content.
+            minHeight: (locationGranted && !overLimit && !routeLoading && primaryAlert)
+              ? (isSmall ? 190 : 224)
+              : undefined,
           }]}
           onLayout={(e) => setSpeedStripHeight(e.nativeEvent.layout.height)}
         >
@@ -1268,105 +1315,122 @@ export default function DriveScreen() {
 
           {/* ── FULL-STRIP ALERT OVERLAY ──────────────────────────────────────
               Covers the entire speed strip (gauge + right panel) when an alert
-              is active. Absolutely-positioned so the SOS button (zIndex 10)
-              always floats on top. Hidden when overLimit or routeLoading — those
-              states own the right panel directly. */}
+              is active. Opacity pulses via alertOverlayPulse (heartbeat effect
+              whose speed / depth scale with proximity).
+              Border colour shifts RED → ORANGE → AMBER → alert-colour as
+              distance grows. SOS (zIndex 10) always floats on top. */}
           {locationGranted && !overLimit && !routeLoading && primaryAlert && (
-            <TouchableOpacity
-              activeOpacity={0.92}
+            <Animated.View
               style={[styles.alertOverlay, {
                 backgroundColor: bg,
-                borderLeftColor: primaryAlert.color,
+                borderLeftColor: overlayBorderColor,
+                borderLeftWidth: overlayBorderWidth,
+                opacity: alertOverlayPulse,
               }]}
-              onPress={() => {
-                if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
-              }}
+              pointerEvents="box-none"
             >
-              {/* Row 1: big emoji · type name · distance */}
-              <View style={[styles.alertOverlayTop, { paddingRight: isSmall ? 48 : 58 }]}>
-                <View style={[styles.alertOverlayIconWrap, {
-                  backgroundColor: primaryAlert.color + "20",
-                  width:  isSmall ? 44 : 52,
-                  height: isSmall ? 44 : 52,
-                  borderRadius: isSmall ? 12 : 14,
-                }]}>
-                  <Text style={[styles.alertOverlayEmoji, { fontSize: isSmall ? 22 : 28 }]}>
-                    {resolveIncidentType(primaryAlert.type).emoji}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.alertOverlayTypeName, {
-                    color: primaryAlert.color,
-                    fontSize: isSmall ? 17 : 20,
-                  }]} numberOfLines={1}>
-                    {primaryAlert.typeName}
-                  </Text>
-                  {nearbyAlertCandidates.length > 1 && (
-                    <Text style={[styles.alertOverlayMoreTxt, { color: fgMuted }]}>
-                      +{nearbyAlertCandidates.length - 1} more nearby · tap
-                    </Text>
-                  )}
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={[styles.alertOverlayDistNum, {
-                    color: fgMain,
-                    fontSize: isSmall ? 20 : 24,
+              <TouchableOpacity
+                activeOpacity={0.92}
+                style={styles.alertOverlayInner}
+                onPress={() => {
+                  if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
+                }}
+              >
+                {/* Row 1: big emoji · type name · distance */}
+                <View style={[styles.alertOverlayTop, { paddingRight: isSmall ? 48 : 58 }]}>
+                  <View style={[styles.alertOverlayIconWrap, {
+                    backgroundColor: primaryAlert.color + "22",
+                    width:  isSmall ? 52 : 62,
+                    height: isSmall ? 52 : 62,
+                    borderRadius: isSmall ? 14 : 16,
                   }]}>
-                    {distStr(primaryAlert.distanceM)}
-                  </Text>
-                  <Text style={[styles.alertOverlayDistLabel, { color: fgMuted }]}>ahead</Text>
-                </View>
-              </View>
-
-              {/* Row 2: speed comparison (camera/zone) or chips (reports) */}
-              {(primaryAlert.type === "camera" || primaryAlert.type === "zone") ? (
-                <View style={[styles.alertOverlaySpeedRow, { paddingRight: isSmall ? 48 : 58 }]}>
-                  <View style={[styles.alertOverlaySpeedCell, { backgroundColor: primaryAlert.color + "18" }]}>
-                    <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>ZONE LIMIT</Text>
-                    <Text style={[styles.alertOverlayCellNum, {
+                    <Text style={[styles.alertOverlayEmoji, { fontSize: isSmall ? 26 : 34 }]}>
+                      {resolveIncidentType(primaryAlert.type).emoji}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.alertOverlayTypeName, {
                       color: primaryAlert.color,
-                      fontSize: isSmall ? 22 : 28,
-                    }]}>
-                      {primaryAlert.speedLimit != null ? `${primaryAlert.speedLimit}` : "—"}
+                      fontSize: isSmall ? 19 : 22,
+                    }]} numberOfLines={1}>
+                      {primaryAlert.typeName}
                     </Text>
-                    <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                    {nearbyAlertCandidates.length > 1 && (
+                      <Text style={[styles.alertOverlayMoreTxt, { color: fgMuted }]}>
+                        +{nearbyAlertCandidates.length - 1} more nearby · tap
+                      </Text>
+                    )}
                   </View>
-                  <View style={[styles.alertOverlaySpeedCell, {
-                    backgroundColor: isDark ? "#FFFFFF08" : "#00000006",
-                  }]}>
-                    <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>YOUR SPEED</Text>
-                    <Text style={[styles.alertOverlayCellNum, {
-                      color: speedClr,
-                      fontSize: isSmall ? 22 : 28,
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[styles.alertOverlayDistNum, {
+                      color: overlayBorderColor,
+                      fontSize: isSmall ? 24 : 30,
                     }]}>
-                      {Math.round(currentSpeed)}
+                      {distStr(primaryAlert.distanceM)}
                     </Text>
-                    <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                    <Text style={[styles.alertOverlayDistLabel, { color: fgMuted }]}>ahead</Text>
                   </View>
                 </View>
-              ) : (
-                <View style={[styles.alertOverlayChipRow, { paddingRight: isSmall ? 48 : 58 }]}>
-                  {primaryAlert.speedLimit != null && (
-                    <View style={[styles.alertOverlayChip, {
-                      backgroundColor: primaryAlert.color + "18",
-                      borderColor: primaryAlert.color + "50",
+
+                {/* Row 2: speed comparison (camera/zone) or chips (reports) */}
+                {(primaryAlert.type === "camera" || primaryAlert.type === "zone") ? (
+                  <View style={[styles.alertOverlaySpeedRow, { paddingRight: isSmall ? 48 : 58 }]}>
+                    {/* Zone limit */}
+                    <View style={[styles.alertOverlaySpeedCell, { backgroundColor: primaryAlert.color + "18" }]}>
+                      <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>ZONE LIMIT</Text>
+                      <Text style={[styles.alertOverlayCellNum, {
+                        color: primaryAlert.color,
+                        fontSize: isSmall ? 38 : 46,
+                        lineHeight: isSmall ? 44 : 52,
+                      }]}>
+                        {primaryAlert.speedLimit != null ? `${primaryAlert.speedLimit}` : "—"}
+                      </Text>
+                      <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                    </View>
+                    {/* Your speed */}
+                    <View style={[styles.alertOverlaySpeedCell, {
+                      backgroundColor: overLimit
+                        ? "#E5393518"
+                        : (isDark ? "#FFFFFF0A" : "#00000008"),
                     }]}>
-                      <Text style={[styles.alertOverlayChipTxt, { color: primaryAlert.color }]}>
-                        {primaryAlert.speedLimit} km/h zone
+                      <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>YOUR SPEED</Text>
+                      <Text style={[styles.alertOverlayCellNum, {
+                        color: speedClr,
+                        fontSize: isSmall ? 38 : 46,
+                        lineHeight: isSmall ? 44 : 52,
+                      }]}>
+                        {Math.round(currentSpeed)}
+                      </Text>
+                      <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                    </View>
+                  </View>
+                ) : (
+                  /* Non-speed alerts: proximity chip + optional speed limit */
+                  <View style={[styles.alertOverlayChipRow, { paddingRight: isSmall ? 48 : 58 }]}>
+                    <View style={[styles.alertOverlayChip, {
+                      backgroundColor: overlayBorderColor + "20",
+                      borderColor:     overlayBorderColor + "60",
+                    }]}>
+                      <Text style={[styles.alertOverlayChipTxt, { color: overlayBorderColor, fontSize: isSmall ? 14 : 16 }]}>
+                        {primaryAlert.distanceM <  200 ? "⚠️ Very close"
+                          : primaryAlert.distanceM < 500 ? "🔶 Approaching"
+                          : "Community report"}
                       </Text>
                     </View>
-                  )}
-                  <View style={[styles.alertOverlayChip, {
-                    backgroundColor: fgMuted + "15",
-                    borderColor:     fgMuted + "30",
-                  }]}>
-                    <Text style={[styles.alertOverlayChipTxt, { color: fgMuted }]}>
-                      {primaryAlert.distanceM < 200 ? "⚠️ Very close" : "Community report"}
-                    </Text>
+                    {primaryAlert.speedLimit != null && (
+                      <View style={[styles.alertOverlayChip, {
+                        backgroundColor: primaryAlert.color + "18",
+                        borderColor:     primaryAlert.color + "50",
+                      }]}>
+                        <Text style={[styles.alertOverlayChipTxt, { color: primaryAlert.color, fontSize: isSmall ? 14 : 16 }]}>
+                          {primaryAlert.speedLimit} km/h zone
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                </View>
-              )}
-            </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           )}
 
           {/* SOS — above the overlay via zIndex 10 */}
@@ -2371,16 +2435,22 @@ const styles = StyleSheet.create({
   zoneDistAhead:    { fontSize: 11, fontFamily: "Inter_400Regular" },
 
   // ── Full-strip alert overlay ──────────────────────────────────────────────
+  // Outer Animated.View: positions the overlay + carries the animated opacity
+  // and distance-coded border. borderLeftWidth / borderLeftColor applied inline.
   alertOverlay: {
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
     borderRadius: 16,
-    borderLeftWidth: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
     zIndex: 5,
+    overflow: "hidden",
+  },
+  // Inner TouchableOpacity fills the Animated.View and holds the layout.
+  alertOverlayInner: {
+    flex: 1,
     justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
   },
   alertOverlayTop: {
     flexDirection: "row",
