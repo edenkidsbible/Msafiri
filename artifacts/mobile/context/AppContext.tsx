@@ -1325,6 +1325,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Core location handler ─────────────────────────────────────────────────
   const handleLocation = useCallback((lat: number, lng: number, speedMs: number | null, accuracyM: number | null = null, nativeHeading: number | null = null) => {
+    // Hardware or OS glitches can produce NaN / Infinity coordinates on some
+    // devices (especially after a GPS signal loss). Letting NaN flow through
+    // haversine, setCurrentLat/Lng, dead-reckoning, or the MapView camera
+    // corrupts the entire navigation session. Discard silently and wait for
+    // the next fix rather than crashing.
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn("[GPS] discarded non-finite fix:", lat, lng);
+      return;
+    }
     // Device-reported GPS speed is often 0/-1/null even while genuinely
     // moving (common on many phones, especially right after a fix or when
     // Doppler-based speed sensing hasn't locked yet). Fall back to a
@@ -1684,6 +1693,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const curZone   = withDist.find((z) => z.id === alertZoneRef.current);
       const curReport = curZone ? null : communityReportsRef.current.find((r) => r.id === alertZoneRef.current);
       const curHere   = (curZone || curReport) ? null : hereIncidentsRef.current.find((h) => h.id === alertZoneRef.current);
+
+      // If none of the three sources resolves the tracked alert ID, the report
+      // has vanished (denied, expired, or cleared from HERE) while we were
+      // displaying it. Treat this as an unconditional dismiss — a stale
+      // alertZoneRef pointing to a deleted item should never keep the banner
+      // alive or crash the app by reading properties on undefined.
+      const alertSourceGone = !curZone && !curReport && !curHere;
+
       const curItemLat = curZone?.lat ?? curReport?.lat ?? curHere?.lat;
       const curItemLng = curZone?.lng ?? curReport?.lng ?? curHere?.lng;
       const curDist    = curZone?.distance
@@ -1714,8 +1731,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })();
 
       const shouldDismiss = (() => {
+        // Alert source is gone from all data sources (denied, expired, removed from HERE).
+        // Dismiss immediately so we never access properties on undefined curHere etc.
+        if (alertSourceGone) return true;
         if (curDist == null || curDist > ALERT_DIST) return true;
 
+        // All curZone / curReport / curHere accesses below are safe because
+        // alertSourceGone was false, meaning at least one source resolved.
         const curItemRoad = curZone?.road ?? curReport?.roadName ?? curHere?.roadName;
 
         // ── Gap 1: null-road + bearing gate ──────────────────────────────────
@@ -2524,6 +2546,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // the new route (step 0 at 0 m → advance → step 1 …) can't trigger a
       // false "You have arrived" before the route settles.
       rerouteSettledUntilRef.current = Date.now() + 5_000;
+
+      // ── Clear stale alert geo-anchor ───────────────────────────────────────
+      // commitReroute is also called when the driver takes a different road.
+      // The old cluster anchor (set when a multi-alert was activated) must be
+      // cleared so it does not suppress new hazard clusters on the rerouted road.
+      alertAnchorLatRef.current    = null;
+      alertAnchorLngRef.current    = null;
+      alertAnchorExpiryRef.current = null;
+
+      // ── Reset distance-to-turn on reroute ─────────────────────────────────
+      // Without this, the first GPS tick after a reroute reads the stale
+      // distToNextMRef value from the old route and shows it as the turn
+      // distance for one tick before the projection catches up.
+      distToNextMRef.current = null;
+      setDistToNextM(null);
 
       // ── Gap 3 fix: dismiss active alert if it's no longer on the new route ──
       // An alert from the old route polyline must not persist after a reroute.

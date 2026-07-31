@@ -186,7 +186,12 @@ export function usePushNotifications() {
     markReportPrompted,
     stopNavigation,
     stopSharingTrip,
+    navigationActive,
   } = useApp();
+  // Keep a stable ref so the response listener (registered once) always reads
+  // the latest navActive state without going stale.
+  const navActiveRef = useRef(navigationActive);
+  useEffect(() => { navActiveRef.current = navigationActive; }, [navigationActive]);
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
@@ -223,7 +228,19 @@ export function usePushNotifications() {
 
     // Navigate now if the navigator is mounted, otherwise queue the route so
     // the navReady effect above delivers it as soon as the Stack mounts.
-    const safePush = (route: Parameters<typeof router.push>[0]) => {
+    // During active navigation, route changes that would eject the driver from
+    // the drive screen are dropped — the driver must not lose their nav view
+    // mid-journey because an unrelated notification tapped in the background.
+    // Force-update navigations are the only exception (safety-critical).
+    const safePush = (
+      route: Parameters<typeof router.push>[0],
+      opts?: { bypassNavBlock?: boolean },
+    ) => {
+      if (navActiveRef.current && !opts?.bypassNavBlock) {
+        // Driver is actively navigating — swallow this tap silently.
+        // The notification is still delivered; it just won't disrupt the drive.
+        return;
+      }
       if (navReadyRef.current) {
         try { router.push(route); return; } catch { /* fall through to queue */ }
       }
@@ -319,6 +336,8 @@ export function usePushNotifications() {
           // Push notification from admin publishing a new release.
           // Navigate to the update screen — isForceUpdate in the payload
           // controls whether the screen is dismissible or blocks the app.
+          // Force updates bypass the navActive block: a mandatory update must
+          // always reach the driver, even mid-journey.
           const isForce = data?.isForceUpdate === true || data?.isForceUpdate === "true";
           safePush({
             pathname: "/force-update",
@@ -329,7 +348,7 @@ export function usePushNotifications() {
               storeUrlAndroid: (data?.storeUrlAndroid as string) ?? "",
               isSoft:          isForce ? "false" : "true",
             },
-          } as any);
+          } as any, { bypassNavBlock: isForce });
         } else {
           // All other types: go to home/map tab
           safePush("/(tabs)" as any);
