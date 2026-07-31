@@ -636,7 +636,10 @@ export default function DriveScreen() {
   }, [alertDistM, locationGranted, overLimit, routeLoading, !!primaryAlert, alertOverlayPulse]);
 
   // HUD-aware colours
-  const bg      = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
+  const bg       = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
+  // Fully-opaque version used for the alert overlay so underlying gauge content
+  // never bleeds through (bg has a ~94 % alpha channel baked in).
+  const bgOpaque = isDark ? "#0A0A0A"   : "#FFFFFF";
   const fgMain  = isDark ? "#F0F0F0"   : "#111111";
   const fgMuted = isDark ? "#777777"   : "#888888";
   const divBg   = isDark ? "#2A2A2A"   : "#E5E5E5";
@@ -1325,7 +1328,7 @@ export default function DriveScreen() {
             // give the heartbeat effect without making the background see-through.
             <View
               style={[styles.alertOverlay, {
-                backgroundColor: bg,
+                backgroundColor: bgOpaque,
                 borderLeftColor: overlayBorderColor,
                 borderLeftWidth: overlayBorderWidth,
               }]}
