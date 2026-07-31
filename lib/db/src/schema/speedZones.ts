@@ -16,6 +16,7 @@ export const speedZonesTable = pgTable("speed_zones", {
   startLng:     doublePrecision("start_lng"),       // stretch mode
   endLat:       doublePrecision("end_lat"),         // stretch mode
   endLng:       doublePrecision("end_lng"),         // stretch mode
+  bearing:      integer("bearing"),                 // optional 0-359° — direction of traffic the camera enforces
   staticId:     text("static_id"),                 // sz-id of the built-in zone this row overrides
   status:       text("status").notNull().default("active"), // active|inactive
   verified:     boolean("verified").notNull().default(false), // admin has physically verified this location

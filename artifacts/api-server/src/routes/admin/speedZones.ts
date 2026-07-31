@@ -16,6 +16,7 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
     mode: z.mode,
     speedLimit: z.speedLimit,
     description: z.description,
+    bearing: z.bearing,
     lat: z.lat,
     lng: z.lng,
     startLat: z.startLat,
@@ -83,11 +84,11 @@ router.get("/speed-zones", async (req: Request, res: Response) => {
 router.post("/speed-zones", async (req: Request, res: Response) => {
   try {
     const {
-      name, road, type, mode, speedLimit, description,
+      name, road, type, mode, speedLimit, description, bearing,
       lat, lng, startLat, startLng, endLat, endLng,
     } = req.body as {
       name: string; road?: string; type: string; mode?: string;
-      speedLimit?: number; description?: string;
+      speedLimit?: number; description?: string; bearing?: number | null;
       lat?: number; lng?: number;
       startLat?: number; startLng?: number; endLat?: number; endLng?: number;
     };
@@ -120,6 +121,7 @@ router.post("/speed-zones", async (req: Request, res: Response) => {
         mode: zoneMode,
         speedLimit: speedLimit ?? null,
         description: description ?? null,
+        bearing: bearing != null ? Math.round(bearing) : null,
         lat: zoneMode === "point" ? lat : null,
         lng: zoneMode === "point" ? lng : null,
         startLat: zoneMode === "stretch" ? startLat : null,
@@ -142,11 +144,12 @@ router.patch("/speed-zones/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
     const {
-      name, road, type, mode, speedLimit, description, status,
+      name, road, type, mode, speedLimit, description, bearing, status,
       lat, lng, startLat, startLng, endLat, endLng,
     } = req.body as {
       name?: string; road?: string | null; type?: string; mode?: string;
-      speedLimit?: number | null; description?: string | null; status?: string;
+      speedLimit?: number | null; description?: string | null;
+      bearing?: number | null; status?: string;
       lat?: number | null; lng?: number | null;
       startLat?: number | null; startLng?: number | null; endLat?: number | null; endLng?: number | null;
     };
@@ -175,6 +178,7 @@ router.patch("/speed-zones/:id", async (req: Request, res: Response) => {
     if (mode        !== undefined) updates["mode"] = mode;
     if (speedLimit  !== undefined) updates["speedLimit"] = speedLimit;
     if (description !== undefined) updates["description"] = description;
+    if (bearing     !== undefined) updates["bearing"] = bearing != null ? Math.round(bearing) : null;
     if (status      !== undefined) updates["status"] = status;
     if ((req.body as any).verified !== undefined) updates["verified"] = (req.body as any).verified;
     if (lat         !== undefined) updates["lat"] = lat;

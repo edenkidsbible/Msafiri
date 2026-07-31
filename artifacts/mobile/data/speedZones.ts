@@ -10,6 +10,11 @@ export interface SpeedZone {
   speedLimit: number;
   type: ZoneType;
   description: string;
+  /** Direction of traffic this camera enforces (0–359°, 0 = northbound traffic,
+   *  90 = eastbound, etc.).  When set, the driver must be heading within ±70° of
+   *  this bearing for the alert to fire.  Cameras without a bearing always fire
+   *  on proximity + road-name match alone (existing behaviour). */
+  bearing?: number;
   /** True for the two flattened endpoint markers derived from an admin
    *  "road stretch" zone (see apiZoneToStaticZones in AppContext.tsx). These
    *  exist only for map display / proximity alerts; they must NOT be used to

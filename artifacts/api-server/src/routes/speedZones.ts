@@ -22,6 +22,7 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
     mode: z.mode,
     speedLimit: z.speedLimit,
     description: z.description,
+    bearing: z.bearing,
     lat: z.lat,
     lng: z.lng,
     startLat: z.startLat,

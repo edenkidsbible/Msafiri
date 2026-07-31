@@ -729,6 +729,7 @@ interface ApiSpeedZone {
   mode: "point" | "stretch";
   speedLimit: number | null;
   description: string | null;
+  bearing?: number | null; // direction of traffic the camera enforces (0-359°)
   lat: number | null;
   lng: number | null;
   startLat: number | null;
@@ -743,7 +744,7 @@ interface ApiSpeedZone {
 function apiZoneToStaticZones(z: ApiSpeedZone): SpeedZone[] {
   if (z.status !== "active" || z.speedLimit == null) return [];
   const type: SpeedZone["type"] = z.type === "camera" || z.type === "police" ? z.type : "zone";
-  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "", verified: z.verified ?? false };
+  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "", verified: z.verified ?? false, bearing: z.bearing ?? undefined };
   // When this DB record overrides a static zone, use the static zone's id so that
   // all speed-matching and route logic (which knows static ids) stays consistent.
   const pointId = z.staticId ?? `db-${z.id}`;
@@ -1578,6 +1579,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Allow zones with no road stored (legacy admin entries without road tag).
         // For zones that do have a road, require a strict match.
         if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
+
+        // Bearing gate: when a camera specifies which direction of traffic it
+        // enforces, only alert the driver if their heading is within ±70° of
+        // that bearing.  At low speed (< ~10 km/h) GPS heading is unreliable —
+        // skip the gate so parked/slow drivers still see nearby cameras.
+        if (z.bearing != null && speed > 10) {
+          const raw = Math.abs((heading - z.bearing + 540) % 360 - 180);
+          if (raw > 70) continue;
+        }
+
         if (best === null || z.distance < best.distance) best = z;
       }
       return best;
