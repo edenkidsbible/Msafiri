@@ -151,7 +151,7 @@ export interface AppRoute {
  *  the UI can render them as a unified, sorted "what's ahead" list. */
 export interface RouteIncident {
   id: string;
-  source: "static" | "report";
+  source: "static" | "report" | "here";
   type: string;
   label: string;
   name: string;
@@ -791,19 +791,24 @@ const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
 };
 const MAX_TRAFFIC_DELAY_MIN = 20;
 
-/** Estimates total traffic delay (seconds) from community reports ahead on
- *  the route. Each report's weight scales with how many drivers confirmed
- *  it — confirmed reports carry more confidence, single unconfirmed reports
- *  are discounted — then the total is capped to avoid an unrealistic figure. */
+/** Estimates total traffic delay (seconds) from community reports and HERE
+ *  live incidents ahead on the route. Community reports scale with confirm
+ *  count for confidence; HERE incidents are authoritative so use full weight
+ *  (no confirm discount). The total is capped to avoid unrealistic figures. */
 function estimateTrafficDelayS(incidents: RouteIncident[]): number {
   let totalMin = 0;
   for (const inc of incidents) {
-    if (inc.source !== "report") continue;
+    if (inc.source !== "report" && inc.source !== "here") continue;
     const base = TRAFFIC_DELAY_WEIGHTS_MIN[inc.type];
     if (!base) continue;
-    const confirms = inc.confirmCount ?? 0;
-    const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
-    totalMin += base * confidence;
+    if (inc.source === "here") {
+      // HERE Traffic incidents are authoritative — apply full weight.
+      totalMin += base;
+    } else {
+      const confirms = inc.confirmCount ?? 0;
+      const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
+      totalMin += base * confidence;
+    }
   }
   return Math.min(totalMin, MAX_TRAFFIC_DELAY_MIN) * 60;
 }
@@ -1053,6 +1058,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // instead of the raw projection value for incident filtering / aheadDistanceM.
   const routeMaxDistMRef = useRef(0);
   const communityReportsRef = useRef<CommunityReport[]>([]);
+  const hereIncidentsRef = useRef<HereIncident[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
   // When the current turn-by-turn session started — used to auto-end a
   // navigation session that's run far longer than the route could ever
@@ -1236,6 +1242,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Keep voice refs in sync with state ───────────────────────────────────
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
+  useEffect(() => { hereIncidentsRef.current = hereIncidents; }, [hereIncidents]);
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
@@ -2683,8 +2690,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
+    // HERE Live Traffic — authoritative incidents on or near the route.
+    // Excluded from voting logic; labelled "here" so the UI can show a "LIVE" badge.
+    for (const inc of hereIncidents) {
+      if (!Number.isFinite(inc.lat) || !Number.isFinite(inc.lng)) continue;
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, inc.lat, inc.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        const info = resolveIncidentType(inc.type);
+        list.push({
+          id: inc.id,
+          source: "here",
+          type: inc.type,
+          label: info.label,
+          name: info.label,
+          road: inc.roadName,
+          description: inc.description,
+          lat: inc.lat,
+          lng: inc.lng,
+          distanceAlongRouteM: proj.alongRouteM,
+        });
+      }
+    }
     return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
-  }, [activeRoute, routeCumDist, communityReports, vehicleType, allZones]);
+  }, [activeRoute, routeCumDist, communityReports, hereIncidents, vehicleType, allZones]);
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
@@ -2814,6 +2842,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           confirmCount: r.confirmCount,
           timestamp: r.timestamp,
           reportStatus: r.status,
+        });
+      }
+    }
+    // HERE Live Traffic — same corridor check as community reports.
+    for (const inc of hereIncidentsRef.current) {
+      if (!Number.isFinite(inc.lat) || !Number.isFinite(inc.lng)) continue;
+      const proj = projectOntoRoute(route.coords, cumDist, inc.lat, inc.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        const info = resolveIncidentType(inc.type);
+        list.push({
+          id: inc.id,
+          source: "here",
+          type: inc.type,
+          label: info.label,
+          name: info.label,
+          road: inc.roadName,
+          description: inc.description,
+          lat: inc.lat,
+          lng: inc.lng,
+          distanceAlongRouteM: proj.alongRouteM,
         });
       }
     }

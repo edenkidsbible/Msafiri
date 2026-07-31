@@ -59,9 +59,10 @@ const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
 };
 
 export function incidentDelayMin(inc: RouteIncident): number | null {
-  if (inc.source !== "report") return null;
   const base = TRAFFIC_DELAY_WEIGHTS_MIN[inc.type];
   if (!base) return null;
+  if (inc.source === "here") return base; // HERE incidents carry full weight
+  if (inc.source !== "report") return null;
   const confirms = inc.confirmCount ?? 0;
   const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
   return Math.round(base * confidence);
@@ -134,10 +135,10 @@ export default function RouteIncidentsPanel() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.delayBannerTitle}>
-                Community reports: +{delayMinutesLabel(routeTrafficDelayS)} extra
+                Traffic alerts: +{delayMinutesLabel(routeTrafficDelayS)} extra
               </Text>
               <Text style={[styles.delayBannerSub, { color: c.mutedForeground }]}>
-                Driver-reported incidents not yet in Google traffic data
+                Incidents on your route not yet reflected in Google traffic
               </Text>
             </View>
           </View>
@@ -172,12 +173,21 @@ export default function RouteIncidentsPanel() {
                         </View>
                       )}
                     </View>
+                    <View style={styles.rowTitleRow}>
+                      {inc.source === "here" && (
+                        <View style={styles.livePill}>
+                          <Text style={styles.livePillTxt}>LIVE</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={[styles.rowSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                      {inc.source === "static"
-                        ? (inc.road ?? inc.name)
-                        : inc.type === "camera"
-                          ? (inc.road ?? inc.name ?? "Speed camera")
-                          : "Reported by a driver"}
+                      {inc.source === "here"
+                        ? (inc.road ?? "HERE Traffic · live incident")
+                        : inc.source === "static"
+                          ? (inc.road ?? inc.name)
+                          : inc.type === "camera"
+                            ? (inc.road ?? inc.name ?? "Speed camera")
+                            : "Reported by a driver"}
                     </Text>
                     {!!inc.description && (
                       <Text style={[styles.rowDesc, { color: c.mutedForeground }]} numberOfLines={2}>
@@ -189,7 +199,7 @@ export default function RouteIncidentsPanel() {
                         Limit: {inc.speedLimit} km/h
                       </Text>
                     )}
-                    {/* #31 — Confidence tier pill */}
+                    {/* #31 — Confidence tier pill (community reports only) */}
                     {inc.source === "report" && inc.type !== "camera" && (() => {
                       const c2 = inc.confirmCount ?? 0;
                       if (c2 >= 5) return (
@@ -327,4 +337,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
   },
   tierPillTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1B5E20" },
+  // HERE Live Traffic badge
+  livePill: {
+    backgroundColor: "#1565C0",
+    borderRadius: 5,
+    paddingHorizontal: 6, paddingVertical: 2,
+    marginBottom: 2,
+  },
+  livePillTxt: { fontSize: 9, fontFamily: "Inter_800ExtraBold", color: "#FFF", letterSpacing: 0.6 },
 });

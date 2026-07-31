@@ -95,10 +95,12 @@ function incidentSummaryParts(incidents: { type: string; source: string }[]): { 
   const camCount = incidents.filter((i) => i.type === "camera").length;
   const policeCount = incidents.filter((i) => i.type === "police").length;
   const reportCount = incidents.filter((i) => i.source === "report").length;
+  const liveCount = incidents.filter((i) => i.source === "here").length;
   const parts: { emoji: string; label: string }[] = [];
   if (camCount > 0) parts.push({ emoji: "📷", label: `${camCount} camera${camCount === 1 ? "" : "s"}` });
   if (policeCount > 0) parts.push({ emoji: "👮", label: `${policeCount} police` });
   if (reportCount > 0) parts.push({ emoji: "📢", label: `${reportCount} report${reportCount === 1 ? "" : "s"}` });
+  if (liveCount > 0) parts.push({ emoji: "🔴", label: `${liveCount} live alert${liveCount === 1 ? "" : "s"}` });
   return parts;
 }
 
@@ -1402,7 +1404,7 @@ export default function DriveScreen() {
           ) : (
             <View style={[styles.incidentsBar, { backgroundColor: "#2E7D3210", borderColor: "#2E7D3225" }]}>
               <Text style={{ fontFamily: EMOJI_FONT_FAMILY, fontSize: 14 }}>✅</Text>
-              <Text style={[styles.incidentsBarTxt, { color: "#2E7D32", flex: 1 }]}>Route looks clear — no cameras or reports ahead</Text>
+              <Text style={[styles.incidentsBarTxt, { color: "#2E7D32", flex: 1 }]}>Route looks clear — no cameras, reports, or live alerts</Text>
             </View>
           )}
 
