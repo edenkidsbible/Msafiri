@@ -1322,7 +1322,7 @@ export default function DriveScreen() {
               whose speed / depth scale with proximity).
               Border colour shifts RED → ORANGE → AMBER → alert-colour as
               distance grows. SOS (zIndex 10) always floats on top. */}
-          {locationGranted && !overLimit && !routeLoading && primaryAlert && (
+          {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert.distanceM <= 1000 && (
             // Outer View is always fully opaque — hides the gauge + right-panel
             // content underneath. A separate inner Animated.View ring pulses to
             // give the heartbeat effect without making the background see-through.
