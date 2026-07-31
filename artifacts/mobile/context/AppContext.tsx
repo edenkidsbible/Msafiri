@@ -2252,7 +2252,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               // valid bearing for carriageway snapping.  Expo returns -1 when
               // heading is unavailable; handleLocation treats that as absent.
               const nativeHdg = typeof loc.coords.heading === "number" ? loc.coords.heading : null;
-              handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy, nativeHdg);
+              try {
+                handleLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.speed, loc.coords.accuracy, nativeHdg);
+              } catch (err) {
+                // Any uncaught JS error in the 800-line handleLocation must NOT
+                // propagate to the native GPS callback — React Native would kill
+                // the subscription (and silently freeze navigation) if it did.
+                console.warn("[GPS] uncaught error in handleLocation:", err);
+              }
             }
           );
           // Guard 2: discard if a newer subscribe already completed.
@@ -2263,7 +2270,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const id = navigator.geolocation.watchPosition(
             (pos) => {
               lastLocationAtRef.current = Date.now();
-              handleLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.speed, pos.coords.accuracy);
+              try {
+                handleLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.speed, pos.coords.accuracy);
+              } catch (err) {
+                console.warn("[GPS/web] uncaught error in handleLocation:", err);
+              }
             },
             (err) => console.warn("Geo:", err),
             { enableHighAccuracy: true }
@@ -2491,6 +2502,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (!navActiveRef.current || navDestRef.current !== dest) return;
           if (!routes.length) return;
           const [primary, ...alts] = routes;
+          // Mirror the divergence-cache guard: a route with no steps cannot be
+          // committed — step projection would immediately fault on the next GPS fix.
+          if (!primary || primary.steps.length === 0) {
+            console.warn("[reroute] fresh route has no steps — extending grace, will retry");
+            rerouteGraceUntilRef.current = Date.now() + 5_000;
+            return;
+          }
           commitReroute(primary, alts);
         })
         .catch((e) => {

@@ -616,14 +616,25 @@ export default function DriveScreen() {
   // Speed and depth scale with proximity: fastest/deepest < 200 m,
   // slowest/shallowest 500–1000 m. No animation beyond 1 km.
   const alertDistM = primaryAlert?.distanceM ?? Infinity;
+  // Coarse proximity tier — only 4 possible values (−1 / 0 / 1 / 2).
+  // Using the raw `alertDistM` in the dep array would restart the animation
+  // loop on every GPS fix (1 Hz), creating/destroying Animated.loop objects
+  // every second → memory pressure and eventual UI-thread crash.
+  // The tier changes only when the driver crosses 200 m / 500 m / 1 km, which
+  // is when the pulse speed/depth actually needs to change anyway.
+  const alertDistTier =
+    alertDistM < 200  ? 2 :
+    alertDistM < 500  ? 1 :
+    alertDistM < 1000 ? 0 : -1;
+
   useEffect(() => {
     const active = locationGranted && !overLimit && !routeLoading && primaryAlert != null;
-    if (!active || alertDistM >= 1000) {
+    if (!active || alertDistTier < 0) {
       alertOverlayPulse.setValue(1);
       return undefined;
     }
-    const duration = alertDistM < 200 ? 350 : alertDistM < 500 ? 600 : 1000;
-    const minVal   = alertDistM < 200 ? 0.55 : alertDistM < 500 ? 0.70 : 0.83;
+    const duration = alertDistTier === 2 ? 350 : alertDistTier === 1 ? 600 : 1000;
+    const minVal   = alertDistTier === 2 ? 0.55 : alertDistTier === 1 ? 0.70 : 0.83;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(alertOverlayPulse, { toValue: minVal, duration, useNativeDriver: Platform.OS !== "web" }),
@@ -632,8 +643,9 @@ export default function DriveScreen() {
     );
     loop.start();
     return () => { loop.stop(); alertOverlayPulse.setValue(1); };
+  // alertDistTier is the coarse bucketed version of alertDistM — intentional.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alertDistM, locationGranted, overLimit, routeLoading, !!primaryAlert, alertOverlayPulse]);
+  }, [alertDistTier, locationGranted, overLimit, routeLoading, !!primaryAlert, alertOverlayPulse]);
 
   // HUD-aware colours
   const bg       = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
