@@ -102,6 +102,7 @@ async function playKey(key: string): Promise<void> {
     if (!source) return;
     const player = createAudioPlayer(source as Parameters<typeof createAudioPlayer>[0]);
     currentPlayer = player;
+    player.volume = 0.7;
     player.play();
   } catch (err) {
     console.warn("[alertTts] playback failed:", err);
@@ -166,6 +167,7 @@ export async function speakAlertPhrase(text: string): Promise<void> {
   try {
     const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
     currentPlayer = player;
+    player.volume = 0.7;
     player.play();
   } catch (err) {
     console.warn("[alertTts] speakAlertPhrase failed:", err);
