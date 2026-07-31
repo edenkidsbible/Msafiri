@@ -151,7 +151,7 @@ export interface AppRoute {
  *  the UI can render them as a unified, sorted "what's ahead" list. */
 export interface RouteIncident {
   id: string;
-  source: "static" | "report" | "here";
+  source: "static" | "report";
   type: string;
   label: string;
   name: string;
@@ -178,12 +178,12 @@ export interface RouteCheckResult {
   incidents: RouteIncident[];
 }
 
-/** Unified alert shown in DriveAlertOverlay — covers both static speed
- *  zones/cameras and live community reports so either can trigger the
- *  full-screen panel. */
+/** Unified alert shown in DriveAlertOverlay — covers static speed zones/cameras,
+ *  live community reports, and HERE live traffic incidents so any source can
+ *  trigger the full-screen panel. */
 export interface DriveAlert {
   id: string;
-  source: "zone" | "report";
+  source: "zone" | "report" | "here";
   type: string;
   name: string;
   road?: string | null;
@@ -791,24 +791,19 @@ const TRAFFIC_DELAY_WEIGHTS_MIN: Record<string, number> = {
 };
 const MAX_TRAFFIC_DELAY_MIN = 20;
 
-/** Estimates total traffic delay (seconds) from community reports and HERE
- *  live incidents ahead on the route. Community reports scale with confirm
- *  count for confidence; HERE incidents are authoritative so use full weight
- *  (no confirm discount). The total is capped to avoid unrealistic figures. */
+/** Estimates total traffic delay (seconds) from community reports ahead on
+ *  the route. Each report's weight scales with how many drivers confirmed
+ *  it — confirmed reports carry more confidence, single unconfirmed reports
+ *  are discounted — then the total is capped to avoid an unrealistic figure. */
 function estimateTrafficDelayS(incidents: RouteIncident[]): number {
   let totalMin = 0;
   for (const inc of incidents) {
-    if (inc.source !== "report" && inc.source !== "here") continue;
+    if (inc.source !== "report") continue;
     const base = TRAFFIC_DELAY_WEIGHTS_MIN[inc.type];
     if (!base) continue;
-    if (inc.source === "here") {
-      // HERE Traffic incidents are authoritative — apply full weight.
-      totalMin += base;
-    } else {
-      const confirms = inc.confirmCount ?? 0;
-      const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
-      totalMin += base * confidence;
-    }
+    const confirms = inc.confirmCount ?? 0;
+    const confidence = confirms > 0 ? Math.min(1 + confirms * 0.15, 1.6) : 0.7;
+    totalMin += base * confidence;
   }
   return Math.min(totalMin, MAX_TRAFFIC_DELAY_MIN) * 60;
 }
@@ -881,6 +876,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [communityReports, setCommunityReports] = useState<CommunityReport[]>([]);
   const [hereIncidents, setHereIncidents] = useState<HereIncident[]>([]);
   const dismissedHereIdsRef = useRef<Set<string>>(new Set());
+  /** Ref mirror of hereIncidents — read by the GPS handler (stable useCallback)
+   *  so it always sees the current list without stale closure captures. */
+  const hereIncidentsRef = useRef<HereIncident[]>([]);
   const [currentTrip, setCurrentTrip] = useState<Partial<TripData> | null>(null);
   const [tripHistory, setTripHistory] = useState<TripData[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -1058,7 +1056,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // instead of the raw projection value for incident filtering / aheadDistanceM.
   const routeMaxDistMRef = useRef(0);
   const communityReportsRef = useRef<CommunityReport[]>([]);
-  const hereIncidentsRef = useRef<HereIncident[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
   // When the current turn-by-turn session started — used to auto-end a
   // navigation session that's run far longer than the route could ever
@@ -1106,7 +1103,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastHeadingRef  = useRef<number | null>(null); // last known heading (°)
   const drStateRef      = useRef<{ lat: number; lng: number; speedMps: number; heading: number } | null>(null);
   const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
-  const alertSourceRef = useRef<"zone" | "report" | null>(null);
+  const alertSourceRef = useRef<"zone" | "report" | "here" | null>(null);
   // Geo-anchor for multi-alert clusters: set when a cluster (lead + extras) is
   // announced. New cluster activation is suppressed until the driver travels
   // > 1 km from this anchor point.
@@ -1242,7 +1239,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Keep voice refs in sync with state ───────────────────────────────────
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
-  useEffect(() => { hereIncidentsRef.current = hereIncidents; }, [hereIncidents]);
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
@@ -1572,13 +1568,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return best ? { report: best, dist: bestDist } : null;
     })();
 
-    // (3) Pick winner: closer of zone vs report
+    // (3) HERE Live Traffic incident candidate — closest non-expired HERE incident
+    //     on the driver's current road, using the same distance/road gates as
+    //     community reports.  Road match allows incidents without a roadName through
+    //     on distance alone, consistent with report-candidate behaviour.
+    const hereCandidate = (() => {
+      if (!isDriving || !roadReady || !alertAccuracyOk) return null;
+      let best: HereIncident | null = null;
+      let bestDist = Infinity;
+      for (const h of hereIncidentsRef.current) {
+        // Skip incidents whose server-supplied end time has already passed.
+        if (h.endTime != null && h.endTime < now) continue;
+        const d = haversine(lat, lng, h.lat, h.lng);
+        if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
+        // Road match: same rule as reports — skip only when BOTH roads are known
+        // but disagree.  Unknown roadName = distance-only fallback (no blackout).
+        if (h.roadName && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        best = h;
+        bestDist = d;
+      }
+      return best ? { incident: best, dist: bestDist } : null;
+    })();
+
+    // (4) Pick winner: closest of zone / community-report / HERE incident
     const zoneDist   = zoneCandidate?.distance ?? Infinity;
     const reportDist = reportCandidate?.dist   ?? Infinity;
+    const hereDist   = hereCandidate?.dist     ?? Infinity;
+    const minDist    = Math.min(zoneDist, reportDist, hereDist);
     const winner: DriveAlert | null =
-      zoneDist === Infinity && reportDist === Infinity
+      minDist === Infinity
         ? null
-        : zoneDist <= reportDist
+        : minDist === zoneDist
           ? {
               id: zoneCandidate!.id,
               source: "zone" as const,
@@ -1591,18 +1611,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               lat: zoneCandidate!.lat,
               lng: zoneCandidate!.lng,
             }
-          : {
-              id: reportCandidate!.report.id,
-              source: "report" as const,
-              type: reportCandidate!.report.type,
-              name: resolveIncidentType(reportCandidate!.report.type).label,
-              road: reportCandidate!.report.roadName,
-              distance: reportCandidate!.dist,
-              speedLimit: reportCandidate!.report.speedLimit,
-              lat: reportCandidate!.report.lat,
-              lng: reportCandidate!.report.lng,
-              confirmCount: reportCandidate!.report.confirmCount,
-            };
+          : minDist === reportDist
+            ? {
+                id: reportCandidate!.report.id,
+                source: "report" as const,
+                type: reportCandidate!.report.type,
+                name: resolveIncidentType(reportCandidate!.report.type).label,
+                road: reportCandidate!.report.roadName,
+                distance: reportCandidate!.dist,
+                speedLimit: reportCandidate!.report.speedLimit,
+                lat: reportCandidate!.report.lat,
+                lng: reportCandidate!.report.lng,
+                confirmCount: reportCandidate!.report.confirmCount,
+              }
+            : {
+                id: hereCandidate!.incident.id,
+                source: "here" as const,
+                type: hereCandidate!.incident.type,
+                name: resolveIncidentType(hereCandidate!.incident.type).label,
+                road: hereCandidate!.incident.roadName,
+                description: hereCandidate!.incident.description,
+                distance: hereCandidate!.dist,
+                lat: hereCandidate!.incident.lat,
+                lng: hereCandidate!.incident.lng,
+              };
 
     // (4) Dismiss active alert when:
     //   • it has moved out of the 1 km radius, OR
@@ -1613,8 +1645,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (alertZoneRef.current && !alertDismissed.current) {
       const curZone   = withDist.find((z) => z.id === alertZoneRef.current);
       const curReport = curZone ? null : communityReportsRef.current.find((r) => r.id === alertZoneRef.current);
-      const curItemLat = curZone?.lat ?? curReport?.lat;
-      const curItemLng = curZone?.lng ?? curReport?.lng;
+      const curHere   = (curZone || curReport) ? null : hereIncidentsRef.current.find((h) => h.id === alertZoneRef.current);
+      const curItemLat = curZone?.lat ?? curReport?.lat ?? curHere?.lat;
+      const curItemLng = curZone?.lng ?? curReport?.lng ?? curHere?.lng;
       const curDist    = curZone?.distance
         ?? (curItemLat != null && curItemLng != null ? haversine(lat, lng, curItemLat, curItemLng) : null);
 
@@ -1645,7 +1678,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const shouldDismiss = (() => {
         if (curDist == null || curDist > ALERT_DIST) return true;
 
-        const curItemRoad = curZone?.road ?? curReport?.roadName;
+        const curItemRoad = curZone?.road ?? curReport?.roadName ?? curHere?.roadName;
 
         // ── Gap 1: null-road + bearing gate ──────────────────────────────────
         // Current road flipped to null (geocode latency after a turn).  If both
@@ -1719,7 +1752,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (navActiveRef.current && routeMaxDistMRef.current > 0) {
           const alertId = alertZoneRef.current!;
           const incident = routeIncidentsRef.current.find(
-            (i) => i.id === `static-${alertId}` || i.id === `report-${alertId}`,
+            (i) => i.id === `static-${alertId}` || i.id === `report-${alertId}` || i.id === alertId,
           );
           if (incident && routeMaxDistMRef.current > incident.distanceAlongRouteM + 10) {
             return true;
@@ -1784,6 +1817,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           speedLimit: r.speedLimit,
           lat: r.lat, lng: r.lng,
           confirmCount: r.confirmCount,
+        });
+      }
+      // HERE incidents within 1 km that are not the lead winner
+      for (const h of hereIncidentsRef.current) {
+        if (h.endTime != null && h.endTime < now) continue;
+        if (h.id === winner.id) continue;
+        const d = haversine(lat, lng, h.lat, h.lng);
+        if (d <= IN_ZONE_DIST || d > MULTI_RADIUS) continue;
+        if (h.roadName && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        extraCandidates.push({
+          id: h.id, source: "here" as const, type: h.type,
+          name: resolveIncidentType(h.type).label,
+          road: h.roadName, description: h.description, distance: d,
+          lat: h.lat, lng: h.lng,
         });
       }
       extraCandidates.sort((a, b) => a.distance - b.distance);
@@ -2571,6 +2618,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dismissedHereIdsRef.current.add(id);
     setHereIncidents((prev) => prev.filter((inc) => inc.id !== id));
   }, []);
+  // Keep hereIncidentsRef in sync so the GPS handler can read it without stale closures.
+  useEffect(() => { hereIncidentsRef.current = hereIncidents; }, [hereIncidents]);
 
   // Admin-managed speed zones — fetch ALL DB zones every 5 min when online,
   // merged with the built-in static list (see allZones below).
@@ -2690,29 +2739,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-    // HERE Live Traffic — authoritative incidents on or near the route.
-    // Excluded from voting logic; labelled "here" so the UI can show a "LIVE" badge.
-    for (const inc of hereIncidents) {
-      if (!Number.isFinite(inc.lat) || !Number.isFinite(inc.lng)) continue;
-      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, inc.lat, inc.lng);
+    // HERE Live Traffic incidents on this route
+    const nowMs = Date.now();
+    for (const h of hereIncidents) {
+      if (h.endTime != null && h.endTime < nowMs) continue;
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, h.lat, h.lng);
       if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
-        const info = resolveIncidentType(inc.type);
+        const info = resolveIncidentType(h.type);
         list.push({
-          id: inc.id,
-          source: "here",
-          type: inc.type,
+          id: h.id,
+          source: "report",  // render with emoji (same as community reports)
+          type: h.type,
           label: info.label,
           name: info.label,
-          road: inc.roadName,
-          description: inc.description,
-          lat: inc.lat,
-          lng: inc.lng,
+          road: h.roadName,
+          description: h.description,
+          lat: h.lat,
+          lng: h.lng,
           distanceAlongRouteM: proj.alongRouteM,
         });
       }
     }
     return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
-  }, [activeRoute, routeCumDist, communityReports, hereIncidents, vehicleType, allZones]);
+  }, [activeRoute, routeCumDist, communityReports, vehicleType, allZones, hereIncidents]);
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
@@ -2842,26 +2891,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           confirmCount: r.confirmCount,
           timestamp: r.timestamp,
           reportStatus: r.status,
-        });
-      }
-    }
-    // HERE Live Traffic — same corridor check as community reports.
-    for (const inc of hereIncidentsRef.current) {
-      if (!Number.isFinite(inc.lat) || !Number.isFinite(inc.lng)) continue;
-      const proj = projectOntoRoute(route.coords, cumDist, inc.lat, inc.lng);
-      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
-        const info = resolveIncidentType(inc.type);
-        list.push({
-          id: inc.id,
-          source: "here",
-          type: inc.type,
-          label: info.label,
-          name: info.label,
-          road: inc.roadName,
-          description: inc.description,
-          lat: inc.lat,
-          lng: inc.lng,
-          distanceAlongRouteM: proj.alongRouteM,
         });
       }
     }

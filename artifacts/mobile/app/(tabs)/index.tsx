@@ -112,6 +112,7 @@ export default function DriveScreen() {
   const {
     locationGranted, requestLocationPermission,
     currentSpeed, currentSpeedLimit, activeAlert, activeAlertExtras, dismissAlert, nearbyZones, communityReports,
+    hereIncidents,
     setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, divergenceRoutes, selectRoute, routeLoading,
@@ -477,6 +478,8 @@ export default function DriveScreen() {
       id: string; type: string; typeName: string; distanceM: number;
       road?: string; speedLimit?: number; emoji: string;
       lat: number; lng: number;
+      /** True when this candidate came from HERE Live Traffic (not community report / zone). */
+      isHere?: boolean;
     };
     const results: NearbyCandidate[] = [];
     const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -508,10 +511,24 @@ export default function DriveScreen() {
           lat: r.lat, lng: r.lng,
         });
       }
+
+      // HERE Live Traffic incidents within 3 km (non-expired)
+      for (const h of hereIncidents) {
+        if (h.endTime != null && h.endTime < now) continue;
+        const d = haversineM(currentLat, currentLng, h.lat, h.lng);
+        if (d > NEARBY_RADIUS_M) continue;
+        results.push({
+          id: h.id, type: h.type, typeName: resolveIncidentType(h.type).label,
+          distanceM: d, road: h.roadName,
+          emoji: resolveIncidentType(h.type).emoji,
+          lat: h.lat, lng: h.lng,
+          isHere: true,
+        });
+      }
     }
 
     return results.sort((a, b) => a.distanceM - b.distanceM);
-  }, [nearbyZones, communityReports, currentLat, currentLng]);
+  }, [nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
   const primaryAlert = useMemo(() => {
     // While navigating, routeIncidentsAhead already merges zones + reports on
@@ -544,7 +561,7 @@ export default function DriveScreen() {
       });
     }
 
-    // Community reports within 3 km that are < 2 h old
+    // Community reports + HERE incidents within 3 km
     if (currentLat != null && currentLng != null) {
       const TWO_HOURS = 2 * 60 * 60 * 1000;
       const REPORT_RADIUS_M = 3000;
@@ -566,12 +583,29 @@ export default function DriveScreen() {
           distanceM: nearestDist, color: resolveIncidentType(nearestReport.type).color,
         });
       }
+      // HERE Live Traffic incidents within 3 km
+      let nearestHereDist = Infinity;
+      let nearestHere: typeof hereIncidents[0] | null = null;
+      for (const h of hereIncidents) {
+        if (h.endTime != null && h.endTime < now) continue;
+        const d = haversineM(currentLat, currentLng, h.lat, h.lng);
+        if (d <= REPORT_RADIUS_M && d < nearestHereDist) {
+          nearestHereDist = d;
+          nearestHere = h;
+        }
+      }
+      if (nearestHere) {
+        candidates.push({
+          type: nearestHere.type, typeName: resolveIncidentType(nearestHere.type).label,
+          distanceM: nearestHereDist, color: resolveIncidentType(nearestHere.type).color,
+        });
+      }
     }
 
     if (candidates.length === 0) return null;
-    // Pick the closest — a community report 200 m away wins over a camera 1 km away
+    // Pick the closest — a HERE incident 200 m away wins over a camera 1 km away
     return candidates.sort((a, b) => a.distanceM - b.distanceM)[0];
-  }, [navigationActive, routeIncidentsAhead, nearbyZones, communityReports, currentLat, currentLng]);
+  }, [navigationActive, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
   // HUD-aware colours
   const bg      = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
@@ -1868,9 +1902,16 @@ export default function DriveScreen() {
                       <Text style={{ fontSize: 20 }}>{resolved.emoji}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
-                        {resolved.label}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
+                          {resolved.label}
+                        </Text>
+                        {item.isHere && (
+                          <View style={styles.liveBadge}>
+                            <Text style={styles.liveBadgeTxt}>LIVE</Text>
+                          </View>
+                        )}
+                      </View>
                       {item.road ? (
                         <Text style={[styles.nearbySheetRowSub, { color: c.mutedForeground }]} numberOfLines={1}>
                           {item.road}
@@ -2525,6 +2566,18 @@ const styles = StyleSheet.create({
   nearbySheetRowTitle: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
+  },
+  liveBadge: {
+    backgroundColor: "#D32F2F",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  liveBadgeTxt: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    letterSpacing: 0.8,
   },
   nearbySheetRowSub: {
     fontSize: 12,

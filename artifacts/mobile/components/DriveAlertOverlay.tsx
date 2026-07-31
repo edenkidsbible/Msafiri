@@ -235,7 +235,14 @@ export default function DriveAlertOverlay({
           <Ionicons name={typeIcon} size={34} color="#FFF" />
         )}
         <View style={styles.headerText}>
-          <Text style={styles.typeLabel}>{typeLabel.toUpperCase()}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={styles.typeLabel}>{typeLabel.toUpperCase()}</Text>
+            {alert.source === "here" && (
+              <View style={styles.liveBadge}>
+                <Text style={styles.liveBadgeTxt}>LIVE</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.distLabel}>{formatDist(alert.distance)} ahead</Text>
           {tier && tier !== "new" && (
             <View style={[
@@ -422,6 +429,18 @@ const styles = StyleSheet.create({
     color:      "#FFF",
   },
   closeBtn: { padding: 2 },
+  liveBadge: {
+    backgroundColor: "#D32F2F",
+    borderRadius:    4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  liveBadgeTxt: {
+    fontSize:     9,
+    fontFamily:   "Inter_700Bold",
+    color:        "#FFF",
+    letterSpacing: 0.8,
+  },
 
   // ── Full-width speed comparison (zone alerts) ────────────────────────────
   speedCompare: {
