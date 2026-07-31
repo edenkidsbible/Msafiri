@@ -50,6 +50,14 @@ export async function migrateSchema(): Promise<void> {
       )
     `);
 
+    // app_releases.scheduled_at — added for Task #55 (scheduled publish).
+    // Stores the future datetime at which a "scheduled" release should
+    // automatically go live.  NULL means publish immediately on confirm.
+    await db.execute(sql`
+      ALTER TABLE app_releases
+      ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

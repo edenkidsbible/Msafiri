@@ -6,6 +6,56 @@ import { sendPushNotifications } from "../../lib/expoPush.js";
 
 const router = Router();
 
+// ── Helper: fire push notifications when a release goes live ──────────────────
+async function fireReleasePush(release: typeof appReleasesTable.$inferSelect, actorName: string) {
+  const notifTitle = release.isForceUpdate
+    ? `Msafiri just got better 🚀`
+    : `What's new in Msafiri v${release.version} ✨`;
+  const notifBody = release.isForceUpdate
+    ? `v${release.version} is ready for you — a quick update and you're back on the road.`
+    : (release.releaseNotes
+        ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
+        : `Msafiri v${release.version} is here. Tap to see what's new.`);
+
+  const notifData = {
+    type:            "app_update",
+    version:         release.version,
+    isForceUpdate:   release.isForceUpdate,
+    releaseNotes:    release.releaseNotes ?? "",
+    storeUrlIos:     release.storeUrlIos ?? "",
+    storeUrlAndroid: release.storeUrlAndroid ?? "",
+  };
+
+  const tokens = await db.select({ token: pushTokensTable.token }).from(pushTokensTable);
+  if (tokens.length === 0) return;
+
+  const messages = tokens.map((t) => ({
+    to:        t.token,
+    title:     notifTitle,
+    body:      notifBody,
+    sound:     "default" as const,
+    channelId: "msafiri_alerts",
+    data:      notifData,
+  }));
+
+  const { ok, failed } = await sendPushNotifications(messages);
+
+  await db.insert(pushCampaignsTable).values({
+    title:       notifTitle,
+    body:        notifBody,
+    dataJson:    JSON.stringify(notifData),
+    type:        "broadcast",
+    status:      "sent",
+    sentAt:      new Date(),
+    sentCount:   ok,
+    failedCount: failed,
+    targetCount: tokens.length,
+    createdBy:   actorName,
+  });
+
+  console.log(`[releases] Published v${release.version}: push sent to ${ok}/${tokens.length} devices`);
+}
+
 // GET /admin/releases
 router.get("/releases", async (_req: Request, res: Response) => {
   try {
@@ -26,6 +76,7 @@ router.get("/releases", async (_req: Request, res: Response) => {
         isForceUpdate:      r.isForceUpdate,
         storeUrlIos:        r.storeUrlIos,
         storeUrlAndroid:    r.storeUrlAndroid,
+        scheduledAt:        r.scheduledAt?.toISOString() ?? null,
         createdBy:          r.createdBy,
         createdAt:          r.createdAt.toISOString(),
         publishedAt:        r.publishedAt?.toISOString() ?? null,
@@ -42,7 +93,7 @@ router.post("/releases", async (req: Request, res: Response) => {
   const actor = (req as any).adminUser;
   const {
     version, buildNumber, platform, releaseType,
-    releaseNotes, isForceUpdate, storeUrlIos, storeUrlAndroid,
+    releaseNotes, isForceUpdate, storeUrlIos, storeUrlAndroid, scheduledAt,
   } = req.body as {
     version:         string;
     buildNumber?:    number;
@@ -52,6 +103,7 @@ router.post("/releases", async (req: Request, res: Response) => {
     isForceUpdate?:  boolean;
     storeUrlIos?:    string;
     storeUrlAndroid?: string;
+    scheduledAt?:    string;
   };
 
   if (!version) {
@@ -71,6 +123,7 @@ router.post("/releases", async (req: Request, res: Response) => {
         isForceUpdate:   isForceUpdate ?? false,
         storeUrlIos:     storeUrlIos ?? null,
         storeUrlAndroid: storeUrlAndroid ?? null,
+        scheduledAt:     scheduledAt ? new Date(scheduledAt) : null,
         createdBy:       actor?.name ?? "admin",
       })
       .returning();
@@ -87,6 +140,7 @@ router.post("/releases", async (req: Request, res: Response) => {
       ...release,
       createdAt:   release.createdAt.toISOString(),
       publishedAt: null,
+      scheduledAt: release.scheduledAt?.toISOString() ?? null,
     });
   } catch (err) {
     console.error("POST /admin/releases error:", err);
@@ -94,13 +148,13 @@ router.post("/releases", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /admin/releases/:id — update a draft release
+// PATCH /admin/releases/:id — update a draft/scheduled release
 router.patch("/releases/:id", async (req: Request, res: Response) => {
   const actor = (req as any).adminUser;
   const id = req.params["id"] as string;
   const {
     version, buildNumber, platform, releaseType,
-    releaseNotes, isForceUpdate, storeUrlIos, storeUrlAndroid,
+    releaseNotes, isForceUpdate, storeUrlIos, storeUrlAndroid, scheduledAt,
   } = req.body as Partial<{
     version:         string;
     buildNumber:     number;
@@ -110,6 +164,7 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
     isForceUpdate:   boolean;
     storeUrlIos:     string;
     storeUrlAndroid: string;
+    scheduledAt:     string | null;
   }>;
 
   try {
@@ -122,6 +177,7 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
     if (isForceUpdate !== undefined)   updateFields["isForceUpdate"]    = isForceUpdate;
     if (storeUrlIos !== undefined)     updateFields["storeUrlIos"]      = storeUrlIos;
     if (storeUrlAndroid !== undefined) updateFields["storeUrlAndroid"]  = storeUrlAndroid;
+    if (scheduledAt !== undefined)     updateFields["scheduledAt"]      = scheduledAt ? new Date(scheduledAt) : null;
 
     await db
       .update(appReleasesTable)
@@ -143,15 +199,75 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
   }
 });
 
-// POST /admin/releases/:id/publish — publish (draft → live) + auto push notification
+// POST /admin/releases/:id/publish — publish (draft → live or scheduled) + auto push notification
 router.post("/releases/:id/publish", async (req: Request, res: Response) => {
+  const actor = (req as any).adminUser;
+  const id = req.params["id"] as string;
+
+  try {
+    const existing = await db
+      .select()
+      .from(appReleasesTable)
+      .where(eq(appReleasesTable.id, id))
+      .then((rows) => rows[0]);
+
+    if (!existing) {
+      return res.status(404).json({ error: "Release not found" });
+    }
+
+    const now = new Date();
+    const scheduledTime = existing.scheduledAt;
+    const goLiveNow = !scheduledTime || scheduledTime <= now;
+
+    const newStatus = goLiveNow ? "live" : "scheduled";
+
+    const [release] = await db
+      .update(appReleasesTable)
+      .set({
+        status:      newStatus,
+        publishedAt: goLiveNow ? now : null,
+      })
+      .where(eq(appReleasesTable.id, id))
+      .returning();
+
+    await logAudit({
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
+      action:     "release_publish",
+      targetType: "app_release",
+      targetId:   id,
+      details:    {
+        message: goLiveNow
+          ? `Published release v${release.version}${release.isForceUpdate ? " (FORCE UPDATE)" : ""}`
+          : `Scheduled release v${release.version} for ${scheduledTime?.toISOString()}`,
+      },
+    });
+
+    // Only fire push if going live immediately
+    if (goLiveNow) {
+      try {
+        await fireReleasePush(release, actor?.name ?? "admin");
+      } catch (pushErr) {
+        // Push failure must never block the publish response
+        console.error("[releases] Push notification error after publish:", pushErr);
+      }
+    }
+
+    return res.json({ success: true, status: newStatus, scheduledAt: release.scheduledAt?.toISOString() ?? null });
+  } catch (err) {
+    console.error("POST /admin/releases/:id/publish error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/releases/:id/unschedule — revert a scheduled release back to draft
+router.post("/releases/:id/unschedule", async (req: Request, res: Response) => {
   const actor = (req as any).adminUser;
   const id = req.params["id"] as string;
 
   try {
     const [release] = await db
       .update(appReleasesTable)
-      .set({ status: "live", publishedAt: new Date() })
+      .set({ status: "draft", scheduledAt: null })
       .where(eq(appReleasesTable.id, id))
       .returning();
 
@@ -161,71 +277,15 @@ router.post("/releases/:id/publish", async (req: Request, res: Response) => {
 
     await logAudit({
       actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
-      action:     "release_publish",
+      action:     "release_unschedule",
       targetType: "app_release",
       targetId:   id,
-      details:    { message: `Published release v${release.version}${release.isForceUpdate ? " (FORCE UPDATE)" : ""}` },
+      details:    { message: `Unscheduled release v${release.version}` },
     });
-
-    // ── Automatically send a push notification to all registered devices ──
-    // Soft FOMO framing for both force and optional updates — avoids
-    // alarming language like "critical" that causes anxiety before driving.
-    const notifTitle = release.isForceUpdate
-      ? `Msafiri just got better 🚀`
-      : `What's new in Msafiri v${release.version} ✨`;
-    const notifBody = release.isForceUpdate
-      ? `v${release.version} is ready for you — a quick update and you're back on the road.`
-      : (release.releaseNotes
-          ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
-          : `Msafiri v${release.version} is here. Tap to see what's new.`);
-
-    const notifData = {
-      type:           "app_update",
-      version:        release.version,
-      isForceUpdate:  release.isForceUpdate,
-      releaseNotes:   release.releaseNotes ?? "",
-      storeUrlIos:    release.storeUrlIos ?? "",
-      storeUrlAndroid: release.storeUrlAndroid ?? "",
-    };
-
-    try {
-      const tokens = await db.select({ token: pushTokensTable.token }).from(pushTokensTable);
-      if (tokens.length > 0) {
-        const messages = tokens.map((t) => ({
-          to:        t.token,
-          title:     notifTitle,
-          body:      notifBody,
-          sound:     "default" as const,
-          channelId: "msafiri_alerts",
-          data:      notifData,
-        }));
-
-        const { ok, failed } = await sendPushNotifications(messages);
-
-        // Record in push_campaigns table for audit trail
-        await db.insert(pushCampaignsTable).values({
-          title:       notifTitle,
-          body:        notifBody,
-          dataJson:    JSON.stringify(notifData),
-          type:        "broadcast",
-          status:      "sent",
-          sentAt:      new Date(),
-          sentCount:   ok,
-          failedCount: failed,
-          targetCount: tokens.length,
-          createdBy:   actor?.name ?? "admin",
-        });
-
-        console.log(`[releases] Published v${release.version}: push sent to ${ok}/${tokens.length} devices`);
-      }
-    } catch (pushErr) {
-      // Push failure must never block the publish response
-      console.error("[releases] Push notification error after publish:", pushErr);
-    }
 
     return res.json({ success: true });
   } catch (err) {
-    console.error("POST /admin/releases/:id/publish error:", err);
+    console.error("POST /admin/releases/:id/unschedule error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

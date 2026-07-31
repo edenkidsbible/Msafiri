@@ -13,6 +13,7 @@ import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
 import { seedPois } from "./startup/seedPois";
 import { startHereTrafficJob } from "./jobs/hereTraffic";
+import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
 
 const rawPort = process.env["PORT"];
 
@@ -90,4 +91,5 @@ app.listen(port, async (err) => {
   startPushNotificationsJob();
   startDailyBackupJob();
   startHereTrafficJob();
+  startPromoteScheduledReleasesJob();
 });
