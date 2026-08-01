@@ -12,7 +12,9 @@
         "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
+        "SENTRY_ORG": "alfrex-labs",
+        "SENTRY_PROJECT": "msafiri-mobile"
       }
     },
     "preview": {
@@ -26,7 +28,9 @@
         "EXPO_PUBLIC_BYPASS_PAYWALL": "true",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
+        "SENTRY_ORG": "alfrex-labs",
+        "SENTRY_PROJECT": "msafiri-mobile"
       }
     },
     "production": {
@@ -36,7 +40,9 @@
         "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
+        "SENTRY_ORG": "alfrex-labs",
+        "SENTRY_PROJECT": "msafiri-mobile"
       }
     }
   },

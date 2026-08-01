@@ -57,6 +57,8 @@ ADMIN_JWT_SECRET = "lMuenV2uOsO8mh5upcwclnsZoYGHV1vugJvhhCwFsxDexta2Bu-BrPMiOO2o
 RESEND_FROM = "Msafiri Kenya <noreply@msafirikenya.com>"
 REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
 BACKUP_EMAIL_ADDRESS = "alfrexlabs@gmail.com"
+SENTRY_ORG = "alfrex-labs"
+SENTRY_PROJECT = "msafiri-mobile"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-916bd0a3-e59c-42e1-84ed-06831332a770"
