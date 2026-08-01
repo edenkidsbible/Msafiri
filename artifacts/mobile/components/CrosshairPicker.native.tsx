@@ -145,13 +145,22 @@ export function CrosshairPickerModal({
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [pos, setPos] = useState({ lat: initialLat, lng: initialLng });
+  // Delay MapView mount until the slide animation completes (onShow).
+  // Mounting two MapViews simultaneously — one on the underlying screen and
+  // one in this modal — causes a silent native crash in Expo Go. The map is
+  // hidden behind the slide animation anyway, so the delay is invisible.
+  const [mapMounted, setMapMounted] = useState(false);
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      onRequestClose={onCancel}
-      onShow={() => setPos({ lat: initialLat, lng: initialLng })}
+      onRequestClose={() => { setMapMounted(false); onCancel(); }}
+      onShow={() => {
+        setPos({ lat: initialLat, lng: initialLng });
+        setMapMounted(true);
+      }}
+      onDismiss={() => setMapMounted(false)}
     >
       <View style={[styles.screen, { backgroundColor: c.background }]}>
         {/* Header */}
@@ -167,11 +176,18 @@ export function CrosshairPickerModal({
           <View style={{ width: 36 }} />
         </View>
 
-        <CrosshairMap
-          initialLat={initialLat}
-          initialLng={initialLng}
-          onCoordinateChange={(lat, lng) => setPos({ lat, lng })}
-        />
+        {/* Mount the MapView only after onShow fires so we never have two
+            concurrent MapViews alive at the same time (the underlying screen's
+            map is still mounted while this modal slides in). */}
+        {mapMounted ? (
+          <CrosshairMap
+            initialLat={initialLat}
+            initialLng={initialLng}
+            onCoordinateChange={(lat, lng) => setPos({ lat, lng })}
+          />
+        ) : (
+          <View style={[styles.mapWrap, { backgroundColor: "#000" }]} />
+        )}
 
         {/* Bottom panel */}
         <View

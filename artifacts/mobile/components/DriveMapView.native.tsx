@@ -1060,15 +1060,28 @@ const DriveMapView = forwardRef(function DriveMapView(
     if (navigationActive) {
       const remaining = coords.slice(navAheadStartIdx);
       if (remaining.length < 2) return null;
-      navBreadcrumb("map.render", "active polyline rebuilt", {
-        routeId: activeRoute.id, startIdx: navAheadStartIdx, points: remaining.length,
-      });
+      // NOTE: no side-effects (navBreadcrumb) inside useMemo — React may call
+      // this multiple times in concurrent mode. Breadcrumb moved to useEffect.
       return buildTrafficSegments(remaining, activeRoute.speedIntervals, navAheadStartIdx);
     }
     // Pre-navigation: full route with traffic colouring.
     return buildTrafficSegments(coords, activeRoute.speedIntervals);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoute, navigationActive, navAheadStartIdx]);
+
+  // Side-effect counterpart: record a breadcrumb whenever the active polyline
+  // actually rebuilds. Kept outside useMemo so it only fires once per commit.
+  useEffect(() => {
+    if (!activeRouteSegs || !activeRoute || !navigationActive) return;
+    navBreadcrumb("map.render", "active polyline rebuilt", {
+      routeId: activeRoute.id,
+      startIdx: navAheadStartIdx,
+      segments: activeRouteSegs.length,
+    });
+  // navAheadStartIdx intentionally omitted — we only want to log when the
+  // segments array reference changes, not on every index nudge.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRouteSegs]);
 
   return (
     <>
