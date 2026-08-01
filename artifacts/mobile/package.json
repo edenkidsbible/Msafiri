@@ -66,6 +66,7 @@
     "@react-native-community/netinfo": "11.4.1",
     "@sentry/react-native": "~7.2.0",
     "expo-audio": "~1.1.1",
+    "expo-dev-client": "~6.0.21",
     "expo-file-system": "~19.0.23",
     "expo-keep-awake": "^15.0.8",
     "expo-modules-core": "^3.0.30",

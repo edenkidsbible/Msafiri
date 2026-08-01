@@ -16,4 +16,18 @@ config.transformer.transformIgnorePatterns = [
   "node_modules/(?!(react-native|@react-native(-community)?|react-native-worklets|react-native-reanimated|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|react-native-gesture-handler|react-native-screens|react-native-safe-area-context|react-native-maps|react-native-keyboard-controller|react-native-purchases)/).*",
 ];
 
+// expo-dev-client installs expo-dev-menu-interface, which creates a randomly-
+// numbered _tmp_ directory for native source watching. Metro tries to watch
+// that path before the directory is fully initialised, causing an ENOENT
+// crash on startup. Block those temp paths so Metro never watches them.
+config.resolver = config.resolver ?? {};
+config.resolver.blockList = [
+  ...(Array.isArray(config.resolver.blockList)
+    ? config.resolver.blockList
+    : config.resolver.blockList
+    ? [config.resolver.blockList]
+    : []),
+  /expo-dev-menu-interface_tmp_/,
+];
+
 module.exports = config;
