@@ -7,9 +7,15 @@
 // SDK is never initialised (zero runtime cost beyond the module import).
 
 import { Platform } from "react-native";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Sentry from "@sentry/react-native";
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+// In Expo Go the native Sentry modules are not linked — enabling them silently
+// breaks JS-level reporting too. Detect Expo Go and fall back to JS-only mode.
+const isExpoGo =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 let initialized = false;
 
@@ -21,10 +27,11 @@ export function initTelemetry(): boolean {
   try {
     Sentry.init({
       dsn: DSN,
-      // Native crash handlers (NDK / Mach exceptions) — the whole point of
-      // this integration is catching react-native-maps native crashes.
-      enableNative: true,
-      enableNativeCrashHandling: true,
+      // Native crash handlers (NDK / Mach exceptions). Disabled in Expo Go
+      // because native modules are not linked there — leaving them true
+      // silently suppresses JS reporting too.
+      enableNative: !isExpoGo,
+      enableNativeCrashHandling: !isExpoGo,
       enableNativeNagger: false,
       // Watchdog/ANR-style terminations often masquerade as "crashes" during
       // navigation — capture them too.
