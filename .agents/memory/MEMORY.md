@@ -56,4 +56,5 @@
 - [GPS subscription leak via async watchdog](gps-subscription-leak.md) — isSubscribing flag + generation counter required; distanceInterval:0 prevents endless stall/resubscribe loop for stationary users.
 - [RevenueCat double-init on Expo Go hot reload](revenuecat-hot-reload-double-init.md) — module-level configure() re-runs on every Metro hot reload; guard with _rcInitialized flag.
 - [Kenya road-name clips & code mapping](kenya-road-name-clips.md) — server pregen TTS cache keyed by mobile's djb2 hash; route codes never voiced; abbreviations must expand or cache misses.
+- [Crosshair map picker pattern](crosshair-picker-pattern.md) — never use draggable Markers or MapView-in-ScrollView (native crashes); use CrosshairPicker (center pin + onRegionChangeComplete).
 - [Google Routes API v2 field placement](google-routes-api-field-placement.md) — `heading` is inside `Location`, not on `Waypoint`; `avoidUTurns` doesn't exist; unknown fields → hard 400.

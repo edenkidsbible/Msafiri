@@ -1,9 +1,10 @@
 /**
  * AdminLocationPickerModal.native.tsx
- * Full-screen map modal that lets an admin drag-pin to fix a report's exact location.
+ * Full-screen map modal that lets an admin fix a report's exact location using
+ * the center-crosshair picker: pan the map under the fixed pin, then save.
  * Opened from the report popup (DriveMapView) when admin mode is active.
  */
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,8 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Platform } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { CrosshairMap } from "./CrosshairPicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
@@ -76,9 +76,13 @@ export function AdminLocationPickerModal({
     }
   }, []);
 
-  const handlePress = (latitude: number, longitude: number) => {
+  // Debounce reverse-geocoding — onRegionChangeComplete can fire in quick
+  // succession while the admin fine-tunes the position.
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleCoordinateChange = (latitude: number, longitude: number) => {
     setPos({ latitude, longitude });
-    void reverseGeocode(latitude, longitude);
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    geocodeTimer.current = setTimeout(() => void reverseGeocode(latitude, longitude), 600);
   };
 
   const handleSave = async () => {
@@ -121,32 +125,13 @@ export function AdminLocationPickerModal({
           <View style={{ width: 36 }} />
         </View>
 
-        {/* Map */}
-        <MapView
-          provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-          style={styles.map}
-          initialRegion={{
-            latitude: initialLat,
-            longitude: initialLng,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          }}
-          onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) =>
-            handlePress(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)
-          }
-          scrollEnabled
-          zoomEnabled
-          rotateEnabled={false}
-          pitchEnabled={false}
-        >
-          <Marker
-            coordinate={pos}
-            draggable
-            onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) =>
-              handlePress(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)
-            }
-          />
-        </MapView>
+        {/* Map — fixed center-crosshair picker; pan the map under the pin */}
+        <CrosshairMap
+          initialLat={initialLat}
+          initialLng={initialLng}
+          initialDelta={0.005}
+          onCoordinateChange={handleCoordinateChange}
+        />
 
         {/* Bottom panel */}
         <View
@@ -228,7 +213,6 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  map: { flex: 1 },
   panel: {
     paddingHorizontal: 20,
     paddingTop: 16,

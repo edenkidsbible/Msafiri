@@ -3,7 +3,6 @@ import { SCROLL_PROPS } from "@/lib/scrollProps";
 import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
-  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -22,7 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { CommunityReport, useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
-import { MapPinPicker } from "./MapPinPicker";
+import { CrosshairPickerModal } from "./CrosshairPicker";
 
 type ReportType = CommunityReport["type"];
 
@@ -97,6 +96,7 @@ export default function ReportModal({
   const hasCurrentLocation = currentLat != null && currentLng != null;
   const [locationMode, setLocationMode] = useState<"current" | "search" | "map">("current");
   const [pickedMapLocation, setPickedMapLocation] = useState<ReportLocation | null>(null);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -135,6 +135,7 @@ export default function ReportModal({
     setSearchError(false);
     setPickedLocation(null);
     setPickedMapLocation(null);
+    setMapPickerOpen(false);
     setEditingSearch(true);
   };
 
@@ -193,6 +194,8 @@ export default function ReportModal({
       setEditingSearch(true);
     } else if (mode === "map") {
       Keyboard.dismiss();
+      // Launch the full-screen crosshair picker immediately if nothing picked yet.
+      if (!pickedMapLocation) setMapPickerOpen(true);
     } else {
       setEditingSearch(true);
     }
@@ -284,12 +287,7 @@ export default function ReportModal({
             style={{ flex: 1 }}
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"
-            // Disable parent scroll while the map picker is active — the MapView's
-            // own pan gesture and the ScrollView's scroll gesture compete for the
-            // same touch events, causing a native crash on iOS when both are live.
-            // In map mode the user interacts with the map, not the scroll container.
-            keyboardDismissMode={locationMode === "map" ? "none" : "on-drag"}
-            scrollEnabled={locationMode !== "map"}
+            keyboardDismissMode="on-drag"
           >
             {/* Location section */}
             <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>WHERE IS THIS HAPPENING?</Text>
@@ -434,26 +432,34 @@ export default function ReportModal({
 
             {locationMode === "map" && (
               <View style={{ marginTop: 4 }}>
-                <MapPinPicker
-                  initialLat={currentLat ?? -1.2921}
-                  initialLng={currentLng ?? 36.8219}
-                  mapHeight={pickedMapLocation
-                    ? 200
-                    : Math.round(Dimensions.get("window").height * 0.52)}
-                  onLocationChange={(lat, lng) => {
-                    bumpIdleTimer();
-                    setPickedMapLocation({
-                      lat,
-                      lng,
-                      label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-                    });
-                  }}
-                />
+                {pickedMapLocation ? (
+                  <TouchableOpacity
+                    style={[styles.pickedSummary, { backgroundColor: c.primary + "12", borderColor: c.primary + "44" }]}
+                    onPress={() => { bumpIdleTimer(); setMapPickerOpen(true); }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="pin" size={16} color={c.primary} />
+                    <Text style={[styles.pickedSummaryTxt, { color: c.foreground }]} numberOfLines={1}>
+                      {pickedMapLocation.label}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: c.primary, fontFamily: "Inter_600SemiBold" }}>Adjust</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.pickedSummary, { backgroundColor: c.card, borderColor: c.border }]}
+                    onPress={() => { bumpIdleTimer(); setMapPickerOpen(true); }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="map-outline" size={16} color={c.primary} />
+                    <Text style={[styles.pickedSummaryTxt, { color: c.foreground }]}>Choose spot on map</Text>
+                    <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
+                  </TouchableOpacity>
+                )}
                 {!pickedMapLocation && (
                   <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
                     <Ionicons name="information-circle-outline" size={14} color={c.mutedForeground} style={{ marginTop: 1 }} />
                     <Text style={{ fontSize: 12, color: c.mutedForeground, flex: 1, lineHeight: 18 }}>
-                      Tap the map to pin the exact spot. You need to be near this location or have recently traveled this route.
+                      Pan the map to place the pin on the exact spot. You need to be near this location or have recently traveled this route.
                     </Text>
                   </View>
                 )}
@@ -479,7 +485,7 @@ export default function ReportModal({
               <View style={[styles.pinPrompt, { backgroundColor: c.muted }]}>
                 <Ionicons name="pin-outline" size={18} color={c.mutedForeground} />
                 <Text style={[styles.pinPromptTxt, { color: c.mutedForeground }]}>
-                  Pan & zoom to your spot, then tap the map to drop a pin
+                  Open the map picker above and place the pin on your spot
                 </Text>
               </View>
             )}
@@ -621,6 +627,24 @@ export default function ReportModal({
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Full-screen center-crosshair map picker (native only) */}
+        <CrosshairPickerModal
+          visible={mapPickerOpen}
+          initialLat={pickedMapLocation?.lat ?? currentLat ?? -1.2921}
+          initialLng={pickedMapLocation?.lng ?? currentLng ?? 36.8219}
+          title="Pin the Incident Spot"
+          onCancel={() => { bumpIdleTimer(); setMapPickerOpen(false); }}
+          onConfirm={(lat, lng) => {
+            bumpIdleTimer();
+            setPickedMapLocation({
+              lat,
+              lng,
+              label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+            });
+            setMapPickerOpen(false);
+          }}
+        />
       </View>
     </Modal>
   );
