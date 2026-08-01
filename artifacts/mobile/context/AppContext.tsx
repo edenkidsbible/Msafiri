@@ -30,6 +30,7 @@ import {
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
+import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -1370,7 +1371,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       gpsLostRef.current = false;
       gpsLostSinceRef.current = null;
       setGpsLost(false);
+      navBreadcrumb("gps", "signal regained");
     }
+    // Crash-telemetry trail: last GPS fixes before a crash (throttled to 1/5 s).
+    gpsBreadcrumb(lat, lng, currentSpeedRef.current ?? 0, accuracyM);
     const prevFix = lastFixRef.current;
     // GPS horizontal accuracy is typically 3-15m in good conditions; treat
     // anything worse as too noisy to derive a speed delta from directly.
@@ -2485,6 +2489,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (cancelled || isSubscribing) return; // Guard 1: skip if already subscribing
       if (Date.now() - lastLocationAtRef.current > 8000) {
         console.warn("GPS watch stalled — resubscribing");
+        navBreadcrumb("gps", "watchdog resubscribe", {
+          stalledForMs: Date.now() - lastLocationAtRef.current,
+          navActive: navActiveRef.current,
+        });
         subscribe();
       }
     }, 5000);
@@ -2519,6 +2527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         gpsLostRef.current = true;
         gpsLostSinceRef.current = now;
         setGpsLost(true);
+        navBreadcrumb("gps", "signal lost — dead reckoning", { sinceLastFixMs: sinceLastFix });
       }
 
       if (!gpsLostRef.current) return;
@@ -2597,6 +2606,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // one place means a future change (new ref to reset, new voice logic, etc.)
     // only needs to be made once and applies to both paths automatically.
     function commitReroute(primary: AppRoute, alts: AppRoute[]) {
+      navBreadcrumb("nav", "reroute committed", {
+        routeId: primary.id,
+        coords: primary.coords.length,
+        altCount: alts.length,
+      });
       setActiveRoute(primary);
       routeRef.current = primary;
       stepIdxRef.current = 0;
@@ -3330,6 +3344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   /** Switch to the suggested faster route and clear the banner. */
   const acceptFasterRoute = useCallback(() => {
     const route = fasterRouteRef.current;
+    navBreadcrumb("nav", "faster route accepted", { routeId: route?.id });
     setFasterRoute(null);
     fasterRouteRef.current = null;
     fasterRouteAnnouncedRef.current = false;
@@ -3441,6 +3456,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // the newly selected route even before React flushes the state update.
     if (!routeRef.current) return;
 
+    navBreadcrumb("nav", "navigation start", {
+      routeId: routeRef.current.id,
+      coords: routeRef.current.coords.length,
+      steps: routeRef.current.steps.length,
+    });
     stepIdxRef.current = 0;
     setCurrentStepIdx(0);
     routeProjIdxRef.current = 0;
@@ -3456,6 +3476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []); // no closure dependencies — activeRoute replaced by routeRef.current
 
   const stopNavigation = useCallback((reason?: "arrived" | "manual" | "timeout") => {
+    navBreadcrumb("nav", "navigation stop", { reason: reason ?? "unknown" });
     navActiveRef.current = false;
     navStartRef.current = null;
     setNavigationActive(false);

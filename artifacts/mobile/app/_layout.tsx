@@ -1,3 +1,10 @@
+// ── Crash telemetry ───────────────────────────────────────────────────────────
+// Sentry must initialise before anything else so its native crash handlers and
+// JS error hooks are installed first; the custom handlers below then chain on
+// top of it. No-op when EXPO_PUBLIC_SENTRY_DSN is not configured or on web.
+import { initTelemetry, wrapRoot, captureError } from "@/utils/telemetry";
+initTelemetry();
+
 // ── Global crash safety nets ──────────────────────────────────────────────────
 // Registered synchronously at module load time, before any component mounts,
 // so async throws and fatal errors that escape all component-level try/catch
@@ -29,6 +36,9 @@ if (typeof global !== "undefined" && (global as any).HermesInternal?.enablePromi
           "[UnhandledRejection id=" + id + "]",
           error instanceof Error ? error.message + "\n" + (error.stack ?? "") : error
         );
+        // Our tracker registration overrides Sentry's own rejection hook
+        // (last registration wins in Hermes), so forward to Sentry manually.
+        captureError(error, { source: "unhandledRejection", rejectionId: id });
       },
       onHandled: () => {},
     });
@@ -479,7 +489,9 @@ function RootLayout() {
   );
 }
 
-export default RootLayout;
+// wrapRoot is Sentry.wrap when telemetry is enabled (adds touch-event
+// breadcrumbs to the crash trail) and the identity function otherwise.
+export default wrapRoot(RootLayout);
 
 const styles = StyleSheet.create({
   offlineBanner: {

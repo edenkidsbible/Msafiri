@@ -64,6 +64,7 @@
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "11.4.1",
+    "@sentry/react-native": "~7.2.0",
     "expo-audio": "~1.1.1",
     "expo-file-system": "~19.0.23",
     "expo-keep-awake": "^15.0.8",

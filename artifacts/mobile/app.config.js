@@ -97,6 +97,18 @@ module.exports = {
         },
       ],
       "expo-updates",
+      [
+        "@sentry/react-native/expo",
+        {
+          // Org/project + SENTRY_AUTH_TOKEN are only needed for source-map
+          // upload during EAS builds; without them the build still succeeds
+          // and native crash capture works (stacks are symbolicated for the
+          // native side; JS frames need the auth token to be symbolicated).
+          organization: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+          url: "https://sentry.io/",
+        },
+      ],
       "@react-native-community/datetimepicker",
       "./plugins/withDisableUnusedAudioServices.js",
       "./plugins/withR8Optimization.js",

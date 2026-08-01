@@ -1,6 +1,8 @@
-const { getDefaultConfig } = require("expo/metro-config");
+// getSentryExpoConfig wraps expo/metro-config's getDefaultConfig and injects
+// debug IDs into bundles so crash stacks can be matched to source maps.
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // react-native-worklets 0.5.x ships pre-compiled JS that contains ES2022
 // private class fields (#workletsModuleProxy etc.) in lib/module/.

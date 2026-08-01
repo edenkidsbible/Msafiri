@@ -30,6 +30,7 @@ import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/cons
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { formatTimeAgo } from "@/lib/timeAgo";
+import { navBreadcrumb } from "@/utils/telemetry";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const POI_RADIUS_M = 8000;
@@ -423,8 +424,27 @@ const DriveMapView = forwardRef(function DriveMapView(
   // Post-navigation route-fit timer — stored so unmount can cancel it and a
   // late-firing callback never touches a dead map ref.
   const postNavFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Trailing heading-animation timer (nav start / zoom change / recenter all
+  // schedule a delayed animateCamera) — tracked so unmount cancels it and a
+  // late callback never reaches a dead native map view.
+  const headingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while this component is mounted — every deferred mapRef call must
+  // check it, since clearTimeout alone doesn't cover already-dequeued callbacks.
+  const mountedRef = useRef(true);
   useEffect(() => () => {
+    mountedRef.current = false;
     if (postNavFitTimerRef.current) clearTimeout(postNavFitTimerRef.current);
+    if (headingTimerRef.current) clearTimeout(headingTimerRef.current);
+  }, []);
+  /** Schedule a delayed heading animation, replacing any pending one and
+   *  guarding against unmount races. */
+  const scheduleHeadingAnim = useCallback((heading: number, delayMs: number, durationMs: number) => {
+    if (headingTimerRef.current) clearTimeout(headingTimerRef.current);
+    headingTimerRef.current = setTimeout(() => {
+      headingTimerRef.current = null;
+      if (!mountedRef.current) return;
+      mapRef.current?.animateCamera({ heading }, { duration: durationMs });
+    }, delayMs);
   }, []);
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
   const [selectedHereIncident, setSelectedHereIncident] = useState<HereIncident | null>(null);
@@ -441,7 +461,11 @@ const DriveMapView = forwardRef(function DriveMapView(
   // all static zone icons to paint but short enough to avoid sustained jank.
   const [markersFrozen, setMarkersFrozen] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setMarkersFrozen(true), 1500);
+    const t = setTimeout(() => {
+      if (!mountedRef.current) return;
+      navBreadcrumb("map.render", "markers frozen (tracksViewChanges=false)");
+      setMarkersFrozen(true);
+    }, 1500);
     return () => clearTimeout(t);
   }, []);
 
@@ -591,6 +615,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       if (wasActive) {
         // Navigation just ended — restore north-up orientation first, then
         // fit to the completed route (or pan to current position).
+        navBreadcrumb("map.camera", "post-nav restore (heading reset + route fit)");
         camHeadingRef.current = 0;
         mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
         if (activeRoute?.coords.length) {
@@ -598,6 +623,7 @@ const DriveMapView = forwardRef(function DriveMapView(
           if (postNavFitTimerRef.current) clearTimeout(postNavFitTimerRef.current);
           postNavFitTimerRef.current = setTimeout(() => {
             postNavFitTimerRef.current = null;
+            if (!mountedRef.current) return;
             mapRef.current?.fitToCoordinates(coords, {
               edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
               animated: true,
@@ -690,14 +716,13 @@ const DriveMapView = forwardRef(function DriveMapView(
       camHeadingRef.current   = initialHeading;
       zoomBandTimestampRef.current = null;
 
+      navBreadcrumb("map.camera", "nav start zoom-in", { delta: snapDelta, heading: initialHeading });
       mapRef.current?.animateToRegion(
         { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         300
       );
       if (driverHeading != null && driverHeading >= 0) {
-        setTimeout(() => {
-          mapRef.current?.animateCamera({ heading: driverHeading }, { duration: 300 });
-        }, 350);
+        scheduleHeadingAnim(driverHeading, 350, 300);
       }
       return;
     }
@@ -756,14 +781,13 @@ const DriveMapView = forwardRef(function DriveMapView(
       // Zoom changed: use animateToRegion for the zoom (iOS altitude-safe),
       // then a trailing heading update to keep the two animations short and
       // non-overlapping.
+      navBreadcrumb("map.camera", "nav follow zoom change", { delta: appliedDeltaRef.current });
       mapRef.current?.animateToRegion(
         { latitude: currentLat, longitude: currentLng, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
         300
       );
       if (smoothedHdg != null) {
-        setTimeout(() => {
-          mapRef.current?.animateCamera({ heading: smoothedHdg! }, { duration: 200 });
-        }, 150);
+        scheduleHeadingAnim(smoothedHdg, 150, 200);
       }
     } else {
       // No zoom change: single animateCamera({center, heading}) — one animation
@@ -896,6 +920,7 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
+    navBreadcrumb("map.camera", "recenter tapped", { navActive: navActiveRef.current });
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
     // Reset the smoothing refs so the next GPS fix starts from the right
     // baseline rather than whatever stale values were active before the pan.
@@ -915,9 +940,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       if (driverHeading != null && driverHeading >= 0) {
         const hdg = smoothHeading(null, driverHeading); // snap, not smooth
         camHeadingRef.current = hdg;
-        setTimeout(() => {
-          mapRef.current?.animateCamera({ heading: hdg }, { duration: 300 });
-        }, 550);
+        scheduleHeadingAnim(hdg, 550, 300);
       }
     } else {
       // Browsing: speed-adaptive zoom, stay north-up so the map is easy to read.
@@ -942,6 +965,110 @@ const DriveMapView = forwardRef(function DriveMapView(
   }, []);
 
   useImperativeHandle(ref, () => ({ recenter, focusCoords }), [recenter, focusCoords]);
+
+  // ── Memoized polyline geometry ──────────────────────────────────────────────
+  // Every GPS fix re-renders this component (currentLat/currentLng are state).
+  // Rebuilding polyline coordinate arrays on each tick hands react-native-maps
+  // a brand-new native geometry object per second — a prime suspect for the
+  // in-navigation native crashes. All route geometry below is memoized on
+  // route identity so the native Polyline props stay referentially stable
+  // across GPS ticks.
+
+  // Alternative routes: sanitized coords + traffic segments, rebuilt only when
+  // the altRoutes array itself changes.
+  const altRouteSegs = useMemo(
+    () =>
+      altRoutes
+        .map((r) => {
+          // ── Crash guard ── strict typeof check avoids isFinite(null)===true.
+          const safeCoords = (r.coords ?? []).filter(
+            (c) =>
+              c != null &&
+              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
+              typeof c.longitude === "number" && Number.isFinite(c.longitude),
+          );
+          if (safeCoords.length < 2) return null;
+          return {
+            route: { ...r, coords: safeCoords },
+            segs: buildTrafficSegments(safeCoords, r.speedIntervals, 0),
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x != null),
+    [altRoutes],
+  );
+
+  // Divergence preview routes: sanitized once per divergenceRoutes change.
+  const validDivergenceRoutes = useMemo(
+    () =>
+      divergenceRoutes
+        .map((r) => ({
+          ...r,
+          coords: (r.coords ?? []).filter(
+            (c) =>
+              c != null &&
+              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
+              typeof c.longitude === "number" && Number.isFinite(c.longitude),
+          ),
+        }))
+        .filter(
+          (r) =>
+            r.coords.length >= 2 &&
+            typeof r.durationS === "number" && isFinite(r.durationS) &&
+            typeof r.distanceM === "number" && isFinite(r.distanceM),
+        ),
+    [divergenceRoutes],
+  );
+
+  // Faster-route preview coords: sanitized once per suggestion.
+  const fasterRouteCoords = useMemo(() => {
+    if (!fasterRoute) return null;
+    const coords = (fasterRoute.coords ?? []).filter(
+      (c) =>
+        c != null &&
+        typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
+        typeof c.longitude === "number" && Number.isFinite(c.longitude),
+    );
+    return coords.length >= 2 ? coords : null;
+  }, [fasterRoute]);
+
+  // Active-route "ahead" slice. The nearest-coordinate index still tracks the
+  // driver, but it is quantized to steps of AHEAD_IDX_STEP so the memo below
+  // only rebuilds the native polyline every ~4 passed coordinates instead of
+  // on every single GPS tick. (Showing up to 3 already-passed points is
+  // visually imperceptible; the line still starts at the driver's marker.)
+  const AHEAD_IDX_STEP = 4;
+  let navAheadStartIdx = 0;
+  if (navigationActive && activeRoute && currentLat != null && currentLng != null) {
+    const coords = activeRoute.coords;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < coords.length; i++) {
+        const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      navAheadStartIdx = bestIdx - (bestIdx % AHEAD_IDX_STEP);
+    }
+  }
+
+  // Traffic-coloured segments for the active route — memoized on route id,
+  // nav state, and the quantized slice index only.
+  const activeRouteSegs = useMemo(() => {
+    if (!activeRoute) return null;
+    const coords = activeRoute.coords;
+    if (!Array.isArray(coords) || coords.length < 2) return null;
+    if (navigationActive) {
+      const remaining = coords.slice(navAheadStartIdx);
+      if (remaining.length < 2) return null;
+      navBreadcrumb("map.render", "active polyline rebuilt", {
+        routeId: activeRoute.id, startIdx: navAheadStartIdx, points: remaining.length,
+      });
+      return buildTrafficSegments(remaining, activeRoute.speedIntervals, navAheadStartIdx);
+    }
+    // Pre-navigation: full route with traffic colouring.
+    return buildTrafficSegments(coords, activeRoute.speedIntervals);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoute, navigationActive, navAheadStartIdx]);
 
   return (
     <>
@@ -1111,27 +1238,14 @@ const DriveMapView = forwardRef(function DriveMapView(
           );
         })}
 
-        {/* Alternative routes — traffic-coloured (same bands as active route), selectable */}
-        {altRoutes.map((r) => {
-          // ── Crash guard ── filter out any coordinate where lat or lng is not a finite
-          // number. Strict typeof check avoids isFinite(null)===true coercion trap.
-          // The sanitized route object is used for BOTH display and selection so that
-          // selectRoute() (and the subsequent activeRoute render paths) never receive
-          // corrupt coordinates that would crash the native polyline layer.
-          const safeCoords = (r.coords ?? []).filter(
-            (c) =>
-              c != null &&
-              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
-              typeof c.longitude === "number" && Number.isFinite(c.longitude),
-          );
-          if (safeCoords.length < 2) return null;
-          const safeRoute = { ...r, coords: safeCoords };
-          // Build traffic-coloured segments using the same helper as the active
-          // route. startOffset=0 because speedIntervals index into the full
-          // route coords array which starts at index 0 for every alt route.
-          const segs = buildTrafficSegments(safeCoords, r.speedIntervals, 0);
+        {/* Alternative routes — traffic-coloured (same bands as active route), selectable.
+            Geometry is sanitized + memoized in altRouteSegs (rebuilds only when
+            altRoutes changes, never on GPS ticks). The sanitized route object is
+            used for BOTH display and selection so selectRoute() never receives
+            corrupt coordinates that would crash the native polyline layer. */}
+        {altRouteSegs.map(({ route: safeRoute, segs }) => {
           return (
-            <React.Fragment key={r.id}>
+            <React.Fragment key={safeRoute.id}>
               {segs.map((seg, i) => (
                 <React.Fragment key={i}>
                   {/* Halo — slightly narrower than the active route (8 vs 10)
@@ -1166,30 +1280,12 @@ const DriveMapView = forwardRef(function DriveMapView(
             Rendered above grey alts but below the primary blue route so the
             driver sees all options without losing the main corridor. */}
         {(() => {
-          if (!divergenceRoutes.length) return null;
-
-          // Drop routes with incomplete data before any math — a partial
-          // response from the routing API (missing durationS, empty coords, or
-          // any NaN coordinate) would cause Math.min to return NaN/Infinity and
+          // Sanitization is memoized in validDivergenceRoutes (rebuilds only
+          // when divergenceRoutes changes) — a partial response from the
+          // routing API (missing durationS, empty coords, or any NaN
+          // coordinate) would cause Math.min to return NaN/Infinity and
           // Polyline to crash.
-          const validRoutes = divergenceRoutes
-            .map((r) => ({
-              ...r,
-              // ── Crash guard ── strip any coordinate where lat or lng is null/undefined/NaN ──
-              // ── Crash guard ── strict typeof avoids isFinite(null)===true coercion trap ──
-              coords: (r.coords ?? []).filter(
-                (c) =>
-                  c != null &&
-                  typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
-                  typeof c.longitude === "number" && Number.isFinite(c.longitude),
-              ),
-            }))
-            .filter(
-              (r) =>
-                r.coords.length >= 2 &&
-                typeof r.durationS === "number" && isFinite(r.durationS) &&
-                typeof r.distanceM === "number" && isFinite(r.distanceM),
-            );
+          const validRoutes = validDivergenceRoutes;
           if (!validRoutes.length) return null;
 
           // Identify the recommended divergence route — fastest time wins; ties
@@ -1281,13 +1377,9 @@ const DriveMapView = forwardRef(function DriveMapView(
             diverges before deciding to switch.  Rendered above divergence routes
             but below the primary blue route so the active corridor remains clear. */}
         {navigationActive && fasterRoute && (() => {
-          const coords = (fasterRoute.coords ?? []).filter(
-            (c) =>
-              c != null &&
-              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
-              typeof c.longitude === "number" && Number.isFinite(c.longitude),
-          );
-          if (coords.length < 2) return null;
+          // Sanitized + memoized in fasterRouteCoords — stable across GPS ticks.
+          const coords = fasterRouteCoords;
+          if (!coords) return null;
           return (
             <React.Fragment key={`faster-${fasterRoute.id}`}>
               {/* Wide glow layer */}
@@ -1313,52 +1405,21 @@ const DriveMapView = forwardRef(function DriveMapView(
         {/* Active route — during navigation only show the section ahead of the driver.
             The passed section is hidden entirely so the driver sees a clean,
             uncluttered line from their current position to the destination. */}
-        {activeRoute && (() => {
-          if (navigationActive && currentLat != null && currentLng != null) {
-            const coords = activeRoute.coords;
-            // Guard: a route with fewer than 2 points cannot be rendered as a
-            // polyline and would cause an out-of-bounds index below.
-            if (!Array.isArray(coords) || coords.length < 2) return null;
-            // Find the nearest polyline coordinate to the driver's GPS position.
-            let bestIdx = 0;
-            let bestDist = Infinity;
-            for (let i = 0; i < coords.length; i++) {
-              const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
-              if (d < bestDist) { bestDist = d; bestIdx = i; }
-            }
-            // Only render the remaining (ahead) portion — start from bestIdx so
-            // the polyline begins right at the driver's current position.
-            const remaining = coords.slice(bestIdx);
-            if (remaining.length < 2) return null;
-            // Build traffic-coloured segments. Pass bestIdx as the offset so
-            // interval indices (which reference the full coords array) are
-            // remapped correctly onto the `remaining` slice.
-            const segs = buildTrafficSegments(remaining, activeRoute.speedIntervals, bestIdx);
-            return (
-              <>
-                {segs.map((seg, i) => (
-                  <React.Fragment key={i}>
-                    <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
-                    <Polyline coordinates={seg.coords} strokeColor={seg.color} strokeWidth={6} lineCap="round" lineJoin="round" />
-                  </React.Fragment>
-                ))}
-              </>
-            );
-          }
-          // Pre-navigation (route selected but not yet started): show full route
-          // with traffic colouring when available, falling back to solid blue.
-          const segs = buildTrafficSegments(activeRoute.coords, activeRoute.speedIntervals);
-          return (
-            <>
-              {segs.map((seg, i) => (
-                <React.Fragment key={i}>
-                  <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
-                  <Polyline coordinates={seg.coords} strokeColor={seg.color} strokeWidth={6} lineCap="round" lineJoin="round" />
-                </React.Fragment>
-              ))}
-            </>
-          );
-        })()}
+        {activeRouteSegs && (
+          <>
+            {/* During navigation only the ahead slice is rendered; the slice
+                index is quantized and the segments memoized (activeRouteSegs)
+                so the native polyline geometry is NOT rebuilt on every GPS
+                tick — only when the driver passes a few route coordinates or
+                the route itself changes. */}
+            {activeRouteSegs.map((seg, i) => (
+              <React.Fragment key={i}>
+                <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
+                <Polyline coordinates={seg.coords} strokeColor={seg.color} strokeWidth={6} lineCap="round" lineJoin="round" />
+              </React.Fragment>
+            ))}
+          </>
+        )}
 
         {/* Destination pin */}
         {activeRoute && activeRoute.coords.length > 0 && (
