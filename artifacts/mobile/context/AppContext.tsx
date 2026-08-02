@@ -1152,6 +1152,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Tracks the last extras array we called setActiveAlertExtras with, as a
   // sorted ID string, to avoid re-rendering on every GPS tick.
   const lastExtrasKeyRef  = useRef<string>("");
+  // Keyed fingerprint of the last setNearbyZones call — avoids calling setState
+  // on every GPS tick when the driver is stationary and nearby zones haven't changed.
+  const lastNearbyZonesKeyRef = useRef<string>("");
+  // Timestamp of the last setCurrentTrip state update — the ref always holds
+  // the latest trip data; the state is throttled to once every 4 s to reduce
+  // the render cascade during navigation (currentTrip isn't used for live
+  // speed display — that's currentSpeed — so slower state updates are safe).
+  const lastTripStateAtRef = useRef<number>(0);
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
   const syncReportToServerRef = useRef<((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void) | null>(null);
@@ -1456,7 +1464,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const withDist = allZonesRef.current
       .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: haversine(lat, lng, z.lat, z.lng) }))
       .sort((a, b) => a.distance - b.distance);
-    setNearbyZones(withDist.filter((z) => z.distance < 5000));
+    const nearbyFiltered = withDist.filter((z) => z.distance < 5000);
+    // Only setState when the set of nearby zones actually changed — keyed by
+    // ID + 50 m distance bucket.  Avoids a full render cascade every GPS tick
+    // while the driver is stationary or in an area with stable nearby zones.
+    const nearbyKey = nearbyFiltered.map((z) => `${z.id}:${Math.round(z.distance / 50)}`).join(",");
+    if (nearbyKey !== lastNearbyZonesKeyRef.current) {
+      lastNearbyZonesKeyRef.current = nearbyKey;
+      setNearbyZones(nearbyFiltered);
+    }
     // Flattened stretch endpoints (isStretchEndpoint) are excluded here: a
     // 250m point-radius match near just one end of a highway can't confirm
     // the driver is actually on that road — the tighter corridor projection
@@ -1601,8 +1617,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let best: typeof inRangeZones[0] | null = null;
       for (const z of inRangeZones) {
         // Allow zones with no road stored (legacy admin entries without road tag).
-        // For zones that do have a road, require a strict match.
-        if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        // Also allow through when the driver's road is not yet resolved (null) —
+        // distance-only fallback prevents silent blackout during road-warmup.
+        // Suppress only when BOTH roads are known but disagree.
+        if (z.road && currentRoadRef.current && !roadsMatch(currentRoadRef.current, z.road)) continue;
 
         // Cluster deduplication: speed cameras at roundabouts and interchanges
         // are often stored as multiple entries a few metres apart (one per
@@ -1639,7 +1657,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // distance alone — mirrors the zone-candidate logic ("Allow zones with
         // no road stored").  This prevents silent blackout on dirt tracks,
         // industrial roads, and newly-opened roads not yet in OSM.
-        if (r.roadName && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        // Same rule applies when currentRoad is null — fall back to distance only.
+        if (r.roadName && currentRoadRef.current && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
         best = r;
         bestDist = d;
       }
@@ -1661,7 +1680,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
         // Road match: same rule as reports — skip only when BOTH roads are known
         // but disagree.  Unknown roadName = distance-only fallback (no blackout).
-        if (h.roadName && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        // currentRoad null = distance-only fallback (driver road not yet resolved).
+        if (h.roadName && currentRoadRef.current && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
         best = h;
         bestDist = d;
       }
@@ -2218,7 +2238,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             : haversine(lat, lng, step.location.latitude, step.location.longitude);
         }
 
-        setDistToNextM(Math.round(dist));
+        // Only call setState when the rounded value actually changed — avoids
+        // a re-render cascade on every GPS tick when the driver is stationary.
+        const roundedDist = Math.round(dist);
+        if (roundedDist !== distToNextMRef.current) {
+          setDistToNextM(roundedDist);
+        }
 
         // The final step gets a wider arrival radius than intermediate turns:
         // urban GPS drift in dense areas can easily bias a fix by 30-40 m.
@@ -2351,7 +2376,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const trimmed = newPos.length > 300 ? newPos.slice(-150) : newPos;
         const updated: Partial<TripData> = { ...t, distance: (t.distance ?? 0) + added, maxSpeed: Math.max(t.maxSpeed ?? 0, kmh), avgSpeed: trimmed.length > 0 ? trimmed.reduce((s, p) => s + p.speed, 0) / trimmed.length : (t.avgSpeed ?? 0), positions: trimmed };
         tripRef.current = updated;
-        setCurrentTrip({ ...updated });
+        // Throttle UI state to once every 4 s — the ref always has the latest
+        // data for the post-trip summary; slower state updates are safe here
+        // because currentTrip is not used for the live speed display.
+        if (Date.now() - lastTripStateAtRef.current > 4000) {
+          lastTripStateAtRef.current = Date.now();
+          setCurrentTrip({ ...updated });
+        }
       }
     } else if (tripRef.current) {
       if (!stopTimer.current) {
@@ -2960,28 +2991,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [activeRoute]
   );
 
+  // ── Phase 1: project static speed-zone cameras onto the active route ────────
+  // This is the expensive O(zones × routeLen) computation — up to 111 cameras ×
+  // 600+ polyline points = ~66,000 haversine calls.  Splitting it into its own
+  // memo means it ONLY reruns when the route geometry or zone list changes, NOT
+  // every time community reports refresh (every 20 s during navigation).
+  const projectedZonesOnRoute = useMemo<
+    Array<{ zone: SpeedZone; alongRouteM: number }>
+  >(() => {
+    if (!activeRoute || !routeCumDist) return [];
+    const result: Array<{ zone: SpeedZone; alongRouteM: number }> = [];
+    for (const z of allZones) {
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, z.lat, z.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        result.push({ zone: z, alongRouteM: proj.alongRouteM });
+      }
+    }
+    return result;
+  }, [activeRoute, routeCumDist, allZones]);
+
+  // ── Phase 2: combine pre-projected zones with live community + HERE reports ─
+  // vehicleType only affects speed-limit display (capSpeedLimit), not route
+  // membership — so changing it only reruns this cheaper memo, not Phase 1.
   const routeIncidents = useMemo<RouteIncident[]>(() => {
     if (!activeRoute || !routeCumDist) return [];
     const vehicle = getVehicleTypeDef(vehicleType);
     const list: RouteIncident[] = [];
-    for (const z of allZones) {
-      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, z.lat, z.lng);
-      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
-        list.push({
-          id: `static-${z.id}`,
-          source: "static",
-          type: z.type,
-          label: staticZoneLabel(z.type),
-          name: z.name,
-          road: z.road,
-          description: z.description,
-          speedLimit: capSpeedLimit(z.speedLimit, vehicle),
-          lat: z.lat,
-          lng: z.lng,
-          distanceAlongRouteM: proj.alongRouteM,
-        });
-      }
+
+    // Static zones — projections pre-computed in Phase 1 above (no O(N) scan here)
+    for (const { zone: z, alongRouteM } of projectedZonesOnRoute) {
+      list.push({
+        id: `static-${z.id}`,
+        source: "static",
+        type: z.type,
+        label: staticZoneLabel(z.type),
+        name: z.name,
+        road: z.road,
+        description: z.description,
+        speedLimit: capSpeedLimit(z.speedLimit, vehicle),
+        lat: z.lat,
+        lng: z.lng,
+        distanceAlongRouteM: alongRouteM,
+      });
     }
+
+    // Community reports — still O(reports × routeLen) but typically ≤50 reports
     for (const r of communityReports) {
       if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
       const proj = projectOntoRoute(activeRoute.coords, routeCumDist, r.lat, r.lng);
@@ -3003,6 +3057,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
+
     // HERE Live Traffic incidents on this route
     const nowMs = Date.now();
     for (const h of hereIncidents) {
@@ -3025,7 +3080,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
-  }, [activeRoute, routeCumDist, communityReports, vehicleType, allZones, hereIncidents]);
+  }, [projectedZonesOnRoute, activeRoute, routeCumDist, communityReports, vehicleType, hereIncidents]);
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;

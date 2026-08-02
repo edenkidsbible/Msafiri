@@ -1038,19 +1038,59 @@ const DriveMapView = forwardRef(function DriveMapView(
   // on every single GPS tick. (Showing up to 3 already-passed points is
   // visually imperceptible; the line still starts at the driver's marker.)
   const AHEAD_IDX_STEP = 4;
-  let navAheadStartIdx = 0;
-  if (navigationActive && activeRoute && currentLat != null && currentLng != null) {
+
+  // Local cursor ref — tracks the last matched polyline index so the windowed
+  // search below only scans ±40 coords instead of the entire route on every
+  // GPS tick.  Stored as a ref (not state) so updating it never triggers a
+  // render.  Reset to 0 whenever the active route changes (new route ID).
+  const navProjIdxRef    = useRef(0);
+  const lastRouteIdRef   = useRef<string | null>(null);
+
+  // Windowed nearest-coord search — O(40) instead of O(N) on every GPS tick.
+  // The full O(N) scan is used only on route start / reroute (once per route).
+  const navAheadStartIdx = useMemo(() => {
+    if (!navigationActive || !activeRoute || currentLat == null || currentLng == null) {
+      navProjIdxRef.current  = 0;
+      lastRouteIdRef.current = null;
+      return 0;
+    }
     const coords = activeRoute.coords;
-    if (Array.isArray(coords) && coords.length >= 2) {
-      let bestIdx = 0;
-      let bestDist = Infinity;
+    if (!Array.isArray(coords) || coords.length < 2) return 0;
+
+    // Route changed (new route or reroute) — reset cursor and do a full scan
+    // once so the polyline slice starts at the right point immediately.
+    const routeChanged = activeRoute.id !== lastRouteIdRef.current;
+    if (routeChanged) {
+      lastRouteIdRef.current = activeRoute.id;
+      navProjIdxRef.current  = 0;
+    }
+
+    const WINDOW = 40;
+    const prior  = navProjIdxRef.current;
+    const wStart = Math.max(0, prior - 5);
+    const wEnd   = Math.min(coords.length - 1, prior + WINDOW);
+
+    let bestIdx  = prior;
+    let bestDist = Infinity;
+    for (let i = wStart; i <= wEnd; i++) {
+      const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+
+    // Widen to a full scan if the windowed result is poor — covers nav start,
+    // reroute, and any GPS teleport (e.g. tunnel exit far from last known pos).
+    if (bestDist > 200) {
+      bestIdx  = 0;
+      bestDist = Infinity;
       for (let i = 0; i < coords.length; i++) {
         const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
         if (d < bestDist) { bestDist = d; bestIdx = i; }
       }
-      navAheadStartIdx = bestIdx - (bestIdx % AHEAD_IDX_STEP);
     }
-  }
+
+    navProjIdxRef.current = bestIdx;
+    return bestIdx - (bestIdx % AHEAD_IDX_STEP);
+  }, [navigationActive, activeRoute, currentLat, currentLng]);
 
   // Traffic-coloured segments for the active route — memoized on route id,
   // nav state, and the quantized slice index only.

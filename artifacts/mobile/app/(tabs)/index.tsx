@@ -1191,7 +1191,7 @@ export default function DriveScreen() {
             activeOpacity={0.82}
           >
             <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
-              <Ionicons name="camera" size={14} color="#FFF" />
+              <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📢</Text>
               <Text style={styles.driveActionPillTxt}>Report</Text>
             </Animated.View>
           </TouchableOpacity>
@@ -1571,7 +1571,7 @@ export default function DriveScreen() {
             activeOpacity={0.82}
           >
             <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
-              <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📣</Text>
+              <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📢</Text>
               <Text style={styles.driveActionPillTxt}>Report</Text>
             </Animated.View>
           </TouchableOpacity>

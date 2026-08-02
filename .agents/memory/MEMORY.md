@@ -59,4 +59,5 @@
 - [Kenya road-name clips & code mapping](kenya-road-name-clips.md) — server pregen TTS cache keyed by mobile's djb2 hash; route codes never voiced; abbreviations must expand or cache misses.
 - [Crosshair map picker pattern](crosshair-picker-pattern.md) — never use draggable Markers or MapView-in-ScrollView (native crashes); use CrosshairPicker (center pin + onRegionChangeComplete).
 - [Map picker pause system](map-picker-pause-system.md) — mapPickerActive in AppContext; all MapView owners unmount while true; CrosshairPickerModal must never be nested inside another Modal.
+- [Navigation crash root causes and fixes](nav-crash-fixes.md) — three compounding JS-thread blockers: O(N) render-body haversine scan, setNearbyZones on every tick, routeIncidents O(zones×route) on every report poll.
 - [Google Routes API v2 field placement](google-routes-api-field-placement.md) — `heading` is inside `Location`, not on `Waypoint`; `avoidUTurns` doesn't exist; unknown fields → hard 400.

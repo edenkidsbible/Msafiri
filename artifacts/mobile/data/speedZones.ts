@@ -46,7 +46,7 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // ── Waiyaki Way ──────────────────────────────────────────────────────────────
   // Source: NTSA 2025 — 80 km/h; fixed gantry at ABC Place, fixed poles along route.
-  { id: "sz012", name: "Waiyaki Way – ABC Place / Westlands Interchange", road: "Waiyaki Way", lat: -1.262, lng: 36.781, speedLimit: 80, type: "camera", description: "Fixed gantry camera at ABC Place / Westlands Interchange. Limit: 80 km/h" },
+  { id: "sz012", name: "Waiyaki Way – ABC Place / Westlands Interchange", road: "Waiyaki Way", lat: -1.261788, lng: 36.809123, speedLimit: 80, type: "camera", description: "Fixed gantry camera at ABC Place / Westlands Interchange. Limit: 80 km/h" },
   { id: "sz013", name: "Waiyaki Way – ABC Place Police", road: "Waiyaki Way", lat: -1.259027, lng: 36.776993, speedLimit: 80, type: "police", description: "Radar checkpoint near ABC Place. Limit: 80 km/h" },
 
   // ── Ngong Road ───────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // ── Lang'ata Road ─────────────────────────────────────────────────────────────
   // Source: NTSA 2025 — 60 km/h (urban arterial).
-  { id: "sz016", name: "Lang'ata Road – Carnivore Section Camera", road: "Lang'ata Road", lat: -1.328005, lng: 36.800318, speedLimit: 60, type: "camera", description: "Fixed camera at Carnivore Restaurant section on Lang'ata Road. Limit: 60 km/h" },
+  { id: "sz016", name: "Lang'ata Road – Carnivore Section Camera", road: "Lang'ata Road", lat: -1.324337, lng: 36.789826, speedLimit: 60, type: "camera", description: "Fixed camera at Carnivore Restaurant section on Lang'ata Road. Limit: 60 km/h" },
 
   // ── Nakuru Road (A104) ────────────────────────────────────────────────────────
   { id: "sz017", name: "Limuru Police Radar", road: "Nakuru Road", lat: -1.116812, lng: 36.632839, speedLimit: 50, type: "police", description: "Radar on steep descent into Limuru. Limit: 50 km/h" },
@@ -76,16 +76,16 @@ export const SPEED_ZONES: SpeedZone[] = [
 
   // ── Nairobi CBD / Enterprise ──────────────────────────────────────────────────
   { id: "sz024", name: "Enterprise Road Camera", road: "Enterprise Road", lat: -1.311087, lng: 36.848991, speedLimit: 50, type: "camera", description: "Industrial area camera. Limit: 50 km/h" },
-  { id: "sz025", name: "Karen Residential Zone", road: "Karen Road", lat: -1.36014, lng: 36.709936, speedLimit: 50, type: "zone", description: "Residential area. Limit: 50 km/h" },
+  { id: "sz025", name: "Karen Residential Zone", road: "Karen Road", lat: -1.320949, lng: 36.718094, speedLimit: 50, type: "zone", description: "Residential area. Limit: 50 km/h" },
 
   // ── Nairobi Expressway (M27) ──────────────────────────────────────────────────
   // Source: NTSA 2025 — 110 km/h open sections; 80 km/h near toll plazas, ramps &
   // interchanges; 60 km/h at Mlolongo Toll Plaza entry/exit zone.
-  { id: "sz026", name: "Expressway – Museum Hill Interchange Camera", road: "Nairobi Expressway", lat: -1.273085, lng: 36.81417, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Museum Hill Interchange on the Expressway. Limit: 80 km/h" },
+  { id: "sz026", name: "Expressway – Museum Hill Interchange Camera", road: "Nairobi Expressway", lat: -1.272805, lng: 36.814410, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Museum Hill Interchange on the Expressway. Limit: 80 km/h" },
   { id: "sz027", name: "Expressway – Haile Selassie / Nyayo Interchange", road: "Nairobi Expressway", lat: -1.294404, lng: 36.821852, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Haile Selassie / Nyayo interchange on the Expressway. Limit: 80 km/h" },
 
   // ── Thika Superhighway (A2) – additional corridor cameras ────────────────────
-  { id: "sz028", name: "Thika Road – Muthaiga Interchange Camera", road: "Thika Superhighway (A2)", lat: -1.265981, lng: 36.838013, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on overhead gantry at Muthaiga interchange. Limit: 80 km/h" },
+  { id: "sz028", name: "Thika Road – Muthaiga Interchange Camera", road: "Thika Superhighway (A2)", lat: -1.261325, lng: 36.841962, speedLimit: 80, type: "camera", description: "Fixed ANPR camera on overhead gantry at Muthaiga interchange. Limit: 80 km/h" },
   { id: "sz029", name: "Thika Road – Allsops / Moi Air Base (Kasarani end)", road: "Thika Superhighway (A2)", lat: -1.244835, lng: 36.864646, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Allsops / GSU HQ, Moi Air Base flyover (Kasarani end). Limit: 80 km/h" },
   { id: "sz030", name: "Thika Road – Roysambu / TRM Mall", road: "Thika Superhighway (A2)", lat: -1.219719, lng: 36.890067, speedLimit: 80, type: "camera", description: "Fixed ANPR camera at Roysambu / TRM Mall section. Frequently reported on Waze. Limit: 80 km/h" },
   { id: "sz031", name: "Thika Road – Safari Park / Open Section", road: "Thika Superhighway (A2)", lat: -1.226279, lng: 36.883986, speedLimit: 100, type: "camera", description: "Open highway section near Safari Park. Speed: 100 km/h" },
@@ -203,12 +203,12 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz098", name: "Lang'ata Rd – Wilson Airport Junction", road: "Lang'ata Road", lat: -1.318, lng: 36.823, speedLimit: 60, type: "camera", description: "Fixed camera near Wilson Airport junction on Lang'ata Road. Limit: 60 km/h" },
 
   // --- Nairobi Expressway – interchanges (NTSA 2025) ---
-  { id: "sz099", name: "Expressway – James Gichuru Interchange", road: "Nairobi Expressway", lat: -1.2674, lng: 36.7744, speedLimit: 80, type: "camera", description: "Fixed camera at James Gichuru Interchange on the Nairobi Expressway. Limit: 80 km/h" },
-  { id: "sz100", name: "Expressway – Westlands Ramp", road: "Nairobi Expressway", lat: -1.266, lng: 36.808, speedLimit: 80, type: "camera", description: "Fixed camera at Westlands Ramp area on the Nairobi Expressway. Limit: 80 km/h" },
+  { id: "sz099", name: "Expressway – James Gichuru Interchange", road: "Nairobi Expressway", lat: -1.269327, lng: 36.773005, speedLimit: 80, type: "camera", description: "Fixed camera at James Gichuru Interchange on the Nairobi Expressway. Limit: 80 km/h" },
+  { id: "sz100", name: "Expressway – Westlands Ramp", road: "Nairobi Expressway", lat: -1.264546, lng: 36.807962, speedLimit: 80, type: "camera", description: "Fixed camera at Westlands Ramp area on the Nairobi Expressway. Limit: 80 km/h" },
 
   // --- Waiyaki Way – additional fixed cameras (NTSA 2025) ---
-  { id: "sz101", name: "Waiyaki Way – Mountain View Estate", road: "Waiyaki Way", lat: -1.268, lng: 36.742, speedLimit: 80, type: "camera", description: "Fixed pole camera at Mountain View Estate approach on Waiyaki Way. Limit: 80 km/h" },
-  { id: "sz102", name: "Waiyaki Way – Kikuyu Road Junction", road: "Waiyaki Way", lat: -1.261, lng: 36.731, speedLimit: 80, type: "camera", description: "Fixed pole camera at Kikuyu Road junction on Waiyaki Way. Limit: 80 km/h" },
+  { id: "sz101", name: "Waiyaki Way – Mountain View Estate", road: "Waiyaki Way", lat: -1.265440, lng: 36.743254, speedLimit: 80, type: "camera", description: "Fixed pole camera at Mountain View Estate approach on Waiyaki Way. Limit: 80 km/h" },
+  { id: "sz102", name: "Waiyaki Way – Kikuyu Road Junction", road: "Waiyaki Way", lat: -1.262588, lng: 36.727750, speedLimit: 80, type: "camera", description: "Fixed pole camera at Kikuyu Road junction on Waiyaki Way. Limit: 80 km/h" },
 
   // --- Ngong Road – additional cameras (NTSA 2025) ---
   { id: "sz103", name: "Ngong Road – Karen Shopping Centre", road: "Ngong Road", lat: -1.322362, lng: 36.706744, speedLimit: 50, type: "camera", description: "Fixed camera at Karen Shopping Centre area on Ngong Road. Limit: 50 km/h" },
@@ -219,8 +219,8 @@ export const SPEED_ZONES: SpeedZone[] = [
   { id: "sz106", name: "Outer Ring Road – Taj Mall / Fedha Section", road: "Outer Ring Road", lat: -1.320558, lng: 36.897817, speedLimit: 60, type: "camera", description: "Fixed camera at Taj Mall / Fedha section on Outer Ring Road. Limit: 60 km/h" },
 
   // --- Limuru Road ---
-  { id: "sz107", name: "Limuru Road – Muthaiga / UN Avenue Junction", road: "Limuru Road", lat: -1.235, lng: 36.817, speedLimit: 60, type: "camera", description: "Fixed camera at Muthaiga / UN Avenue junction on Limuru Road. Limit: 60 km/h" },
+  { id: "sz107", name: "Limuru Road – Muthaiga / UN Avenue Junction", road: "Limuru Road", lat: -1.234062, lng: 36.819189, speedLimit: 60, type: "camera", description: "Fixed camera at Muthaiga / UN Avenue junction on Limuru Road. Limit: 60 km/h" },
 
   // --- Kiambu Road ---
-  { id: "sz108", name: "Kiambu Road – Muthaiga Roundabout", road: "Kiambu Road", lat: -1.249, lng: 36.839, speedLimit: 60, type: "camera", description: "Fixed camera at Muthaiga roundabout approach on Kiambu Road. Limit: 60 km/h" },
+  { id: "sz108", name: "Kiambu Road – Muthaiga Roundabout", road: "Kiambu Road", lat: -1.250186, lng: 36.843414, speedLimit: 60, type: "camera", description: "Fixed camera at Muthaiga roundabout approach on Kiambu Road. Limit: 60 km/h" },
 ];
