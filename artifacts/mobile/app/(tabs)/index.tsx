@@ -36,6 +36,7 @@ import SOSButton from "@/components/SOSButton";
 import DriveMapView, { type DriveMapViewHandle } from "@/components/DriveMapView";
 import { isCivilTwilight } from "@/utils/solarTwilight";
 import ReportModal from "@/components/ReportModal";
+import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
@@ -165,6 +166,12 @@ export default function DriveScreen() {
   const [showResults, setShowResults] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  // CrosshairPickerModal request — lifted out of ReportModal to sit at the
+  // screen root so it is never nested inside another Modal (fixes iOS silent
+  // presentation failure) and DriveMapView can unmount its map while it's open.
+  const [crosshairRequest, setCrosshairRequest] = useState<{
+    lat: number; lng: number; onConfirm: (lat: number, lng: number) => void;
+  } | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recentSearches, setRecentSearches] = useState<GeoResult[]>([]);
   const [sharingLoading, setSharingLoading] = useState(false);
@@ -2056,6 +2063,9 @@ export default function DriveScreen() {
         onClose={() => setShowReport(false)}
         currentLat={currentLat}
         currentLng={currentLng}
+        onOpenMapPicker={(initialLat, initialLng, onConfirm) =>
+          setCrosshairRequest({ lat: initialLat, lng: initialLng, onConfirm })
+        }
         onSubmit={async (type, speedLimit, location) => {
           setShowReport(false);
           if (location) {
@@ -2076,6 +2086,22 @@ export default function DriveScreen() {
           // Play confirmation audio after the report is submitted
           playSound("confirm").catch(() => {});
           speakAlert("report_submitted").catch(() => {});
+        }}
+      />
+
+      {/* Crosshair map picker — rendered at the screen root (NOT inside
+          ReportModal) so it is never a nested Modal. DriveMapView's MapView
+          is unmounted while this is visible via mapPickerActive in AppContext,
+          guaranteeing a single native map surface is alive at any time. */}
+      <CrosshairPickerModal
+        visible={!!crosshairRequest}
+        initialLat={crosshairRequest?.lat ?? -1.2921}
+        initialLng={crosshairRequest?.lng ?? 36.8219}
+        title="Pin the Incident Spot"
+        onCancel={() => setCrosshairRequest(null)}
+        onConfirm={(lat, lng) => {
+          crosshairRequest?.onConfirm(lat, lng);
+          setCrosshairRequest(null);
         }}
       />
 

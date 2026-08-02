@@ -1,15 +1,19 @@
 /**
  * SavedPlaceMapPicker.native.tsx
- * Embedded map with a tap-to-place / draggable pin for picking a saved place location.
- * Used in the Add/Edit Saved Place modal in the Trips tab.
+ * Center-crosshair location picker for the Add/Edit Saved Place flow.
+ * Replaces the old draggable-Marker pattern: a static pin sits at the map
+ * center while the user pans the map underneath it. This eliminates the
+ * two-concurrent-MapView native crash that occurred because DriveMapView's
+ * MapView was still alive on the background tab while this one was rendered
+ * inside a modal.
  *
- * When the pin settles (drag end or tap), a reverse-geocode call suggests an
- * address label via `onLocationChange(lat, lng, address?)`.
+ * mapPickerActive is set on mount so DriveMapView unmounts its MapView for
+ * the duration, ensuring a single native map surface is alive at any time.
  */
-import React, { useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { CrosshairMap } from "./CrosshairPicker";
+import { useApp } from "@/context/AppContext";
 
 export interface SavedPlaceMapPickerProps {
   initialLat: number;
@@ -24,10 +28,15 @@ export function SavedPlaceMapPicker({
   onLocationChange,
   mapHeight = 240,
 }: SavedPlaceMapPickerProps) {
-  const mapRef = useRef<MapView>(null);
-  const [pos, setPos] = useState({ latitude: initialLat, longitude: initialLng });
+  const { setMapPickerActive } = useApp();
+  const [coords, setCoords] = useState({ lat: initialLat, lng: initialLng });
   const [reverseLoading, setReverseLoading] = useState(false);
-  const reverseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pause DriveMapView's MapView for the lifetime of this component.
+  useEffect(() => {
+    setMapPickerActive(true);
+    return () => setMapPickerActive(false);
+  }, [setMapPickerActive]);
 
   const reverseGeocode = async (lat: number, lng: number) => {
     setReverseLoading(true);
@@ -57,63 +66,37 @@ export function SavedPlaceMapPicker({
       const address = parts.slice(0, 2).join(", ");
       onLocationChange(lat, lng, address || undefined);
     } catch {
-      // Silently ignore — caller already has lat/lng
       onLocationChange(lat, lng);
     } finally {
       setReverseLoading(false);
     }
   };
 
-  const update = (latitude: number, longitude: number) => {
-    setPos({ latitude, longitude });
-    if (reverseTimer.current) clearTimeout(reverseTimer.current);
-    reverseTimer.current = setTimeout(() => reverseGeocode(latitude, longitude), 600);
+  const geocodeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleChange = (lat: number, lng: number) => {
+    setCoords({ lat, lng });
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    geocodeTimer.current = setTimeout(() => reverseGeocode(lat, lng), 600);
   };
 
   return (
-    <View style={styles.wrap}>
-      <MapView
-        ref={mapRef}
-        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-        style={[styles.map, { height: mapHeight }]}
-        initialRegion={{
-          latitude: initialLat,
-          longitude: initialLng,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        }}
-        onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
-          const { latitude, longitude } = e.nativeEvent.coordinate;
-          update(latitude, longitude);
-          mapRef.current?.animateToRegion(
-            { latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 },
-            200
-          );
-        }}
-        scrollEnabled
-        zoomEnabled
-        rotateEnabled={false}
-        pitchEnabled={false}
-      >
-        <Marker
-          coordinate={pos}
-          draggable
-          tracksViewChanges={false}
-          onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
-            const { latitude, longitude } = e.nativeEvent.coordinate;
-            update(latitude, longitude);
-          }}
+    <View style={[styles.wrap, { height: mapHeight + 44 }]}>
+      <View style={{ flex: 1 }}>
+        <CrosshairMap
+          initialLat={initialLat}
+          initialLng={initialLng}
+          initialDelta={0.005}
+          onCoordinateChange={handleChange}
         />
-      </MapView>
-
+      </View>
       <View style={styles.footer}>
         <View style={styles.hint}>
-          <Ionicons name="information-circle-outline" size={12} color="#757575" />
-          <Text style={styles.hintTxt}>Tap the map or drag the pin to set location</Text>
+          <Text style={styles.hintTxt}>Pan the map to place the pin</Text>
         </View>
         <View style={styles.footerRow}>
           <Text style={styles.coords}>
-            {pos.latitude.toFixed(5)}, {pos.longitude.toFixed(5)}
+            {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
           </Text>
           {reverseLoading && (
             <ActivityIndicator size="small" color="#9E9E9E" style={{ marginLeft: 6 }} />
@@ -131,7 +114,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#DDD",
   },
-  map: { height: 240 },
   footer: {
     paddingHorizontal: 12,
     paddingVertical: 8,

@@ -9,6 +9,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
+import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
 import * as Haptics from "expo-haptics";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
@@ -197,6 +198,7 @@ export default function MapViewScreen() {
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
     routeIncidentsAhead, setRouteIncidentsExpanded,
+    mapPickerActive,
   } = useApp();
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -218,6 +220,9 @@ export default function MapViewScreen() {
   const vehicle = getVehicleTypeDef(vehicleType);
 
   const [showReport, setShowReport] = useState(false);
+  const [crosshairRequest, setCrosshairRequest] = useState<{
+    lat: number; lng: number; onConfirm: (lat: number, lng: number) => void;
+  } | null>(null);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
   const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<ClusterGroup | null>(null);
@@ -379,6 +384,9 @@ export default function MapViewScreen() {
 
   return (
     <View style={styles.container}>
+      {mapPickerActive ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]} />
+      ) : (
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
@@ -477,6 +485,7 @@ export default function MapViewScreen() {
           </Marker>
         )}
       </MapView>
+      )}
 
       {/* Legend — minimize/maximize */}
       <View style={[styles.legendWrap, { backgroundColor: c.card + "EE", top: insets.top + 12 }]}>
@@ -599,6 +608,21 @@ export default function MapViewScreen() {
         onSubmit={handleReport}
         currentLat={currentLat}
         currentLng={currentLng}
+        onOpenMapPicker={(lat, lng, onConfirm) =>
+          setCrosshairRequest({ lat, lng, onConfirm })
+        }
+      />
+
+      <CrosshairPickerModal
+        visible={!!crosshairRequest}
+        initialLat={crosshairRequest?.lat ?? -1.2921}
+        initialLng={crosshairRequest?.lng ?? 36.8219}
+        title="Pin the Incident Spot"
+        onCancel={() => setCrosshairRequest(null)}
+        onConfirm={(lat, lng) => {
+          crosshairRequest?.onConfirm(lat, lng);
+          setCrosshairRequest(null);
+        }}
       />
 
       {/* Find Nearby sheet — same as drive page but accessible from the map tab */}

@@ -21,7 +21,10 @@ import { useColors } from "@/hooks/useColors";
 import { CommunityReport, useApp } from "@/context/AppContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { snapToRoad } from "@/utils/snapToRoad";
-import { CrosshairPickerModal } from "./CrosshairPicker";
+// CrosshairPickerModal is intentionally NOT rendered inside ReportModal.
+// It lives at the drive screen root (index.tsx) to avoid a nested-Modal on iOS
+// and the two-concurrent-MapView native crash. ReportModal calls onOpenMapPicker
+// to request the picker; the parent wires the CrosshairPickerModal there.
 
 type ReportType = CommunityReport["type"];
 
@@ -56,6 +59,10 @@ interface ReportModalProps {
   onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation) => void;
   currentLat?: number | null;
   currentLng?: number | null;
+  /** Called when the user wants to open the crosshair map picker. The parent
+   *  renders CrosshairPickerModal at the root level so it is never nested
+   *  inside another Modal (which causes silent iOS presentation failures). */
+  onOpenMapPicker: (initialLat: number, initialLng: number, onConfirm: (lat: number, lng: number) => void) => void;
 }
 
 const TYPES: Array<{
@@ -86,6 +93,7 @@ export default function ReportModal({
   onSubmit,
   currentLat = null,
   currentLng = null,
+  onOpenMapPicker,
 }: ReportModalProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -96,7 +104,6 @@ export default function ReportModal({
   const hasCurrentLocation = currentLat != null && currentLng != null;
   const [locationMode, setLocationMode] = useState<"current" | "search" | "map">("current");
   const [pickedMapLocation, setPickedMapLocation] = useState<ReportLocation | null>(null);
-  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -135,7 +142,6 @@ export default function ReportModal({
     setSearchError(false);
     setPickedLocation(null);
     setPickedMapLocation(null);
-    setMapPickerOpen(false);
     setEditingSearch(true);
   };
 
@@ -195,7 +201,16 @@ export default function ReportModal({
     } else if (mode === "map") {
       Keyboard.dismiss();
       // Launch the full-screen crosshair picker immediately if nothing picked yet.
-      if (!pickedMapLocation) setMapPickerOpen(true);
+      if (!pickedMapLocation) {
+        onOpenMapPicker(
+          currentLat ?? -1.2921,
+          currentLng ?? 36.8219,
+          (lat, lng) => {
+            bumpIdleTimer();
+            setPickedMapLocation({ lat, lng, label: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+          },
+        );
+      }
     } else {
       setEditingSearch(true);
     }
@@ -435,7 +450,17 @@ export default function ReportModal({
                 {pickedMapLocation ? (
                   <TouchableOpacity
                     style={[styles.pickedSummary, { backgroundColor: c.primary + "12", borderColor: c.primary + "44" }]}
-                    onPress={() => { bumpIdleTimer(); setMapPickerOpen(true); }}
+                    onPress={() => {
+                      bumpIdleTimer();
+                      onOpenMapPicker(
+                        pickedMapLocation?.lat ?? currentLat ?? -1.2921,
+                        pickedMapLocation?.lng ?? currentLng ?? 36.8219,
+                        (lat, lng) => {
+                          bumpIdleTimer();
+                          setPickedMapLocation({ lat, lng, label: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+                        },
+                      );
+                    }}
                     activeOpacity={0.75}
                   >
                     <Ionicons name="pin" size={16} color={c.primary} />
@@ -447,7 +472,17 @@ export default function ReportModal({
                 ) : (
                   <TouchableOpacity
                     style={[styles.pickedSummary, { backgroundColor: c.card, borderColor: c.border }]}
-                    onPress={() => { bumpIdleTimer(); setMapPickerOpen(true); }}
+                    onPress={() => {
+                      bumpIdleTimer();
+                      onOpenMapPicker(
+                        currentLat ?? -1.2921,
+                        currentLng ?? 36.8219,
+                        (lat, lng) => {
+                          bumpIdleTimer();
+                          setPickedMapLocation({ lat, lng, label: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+                        },
+                      );
+                    }}
                     activeOpacity={0.75}
                   >
                     <Ionicons name="map-outline" size={16} color={c.primary} />
@@ -628,23 +663,9 @@ export default function ReportModal({
           </View>
         </KeyboardAvoidingView>
 
-        {/* Full-screen center-crosshair map picker (native only) */}
-        <CrosshairPickerModal
-          visible={mapPickerOpen}
-          initialLat={pickedMapLocation?.lat ?? currentLat ?? -1.2921}
-          initialLng={pickedMapLocation?.lng ?? currentLng ?? 36.8219}
-          title="Pin the Incident Spot"
-          onCancel={() => { bumpIdleTimer(); setMapPickerOpen(false); }}
-          onConfirm={(lat, lng) => {
-            bumpIdleTimer();
-            setPickedMapLocation({
-              lat,
-              lng,
-              label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-            });
-            setMapPickerOpen(false);
-          }}
-        />
+        {/* CrosshairPickerModal lives in index.tsx (drive screen root) to avoid
+            nested-Modal iOS presentation failures and two-concurrent-MapView
+            crashes. onOpenMapPicker() is called above to request it. */}
       </View>
     </Modal>
   );

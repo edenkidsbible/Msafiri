@@ -333,6 +333,11 @@ interface AppContextValue {
   /** Dismiss the faster-route banner without switching routes. The next
    *  periodic check (≈2 min) can surface a new suggestion if conditions hold. */
   dismissFasterRoute: () => void;
+  /** True while any full-screen map picker modal is open (CrosshairPickerModal,
+   *  AdminLocationPickerModal, SavedPlaceMapPicker). Consumers should unmount
+   *  their MapView while this is true to avoid two-MapView native contention. */
+  mapPickerActive: boolean;
+  setMapPickerActive: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -916,6 +921,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const shareTokenRef        = useRef<string | null>(null);
   const sharePingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Navigation
+  const [mapPickerActive, setMapPickerActive] = useState(false);
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
   const [altRoutes, setAltRoutes] = useState<AppRoute[]>([]);
@@ -4288,6 +4294,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       snapToActiveRoute,
       fasterRoute, acceptFasterRoute, dismissFasterRoute,
       hereIncidents, dismissHereIncident,
+      mapPickerActive, setMapPickerActive,
     }}>
       {children}
     </AppContext.Provider>

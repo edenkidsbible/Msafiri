@@ -372,6 +372,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     durationRemainingS, distanceRemainingM,
     fasterRoute,
     hereIncidents, dismissHereIncident,
+    mapPickerActive,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -1085,6 +1086,15 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   return (
     <>
+      {/* While any full-screen map picker is open (CrosshairPickerModal,
+          AdminLocationPickerModal, SavedPlaceMapPicker) we unmount this MapView
+          so there is never more than one concurrent native map surface alive.
+          All mapRef.current?.animate* calls use optional chaining and are safe
+          to call while the ref is null — they become no-ops until the map
+          remounts after the picker closes. */}
+      {mapPickerActive ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]} />
+      ) : (
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
@@ -1441,6 +1451,7 @@ const DriveMapView = forwardRef(function DriveMapView(
           </Marker>
         )}
       </MapView>
+      )}
 
       {/* ── Incident detail sheet (Modal so it always renders above all overlays) */}
       {selectedCluster && (

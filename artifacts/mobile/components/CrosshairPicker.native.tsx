@@ -26,6 +26,7 @@ import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
 
 export interface CrosshairMapProps {
   initialLat: number;
@@ -144,30 +145,37 @@ export function CrosshairPickerModal({
 }: CrosshairPickerModalProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const { setMapPickerActive } = useApp();
   const [pos, setPos] = useState({ lat: initialLat, lng: initialLng });
   // Delay MapView mount until the slide animation completes (onShow).
-  // Mounting two MapViews simultaneously — one on the underlying screen and
-  // one in this modal — causes a silent native crash in Expo Go. The map is
-  // hidden behind the slide animation anyway, so the delay is invisible.
+  // Combined with setMapPickerActive(true), this ensures DriveMapView's MapView
+  // is unmounted before this one mounts — one native map surface at a time.
   const [mapMounted, setMapMounted] = useState(false);
+
+  const handleClose = (cb: () => void) => {
+    setMapMounted(false);
+    setMapPickerActive(false);
+    cb();
+  };
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      onRequestClose={() => { setMapMounted(false); onCancel(); }}
+      onRequestClose={() => handleClose(onCancel)}
       onShow={() => {
+        setMapPickerActive(true);
         setPos({ lat: initialLat, lng: initialLng });
         setMapMounted(true);
       }}
-      onDismiss={() => setMapMounted(false)}
+      onDismiss={() => { setMapMounted(false); setMapPickerActive(false); }}
     >
       <View style={[styles.screen, { backgroundColor: c.background }]}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: c.border }]}>
           <TouchableOpacity
             style={[styles.closeBtn, { backgroundColor: c.background }]}
-            onPress={onCancel}
+            onPress={() => handleClose(onCancel)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="close" size={20} color={c.foreground} />
@@ -211,7 +219,7 @@ export function CrosshairPickerModal({
           </Text>
           <TouchableOpacity
             style={styles.confirmBtn}
-            onPress={() => onConfirm(pos.lat, pos.lng)}
+            onPress={() => handleClose(() => onConfirm(pos.lat, pos.lng))}
             activeOpacity={0.8}
           >
             <Ionicons name="checkmark-circle" size={18} color="#FFF" />

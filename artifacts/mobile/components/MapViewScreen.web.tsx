@@ -331,6 +331,9 @@ export default function MapViewScreen() {
         onSubmit={handleReport}
         currentLat={currentLat}
         currentLng={currentLng}
+        onOpenMapPicker={(_lat, _lng, _cb) => {
+          // Map picker is native-only; no-op on web.
+        }}
       />
     </View>
   );

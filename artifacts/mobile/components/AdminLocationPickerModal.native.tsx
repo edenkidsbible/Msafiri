@@ -19,6 +19,7 @@ import { CrosshairMap } from "./CrosshairPicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
 
 interface Props {
   visible: boolean;
@@ -42,16 +43,28 @@ export function AdminLocationPickerModal({
 }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const { setMapPickerActive } = useApp();
 
   const [pos, setPos] = useState({ latitude: initialLat, longitude: initialLng });
   const [roadName, setRoadName] = useState(initialRoadName ?? "");
   const [saving, setSaving] = useState(false);
   const [reverseLoading, setReverseLoading] = useState(false);
+  // Gate CrosshairMap mount on onShow — same two-MapView protection as
+  // CrosshairPickerModal. mapPickerActive also tells DriveMapView to unmount
+  // its own MapView so only one native surface is alive at a time.
+  const [mapMounted, setMapMounted] = useState(false);
 
-  // Reset state when modal opens with new coordinates.
   const handleShow = () => {
     setPos({ latitude: initialLat, longitude: initialLng });
     setRoadName(initialRoadName ?? "");
+    setMapPickerActive(true);
+    setMapMounted(true);
+  };
+
+  const handleClose = () => {
+    setMapMounted(false);
+    setMapPickerActive(false);
+    onClose();
   };
 
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
@@ -89,7 +102,7 @@ export function AdminLocationPickerModal({
     setSaving(true);
     try {
       await onSave(pos.latitude, pos.longitude, roadName.trim() || undefined);
-      onClose();
+      handleClose();
       Alert.alert("Location Updated", "The report position has been saved.");
     } catch (err: any) {
       Alert.alert("Save Failed", err?.message ?? "Check your connection and try again.");
@@ -102,8 +115,9 @@ export function AdminLocationPickerModal({
     <Modal
       visible={visible}
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
       onShow={handleShow}
+      onDismiss={() => { setMapMounted(false); setMapPickerActive(false); }}
     >
       <View style={[styles.container, { backgroundColor: c.background }]}>
         {/* Header */}
@@ -115,7 +129,7 @@ export function AdminLocationPickerModal({
         >
           <TouchableOpacity
             style={[styles.closeBtn, { backgroundColor: c.background }]}
-            onPress={onClose}
+            onPress={handleClose}
             disabled={saving}
           >
             <Ionicons name="close" size={20} color={c.foreground} />
@@ -125,13 +139,18 @@ export function AdminLocationPickerModal({
           <View style={{ width: 36 }} />
         </View>
 
-        {/* Map — fixed center-crosshair picker; pan the map under the pin */}
-        <CrosshairMap
-          initialLat={initialLat}
-          initialLng={initialLng}
-          initialDelta={0.005}
-          onCoordinateChange={handleCoordinateChange}
-        />
+        {/* Map — gate on mapMounted (set by onShow) so DriveMapView's MapView
+            is fully unmounted before this one initialises. */}
+        {mapMounted ? (
+          <CrosshairMap
+            initialLat={initialLat}
+            initialLng={initialLng}
+            initialDelta={0.005}
+            onCoordinateChange={handleCoordinateChange}
+          />
+        ) : (
+          <View style={{ flex: 1, backgroundColor: "#000" }} />
+        )}
 
         {/* Bottom panel */}
         <View
