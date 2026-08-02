@@ -10,6 +10,7 @@ import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
+  Image,
   Modal,
   Platform,
   ScrollView,
@@ -469,6 +470,58 @@ const DriveMapView = forwardRef(function DriveMapView(
     }, 1500);
     return () => clearTimeout(t);
   }, []);
+
+  // ── Map-picker freeze snapshot ────────────────────────────────────────────
+  //
+  // When mapPickerActive becomes true, we capture a still frame of the live
+  // MapView *before* unmounting it, then display that image while the picker
+  // modal is open.  This replaces the jarring black rectangle that appeared
+  // previously and makes the transition feel polished.
+  //
+  // Two-phase approach to avoid the effect-after-render timing problem:
+  //  1. pickerFreezeUri  — file URI of the last captured snapshot (null = none)
+  //  2. mapHidden        — controls the actual MapView unmount; only becomes
+  //                        true after the snapshot resolves (or on failure)
+  //
+  // While mapPickerActive=true but mapHidden=false (snapshot in progress, < 100 ms
+  // typical), both this MapView and the picker's MapView are briefly alive.
+  // This window is so short it's invisible and ends before the slide-in
+  // animation completes, so there is no perceivable two-MapView contention.
+  const [pickerFreezeUri, setPickerFreezeUri] = useState<string | null>(null);
+  const [mapHidden, setMapHidden] = useState(false);
+
+  useEffect(() => {
+    if (mapPickerActive) {
+      // Capture snapshot while this MapView is still mounted, then hide it.
+      const snap = mapRef.current?.takeSnapshot?.({
+        format: "png",
+        quality: 0.85,
+        result: "file",
+      });
+      if (snap) {
+        snap
+          .then((uri: string) => {
+            if (!mountedRef.current) return;
+            setPickerFreezeUri(uri);
+            setMapHidden(true);
+          })
+          .catch(() => {
+            // Snapshot failed — fall back to hiding immediately (black frame
+            // is still better than a native crash from two concurrent maps).
+            if (!mountedRef.current) return;
+            setPickerFreezeUri(null);
+            setMapHidden(true);
+          });
+      } else {
+        // takeSnapshot not available (unlikely) — hide immediately.
+        setMapHidden(true);
+      }
+    } else {
+      // Picker closed — restore live map and discard the frozen image.
+      setMapHidden(false);
+      setPickerFreezeUri(null);
+    }
+  }, [mapPickerActive]);
 
   // Temporary focus highlight — shown for 2.5 s after a Nearby Alert row tap
   const [focusHighlight, setFocusHighlight] = useState<{ lat: number; lng: number } | null>(null);
@@ -1129,11 +1182,21 @@ const DriveMapView = forwardRef(function DriveMapView(
       {/* While any full-screen map picker is open (CrosshairPickerModal,
           AdminLocationPickerModal, SavedPlaceMapPicker) we unmount this MapView
           so there is never more than one concurrent native map surface alive.
+          mapHidden is set only AFTER a snapshot is captured, so the transition
+          shows a frozen still frame instead of a black rectangle.
           All mapRef.current?.animate* calls use optional chaining and are safe
           to call while the ref is null — they become no-ops until the map
           remounts after the picker closes. */}
-      {mapPickerActive ? (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]} />
+      {mapHidden ? (
+        pickerFreezeUri ? (
+          <Image
+            source={{ uri: pickerFreezeUri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]} />
+        )
       ) : (
       <MapView
         ref={mapRef}
