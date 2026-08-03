@@ -129,6 +129,7 @@ export default function DriveScreen() {
     driverName, setDriverName,
     gpsLost,
     fasterRoute, acceptFasterRoute, dismissFasterRoute,
+    setMapPickerActive,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -2063,9 +2064,15 @@ export default function DriveScreen() {
         onClose={() => setShowReport(false)}
         currentLat={currentLat}
         currentLng={currentLng}
-        onOpenMapPicker={(initialLat, initialLng, onConfirm) =>
-          setCrosshairRequest({ lat: initialLat, lng: initialLng, onConfirm })
-        }
+        onOpenMapPicker={(initialLat, initialLng, onConfirm) => {
+          // Free the DriveMapView native surface BEFORE the modal opens so the
+          // 400 ms slide animation acts as a natural gap. Without this, both
+          // setMapPickerActive(true) and setMapMounted(true) fire together in
+          // onShow — React batches them into one commit and the native layer
+          // gets destroy+create in the same frame, causing a 10-second stall.
+          setMapPickerActive(true);
+          setCrosshairRequest({ lat: initialLat, lng: initialLng, onConfirm });
+        }}
         onSubmit={async (type, speedLimit, location) => {
           setShowReport(false);
           if (location) {

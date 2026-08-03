@@ -199,6 +199,7 @@ export default function MapViewScreen() {
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
     routeIncidentsAhead, setRouteIncidentsExpanded,
     mapPickerActive,
+    setMapPickerActive,
   } = useApp();
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -608,9 +609,12 @@ export default function MapViewScreen() {
         onSubmit={handleReport}
         currentLat={currentLat}
         currentLng={currentLng}
-        onOpenMapPicker={(lat, lng, onConfirm) =>
-          setCrosshairRequest({ lat, lng, onConfirm })
-        }
+        onOpenMapPicker={(lat, lng, onConfirm) => {
+          // Free the native map surface before the modal opens — same fix as
+          // index.tsx so the 400 ms slide animation clears the surface gap.
+          setMapPickerActive(true);
+          setCrosshairRequest({ lat, lng, onConfirm });
+        }}
       />
 
       <CrosshairPickerModal
