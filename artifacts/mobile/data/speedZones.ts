@@ -197,10 +197,10 @@ export const SPEED_ZONES: SpeedZone[] = [
   // --- Mombasa Road – Nairobi urban fixed cameras ---
   { id: "sz095", name: "Mombasa Rd – South C / Enterprise Rd Junction", road: "Mombasa Road", lat: -1.313, lng: 36.836, speedLimit: 60, type: "camera", description: "Fixed camera at South C / Enterprise Road junction on Mombasa Road. Limit: 60 km/h" },
   { id: "sz096", name: "Mombasa Rd – Bellevue / Coast Bus Stage", road: "Mombasa Road", lat: -1.321461, lng: 36.841569, speedLimit: 80, type: "camera", description: "Fixed camera at Bellevue / Coast Bus stage area on Mombasa Road. Limit: 80 km/h" },
-  { id: "sz097", name: "Mombasa Rd – JKIA Roundabout Approach", road: "Mombasa Road", lat: -1.324, lng: 36.919, speedLimit: 60, type: "camera", description: "Fixed camera at JKIA roundabout approach on Mombasa Road. Limit: 60 km/h" },
+  { id: "sz097", name: "Mombasa Rd – JKIA Roundabout Approach", road: "Mombasa Road", lat: -1.319, lng: 36.914, speedLimit: 60, type: "camera", description: "Fixed camera at JKIA roundabout approach on Mombasa Road. Limit: 60 km/h" },
 
   // --- Lang'ata Road ---
-  { id: "sz098", name: "Lang'ata Rd – Wilson Airport Junction", road: "Lang'ata Road", lat: -1.318, lng: 36.823, speedLimit: 60, type: "camera", description: "Fixed camera near Wilson Airport junction on Lang'ata Road. Limit: 60 km/h" },
+  { id: "sz098", name: "Lang'ata Rd – Wilson Airport Junction", road: "Lang'ata Road", lat: -1.3181, lng: 36.8235, speedLimit: 60, type: "camera", description: "Fixed camera near Wilson Airport junction on Lang'ata Road. Limit: 60 km/h" },
 
   // --- Nairobi Expressway – interchanges (NTSA 2025) ---
   { id: "sz099", name: "Expressway – James Gichuru Interchange", road: "Nairobi Expressway", lat: -1.269327, lng: 36.773005, speedLimit: 80, type: "camera", description: "Fixed camera at James Gichuru Interchange on the Nairobi Expressway. Limit: 80 km/h" },
