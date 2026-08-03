@@ -586,14 +586,19 @@ export default function DriveScreen() {
     // While navigating, routeIncidentsAhead already merges zones + reports on
     // the route and sorts by distance remaining — use it directly.
     if (navigationActive && routeIncidentsAhead.length > 0) {
-      const inc = routeIncidentsAhead[0];
-      return {
-        type:       inc.type,
-        typeName:   resolveIncidentType(inc.type).label,
-        speedLimit: inc.speedLimit,
-        distanceM:  inc.aheadDistanceM ?? 0,
-        color:      resolveIncidentType(inc.type).color,
-      };
+      // Skip incidents within 250 m — those are in-zone or just-passed.
+      // The DriveAlertOverlay owns that range; the strip badge shows lookahead only.
+      const inc = routeIncidentsAhead.find(i => (i.aheadDistanceM ?? 0) > 250);
+      if (inc) {
+        return {
+          type:       inc.type,
+          typeName:   resolveIncidentType(inc.type).label,
+          speedLimit: inc.speedLimit,
+          distanceM:  inc.aheadDistanceM ?? 0,
+          color:      resolveIncidentType(inc.type).color,
+        };
+      }
+      return null;
     }
 
     // Outside navigation: find the closest item from EITHER source and show
@@ -604,16 +609,21 @@ export default function DriveScreen() {
     };
     const candidates: AlertCandidate[] = [];
 
-    // Static speed zones (already proximity-sorted by AppContext)
-    if (nearbyZones.length > 0) {
-      const z = nearbyZones[0];
+    // Static speed zones (already proximity-sorted by AppContext).
+    // Skip any zone within 250 m — those are in-zone or just-passed; the
+    // DriveAlertOverlay handles them, and the strip would show a stale distance
+    // counting upward after the driver passes.
+    const aheadZone = nearbyZones.find(z => z.distance > 250);
+    if (aheadZone) {
       candidates.push({
-        type: z.type, typeName: resolveIncidentType(z.type).label,
-        speedLimit: z.speedLimit, distanceM: z.distance, color: resolveIncidentType(z.type).color,
+        type: aheadZone.type, typeName: resolveIncidentType(aheadZone.type).label,
+        speedLimit: aheadZone.speedLimit, distanceM: aheadZone.distance,
+        color: resolveIncidentType(aheadZone.type).color,
       });
     }
 
-    // Community reports + HERE incidents within 3 km
+    // Community reports + HERE incidents within 3 km.
+    // Same 250 m cutoff — once the driver is inside the zone the overlay owns it.
     if (currentLat != null && currentLng != null) {
       const TWO_HOURS = 2 * 60 * 60 * 1000;
       const REPORT_RADIUS_M = 3000;
@@ -623,7 +633,7 @@ export default function DriveScreen() {
       for (const r of communityReports) {
         if (now - r.timestamp > TWO_HOURS) continue;
         const d = haversineM(currentLat, currentLng, r.lat, r.lng);
-        if (d <= REPORT_RADIUS_M && d < nearestDist) {
+        if (d > 250 && d <= REPORT_RADIUS_M && d < nearestDist) {
           nearestDist = d;
           nearestReport = r;
         }
@@ -641,7 +651,7 @@ export default function DriveScreen() {
       for (const h of hereIncidents) {
         if (h.endTime != null && h.endTime < now) continue;
         const d = haversineM(currentLat, currentLng, h.lat, h.lng);
-        if (d <= REPORT_RADIUS_M && d < nearestHereDist) {
+        if (d > 250 && d <= REPORT_RADIUS_M && d < nearestHereDist) {
           nearestHereDist = d;
           nearestHere = h;
         }
@@ -1100,7 +1110,7 @@ export default function DriveScreen() {
                     onPress={() =>
                       home
                         ? navigateToSavedPlace(home)
-                        : router.push("/(tabs)/trips")
+                        : router.push("/(tabs)/trips?initialTab=planned")
                     }
                     activeOpacity={0.72}
                   >
@@ -1127,7 +1137,7 @@ export default function DriveScreen() {
                     onPress={() =>
                       work
                         ? navigateToSavedPlace(work)
-                        : router.push("/(tabs)/trips")
+                        : router.push("/(tabs)/trips?initialTab=planned")
                     }
                     activeOpacity={0.72}
                   >

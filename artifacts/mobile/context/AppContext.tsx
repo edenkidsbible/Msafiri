@@ -1885,7 +1885,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const iLngAt = alertItemLngRef.current;
         if (iLatAt != null && iLngAt != null) {
           const atd = alongTrackDistanceM(lat, lng, hdgAt, iLatAt, iLngAt);
-          if (atd <= -10) return true; // alert is 10 m or more behind the driver
+          if (atd <= -60) return true; // alert is 60 m or more behind the driver — gives ~3 s "Behind you" at 80 km/h
         }
         // ── Polyline redundancy when navigating ────────────────────────────────
         // Belt-and-suspenders: if the route's high-water mark has already advanced

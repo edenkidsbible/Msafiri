@@ -1944,13 +1944,13 @@ export default React.memo(DriveMapView);
 const ms = StyleSheet.create({
   // ── Single emoji marker ─────────────────────────────────────────────────────
   emojiMarker: {
-    width: 36, height: 36, borderRadius: 10,
+    width: 28, height: 28, borderRadius: 8,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#FFF",
+    borderWidth: 1.5, borderColor: "#FFF",
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.28, shadowRadius: 4, elevation: 5,
   },
-  emojiMarkerText: { fontSize: 18, lineHeight: 22, fontFamily: EMOJI_FONT_FAMILY },
+  emojiMarkerText: { fontSize: 14, lineHeight: 17, fontFamily: EMOJI_FONT_FAMILY },
 
   // ── Speed-limit badge (road-stretch endpoints) ──────────────────────────────
   speedBadge: {

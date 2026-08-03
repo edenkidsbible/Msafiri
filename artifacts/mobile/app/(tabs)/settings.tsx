@@ -163,8 +163,8 @@ export default function SettingsScreen() {
       message:
         "Drive smarter with Msafiri Kenya 🚗\n\n" +
         "Get real-time speed camera alerts, police checkpoint warnings, and live traffic incidents before you reach them.\n\n" +
-        "📱 iOS: https://apps.apple.com/us/app/msafiri-kenya/id6789483834\n\n" +
-        "🤖 Android: https://play.google.com/store/apps/details?id=com.msafiri.kenya",
+        "📱 iOS: https://apps.apple.com/ke/app/msafiri-kenya/id6789483834\n\n" +
+        "🤖 Android: https://play.google.com/store/apps/details?id=com.msafirikenya.app",
     });
   };
 
@@ -497,7 +497,7 @@ export default function SettingsScreen() {
                 label="Home"
                 icon="home"
                 value={home ? (home.address ?? home.label) : "Not set"}
-                onPress={() => router.push("/(tabs)/trips")}
+                onPress={() => router.push("/(tabs)/trips?initialTab=planned")}
               />
             );
           })()}
@@ -509,7 +509,7 @@ export default function SettingsScreen() {
                 label="Work"
                 icon="briefcase"
                 value={work ? (work.address ?? work.label) : "Not set"}
-                onPress={() => router.push("/(tabs)/trips")}
+                onPress={() => router.push("/(tabs)/trips?initialTab=planned")}
               />
             );
           })()}
@@ -517,7 +517,7 @@ export default function SettingsScreen() {
           <Row
             label={`Other saved places${savedPlaces.filter(p => p.kind === "custom").length > 0 ? ` (${savedPlaces.filter(p => p.kind === "custom").length})` : ""}`}
             icon="star-outline"
-            onPress={() => router.push("/(tabs)/trips")}
+            onPress={() => router.push("/(tabs)/trips?initialTab=planned")}
           />
         </View>
       </View>
@@ -529,7 +529,7 @@ export default function SettingsScreen() {
           <Row
             label="View Trip History"
             icon="time-outline"
-            onPress={() => router.push("/(tabs)/trips")}
+            onPress={() => router.push("/(tabs)/trips?initialTab=past")}
           />
         </View>
       </View>

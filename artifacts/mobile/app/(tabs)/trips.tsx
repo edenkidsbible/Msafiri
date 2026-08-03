@@ -3,6 +3,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
@@ -82,7 +83,18 @@ export default function TripsScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const [tab, setTab] = useState<"share" | "planned" | "past">("share");
+  // Deep-link support: router.push("/(tabs)/trips?initialTab=planned") jumps
+  // straight to the Saved Places section without going through the Share tab.
+  const { initialTab } = useLocalSearchParams<{ initialTab?: string }>();
+  const [tab, setTab] = useState<"share" | "planned" | "past">(
+    initialTab === "planned" ? "planned" : initialTab === "past" ? "past" : "share"
+  );
+  // Re-apply if the param changes while the screen is mounted (e.g. deep-link
+  // fired while the trips tab was already in the navigator).
+  useEffect(() => {
+    if (initialTab === "planned") setTab("planned");
+    else if (initialTab === "past") setTab("past");
+  }, [initialTab]);
   const [sharingLoading, setSharingLoading] = useState(false);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [trips, setTrips] = useState<PlannedTrip[]>([]);

@@ -577,6 +577,7 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
               data={results}
               keyExtractor={(item) => String(item.id)}
               style={styles.list}
+              contentContainerStyle={{ paddingBottom: 20 }}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
                 const dist = Math.max(0, item.distAheadM);

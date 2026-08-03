@@ -56,7 +56,7 @@ export default function BlogList() {
             <Link href="/#features" className="text-muted-foreground hover:text-foreground transition-colors hidden sm:block">Features</Link>
             <Link href="/blog" className="text-foreground font-medium">Blog</Link>
             <a
-              href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834"
+              href="https://apps.apple.com/ke/app/msafiri-kenya/id6789483834"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors"
@@ -170,7 +170,7 @@ export default function BlogList() {
           Msafiri warns you about speed cameras, police checkpoints, alcoblow, and road hazards in real time — so you drive safer, not just smarter.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a href="https://apps.apple.com/us/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer"
+          <a href="https://apps.apple.com/ke/app/msafiri-kenya/id6789483834" target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-3 bg-foreground text-background px-6 py-3 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity">
             Download on App Store
           </a>
