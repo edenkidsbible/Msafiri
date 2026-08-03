@@ -1,6 +1,6 @@
-# [Project name]
+# Msafiri Kenya
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A road-safety companion app for Kenyan drivers — real-time speed cameras, police checkpoints, speed zones, community hazard reports, and turn-by-turn navigation with voice guidance.
 
 ## Run & Operate
 
