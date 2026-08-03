@@ -12,7 +12,7 @@
  *  - CrosshairPickerModal: full-screen modal wrapper with confirm/cancel,
  *    used by the report flow.
  */
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -147,10 +147,18 @@ export function CrosshairPickerModal({
   const insets = useSafeAreaInsets();
   const { setMapPickerActive } = useApp();
   const [pos, setPos] = useState({ lat: initialLat, lng: initialLng });
-  // Delay MapView mount until the slide animation completes (onShow).
-  // Combined with setMapPickerActive(true), this ensures DriveMapView's MapView
-  // is unmounted before this one mounts — one native map surface at a time.
+  // Mount MapView one RAF after becoming visible so the current React commit
+  // (which includes DriveMapView unmounting its MapView via mapPickerActive)
+  // has propagated to the native layer before we create a new native surface.
+  // animationType="none" so the modal is instant — the caller already dismissed
+  // ReportModal first and waited for it, so there is no iOS presentation queue.
   const [mapMounted, setMapMounted] = useState(false);
+
+  useEffect(() => {
+    if (!visible) { setMapMounted(false); return; }
+    const id = requestAnimationFrame(() => setMapMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, [visible]);
 
   const handleClose = (cb: () => void) => {
     setMapMounted(false);
@@ -161,13 +169,9 @@ export function CrosshairPickerModal({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       onRequestClose={() => handleClose(onCancel)}
-      onShow={() => {
-        setMapPickerActive(true);
-        setPos({ lat: initialLat, lng: initialLng });
-        setMapMounted(true);
-      }}
+      onShow={() => setPos({ lat: initialLat, lng: initialLng })}
       onDismiss={() => { setMapMounted(false); setMapPickerActive(false); }}
     >
       <View style={[styles.screen, { backgroundColor: c.background }]}>

@@ -112,7 +112,8 @@ const REQ_INIT: RequestInit = {
 
 type QueryCategory =
   | "fuel" | "food" | "hospital" | "pharmacy" | "shopping"
-  | "bank_atm" | "police" | "parking" | "hotel" | "toilets";
+  | "bank_atm" | "police" | "parking" | "hotel" | "toilets"
+  | "nightlife" | "gym";
 
 interface CategoryDef {
   label: string;
@@ -205,6 +206,26 @@ const CATEGORIES: Record<QueryCategory, CategoryDef> = {
     filters: `node["amenity"="toilets"](around:{r},{lat},{lng});`,
     defaultName: "Toilets",
   },
+  nightlife: {
+    label: "Nightlife", color: "#6A0572", chip: "Nightlife",
+    filters:
+      `node["amenity"="bar"](around:{r},{lat},{lng});` +
+      `node["amenity"="nightclub"](around:{r},{lat},{lng});` +
+      `node["amenity"="pub"](around:{r},{lat},{lng});` +
+      `way["amenity"="bar"](around:{r},{lat},{lng});` +
+      `way["amenity"="nightclub"](around:{r},{lat},{lng});`,
+    defaultName: "Bar / Nightclub",
+  },
+  gym: {
+    label: "Gym / Fitness", color: "#1565C0", chip: "Gym",
+    filters:
+      `node["leisure"="fitness_centre"](around:{r},{lat},{lng});` +
+      `node["leisure"="sports_centre"](around:{r},{lat},{lng});` +
+      `node["amenity"="gym"](around:{r},{lat},{lng});` +
+      `way["leisure"="fitness_centre"](around:{r},{lat},{lng});` +
+      `way["leisure"="sports_centre"](around:{r},{lat},{lng});`,
+    defaultName: "Gym",
+  },
 };
 
 // Keyword → category mapping. Checked in order; first match wins.
@@ -219,6 +240,8 @@ const KEYWORD_MAP: Array<{ words: string[]; cat: QueryCategory }> = [
   { words: ["parking", "park", "park here"], cat: "parking" },
   { words: ["hotel", "lodge", "accommodation", "sleep", "stay", "motel", "inn", "airbnb", "guest house"], cat: "hotel" },
   { words: ["toilet", "toilets", "restroom", "bathroom", "wc", "loo"], cat: "toilets" },
+  { words: ["nightlife", "bar", "pub", "club", "nightclub", "drinks", "lounge", "cocktail", "beer", "wine", "spirits"], cat: "nightlife" },
+  { words: ["gym", "fitness", "workout", "exercise", "crossfit", "yoga", "pilates", "weights", "swimming", "pool"], cat: "gym" },
 ];
 
 function resolveCategory(query: string): QueryCategory | null {
@@ -300,6 +323,8 @@ const CHIPS: Array<{ label: string; cat: QueryCategory }> = [
   { label: "🛒 Shopping",   cat: "shopping"  },
   { label: "🏨 Hotel",      cat: "hotel"     },
   { label: "🅿️ Parking",   cat: "parking"   },
+  { label: "🍸 Nightlife",  cat: "nightlife" },
+  { label: "🏋️ Gym",        cat: "gym"       },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -624,8 +649,10 @@ function CategoryIcon({ cat, color }: { cat: QueryCategory; color: string }) {
     case "police":   return <Ionicons name="shield-outline" size={sz} color={color} />;
     case "parking":  return <Ionicons name="car-outline" size={sz} color={color} />;
     case "hotel":    return <Ionicons name="bed-outline" size={sz} color={color} />;
-    case "toilets":  return <Ionicons name="water-outline" size={sz} color={color} />;
-    default:         return <Ionicons name="location-outline" size={sz} color={color} />;
+    case "toilets":   return <Ionicons name="water-outline" size={sz} color={color} />;
+    case "nightlife": return <Ionicons name="wine-outline" size={sz} color={color} />;
+    case "gym":       return <Ionicons name="fitness-outline" size={sz} color={color} />;
+    default:          return <Ionicons name="location-outline" size={sz} color={color} />;
   }
 }
 

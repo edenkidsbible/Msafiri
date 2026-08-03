@@ -30,6 +30,7 @@ import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { telemetryEnabled, sendTelemetryTestError } from "@/utils/telemetry";
+import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -41,6 +42,7 @@ export default function SettingsScreen() {
     vehicleType, setVehicleType,
     clearAllData,
     driverName, setDriverName,
+    deviceId,
   } = useApp();
 
   const { isSubscribed } = useSubscription();
@@ -54,6 +56,7 @@ export default function SettingsScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSpeed, setEditSpeed] = useState("");
   const [flaggingReportId, setFlaggingReportId] = useState<string | null>(null);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
 
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
@@ -63,6 +66,12 @@ export default function SettingsScreen() {
     setName(sosContact?.name ?? "");
     setPhone(sosContact?.phone ?? "");
   }, [sosContact]);
+
+  // Load saved places so we can show current Home / Work addresses
+  useEffect(() => {
+    if (!deviceId) return;
+    listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
+  }, [deviceId]);
 
   const saveContact = () => {
     if (!name.trim() || !phone.trim()) {
@@ -473,6 +482,43 @@ export default function SettingsScreen() {
               );
             })
           )}
+        </View>
+      </View>
+
+      {/* My Places — Home, Work, custom saved locations */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>MY PLACES</Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, padding: 0, overflow: "hidden" }]}>
+          {/* Home */}
+          {(() => {
+            const home = savedPlaces.find(p => p.kind === "home");
+            return (
+              <Row
+                label="Home"
+                icon="home"
+                value={home ? (home.address ?? home.label) : "Not set"}
+                onPress={() => router.push("/(tabs)/trips")}
+              />
+            );
+          })()}
+          {/* Work */}
+          {(() => {
+            const work = savedPlaces.find(p => p.kind === "work");
+            return (
+              <Row
+                label="Work"
+                icon="briefcase"
+                value={work ? (work.address ?? work.label) : "Not set"}
+                onPress={() => router.push("/(tabs)/trips")}
+              />
+            );
+          })()}
+          {/* Custom places */}
+          <Row
+            label={`Other saved places${savedPlaces.filter(p => p.kind === "custom").length > 0 ? ` (${savedPlaces.filter(p => p.kind === "custom").length})` : ""}`}
+            icon="star-outline"
+            onPress={() => router.push("/(tabs)/trips")}
+          />
         </View>
       </View>
 

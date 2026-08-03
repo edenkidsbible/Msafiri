@@ -610,10 +610,13 @@ export default function MapViewScreen() {
         currentLat={currentLat}
         currentLng={currentLng}
         onOpenMapPicker={(lat, lng, onConfirm) => {
-          // Free the native map surface before the modal opens — same fix as
-          // index.tsx so the 400 ms slide animation clears the surface gap.
+          // Same fix as index.tsx: dismiss ReportModal first so iOS doesn't
+          // queue the CrosshairPickerModal presentation behind it.
           setMapPickerActive(true);
-          setCrosshairRequest({ lat, lng, onConfirm });
+          setShowReport(false);
+          setTimeout(() => {
+            setCrosshairRequest({ lat, lng, onConfirm });
+          }, 320);
         }}
       />
 
@@ -622,10 +625,14 @@ export default function MapViewScreen() {
         initialLat={crosshairRequest?.lat ?? -1.2921}
         initialLng={crosshairRequest?.lng ?? 36.8219}
         title="Pin the Incident Spot"
-        onCancel={() => setCrosshairRequest(null)}
+        onCancel={() => {
+          setCrosshairRequest(null);
+          setShowReport(true);   // restore report form with state intact
+        }}
         onConfirm={(lat, lng) => {
           crosshairRequest?.onConfirm(lat, lng);
           setCrosshairRequest(null);
+          setShowReport(true);   // restore report form with picked location set
         }}
       />
 

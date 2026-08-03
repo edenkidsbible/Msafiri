@@ -40,6 +40,8 @@ import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
+import { router } from "expo-router";
 import {
   loadRecentSearches,
   saveRecentSearch,
@@ -130,6 +132,7 @@ export default function DriveScreen() {
     gpsLost,
     fasterRoute, acceptFasterRoute, dismissFasterRoute,
     setMapPickerActive,
+    deviceId,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -175,6 +178,7 @@ export default function DriveScreen() {
   } | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recentSearches, setRecentSearches] = useState<GeoResult[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [sharingLoading, setSharingLoading] = useState(false);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -217,6 +221,18 @@ export default function DriveScreen() {
   useEffect(() => {
     loadRecentSearches().then(setRecentSearches).catch(() => {});
   }, []);
+
+  // Load saved places (Home / Work / custom) — reload when search is focused
+  // so changes made in the Trips tab are immediately reflected here.
+  useEffect(() => {
+    if (!deviceId) return;
+    listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
+  }, [deviceId]);
+  useEffect(() => {
+    if (!searchInputFocused || !deviceId) return;
+    listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInputFocused]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -736,10 +752,23 @@ export default function DriveScreen() {
     setSearchText(r.short);
     setGeoResults([]);
     setShowResults(false);
+    setSearchInputFocused(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Persist to recents (newest-first, deduped)
     saveRecentSearch(r).then(setRecentSearches);
   };
+
+  /** Navigate directly to a saved place (Home / Work / custom).
+   *  Pinned places are intentionally NOT saved to recents — they're always visible. */
+  const navigateToSavedPlace = useCallback((place: SavedPlace) => {
+    Keyboard.dismiss();
+    setNavDestination({ name: place.label, lat: place.lat, lng: place.lng });
+    setSearchText(place.label);
+    setGeoResults([]);
+    setShowResults(false);
+    setSearchInputFocused(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [setNavDestination]);
 
   const clearDestination = () => {
     Keyboard.dismiss();
@@ -1058,59 +1087,138 @@ export default function DriveScreen() {
             </View>
           )}
 
-          {/* Recents dropdown — shown when focused with no text typed */}
-          {!showResults && searchInputFocused && searchText.length === 0 && recentSearches.length > 0 && (
+          {/* Pinned + Recents dropdown — shown when focused with no text typed */}
+          {!showResults && searchInputFocused && searchText.length === 0 && (
             <View pointerEvents="auto" style={[styles.resultsCard, { backgroundColor: bg }]}>
-              {/* Clear all header */}
-              <TouchableOpacity
-                style={[styles.recentsClearRow, { borderBottomColor: divBg }]}
-                onPress={() => {
-                  clearRecentSearches();
-                  setRecentSearches([]);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-                activeOpacity={0.72}
-              >
-                <Text style={[styles.recentsClearTxt, { color: c.primary }]}>Clear all recents</Text>
-              </TouchableOpacity>
-              <FlatList
-                {...FLAT_LIST_PROPS}
-                data={recentSearches}
-                keyExtractor={(item) => item.display}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item, index }) => (
+
+              {/* ── Home ──────────────────────────────────────────── */}
+              {(() => {
+                const home = savedPlaces.find(p => p.kind === "home");
+                return (
                   <TouchableOpacity
-                    style={[
-                      styles.resultRow,
-                      { borderBottomColor: divBg },
-                      index === 0 && { borderTopColor: divBg, borderTopWidth: StyleSheet.hairlineWidth },
-                    ]}
-                    onPress={() => pickDestination(item)}
+                    style={[styles.resultRow, { borderBottomColor: divBg }]}
+                    onPress={() =>
+                      home
+                        ? navigateToSavedPlace(home)
+                        : router.push("/(tabs)/trips")
+                    }
                     activeOpacity={0.72}
                   >
-                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}>
-                      <Ionicons name="time-outline" size={15} color={fgMuted} />
+                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#1A2A1A" : "#E8F5E9" }]}>
+                      <Ionicons name="home" size={15} color="#2E7D32" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>
-                        {item.short}
-                      </Text>
-                      <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>
-                        {item.display.split(",").slice(2).join(",").trim()}
+                      <Text style={[styles.resultName, { color: fgMain }]}>Home</Text>
+                      <Text style={[styles.resultSub, { color: home ? fgMuted : c.primary }]} numberOfLines={1}>
+                        {home ? (home.address ?? home.label) : "Tap to set home location"}
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => {
-                        removeRecentSearch(item).then(setRecentSearches);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons name="close-circle" size={17} color={fgMuted} />
-                    </TouchableOpacity>
+                    {!home && <Ionicons name="add-circle-outline" size={16} color={c.primary} />}
                   </TouchableOpacity>
-                )}
-              />
+                );
+              })()}
+
+              {/* ── Work ──────────────────────────────────────────── */}
+              {(() => {
+                const work = savedPlaces.find(p => p.kind === "work");
+                return (
+                  <TouchableOpacity
+                    style={[styles.resultRow, { borderBottomColor: divBg }]}
+                    onPress={() =>
+                      work
+                        ? navigateToSavedPlace(work)
+                        : router.push("/(tabs)/trips")
+                    }
+                    activeOpacity={0.72}
+                  >
+                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#1A1F2E" : "#E3F2FD" }]}>
+                      <Ionicons name="briefcase" size={15} color="#1565C0" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.resultName, { color: fgMain }]}>Work</Text>
+                      <Text style={[styles.resultSub, { color: work ? fgMuted : c.primary }]} numberOfLines={1}>
+                        {work ? (work.address ?? work.label) : "Tap to set work location"}
+                      </Text>
+                    </View>
+                    {!work && <Ionicons name="add-circle-outline" size={16} color={c.primary} />}
+                  </TouchableOpacity>
+                );
+              })()}
+
+              {/* ── Custom saved places ───────────────────────────── */}
+              {savedPlaces.filter(p => p.kind === "custom").map(place => (
+                <TouchableOpacity
+                  key={place.id}
+                  style={[styles.resultRow, { borderBottomColor: divBg }]}
+                  onPress={() => navigateToSavedPlace(place)}
+                  activeOpacity={0.72}
+                >
+                  <View style={[styles.resultIcon, { backgroundColor: isDark ? "#2A1A2A" : "#F3E5F5" }]}>
+                    <Ionicons name="star" size={15} color="#7B1FA2" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>{place.label}</Text>
+                    {!!place.address && (
+                      <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>{place.address}</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              {/* ── Recents ───────────────────────────────────────── */}
+              {recentSearches.length > 0 && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.recentsClearRow, { borderBottomColor: divBg }]}
+                    onPress={() => {
+                      clearRecentSearches();
+                      setRecentSearches([]);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    activeOpacity={0.72}
+                  >
+                    <Text style={[styles.recentsClearTxt, { color: c.primary }]}>Clear all recents</Text>
+                  </TouchableOpacity>
+                  <FlatList
+                    {...FLAT_LIST_PROPS}
+                    data={recentSearches}
+                    keyExtractor={(item) => item.display}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item, index }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.resultRow,
+                          { borderBottomColor: divBg },
+                          index === 0 && { borderTopColor: divBg, borderTopWidth: StyleSheet.hairlineWidth },
+                        ]}
+                        onPress={() => pickDestination(item)}
+                        activeOpacity={0.72}
+                      >
+                        <View style={[styles.resultIcon, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}>
+                          <Ionicons name="time-outline" size={15} color={fgMuted} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>
+                            {item.short}
+                          </Text>
+                          <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>
+                            {item.display.split(",").slice(2).join(",").trim()}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            removeRecentSearch(item).then(setRecentSearches);
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="close-circle" size={17} color={fgMuted} />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    )}
+                  />
+                </>
+              )}
             </View>
           )}
         </View>
@@ -2065,13 +2173,17 @@ export default function DriveScreen() {
         currentLat={currentLat}
         currentLng={currentLng}
         onOpenMapPicker={(initialLat, initialLng, onConfirm) => {
-          // Free the DriveMapView native surface BEFORE the modal opens so the
-          // 400 ms slide animation acts as a natural gap. Without this, both
-          // setMapPickerActive(true) and setMapMounted(true) fire together in
-          // onShow — React batches them into one commit and the native layer
-          // gets destroy+create in the same frame, causing a 10-second stall.
-          setMapPickerActive(true);
-          setCrosshairRequest({ lat: initialLat, lng: initialLng, onConfirm });
+          // iOS only allows one modal presentation at a time from the root
+          // view controller. With ReportModal still open, presenting
+          // CrosshairPickerModal queues indefinitely (10 s+). Fix: dismiss
+          // ReportModal first, wait for its slide-out to finish (~300 ms),
+          // then open CrosshairPickerModal. ReportModal state is preserved
+          // because the component stays mounted (visible=false, not unmounted).
+          setMapPickerActive(true);   // free DriveMapView surface immediately
+          setShowReport(false);       // dismiss ReportModal
+          setTimeout(() => {
+            setCrosshairRequest({ lat: initialLat, lng: initialLng, onConfirm });
+          }, 320);  // just past the default iOS modal dismiss animation (~300 ms)
         }}
         onSubmit={async (type, speedLimit, location) => {
           setShowReport(false);
@@ -2105,10 +2217,14 @@ export default function DriveScreen() {
         initialLat={crosshairRequest?.lat ?? -1.2921}
         initialLng={crosshairRequest?.lng ?? 36.8219}
         title="Pin the Incident Spot"
-        onCancel={() => setCrosshairRequest(null)}
+        onCancel={() => {
+          setCrosshairRequest(null);
+          setShowReport(true);   // return to report form with state intact
+        }}
         onConfirm={(lat, lng) => {
           crosshairRequest?.onConfirm(lat, lng);
           setCrosshairRequest(null);
+          setShowReport(true);   // return to report form with picked location set
         }}
       />
 
