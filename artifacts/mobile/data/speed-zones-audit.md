@@ -175,6 +175,19 @@ All results sorted by OSRM snap distance:
 
 ---
 
+## Road-Name Alias Additions
+
+Two entries produce a road-name mismatch between the stored `road` field and the name returned by OSRM / in-car navigation steps.  Rather than renaming the zones (which would break cross-references and driver expectations), known-alias pairs were added to `roadsMatch()` in `context/AppContext.tsx`.
+
+| Zone | Stored road | OSM / nav road | Why different | Fix |
+|------|-------------|----------------|---------------|-----|
+| sz009 | Thika Superhighway (A2) | Northern Bypass | The A2/C63 interchange segment at Githurai 44 is tagged "Northern Bypass" in OSM; NTSA and nav call it "Thika Superhighway". Same carriageway, dual label. | Alias `"thika" ↔ "northern"` added to `ROAD_ALIASES` |
+| sz097 | Mombasa Road | Airport North Road | OSM names the JKIA roundabout approach "Airport North Road"; NTSA / road-sign designation is "Mombasa Road". | Alias `"mombasa" ↔ "airport north"` added to `ROAD_ALIASES` |
+
+---
+
 ## Audit Status
 
 **All 110 speed zone entries are now verified to be within 50 m of a driveable road centreline per OSRM.** No further placement corrections are required at this time. Re-audit recommended if new entries are added without `verified: true` flag.
+
+Road-name alias table in `ROAD_ALIASES` (AppContext.tsx) covers all known OSM-vs-NTSA label divergences identified in this audit.  If new divergences are found, add a normalised-name pair to that table and document the reason here.

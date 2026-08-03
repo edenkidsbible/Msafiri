@@ -430,6 +430,32 @@ function normalizeRoad(name: string | null | undefined): string {
     .trim();
 }
 
+/** Known alias groups (each sub-array holds normalised names for the same
+ *  physical carriageway).  roadsMatch() checks this table when the simple
+ *  substring test does not produce a match.
+ *
+ *  Sources: speed-zones placement audit (artifacts/mobile/data/speed-zones-audit.md).
+ *  Each alias is documented there with the reason OSM and NTSA use different names.
+ *
+ *  ── Alias list ──────────────────────────────────────────────────────────
+ *  1. Thika Superhighway ↔ Northern Bypass
+ *     sz009 (Githurai 44 flyover): OSRM/OSM labels the A2/C63 interchange
+ *     carriageway as "Northern Bypass"; NTSA and in-car nav call it "Thika
+ *     Superhighway" / "Thika Road".  Both names refer to the same physical
+ *     lane.  normalizeRoad("Thika Superhighway (A2)") → "thika";
+ *     normalizeRoad("Northern Bypass") → "northern".
+ *
+ *  2. Mombasa Road ↔ Airport North Road
+ *     sz097 (JKIA roundabout approach): OSM names the junction approach road
+ *     "Airport North Road"; road-sign / NTSA designation is "Mombasa Road".
+ *     normalizeRoad("Mombasa Road") → "mombasa";
+ *     normalizeRoad("Airport North Road") → "airport north".
+ */
+const ROAD_ALIASES: ReadonlyArray<ReadonlyArray<string>> = [
+  ["thika", "northern"],
+  ["mombasa", "airport north"],
+];
+
 /** True when the two road names refer to the same road.
  *  Returns FALSE when either side is absent — unknown road = no match,
  *  so alerts are suppressed rather than spilling onto unrelated roads. */
@@ -442,7 +468,13 @@ function roadsMatch(
   const b = normalizeRoad(incidentRoad);
   if (!a || !b) return false;
   // One name containing the other covers "Thika" ↔ "Thika Superhighway" etc.
-  return a === b || a.includes(b) || b.includes(a);
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  // Alias table: known cases where OSM and NTSA use different names for the
+  // same carriageway (e.g. "Northern Bypass" vs "Thika Superhighway" at sz009).
+  for (const group of ROAD_ALIASES) {
+    if (group.includes(a) && group.includes(b)) return true;
+  }
+  return false;
 }
 
 function genId(): string {
