@@ -1949,7 +1949,7 @@ const DriveMapView = forwardRef(function DriveMapView(
         visible={showModerationQueue}
         onClose={() => setShowModerationQueue(false)}
         onFixPin={(qr) => {
-          // Map QueueReport to a minimal CommunityReport for AdminLocationPickerModal
+          // Map AdminReport to a minimal CommunityReport for AdminLocationPickerModal
           const synthetic: CommunityReport = {
             id:        qr.id,
             serverId:  qr.id,
@@ -1962,7 +1962,18 @@ const DriveMapView = forwardRef(function DriveMapView(
             roadName:  qr.roadName ?? undefined,
             adminVerified: qr.adminVerified,
           };
+          setShowModerationQueue(false);
           setAdminLocationTarget(synthetic);
+        }}
+        onViewOnMap={(lat, lng) => {
+          setShowModerationQueue(false);
+          // Brief delay so the modal finishes animating out before the map moves
+          setTimeout(() => {
+            mapRef.current?.animateToRegion(
+              { latitude: lat, longitude: lng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+              700,
+            );
+          }, 350);
         }}
       />
 

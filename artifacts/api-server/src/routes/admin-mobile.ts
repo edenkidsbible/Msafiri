@@ -529,6 +529,64 @@ router.post(
   }
 );
 
+// ─── GET /admin-mobile/reports/all ───────────────────────────────────────────
+// Paginated admin view of ALL community reports (any status).
+// Query params: status, type, page (1-based), limit (default 30).
+router.get(
+  "/admin-mobile/reports/all",
+  adminMobileAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { status, type, page = "1", limit = "30" } = req.query as Record<string, string>;
+      const pageNum  = Math.max(1, parseInt(page,  10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 30));
+      const offset   = (pageNum - 1) * limitNum;
+
+      const { and, eq: eqOp, sql: sqlExpr, count: countFn } = await import("drizzle-orm");
+      const filters = [];
+      if (status && status !== "all") filters.push(eqOp(communityReportsTable.status, status));
+      if (type   && type   !== "all") filters.push(eqOp(communityReportsTable.type,   type));
+      const where = filters.length ? and(...filters) : undefined;
+
+      const [{ total }] = await db
+        .select({ total: countFn() })
+        .from(communityReportsTable)
+        .where(where);
+
+      const rows = await db
+        .select()
+        .from(communityReportsTable)
+        .where(where)
+        .orderBy(desc(communityReportsTable.createdAt))
+        .limit(limitNum)
+        .offset(offset);
+
+      return res.json({
+        total:   Number(total),
+        page:    pageNum,
+        limit:   limitNum,
+        reports: rows.map((r) => ({
+          id:           r.id,
+          type:         r.type,
+          lat:          r.lat,
+          lng:          r.lng,
+          status:       r.status,
+          roadName:     r.roadName,
+          speedLimit:   r.speedLimit,
+          flagCount:    r.flagCount,
+          confirmCount: r.confirmCount,
+          denyCount:    r.denyCount,
+          adminVerified: r.adminVerified,
+          createdAt:    r.createdAt.toISOString(),
+        })),
+      });
+    } catch (err) {
+      console.error("[admin-mobile/reports/all]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 // ─── POST /admin-mobile/zones/sync-static ────────────────────────────────────
 // One-time backfill: reads every speedZonesTable row that has a staticId and
 // calls patchStaticZoneFile for each one.  This bakes all past admin relocations
