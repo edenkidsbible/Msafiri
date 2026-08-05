@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
@@ -24,6 +24,37 @@ import type { CommunityReport } from "@/context/AppContext";
 import { formatTimeAgo } from "@/lib/timeAgo";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
+
+// ── Camera helpers (mirrored from DriveMapView) ───────────────────────────────
+
+// Fixed zoom delta used during active navigation on this screen.
+// 0.007 ≈ 700 m visible — enough road ahead at city / highway speeds.
+const NAV_DELTA = 0.007;
+
+// Low-pass filter for heading — handles 360°/0° wraparound.
+function smoothHeading(current: number | null, target: number, alpha = 0.25): number {
+  if (current == null) return target;
+  let diff = target - current;
+  if (diff >  180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return (current + diff * alpha + 360) % 360;
+}
+
+// Offset the map centre forward along the driver's heading so the road ahead
+// fills the screen rather than the driver sitting dead-centre.
+// LOOK_AHEAD_K = 0.25 → driver sits ≈ 25 % from the bottom edge.
+const LOOK_AHEAD_K = 0.25;
+function lookAheadCenter(
+  lat: number, lng: number,
+  heading: number | null, delta: number,
+): { latitude: number; longitude: number } {
+  if (heading == null) return { latitude: lat, longitude: lng };
+  const hdgRad = (heading * Math.PI) / 180;
+  return {
+    latitude:  lat + delta * LOOK_AHEAD_K * Math.cos(hdgRad),
+    longitude: lng + delta * LOOK_AHEAD_K * Math.sin(hdgRad),
+  };
+}
 
 // Colored circle icon marker — supports Ionicons and MaterialCommunityIcons
 function MarkerIcon({
@@ -195,7 +226,7 @@ export default function MapViewScreen() {
     showTraffic, setShowTraffic,
     vehicleType, allZones,
     confirmReport, denyReport, flagReport,
-    driverHeading,
+    driverHeading, currentSpeed,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
     routeIncidentsAhead, setRouteIncidentsExpanded,
@@ -243,6 +274,105 @@ export default function MapViewScreen() {
   const openedAtRef = useRef(0);
   const now = Date.now();
 
+  // ── Look-ahead camera refs ──────────────────────────────────────────────────
+  // Low-pass smoothed heading for the camera — avoids snap-rotations when GPS
+  // bearing jumps.  null = not yet initialised.
+  const camHeadingRef        = useRef<number | null>(null);
+  // Tracks previous navigationActive so the effect detects the start/end transition.
+  const prevNavActiveRef     = useRef(navigationActive);
+  // Ref mirror of mapDrifted so callbacks don't capture stale state.
+  const mapDriftedRef        = useRef(false);
+  // Mounted guard — all deferred native calls check this before running.
+  const mountedRef           = useRef(true);
+  // iOS heading channel: last heading actually sent to MapKit.
+  const lastAnimatedHdgRef   = useRef<number | null>(null);
+  // iOS heading interval ID.
+  const headingIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Keep mapDriftedRef in sync with the state value.
+  useEffect(() => { mapDriftedRef.current = mapDrifted; }, [mapDrifted]);
+
+  // Unmount cleanup — cancel any pending interval.
+  useEffect(() => () => {
+    mountedRef.current = false;
+    if (headingIntervalRef.current) clearInterval(headingIntervalRef.current);
+  }, []);
+
+  // ── iOS heading channel ─────────────────────────────────────────────────────
+  // On iOS, combining `heading` with `center` in animateCamera causes a MapKit
+  // composite-animation crash at speed.  Send heading-only updates on a
+  // separate 1500 ms interval instead (same pattern as DriveMapView).
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    if (headingIntervalRef.current) { clearInterval(headingIntervalRef.current); headingIntervalRef.current = null; }
+    if (!navigationActive) return;
+    headingIntervalRef.current = setInterval(() => {
+      if (!mountedRef.current || mapDriftedRef.current) return;
+      const hdg = camHeadingRef.current;
+      if (hdg == null) return;
+      const prev  = lastAnimatedHdgRef.current;
+      const delta = prev == null ? 360 : Math.abs(((hdg - prev) + 540) % 360 - 180);
+      if (delta < 2) return;
+      lastAnimatedHdgRef.current = hdg;
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: 800 });
+    }, 1500);
+    return () => { if (headingIntervalRef.current) { clearInterval(headingIntervalRef.current); headingIntervalRef.current = null; } };
+  }, [navigationActive]);
+
+  // ── GPS-follow camera with look-ahead ──────────────────────────────────────
+  // During active navigation: keep the driver in the lower quarter of the
+  // screen so the road ahead is always visible.  Pauses when the driver pans
+  // (mapDrifted) and resumes when they tap Recenter.
+  useEffect(() => {
+    const wasActive = prevNavActiveRef.current;
+    prevNavActiveRef.current = navigationActive;
+
+    if (!navigationActive) {
+      if (wasActive) {
+        // Nav ended — restore north-up.
+        camHeadingRef.current = 0;
+        mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
+      }
+      return;
+    }
+
+    if (currentLat == null || currentLng == null) return;
+
+    // Nav just started — zoom in and orient to heading.
+    if (!wasActive) {
+      const initialHdg = (driverHeading != null && driverHeading >= 0) ? driverHeading : 0;
+      camHeadingRef.current      = initialHdg;
+      lastAnimatedHdgRef.current = null;
+      const center = lookAheadCenter(currentLat, currentLng, initialHdg, NAV_DELTA);
+      mapRef.current?.animateToRegion(
+        { ...center, latitudeDelta: NAV_DELTA, longitudeDelta: NAV_DELTA }, 400,
+      );
+      if (initialHdg > 0) {
+        setTimeout(() => {
+          if (mountedRef.current) mapRef.current?.animateCamera({ heading: initialHdg }, { duration: 300 });
+        }, 450);
+      }
+      return;
+    }
+
+    // Normal follow — skip when drifted or stationary.
+    if (mapDriftedRef.current) return;
+    if ((currentSpeed ?? 0) < 3) return;
+
+    // Advance smoothed heading.
+    if (driverHeading != null && driverHeading >= 0) {
+      camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
+    }
+
+    const center = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, NAV_DELTA);
+    // iOS: position only — heading sent by the 1500 ms interval to avoid
+    // MapKit composite-animation crash.  Android: combined update at 1 Hz.
+    const update: { center: typeof center; heading?: number } = { center };
+    if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+      update.heading = camHeadingRef.current;
+    }
+    mapRef.current?.animateCamera(update, { duration: 300 });
+  }, [navigationActive, currentLat, currentLng, driverHeading, currentSpeed]);
 
   // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
   // for the full explanation. The freeze optimisation caused tap hit-detection
@@ -353,11 +483,27 @@ export default function MapViewScreen() {
 
   const centerOnUser = () => {
     if (mapRef.current && currentLat && currentLng) {
-      mapRef.current.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.04, longitudeDelta: 0.04 },
-        600
-      );
+      if (navigationActive) {
+        // During navigation: apply the look-ahead offset so the road ahead
+        // stays visible, then restore heading-up orientation.
+        const hdg    = camHeadingRef.current;
+        const center = lookAheadCenter(currentLat, currentLng, hdg, NAV_DELTA);
+        mapRef.current.animateToRegion(
+          { ...center, latitudeDelta: NAV_DELTA, longitudeDelta: NAV_DELTA }, 600,
+        );
+        if (hdg != null && hdg > 0) {
+          setTimeout(() => {
+            if (mountedRef.current) mapRef.current?.animateCamera({ heading: hdg }, { duration: 300 });
+          }, 650);
+        }
+      } else {
+        mapRef.current.animateToRegion(
+          { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.04, longitudeDelta: 0.04 },
+          600,
+        );
+      }
     }
+    mapDriftedRef.current = false;
     setMapDrifted(false);
   };
 
@@ -388,7 +534,7 @@ export default function MapViewScreen() {
         showsMyLocationButton={false}
         showsCompass
         showsTraffic={showTraffic}
-        onPanDrag={() => setMapDrifted(true)}
+        onPanDrag={() => { mapDriftedRef.current = true; setMapDrifted(true); }}
       >
         {/* Speed zone markers — null-guard coordinates to prevent the iOS
             NSInvalidArgumentException crash when lat/lng is null/undefined.
