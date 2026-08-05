@@ -27,11 +27,14 @@ import type {
   AdminBulkReportResult,
   AdminChangePasswordInput,
   AdminDeleteBlogPost200,
+  AdminDeletePoi200,
+  AdminDeletePoiParams,
   AdminExportReportsParams,
   AdminGlobalSearchParams,
   AdminKeepFlaggedReport200,
   AdminListAuditLogsParams,
   AdminListBlogPostsParams,
+  AdminListPoisParams,
   AdminListReportsParams,
   AdminListSpeedZonesParams,
   AdminLoginInput,
@@ -40,6 +43,8 @@ import type {
   AdminModerationActionResult,
   AdminModerationQueue,
   AdminNotificationList,
+  AdminPoi,
+  AdminPoiList,
   AdminReport,
   AdminReportImportInput,
   AdminReportImportResult,
@@ -67,6 +72,7 @@ import type {
   BlogPostFull,
   BlogPostList,
   BlogStats,
+  CreatePoiInput,
   DeleteResult,
   DeregisterPushTokenInput,
   GetAppVersionParams,
@@ -82,7 +88,8 @@ import type {
   SpeedZonePublicList,
   SpeedZoneUpdate,
   SuccessResult,
-  UpdateAppSettingsInput
+  UpdateAppSettingsInput,
+  UpdatePoiInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -4836,4 +4843,308 @@ export function useAdminGetBlogStats<TData = Awaited<ReturnType<typeof adminGetB
 
 
 
+
+export const getAdminListPoisUrl = (params?: AdminListPoisParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/pois?${stringifiedParams}` : `/api/admin/pois`
+}
+
+/**
+ * @summary List POIs (paginated, filterable)
+ */
+export const adminListPois = async (params?: AdminListPoisParams, options?: RequestInit): Promise<AdminPoiList> => {
+
+  return customFetch<AdminPoiList>(getAdminListPoisUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListPoisQueryKey = (params?: AdminListPoisParams,) => {
+    return [
+    `/api/admin/pois`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListPoisQueryOptions = <TData = Awaited<ReturnType<typeof adminListPois>>, TError = ErrorType<void>>(params?: AdminListPoisParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListPoisQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListPois>>> = ({ signal }) => adminListPois(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListPoisQueryResult = NonNullable<Awaited<ReturnType<typeof adminListPois>>>
+export type AdminListPoisQueryError = ErrorType<void>
+
+
+/**
+ * @summary List POIs (paginated, filterable)
+ */
+
+export function useAdminListPois<TData = Awaited<ReturnType<typeof adminListPois>>, TError = ErrorType<void>>(
+ params?: AdminListPoisParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListPoisQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminCreatePoiUrl = () => {
+
+
+
+
+  return `/api/admin/pois`
+}
+
+/**
+ * @summary Create a POI
+ */
+export const adminCreatePoi = async (createPoiInput: CreatePoiInput, options?: RequestInit): Promise<AdminPoi> => {
+
+  return customFetch<AdminPoi>(getAdminCreatePoiUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPoiInput)
+  }
+);}
+
+
+
+
+export const getAdminCreatePoiMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreatePoi>>, TError,{data: BodyType<CreatePoiInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreatePoi>>, TError,{data: BodyType<CreatePoiInput>}, TContext> => {
+
+const mutationKey = ['adminCreatePoi'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreatePoi>>, {data: BodyType<CreatePoiInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreatePoi(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreatePoiMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreatePoi>>>
+    export type AdminCreatePoiMutationBody = BodyType<CreatePoiInput>
+    export type AdminCreatePoiMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a POI
+ */
+export const useAdminCreatePoi = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreatePoi>>, TError,{data: BodyType<CreatePoiInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreatePoi>>,
+        TError,
+        {data: BodyType<CreatePoiInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreatePoiMutationOptions(options));
+    }
+
+export const getAdminUpdatePoiUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/pois/${id}`
+}
+
+/**
+ * @summary Update a POI
+ */
+export const adminUpdatePoi = async (id: string,
+    updatePoiInput: UpdatePoiInput, options?: RequestInit): Promise<AdminPoi> => {
+
+  return customFetch<AdminPoi>(getAdminUpdatePoiUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePoiInput)
+  }
+);}
+
+
+
+
+export const getAdminUpdatePoiMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdatePoi>>, TError,{id: string;data: BodyType<UpdatePoiInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdatePoi>>, TError,{id: string;data: BodyType<UpdatePoiInput>}, TContext> => {
+
+const mutationKey = ['adminUpdatePoi'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdatePoi>>, {id: string;data: BodyType<UpdatePoiInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdatePoi(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdatePoiMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdatePoi>>>
+    export type AdminUpdatePoiMutationBody = BodyType<UpdatePoiInput>
+    export type AdminUpdatePoiMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a POI
+ */
+export const useAdminUpdatePoi = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdatePoi>>, TError,{id: string;data: BodyType<UpdatePoiInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdatePoi>>,
+        TError,
+        {id: string;data: BodyType<UpdatePoiInput>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdatePoiMutationOptions(options));
+    }
+
+export const getAdminDeletePoiUrl = (id: string,
+    params?: AdminDeletePoiParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/pois/${id}?${stringifiedParams}` : `/api/admin/pois/${id}`
+}
+
+/**
+ * @summary Deactivate (soft-delete) a POI, or hard-delete with ?hard=1
+ */
+export const adminDeletePoi = async (id: string,
+    params?: AdminDeletePoiParams, options?: RequestInit): Promise<AdminDeletePoi200> => {
+
+  return customFetch<AdminDeletePoi200>(getAdminDeletePoiUrl(id,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeletePoiMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeletePoi>>, TError,{id: string;params?: AdminDeletePoiParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeletePoi>>, TError,{id: string;params?: AdminDeletePoiParams}, TContext> => {
+
+const mutationKey = ['adminDeletePoi'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeletePoi>>, {id: string;params?: AdminDeletePoiParams}> = (props) => {
+          const {id,params} = props ?? {};
+
+          return  adminDeletePoi(id,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeletePoiMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeletePoi>>>
+
+    export type AdminDeletePoiMutationError = ErrorType<void>
+
+    /**
+ * @summary Deactivate (soft-delete) a POI, or hard-delete with ?hard=1
+ */
+export const useAdminDeletePoi = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeletePoi>>, TError,{id: string;params?: AdminDeletePoiParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeletePoi>>,
+        TError,
+        {id: string;params?: AdminDeletePoiParams},
+        TContext
+      > => {
+      return useMutation(getAdminDeletePoiMutationOptions(options));
+    }
 

@@ -1396,6 +1396,115 @@ paths:
               schema:
                 $ref: "#/components/schemas/BlogStats"
 
+  /admin/pois:
+    get:
+      operationId: adminListPois
+      tags: [admin-pois]
+      summary: List POIs (paginated, filterable)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: type
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200":
+          description: POI list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPoiList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: adminCreatePoi
+      tags: [admin-pois]
+      summary: Create a POI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePoiInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPoi"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /admin/pois/{id}:
+    patch:
+      operationId: adminUpdatePoi
+      tags: [admin-pois]
+      summary: Update a POI
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePoiInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPoi"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: adminDeletePoi
+      tags: [admin-pois]
+      summary: Deactivate (soft-delete) a POI, or hard-delete with ?hard=1
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: hard
+          schema: { type: string, enum: ["1"] }
+      responses:
+        "200":
+          description: Deactivated or deleted
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/AdminPoi"
+                  - type: object
+                    properties:
+                      deleted: { type: boolean }
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -2119,6 +2228,59 @@ components:
       properties:
         navigationEnabled:
           type: boolean
+
+    AdminPoi:
+      type: object
+      required: [id, name, brand, type, lat, lng, address, status, createdAt, updatedAt]
+      properties:
+        id:        { type: string }
+        name:      { type: string }
+        brand:     { type: string }
+        type:      { type: string }
+        lat:       { type: number }
+        lng:       { type: number }
+        address:   { type: string }
+        hours:     { type: string, nullable: true }
+        status:    { type: string }
+        staticId:  { type: string, nullable: true }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    AdminPoiList:
+      type: object
+      required: [pois, total, page, limit]
+      properties:
+        pois:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPoi"
+        total: { type: integer }
+        page:  { type: integer }
+        limit: { type: integer }
+
+    CreatePoiInput:
+      type: object
+      required: [name, brand, type, lat, lng, address]
+      properties:
+        name:    { type: string }
+        brand:   { type: string }
+        type:    { type: string }
+        lat:     { type: number }
+        lng:     { type: number }
+        address: { type: string }
+        hours:   { type: string }
+
+    UpdatePoiInput:
+      type: object
+      properties:
+        name:    { type: string }
+        brand:   { type: string }
+        type:    { type: string }
+        lat:     { type: number }
+        lng:     { type: number }
+        address: { type: string }
+        hours:   { type: string, nullable: true }
+        status:  { type: string }
 
     BlogStats:
       type: object

@@ -1383,3 +1383,127 @@ export const AdminGetBlogStatsResponse = zod.object({
 })
 
 
+/**
+ * @summary List POIs (paginated, filterable)
+ */
+export const AdminListPoisQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "type": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const AdminListPoisResponse = zod.object({
+  "pois": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "address": zod.string(),
+  "hours": zod.string().nullish(),
+  "status": zod.string(),
+  "staticId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create a POI
+ */
+export const AdminCreatePoiBody = zod.object({
+  "name": zod.string(),
+  "brand": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "address": zod.string(),
+  "hours": zod.string().optional()
+})
+
+export const AdminCreatePoiResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "address": zod.string(),
+  "hours": zod.string().nullish(),
+  "status": zod.string(),
+  "staticId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a POI
+ */
+export const AdminUpdatePoiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminUpdatePoiBody = zod.object({
+  "name": zod.string().optional(),
+  "brand": zod.string().optional(),
+  "type": zod.string().optional(),
+  "lat": zod.number().optional(),
+  "lng": zod.number().optional(),
+  "address": zod.string().optional(),
+  "hours": zod.string().nullish(),
+  "status": zod.string().optional()
+})
+
+export const AdminUpdatePoiResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "address": zod.string(),
+  "hours": zod.string().nullish(),
+  "status": zod.string(),
+  "staticId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Deactivate (soft-delete) a POI, or hard-delete with ?hard=1
+ */
+export const AdminDeletePoiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeletePoiQueryParams = zod.object({
+  "hard": zod.enum(['1']).optional()
+})
+
+export const AdminDeletePoiResponse = zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "brand": zod.string(),
+  "type": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "address": zod.string(),
+  "hours": zod.string().nullish(),
+  "status": zod.string(),
+  "staticId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),zod.object({
+  "deleted": zod.boolean().optional()
+})])
+
+

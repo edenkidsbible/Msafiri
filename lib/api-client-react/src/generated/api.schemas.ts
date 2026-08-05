@@ -630,6 +630,49 @@ export interface UpdateAppSettingsInput {
   navigationEnabled?: boolean;
 }
 
+export interface AdminPoi {
+  id: string;
+  name: string;
+  brand: string;
+  type: string;
+  lat: number;
+  lng: number;
+  address: string;
+  hours?: string | null;
+  status: string;
+  staticId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminPoiList {
+  pois: AdminPoi[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CreatePoiInput {
+  name: string;
+  brand: string;
+  type: string;
+  lat: number;
+  lng: number;
+  address: string;
+  hours?: string;
+}
+
+export interface UpdatePoiInput {
+  name?: string;
+  brand?: string;
+  type?: string;
+  lat?: number;
+  lng?: number;
+  address?: string;
+  hours?: string | null;
+  status?: string;
+}
+
 export type BlogStatsTopPostsItem = {
   id?: string;
   slug?: string;
@@ -710,5 +753,28 @@ status?: string;
 
 export type AdminDeleteBlogPost200 = {
   success?: boolean;
+};
+
+export type AdminListPoisParams = {
+page?: number;
+limit?: number;
+type?: string;
+status?: string;
+search?: string;
+};
+
+export type AdminDeletePoiParams = {
+hard?: AdminDeletePoiHard;
+};
+
+export type AdminDeletePoiHard = typeof AdminDeletePoiHard[keyof typeof AdminDeletePoiHard];
+
+
+export const AdminDeletePoiHard = {
+  NUMBER_1: '1',
+} as const;
+
+export type AdminDeletePoi200 = AdminPoi | {
+  deleted?: boolean;
 };
 
