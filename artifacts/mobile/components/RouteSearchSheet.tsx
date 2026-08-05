@@ -91,7 +91,29 @@ function projectAhead(
   return poiDist - driverDist;
 }
 
-// ── Overpass ──────────────────────────────────────────────────────────────────
+// ── Google Places nearby (primary) ────────────────────────────────────────────
+
+const GOOGLE_FETCH_TIMEOUT_MS = 9_000;
+
+async function queryGoogleNearby(
+  cat: QueryCategory,
+  lat: number,
+  lng: number,
+  radiusM: number,
+): Promise<Array<{ place_id: string; name: string; formatted_address: string; geometry: { location: { lat: number; lng: number } } }>> {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "";
+  const base   = domain ? `https://${domain}/api` : "/api";
+  const url =
+    `${base}/places/nearby` +
+    `?lat=${lat}&lng=${lng}&radius=${Math.round(radiusM)}&category=${cat}`;
+  const res  = await fetchWithTimeout(url, {}, GOOGLE_FETCH_TIMEOUT_MS);
+  if (!res.ok) throw new Error(`nearby HTTP ${res.status}`);
+  const data = await res.json() as { results?: any[]; error?: string };
+  if (data.error) throw new Error(data.error);
+  return data.results ?? [];
+}
+
+// ── Overpass (fallback) ───────────────────────────────────────────────────────
 
 const OVERPASS_MIRRORS = [
   "https://overpass-api.de/api/interpreter",
@@ -271,7 +293,7 @@ interface RawElement {
 }
 
 interface POIResult {
-  id: number;
+  id: string | number; // Overpass uses integer ids; Google results use "g_<place_id>"
   name: string;
   subtype: string;
   subtypeColor: string;
@@ -376,42 +398,83 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
         radiusM = 5_000;
       }
 
-      const elements = await queryOverpass(cat, currentLat, currentLng, radiusM);
       const catDef = CATEGORIES[cat];
 
-      const found: POIResult[] = [];
-      for (const el of elements) {
-        const lat = el.lat ?? el.center?.lat;
-        const lng = el.lon ?? el.center?.lon;
-        if (lat == null || lng == null) continue;
-        const tags    = el.tags ?? {};
-        const name    = tags.name || tags["name:en"] || tags.brand || tags.operator || catDef.defaultName;
-        const address = [
-          tags["addr:housenumber"],
-          tags["addr:street"],
-          tags["addr:city"] || tags["addr:suburb"],
-        ].filter(Boolean).join(", ");
+      // ── Primary: Google Places Nearby Search ──────────────────────────────
+      // Falls back to Overpass on any error OR if Google returns zero results.
+      let found: POIResult[] = [];
+      let usedGoogle = false;
 
-        let distAheadM: number;
-        if (activeRoute) {
-          // Project onto route polyline — negative means behind the driver.
-          distAheadM = projectAhead(activeRoute.coords, currentLat, currentLng, lat, lng);
-          if (distAheadM < -500) continue; // skip if >500 m behind
-        } else {
-          // No route — straight-line distance from current location.
-          distAheadM = hav(currentLat, currentLng, lat, lng);
+      try {
+        const googleResults = await queryGoogleNearby(cat, currentLat, currentLng, radiusM);
+        if (googleResults.length > 0) {
+          usedGoogle = true;
+          let idCounter = 100_000; // distinct range from Overpass integer ids
+          for (const r of googleResults) {
+            const lat = r.geometry?.location?.lat;
+            const lng = r.geometry?.location?.lng;
+            if (lat == null || lng == null) continue;
+
+            let distAheadM: number;
+            if (activeRoute) {
+              distAheadM = projectAhead(activeRoute.coords, currentLat, currentLng, lat, lng);
+              if (distAheadM < -500) continue; // skip if >500 m behind
+            } else {
+              distAheadM = hav(currentLat, currentLng, lat, lng);
+            }
+
+            found.push({
+              // Prefix place_id with "g_" to guarantee no collision with Overpass
+              // integer ids when used as FlatList keys.
+              id: r.place_id ? (`g_${r.place_id}` as unknown as number) : idCounter++,
+              name: r.name || catDef.defaultName,
+              subtype: catDef.label,
+              subtypeColor: catDef.color,
+              address: r.formatted_address ?? "",
+              lat,
+              lng,
+              distAheadM,
+            });
+          }
         }
+      } catch {
+        // Google failed — fall through to Overpass below
+      }
 
-        found.push({
-          id: el.id,
-          name,
-          subtype: catDef.label,
-          subtypeColor: catDef.color,
-          address,
-          lat,
-          lng,
-          distAheadM,
-        });
+      // ── Fallback: Overpass ────────────────────────────────────────────────
+      if (!usedGoogle) {
+        const elements = await queryOverpass(cat, currentLat, currentLng, radiusM);
+        for (const el of elements) {
+          const lat = el.lat ?? el.center?.lat;
+          const lng = el.lon ?? el.center?.lon;
+          if (lat == null || lng == null) continue;
+          const tags    = el.tags ?? {};
+          const name    = tags.name || tags["name:en"] || tags.brand || tags.operator || catDef.defaultName;
+          const address = [
+            tags["addr:housenumber"],
+            tags["addr:street"],
+            tags["addr:city"] || tags["addr:suburb"],
+          ].filter(Boolean).join(", ");
+
+          let distAheadM: number;
+          if (activeRoute) {
+            distAheadM = projectAhead(activeRoute.coords, currentLat, currentLng, lat, lng);
+            if (distAheadM < -500) continue;
+          } else {
+            distAheadM = hav(currentLat, currentLng, lat, lng);
+          }
+
+          found.push({
+            id: el.id,
+            name,
+            subtype: catDef.label,
+            subtypeColor: catDef.color,
+            address,
+            lat,
+            lng,
+            distAheadM,
+          });
+        }
       }
 
       found.sort((a, b) => a.distAheadM - b.distAheadM);
