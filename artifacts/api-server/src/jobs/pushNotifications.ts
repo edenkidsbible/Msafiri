@@ -360,6 +360,13 @@ async function checkDailyTriggers(): Promise<void> {
 // every window that has already passed today and immediately send any that were
 // missed. alreadySentToday() still guards against duplicates, so this is safe
 // even if the server restarts multiple times in a day.
+//
+// Staleness gate: only catch up if the window closed ≤ 90 minutes ago.
+// A "Good morning!" notification at 2 PM after a long outage is confusing and
+// annoying — if the server was down for more than 90 minutes it's better to
+// simply skip that window and let the next scheduled one fire normally.
+const MAX_CATCHUP_LAG_MIN = 90;
+
 async function catchUpMissedTriggers(): Promise<void> {
   const now = new Date();
   const eat = toEat(now);
@@ -370,38 +377,43 @@ async function catchUpMissedTriggers(): Promise<void> {
   const eatTotalMin = eatHour * 60 + eatMin;
   const weekend = isWeekendDay(eatDay);
 
+  // Helper: true if window closed recently enough to be worth catching up.
+  const freshEnough = (windowCloseMin: number) =>
+    eatTotalMin > windowCloseMin &&
+    eatTotalMin - windowCloseMin <= MAX_CATCHUP_LAG_MIN;
+
   // Morning window closed at 06:05 EAT
-  if (eatTotalMin > 6 * 60 + 5) {
+  if (freshEnough(6 * 60 + 5)) {
     const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
     await sendAutoCampaign("daily_morning", msg.title, msg.body);
   }
 
   // Midday window closed at 13:05 EAT
-  if (eatTotalMin > 13 * 60 + 5) {
+  if (freshEnough(13 * 60 + 5)) {
     const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
     await sendAutoCampaign("daily_midday", msg.title, msg.body);
   }
 
   // Evening window closed at 16:35 EAT
-  if (eatTotalMin > 16 * 60 + 35) {
+  if (freshEnough(16 * 60 + 35)) {
     const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
     await sendAutoCampaign("daily_evening", msg.title, msg.body);
   }
 
   // Weekend night safety window closed at 21:05 EAT (Fri & Sat only)
-  if (isNightSafetyDay(eatDay) && eatTotalMin > 21 * 60 + 5) {
+  if (isNightSafetyDay(eatDay) && freshEnough(21 * 60 + 5)) {
     const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
     await sendAutoCampaign("weekend_night_safety", msg.title, msg.body);
   }
 
   // Wednesday engagement window closed at 12:05 EAT
-  if (eatDay === 3 && eatTotalMin > 12 * 60 + 5) {
+  if (eatDay === 3 && freshEnough(12 * 60 + 5)) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
     await sendAutoCampaign("engagement", msg.title, msg.body);
   }
 
   // Re-engagement window closed at 10:05 EAT
-  if (eatTotalMin > 10 * 60 + 5) {
+  if (freshEnough(10 * 60 + 5)) {
     await checkReengagement();
   }
 }

@@ -2373,9 +2373,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // distToDest and trigger a completely false "You have arrived" popup.
         const rerouteSettled = Date.now() > rerouteSettledUntilRef.current;
         const arrived = rerouteSettled && (
-          isLastStep
-            ? (dist < ARRIVAL_DIST || distToDest < ARRIVAL_DIST)
-            : dist < STEP_ADVANCE_DIST
+          // Destination-proximity check runs on EVERY step, not just the last.
+          // Without this, a reroute that resets stepIdx to 0 combined with the
+          // 5 s arrival-suppression window can leave the driver physically past
+          // all intermediate maneuver points before steps start advancing —
+          // isLastStep never becomes true and arrival is never detected.
+          distToDest < ARRIVAL_DIST
+          || (isLastStep
+            ? dist < ARRIVAL_DIST
+            : dist < STEP_ADVANCE_DIST)
         );
 
         if (arrived) {
@@ -3649,10 +3655,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNavigationActive(true);
     // Friendly Yna Agalo briefing — fire-and-forget, non-blocking.
     speakNavStart().catch(() => {});
-    // Start the iOS background location task so GPS keeps flowing when the
-    // driver locks the screen. Fire-and-forget — failure is non-fatal (the
-    // foreground watcher still works; the bg task just adds resilience).
-    startBackgroundNavTask().catch(() => {});
+    // NOTE: startBackgroundNavTask() is intentionally NOT called here.
+    // Calling Location.startLocationUpdatesAsync() from the foreground on iOS
+    // (especially with New Architecture / JSI enabled) crashes the native
+    // location engine. The AppState listener below handles starting the
+    // background task at the correct moment — when the app transitions to
+    // background/inactive, which is the only context iOS expects it in.
   }, []); // no closure dependencies — activeRoute replaced by routeRef.current
 
   const stopNavigation = useCallback((reason?: "arrived" | "manual" | "timeout") => {
