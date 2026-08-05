@@ -4248,7 +4248,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCommunityReports((prev) =>
       prev.map((r) =>
         r.id === id || r.serverId === serverId
-          ? { ...r, adminVerified: true, status: "confirmed" as const, confirmCount: 999 }
+          ? { ...r, adminVerified: true, status: "confirmed" as const, confirmCount: Math.floor(Math.random() * 45) + 5 }
           : r
       )
     );

@@ -70,7 +70,7 @@ router.post("/admin-mobile/auth", (req: Request, res: Response) => {
 
 // ─── POST /admin-mobile/reports/:id/verify ───────────────────────────────────
 // Mark a report as admin-verified: adminVerified=true, status=confirmed,
-// confirmCount=999, expiresAt=null (no expiry).
+// confirmCount=random 5-49, expiresAt=null (no expiry).
 router.post(
   "/admin-mobile/reports/:id/verify",
   adminMobileAuth,
@@ -82,7 +82,7 @@ router.post(
 
       const [updated] = await db
         .update(communityReportsTable)
-        .set({ adminVerified: true, status: "confirmed", confirmCount: 999, expiresAt: null })
+        .set({ adminVerified: true, status: "confirmed", confirmCount: Math.floor(Math.random() * 45) + 5, expiresAt: null })
         .where(eq(communityReportsTable.id, id))
         .returning();
 
