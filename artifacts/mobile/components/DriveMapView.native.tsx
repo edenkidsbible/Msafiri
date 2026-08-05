@@ -404,16 +404,22 @@ const DriveMapView = forwardRef(function DriveMapView(
   // null = not yet initialised (use raw target on first fix).
   const camHeadingRef = useRef<number | null>(null);
 
-  // The heading value most recently passed to animateCamera.  On iOS, Apple
-  // Maps (MapKit) runs a combined pan + compass-rotation animation whenever
-  // `heading` is included in an animateCamera call.  At 20+ km/h, GPS bearing
-  // becomes valid and every 1 Hz GPS tick fires a rotation-inclusive camera
-  // update — MapKit repeatedly cancels an in-progress composite animation and
-  // starts a new one.  This composite-cancel storm is a known MapKit crash
-  // path; Google Maps (Android) queues cancellations gracefully, MapKit does
-  // not.  Throttle: only include `heading` in the camera update when the
-  // smoothed value has changed ≥ 3° from the last animated heading.
+  // The heading value most recently passed to the iOS heading-only interval
+  // animateCamera call (see below).  Used to suppress calls when heading has
+  // not changed enough to bother MapKit.
   const lastAnimatedHeadingRef = useRef<number | null>(null);
+
+  // iOS-only: interval ID for the dedicated heading channel.  On iOS, Apple
+  // Maps (MapKit) crashes when `heading` is combined with `center` in a single
+  // animateCamera call at 1 Hz+ (it runs a composite pan + compass-rotation
+  // animation and crashes when forced to cancel that composite on every tick).
+  // Fix: position and heading are completely separate animation channels.
+  //  • Position channel — animateCamera({ center }) only, every GPS tick, safe.
+  //  • Heading channel  — animateCamera({ heading }) only, every 1500 ms via
+  //    setInterval, safe at any speed/cornering rate.
+  // Google Maps (Android) handles combined updates gracefully, so Android keeps
+  // the existing single-call animateCamera({ center, heading }) path.
+  const headingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // The latitudeDelta currently displayed on screen.  Only changes after the
   // target zoom band has been sustained for ZOOM_SUSTAIN_MS milliseconds so
@@ -451,8 +457,44 @@ const DriveMapView = forwardRef(function DriveMapView(
   useEffect(() => () => {
     mountedRef.current = false;
     if (postNavFitTimerRef.current) clearTimeout(postNavFitTimerRef.current);
-    if (headingTimerRef.current) clearTimeout(headingTimerRef.current);
+    if (headingTimerRef.current)    clearTimeout(headingTimerRef.current);
+    if (headingIntervalRef.current) clearInterval(headingIntervalRef.current);
   }, []);
+
+  // iOS heading channel — fires a standalone animateCamera({ heading }) every
+  // 1500 ms while navigation is active.  This is the ONLY place heading is
+  // sent to MapKit during active navigation; the position-follow effect never
+  // includes heading on iOS.  Standalone rotation animations are stable in
+  // MapKit at any speed/cornering rate; only combined pan+rotation crashes it.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    if (headingIntervalRef.current) {
+      clearInterval(headingIntervalRef.current);
+      headingIntervalRef.current = null;
+    }
+    if (!navigationActive) return;
+
+    headingIntervalRef.current = setInterval(() => {
+      if (!mountedRef.current || mapDriftedRef.current) return;
+      const hdg = camHeadingRef.current;
+      if (hdg == null) return;
+      // Suppress if heading hasn't changed enough to be visible on screen.
+      const prev  = lastAnimatedHeadingRef.current;
+      const delta = prev == null
+        ? 360
+        : Math.abs(((hdg - prev) + 540) % 360 - 180);
+      if (delta < 2) return;
+      lastAnimatedHeadingRef.current = hdg;
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: 800 });
+    }, 1500);
+
+    return () => {
+      if (headingIntervalRef.current) {
+        clearInterval(headingIntervalRef.current);
+        headingIntervalRef.current = null;
+      }
+    };
+  }, [navigationActive]);
   /** Schedule a delayed heading animation, replacing any pending one and
    *  guarding against unmount races. */
   const scheduleHeadingAnim = useCallback((heading: number, delayMs: number, durationMs: number) => {
@@ -806,22 +848,26 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     // ── Normal navigation follow ─────────────────────────────────────────
     // Stationary freeze: don't pan when the driver is parked and GPS position
-    // hasn't moved meaningfully.  Still allow heading to drift slowly.
+    // hasn't moved meaningfully.
     const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
     if (isStationary && camLatRef.current != null && camLngRef.current != null) {
       const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
       if (moved < STATIONARY_MOVE_M) {
-        // Parked: only softly update heading when it has drifted enough to
-        // notice on screen AND changed from the last value sent to MapKit.
+        // Still advance camHeadingRef even when parked so the iOS heading
+        // interval and the Android heading-in-position call both have a fresh
+        // smoothed value to work from.
         if (driverHeading != null && driverHeading >= 0) {
           const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
-          const hdgDeltaFromCamera = Math.abs(smoothedHdg - (camHeadingRef.current ?? smoothedHdg));
-          const hdgDeltaFromLast   = lastAnimatedHeadingRef.current == null
-            ? 360 : Math.abs(((smoothedHdg - lastAnimatedHeadingRef.current) + 540) % 360 - 180);
-          if (hdgDeltaFromCamera > 1.5 && hdgDeltaFromLast >= 3) {
-            camHeadingRef.current          = smoothedHdg;
-            lastAnimatedHeadingRef.current = smoothedHdg;
-            mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
+          camHeadingRef.current = smoothedHdg;
+          // Android only: send a slow heading-only update while parked so the
+          // map rotates to match the driver's bearing.  On iOS the 1500 ms
+          // interval handles this without combining with position.
+          if (Platform.OS !== "ios") {
+            const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
+            if (hdgDelta > 1.5) {
+              lastAnimatedHeadingRef.current = smoothedHdg;
+              mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
+            }
           }
         }
         return;
@@ -830,37 +876,15 @@ const DriveMapView = forwardRef(function DriveMapView(
     camLatRef.current = currentLat;
     camLngRef.current = currentLng;
 
-    // Low-pass filter the heading to avoid snap-rotations.
-    let smoothedHdg: number | null = null;
+    // Always advance the low-pass heading smoothing so the iOS heading interval
+    // and Android's combined call both read a fresh value from camHeadingRef.
     if (driverHeading != null && driverHeading >= 0) {
-      smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
-      camHeadingRef.current = smoothedHdg;
-    }
-
-    // Heading throttle for Apple Maps (iOS):
-    // Including `heading` in every animateCamera call causes MapKit to run a
-    // combined pan + compass-rotation animation. At 20+ km/h this fires at
-    // 1 Hz, and MapKit crashes when it has to cancel an in-progress composite
-    // animation on every tick. Throttle: only pass heading when the smoothed
-    // value has changed ≥ 3° from the last value actually sent to MapKit.
-    // Google Maps (Android) handles rapid bearing updates gracefully so this
-    // gate is applied on iOS only — Android keeps the full 1 Hz heading refresh.
-    let headingForCamera: number | undefined;
-    if (smoothedHdg != null) {
-      const prev = lastAnimatedHeadingRef.current;
-      const delta = prev == null
-        ? 360
-        : Math.abs(((smoothedHdg - prev) + 540) % 360 - 180);
-      if (Platform.OS !== "ios" || delta >= 3) {
-        headingForCamera = smoothedHdg;
-        lastAnimatedHeadingRef.current = smoothedHdg;
-      }
+      camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
     }
 
     // Zoom hysteresis: only change zoom when the target band has been sustained
-    // for ZOOM_SUSTAIN_MS.  When the band is stable, skip animateToRegion
-    // entirely and use a single animateCamera({center, heading}) instead —
-    // this prevents overlapping animations from stacking on every GPS fix.
+    // for ZOOM_SUSTAIN_MS.  When the band is stable, use animateCamera for the
+    // position update (cheaper than animateToRegion, no zoom/altitude side-effects).
     const targetDelta = speedToLatDelta(currentSpeed ?? 0);
     const now = Date.now();
     let zoomChanged = false;
@@ -880,26 +904,32 @@ const DriveMapView = forwardRef(function DriveMapView(
     }
 
     if (zoomChanged) {
-      // Zoom changed: use animateToRegion for the zoom (iOS altitude-safe),
-      // then a trailing heading update to keep the two animations short and
-      // non-overlapping.
+      // Zoom changed: animateToRegion for the zoom (iOS altitude-safe).
+      // On Android, follow immediately with a heading-only animateCamera so
+      // track-up mode stays correct after the zoom.  On iOS the heading
+      // interval fires within ≤1500 ms — no need to schedule an extra call
+      // (which would overlap with animateToRegion on iOS anyway).
       navBreadcrumb("map.camera", "nav follow zoom change", { delta: appliedDeltaRef.current });
       mapRef.current?.animateToRegion(
         { latitude: currentLat, longitude: currentLng, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
-        300
+        300,
       );
-      if (headingForCamera != null) {
-        scheduleHeadingAnim(headingForCamera, 150, 200);
+      if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+        scheduleHeadingAnim(camHeadingRef.current, 150, 200);
       }
     } else {
-      // No zoom change: single animateCamera({center, heading}) — one animation
-      // supersedes the previous one cleanly with no overlap.
-      // We deliberately omit zoom/altitude here to avoid the iOS altitude-drift
-      // bug that appears when animateCamera touches those fields on Apple Maps.
+      // No zoom change: position-only animateCamera — safe on all platforms at
+      // any speed.  On iOS, heading is updated separately by the 1500 ms
+      // interval (see headingIntervalRef effect above) so the map still tracks
+      // the driver's direction without ever combining pan + rotation in a
+      // single MapKit call.  On Android, include heading in this call so
+      // track-up refreshes at the full 1 Hz GPS rate.
       const cameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
         center: { latitude: currentLat, longitude: currentLng },
       };
-      if (headingForCamera != null) cameraUpdate.heading = headingForCamera;
+      if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+        cameraUpdate.heading = camHeadingRef.current;
+      }
       mapRef.current?.animateCamera(cameraUpdate, { duration: 300 });
     }
   }, [navigationActive, currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
