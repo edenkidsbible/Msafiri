@@ -379,6 +379,36 @@ function lookAheadCenter(
   };
 }
 
+// ─── Post-turn look-ahead blend ───────────────────────────────────────────────
+//
+// Within LOOK_AHEAD_BLEND_START_M of the next maneuver, smoothly rotate the
+// look-ahead *offset heading* from the low-pass GPS bearing toward the cached
+// post-turn road bearing.  Only the center fed to lookAheadCenter changes;
+// camHeadingRef and map rotation are untouched.
+
+/** Distance threshold (metres) at which we start blending toward the post-turn bearing. */
+const LOOK_AHEAD_BLEND_START_M = 100;
+
+/** Initial compass bearing from (lat1,lng1) → (lat2,lng2), degrees 0–360. */
+function bearing(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const dLng  = ((lng2 - lng1) * Math.PI) / 180;
+  const lat1R = (lat1 * Math.PI) / 180;
+  const lat2R = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2R);
+  const x =
+    Math.cos(lat1R) * Math.sin(lat2R) -
+    Math.sin(lat1R) * Math.cos(lat2R) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/** Wrap-safe linear interpolation between two compass angles. */
+function lerpAngle(from: number, to: number, t: number): number {
+  let diff = to - from;
+  if (diff >  180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return (from + diff * t + 360) % 360;
+}
+
 // ─── Main map component ───────────────────────────────────────────────────────
 
 const DriveMapView = forwardRef(function DriveMapView(
@@ -408,6 +438,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     fasterRoute,
     hereIncidents, dismissHereIncident,
     mapPickerActive,
+    currentStepIdx, distToNextM,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -470,6 +501,22 @@ const DriveMapView = forwardRef(function DriveMapView(
   // to avoid stale-closure bugs where a setTimeout captures the wrong value.
   const navActiveRef = useRef(navigationActive);
   useEffect(() => { navActiveRef.current = navigationActive; });
+
+  // ── Post-turn look-ahead blend refs ──────────────────────────────────────
+  // Mirror of currentStepIdx and distToNextM from AppContext, kept in refs so
+  // the follow effect can read them without listing them in its dep array
+  // (which would re-register the effect on every GPS tick).
+  const camStepIdxRef    = useRef(currentStepIdx);
+  const camDistToNextRef = useRef<number | null>(distToNextM);
+  useEffect(() => { camStepIdxRef.current    = currentStepIdx; }, [currentStepIdx]);
+  useEffect(() => { camDistToNextRef.current = distToNextM;    }, [distToNextM]);
+
+  // Step index for which postTurnBearingRef was last computed.  -1 forces a
+  // compute on the very first nav tick.
+  const blendStepIdxRef    = useRef(-1);
+  // Cached compass bearing of the road immediately after the upcoming turn.
+  // null = no next step, or bearing cannot be determined (e.g. arrive step).
+  const postTurnBearingRef = useRef<number | null>(null);
 
   // Tracks the previous value of navigationActive so camera effects can detect
   // the false→true (nav start) and true→false (nav end) transitions.
@@ -950,6 +997,58 @@ const DriveMapView = forwardRef(function DriveMapView(
       camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
     }
 
+    // ── Post-turn look-ahead blend ────────────────────────────────────────
+    // Recompute the cached post-turn bearing whenever the active step changes.
+    // This is O(1): just an integer compare + at most 2 coordinate reads.
+    // We deliberately do NOT add currentStepIdx / distToNextM to the effect's
+    // dep array — they are mirrored in camStepIdxRef / camDistToNextRef and
+    // read here directly so the effect is never re-registered mid-GPS-tick.
+    const stepIdx = camStepIdxRef.current;
+    if (stepIdx !== blendStepIdxRef.current) {
+      blendStepIdxRef.current = stepIdx;
+      const steps = activeRoute?.steps;
+      const nextStep = steps?.[stepIdx + 1];
+      if (!nextStep) {
+        // Final/arrive step — no turn ahead; disable blend.
+        postTurnBearingRef.current = null;
+      } else if (nextStep.stepCoords && nextStep.stepCoords.length >= 2) {
+        // Derive bearing from the first segment of the next step's road geometry.
+        postTurnBearingRef.current = bearing(
+          nextStep.stepCoords[0].latitude,  nextStep.stepCoords[0].longitude,
+          nextStep.stepCoords[1].latitude,  nextStep.stepCoords[1].longitude,
+        );
+      } else {
+        // Fall back: bearing between the current step's end and next step's end.
+        const curStep = steps?.[stepIdx];
+        if (curStep) {
+          postTurnBearingRef.current = bearing(
+            curStep.location.latitude,  curStep.location.longitude,
+            nextStep.location.latitude, nextStep.location.longitude,
+          );
+        } else {
+          postTurnBearingRef.current = null;
+        }
+      }
+    }
+
+    // Blend look-ahead offset heading toward the post-turn bearing when close to
+    // the maneuver.  Only the center fed into lookAheadCenter is affected;
+    // camHeadingRef (used for map rotation) is left completely unchanged.
+    const distToNext     = camDistToNextRef.current;
+    const postTurnHdg    = postTurnBearingRef.current;
+    const camHdg         = camHeadingRef.current;
+    let lookAheadHdg: number | null = camHdg;
+    if (
+      camHdg != null &&
+      postTurnHdg != null &&
+      distToNext != null &&
+      distToNext < LOOK_AHEAD_BLEND_START_M
+    ) {
+      // t goes 0 → 1 as distToNext goes BLEND_START → 0.
+      const t = Math.max(0, 1 - distToNext / LOOK_AHEAD_BLEND_START_M);
+      lookAheadHdg = lerpAngle(camHdg, postTurnHdg, t);
+    }
+
     // Zoom hysteresis: only change zoom when the target band has been sustained
     // for ZOOM_SUSTAIN_MS.  When the band is stable, use animateCamera for the
     // position update (cheaper than animateToRegion, no zoom/altitude side-effects).
@@ -979,7 +1078,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       // interval fires within ≤1500 ms — no need to schedule an extra call
       // (which would overlap with animateToRegion on iOS anyway).
       navBreadcrumb("map.camera", "nav follow zoom change", { delta: appliedDeltaRef.current });
-      const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
+      const laCenter = lookAheadCenter(currentLat, currentLng, lookAheadHdg, appliedDeltaRef.current);
       mapRef.current?.animateToRegion(
         { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
         300,
@@ -995,7 +1094,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       // the driver's direction without ever combining pan + rotation in a
       // single MapKit call.  On Android, include heading in this call so
       // track-up refreshes at the full 1 Hz GPS rate.
-      const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
+      const laCenter = lookAheadCenter(currentLat, currentLng, lookAheadHdg, appliedDeltaRef.current);
       const cameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
         center: laCenter,
       };
