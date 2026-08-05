@@ -57,6 +57,13 @@ interface Props {
   onDismissAll?: () => void;
   currentSpeed: number;
   /**
+   * When false the overlay slides out of view (driver is stationary — no need
+   * to show alerts until they start moving again). The alert is NOT dismissed;
+   * it slides back in automatically when visible returns to true.
+   * Defaults to true.
+   */
+  visible?: boolean;
+  /**
    * Minimum panel height in points. The caller should pass a value that
    * covers the drive gauge so the overlay is dominant while active.
    * Defaults to 340 if omitted.
@@ -142,6 +149,7 @@ export default function DriveAlertOverlay({
   onDismiss,
   onDismissAll,
   currentSpeed,
+  visible = true,
   minPanelHeight = 340,
 }: Props) {
   const colors = useColors();
@@ -157,26 +165,68 @@ export default function DriveAlertOverlay({
   // Keep activeIdRef in sync with the prop so the callback sees the current ID.
   useEffect(() => { activeIdRef.current = alert.id; }, [alert.id]);
 
+  // Mirror `visible` in a ref so the alert.id effect can read the current
+  // value without being re-registered every time visibility changes.
+  const visibleRef = useRef(visible);
+  useEffect(() => { visibleRef.current = visible; }, [visible]);
+
+  // Skip the visibility effect on the very first render — the alert.id effect
+  // owns the initial slide-in; the visibility effect only handles transitions.
+  const isFirstRenderRef = useRef(true);
+
   const urgent = alert.distance < 200;
   const bg     = urgencyColor(alert.distance, colors);
   // Stop pulsing the instant the driver taps dismiss — don't wait for unmount.
   const pulse  = useHeartbeatPulse(urgent && !dismissing);
 
   // ── Slide in + sound on first appearance of a new alert ──────────────────
+  // If the driver is stationary when the alert arrives (visible=false) the
+  // sheet stays off-screen; it slides in when they start moving again via the
+  // visibility effect below.
   useEffect(() => {
     if (alert.id !== prevId.current) {
       prevId.current = alert.id;
       setDismissing(false);          // reset for the incoming alert
       slideY.setValue(ANIM_OFFSCREEN);
+      if (visibleRef.current) {
+        Animated.spring(slideY, {
+          toValue:         0,
+          useNativeDriver: true,
+          tension:         58,
+          friction:        10,
+        }).start();
+        void playSound("alert");
+      }
+      // If not visible (stationary), stay off-screen — the visibility effect
+      // will slide in when the driver starts moving.
+    }
+  }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Show / hide based on driver motion ───────────────────────────────────
+  // visible=false  → driver stopped  → slide out (alert stays active in context)
+  // visible=true   → driver moving   → slide in  (no extra sound; visual is enough)
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+    if (dismissing) return; // manual dismiss already owns the animation
+
+    if (visible) {
       Animated.spring(slideY, {
         toValue:         0,
         useNativeDriver: true,
         tension:         58,
         friction:        10,
       }).start();
-      void playSound("alert");
+    } else {
+      Animated.timing(slideY, {
+        toValue:         ANIM_OFFSCREEN,
+        duration:        280,
+        useNativeDriver: true,
+      }).start();
     }
-  }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dismiss: stop pulse immediately, slide out, then notify parent ─────────
   const handleDismiss = () => {

@@ -877,6 +877,9 @@ export default function DriveScreen() {
             pauseNoteTimerRef.current = setTimeout(() => setPauseNote(null), 4000);
           }}
           currentSpeed={currentSpeed}
+          // Hide the overlay while stationary — no need to see alerts at 0 km/h.
+          // The overlay slides back in automatically when the driver starts moving.
+          visible={currentSpeed > 0}
           // Cover the gauge exactly: in nav mode cover the nav bar; in normal
           // mode cover the speed strip up to just above the report buttons.
           // The +20 adds a small breathing gap above the gauge top edge.
