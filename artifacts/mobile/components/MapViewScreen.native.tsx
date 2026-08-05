@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
@@ -17,6 +17,7 @@ import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal"
 import { snapToRoad } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
+import KenyaFlagPill from "@/components/KenyaFlagPill";
 import { speakAlert } from "@/utils/alertTts";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
@@ -242,20 +243,6 @@ export default function MapViewScreen() {
   const openedAtRef = useRef(0);
   const now = Date.now();
 
-  // Kenya flag color-cycle on the Report button — Red→Black→Green→Red, 3 s loop.
-  // useNativeDriver must be false for backgroundColor interpolation.
-  const reportColorAnim = useRef(new Animated.Value(0)).current;
-  const reportBgColor   = reportColorAnim.interpolate({
-    inputRange:  [0, 1, 2, 3],
-    outputRange: ["#CE1126", "#1A1A1A", "#006600", "#CE1126"],
-  });
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(reportColorAnim, { toValue: 3, duration: 3000, useNativeDriver: false })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [reportColorAnim]);
 
   // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
   // for the full explanation. The freeze optimisation caused tap hit-detection
@@ -544,10 +531,10 @@ export default function MapViewScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
           activeOpacity={0.82}
         >
-          <Animated.View style={[styles.mapPill, { backgroundColor: reportBgColor }]}>
+          <KenyaFlagPill style={styles.mapPill}>
             <Ionicons name="warning" size={14} color="#FFF" />
             <Text style={styles.mapPillTxt}>Report</Text>
-          </Animated.View>
+          </KenyaFlagPill>
         </TouchableOpacity>
 
         {/* Find Nearby — Kenya black */}

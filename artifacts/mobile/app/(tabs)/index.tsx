@@ -33,6 +33,7 @@ import { useApp } from "@/context/AppContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
+import KenyaFlagPill from "@/components/KenyaFlagPill";
 import DriveMapView, { type DriveMapViewHandle } from "@/components/DriveMapView";
 import { isCivilTwilight } from "@/utils/solarTwilight";
 import ReportModal from "@/components/ReportModal";
@@ -257,13 +258,6 @@ export default function DriveScreen() {
   const [pauseNote, setPauseNote] = useState<string | null>(null);
   const pauseNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Kenya flag color-cycle on the Report button — cycles Red→Black→Green→Red
-  // so it's impossible to miss. useNativeDriver must be false for color animation.
-  const reportColorAnim = useRef(new Animated.Value(0)).current;
-  const reportBgColor   = reportColorAnim.interpolate({
-    inputRange:  [0, 1, 2, 3],
-    outputRange: ["#CE1126", "#1A1A1A", "#006600", "#CE1126"],
-  });
   // Load recent searches from AsyncStorage on mount
   useEffect(() => {
     loadRecentSearches().then(setRecentSearches).catch(() => {});
@@ -281,13 +275,6 @@ export default function DriveScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInputFocused]);
 
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(reportColorAnim, { toValue: 3, duration: 3000, useNativeDriver: false })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [reportColorAnim]);
 
   // overviewMode removed — the map is always freely pannable during navigation.
   // mapDrifted tracks whether the driver has panned away from their GPS position;
@@ -1384,10 +1371,10 @@ export default function DriveScreen() {
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
             activeOpacity={0.82}
           >
-            <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
+            <KenyaFlagPill style={styles.driveActionPill}>
               <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📢</Text>
               <Text style={styles.driveActionPillTxt}>Report</Text>
-            </Animated.View>
+            </KenyaFlagPill>
           </TouchableOpacity>
         </View>
       )}
@@ -1764,10 +1751,10 @@ export default function DriveScreen() {
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
             activeOpacity={0.82}
           >
-            <Animated.View style={[styles.driveActionPill, { backgroundColor: reportBgColor }]}>
+            <KenyaFlagPill style={styles.driveActionPill}>
               <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📢</Text>
               <Text style={styles.driveActionPillTxt}>Report</Text>
-            </Animated.View>
+            </KenyaFlagPill>
           </TouchableOpacity>
 
         </View>

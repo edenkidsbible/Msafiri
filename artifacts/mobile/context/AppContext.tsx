@@ -972,6 +972,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // fresh values inside setInterval without stale closure captures.
   const currentSpeedRef      = useRef(0);
   const currentSpeedLimitRef = useRef<number | null>(null);
+  // Last integer km/h passed to setCurrentSpeed — skip setState when the
+  // rounded value hasn't changed so a float fluctuation (54.3 → 54.7, both
+  // display as 54) doesn't trigger a full context re-render every GPS tick.
+  const lastSetSpeedKmhRef   = useRef(-1);
+  // Last heading value passed to setDriverHeading — skip setState when the
+  // change is < 2° so GPS-heading noise doesn't cause 1 Hz re-renders while
+  // driving straight.  Uses angleDiffDeg for wrap-around-safe comparison.
+  // Initialised to null (same as the driverHeading initial state) so the first
+  // real heading value always passes the gate.
+  const lastSetHeadingRef    = useRef<number | null>(null);
   const distToNextMRef       = useRef<number | null>(null);
   const durationRemainingRef = useRef<number | null>(null);
   const distanceRemainingRef = useRef<number | null>(null);
@@ -1520,7 +1530,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrentLat(lat);
       setCurrentLng(lng);
     }
-    setCurrentSpeed(kmh);
+    // Only re-render speed consumers when the displayed (integer) value changes.
+    // Sub-1 km/h float fluctuations (e.g. 54.3 → 54.7) are invisible on the
+    // speedometer but each unconditional setState floods the context with a
+    // full re-render cascade at 1 Hz — the single biggest idle heat source.
+    const kmhInt = Math.round(kmh);
+    if (kmhInt !== lastSetSpeedKmhRef.current) {
+      lastSetSpeedKmhRef.current = kmhInt;
+      setCurrentSpeed(kmh);
+    }
 
     // Speed zones
     const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
@@ -1575,7 +1593,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // than a general road-stretch limit, so it takes priority when both
     // match — otherwise fall back to the stretch's posted limit.
     const activeLimitZone = inZone ?? stretchMatch;
-    setCurrentSpeedLimit(activeLimitZone?.speedLimit ?? null);
+    // Guard: skip setState when the speed limit hasn't changed — the driver
+    // spends most of a trip inside a single speed zone, so this avoids a
+    // re-render on every GPS tick when the limit is stable.
+    const newSpeedLimit = activeLimitZone?.speedLimit ?? null;
+    if (newSpeedLimit !== currentSpeedLimitRef.current) {
+      setCurrentSpeedLimit(newSpeedLimit);
+    }
 
     const isDriving = kmh > 10;
 
@@ -1598,7 +1622,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const driverHeading = (nativeHeading != null && nativeHeading >= 0)
       ? nativeHeading
       : computedHeading;
-    setDriverHeading(driverHeading);
+    // Gate heading setState on a ≥ 2° change so GPS-heading noise while driving
+    // straight (e.g. 87° → 88° → 87°) doesn't fire a re-render every tick.
+    // angleDiffDeg handles 359° → 1° wrap-around correctly.
+    // We still update on null ↔ number transitions so the map camera knows
+    // when heading becomes available or is lost (low-speed / tunnel entry).
+    {
+      const prevHdg = lastSetHeadingRef.current;
+      const hdgChanged =
+        driverHeading == null
+          ? prevHdg !== null                              // number → null: always emit
+          : prevHdg === null                              // null → number: always emit
+            || angleDiffDeg(driverHeading, prevHdg) >= 2; // number → number: only on ≥ 2° change
+      if (hdgChanged) {
+        lastSetHeadingRef.current = driverHeading;
+        setDriverHeading(driverHeading);
+      }
+    }
     // Update dead reckoning baseline — used by the DR interval when signal is lost.
     lastHeadingRef.current = driverHeading ?? lastHeadingRef.current;
     drStateRef.current = { lat, lng, speedMps: Math.max(0, kmh / 3.6), heading: lastHeadingRef.current ?? 0 };
@@ -2957,10 +2997,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!locationGranted) return;
     refreshReports(); // immediate poll on mount + whenever nav-state changes
-    // During active navigation use a 20 s fallback interval — fast enough that
+    // During active navigation use a 30 s fallback interval — fast enough that
     // even if a silent push is dropped by iOS/Android, the report appears before
-    // the driver has travelled more than ~500 m at highway speed.
-    const intervalMs = navigationActive ? 20_000 : 60_000;
+    // the driver has travelled more than ~830 m at highway speed, while reducing
+    // cell-radio wake-ups by 33% versus the old 20 s interval.  Silent push
+    // still delivers urgent new reports within ~2 s so safety isn't compromised.
+    const intervalMs = navigationActive ? 30_000 : 60_000;
     const handle = setInterval(refreshReports, intervalMs);
     return () => clearInterval(handle);
   }, [locationGranted, navigationActive, refreshReports]);
