@@ -2,16 +2,58 @@ import { Router } from "express";
 
 const router = Router();
 
+// ── In-memory cache ───────────────────────────────────────────────────────────
+// Keyed by a stable string; value holds the parsed response + expiry timestamp.
+// No external dependency needed — this process is single-instance and the data
+// is cheap to rebuild after a restart.
+
+interface CacheEntry {
+  data: unknown;
+  expiresAt: number;
+}
+
+const NEARBY_TTL_MS  = 60_000;  // 60 s — drivers rarely move far that quickly
+const SEARCH_TTL_MS  = 60_000;  // 60 s — text-search results are equally stable
+
+const nearbyCache = new Map<string, CacheEntry>();
+const searchCache = new Map<string, CacheEntry>();
+
+/** Remove expired entries to prevent unbounded growth. */
+function pruneCache(cache: Map<string, CacheEntry>): void {
+  const now = Date.now();
+  for (const [k, v] of cache) {
+    if (v.expiresAt <= now) cache.delete(k);
+  }
+}
+
+/**
+ * Round to N decimal places for cache-key bucketing.
+ * 3 d.p. ≈ 111 m grid — fine enough to give fresh results after meaningful
+ * movement while collapsing near-identical coordinates.
+ */
+function round3(n: number): string {
+  return n.toFixed(3);
+}
+
 /**
  * GET /places/search?q=<query>
  * Proxies Google Places Text Search API so the API key stays server-side.
  * Restricted to Kenya (region=ke) for relevant results.
+ * Results are cached for SEARCH_TTL_MS per unique query string.
  */
 router.get("/places/search", async (req, res) => {
   try {
     const q = (req.query.q as string | undefined)?.trim();
     if (!q || q.length < 2) {
       res.json({ results: [] });
+      return;
+    }
+
+    // Check cache first
+    const cacheKey = `search:${q.toLowerCase()}`;
+    const cached = searchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.json(cached.data);
       return;
     }
 
@@ -43,7 +85,13 @@ router.get("/places/search", async (req, res) => {
       geometry: { location: r.geometry?.location },
     }));
 
-    res.json({ results });
+    const responseData = { results };
+
+    // Store in cache
+    pruneCache(searchCache);
+    searchCache.set(cacheKey, { data: responseData, expiresAt: Date.now() + SEARCH_TTL_MS });
+
+    res.json(responseData);
   } catch (err) {
     console.error("[places] proxy error:", err);
     res.status(502).json({ error: "Places API unavailable" });
@@ -88,6 +136,10 @@ const VALID_CATEGORIES = new Set<string>(Object.keys(CATEGORY_MAP));
  * a driver location.  Returns the same normalized shape as /places/search so
  * mobile can reuse its normalization logic.
  *
+ * Results are cached for NEARBY_TTL_MS, keyed by lat/lng rounded to 3 decimal
+ * places (~111 m grid) + radius + category.  Repeated sheet opens by a parked
+ * or slowly-moving driver hit the cache and cost nothing.
+ *
  * Query params:
  *   lat      – latitude (required)
  *   lng      – longitude (required)
@@ -109,6 +161,14 @@ router.get("/places/nearby", async (req, res) => {
       res.status(400).json({
         error: `category must be one of: ${[...VALID_CATEGORIES].join(", ")}`,
       });
+      return;
+    }
+
+    // Check cache — bucket by 3-d.p. lat/lng so minor GPS jitter reuses the same entry
+    const cacheKey = `nearby:${round3(lat)}:${round3(lng)}:${Math.round(radius)}:${category}`;
+    const cached = nearbyCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.json(cached.data);
       return;
     }
 
@@ -154,7 +214,13 @@ router.get("/places/nearby", async (req, res) => {
       geometry: { location: r.geometry?.location as { lat: number; lng: number } },
     }));
 
-    res.json({ results });
+    const responseData = { results };
+
+    // Store in cache (only cache successful responses)
+    pruneCache(nearbyCache);
+    nearbyCache.set(cacheKey, { data: responseData, expiresAt: Date.now() + NEARBY_TTL_MS });
+
+    res.json(responseData);
   } catch (err) {
     console.error("[places/nearby] proxy error:", err);
     res.status(502).json({ error: "Places API unavailable" });
