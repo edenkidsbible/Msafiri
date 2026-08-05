@@ -319,6 +319,27 @@ interface AppContextValue {
   /** One-time backfill: writes every DB-relocated zone back into speedZones.ts.
    *  Returns the number of zones patched in the static file. */
   adminSyncStaticZones: () => Promise<{ synced: number; total: number }>;
+  /** Edit zone metadata (name, road, speedLimit, type, description) in-place.
+   *  Works for both DB zones (UUID) and static zones (sz-prefixed). For a
+   *  static zone without an existing DB record, pass the full staticZone object
+   *  so the backend can bootstrap the upsert row. */
+  adminEditZone: (
+    id: string,
+    fields: { name?: string; road?: string; speedLimit?: number | null; type?: string; description?: string },
+    staticZone?: SpeedZone
+  ) => Promise<void>;
+  /** Edit report metadata (type and/or roadName) in-place. */
+  adminEditReport: (
+    serverId: string,
+    localId: string,
+    fields: { type?: string; roadName?: string | null }
+  ) => Promise<void>;
+  /** Create a new speed zone at the given coordinates.
+   *  Admin-created zones are auto-verified. Returns the new zone's id. */
+  adminCreateZone: (zone: {
+    name: string; road?: string; lat: number; lng: number;
+    speedLimit?: number; type: string; description?: string;
+  }) => Promise<string>;
   /** Snaps a coordinate to the nearest point on the driver's active route
    *  polyline. Returns null when no route is active; the caller should then
    *  fall back to snapToRoad() (Google Roads API) or raw GPS. */
@@ -4303,6 +4324,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return adminApiFetch<{ synced: number; total: number }>("POST", "/admin-mobile/zones/sync-static");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const adminEditZone = useCallback(async (
+    id: string,
+    fields: { name?: string; road?: string; speedLimit?: number | null; type?: string; description?: string },
+    staticZone?: SpeedZone
+  ): Promise<void> => {
+    const body: Record<string, unknown> = { ...fields };
+    if (staticZone) {
+      body.staticData = {
+        name: staticZone.name,
+        road: staticZone.road,
+        type: staticZone.type,
+        speedLimit: staticZone.speedLimit,
+        description: staticZone.description,
+      };
+    }
+    await adminApiFetch("PATCH", `/admin-mobile/zones/${id}/meta`, body);
+    // Optimistic local update — SpeedZone.speedLimit is number (not null),
+    // so convert null → 0 when patching locally.
+    type ZoneType = "camera" | "police" | "zone";
+    const localPatch = {
+      ...(fields.name        !== undefined ? { name:        fields.name }                                        : {}),
+      ...(fields.road        !== undefined ? { road:        fields.road }                                        : {}),
+      ...(fields.type        !== undefined ? { type:        fields.type as ZoneType }                            : {}),
+      ...(fields.description !== undefined ? { description: fields.description }                                 : {}),
+      ...(fields.speedLimit  !== undefined ? { speedLimit:  fields.speedLimit ?? 0 }                            : {}),
+    };
+    setDbZones((prev) => prev.map((z) => z.id === id ? { ...z, ...localPatch } : z));
+    allZonesRef.current = allZonesRef.current.map((z) => z.id === id ? { ...z, ...localPatch } : z);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const adminEditReport = useCallback(async (
+    serverId: string,
+    localId: string,
+    fields: { type?: string; roadName?: string | null }
+  ): Promise<void> => {
+    await adminApiFetch("PATCH", `/admin-mobile/reports/${serverId}/meta`, fields);
+    setCommunityReports((prev) =>
+      prev.map((r) =>
+        r.id === localId || r.serverId === serverId
+          ? {
+              ...r,
+              ...(fields.type     !== undefined ? { type:     fields.type as CommunityReport["type"] } : {}),
+              ...(fields.roadName !== undefined ? { roadName: fields.roadName ?? undefined }           : {}),
+            }
+          : r
+      )
+    );
+  }, [communityReports]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const adminCreateZone = useCallback(async (zone: {
+    name: string; road?: string; lat: number; lng: number;
+    speedLimit?: number; type: string; description?: string;
+  }): Promise<string> => {
+    const created = await adminApiFetch<{ id: string; name: string; road: string | null; lat: number; lng: number; speedLimit: number | null; type: string; description: string | null; verified: boolean }>(
+      "POST", "/admin-mobile/zones", zone
+    );
+    const newZone: SpeedZone = {
+      id:          created.id,
+      name:        created.name,
+      road:        created.road        ?? "",
+      lat:         created.lat,
+      lng:         created.lng,
+      speedLimit:  created.speedLimit  ?? 0,
+      type:        created.type        as SpeedZone["type"],
+      description: created.description ?? "",
+      verified:    created.verified,
+    };
+    setDbZones((prev) => [...prev, newZone]);
+    allZonesRef.current = [...allZonesRef.current, newZone];
+    return created.id;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const adminVerifyZone = useCallback(async (id: string, staticZone?: SpeedZone): Promise<void> => {
     const body: Record<string, unknown> = {};
     if (staticZone) {
@@ -4388,6 +4481,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
+      adminEditZone, adminEditReport, adminCreateZone,
       snapToActiveRoute,
       fasterRoute, acceptFasterRoute, dismissFasterRoute,
       hereIncidents, dismissHereIncident,

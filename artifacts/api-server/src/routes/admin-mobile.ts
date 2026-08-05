@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
-import { eq, isNotNull } from "drizzle-orm";
+import { eq, isNotNull, inArray, desc } from "drizzle-orm";
 import { patchStaticZoneFile } from "../startup/syncStaticZones";
 
 // UUID v4 pattern — static zones use "sz"-prefixed IDs instead
@@ -362,6 +362,168 @@ router.delete(
       return res.json({ id: created.id, staticId: id, status: "inactive" });
     } catch (err) {
       console.error("[admin-mobile/zones/delete]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ─── PATCH /admin-mobile/zones/:id/meta ──────────────────────────────────────
+// Edit zone metadata: name, road, speedLimit, type, description.
+// For static zones (sz-prefixed) that have no prior DB record, staticData is
+// required to bootstrap the upsert row.
+router.patch(
+  "/admin-mobile/zones/:id/meta",
+  adminMobileAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params["id"] as string;
+      const { name, road, speedLimit, type, description, staticData } = req.body as {
+        name?: string; road?: string; speedLimit?: number | null;
+        type?: string; description?: string;
+        staticData?: { name: string; road?: string; type: string; speedLimit?: number; description?: string };
+      };
+
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      if (name        != null)      patch.name        = name;
+      if (road        != null)      patch.road        = road;
+      if (speedLimit  !== undefined) patch.speedLimit  = speedLimit;
+      if (type        != null)      patch.type        = type;
+      if (description != null)      patch.description = description;
+
+      if (UUID_RE.test(id)) {
+        const rows = await db.select().from(speedZonesTable).where(eq(speedZonesTable.id, id));
+        if (!rows.length) return res.status(404).json({ error: "Zone not found" });
+        const [updated] = await db.update(speedZonesTable).set(patch).where(eq(speedZonesTable.id, id)).returning();
+        return res.json({ id: updated.id, name: updated.name, road: updated.road, speedLimit: updated.speedLimit, type: updated.type, description: updated.description });
+      }
+
+      // Static zone — upsert by staticId
+      const existing = await db.select().from(speedZonesTable).where(eq(speedZonesTable.staticId, id));
+      if (existing.length) {
+        const [updated] = await db.update(speedZonesTable).set(patch).where(eq(speedZonesTable.staticId, id)).returning();
+        return res.json({ id: updated.id, name: updated.name, road: updated.road, speedLimit: updated.speedLimit, type: updated.type, description: updated.description });
+      }
+
+      // First promotion of a static zone
+      if (!staticData) return res.status(400).json({ error: "staticData required to promote a static zone" });
+      const [created] = await db.insert(speedZonesTable).values({
+        name:        name        ?? staticData.name,
+        road:        road        ?? staticData.road        ?? null,
+        type:        type        ?? staticData.type,
+        mode:        "point",
+        speedLimit:  speedLimit  !== undefined ? speedLimit : (staticData.speedLimit ?? null),
+        description: description ?? staticData.description ?? null,
+        lat: null, lng: null,
+        staticId: id,
+        status: "active",
+      }).returning();
+      return res.status(201).json({ id: created.id, name: created.name, road: created.road, speedLimit: created.speedLimit, type: created.type, description: created.description });
+    } catch (err) {
+      console.error("[admin-mobile/zones/meta]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ─── PATCH /admin-mobile/reports/:id/meta ────────────────────────────────────
+// Edit report metadata: type and/or roadName.
+router.patch(
+  "/admin-mobile/reports/:id/meta",
+  adminMobileAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params["id"] as string;
+      const { type, roadName } = req.body as { type?: string; roadName?: string | null };
+      const patch: Record<string, unknown> = {};
+      if (type     !== undefined) patch.type     = type;
+      if (roadName !== undefined) patch.roadName = roadName ?? null;
+      if (!Object.keys(patch).length) return res.status(400).json({ error: "No fields to update" });
+      const [updated] = await db.update(communityReportsTable).set(patch).where(eq(communityReportsTable.id, id)).returning();
+      if (!updated) return res.status(404).json({ error: "Report not found" });
+      return res.json({ id: updated.id, type: updated.type, roadName: updated.roadName });
+    } catch (err) {
+      console.error("[admin-mobile/reports/meta]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ─── GET /admin-mobile/reports/queue ─────────────────────────────────────────
+// Returns flagged / pending-review / admin-review reports for the moderation queue.
+router.get(
+  "/admin-mobile/reports/queue",
+  adminMobileAuth,
+  async (_req: Request, res: Response) => {
+    try {
+      const rows = await db
+        .select()
+        .from(communityReportsTable)
+        .where(inArray(communityReportsTable.status, ["flagged", "pending_review", "admin_review"]))
+        .orderBy(desc(communityReportsTable.createdAt))
+        .limit(50);
+      return res.json({
+        reports: rows.map((r) => ({
+          id:           r.id,
+          type:         r.type,
+          lat:          r.lat,
+          lng:          r.lng,
+          status:       r.status,
+          roadName:     r.roadName,
+          flagCount:    r.flagCount,
+          confirmCount: r.confirmCount,
+          adminVerified: r.adminVerified,
+          createdAt:    r.createdAt.toISOString(),
+        })),
+      });
+    } catch (err) {
+      console.error("[admin-mobile/reports/queue]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ─── POST /admin-mobile/zones ─────────────────────────────────────────────────
+// Create a new speed zone at given coordinates (admin-created = auto-verified).
+router.post(
+  "/admin-mobile/zones",
+  adminMobileAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { name, road, lat, lng, speedLimit, type, description } = req.body as {
+        name?: string; road?: string; lat?: number; lng?: number;
+        speedLimit?: number; type?: string; description?: string;
+      };
+      if (!name || !type || lat == null || lng == null) {
+        return res.status(400).json({ error: "name, type, lat, lng are required" });
+      }
+      if (!["camera", "police", "zone"].includes(type)) {
+        return res.status(400).json({ error: "type must be camera, police, or zone" });
+      }
+      const [created] = await db.insert(speedZonesTable).values({
+        name,
+        road:        road        ?? null,
+        type,
+        mode:        "point",
+        speedLimit:  speedLimit  ?? null,
+        description: description ?? null,
+        lat:         Number(lat),
+        lng:         Number(lng),
+        status:      "active",
+        verified:    true, // admin-created zones are auto-verified
+      }).returning();
+      return res.status(201).json({
+        id:          created.id,
+        name:        created.name,
+        road:        created.road,
+        lat:         created.lat,
+        lng:         created.lng,
+        speedLimit:  created.speedLimit,
+        type:        created.type,
+        description: created.description,
+        verified:    created.verified,
+      });
+    } catch (err) {
+      console.error("[admin-mobile/zones/create]", err);
       return res.status(500).json({ error: "Internal server error" });
     }
   }

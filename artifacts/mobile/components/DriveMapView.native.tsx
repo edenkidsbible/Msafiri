@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { AdminLocationPickerModal } from "./AdminLocationPickerModal";
+import AdminZoneEditSheet, { type ZoneEditFields } from "./AdminZoneEditSheet";
+import AdminReportEditSheet from "./AdminReportEditSheet";
+import AdminModerationQueue from "./AdminModerationQueue";
 
 export type DriveMapViewHandle = {
   recenter: () => void;
@@ -368,7 +371,8 @@ const DriveMapView = forwardRef(function DriveMapView(
     vehicleType, allZones,
     pendingFocusCoords, setPendingFocusCoords,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
-    adminUpdateZoneLocation, adminRemoveZone,
+    adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
+    adminEditZone, adminEditReport, adminCreateZone,
     driverHeading,
     durationRemainingS, distanceRemainingM,
     fasterRoute,
@@ -455,6 +459,10 @@ const DriveMapView = forwardRef(function DriveMapView(
   const [adminLocationTarget, setAdminLocationTarget] = useState<CommunityReport | null>(null);
   const [selectedZone, setSelectedZone] = useState<SpeedZone | null>(null);
   const [adminZoneLocationTarget, setAdminZoneLocationTarget] = useState<SpeedZone | null>(null);
+  const [editingZone, setEditingZone] = useState<SpeedZone | null>(null);
+  const [editingReport, setEditingReport] = useState<CommunityReport | null>(null);
+  const [createZoneCoords, setCreateZoneCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [showModerationQueue, setShowModerationQueue] = useState(false);
 
   // Android + PROVIDER_GOOGLE: custom marker views must go through at least one
   // full render cycle with tracksViewChanges=true before the native layer
@@ -1235,6 +1243,11 @@ const DriveMapView = forwardRef(function DriveMapView(
         // onRegionChangeComplete's details.isGesture which is missing on older
         // react-native-maps builds). This is the primary drift-detection path.
         onPanDrag={handlePanDrag}
+        onLongPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
+          if (!isAdmin) return;
+          const { latitude, longitude } = e.nativeEvent.coordinate;
+          setCreateZoneCoords({ lat: latitude, lng: longitude });
+        }}
       >
         {/* Nearby-alert focus highlight — temporary ring shown after tapping
             a row in the Nearby Alerts sheet. Cleared after 2.5 s. */}
@@ -1722,37 +1735,51 @@ const DriveMapView = forwardRef(function DriveMapView(
                           </View>
                         )}
                         {isAdmin && (
-                          <View style={ms.adminActionRow}>
-                            <TouchableOpacity
-                              style={[ms.adminBtn, { backgroundColor: "#E8F5E920", borderColor: "#1B5E2040" }]}
-                              onPress={() => handleAdminVerify(r)}
-                            >
-                              <Ionicons name="checkmark-circle" size={13} color="#1B5E20" />
-                              <Text style={[ms.adminBtnTxt, { color: "#1B5E20" }]}>
-                                {r.adminVerified ? "✓ Verified" : "Verify"}
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
-                              onPress={() => handleAdminDeny(r)}
-                            >
-                              <Ionicons name="close-circle" size={13} color="#B71C1C" />
-                              <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
-                              onPress={() => {
-                                // Close the cluster popup first — iOS cannot
-                                // show two <Modal>s simultaneously, so the
-                                // fix-pin modal would be invisible otherwise.
-                                setSelectedCluster(null);
-                                setAdminLocationTarget(r);
-                              }}
-                            >
-                              <Ionicons name="location" size={13} color="#1565C0" />
-                              <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
-                            </TouchableOpacity>
-                          </View>
+                          <>
+                            <View style={ms.adminActionRow}>
+                              <TouchableOpacity
+                                style={[ms.adminBtn, { backgroundColor: "#E8F5E920", borderColor: "#1B5E2040" }]}
+                                onPress={() => handleAdminVerify(r)}
+                              >
+                                <Ionicons name="checkmark-circle" size={13} color="#1B5E20" />
+                                <Text style={[ms.adminBtnTxt, { color: "#1B5E20" }]}>
+                                  {r.adminVerified ? "✓ Verified" : "Verify"}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
+                                onPress={() => handleAdminDeny(r)}
+                              >
+                                <Ionicons name="close-circle" size={13} color="#B71C1C" />
+                                <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
+                              </TouchableOpacity>
+                            </View>
+                            <View style={[ms.adminActionRow, { marginTop: 6 }]}>
+                              <TouchableOpacity
+                                style={[ms.adminBtn, { backgroundColor: "#EDE7F620", borderColor: "#4A148C40" }]}
+                                onPress={() => {
+                                  setSelectedCluster(null);
+                                  setEditingReport(r);
+                                }}
+                              >
+                                <Ionicons name="create-outline" size={13} color="#4A148C" />
+                                <Text style={[ms.adminBtnTxt, { color: "#4A148C" }]}>Edit</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
+                                onPress={() => {
+                                  // Close the cluster popup first — iOS cannot
+                                  // show two <Modal>s simultaneously, so the
+                                  // fix-pin modal would be invisible otherwise.
+                                  setSelectedCluster(null);
+                                  setAdminLocationTarget(r);
+                                }}
+                              >
+                                <Ionicons name="location" size={13} color="#1565C0" />
+                                <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
                         )}
                       </View>
                     </View>
@@ -1855,6 +1882,90 @@ const DriveMapView = forwardRef(function DriveMapView(
       )}
 
       {/* Speed zone detail sheet */}
+      {/* Admin mode badge + moderation queue button */}
+      {isAdmin && (
+        <View style={ms.adminModeBadge} pointerEvents="box-none">
+          <TouchableOpacity
+            style={ms.adminModeBadgeBtn}
+            onPress={() => setShowModerationQueue(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="shield" size={12} color="#FFF" />
+            <Text style={ms.adminModeBadgeTxt}>Admin</Text>
+            <View style={ms.adminModeSep} />
+            <Ionicons name="list" size={12} color="#FFF" />
+            <Text style={ms.adminModeBadgeTxt}>Queue</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Admin: Edit zone metadata */}
+      <AdminZoneEditSheet
+        zone={editingZone ?? undefined}
+        visible={editingZone !== null}
+        onClose={() => setEditingZone(null)}
+        onSave={async (fields: ZoneEditFields) => {
+          if (!editingZone) return;
+          await adminEditZone(editingZone.id, fields, editingZone);
+        }}
+      />
+
+      {/* Admin: Create new zone via long-press */}
+      <AdminZoneEditSheet
+        createCoords={createZoneCoords ?? undefined}
+        visible={createZoneCoords !== null}
+        onClose={() => setCreateZoneCoords(null)}
+        onSave={async (fields: ZoneEditFields) => {
+          if (!createZoneCoords) return;
+          await adminCreateZone({
+            name:        fields.name,
+            road:        fields.road        || undefined,
+            type:        fields.type,
+            description: fields.description || undefined,
+            speedLimit:  fields.speedLimit  ?? undefined,
+            lat: createZoneCoords.lat,
+            lng: createZoneCoords.lng,
+          });
+          setCreateZoneCoords(null);
+        }}
+      />
+
+      {/* Admin: Edit report type/roadName */}
+      {editingReport && (
+        <AdminReportEditSheet
+          report={editingReport}
+          visible
+          onClose={() => setEditingReport(null)}
+          onSave={async (fields) => {
+            if (!editingReport) return;
+            const serverId = editingReport.serverId ?? editingReport.id;
+            await adminEditReport(serverId, editingReport.id, fields);
+          }}
+        />
+      )}
+
+      {/* Admin: Moderation queue */}
+      <AdminModerationQueue
+        visible={showModerationQueue}
+        onClose={() => setShowModerationQueue(false)}
+        onFixPin={(qr) => {
+          // Map QueueReport to a minimal CommunityReport for AdminLocationPickerModal
+          const synthetic: CommunityReport = {
+            id:        qr.id,
+            serverId:  qr.id,
+            type:      qr.type as CommunityReport["type"],
+            lat:       qr.lat,
+            lng:       qr.lng,
+            timestamp: new Date(qr.createdAt).getTime(),
+            confirmed: qr.confirmCount,
+            status:    qr.status as CommunityReport["status"],
+            roadName:  qr.roadName ?? undefined,
+            adminVerified: qr.adminVerified,
+          };
+          setAdminLocationTarget(synthetic);
+        }}
+      />
+
       {selectedZone && !adminZoneLocationTarget && (
         <Modal transparent animationType="fade" visible onRequestClose={() => setSelectedZone(null)}>
           <TouchableOpacity style={ms.backdrop} activeOpacity={1} onPress={() => setSelectedZone(null)}>
@@ -1896,34 +2007,64 @@ const DriveMapView = forwardRef(function DriveMapView(
 
               {/* Admin actions — available for all zones (both static and DB-managed) */}
               {isAdmin && (
-                <View style={ms.adminActionRow}>
-                  <TouchableOpacity
-                    style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
-                    onPress={() => setAdminZoneLocationTarget(selectedZone)}
-                  >
-                    <Ionicons name="location" size={13} color="#1565C0" />
-                    <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
-                    onPress={() =>
-                      Alert.alert("Remove Zone", `Remove "${selectedZone.name}" from the map?`, [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Remove",
-                          style: "destructive",
-                          onPress: async () => {
-                            await adminRemoveZone(selectedZone.id, selectedZone);
-                            setSelectedZone(null);
+                <>
+                  <View style={ms.adminActionRow}>
+                    <TouchableOpacity
+                      style={[ms.adminBtn, { backgroundColor: "#E8F5E920", borderColor: "#1B5E2040" }]}
+                      onPress={async () => {
+                        try {
+                          await adminVerifyZone(selectedZone.id, selectedZone);
+                          Alert.alert("Verified", `"${selectedZone.name}" marked as verified.`);
+                        } catch (err: any) {
+                          Alert.alert("Failed", err?.message ?? "Could not verify zone.");
+                        }
+                      }}
+                    >
+                      <Ionicons name="checkmark-circle" size={13} color="#1B5E20" />
+                      <Text style={[ms.adminBtnTxt, { color: "#1B5E20" }]}>
+                        {selectedZone.verified ? "✓ Verified" : "Verify"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[ms.adminBtn, { backgroundColor: "#EDE7F620", borderColor: "#4A148C40" }]}
+                      onPress={() => {
+                        setEditingZone(selectedZone);
+                        setSelectedZone(null);
+                      }}
+                    >
+                      <Ionicons name="create-outline" size={13} color="#4A148C" />
+                      <Text style={[ms.adminBtnTxt, { color: "#4A148C" }]}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[ms.adminActionRow, { marginTop: 6 }]}>
+                    <TouchableOpacity
+                      style={[ms.adminBtn, { backgroundColor: "#E3F2FD20", borderColor: "#1565C040" }]}
+                      onPress={() => setAdminZoneLocationTarget(selectedZone)}
+                    >
+                      <Ionicons name="location" size={13} color="#1565C0" />
+                      <Text style={[ms.adminBtnTxt, { color: "#1565C0" }]}>Fix Pin</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[ms.adminBtn, { backgroundColor: "#FFEBEE20", borderColor: "#B71C1C40" }]}
+                      onPress={() =>
+                        Alert.alert("Remove Zone", `Remove "${selectedZone.name}" from the map?`, [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Remove",
+                            style: "destructive",
+                            onPress: async () => {
+                              await adminRemoveZone(selectedZone.id, selectedZone);
+                              setSelectedZone(null);
+                            },
                           },
-                        },
-                      ])
-                    }
-                  >
-                    <Ionicons name="close-circle" size={13} color="#B71C1C" />
-                    <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
+                        ])
+                      }
+                    >
+                      <Ionicons name="close-circle" size={13} color="#B71C1C" />
+                      <Text style={[ms.adminBtnTxt, { color: "#B71C1C" }]}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
               )}
             </TouchableOpacity>
           </TouchableOpacity>
@@ -1942,6 +2083,40 @@ export default React.memo(DriveMapView);
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const ms = StyleSheet.create({
+  // ── Admin mode floating badge ───────────────────────────────────────────────
+  adminModeBadge: {
+    position: "absolute",
+    bottom: 100,
+    right: 14,
+    zIndex: 20,
+  },
+  adminModeBadgeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#1565C0DD",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  adminModeBadgeTxt: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    letterSpacing: 0.3,
+  },
+  adminModeSep: {
+    width: 1,
+    height: 11,
+    backgroundColor: "#FFFFFF60",
+    marginHorizontal: 2,
+  },
+
   // ── Single emoji marker ─────────────────────────────────────────────────────
   emojiMarker: {
     width: 28, height: 28, borderRadius: 8,
