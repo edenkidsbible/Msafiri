@@ -107,6 +107,53 @@ function incidentSummaryParts(incidents: { type: string; source: string }[]): { 
   return parts;
 }
 
+// ─── Map error fallback ───────────────────────────────────────────────────────
+// Rendered by the ErrorBoundary that wraps DriveMapView when the map layer
+// throws (e.g. a bad Marker coordinate from a freshly-pushed zone or relocated
+// report). Navigation audio and step-tracking continue uninterrupted because
+// this fallback never touches AppContext — it only replaces the visual map.
+
+function MapErrorFallback({ resetError }: { error: Error; resetError: () => void }) {
+  return (
+    <View style={mapErrStyles.container}>
+      <View style={mapErrStyles.card}>
+        <Text style={mapErrStyles.icon}>🗺️</Text>
+        <Text style={mapErrStyles.title}>Map display error</Text>
+        <Text style={mapErrStyles.body}>
+          Navigation audio and turn guidance continue.{"\n"}
+          The map will reload when you tap below.
+        </Text>
+        <TouchableOpacity style={mapErrStyles.btn} onPress={resetError} activeOpacity={0.8}>
+          <Text style={mapErrStyles.btnTxt}>Reload map</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const mapErrStyles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#0D1117",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  card: {
+    backgroundColor: "#1C2128",
+    borderRadius: 16,
+    padding: 28,
+    marginHorizontal: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#30363D",
+  },
+  icon:   { fontSize: 40, marginBottom: 12 },
+  title:  { color: "#F0F6FC", fontSize: 17, fontWeight: "700", marginBottom: 8, textAlign: "center" },
+  body:   { color: "#8B949E", fontSize: 14, lineHeight: 20, textAlign: "center", marginBottom: 20 },
+  btn:    { backgroundColor: "#1976D2", borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11 },
+  btnTxt: { color: "#FFF", fontSize: 15, fontWeight: "600" },
+});
+
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function DriveScreen() {
@@ -806,9 +853,17 @@ export default function DriveScreen() {
   return (
     <Animated.View style={[styles.screen, { opacity: screenFade }]}>
 
-      {/* ── Base layer: full-screen map ── */}
+      {/* ── Base layer: full-screen map ──
+          Wrapped in its own ErrorBoundary so a render error inside DriveMapView
+          (e.g. a bad Marker coordinate from a freshly-pushed DB zone or an
+          admin-relocated report) shows a recoverable fallback instead of
+          propagating to the tab boundary and killing the navigation session.
+          Navigation audio and step-tracking in AppContext are unaffected because
+          they live outside this subtree. */}
       <View style={StyleSheet.absoluteFillObject}>
-        <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} />
+        <ErrorBoundary FallbackComponent={MapErrorFallback}>
+          <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} />
+        </ErrorBoundary>
       </View>
 
       {/* Dismiss suggestions on outside tap — sits above the map but below

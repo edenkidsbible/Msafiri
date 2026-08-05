@@ -1332,6 +1332,9 @@ const DriveMapView = forwardRef(function DriveMapView(
             they're visually subordinate to community reports. Tapping opens a
             detail sheet with a "Hide for this session" option. */}
         {visibleHereIncidents.map((inc) => {
+          // Defensive: skip any HERE incident whose coordinates are missing or NaN
+          // (a bad API response mid-drive should not crash the entire map render).
+          if (!Number.isFinite(inc.lat) || !Number.isFinite(inc.lng)) return null;
           const def = resolveIncidentType(inc.type);
           return (
             <Marker
