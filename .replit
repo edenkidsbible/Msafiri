@@ -61,4 +61,4 @@ SENTRY_ORG = "alfrex-labs"
 SENTRY_PROJECT = "msafiri-mobile"
 
 [objectStorage]
-defaultBucketID = "replit-objstore-916bd0a3-e59c-42e1-84ed-06831332a770"
+defaultBucketID = "replit-objstore-fa85847c-d32d-4127-9a0b-2e8ff3a80fbb"
