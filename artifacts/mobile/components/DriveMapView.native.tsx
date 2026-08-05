@@ -349,6 +349,36 @@ function smoothHeading(current: number | null, target: number, alpha = 0.25): nu
   return (current + diff * alpha + 360) % 360;
 }
 
+// ─── Look-ahead camera offset ─────────────────────────────────────────────────
+//
+// Shift the map's center coordinate forward along the driver's heading so
+// the driver icon appears in the lower portion of the screen and the majority
+// of the visible map shows what is ahead.
+//
+// LOOK_AHEAD_K = 0.25 → driver sits ≈ 25 % from the bottom edge.
+//   • Screen spans latitudeDelta D in total height.
+//   • Centre is at 50 % from bottom.
+//   • Moving centre forward by D×0.25 places the driver at 50 – 25 = 25 %.
+//
+// The offset is proportional to latitudeDelta so it stays visually consistent
+// across all speed-adaptive zoom levels.  Falls back to the raw driver
+// coordinate when heading is unknown (stationary / no GPS bearing yet).
+const LOOK_AHEAD_K = 0.25;
+
+function lookAheadCenter(
+  lat: number,
+  lng: number,
+  heading: number | null,
+  delta: number,
+): { latitude: number; longitude: number } {
+  if (heading == null) return { latitude: lat, longitude: lng };
+  const hdgRad = (heading * Math.PI) / 180;
+  return {
+    latitude:  lat + delta * LOOK_AHEAD_K * Math.cos(hdgRad),
+    longitude: lng + delta * LOOK_AHEAD_K * Math.sin(hdgRad),
+  };
+}
+
 // ─── Main map component ───────────────────────────────────────────────────────
 
 const DriveMapView = forwardRef(function DriveMapView(
@@ -462,17 +492,17 @@ const DriveMapView = forwardRef(function DriveMapView(
   }, []);
 
   // iOS heading channel — fires a standalone animateCamera({ heading }) every
-  // 1500 ms while navigation is active.  This is the ONLY place heading is
-  // sent to MapKit during active navigation; the position-follow effect never
-  // includes heading on iOS.  Standalone rotation animations are stable in
-  // MapKit at any speed/cornering rate; only combined pan+rotation crashes it.
+  // 1500 ms whenever follow mode is active (both normal drive mode AND active
+  // navigation).  This is the ONLY place heading is sent to MapKit; the
+  // position-follow effect never includes heading on iOS.  Standalone rotation
+  // animations are stable in MapKit at any speed/cornering rate; only combined
+  // pan+rotation crashes it.
+  //
+  // The interval self-gates via mapDriftedRef (suspended while drifted) and
+  // camHeadingRef (no-ops until a smoothed heading is available), so it is safe
+  // to run unconditionally from mount — no navigationActive guard needed.
   useEffect(() => {
     if (Platform.OS !== "ios") return;
-    if (headingIntervalRef.current) {
-      clearInterval(headingIntervalRef.current);
-      headingIntervalRef.current = null;
-    }
-    if (!navigationActive) return;
 
     headingIntervalRef.current = setInterval(() => {
       if (!mountedRef.current || mapDriftedRef.current) return;
@@ -494,7 +524,7 @@ const DriveMapView = forwardRef(function DriveMapView(
         headingIntervalRef.current = null;
       }
     };
-  }, [navigationActive]);
+  }, []); // mount/unmount only — interval self-gates via mapDriftedRef + camHeadingRef
   /** Schedule a delayed heading animation, replacing any pending one and
    *  guarding against unmount races. */
   const scheduleHeadingAnim = useCallback((heading: number, delayMs: number, durationMs: number) => {
@@ -767,13 +797,36 @@ const DriveMapView = forwardRef(function DriveMapView(
         hasCenteredRef.current    // initial center already done — safe to animate
       ) {
         // Stationary freeze: skip pan when parked and GPS hasn't moved meaningfully.
+        // Still advance camHeadingRef so the iOS heading interval and Android
+        // slow-rotation path have a fresh smoothed value to work from.
         const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
         if (isStationary && camLatRef.current != null && camLngRef.current != null) {
           const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
-          if (moved < STATIONARY_MOVE_M) return;
+          if (moved < STATIONARY_MOVE_M) {
+            if (driverHeading != null && driverHeading >= 0) {
+              const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
+              camHeadingRef.current = smoothedHdg;
+              // Android: send a slow heading-only rotation while parked.
+              // On iOS the 1500 ms interval handles this.
+              if (Platform.OS !== "ios") {
+                const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
+                if (hdgDelta > 1.5) {
+                  lastAnimatedHeadingRef.current = smoothedHdg;
+                  mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
+                }
+              }
+            }
+            return;
+          }
         }
         camLatRef.current = currentLat;
         camLngRef.current = currentLng;
+
+        // Advance heading smoothing in drive mode so the iOS heading interval
+        // and Android position call always have a fresh camHeadingRef value.
+        if (driverHeading != null && driverHeading >= 0) {
+          camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
+        }
 
         // Zoom hysteresis: only apply new zoom band after it's been stable for
         // ZOOM_SUSTAIN_MS milliseconds so a single noisy speed spike never pulses
@@ -784,15 +837,21 @@ const DriveMapView = forwardRef(function DriveMapView(
           if (zoomBandTimestampRef.current == null) {
             zoomBandTimestampRef.current = now;
           } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
-            // Sustained long enough — glide toward new zoom, then return.
+            // Sustained long enough — glide toward new zoom.
             const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
             appliedDeltaRef.current = smoothed;
             lastDeltaRef.current    = smoothed;
             zoomBandTimestampRef.current = null;
+            // Apply look-ahead offset so driver stays in the lower portion of the screen.
+            const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, smoothed);
             mapRef.current?.animateToRegion(
-              { latitude: currentLat, longitude: currentLng, latitudeDelta: smoothed, longitudeDelta: smoothed },
+              { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
               500,
             );
+            // Android: follow with a heading update after zoom settles.
+            if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+              scheduleHeadingAnim(camHeadingRef.current, 150, 200);
+            }
             return;
           }
           // Not yet sustained — pan only, don't zoom.
@@ -800,11 +859,17 @@ const DriveMapView = forwardRef(function DriveMapView(
           zoomBandTimestampRef.current = null; // back in the stable band
         }
 
-        // North-up browsing: pan only — no heading change.
-        mapRef.current?.animateCamera(
-          { center: { latitude: currentLat, longitude: currentLng } },
-          { duration: 300 },
-        );
+        // Heading-up drive follow: pan to the look-ahead offset center.
+        // On iOS, heading is updated by the 1500 ms interval (no combined call).
+        // On Android, include the smoothed heading in this call for full 1 Hz rotation.
+        const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
+        const driveCameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
+          center: laCenter,
+        };
+        if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+          driveCameraUpdate.heading = camHeadingRef.current;
+        }
+        mapRef.current?.animateCamera(driveCameraUpdate, { duration: 300 });
       }
       return;
     }
@@ -835,8 +900,11 @@ const DriveMapView = forwardRef(function DriveMapView(
       // Reset the last-animated-heading baseline so the first real bearing
       // after nav start is always sent (no stale throttle from a previous session).
       lastAnimatedHeadingRef.current = null;
+      // Apply look-ahead offset so the driver starts in the lower portion of
+      // the screen from the very first navigation frame.
+      const laCenter = lookAheadCenter(currentLat, currentLng, initialHeading, snapDelta);
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
+        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         300
       );
       if (driverHeading != null && driverHeading >= 0) {
@@ -905,13 +973,15 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     if (zoomChanged) {
       // Zoom changed: animateToRegion for the zoom (iOS altitude-safe).
+      // Apply look-ahead offset so driver stays in the lower portion of screen.
       // On Android, follow immediately with a heading-only animateCamera so
       // track-up mode stays correct after the zoom.  On iOS the heading
       // interval fires within ≤1500 ms — no need to schedule an extra call
       // (which would overlap with animateToRegion on iOS anyway).
       navBreadcrumb("map.camera", "nav follow zoom change", { delta: appliedDeltaRef.current });
+      const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
+        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
         300,
       );
       if (Platform.OS !== "ios" && camHeadingRef.current != null) {
@@ -919,13 +989,15 @@ const DriveMapView = forwardRef(function DriveMapView(
       }
     } else {
       // No zoom change: position-only animateCamera — safe on all platforms at
-      // any speed.  On iOS, heading is updated separately by the 1500 ms
+      // any speed.  Apply look-ahead offset so driver sits in the lower portion
+      // of screen.  On iOS, heading is updated separately by the 1500 ms
       // interval (see headingIntervalRef effect above) so the map still tracks
       // the driver's direction without ever combining pan + rotation in a
       // single MapKit call.  On Android, include heading in this call so
       // track-up refreshes at the full 1 Hz GPS rate.
+      const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
       const cameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
-        center: { latitude: currentLat, longitude: currentLng },
+        center: laCenter,
       };
       if (Platform.OS !== "ios" && camHeadingRef.current != null) {
         cameraUpdate.heading = camHeadingRef.current;
@@ -1063,23 +1135,36 @@ const DriveMapView = forwardRef(function DriveMapView(
     camLngRef.current            = currentLng;
     zoomBandTimestampRef.current = null;
     if (navActiveRef.current) {
-      // During navigation: snap to speed-adaptive zoom and restore heading-up
-      // (track-up mode) so the road ahead points up.
+      // During navigation: snap to speed-adaptive zoom, restore heading-up
+      // (track-up mode), and apply look-ahead offset so the road ahead points up.
+      const hdg = (driverHeading != null && driverHeading >= 0)
+        ? smoothHeading(null, driverHeading) // snap, not smooth
+        : (camHeadingRef.current ?? 0);
+      camHeadingRef.current = hdg;
+      const laCenter = lookAheadCenter(currentLat, currentLng, hdg, snapDelta);
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
+        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         500,
       );
-      if (driverHeading != null && driverHeading >= 0) {
-        const hdg = smoothHeading(null, driverHeading); // snap, not smooth
-        camHeadingRef.current = hdg;
-        scheduleHeadingAnim(hdg, 550, 300);
-      }
+      scheduleHeadingAnim(hdg, 550, 300);
     } else {
-      // Browsing: speed-adaptive zoom, stay north-up so the map is easy to read.
+      // Browsing: speed-adaptive zoom, heading-up with look-ahead framing so
+      // the majority of the screen shows the road ahead.
+      const hdg = (driverHeading != null && driverHeading >= 0)
+        ? smoothHeading(null, driverHeading) // snap, not smooth
+        : (camHeadingRef.current ?? 0);
+      camHeadingRef.current = hdg;
+      // Reset last-animated baseline so the iOS heading interval fires
+      // immediately on the next tick rather than skipping due to the stale value.
+      lastAnimatedHeadingRef.current = null;
+      const laCenter = lookAheadCenter(currentLat, currentLng, hdg, snapDelta);
       mapRef.current?.animateToRegion(
-        { latitude: currentLat, longitude: currentLng, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
+        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
         500,
       );
+      // Restore heading-up (iOS interval will catch it within 1500 ms, but
+      // schedule an immediate call for a snappy recenter on both platforms).
+      scheduleHeadingAnim(hdg, 550, 300);
     }
     onDriftChange?.(false);
   }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
