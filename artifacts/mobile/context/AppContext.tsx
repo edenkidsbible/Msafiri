@@ -1524,7 +1524,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Speed zones
     const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-    const withDist = allZonesRef.current
+    // Bounding-box pre-filter: discard zones definitely outside a 10 km radius
+    // using a cheap degree-delta check before running the full haversine formula.
+    // 10 km is well above both ALERT_DIST (600 m) and the 5 km nearbyFiltered
+    // gate, so this never silently drops a zone that would have been in range.
+    // In practice it cuts haversine calls from 111+ per GPS tick to 0–5 in
+    // most of Kenya, cutting object-allocation and GC pressure significantly
+    // on older Android devices (Tecno, Itel) at highway speed.
+    const BOX_DEG_LAT = 10000 / 111320; // ≈ 0.0898° latitude ≈ 10 km
+    const BOX_DEG_LNG = 10000 / (111320 * Math.cos(lat * Math.PI / 180));
+    const boxCandidates = allZonesRef.current.filter(
+      (z) =>
+        z.lat >= lat - BOX_DEG_LAT && z.lat <= lat + BOX_DEG_LAT &&
+        z.lng >= lng - BOX_DEG_LNG && z.lng <= lng + BOX_DEG_LNG,
+    );
+    const withDist = boxCandidates
       .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: haversine(lat, lng, z.lat, z.lng) }))
       .sort((a, b) => a.distance - b.distance);
     const nearbyFiltered = withDist.filter((z) => z.distance < 5000);
