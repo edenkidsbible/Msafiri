@@ -621,6 +621,15 @@ export interface AdminBlogPostInput {
   keywords?: string[];
 }
 
+export interface AppSettings {
+  /** Whether in-app turn-by-turn navigation is enabled for users */
+  navigationEnabled: boolean;
+}
+
+export interface UpdateAppSettingsInput {
+  navigationEnabled?: boolean;
+}
+
 export type BlogStatsTopPostsItem = {
   id?: string;
   slug?: string;
@@ -703,49 +712,3 @@ export type AdminDeleteBlogPost200 = {
   success?: boolean;
 };
 
-
-// ── Points of Interest ────────────────────────────────────────────────────────
-
-export interface AdminPoi {
-  id: string;
-  name: string;
-  brand: string;
-  type: string;
-  lat: number;
-  lng: number;
-  address: string;
-  /** @nullable */
-  hours?: string | null;
-  status: string;
-  /** @nullable */
-  staticId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AdminPoiList {
-  pois: AdminPoi[];
-  total: number;
-  page: number;
-  limit: number;
-}
-
-export interface AdminPoiInput {
-  name: string;
-  brand: string;
-  type: string;
-  lat: number;
-  lng: number;
-  address: string;
-  /** @nullable */
-  hours?: string | null;
-  status?: string;
-}
-
-export type AdminListPoisParams = {
-  page?: number;
-  limit?: number;
-  search?: string;
-  type?: string;
-  status?: string;
-};

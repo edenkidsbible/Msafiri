@@ -9,6 +9,35 @@ import * as zod from 'zod';
 
 
 /**
+ * Returns app-wide feature flags consumed by the mobile client. No authentication required.
+ * @summary Get public app feature settings
+ */
+export const GetAppSettingsResponse = zod.object({
+  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users')
+})
+
+
+/**
+ * @summary Get app settings (admin)
+ */
+export const AdminGetSettingsResponse = zod.object({
+  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users')
+})
+
+
+/**
+ * @summary Update app settings (admin)
+ */
+export const AdminUpdateSettingsBody = zod.object({
+  "navigationEnabled": zod.boolean().optional()
+})
+
+export const AdminUpdateSettingsResponse = zod.object({
+  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users')
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

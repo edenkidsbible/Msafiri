@@ -17,6 +17,7 @@ import routingRouter from "./routing.js";
 import ttsRouter from "./tts.js";
 import poisRouter from "./pois.js";
 import trafficRouter from "./traffic.js";
+import appSettingsRouter from "./appSettings.js";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(routingRouter);
 router.use(ttsRouter);
 router.use(poisRouter);
 router.use(trafficRouter);
+router.use(appSettingsRouter);
 
 export default router;

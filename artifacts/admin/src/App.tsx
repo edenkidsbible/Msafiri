@@ -26,6 +26,7 @@ import Releases from "@/pages/releases";
 import Blog from "@/pages/blog";
 import Creators from "@/pages/creators";
 import Pois from "@/pages/pois";
+import AppSettings from "@/pages/app-settings";
 
 const queryClient = new QueryClient();
 
@@ -116,6 +117,7 @@ function Router() {
       <Route path="/blog"><ProtectedRoute component={Blog} feature="blog" /></Route>
       <Route path="/creators"><ProtectedRoute component={Creators} feature="creators" /></Route>
       <Route path="/pois"><ProtectedRoute component={Pois} feature="pois" /></Route>
+      <Route path="/app-settings"><ProtectedRoute component={AppSettings} feature="app_settings" /></Route>
       <Route component={NotFound} />
     </Switch>
   );

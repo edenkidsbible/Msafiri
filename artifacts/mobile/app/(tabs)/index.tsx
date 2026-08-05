@@ -119,7 +119,7 @@ export default function DriveScreen() {
     setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, divergenceRoutes, selectRoute, routeLoading,
-    navigationActive, startNavigation, stopNavigation,
+    navigationActive, startNavigation, stopNavigation, navigationEnabled,
     currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, zonesOnRoute,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
@@ -758,12 +758,17 @@ export default function DriveScreen() {
 
   const pickDestination = (r: GeoResult) => {
     Keyboard.dismiss();
-    setNavDestination({ name: r.display, lat: r.lat, lng: r.lng });
     setSearchText(r.short);
     setGeoResults([]);
     setShowResults(false);
     setSearchInputFocused(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!navigationEnabled) {
+      // Nav is off — just pan the map to the selected place, no routing
+      driveMapRef.current?.focusCoords(r.lat, r.lng);
+      return;
+    }
+    setNavDestination({ name: r.display, lat: r.lat, lng: r.lng });
     // Persist to recents (newest-first, deduped)
     saveRecentSearch(r).then(setRecentSearches);
   };
@@ -772,13 +777,17 @@ export default function DriveScreen() {
    *  Pinned places are intentionally NOT saved to recents — they're always visible. */
   const navigateToSavedPlace = useCallback((place: SavedPlace) => {
     Keyboard.dismiss();
-    setNavDestination({ name: place.label, lat: place.lat, lng: place.lng });
     setSearchText(place.label);
     setGeoResults([]);
     setShowResults(false);
     setSearchInputFocused(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [setNavDestination]);
+    if (!navigationEnabled) {
+      driveMapRef.current?.focusCoords(place.lat, place.lng);
+      return;
+    }
+    setNavDestination({ name: place.label, lat: place.lat, lng: place.lng });
+  }, [setNavDestination, navigationEnabled]);
 
   const clearDestination = () => {
     Keyboard.dismiss();
@@ -966,6 +975,17 @@ export default function DriveScreen() {
         </View>
       )}
 
+      {/* Navigation-disabled chip — floats under the search bar when nav is off */}
+      {!navigationEnabled && !navigationActive && !showResults && !searchInputFocused && (
+        <View
+          pointerEvents="none"
+          style={[styles.navDisabledChip, { top: topInset + 56 }]}
+        >
+          <Ionicons name="navigate-circle-outline" size={13} color="#888" />
+          <Text style={styles.navDisabledChipTxt}>Places explorer — navigation off</Text>
+        </View>
+      )}
+
       {/* ══════════════════════════════════════════════════════════════════
           TOP: Search bar + results (when not navigating)
       ══════════════════════════════════════════════════════════════════ */}
@@ -995,7 +1015,7 @@ export default function DriveScreen() {
               placeholder={
                 isMapMode
                   ? navDestination?.name.split(",")[0] ?? "Change destination…"
-                  : "Where to?"
+                  : navigationEnabled ? "Where to?" : "Explore places…"
               }
               placeholderTextColor={isMapMode ? (isDark ? "#FFFFFFBB" : "#333333") : fgMuted}
               value={searchText}
@@ -2819,6 +2839,8 @@ const styles = StyleSheet.create({
   navResumeSub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2, opacity: 0.9 },
   gpsLostChip:  { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#E65100EE", zIndex: 30 },
   gpsLostText:  { color: "#FFF", fontSize: 11, fontFamily: "Inter_500Medium" },
+  navDisabledChip: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#00000033", zIndex: 18 },
+  navDisabledChipTxt: { color: "#AAA", fontSize: 11, fontFamily: "Inter_500Medium" },
 
   // ── Faster-route banner ───────────────────────────────────────────────────
   // Appears just below the nav instruction card when a periodic background

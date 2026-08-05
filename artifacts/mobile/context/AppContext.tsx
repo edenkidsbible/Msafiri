@@ -338,6 +338,11 @@ interface AppContextValue {
    *  their MapView while this is true to avoid two-MapView native contention. */
   mapPickerActive: boolean;
   setMapPickerActive: (v: boolean) => void;
+  /** Whether turn-by-turn navigation is enabled system-wide.
+   *  Fetched from /app-settings on startup; defaults to true while loading.
+   *  When false, the "Where to?" search bar becomes a places explorer only —
+   *  no routing or voice guidance is offered. */
+  navigationEnabled: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -954,6 +959,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sharePingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Navigation
   const [mapPickerActive, setMapPickerActive] = useState(false);
+  const [navigationEnabled, setNavigationEnabled] = useState(true);
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
   const [altRoutes, setAltRoutes] = useState<AppRoute[]>([]);
@@ -1290,6 +1296,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch { void AsyncStorage.removeItem(KEYS.SHARE); }
       }
       setHydrated(true);
+      // Fetch app-level feature flags (non-blocking — fail open)
+      apiGet<{ navigationEnabled: boolean }>("/app-settings").then((s) => {
+        setNavigationEnabled(s.navigationEnabled);
+      }).catch(() => { /* default is true */ });
       // Load or generate persistent device ID (used for deduplication on the server)
       const did = storedDeviceId ?? (genId() + genId());
       if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
@@ -4382,6 +4392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       fasterRoute, acceptFasterRoute, dismissFasterRoute,
       hereIncidents, dismissHereIncident,
       mapPickerActive, setMapPickerActive,
+      navigationEnabled,
     }}>
       {children}
     </AppContext.Provider>

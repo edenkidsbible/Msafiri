@@ -33,6 +33,7 @@ export const FEATURE_GROUPS = [
       { key: "audit_log", label: "Audit Log" },
       { key: "dashboard", label: "Analytics Dashboard" },
       { key: "team", label: "Team Member Management" },
+      { key: "app_settings", label: "App Settings" },
     ],
   },
 ] as const;
@@ -42,7 +43,7 @@ export const ALL_FEATURE_KEYS = FEATURE_GROUPS.flatMap((g) => g.features.map((f)
 export type FeatureKey = (typeof ALL_FEATURE_KEYS)[number];
 
 export const ROLE_DEFAULTS: Record<AdminRole, FeatureKey[]> = {
-  admin: [...ALL_FEATURE_KEYS],
+  admin: [...ALL_FEATURE_KEYS] as FeatureKey[],
   moderator: [
     "reports",
     "speed_zones",

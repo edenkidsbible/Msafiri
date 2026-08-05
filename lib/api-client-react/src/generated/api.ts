@@ -20,10 +20,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AdminPoi,
-  AdminPoiInput,
-  AdminPoiList,
-  AdminListPoisParams,
   AdminBlogPost,
   AdminBlogPostInput,
   AdminBlogPostList,
@@ -62,6 +58,7 @@ import type {
   AppRelease,
   AppReleaseInput,
   AppReleaseList,
+  AppSettings,
   AppVersionInfo,
   AuditLogList,
   BlockDeviceInput,
@@ -84,7 +81,8 @@ import type {
   SpeedZoneInput,
   SpeedZonePublicList,
   SpeedZoneUpdate,
-  SuccessResult
+  SuccessResult,
+  UpdateAppSettingsInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -113,6 +111,231 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetAppSettingsUrl = () => {
+
+
+
+
+  return `/api/app-settings`
+}
+
+/**
+ * Returns app-wide feature flags consumed by the mobile client. No authentication required.
+ * @summary Get public app feature settings
+ */
+export const getAppSettings = async ( options?: RequestInit): Promise<AppSettings> => {
+
+  return customFetch<AppSettings>(getGetAppSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAppSettingsQueryKey = () => {
+    return [
+    `/api/app-settings`
+    ] as const;
+    }
+
+
+export const getGetAppSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getAppSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAppSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAppSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppSettings>>> = ({ signal }) => getAppSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAppSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAppSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getAppSettings>>>
+export type GetAppSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get public app feature settings
+ */
+
+export function useGetAppSettings<TData = Awaited<ReturnType<typeof getAppSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAppSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAppSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminGetSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/settings`
+}
+
+/**
+ * @summary Get app settings (admin)
+ */
+export const adminGetSettings = async ( options?: RequestInit): Promise<AppSettings> => {
+
+  return customFetch<AppSettings>(getAdminGetSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetSettingsQueryKey = () => {
+    return [
+    `/api/admin/settings`
+    ] as const;
+    }
+
+
+export const getAdminGetSettingsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetSettings>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetSettings>>> = ({ signal }) => adminGetSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetSettings>>>
+export type AdminGetSettingsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get app settings (admin)
+ */
+
+export function useAdminGetSettings<TData = Awaited<ReturnType<typeof adminGetSettings>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminUpdateSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/settings`
+}
+
+/**
+ * @summary Update app settings (admin)
+ */
+export const adminUpdateSettings = async (updateAppSettingsInput: UpdateAppSettingsInput, options?: RequestInit): Promise<AppSettings> => {
+
+  return customFetch<AppSettings>(getAdminUpdateSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAppSettingsInput)
+  }
+);}
+
+
+
+
+export const getAdminUpdateSettingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSettings>>, TError,{data: BodyType<UpdateAppSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSettings>>, TError,{data: BodyType<UpdateAppSettingsInput>}, TContext> => {
+
+const mutationKey = ['adminUpdateSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateSettings>>, {data: BodyType<UpdateAppSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminUpdateSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateSettings>>>
+    export type AdminUpdateSettingsMutationBody = BodyType<UpdateAppSettingsInput>
+    export type AdminUpdateSettingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Update app settings (admin)
+ */
+export const useAdminUpdateSettings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSettings>>, TError,{data: BodyType<UpdateAppSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateSettings>>,
+        TError,
+        {data: BodyType<UpdateAppSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateSettingsMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 
@@ -4614,176 +4837,3 @@ export function useAdminGetBlogStats<TData = Awaited<ReturnType<typeof adminGetB
 
 
 
-
-// ── Admin POI hooks ───────────────────────────────────────────────────────────
-
-export const getAdminListPoisUrl = (params?: AdminListPoisParams) => {
-  const stringifiedParams = params
-    ? Object.entries(params)
-        .filter(([, v]) => v != null)
-        .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-        .join("&")
-    : "";
-  return stringifiedParams.length > 0
-    ? `/api/admin/pois?${stringifiedParams}`
-    : `/api/admin/pois`;
-};
-
-export const adminListPois = async (
-  params?: AdminListPoisParams,
-  options?: RequestInit,
-): Promise<AdminPoiList> => {
-  return customFetch<AdminPoiList>(getAdminListPoisUrl(params), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getAdminListPoisQueryKey = (params?: AdminListPoisParams) =>
-  [`/api/admin/pois`, ...(params ? [params] : [])] as const;
-
-export const getAdminListPoisQueryOptions = <
-  TData = Awaited<ReturnType<typeof adminListPois>>,
-  TError = ErrorType<void>,
->(
-  params?: AdminListPoisParams,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  },
-) => {
-  const { query: queryOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getAdminListPoisQueryKey(params);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListPois>>> = ({ signal }) =>
-    adminListPois(params, { signal });
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof adminListPois>>,
-    TError,
-    TData
-  > & { queryKey: QueryKey };
-};
-
-export function useAdminListPois<
-  TData = Awaited<ReturnType<typeof adminListPois>>,
-  TError = ErrorType<void>,
->(
-  params?: AdminListPoisParams,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListPois>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  },
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getAdminListPoisQueryOptions(params, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-// create
-export const adminCreatePoi = async (
-  data: AdminPoiInput,
-  options?: RequestInit,
-): Promise<AdminPoi> => {
-  return customFetch<AdminPoi>(`/api/admin/pois`, {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(data),
-  });
-};
-
-export const useAdminCreatePoi = <TError = ErrorType<void>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof adminCreatePoi>>,
-      TError,
-      { data: BodyType<AdminPoiInput> },
-      TContext
-    >;
-  },
-): UseMutationResult<
-  Awaited<ReturnType<typeof adminCreatePoi>>,
-  TError,
-  { data: BodyType<AdminPoiInput> },
-  TContext
-> => {
-  const mutationKey = ["adminCreatePoi"];
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof adminCreatePoi>>,
-    { data: BodyType<AdminPoiInput> }
-  > = ({ data }) => adminCreatePoi(data);
-  return useMutation({ mutationKey, mutationFn, ...options?.mutation });
-};
-
-// update
-export const adminUpdatePoi = async (
-  id: string,
-  data: Partial<AdminPoiInput>,
-  options?: RequestInit,
-): Promise<AdminPoi> => {
-  return customFetch<AdminPoi>(`/api/admin/pois/${id}`, {
-    ...options,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(data),
-  });
-};
-
-export const useAdminUpdatePoi = <TError = ErrorType<void>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof adminUpdatePoi>>,
-      TError,
-      { id: string; data: Partial<AdminPoiInput> },
-      TContext
-    >;
-  },
-): UseMutationResult<
-  Awaited<ReturnType<typeof adminUpdatePoi>>,
-  TError,
-  { id: string; data: Partial<AdminPoiInput> },
-  TContext
-> => {
-  const mutationKey = ["adminUpdatePoi"];
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof adminUpdatePoi>>,
-    { id: string; data: Partial<AdminPoiInput> }
-  > = ({ id, data }) => adminUpdatePoi(id, data);
-  return useMutation({ mutationKey, mutationFn, ...options?.mutation });
-};
-
-// delete / deactivate
-export const adminDeletePoi = async (
-  id: string,
-  hard = false,
-  options?: RequestInit,
-): Promise<AdminPoi | { deleted: boolean }> => {
-  return customFetch<AdminPoi | { deleted: boolean }>(
-    `/api/admin/pois/${id}${hard ? "?hard=1" : ""}`,
-    { ...options, method: "DELETE" },
-  );
-};
-
-export const useAdminDeletePoi = <TError = ErrorType<void>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof adminDeletePoi>>,
-      TError,
-      { id: string; hard?: boolean },
-      TContext
-    >;
-  },
-): UseMutationResult<
-  Awaited<ReturnType<typeof adminDeletePoi>>,
-  TError,
-  { id: string; hard?: boolean },
-  TContext
-> => {
-  const mutationKey = ["adminDeletePoi"];
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof adminDeletePoi>>,
-    { id: string; hard?: boolean }
-  > = ({ id, hard }) => adminDeletePoi(id, hard);
-  return useMutation({ mutationKey, mutationFn, ...options?.mutation });
-};
-
-export const getAdminListPoisQueryKeyString = () => `/api/admin/pois`;

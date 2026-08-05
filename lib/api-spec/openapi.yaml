@@ -36,7 +36,63 @@ tags:
     description: Public blog posts
   - name: admin-blog
     description: Admin blog management
+  - name: app-settings
+    description: Public app feature settings
+  - name: admin-settings
+    description: Admin app settings management
 paths:
+  /app-settings:
+    get:
+      operationId: getAppSettings
+      tags: [app-settings]
+      summary: Get public app feature settings
+      description: Returns app-wide feature flags consumed by the mobile client. No authentication required.
+      responses:
+        "200":
+          description: Current app settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+
+  /admin/settings:
+    get:
+      operationId: adminGetSettings
+      tags: [admin-settings]
+      summary: Get app settings (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current app settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+        "401":
+          description: Unauthorized
+    put:
+      operationId: adminUpdateSettings
+      tags: [admin-settings]
+      summary: Update app settings (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAppSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+        "401":
+          description: Unauthorized
+
   /healthz:
     get:
       operationId: healthCheck
@@ -2049,6 +2105,20 @@ components:
         keywords:
           type: array
           items: { type: string }
+
+    AppSettings:
+      type: object
+      required: [navigationEnabled]
+      properties:
+        navigationEnabled:
+          type: boolean
+          description: Whether in-app turn-by-turn navigation is enabled for users
+
+    UpdateAppSettingsInput:
+      type: object
+      properties:
+        navigationEnabled:
+          type: boolean
 
     BlogStats:
       type: object
