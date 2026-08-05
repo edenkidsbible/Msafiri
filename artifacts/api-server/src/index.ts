@@ -43,20 +43,6 @@ async function seedDefaultAdmin() {
       .from(adminUsersTable)
       .where(eq(adminUsersTable.email, ADMIN_EMAIL));
 
-    // One-shot password reset: if RESET_ADMIN_PASSWORD is set in the
-    // environment, overwrite the stored hash and clear must_change_password
-    // so the admin can log in immediately.  Remove the env var after use.
-    const resetPassword = process.env.RESET_ADMIN_PASSWORD;
-    if (resetPassword && existing) {
-      const passwordHash = await bcrypt.hash(resetPassword, 12);
-      await db
-        .update(adminUsersTable)
-        .set({ passwordHash, mustChangePassword: false })
-        .where(eq(adminUsersTable.email, ADMIN_EMAIL));
-      logger.info("Admin password reset via RESET_ADMIN_PASSWORD env var — remove the var now.");
-      return;
-    }
-
     if (!existing) {
       const passwordHash = await bcrypt.hash("Msafiri2024!", 12);
       await db.insert(adminUsersTable).values({

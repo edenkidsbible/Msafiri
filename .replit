@@ -61,7 +61,6 @@ SENTRY_ORG = "alfrex-labs"
 SENTRY_PROJECT = "msafiri-mobile"
 
 [userenv.production]
-RESET_ADMIN_PASSWORD = "Msafiri@2026"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-fa85847c-d32d-4127-9a0b-2e8ff3a80fbb"
