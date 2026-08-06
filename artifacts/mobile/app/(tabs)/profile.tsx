@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { apiGet } from "@/utils/apiClient";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import Constants from "expo-constants";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -56,7 +57,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const tabBarH = Platform.OS === "web" ? 84 : 96;
   
-  const { driverName, clearAllData } = useApp();
+  const { driverName, clearAllData, deviceId } = useApp();
   const { isSubscribed, customerInfo } = useSubscription();
   const version = Constants.expoConfig?.version ?? "2.1.0";
 
@@ -65,6 +66,7 @@ export default function ProfileScreen() {
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [emergencyContactCount, setEmergencyContactCount] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,8 +81,19 @@ export default function ProfileScreen() {
         setProfilePhone(phone ?? "");
         setPhotoUri(photo);
       }).catch(() => {});
+
+      // Fetch real emergency contact count
+      if (deviceId) {
+        apiGet<{ contacts: { id: string }[] }>(`/emergency-contacts?deviceId=${deviceId}`)
+          .then((res) => {
+            if (!active) return;
+            setEmergencyContactCount(res?.contacts?.length ?? 0);
+          })
+          .catch(() => {});
+      }
+
       return () => { active = false; };
-    }, [])
+    }, [deviceId])
   );
 
   const handleLogout = () => {
@@ -248,7 +261,9 @@ export default function ProfileScreen() {
             <SettingsRow 
               icon="shield-outline" iconColor="#F97316" 
               title="Emergency Contacts" sub="Add and manage contacts" 
-              badge="3 contacts"
+              badge={emergencyContactCount !== null && emergencyContactCount > 0
+                ? `${emergencyContactCount} contact${emergencyContactCount !== 1 ? "s" : ""}`
+                : undefined}
               onPress={() => router.push("/app-settings/emergency-contacts" as any)} 
             />
             <SettingsRow 
