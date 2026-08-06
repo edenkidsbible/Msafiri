@@ -2255,9 +2255,8 @@ export default function DriveScreen() {
                 }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  if (dashcamRecording) stopDashcam();
-                  else if (!dashcamPending) startBackgroundRecording();
-                  // while pending: do nothing — camera is initialising
+                  if (dashcamRecording || dashcamPending) stopDashcam();
+                  else startBackgroundRecording();
                 }}
                 activeOpacity={0.85}
               >

@@ -664,6 +664,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const stopDashcam = useCallback(() => {
     isRecordingRef.current = false;
     setIsRecording(false);
+    setBackgroundRecordPending(false); // clear any warm-up that never completed
     cameraRef.current?.stopRecording();
   }, []);
 
