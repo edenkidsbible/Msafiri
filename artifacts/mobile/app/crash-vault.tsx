@@ -110,7 +110,7 @@ export default function CrashVaultScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
         >
           <View style={styles.emptyIconWrap}>
-            <Ionicons name="shield-checkmark-outline" size={52} color={colors.muted} />
+            <Ionicons name="shield-checkmark-outline" size={52} color={colors.mutedForeground} />
           </View>
           <Text style={styles.emptyTitle}>No accident records</Text>
           <Text style={styles.emptySubtitle}>
@@ -152,7 +152,7 @@ export default function CrashVaultScreen() {
                   <Text style={[styles.cardDate, { color: colors.text }]}>
                     {format(new Date(item.detectedAt), "d MMM yyyy · h:mm a")}
                   </Text>
-                  <Text style={[styles.cardLocation, { color: colors.muted }]} numberOfLines={1}>
+                  <Text style={[styles.cardLocation, { color: colors.mutedForeground }]} numberOfLines={1}>
                     {item.roadName ?? "Location not recorded"}
                     {item.county ? ` · ${item.county}` : ""}
                   </Text>
@@ -167,20 +167,20 @@ export default function CrashVaultScreen() {
               <View style={styles.cardMeta}>
                 {item.speedBeforeKmh != null && (
                   <View style={styles.metaChip}>
-                    <Ionicons name="speedometer-outline" size={13} color={colors.muted} />
-                    <Text style={[styles.metaText, { color: colors.muted }]}>{Math.round(Number(item.speedBeforeKmh))} km/h</Text>
+                    <Ionicons name="speedometer-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{Math.round(Number(item.speedBeforeKmh))} km/h</Text>
                   </View>
                 )}
                 {item.photoCount > 0 && (
                   <View style={styles.metaChip}>
-                    <Ionicons name="images-outline" size={13} color={colors.muted} />
-                    <Text style={[styles.metaText, { color: colors.muted }]}>{item.photoCount} photos</Text>
+                    <Ionicons name="images-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{item.photoCount} photos</Text>
                   </View>
                 )}
                 {item.witnessCount > 0 && (
                   <View style={styles.metaChip}>
-                    <Ionicons name="people-outline" size={13} color={colors.muted} />
-                    <Text style={[styles.metaText, { color: colors.muted }]}>{item.witnessCount} witnesses</Text>
+                    <Ionicons name="people-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{item.witnessCount} witnesses</Text>
                   </View>
                 )}
                 {item.pdfUrl && (
@@ -192,7 +192,7 @@ export default function CrashVaultScreen() {
               </View>
 
               <View style={styles.cardArrow}>
-                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
               </View>
             </TouchableOpacity>
           )}
@@ -226,7 +226,7 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     },
     emptyTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: colors.text, marginBottom: 8 },
     emptySubtitle: {
-      fontSize: 14, fontFamily: "Inter_400Regular", color: colors.muted,
+      fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground,
       textAlign: "center", lineHeight: 22, marginBottom: 28,
     },
     newReportBtn: {

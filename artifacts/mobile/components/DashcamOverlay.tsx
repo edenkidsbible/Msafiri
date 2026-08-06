@@ -15,20 +15,20 @@
  *   flag is checked AFTER onSegmentComplete so the last clip is never lost.
  */
 
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Pressable,
+  Animated,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useDashcam } from "@/context/DashcamContext";
-import { useColors } from "@/hooks/useColors";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
@@ -47,22 +47,17 @@ if (Platform.OS !== "web") {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** HH:MM:SS for total recording time */
 function fmtDuration(s: number): string {
-  const m   = Math.floor(s / 60).toString().padStart(2, "0");
+  const h   = Math.floor(s / 3600).toString().padStart(2, "0");
+  const m   = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
   const sec = (s % 60).toString().padStart(2, "0");
-  return `${m}:${sec}`;
-}
-
-function fmtStorage(bytes: number): string {
-  const GB = bytes / 1_073_741_824;
-  if (GB >= 0.1) return `${GB.toFixed(1)} GB`;
-  const MB = bytes / 1_048_576;
-  return `${Math.round(MB)} MB`;
+  return `${h}:${m}:${sec}`;
 }
 
 function storageRemaining(used: number, cap: number): string {
   const freeBytes = Math.max(0, cap - used);
-  const freeMins  = freeBytes / (4 * 1_048_576); // ~4 MB/min average
+  const freeMins  = freeBytes / (4 * 1_048_576);
   if (freeMins >= 60) return `~${Math.floor(freeMins / 60)}h remaining`;
   return `~${Math.round(freeMins)}m remaining`;
 }
@@ -74,16 +69,29 @@ const KEEP_AWAKE_TAG = "msafiri-dashcam";
 export default function DashcamOverlay() {
   const {
     isRecording, isDashcamOpen,
-    settings, storageUsedBytes, currentSegmentDuration,
-    startDashcam, stopDashcam, lockCurrentClip,
+    settings, storageUsedBytes, segments,
+    startDashcam, stopDashcam, lockCurrentClip, updateSettings,
     closeDashcam, setCameraRef, onSegmentComplete,
   } = useDashcam();
-  const c      = useColors();
+
   const insets = useSafeAreaInsets();
 
   const localCameraRef  = useRef<any>(null);
   const loopCancelRef   = useRef(false);
   const segmentStartRef = useRef(Date.now());
+
+  // Total recording elapsed time (not per-segment)
+  const [totalDuration, setTotalDuration] = useState(0);
+  const totalStartRef = useRef<number>(0);
+
+  // Screenshot flash animation
+  const flashOpacity = useRef(new Animated.Value(0)).current;
+
+  // Alert banner state — triggered when a new locked clip starts saving
+  const [alertVisible, setAlertVisible]       = useState(false);
+  const [alertCountdown, setAlertCountdown]   = useState(30);
+  const [alertTitle, setAlertTitle]           = useState("Impact Detected");
+  const prevLockedRef = useRef(0);
 
   const [permission, requestPermission] = useCameraPermissions
     ? useCameraPermissions()
@@ -103,15 +111,46 @@ export default function DashcamOverlay() {
     if (isRecording || isDashcamOpen) {
       activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
     } else {
-      // deactivateKeepAwake throws if the lock was never activated (e.g. on
-      // first render when both flags start false), so guard with try/catch.
       try { deactivateKeepAwake(KEEP_AWAKE_TAG); } catch { /* not activated yet */ }
     }
   }, [isRecording, isDashcamOpen]);
 
+  // ── Total recording duration counter ──────────────────────────────────────
+  useEffect(() => {
+    if (!isRecording) { setTotalDuration(0); return; }
+    totalStartRef.current = Date.now();
+    const id = setInterval(() => {
+      setTotalDuration(Math.floor((Date.now() - totalStartRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isRecording]);
+
+  // ── Alert banner on new locked segment ────────────────────────────────────
+  useEffect(() => {
+    const lockedPending = segments.filter(
+      (s) => s.locked && (s.uploadStatus === "pending" || s.uploadStatus === "uploading")
+    ).length;
+    if (lockedPending > prevLockedRef.current) {
+      setAlertTitle(
+        segments.find((s) => s.locked && s.lockReason && s.lockReason !== "manual")
+          ? "Impact Detected"
+          : "Clip Locked"
+      );
+      setAlertVisible(true);
+      setAlertCountdown(30);
+    }
+    prevLockedRef.current = lockedPending;
+  }, [segments]);
+
+  // Alert countdown ticker
+  useEffect(() => {
+    if (!alertVisible) return;
+    if (alertCountdown <= 0) { setAlertVisible(false); return; }
+    const t = setTimeout(() => setAlertCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [alertVisible, alertCountdown]);
+
   // ── Recording loop ────────────────────────────────────────────────────────
-  // IMPORTANT: the cancel flag is checked AFTER processing each completed
-  // segment, so the final in-progress clip is never discarded on Stop.
   useEffect(() => {
     if (!isRecording || Platform.OS === "web") return;
 
@@ -128,8 +167,6 @@ export default function DashcamOverlay() {
             muted: !settings.audioEnabled,
           });
 
-          // Always persist the segment if we received a URI,
-          // even when the cancel flag was set during recording.
           if (result?.uri) {
             const durationS = Math.round(
               (Date.now() - segmentStartRef.current) / 1000
@@ -137,11 +174,8 @@ export default function DashcamOverlay() {
             await onSegmentComplete(result.uri, durationS);
           }
         } catch {
-          // Camera error or stopRecording threw — exit loop
           break;
         }
-
-        // Only continue looping if we haven't been asked to stop
         if (loopCancelRef.current) break;
       }
     }
@@ -150,18 +184,32 @@ export default function DashcamOverlay() {
 
     return () => {
       loopCancelRef.current = true;
-      // stopRecording() causes the current recordAsync to resolve so the
-      // cleanup in the loop above can persist the final segment.
       localCameraRef.current?.stopRecording();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording]);
+
+  // ── Screenshot ────────────────────────────────────────────────────────────
+  const takeSnapshot = useCallback(async () => {
+    if (!localCameraRef.current) return;
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Flash effect
+      Animated.sequence([
+        Animated.timing(flashOpacity, { toValue: 1, duration: 80, useNativeDriver: true }),
+        Animated.timing(flashOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
+      await localCameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false });
+    } catch { /* silently fail — camera may not support it in all modes */ }
+  }, [flashOpacity]);
 
   // ── Don't render on web or when fully idle ────────────────────────────────
   if (Platform.OS === "web") return null;
   if (!isRecording && !isDashcamOpen) return null;
 
   const showUI = isDashcamOpen;
+  const qualityLabel = settings.quality === "1080p" ? "1080P" : "720P";
+  const isHD         = settings.quality === "1080p";
 
   return (
     <View
@@ -182,98 +230,137 @@ export default function DashcamOverlay() {
         />
       )}
 
-      {showUI && (
-        <View style={styles.overlay}>
-          {/* ── Top bar ─────────────────────────────────────────────── */}
-          <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => {
-                closeDashcam();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="chevron-down" size={26} color="#fff" />
-            </TouchableOpacity>
+      {/* White flash overlay for screenshots */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { backgroundColor: "#fff", opacity: flashOpacity, pointerEvents: "none" }]}
+      />
 
-            <View style={styles.recRow}>
-              {isRecording ? (
-                <>
-                  <View style={styles.recDot} />
-                  <Text style={styles.recText}>REC</Text>
-                  <Text style={styles.recTimer}>
-                    {"  "}{fmtDuration(currentSegmentDuration)}
-                  </Text>
-                </>
-              ) : (
-                <Text style={styles.readyText}>DASHCAM</Text>
-              )}
+      {showUI && (
+        <View style={styles.overlay} pointerEvents="box-none">
+
+          {/* ── Top gradient + status bar ──────────────────────────────── */}
+          <LinearGradient
+            colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0.0)"]}
+            style={[styles.topGradient, { paddingTop: insets.top + 10 }]}
+          >
+            <View style={styles.topBar}>
+              {/* Left: REC indicator or Ready */}
+              <TouchableOpacity
+                style={styles.recRow}
+                onPress={() => { closeDashcam(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                {isRecording ? (
+                  <>
+                    <View style={styles.recDot} />
+                    <Text style={styles.recText}>REC</Text>
+                  </>
+                ) : (
+                  <Text style={styles.readyText}>● READY</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Center: HH:MM:SS timer */}
+              <Text style={styles.timerText}>
+                {isRecording ? fmtDuration(totalDuration) : "00:00:00"}
+              </Text>
+
+              {/* Right: quality badge */}
+              <View style={styles.qualityRow}>
+                <Text style={styles.qualityText}>{qualityLabel}</Text>
+                {isHD && (
+                  <View style={styles.fhdBadge}>
+                    <Text style={styles.fhdText}>FHD</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => {
-                router.push("/dashcam-clips" as any);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="film-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* ── Storage indicator ────────────────────────────────────── */}
-          {isRecording && (
-            <View style={styles.storageRow}>
-              <Ionicons name="server-outline" size={13} color="#ffffffcc" />
-              <Text style={styles.storageText}>
+            {/* Storage remaining — subtle, just below the top bar */}
+            {isRecording && (
+              <Text style={styles.storageHint}>
                 {storageRemaining(storageUsedBytes, settings.storageCap)}
               </Text>
-            </View>
-          )}
+            )}
+          </LinearGradient>
 
-          <View style={{ flex: 1 }} />
+          {/* ── Screenshot button — floating top-right ─────────────────── */}
+          <TouchableOpacity
+            style={[styles.snapshotBtn, { top: insets.top + 60 }]}
+            onPress={takeSnapshot}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="camera-outline" size={22} color="#fff" />
+          </TouchableOpacity>
 
-          {/* ── Bottom controls ──────────────────────────────────────── */}
-          <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 24 }]}>
-            {/* Settings pills */}
-            <View style={styles.settingsRow}>
-              <View style={[styles.settingPill, settings.audioEnabled && styles.settingPillActive]}>
-                <Ionicons
-                  name={settings.audioEnabled ? "mic" : "mic-off"}
-                  size={15}
-                  color={settings.audioEnabled ? "#fff" : "#ffffff88"}
-                />
-                <Text style={[styles.pillText, !settings.audioEnabled && { color: "#ffffff88" }]}>
-                  {settings.audioEnabled ? "Audio ON" : "Audio OFF"}
-                </Text>
+          {/* ── Spacer (camera view area) ───────────────────────────────── */}
+          <View style={{ flex: 1 }} pointerEvents="none" />
+
+          {/* ── Bottom section ──────────────────────────────────────────── */}
+          <View style={styles.bottomSection}>
+
+            {/* Alert banner */}
+            {alertVisible && (
+              <View style={styles.alertCard}>
+                <View style={styles.alertIcon}>
+                  <Ionicons name="warning" size={20} color="#FF3B30" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertTitle}>{alertTitle}</Text>
+                  <Text style={styles.alertSub}>Saving video clip…</Text>
+                </View>
+                <Text style={styles.alertCountdown}>{alertCountdown}s</Text>
               </View>
-              <View style={styles.settingPill}>
-                <Ionicons name="videocam-outline" size={15} color="#ffffffcc" />
-                <Text style={styles.pillText}>{settings.quality.toUpperCase()}</Text>
-              </View>
-            </View>
+            )}
 
-            {/* Record / Stop + Lock row */}
-            <View style={styles.actionRow}>
-              {!isRecording ? (
-                <TouchableOpacity
-                  style={styles.recordBtn}
-                  onPress={async () => {
-                    if (!permission?.granted) {
-                      await requestPermission();
-                      return;
-                    }
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                    startDashcam();
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.recordInner} />
-                </TouchableOpacity>
-              ) : (
-                <>
+            {/* Control bar */}
+            <View style={[styles.controlBar, { paddingBottom: insets.bottom + 12 }]}>
+
+              {/* Gallery */}
+              <TouchableOpacity
+                style={styles.ctrlItem}
+                onPress={() => { router.push("/dashcam-clips" as any); Haptics.selectionAsync(); }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.ctrlIconWrap}>
+                  <Ionicons name="image-outline" size={26} color="#fff" />
+                </View>
+                <Text style={styles.ctrlLabel}>Gallery</Text>
+              </TouchableOpacity>
+
+              {/* Lock Video */}
+              <TouchableOpacity
+                style={styles.ctrlItem}
+                onPress={() => {
+                  if (!isRecording) return;
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  lockCurrentClip("manual");
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.ctrlIconWrap, !isRecording && styles.ctrlIconDisabled]}>
+                  <Ionicons name="lock-closed-outline" size={24} color={isRecording ? "#fff" : "#ffffff55"} />
+                </View>
+                <Text style={[styles.ctrlLabel, !isRecording && { color: "#ffffff55" }]}>Lock Video</Text>
+              </TouchableOpacity>
+
+              {/* Center: Record / Stop */}
+              <View style={styles.ctrlCenterWrap}>
+                {!isRecording ? (
+                  <TouchableOpacity
+                    style={styles.recordBtn}
+                    onPress={async () => {
+                      if (!permission?.granted) { await requestPermission(); return; }
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                      startDashcam();
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    {/* Record: red ring with red fill */}
+                    <View style={styles.recordInner} />
+                  </TouchableOpacity>
+                ) : (
                   <TouchableOpacity
                     style={styles.stopBtn}
                     onPress={() => {
@@ -282,30 +369,60 @@ export default function DashcamOverlay() {
                     }}
                     activeOpacity={0.85}
                   >
+                    {/* Stop: white square */}
                     <View style={styles.stopInner} />
                   </TouchableOpacity>
+                )}
+              </View>
 
-                  <TouchableOpacity
-                    style={styles.lockBtn}
-                    onPress={() => {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      lockCurrentClip("manual");
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="lock-closed" size={20} color="#fff" />
-                    <Text style={styles.lockText}>Lock Clip</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+              {/* Mic */}
+              <TouchableOpacity
+                style={styles.ctrlItem}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  updateSettings({ audioEnabled: !settings.audioEnabled });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.ctrlIconWrap, !settings.audioEnabled && styles.ctrlIconMuted]}>
+                  <Ionicons
+                    name={settings.audioEnabled ? "mic-outline" : "mic-off-outline"}
+                    size={26}
+                    color={settings.audioEnabled ? "#fff" : "#FF3B30"}
+                  />
+                </View>
+                <Text style={[styles.ctrlLabel, !settings.audioEnabled && { color: "#FF3B30" }]}>
+                  {settings.audioEnabled ? "Mic" : "Muted"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Settings */}
+              <TouchableOpacity
+                style={styles.ctrlItem}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  closeDashcam();
+                  router.push("/(tabs)/settings" as any);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.ctrlIconWrap}>
+                  <Ionicons name="settings-outline" size={24} color="#fff" />
+                </View>
+                <Text style={styles.ctrlLabel}>Settings</Text>
+              </TouchableOpacity>
+
             </View>
-
-            {!permission?.granted && (
-              <Text style={styles.permissionHint}>
-                Camera permission required to record.
-              </Text>
-            )}
           </View>
+
+          {/* Permission hint */}
+          {!permission?.granted && (
+            <View style={styles.permissionBanner}>
+              <Ionicons name="camera-outline" size={18} color="#fff" />
+              <Text style={styles.permissionText}>Camera permission required to record.</Text>
+            </View>
+          )}
+
         </View>
       )}
     </View>
@@ -315,76 +432,138 @@ export default function DashcamOverlay() {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
+  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: "space-between" },
+
+  // ── Top gradient bar ──────────────────────────────────────────────────────
+  topGradient: { paddingHorizontal: 16, paddingBottom: 24 },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
   },
-  iconBtn: {
-    width: 40, height: 40,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 20,
-  },
-  recRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.45)",
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, gap: 4,
-  },
-  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF3B30" },
-  recText: { color: "#FF3B30", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
-  recTimer: {
-    color: "#fff", fontSize: 14, fontWeight: "600",
-    // @ts-ignore — fontVariant is supported on native
+
+  // REC indicator
+  recRow: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 80 },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FF3B30" },
+  recText: {
+    color: "#FF3B30", fontSize: 15, fontWeight: "800", letterSpacing: 1,
+    // @ts-ignore
     fontVariant: ["tabular-nums"],
   },
-  readyText: { color: "#ffffffcc", fontSize: 13, fontWeight: "700", letterSpacing: 1.5 },
-  storageRow: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 12,
+  readyText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
+
+  // Timer
+  timerText: {
+    color: "#fff", fontSize: 22, fontWeight: "700",
+    // @ts-ignore
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 1,
   },
-  storageText: { color: "#ffffffcc", fontSize: 12, fontWeight: "500" },
-  bottomControls: { paddingHorizontal: 24, gap: 16 },
-  settingsRow: { flexDirection: "row", gap: 10, justifyContent: "center" },
-  settingPill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
+
+  // Quality badge
+  qualityRow: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 80, justifyContent: "flex-end" },
+  qualityText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  fhdBadge: {
+    borderWidth: 1.5, borderColor: "#fff",
+    paddingHorizontal: 5, paddingVertical: 1,
+    borderRadius: 3,
   },
-  settingPillActive: { borderColor: "rgba(255,255,255,0.5)" },
-  pillText: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  actionRow: {
-    flexDirection: "row", alignItems: "center",
-    justifyContent: "center", gap: 28,
+  fhdText: { color: "#fff", fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+
+  // Storage hint
+  storageHint: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 11, fontWeight: "500",
+    textAlign: "center", marginTop: 6,
+    // @ts-ignore
+    fontVariant: ["tabular-nums"],
   },
+
+  // ── Screenshot button ─────────────────────────────────────────────────────
+  snapshotBtn: {
+    position: "absolute",
+    right: 16,
+    width: 46, height: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+
+  // ── Bottom section ────────────────────────────────────────────────────────
+  bottomSection: { gap: 0 },
+
+  // Alert banner
+  alertCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 12, marginBottom: 8,
+    backgroundColor: "rgba(20,20,20,0.88)",
+    borderRadius: 14, padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  alertIcon: {
+    width: 36, height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,59,48,0.15)",
+    alignItems: "center", justifyContent: "center",
+  },
+  alertTitle: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  alertSub:   { color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: "400", marginTop: 2 },
+  alertCountdown: {
+    color: "#FF3B30", fontSize: 15, fontWeight: "800",
+    // @ts-ignore
+    fontVariant: ["tabular-nums"],
+  },
+
+  // Control bar
+  controlBar: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-around",
+    backgroundColor: "rgba(14,14,14,0.92)",
+    paddingTop: 18,
+    paddingHorizontal: 8,
+  },
+
+  // Side control items
+  ctrlItem: { flex: 1, alignItems: "center", gap: 6 },
+  ctrlIconWrap: {
+    width: 46, height: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+  },
+  ctrlIconDisabled: { backgroundColor: "rgba(255,255,255,0.03)" },
+  ctrlIconMuted:    { backgroundColor: "rgba(255,59,48,0.10)" },
+  ctrlLabel: { color: "#fff", fontSize: 11, fontWeight: "500" },
+
+  // Center record/stop
+  ctrlCenterWrap: { flex: 1, alignItems: "center", marginTop: -12 },
+
+  // Record button: white ring, red fill
   recordBtn: {
     width: 72, height: 72, borderRadius: 36,
-    borderWidth: 4, borderColor: "#fff",
+    borderWidth: 3.5, borderColor: "rgba(255,255,255,0.85)",
     alignItems: "center", justifyContent: "center",
+    backgroundColor: "transparent",
   },
   recordInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#FF3B30" },
+
+  // Stop button: solid red circle, white square
   stopBtn: {
     width: 72, height: 72, borderRadius: 36,
-    borderWidth: 4, borderColor: "#fff",
+    backgroundColor: "#FF3B30",
     alignItems: "center", justifyContent: "center",
   },
-  stopInner: { width: 28, height: 28, borderRadius: 4, backgroundColor: "#FF3B30" },
-  lockBtn: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "#1976D2",
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderRadius: 30,
+  stopInner: { width: 26, height: 26, borderRadius: 4, backgroundColor: "#fff" },
+
+  // Permission hint
+  permissionBanner: {
+    position: "absolute", bottom: 120, left: 0, right: 0,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "rgba(0,0,0,0.7)", paddingVertical: 10,
   },
-  lockText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  permissionHint: { color: "#ffffff99", fontSize: 13, textAlign: "center" },
+  permissionText: { color: "#fff", fontSize: 13, fontWeight: "500" },
 });

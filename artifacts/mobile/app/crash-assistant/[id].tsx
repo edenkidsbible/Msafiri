@@ -394,7 +394,7 @@ export default function CrashAssistantScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingCenter}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.muted }]}>Loading record…</Text>
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Loading record…</Text>
         </View>
       </SafeAreaView>
     );
@@ -411,7 +411,7 @@ export default function CrashAssistantScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Crash Assistant</Text>
-          <Text style={[styles.headerSub, { color: colors.muted }]}>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             {format(new Date(record.detectedAt), "d MMM yyyy · h:mm a")}
           </Text>
         </View>
@@ -519,8 +519,8 @@ export default function CrashAssistantScreen() {
           onPress={handleBack}
           disabled={stepIdx === 0}
         >
-          <Ionicons name="chevron-back" size={20} color={stepIdx === 0 ? colors.muted : colors.text} />
-          <Text style={[styles.navBtnText, { color: stepIdx === 0 ? colors.muted : colors.text }]}>Back</Text>
+          <Ionicons name="chevron-back" size={20} color={stepIdx === 0 ? colors.mutedForeground : colors.text} />
+          <Text style={[styles.navBtnText, { color: stepIdx === 0 ? colors.mutedForeground : colors.text }]}>Back</Text>
         </TouchableOpacity>
 
         {stepIdx < STEPS.length - 1 ? (
@@ -560,7 +560,7 @@ function EvidenceStep({ record, colors, styles }: { record: AccidentRecord; colo
             {record.isManual ? "Manual Report" : "Crash Auto-Detected"}
           </Text>
         </View>
-        <Text style={[styles.infoNote, { color: colors.muted }]}>
+        <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
           {record.isManual
             ? "You started this report manually. Fill in the details below."
             : "Crash Assistant detected a collision and captured the data below automatically."}
@@ -601,8 +601,8 @@ function EvidenceStep({ record, colors, styles }: { record: AccidentRecord; colo
       )}
 
       <View style={styles.evidenceNote}>
-        <Ionicons name="lock-closed-outline" size={15} color={colors.muted} />
-        <Text style={[styles.evidenceNoteText, { color: colors.muted }]}>
+        <Ionicons name="lock-closed-outline" size={15} color={colors.mutedForeground} />
+        <Text style={[styles.evidenceNoteText, { color: colors.mutedForeground }]}>
           This evidence was captured automatically at the moment of the incident and cannot be edited.
         </Text>
       </View>
@@ -628,7 +628,7 @@ function PhotosStep({
 
   return (
     <View>
-      <Text style={[styles.stepIntro, { color: colors.muted }]}>
+      <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
         Document the scene with photos. Each category helps with your insurance claim.
       </Text>
       {PHOTO_CATEGORIES.map((cat) => {
@@ -638,11 +638,11 @@ function PhotosStep({
           <View key={cat.id} style={[styles.photoCatCard, { backgroundColor: colors.card, borderColor: photos.length > 0 ? colors.primary + "60" : colors.border }]}>
             <View style={styles.photoCatHeader}>
               <View style={[styles.photoCatIcon, { backgroundColor: photos.length > 0 ? colors.primary + "18" : colors.muted + "15" }]}>
-                <Ionicons name={cat.icon as any} size={20} color={photos.length > 0 ? colors.primary : colors.muted} />
+                <Ionicons name={cat.icon as any} size={20} color={photos.length > 0 ? colors.primary : colors.mutedForeground} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.photoCatLabel, { color: colors.text }]}>{cat.label}</Text>
-                <Text style={[styles.photoCatCount, { color: colors.muted }]}>
+                <Text style={[styles.photoCatCount, { color: colors.mutedForeground }]}>
                   {photos.length === 0 ? "No photos" : `${photos.length} photo${photos.length > 1 ? "s" : ""}`}
                 </Text>
               </View>
@@ -664,7 +664,7 @@ function PhotosStep({
                       {format(new Date(p.createdAt), "h:mm a")}
                     </Text>
                     <TouchableOpacity onPress={() => onDelete(p.id)}>
-                      <Ionicons name="close" size={14} color={colors.muted} />
+                      <Ionicons name="close" size={14} color={colors.mutedForeground} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -694,7 +694,7 @@ function WitnessesStep({
 }) {
   return (
     <View>
-      <Text style={[styles.stepIntro, { color: colors.muted }]}>
+      <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
         Record the names and contact details of anyone who witnessed the accident.
       </Text>
 
@@ -704,8 +704,8 @@ function WitnessesStep({
             <Ionicons name="person-circle-outline" size={32} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.witnessName, { color: colors.text }]}>{w.name}</Text>
-              {w.phone && <Text style={[styles.witnessSub, { color: colors.muted }]}>{w.phone}</Text>}
-              {w.notes && <Text style={[styles.witnessSub, { color: colors.muted }]} numberOfLines={2}>{w.notes}</Text>}
+              {w.phone && <Text style={[styles.witnessSub, { color: colors.mutedForeground }]}>{w.phone}</Text>}
+              {w.notes && <Text style={[styles.witnessSub, { color: colors.mutedForeground }]} numberOfLines={2}>{w.notes}</Text>}
             </View>
             <TouchableOpacity onPress={() => onDelete(w.id)}>
               <Ionicons name="trash-outline" size={20} color="#FF3B30" />
@@ -716,8 +716,8 @@ function WitnessesStep({
 
       {witnesses.length === 0 && !showForm && (
         <View style={[styles.emptyState, { borderColor: colors.border }]}>
-          <Ionicons name="people-outline" size={32} color={colors.muted} />
-          <Text style={[styles.emptyStateText, { color: colors.muted }]}>No witnesses added</Text>
+          <Ionicons name="people-outline" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.emptyStateText, { color: colors.mutedForeground }]}>No witnesses added</Text>
         </View>
       )}
 
@@ -767,7 +767,7 @@ function OtherPartyStep({ value, onChange, colors, styles }: {
 
   return (
     <View>
-      <Text style={[styles.stepIntro, { color: colors.muted }]}>
+      <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
         Select the type of incident. This shapes the rest of your report.
       </Text>
 
@@ -788,11 +788,11 @@ function OtherPartyStep({ value, onChange, colors, styles }: {
             activeOpacity={0.75}
           >
             <View style={[styles.incidentTypeIcon, { backgroundColor: selected ? colors.primary + "20" : colors.muted + "15" }]}>
-              <Ionicons name={t.icon as any} size={22} color={selected ? colors.primary : colors.muted} />
+              <Ionicons name={t.icon as any} size={22} color={selected ? colors.primary : colors.mutedForeground} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.incidentTypeLabel, { color: selected ? colors.primary : colors.text }]}>{t.label}</Text>
-              <Text style={[styles.incidentTypeDesc, { color: colors.muted }]}>{t.desc}</Text>
+              <Text style={[styles.incidentTypeDesc, { color: colors.mutedForeground }]}>{t.desc}</Text>
             </View>
             {selected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
           </TouchableOpacity>
@@ -805,7 +805,7 @@ function OtherPartyStep({ value, onChange, colors, styles }: {
           <Text style={[styles.partyFormTitle, { color: colors.text }]}>Other Vehicle</Text>
 
           {/* Vehicle type chips */}
-          <Text style={[styles.formLabel, { color: colors.muted, marginBottom: 8 }]}>Vehicle type</Text>
+          <Text style={[styles.formLabel, { color: colors.mutedForeground, marginBottom: 8 }]}>Vehicle type</Text>
           <View style={styles.chipRow}>
             {VEHICLE_TYPES.map((vt) => {
               const sel = value.vehicleType === vt;
@@ -815,7 +815,7 @@ function OtherPartyStep({ value, onChange, colors, styles }: {
                   style={[styles.chip, { borderColor: sel ? colors.primary : colors.border, backgroundColor: sel ? colors.primary + "12" : "transparent" }]}
                   onPress={() => onChange({ ...value, vehicleType: vt })}
                 >
-                  <Text style={[styles.chipText, { color: sel ? colors.primary : colors.muted }]}>{vt}</Text>
+                  <Text style={[styles.chipText, { color: sel ? colors.primary : colors.mutedForeground }]}>{vt}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -880,7 +880,7 @@ function PoliceStep({ value, onChange, colors, styles }: {
 }) {
   return (
     <View>
-      <Text style={[styles.stepIntro, { color: colors.muted }]}>
+      <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
         If police attended the scene or you filed a report, record the details here.
       </Text>
       <FormInput label="Police Station" value={value.station ?? ""} onChangeText={(t) => onChange({ ...value, station: t })} placeholder="Westlands Police Station" colors={colors} styles={styles} />
@@ -988,9 +988,9 @@ function StatementStep({
             <Ionicons
               name={m === "text" ? "create-outline" : "mic-outline"}
               size={16}
-              color={mode === m ? "#fff" : colors.muted}
+              color={mode === m ? "#fff" : colors.mutedForeground}
             />
-            <Text style={[styles.modeTabText, { color: mode === m ? "#fff" : colors.muted }]}>
+            <Text style={[styles.modeTabText, { color: mode === m ? "#fff" : colors.mutedForeground }]}>
               {m === "text" ? "Write" : "Record"}
             </Text>
           </TouchableOpacity>
@@ -1000,7 +1000,7 @@ function StatementStep({
       {/* ── Write mode ───────────────────────────────────────────────────── */}
       {mode === "text" && (
         <>
-          <Text style={[styles.stepIntro, { color: colors.muted }]}>
+          <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
             Describe what happened. Use your keyboard's microphone button to dictate if preferred.
           </Text>
           <View style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1009,13 +1009,13 @@ function StatementStep({
               value={value}
               onChangeText={onChange}
               placeholder="Describe the sequence of events, road conditions, visibility, speed, what you saw, and anything else relevant to the incident…"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.mutedForeground}
               multiline
               textAlignVertical="top"
               returnKeyType="default"
             />
           </View>
-          <Text style={[styles.charCount, { color: colors.muted }]}>{value.length} characters</Text>
+          <Text style={[styles.charCount, { color: colors.mutedForeground }]}>{value.length} characters</Text>
         </>
       )}
 
@@ -1032,7 +1032,7 @@ function StatementStep({
           {/* Big mic button */}
           {!recordingUri && (
             <>
-              <Text style={[styles.stepIntro, { color: colors.muted, textAlign: "center" }]}>
+              <Text style={[styles.stepIntro, { color: colors.mutedForeground, textAlign: "center" }]}>
                 {isRecording
                   ? "Recording in progress — tap to stop when done."
                   : "Tap the microphone to start recording your statement."}
@@ -1064,7 +1064,7 @@ function StatementStep({
                 <Ionicons name="musical-note-outline" size={24} color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.audioReadyTitle, { color: colors.text }]}>Recording complete</Text>
-                  <Text style={[styles.audioReadySub, { color: colors.muted }]}>{formatDuration(durationMs)} recorded</Text>
+                  <Text style={[styles.audioReadySub, { color: colors.mutedForeground }]}>{formatDuration(durationMs)} recorded</Text>
                 </View>
               </View>
 
@@ -1112,7 +1112,7 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
         <View key={evt.id} style={styles.timelineRow}>
           <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.timelineTime, { color: colors.muted }]}>
+            <Text style={[styles.timelineTime, { color: colors.mutedForeground }]}>
               {format(new Date(evt.occurredAt), "h:mm a")}
             </Text>
             <Text style={[styles.timelineDesc, { color: colors.text }]}>{evt.description ?? evt.eventType}</Text>
@@ -1120,7 +1120,7 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
         </View>
       ))}
       {record.timeline.length === 0 && (
-        <Text style={[styles.stepIntro, { color: colors.muted }]}>No timeline events recorded.</Text>
+        <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>No timeline events recorded.</Text>
       )}
 
       {/* Report Generation */}
@@ -1133,7 +1133,7 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.reportReadyTitle, { color: colors.text }]}>PDF Report Ready</Text>
-                <Text style={[styles.reportReadySub, { color: colors.muted }]}>
+                <Text style={[styles.reportReadySub, { color: colors.mutedForeground }]}>
                   Your insurance-ready report has been generated.
                 </Text>
               </View>
@@ -1146,7 +1146,7 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
         ) : (
           <>
             <Text style={[styles.reportCardTitle, { color: colors.text }]}>Generate PDF Report</Text>
-            <Text style={[styles.reportCardSub, { color: colors.muted }]}>
+            <Text style={[styles.reportCardSub, { color: colors.mutedForeground }]}>
               Creates a complete insurance-ready PDF including all evidence, photos, witness statements, and your account.
             </Text>
             <TouchableOpacity
@@ -1200,7 +1200,7 @@ function InfoRow({ label, value, highlight, colors, styles }: {
   if (!value) return null;
   return (
     <View style={styles.infoRow}>
-      <Text style={[styles.infoLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{label}</Text>
       <Text style={[styles.infoValue, { color: highlight ? colors.primary : colors.text }]}>{String(value)}</Text>
     </View>
   );
@@ -1215,13 +1215,13 @@ function FormInput({ label, value, onChangeText, placeholder, keyboardType, mult
 }) {
   return (
     <View style={styles.formField}>
-      <Text style={[styles.formLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.formLabel, { color: colors.mutedForeground }]}>{label}</Text>
       <TextInput
         style={[styles.formInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, ...(multiline ? { height: 80, textAlignVertical: "top" } : {}) }]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={colors.mutedForeground}
         keyboardType={keyboardType ?? "default"}
         multiline={multiline}
         autoCapitalize={autoCapitalize}
@@ -1236,7 +1236,7 @@ function SummaryChip({ icon, value, label, colors }: { icon: string; value: stri
     <View style={{ alignItems: "center", gap: 4, flex: 1 }}>
       <Ionicons name={icon as any} size={20} color={colors.primary} />
       <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.text }}>{value}</Text>
-      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.muted }}>{label}</Text>
+      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>{label}</Text>
     </View>
   );
 }
