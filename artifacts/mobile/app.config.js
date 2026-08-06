@@ -37,6 +37,8 @@ module.exports = {
           "Msafiri uses your camera to record dashcam footage while you drive. Recordings are stored locally on your device and only uploaded to the cloud when you manually lock a clip.",
         NSMicrophoneUsageDescription:
           "Msafiri can optionally record audio with dashcam footage so you can hear what was happening at the time of an incident.",
+        NSPhotoLibraryUsageDescription:
+          "Msafiri lets you choose a photo from your library to use as your profile picture.",
         UIBackgroundModes: ["location", "audio"],
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -59,6 +61,7 @@ module.exports = {
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_IMAGES",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_CONTACTS",
       ],
@@ -128,6 +131,16 @@ module.exports = {
           microphonePermission:
             "Msafiri can optionally record audio with dashcam footage.",
           recordAudioAndroid: true,
+        },
+      ],
+      [
+        "expo-image-picker",
+        {
+          photosPermission:
+            "Msafiri lets you choose a photo from your library to use as your profile picture.",
+          // Profile photo only needs the photo library, not the camera/mic.
+          cameraPermission: false,
+          microphonePermission: false,
         },
       ],
       [

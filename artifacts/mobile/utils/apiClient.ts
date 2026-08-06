@@ -56,6 +56,16 @@ export async function apiPatch<T>(path: string, body: unknown, timeoutMs = 10000
   return res.json() as Promise<T>;
 }
 
+// Parse a response body that may legitimately be empty (204 No Content or a
+// zero-length body). Returns undefined in that case instead of letting
+// res.json() throw on the empty body — DELETE endpoints commonly return 204.
+async function parseMaybeEmpty<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}
+
 export async function apiDelete<T>(path: string, body: unknown, timeoutMs = 10000): Promise<T> {
   if (!API_BASE) throw new Error("API_BASE not configured");
   const res = await fetchWithTimeout(`${API_BASE}${path}`, {
@@ -64,5 +74,5 @@ export async function apiDelete<T>(path: string, body: unknown, timeoutMs = 1000
     body: JSON.stringify(body),
   }, timeoutMs);
   if (!res.ok) return throwApiError(res);
-  return res.json() as Promise<T>;
+  return parseMaybeEmpty<T>(res);
 }

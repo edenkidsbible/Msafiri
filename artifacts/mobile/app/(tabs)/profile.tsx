@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share, Linking } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share, Linking } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -59,6 +60,29 @@ export default function ProfileScreen() {
   const { isSubscribed } = useSubscription();
   const version = Constants.expoConfig?.version ?? "2.1.0";
 
+  // Saved profile details — reloaded on focus so edits made on the
+  // Personal Information screen show up immediately when returning here.
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all([
+        AsyncStorage.getItem("profile_email"),
+        AsyncStorage.getItem("profile_phone"),
+        AsyncStorage.getItem("profile_photo_uri"),
+      ]).then(([email, phone, photo]) => {
+        if (!active) return;
+        setProfileEmail(email ?? "");
+        setProfilePhone(phone ?? "");
+        setPhotoUri(photo);
+      }).catch(() => {});
+      return () => { active = false; };
+    }, [])
+  );
+
   const handleLogout = () => {
     Alert.alert(
       "Log Out",
@@ -114,7 +138,11 @@ export default function ProfileScreen() {
           onPress={() => router.push("/personal-information" as any)}
         >
           <View style={[styles.avatarWrap, { backgroundColor: c.primary + "1E" }]}>
-            <Text style={[styles.avatarTxt, { color: c.primary }]}>{initials}</Text>
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+            ) : (
+              <Text style={[styles.avatarTxt, { color: c.primary }]}>{initials}</Text>
+            )}
             <View style={[styles.avatarBadge, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
               <Ionicons name="camera" size={10} color={c.foreground} />
             </View>
@@ -129,10 +157,14 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Text style={[styles.profileInfo, { color: c.mutedForeground }]} numberOfLines={1}>
-              peter.otieno@email.com
+              {profileEmail || "Add your email"}
             </Text>
             <Text style={[styles.profileInfo, { color: c.mutedForeground, marginTop: 1 }]} numberOfLines={1}>
-              <Text style={{ fontFamily: EMOJI_FONT_FAMILY }}>🇰🇪</Text> +254 712 345 678
+              {profilePhone ? (
+                <><Text style={{ fontFamily: EMOJI_FONT_FAMILY }}>🇰🇪</Text> {profilePhone}</>
+              ) : (
+                "Add your phone number"
+              )}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={c.mutedForeground} />
@@ -281,6 +313,7 @@ const styles = StyleSheet.create({
     width: 60, height: 60, borderRadius: 30,
     alignItems: "center", justifyContent: "center",
   },
+  avatarImage: { width: 60, height: 60, borderRadius: 30 },
   avatarTxt: { fontSize: 22, fontFamily: "Inter_700Bold" },
   avatarBadge: {
     position: "absolute", bottom: -2, right: -2,

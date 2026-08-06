@@ -1,7 +1,8 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useEffect, useState } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,11 +18,52 @@ export default function PersonalInformationScreen() {
   const [name, setName] = useState(driverName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
     AsyncStorage.getItem("profile_phone").then(val => { if (val) setPhone(val); });
+    AsyncStorage.getItem("profile_photo_uri").then(val => { if (val) setPhotoUri(val); });
   }, []);
+
+  const handleChangePhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permission needed", "Allow photo library access to set a profile photo.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      const pickedUri = result.assets[0].uri;
+
+      let storedUri = pickedUri;
+      if (Platform.OS !== "web") {
+        // Picker URIs live in a cache dir the OS may purge — copy into the
+        // app's document directory so the photo survives restarts.
+        const FileSystem = await import("expo-file-system/legacy");
+        if (FileSystem.documentDirectory) {
+          const dest = `${FileSystem.documentDirectory}profile_photo_${Date.now()}.jpg`;
+          await FileSystem.copyAsync({ from: pickedUri, to: dest });
+          const old = await AsyncStorage.getItem("profile_photo_uri");
+          if (old && old.startsWith(FileSystem.documentDirectory)) {
+            FileSystem.deleteAsync(old, { idempotent: true }).catch(() => {});
+          }
+          storedUri = dest;
+        }
+      }
+      await AsyncStorage.setItem("profile_photo_uri", storedUri);
+      setPhotoUri(storedUri);
+    } catch (e) {
+      console.warn("Change photo error:", e);
+      Alert.alert("Error", "Could not update your photo. Please try again.");
+    }
+  };
 
   const vehicleLabel = getVehicleTypeDef(vehicleType).label;
   const initials = name ? name.substring(0, 2).toUpperCase() : "DR";
@@ -46,10 +88,18 @@ export default function PersonalInformationScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         <View style={styles.avatarSection}>
-          <View style={[styles.avatarCircle, { backgroundColor: c.primary + "1E" }]}>
-            <Text style={[styles.avatarInitials, { color: c.primary }]}>{initials}</Text>
-          </View>
-          <Text style={[styles.changePhotoText, { color: c.primary }]}>Change Photo</Text>
+          <TouchableOpacity onPress={handleChangePhoto} activeOpacity={0.75}>
+            <View style={[styles.avatarCircle, { backgroundColor: c.primary + "1E" }]}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+              ) : (
+                <Text style={[styles.avatarInitials, { color: c.primary }]}>{initials}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleChangePhoto} activeOpacity={0.7}>
+            <Text style={[styles.changePhotoText, { color: c.primary }]}>Change Photo</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={[styles.formCard, { backgroundColor: c.card }]}>
@@ -122,7 +172,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   
   avatarSection: { alignItems: "center", marginTop: 24, marginBottom: 24 },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  avatarCircle: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 12, overflow: "hidden" },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   avatarInitials: { fontSize: 32, fontFamily: "Inter_700Bold" },
   changePhotoText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   
