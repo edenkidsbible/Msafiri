@@ -20,6 +20,7 @@ import {
   scoreLabel,
   formatDuration,
 } from "@/utils/driveSessionApi";
+import TripRouteMap from "@/components/TripRouteMap";
 
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
@@ -89,6 +90,16 @@ export default function TripDetailScreen() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Date */}
           <Text style={[styles.dateTxt, { color: c.mutedForeground }]}>{fmtDateTime(session.startedAt)}</Text>
+
+          {/* Route map — only shown when we have at least a start coordinate */}
+          {session.startLat != null && session.startLng != null && (
+            <TripRouteMap
+              startLat={session.startLat}
+              startLng={session.startLng}
+              endLat={session.endLat}
+              endLng={session.endLng}
+            />
+          )}
 
           {/* Score card */}
           <View style={[styles.scoreCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
