@@ -18,6 +18,7 @@ import ttsRouter from "./tts.js";
 import poisRouter from "./pois.js";
 import trafficRouter from "./traffic.js";
 import appSettingsRouter from "./appSettings.js";
+import dashcamRouter from "./dashcam.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(ttsRouter);
 router.use(poisRouter);
 router.use(trafficRouter);
 router.use(appSettingsRouter);
+router.use(dashcamRouter);
 
 export default router;

@@ -30,6 +30,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useApp } from "@/context/AppContext";
+import { useDashcam } from "@/context/DashcamContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
@@ -184,6 +185,9 @@ export default function DriveScreen() {
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
+
+  // Dashcam — REC indicator and open button in the action pills row
+  const { isRecording: dashcamRecording, openDashcam } = useDashcam();
 
   // Stable refs for currentLat/currentLng so effects that only need the
   // *current* position for a calculation (not to re-trigger on every fix)
@@ -1759,6 +1763,31 @@ export default function DriveScreen() {
               <Text style={styles.driveActionPillTxt}>Report</Text>
             </KenyaFlagPill>
           </TouchableOpacity>
+
+          {/* Dashcam — dark pill, red dot when recording */}
+          {Platform.OS !== "web" && (
+            <TouchableOpacity
+              style={[styles.driveActionPill, {
+                backgroundColor: dashcamRecording ? "#B71C1C" : "#1A1A1A",
+              }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                openDashcam();
+              }}
+              activeOpacity={0.85}
+            >
+              {dashcamRecording && (
+                <View style={{
+                  width: 7, height: 7, borderRadius: 3.5,
+                  backgroundColor: "#FF5252",
+                  marginRight: 2,
+                }} />
+              )}
+              <Text style={styles.driveActionPillTxt}>
+                {dashcamRecording ? "● REC" : "🎥 Dashcam"}
+              </Text>
+            </TouchableOpacity>
+          )}
 
         </View>
       )}

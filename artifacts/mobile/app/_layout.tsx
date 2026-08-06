@@ -69,6 +69,8 @@ import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
 import { AppProvider, useApp } from "@/context/AppContext";
+import { DashcamProvider } from "@/context/DashcamContext";
+import DashcamOverlay from "@/components/DashcamOverlay";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -478,7 +480,10 @@ function RootLayout() {
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
                 <AppProvider>
-                  <RootLayoutNav />
+                  <DashcamProvider>
+                    <RootLayoutNav />
+                    <DashcamOverlay />
+                  </DashcamProvider>
                 </AppProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>

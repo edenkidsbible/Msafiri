@@ -66,6 +66,94 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS bearing INTEGER
     `);
 
+    // dashcam_enrollment_requests — push-OTP proofs of push-token possession.
+    // The OTP is sent only in a push-notification data payload, never in the
+    // HTTP response, so only the physical device that receives pushes can enroll.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS dashcam_enrollment_requests (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        device_id    TEXT NOT NULL,
+        otp_hash     TEXT NOT NULL,
+        expires_at   TIMESTAMP NOT NULL,
+        fulfilled_at TIMESTAMP,
+        created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS dashcam_enrollment_requests_device_id_idx
+        ON dashcam_enrollment_requests (device_id)
+    `);
+
+    // dashcam_upload_intents — atomic upload-URL reservation rows that count
+    // against the per-device quota and bind clip metadata to an issued URL.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS dashcam_upload_intents (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        device_id    TEXT NOT NULL,
+        clip_id      TEXT NOT NULL UNIQUE,
+        file_key     TEXT NOT NULL,
+        expires_at   TIMESTAMP NOT NULL,
+        fulfilled_at TIMESTAMP,
+        created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS dashcam_upload_intents_device_id_idx
+        ON dashcam_upload_intents (device_id)
+    `);
+
+    // dashcam_reg_ratelimit — DB-backed rate limiter for device registration,
+    // persists across server restarts. Keyed by SHA-256(ip).
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS dashcam_reg_ratelimit (
+        ip_hash      TEXT PRIMARY KEY,
+        count        INTEGER NOT NULL DEFAULT 1,
+        window_start TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // dashcam_devices — maps device_id to a pre-registered secret hash so that
+    // the upload-url endpoint can verify the caller is a known device before
+    // issuing a presigned R2 URL (prevents unauthenticated R2 storage abuse).
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS dashcam_devices (
+        device_id   TEXT PRIMARY KEY,
+        secret_hash TEXT NOT NULL,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // dashcam_clips — stores metadata for locked dashcam clips uploaded to R2.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS dashcam_clips (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        device_id     TEXT NOT NULL,
+        file_key      TEXT NOT NULL,
+        duration_s    INTEGER,
+        size_bytes    INTEGER,
+        locked        BOOLEAN NOT NULL DEFAULT TRUE,
+        lock_reason   TEXT,
+        started_at    TIMESTAMP NOT NULL,
+        uploaded_at   TIMESTAMP,
+        lat           DOUBLE PRECISION,
+        lng           DOUBLE PRECISION,
+        speed_kmh     INTEGER,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS dashcam_clips_device_id_idx ON dashcam_clips (device_id)
+    `);
+
+    // dashcam_clips.device_secret_hash — authenticates clip ownership.
+    // Stores SHA-256(deviceId + ":" + dashcamSecret) so read/delete endpoints
+    // can verify the requesting device is the one that uploaded the clip.
+    await db.execute(sql`
+      ALTER TABLE dashcam_clips
+      ADD COLUMN IF NOT EXISTS device_secret_hash TEXT
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

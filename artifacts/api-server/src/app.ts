@@ -11,6 +11,10 @@ const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
+// Trust the first proxy hop so req.ip reflects the real client address when
+// deployed behind Replit/nginx. This is used for dashcam rate limiting.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

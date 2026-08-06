@@ -31,6 +31,10 @@ module.exports = {
         // "location" keeps watchPositionAsync alive when screen locks (nav cues).
         // "audio" lets the TTS voice play through even when the app is backgrounded
         // or the screen is off — required for navigation voice on a locked phone.
+        NSCameraUsageDescription:
+          "Msafiri uses your camera to record dashcam footage while you drive. Recordings are stored locally on your device and only uploaded to the cloud when you manually lock a clip.",
+        NSMicrophoneUsageDescription:
+          "Msafiri can optionally record audio with dashcam footage so you can hear what was happening at the time of an incident.",
         UIBackgroundModes: ["location", "audio"],
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -50,6 +54,10 @@ module.exports = {
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon-foreground.png",
@@ -109,6 +117,17 @@ module.exports = {
           url: "https://sentry.io/",
         },
       ],
+      [
+        "expo-camera",
+        {
+          cameraPermission:
+            "Msafiri uses your camera to record dashcam footage while you drive.",
+          microphonePermission:
+            "Msafiri can optionally record audio with dashcam footage.",
+          recordAudioAndroid: true,
+        },
+      ],
+      "expo-video",
       "@react-native-community/datetimepicker",
       "./plugins/withDisableUnusedAudioServices.js",
       "./plugins/withR8Optimization.js",

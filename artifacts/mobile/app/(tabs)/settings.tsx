@@ -25,6 +25,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { useSubscription } from "@/lib/revenuecat";
+import { useDashcam } from "@/context/DashcamContext";
 import { PaywallModal } from "@/components/PaywallModal";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
@@ -46,6 +47,14 @@ export default function SettingsScreen() {
   } = useApp();
 
   const { isSubscribed } = useSubscription();
+  const {
+    settings: dashcamSettings,
+    updateSettings: updateDashcam,
+    segments: dashcamSegments,
+    storageUsedBytes: dashcamStorage,
+    openDashcam,
+    clearUnlocked: clearDashcamLoop,
+  } = useDashcam();
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [name, setName] = useState(sosContact?.name ?? "");
@@ -229,6 +238,101 @@ export default function SettingsScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.primaryForeground + "CC"} />
         </TouchableOpacity>
+      )}
+
+      {/* ── Dashcam ──────────────────────────────────────────────────────────── */}
+      {Platform.OS !== "web" && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DASHCAM</Text>
+          <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+            {/* Open dashcam */}
+            <TouchableOpacity
+              style={[styles.row, { borderBottomColor: c.border }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openDashcam(); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="videocam-outline" size={20} color={c.primary} />
+              <Text style={[styles.rowLabel, { color: c.foreground }]}>Open Dashcam</Text>
+              <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
+            </TouchableOpacity>
+
+            {/* Clips gallery */}
+            <TouchableOpacity
+              style={[styles.row, { borderBottomColor: c.border }]}
+              onPress={() => router.push("/dashcam-clips" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="film-outline" size={20} color={c.primary} />
+              <Text style={[styles.rowLabel, { color: c.foreground }]}>Clips Gallery</Text>
+              <Text style={[styles.rowValue, { color: c.mutedForeground }]}>
+                {dashcamSegments.filter(s => s.locked).length} locked
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
+            </TouchableOpacity>
+
+            {/* Quality */}
+            <View style={[styles.row, { borderBottomColor: c.border }]}>
+              <Ionicons name="settings-outline" size={20} color={c.primary} />
+              <Text style={[styles.rowLabel, { color: c.foreground }]}>Quality</Text>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                {(["720p", "1080p"] as const).map(q => (
+                  <TouchableOpacity
+                    key={q}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 8,
+                      backgroundColor: dashcamSettings.quality === q ? c.primary : c.muted,
+                    }}
+                    onPress={() => updateDashcam({ quality: q })}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: "600",
+                      color: dashcamSettings.quality === q ? "#fff" : c.mutedForeground,
+                    }}>{q}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Audio */}
+            <View style={[styles.row, { borderBottomColor: c.border }]}>
+              <Ionicons name={dashcamSettings.audioEnabled ? "mic" : "mic-off"} size={20} color={c.primary} />
+              <Text style={[styles.rowLabel, { color: c.foreground }]}>Record Audio</Text>
+              <Switch
+                value={dashcamSettings.audioEnabled}
+                onValueChange={(v) => updateDashcam({ audioEnabled: v })}
+                trackColor={{ true: c.primary }}
+              />
+            </View>
+
+            {/* Wi-Fi only upload */}
+            <View style={[styles.row, { borderBottomColor: c.border }]}>
+              <Ionicons name="cloud-upload-outline" size={20} color={c.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowLabel, { color: c.foreground }]}>Wi-Fi Only Upload</Text>
+                <Text style={[styles.cardLabel, { color: c.mutedForeground, marginTop: 0 }]}>
+                  Upload locked clips only when on Wi-Fi
+                </Text>
+              </View>
+              <Switch
+                value={dashcamSettings.wifiOnlyUpload}
+                onValueChange={(v) => updateDashcam({ wifiOnlyUpload: v })}
+                trackColor={{ true: c.primary }}
+              />
+            </View>
+
+            {/* Storage used */}
+            <View style={[styles.row, { borderBottomColor: "transparent" }]}>
+              <Ionicons name="server-outline" size={20} color={c.mutedForeground} />
+              <Text style={[styles.rowLabel, { color: c.foreground }]}>Storage Used</Text>
+              <Text style={[styles.rowValue, { color: c.mutedForeground }]}>
+                {(dashcamStorage / 1_048_576).toFixed(0)} MB
+              </Text>
+            </View>
+          </View>
+        </View>
       )}
 
       {/* Driving Course / Learn */}
