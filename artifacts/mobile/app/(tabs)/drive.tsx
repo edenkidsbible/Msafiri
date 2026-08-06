@@ -45,7 +45,7 @@ import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt"
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
   loadRecentSearches,
   saveRecentSearch,
@@ -546,14 +546,27 @@ export default function DriveScreen() {
   // Exception: when a destination is already set (Map tab navigation or a
   // deep-link), the route preview sheet shows first so the driver can inspect
   // alt routes and tap Start themselves — preserving the pre-overhaul flow.
+  //
+  // Uses useFocusEffect (not useEffect) because drive.tsx is a permanently-
+  // mounted hidden tab. A mount-only effect fires exactly once and never
+  // re-triggers when the user stops a trip and taps "Start Driving" again.
+  // useFocusEffect re-runs every time the screen comes into focus, and the
+  // autoStartedRef guard prevents double-starting while a trip is already
+  // active. The ref is reset in the effect below when tripActive goes false.
   const { noAutoStart } = useLocalSearchParams<{ noAutoStart?: string }>();
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (autoStartedRef.current) return;
     autoStartedRef.current = true;
     if (!navDestination && noAutoStart !== "1") startTrip();
-  // Intentionally mount-only — startTrip identity is stable enough here.
+  // navDestination and noAutoStart are intentionally included so a fresh
+  // destination set by the Map tab is visible when focus arrives.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [navDestination, noAutoStart]));
+
+  // Reset the auto-start guard when the trip ends so re-entry auto-starts again.
+  useEffect(() => {
+    if (!tripActive) autoStartedRef.current = false;
+  }, [tripActive]);
 
   // Tick the trip duration once per second while active.
   useEffect(() => {
