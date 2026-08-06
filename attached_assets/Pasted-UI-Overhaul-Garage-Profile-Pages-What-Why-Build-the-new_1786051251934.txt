@@ -1,0 +1,35 @@
+UI Overhaul: Garage & Profile Pages
+What & Why
+Build the new Garage tab (driving hub) and Profile tab per the mockups, rehoming today's Trips and Settings content. Reference mockups: attached_assets/Garage_page_1786047712651.png, attached_assets/Profile_page_1786047712654.png.
+
+The screenshots are the spec, not inspiration. The finished screens must look exactly like the mockups — same layout, section order, spacing, colors, iconography, typography, and card styles — with real app data replacing the sample content. Compare the built screens against the mockup images side by side before finishing; deviate only where a mockup element has no backing feature (then use the closest faithful placeholder or ask the user).
+
+Light mode: the mockups are dark-mode only, but the app supports both themes. Use the foundation task's theme-aware tokens so both screens have a polished light-mode equivalent; the dark version matches the screenshots exactly. The Appearance entry on Profile must keep the theme toggle working.
+
+Done looks like
+Garage tab is pixel-faithful to Garage_page_1786047712651.png in dark mode: Driving Score gauge card with lifetime stats (total distance, drive time, trips, est. savings) computed from the persisted drive-session data (useDriveScore/driveSessionApi + trips history), "My Vehicle" card (vehicle type today; make/model/plate fields may need to be added — ask the user how much vehicle detail to collect), Quick Access grid (Trip History, Dashcam Videos, Accident Reports, Crash Assistant, Driving Statistics), Recent Trips list with per-trip score and route thumbnail, and a Premium upsell banner that opens the paywall.
+Quick Access entries route to existing features: trips history, dashcam clips, and the existing Crash Assistant feature (crash vault / accident reports with the 7-step documentation flow) — the mockup's "Insurance Assistant" tile is actually Crash Assistant; no new feature needed.
+Existing trips features (live sharing, saved places, planned trips, route status checks) remain reachable from Garage/Trip History.
+Profile tab is pixel-faithful to Profile_page_1786047712654.png in dark mode: profile header (avatar, name, email, phone, verified badge if applicable), Premium status card with Manage, Account section (Personal Information, Subscription, Invite Friends — NO Payment Methods, subscriptions are store-managed), Safety & Settings (Emergency Contacts, Notifications, Voice & Sound, Appearance), Support & More (Help Center, Driver Safety Course → existing course/Learn content, About with version), and Log Out. All existing settings (permissions, vehicle type, alert prefs, dashcam settings, admin tools) remain accessible, reorganized into these sections.
+Both screens look equally polished in light mode.
+Fines/NTSA content and blogs stay reachable (e.g. from the course area or Support section).
+Out of scope
+Home, Drive Mode, Map, Report tabs; onboarding/paywall redesign (other tasks).
+Building an emergency contacts backend if none exists — placeholder or ask the user.
+Steps
+Garage screen — Build the Garage layout to match the mockup exactly, computing lifetime stats from the persisted drive sessions and trip history; wire Quick Access to existing screens (trip history, dashcam clips, crash vault/Crash Assistant, driving statistics); Recent Trips list from the trips API with score rings.
+Vehicle card — Show current vehicle info; if only vehicle type exists today, present it cleanly and ask the user whether to add make/model/plate capture.
+Profile screen — Rebuild Settings as the sectioned Profile page matching the mockup exactly, migrating every existing setting into the new structure, adding profile header and subscription status card, and linking Driver Safety Course, Help, About, and Log Out.
+Fidelity, rehoming & regression — Compare both screens against their mockups side by side and fix deviations; verify both in light mode and confirm the Appearance toggle works; ensure old Trips/Settings/Learn entry points redirect appropriately and nothing (admin tools, dashcam settings, fines, blogs, Crash Assistant) becomes unreachable.
+Relevant files
+artifacts/mobile/app/(tabs)/trips.tsx
+artifacts/mobile/app/(tabs)/settings.tsx
+artifacts/mobile/app/(tabs)/learn.tsx
+artifacts/mobile/app/(tabs)/fines.tsx
+artifacts/mobile/app/dashcam-clips.tsx
+artifacts/mobile/app/crash-vault.tsx
+artifacts/mobile/app/crash-assistant/[id].tsx
+artifacts/mobile/components/TripCard.tsx
+artifacts/mobile/hooks/useDriveScore.ts
+artifacts/mobile/utils/driveSessionApi.ts
+artifacts/mobile/utils/tripsApi.ts
