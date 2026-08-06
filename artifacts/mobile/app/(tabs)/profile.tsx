@@ -57,7 +57,7 @@ export default function ProfileScreen() {
   const tabBarH = Platform.OS === "web" ? 84 : 96;
   
   const { driverName, clearAllData } = useApp();
-  const { isSubscribed } = useSubscription();
+  const { isSubscribed, customerInfo } = useSubscription();
   const version = Constants.expoConfig?.version ?? "2.1.0";
 
   // Saved profile details — reloaded on focus so edits made on the
@@ -105,6 +105,22 @@ export default function ProfileScreen() {
   };
 
   const initials = driverName ? driverName.substring(0, 2).toUpperCase() : "DR";
+
+  // Derive the real renewal/expiration date from RevenueCat customer info.
+  // expirationDate is an ISO string (e.g. "2026-08-01T00:00:00Z") or null for lifetime.
+  const renewalDateLabel = (() => {
+    if (!isSubscribed) return null;
+    const expiresDate =
+      customerInfo?.entitlements.active?.["pro"]?.expirationDate;
+    if (!expiresDate) return null; // lifetime or unavailable
+    const d = new Date(expiresDate);
+    if (isNaN(d.getTime())) return null;
+    return "Renews on " + d.toLocaleDateString("en-KE", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  })();
 
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>
@@ -190,9 +206,11 @@ export default function ProfileScreen() {
             <Text style={[styles.premiumSub, { color: c.mutedForeground }]} numberOfLines={1}>
               {isSubscribed ? "You're enjoying all Premium benefits" : "Unlock exclusive features today"}
             </Text>
-            <Text style={[styles.premiumDate, { color: c.primary }]} numberOfLines={1}>
-              {isSubscribed ? "Renews on 20 Jun 2025" : "Subscribe now"}
-            </Text>
+            {(isSubscribed ? (renewalDateLabel ?? "") : "Subscribe now") ? (
+              <Text style={[styles.premiumDate, { color: c.primary }]} numberOfLines={1}>
+                {isSubscribed ? (renewalDateLabel ?? "") : "Subscribe now"}
+              </Text>
+            ) : null}
           </View>
           <TouchableOpacity style={[styles.manageBtn, { borderColor: c.border }]} onPress={() => router.push("/paywall" as any)}>
             <Text style={[styles.manageBtnTxt, { color: c.foreground }]}>{isSubscribed ? "Manage >" : "Subscribe >"}</Text>
