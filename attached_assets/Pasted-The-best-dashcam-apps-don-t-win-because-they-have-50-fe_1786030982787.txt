@@ -1,0 +1,310 @@
+The best dashcam apps don't win because they have 50 features—they win because drivers trust that the recording will be there when something happens.
+
+If I were designing Msafiri's Dashcam, I'd split it into three phases.
+
+Phase 1 (MVP)
+
+These are the features I wouldn't launch without.
+
+1. Loop Recording ⭐⭐⭐⭐⭐
+
+This is the foundation.
+
+The app continuously records:
+
+Minute 1
+Minute 2
+Minute 3
+Minute 4
+Minute 5
+
+↓
+
+Delete Minute 1
+
+↓
+
+Minute 6
+
+The storage never fills up because old clips are overwritten.
+
+Every dedicated dashcam does this.
+
+2. One-Tap Lock Video ⭐⭐⭐⭐⭐
+
+Driver taps a big button.
+
+Current recording becomes permanent.
+
+Never deleted.
+
+Useful when:
+
+Near miss
+Dangerous driver
+Police interaction
+Road rage
+Accident ahead
+3. Auto Lock After Impact ⭐⭐⭐⭐⭐
+
+If crash detection triggers:
+
+Automatically save:
+
+30 seconds before
+accident
+60 seconds after
+
+without requiring the driver to touch the phone.
+
+4. Recording Status
+
+Always visible.
+
+🔴 REC
+
+01:18:42
+
+1080P
+
+Drivers should never wonder if recording is active.
+
+5. Remaining Storage
+
+Example:
+
+Storage
+
+Recording Capacity
+
+12 hours remaining
+
+Simple but reassuring.
+
+6. Audio On / Off
+
+Many drivers don't want conversations recorded.
+
+Simple switch.
+
+🎤 Audio
+
+ON
+
+OFF
+7. Video Quality
+
+Offer just three options.
+
+720p
+1080p (recommended)
+4K (if device supports it)
+
+No need for dozens of settings.
+
+Phase 2
+
+These make the dashcam genuinely useful.
+
+8. GPS Overlay
+
+Overlay on the video:
+
+Speed: 82 km/h
+
+Nairobi
+
+8:45 PM
+
+This adds context without clutter.
+
+9. Timestamp
+
+Every video should include:
+
+06 Aug 2026
+
+20:14:55
+
+Essential for evidence.
+
+10. Speed Overlay
+
+Display current speed.
+
+Many users expect this.
+
+11. Auto Start
+
+Options:
+
+Start when app opens
+Start when phone connects to car Bluetooth
+Start when charging begins
+Start automatically after detecting movement
+
+Bluetooth auto-start is especially convenient.
+
+12. Background Recording
+
+User switches to Spotify.
+
+Recording continues.
+
+Very important.
+
+13. Landscape Lock
+
+If the phone rotates accidentally...
+
+Video remains landscape.
+
+14. Front/Rear Camera Switch
+
+Simple toggle.
+
+Some users mount phones differently.
+
+Phase 3
+
+These are the features people rave about.
+
+15. AI Event Detection
+
+Automatically tag moments like:
+
+Hard braking
+Near collision
+Sudden swerving
+Heavy impact
+
+The timeline might show:
+
+8:12 PM
+
+⚠ Hard Brake
+
+8:25 PM
+
+⚠ Impact
+
+9:05 PM
+
+⚠ Sudden Swerving
+
+Users can jump directly to those events.
+
+16. Smart Video Timeline
+
+Instead of scrolling through hours of footage:
+
+● Hard Brake
+
+● Speed Camera
+
+● Accident
+
+● Police Stop
+
+Tap any marker to jump there.
+
+17. Picture-in-Picture Navigation
+
+Very elegant.
+
++----------------------------+
+|                            |
+|      Camera View           |
+|                            |
+|        🛣                  |
+|                            |
+|       ┌────────┐           |
+|       │ Map    │           |
+|       │ 500 m  │           |
+|       └────────┘           |
++----------------------------+
+
+Camera remains the main view while navigation occupies a small window.
+
+18. Cloud Backup
+
+Only upload:
+
+Locked videos
+Crash videos
+User-selected clips
+
+Never upload continuous footage by default to avoid excessive data usage.
+
+19. Quick Share
+
+One tap:
+
+Share
+
+WhatsApp
+
+Google Drive
+
+Insurance
+
+Police
+
+Email
+20. Privacy Blur
+
+Automatically blur:
+
+Faces
+License plates
+
+Great for clips shared publicly.
+
+A feature I haven't seen done particularly well
+
+Because Msafiri already knows where speed cameras, police checkpoints, and hazards are, your dashcam could create event bookmarks automatically.
+
+Imagine driving for two hours.
+
+When you stop, the timeline shows:
+
+08:15
+
+📸 Speed Camera
+
+08:29
+
+👮 Police Checkpoint
+
+08:41
+
+🚧 Road Works
+
+09:10
+
+🚨 Accident
+
+09:22
+
+⚠ Hard Brake
+
+09:35
+
+📸 Speed Camera
+
+09:42
+
+🏁 Trip End
+
+You don't need to scrub through two hours of footage. Tap any bookmark and you're instantly at that moment.
+
+That's a natural fit for Msafiri because those events come from the same road intelligence you're already building.
+
+If I had to pick just five features that would make Msafiri competitive from day one, they'd be:
+Reliable loop recording with automatic storage management.
+Automatic crash locking so critical footage is never lost.
+GPS, speed, and timestamp overlays embedded in recordings.
+Bluetooth/charging auto-start so drivers don't have to remember to begin recording.
+Smart event timeline combining crash detection with Msafiri's alerts (speed cameras, checkpoints, hazards, and community reports).
+
+That combination would deliver a polished experience while staying focused on what matters most: dependable recording and meaningful driving context, rather than a long list of rarely used settings.
