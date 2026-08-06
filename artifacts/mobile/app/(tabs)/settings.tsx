@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
+  Image,
   Platform,
   ScrollView,
   Share,
@@ -20,7 +21,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
@@ -60,6 +62,19 @@ export default function SettingsScreen() {
     clearUnlocked: clearDashcamLoop,
   } = useDashcam();
   const [showPaywall, setShowPaywall] = useState(false);
+
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // Reload the profile photo whenever the user returns to this screen
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      AsyncStorage.getItem("profile_photo_uri").then((val) => {
+        if (active) setPhotoUri(val);
+      }).catch(() => {});
+      return () => { active = false; };
+    }, [])
+  );
 
   const [name, setName] = useState(sosContact?.name ?? "");
   const [phone, setPhone] = useState(sosContact?.phone ?? "");
@@ -281,6 +296,21 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-back" size={26} color={c.foreground} />
         </TouchableOpacity>
         <Text style={[styles.pageTitle, { color: c.foreground }]}>Settings</Text>
+        {/* Profile avatar — tapping navigates to Personal Information */}
+        <TouchableOpacity
+          onPress={() => router.push("/personal-information" as any)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <View style={[styles.headerAvatar, { backgroundColor: c.primary + "1E" }]}>
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.headerAvatarImage} />
+            ) : (
+              <Text style={[styles.headerAvatarTxt, { color: c.primary }]}>
+                {driverName ? driverName.substring(0, 2).toUpperCase() : "DR"}
+              </Text>
+            )}
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Subscription banner */}
@@ -1035,7 +1065,13 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   pageTitleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 24, gap: 4 },
-  pageTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  pageTitle: { fontSize: 28, fontFamily: "Inter_700Bold", flex: 1 },
+  headerAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  headerAvatarImage: { width: 36, height: 36, borderRadius: 18 },
+  headerAvatarTxt: { fontSize: 13, fontFamily: "Inter_700Bold" },
   section: { marginBottom: 24, paddingHorizontal: 16 },
   sectionTitle: {
     fontSize: 11,
