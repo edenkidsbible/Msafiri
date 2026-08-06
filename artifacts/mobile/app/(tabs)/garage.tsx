@@ -107,7 +107,7 @@ export default function GarageScreen() {
           </View>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-            onPress={() => router.push("/(tabs)/settings")}
+            onPress={() => router.push("/(tabs)/profile")}
           >
             <Ionicons name="settings-outline" size={20} color={c.foreground} />
           </TouchableOpacity>
@@ -188,7 +188,7 @@ export default function GarageScreen() {
               </View>
               <TouchableOpacity
                 style={[styles.outlineBtn, { borderColor: c.border }]}
-                onPress={() => router.push("/(tabs)/settings")}
+                onPress={() => router.push("/personal-information" as any)}
               >
                 <Text style={[styles.outlineBtnTxt, { color: c.foreground }]}>Vehicle Details {">"}</Text>
               </TouchableOpacity>
@@ -291,7 +291,7 @@ export default function GarageScreen() {
                 Get advanced insights, unlimited dashcam storage and more.
               </Text>
             </View>
-            <TouchableOpacity style={[styles.upgradeBtn, { borderColor: c.primary }]} onPress={() => router.push("/(tabs)/settings")}>
+            <TouchableOpacity style={[styles.upgradeBtn, { borderColor: c.primary }]} onPress={() => router.push("/paywall" as any)}>
               <Text style={[styles.upgradeBtnTxt, { color: c.primary }]}>Upgrade {">"}</Text>
             </TouchableOpacity>
           </View>

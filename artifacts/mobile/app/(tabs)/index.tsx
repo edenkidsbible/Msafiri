@@ -193,7 +193,7 @@ export default function HomeScreen() {
       valueColor: score != null ? scoreColor(score) : c.mutedForeground,
       sub: score != null ? scoreLabel(score) : "No trips yet",
       ring: true,
-      onPress: () => router.push("/(tabs)/trips"),
+      onPress: () => router.push("/(tabs)/garage"),
     },
     {
       key: "sharing",
@@ -231,7 +231,7 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity
             style={[styles.bellBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-            onPress={() => router.push("/(tabs)/settings")}
+            onPress={() => router.push("/app-settings/notifications" as any)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="notifications-outline" size={20} color={c.foreground} />
@@ -394,14 +394,14 @@ export default function HomeScreen() {
         {/* ── My Last Trip ───────────────────────────────────────────────── */}
         <View style={styles.sectionRow}>
           <Text style={[styles.sectionTitle, { color: c.foreground }]}>My Last Trip</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/trips")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/garage")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={[styles.sectionLink, { color: c.primary }]}>View all</Text>
           </TouchableOpacity>
         </View>
         {lastSession ? (
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => router.push("/(tabs)/trips")}
+            onPress={() => router.push("/(tabs)/garage")}
             style={[styles.tripCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
           >
             <View style={[styles.tripThumb, { backgroundColor: c.primary + "16" }]}>

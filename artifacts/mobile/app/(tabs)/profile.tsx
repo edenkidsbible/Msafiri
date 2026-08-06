@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -100,15 +100,9 @@ export default function ProfileScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-              onPress={() => router.push("/(tabs)/settings")}
+              onPress={() => router.push("/app-settings/notifications" as any)}
             >
               <Ionicons name="notifications-outline" size={20} color={c.foreground} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-              onPress={() => router.push("/(tabs)/settings")}
-            >
-              <Ionicons name="settings-outline" size={20} color={c.foreground} />
             </TouchableOpacity>
           </View>
         </View>
@@ -117,7 +111,7 @@ export default function ProfileScreen() {
         <TouchableOpacity 
           activeOpacity={0.8}
           style={[styles.profileCard, { backgroundColor: c.card, borderColor: c.tileBorder, marginHorizontal: 16 }]}
-          onPress={() => router.push("/(tabs)/settings")}
+          onPress={() => router.push("/personal-information" as any)}
         >
           <View style={[styles.avatarWrap, { backgroundColor: c.primary + "1E" }]}>
             <Text style={[styles.avatarTxt, { color: c.primary }]}>{initials}</Text>
@@ -168,7 +162,7 @@ export default function ProfileScreen() {
               {isSubscribed ? "Renews on 20 Jun 2025" : "Subscribe now"}
             </Text>
           </View>
-          <TouchableOpacity style={[styles.manageBtn, { borderColor: c.border }]} onPress={() => router.push("/(tabs)/settings")}>
+          <TouchableOpacity style={[styles.manageBtn, { borderColor: c.border }]} onPress={() => router.push("/paywall" as any)}>
             <Text style={[styles.manageBtnTxt, { color: c.foreground }]}>{isSubscribed ? "Manage >" : "Subscribe >"}</Text>
           </TouchableOpacity>
         </View>
@@ -180,13 +174,13 @@ export default function ProfileScreen() {
             <SettingsRow 
               icon="person-outline" iconColor="#3B82F6" 
               title="Personal Information" sub="Update your details" 
-              onPress={() => router.push("/(tabs)/settings")} 
+              onPress={() => router.push("/personal-information" as any)} 
             />
             <SettingsRow 
               icon="card-outline" iconColor={c.primary} 
               title="Subscription" sub="Manage your plan and billing" 
               badge="Premium" badgeColor={c.primary}
-              onPress={() => router.push("/(tabs)/settings")} 
+              onPress={() => router.push("/paywall" as any)} 
             />
             <SettingsRow 
               icon="gift-outline" iconColor="#8B5CF6" 
@@ -205,23 +199,23 @@ export default function ProfileScreen() {
               icon="shield-outline" iconColor="#F97316" 
               title="Emergency Contacts" sub="Add and manage contacts" 
               badge="3 contacts"
-              onPress={() => router.push("/(tabs)/settings")} 
+              onPress={() => router.push("/app-settings/emergency-contacts" as any)} 
             />
             <SettingsRow 
               icon="notifications-outline" iconColor="#EF4444" 
               title="Notifications" sub="Manage your alerts and updates" 
-              onPress={() => router.push("/(tabs)/settings")} 
+              onPress={() => router.push("/app-settings/notifications" as any)} 
             />
             <SettingsRow 
               icon="volume-high-outline" iconColor="#3B82F6" 
               title="Voice & Sound" sub="Manage voice alerts and sounds" 
-              onPress={() => router.push("/(tabs)/settings")} 
+              onPress={() => router.push("/app-settings/voice-sound" as any)} 
             />
             <SettingsRow 
               icon="moon-outline" iconColor="#8B5CF6" 
               title="Appearance" sub="Choose your theme" 
               badge={c.isDark ? "Dark Mode" : "Light Mode"} badgeColor={c.primary}
-              onPress={() => router.push("/(tabs)/settings")}
+              onPress={() => router.push("/app-settings/appearance" as any)}
               isLast
             />
           </View>
@@ -234,7 +228,7 @@ export default function ProfileScreen() {
             <SettingsRow 
               icon="help-circle-outline" iconColor="#3B82F6" 
               title="Help Center" sub="FAQs and support" 
-              onPress={() => router.push("/(tabs)/browse")} 
+              onPress={() => Linking.openURL("https://msafirikenya.com").catch(() => {})} 
             />
             <SettingsRow 
               icon="school-outline" iconColor="#F59E0B" 
@@ -245,7 +239,7 @@ export default function ProfileScreen() {
               icon="information-circle-outline" iconColor="#6B7280" 
               title="About Msafiri" sub="App info, terms and privacy" 
               badge={`v${version}`}
-              onPress={() => router.push("/about")} 
+              onPress={() => router.push("/about" as any)} 
               isLast
             />
           </View>
