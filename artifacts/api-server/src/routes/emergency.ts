@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { db, emergencyContactsTable, emergencyAlertsLogTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { sendSms } from "../lib/sms.js";
+import { normalizeKenyaPhone } from "../lib/phoneUtils.js";
 
 const router: Router = Router();
 
@@ -51,9 +52,12 @@ router.post("/emergency-contacts", async (req: Request, res: Response) => {
       return res.status(422).json({ error: "Maximum of 5 emergency contacts allowed" });
     }
 
+    // Normalise to E.164 — accept 07xx / 01xx / +254xx formats from mobile
+    const phoneE164 = normalizeKenyaPhone(phone) ?? phone;
+
     const [inserted] = await db
       .insert(emergencyContactsTable)
-      .values({ deviceId, name, phoneE164: phone })
+      .values({ deviceId, name, phoneE164 })
       .returning();
 
     return res.status(201).json({
@@ -86,7 +90,7 @@ router.patch("/emergency-contacts/:id", async (req: Request, res: Response) => {
       .update(emergencyContactsTable)
       .set({
         ...(name ? { name } : {}),
-        ...(phone ? { phoneE164: phone } : {}),
+        ...(phone ? { phoneE164: normalizeKenyaPhone(phone) ?? phone } : {}),
         updatedAt: new Date(),
       })
       .where(eq(emergencyContactsTable.id, id))

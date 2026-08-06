@@ -31,6 +31,8 @@ module.exports = {
         // "location" keeps watchPositionAsync alive when screen locks (nav cues).
         // "audio" lets the TTS voice play through even when the app is backgrounded
         // or the screen is off — required for navigation voice on a locked phone.
+        NSContactsUsageDescription:
+          "Msafiri lets you pick emergency contacts directly from your address book so you don't have to type phone numbers manually.",
         NSCameraUsageDescription:
           "Msafiri uses your camera to record dashcam footage while you drive. Recordings are stored locally on your device and only uploaded to the cloud when you manually lock a clip.",
         NSMicrophoneUsageDescription:
@@ -58,6 +60,7 @@ module.exports = {
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_CONTACTS",
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon-foreground.png",
@@ -125,6 +128,13 @@ module.exports = {
           microphonePermission:
             "Msafiri can optionally record audio with dashcam footage.",
           recordAudioAndroid: true,
+        },
+      ],
+      [
+        "expo-contacts",
+        {
+          contactsPermission:
+            "Msafiri lets you pick emergency contacts directly from your address book so you don't have to type phone numbers manually.",
         },
       ],
       "expo-video",
