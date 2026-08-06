@@ -3,7 +3,8 @@
  * Grid of 12 report types, recent nearby reports, stats card.
  * Tapping a type opens ReportModal pre-selected on that type.
  */
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -45,26 +46,12 @@ function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-// Grid items — order matches mockup exactly
-const GRID_ITEMS: Array<{
-  type: ReportType | null;
-  label: string;
-  icon: string;
-  iconSet: "Ionicons" | "MaterialCommunityIcons";
-  color: string;
-}> = [
-  { type: "camera",    label: "Speed Camera", icon: "camera",              iconSet: "Ionicons",               color: "#E53935" },
-  { type: "police",    label: "Police",        icon: "person",              iconSet: "Ionicons",               color: "#1565C0" },
-  { type: "alcoblow",  label: "Alcoblow",      icon: "beer",                iconSet: "MaterialCommunityIcons", color: "#9C7900" },
-  { type: "accident",  label: "Accident",      icon: "nuclear",             iconSet: "Ionicons",               color: "#B71C1C" },
-  { type: "roadworks", label: "Road Works",    icon: "hammer",              iconSet: "Ionicons",               color: "#E8A000" },
-  { type: "traffic",   label: "Traffic Jam",   icon: "traffic-light",       iconSet: "MaterialCommunityIcons", color: "#C62828" },
-  { type: "hazard",    label: "Hazard",        icon: "warning",             iconSet: "Ionicons",               color: "#FF6F00" },
-  { type: "pothole",   label: "Pothole",       icon: "remove-circle",       iconSet: "Ionicons",               color: "#F57C00" },
-  { type: "debris",    label: "Debris",        icon: "cube",                iconSet: "Ionicons",               color: "#795548" },
-  { type: "weather",   label: "Flood",         icon: "waves",               iconSet: "MaterialCommunityIcons", color: "#1565C0" },
-  { type: "breakdown", label: "Animal",        icon: "cow",                 iconSet: "MaterialCommunityIcons", color: "#6D4C41" },
-  { type: null,        label: "Other",         icon: "ellipsis-horizontal", iconSet: "Ionicons",               color: "#546E7A" },
+// Grid items — order matches mockup exactly.
+// Each entry resolves its emoji, color, and label from the canonical INCIDENT_TYPES map.
+const GRID_TYPES: (ReportType | null)[] = [
+  "camera", "police", "alcoblow", "accident",
+  "roadworks", "traffic", "hazard", "pothole",
+  "debris", "weather", "breakdown", null,
 ];
 
 export default function ReportScreen() {
@@ -160,23 +147,23 @@ export default function ReportScreen() {
         {/* ── Report type grid ─────────────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { color: c.foreground }]}>What would you like to report?</Text>
         <View style={styles.grid}>
-          {GRID_ITEMS.map((item, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[styles.gridTile, { backgroundColor: c.card }]}
-              onPress={() => openReport(item.type)}
-              activeOpacity={0.78}
-            >
-              <View style={[styles.gridIconBox, { backgroundColor: item.color + "25" }]}>
-                {item.iconSet === "MaterialCommunityIcons" ? (
-                  <MaterialCommunityIcons name={item.icon as any} size={26} color={item.color} />
-                ) : (
-                  <Ionicons name={item.icon as any} size={26} color={item.color} />
-                )}
-              </View>
-              <Text style={[styles.gridLabel, { color: c.foreground }]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
+          {GRID_TYPES.map((type, i) => {
+            const def = resolveIncidentType(type ?? "__unknown");
+            const label = type === null ? "Other" : def.label;
+            return (
+              <TouchableOpacity
+                key={i}
+                style={[styles.gridTile, { backgroundColor: c.card }]}
+                onPress={() => openReport(type)}
+                activeOpacity={0.78}
+              >
+                <View style={[styles.gridIconBox, { backgroundColor: def.color + "25" }]}>
+                  <Text style={{ fontSize: 26, fontFamily: EMOJI_FONT_FAMILY }}>{def.emoji}</Text>
+                </View>
+                <Text style={[styles.gridLabel, { color: c.foreground }]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* ── Recent nearby reports ────────────────────────────────────── */}
