@@ -202,9 +202,10 @@ export default function DriveScreen() {
 
   const { markDismissed } = useIncidentConfirmationPrompt();
 
-  // Dashcam — REC indicator and open button in the action pills row
+  // Dashcam — REC indicator and toggle in the action pills row
   const {
     isRecording: dashcamRecording,
+    backgroundRecordPending: dashcamPending,
     openDashcam,
     stopDashcam,
     lockCurrentClip,
@@ -1160,59 +1161,7 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ── Drive Mode header — mockup-faithful: shield · title/subtitle · share · audio ── */}
-      {tripActive && (
-        <View style={[
-          styles.tripHeader,
-          {
-            paddingTop: topInset + 6,
-            backgroundColor: isDark ? "#0B0D0CF2" : "#F4F6F4F5",
-          },
-        ]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-            <View style={[styles.dmShieldWrap, { backgroundColor: c.primary + "1E", borderColor: c.primary + "44" }]}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={c.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.tripHeaderTitle, { color: c.foreground }]}>Drive Mode</Text>
-              <Text style={[styles.dmHeaderSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                Stay alert. We've got your back.
-              </Text>
-            </View>
-          </View>
-          {/* Share Live Trip — preserved from the old Live Trip sheet */}
-          <TouchableOpacity
-            onPress={handleSharePress}
-            disabled={sharingLoading}
-            style={[styles.dmHeaderBtn, {
-              backgroundColor: isSharingTrip ? c.primary : (isDark ? "#FFFFFF12" : "#00000010"),
-            }]}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            {sharingLoading ? (
-              <ActivityIndicator size="small" color={isSharingTrip ? c.primaryForeground : c.foreground} />
-            ) : (
-              <Ionicons
-                name={isSharingTrip ? "radio" : "share-social-outline"}
-                size={19}
-                color={isSharingTrip ? c.primaryForeground : c.foreground}
-              />
-            )}
-          </TouchableOpacity>
-          {/* Audio Alerts quick toggle (speaker icon in the mockup) */}
-          <TouchableOpacity
-            onPress={toggleAudioAlerts}
-            style={[styles.dmHeaderBtn, { backgroundColor: isDark ? "#FFFFFF12" : "#00000010" }]}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name={audioAlertsOn ? "volume-high" : "volume-mute"}
-              size={19}
-              color={audioAlertsOn ? c.foreground : c.mutedForeground}
-            />
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Drive Mode header removed — share moved to stats row, audio moved to bottom panel */}
 
       {/* ── Drive Mode top alert banner — e.g. "Speed camera ahead · 200 m" ──── */}
       {tripActive && primaryAlert && (
@@ -1220,7 +1169,7 @@ export default function DriveScreen() {
           activeOpacity={0.85}
           onPress={() => { if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true); }}
           style={[styles.dmAlertBanner, {
-            top: topInset + 66,
+            top: topInset + 8,
             backgroundColor: isDark ? "#101613F2" : "#FFFFFFF5",
             borderColor: primaryAlert.distanceM < 500 ? primaryAlert.color : c.primary + "66",
           }]}
@@ -1251,7 +1200,7 @@ export default function DriveScreen() {
 
       {/* ── Live Trip info card — shows origin/destination, start time, LIVE badge ── */}
       {tripActive && navDestination != null && (
-        <View style={[styles.tripInfoCard, { top: topInset + 54 }]}>
+        <View style={[styles.tripInfoCard, { top: topInset + (primaryAlert ? 90 : 8) }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={styles.tripInProgress}>Trip in Progress</Text>
@@ -1599,7 +1548,7 @@ export default function DriveScreen() {
           <View
             pointerEvents="none"
             style={[styles.dmDialWrap, {
-              top: topInset + (primaryAlert ? 148 : 78),
+              top: topInset + (primaryAlert ? 90 : 16),
               backgroundColor: isDark ? "#0F1411E8" : "#FFFFFFF0",
               borderColor: overLimit ? c.speedDanger : c.primary,
             }]}
@@ -1616,7 +1565,7 @@ export default function DriveScreen() {
           </View>
 
           {/* Right-edge round buttons: Report + Center */}
-          <View style={[styles.dmSideCol, { top: topInset + (primaryAlert ? 148 : 78) }]}>
+          <View style={[styles.dmSideCol, { top: topInset + (primaryAlert ? 90 : 16) }]}>
             <TouchableOpacity
               style={[styles.dmSideBtn, { backgroundColor: isDark ? "#161B18F0" : "#FFFFFFF0", borderColor: c.tileBorder }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
@@ -2217,7 +2166,8 @@ export default function DriveScreen() {
             <SOSButton compact small />
           </View>
 
-          {/* Four stat tiles: Current Speed · Driving Score · Duration · Distance */}
+          {/* Stat tiles: Share Trip · Driving Score · Duration · Distance
+              Current Speed removed — it's already prominent on the map dial. */}
           {(() => {
             const sc  = driveScore.score;
             const clr = getScoreColor(sc);
@@ -2233,15 +2183,42 @@ export default function DriveScreen() {
               ? `${(driveScore.distanceM / 1000).toFixed(1)}`
               : `${Math.round(driveScore.distanceM)}`;
             const distUnit = driveScore.distanceM >= 1000 ? "km" : "m";
-            const tiles: { icon: keyof typeof Ionicons.glyphMap; color: string; value: string; unit?: string; label: string }[] = [
-              { icon: "speedometer-outline", color: overLimit ? c.speedDanger : c.primary, value: `${Math.round(currentSpeed)}`, unit: "km/h", label: "Current Speed" },
-              { icon: "shield-outline",      color: clr,        value: `${sc}`,   label: "Driving Score" },
-              { icon: "time-outline",        color: "#FFB300",  value: durTxt,    label: "Duration" },
-              { icon: "navigate-outline",    color: "#8B7CF6",  value: distTxt, unit: distUnit, label: "Distance" },
+            const statTiles: { icon: keyof typeof Ionicons.glyphMap; color: string; value: string; unit?: string; label: string }[] = [
+              { icon: "shield-outline",   color: clr,       value: `${sc}`,  label: "Driving Score" },
+              { icon: "time-outline",     color: "#FFB300", value: durTxt,   label: "Duration" },
+              { icon: "navigate-outline", color: "#8B7CF6", value: distTxt, unit: distUnit, label: "Distance" },
             ];
             return (
               <View style={styles.dmTileRow}>
-                {tiles.map((t) => (
+                {/* Share Trip tile — interactive, replaces the redundant speed digit */}
+                <TouchableOpacity
+                  style={[styles.dmTile, {
+                    backgroundColor: isSharingTrip
+                      ? c.primary + "18"
+                      : (isDark ? "#191E1B" : c.muted),
+                    borderColor: isSharingTrip ? c.primary + "55" : c.tileBorder,
+                  }]}
+                  onPress={handleSharePress}
+                  disabled={sharingLoading}
+                  activeOpacity={0.8}
+                >
+                  {sharingLoading
+                    ? <ActivityIndicator size="small" color={isSharingTrip ? c.primary : c.mutedForeground} />
+                    : <Ionicons
+                        name={isSharingTrip ? "radio" : "share-social-outline"}
+                        size={18}
+                        color={isSharingTrip ? c.primary : c.foreground}
+                      />
+                  }
+                  <Text style={[styles.dmTileVal, { color: isSharingTrip ? c.primary : c.foreground }]} numberOfLines={1}>
+                    {isSharingTrip ? "● Live" : "Off"}
+                  </Text>
+                  <Text style={[styles.dmTileLbl, { color: isSharingTrip ? c.primary : c.mutedForeground }]} numberOfLines={1}>
+                    Share Trip
+                  </Text>
+                </TouchableOpacity>
+
+                {statTiles.map((t) => (
                   <View
                     key={t.label}
                     style={[styles.dmTile, {
@@ -2270,23 +2247,45 @@ export default function DriveScreen() {
               <TouchableOpacity
                 style={[styles.dmToggleCard, {
                   backgroundColor: isDark ? "#191E1B" : c.muted,
-                  borderColor: dashcamRecording ? c.speedDanger + "66" : c.tileBorder,
+                  borderColor: dashcamRecording
+                    ? c.speedDanger + "66"
+                    : dashcamPending
+                    ? c.primary + "66"
+                    : c.tileBorder,
                 }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   if (dashcamRecording) stopDashcam();
-                  else startBackgroundRecording();
+                  else if (!dashcamPending) startBackgroundRecording();
+                  // while pending: do nothing — camera is initialising
                 }}
                 activeOpacity={0.85}
               >
-                <View style={[styles.dmToggleIcon, { backgroundColor: isDark ? "#232926" : "#FFFFFF" }]}>
-                  <Ionicons name="videocam-outline" size={18} color={c.foreground} />
+                <View style={[styles.dmToggleIcon, {
+                  backgroundColor: dashcamRecording
+                    ? c.speedDanger + "22"
+                    : dashcamPending
+                    ? c.primary + "22"
+                    : (isDark ? "#232926" : "#FFFFFF"),
+                }]}>
+                  {dashcamPending && !dashcamRecording
+                    ? <ActivityIndicator size="small" color={c.primary} />
+                    : <Ionicons name="videocam-outline" size={18} color={
+                        dashcamRecording ? c.speedDanger : c.foreground
+                      } />
+                  }
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.dmToggleTitle, { color: c.foreground }]}>Dashcam</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Text style={[styles.dmToggleSub, { color: dashcamRecording ? c.speedDanger : c.mutedForeground }]}>
-                      {dashcamRecording ? "Recording" : "Off"}
+                    <Text style={[styles.dmToggleSub, {
+                      color: dashcamRecording
+                        ? c.speedDanger
+                        : dashcamPending
+                        ? c.primary
+                        : c.mutedForeground,
+                    }]}>
+                      {dashcamRecording ? "Recording" : dashcamPending ? "Starting…" : "Off"}
                     </Text>
                     {dashcamRecording && (
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.speedDanger }} />
