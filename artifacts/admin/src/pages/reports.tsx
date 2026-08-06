@@ -110,6 +110,8 @@ export default function Reports() {
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
   const [locationEditorReport, setLocationEditorReport] = useState<AdminReport | null>(null);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [autoActionPending, setAutoActionPending] = useState<string | null>(null);
+  const [removedAutoIds, setRemovedAutoIds] = useState<Set<string>>(new Set());
   const [deviceToBlock, setDeviceToBlock] = useState<string | null>(null);
   const [blockReason, setBlockReason] = useState("");
   const [blockedDevicesOpen, setBlockedDevicesOpen] = useState(false);
@@ -420,6 +422,30 @@ export default function Reports() {
 
   const doBulk = (action: "confirm" | "deny" | "delete") => {
     bulkMutation.mutate({ data: { action, ids: [...selectedIds] } });
+  };
+
+  const doAutoAction = async (id: string, action: "verify" | "deny") => {
+    setAutoActionPending(id);
+    try {
+      const token = getToken();
+      const r = await fetch(`/api/admin/reports/${id}/${action}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Request failed");
+      setRemovedAutoIds((prev) => { const next = new Set(prev); next.add(id); return next; });
+      toast({
+        title: action === "verify" ? "Report verified" : "Report denied",
+        description: action === "verify"
+          ? "The report is now confirmed and visible to drivers."
+          : "The report has been denied and removed from the map.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+    } catch {
+      toast({ title: "Action failed", description: "Unable to process the request.", variant: "destructive" });
+    } finally {
+      setAutoActionPending(null);
+    }
   };
 
   return (
@@ -739,10 +765,11 @@ export default function Reports() {
                     <TableHead className="w-[100px]">Drivers</TableHead>
                     <TableHead className="w-[160px]">Created</TableHead>
                     <TableHead className="w-[80px] text-right">Map</TableHead>
+                    <TableHead className="w-[160px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {autoData.reports.map((r) => (
+                  {autoData.reports.filter((r) => !removedAutoIds.has(r.id)).map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>
                         <Badge variant="outline" className={`capitalize text-xs font-medium ${TYPE_COLORS[r.type] ?? ""}`}>{r.type}</Badge>
@@ -762,6 +789,32 @@ export default function Reports() {
                         >
                           <ExternalLink className="h-3 w-3" />
                         </a>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 gap-1.5 shadow-none border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                            disabled={autoActionPending === r.id}
+                            onClick={() => doAutoAction(r.id, "verify")}
+                            title="Verify this report — marks it confirmed and admin-verified"
+                          >
+                            {autoActionPending === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                            Verify
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 gap-1.5 shadow-none border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={autoActionPending === r.id}
+                            onClick={() => doAutoAction(r.id, "deny")}
+                            title="Deny this report — removes it from the map"
+                          >
+                            {autoActionPending === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                            Deny
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

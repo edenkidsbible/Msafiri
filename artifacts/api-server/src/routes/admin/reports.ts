@@ -544,6 +544,85 @@ router.post("/reports/:id/approve-removal", requireFeature("reports"), async (re
   }
 });
 
+// ── POST /admin/reports/:id/verify — admin-confirm an auto-detected (or any) report.
+// Sets adminVerified=true, status=confirmed, boosts confirmCount, clears expiry.
+router.post("/reports/:id/verify", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({
+        adminVerified: true,
+        status: "confirmed",
+        confirmCount: Math.max(existing.confirmCount, Math.floor(Math.random() * 45) + 5),
+        expiresAt: null,
+      })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: "report.admin_verify",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName, source: (existing as any).source ?? "manual" },
+    });
+
+    return res.json({
+      id:           updated.id,
+      status:       updated.status,
+      adminVerified: updated.adminVerified,
+      confirmCount: updated.confirmCount,
+    });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/verify error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reports/:id/deny — admin-deny a report, removing it from the map.
+router.post("/reports/:id/deny", requireFeature("reports"), async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+
+    const [existing] = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.id, id));
+
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    const [updated] = await db
+      .update(communityReportsTable)
+      .set({ status: "denied" })
+      .where(eq(communityReportsTable.id, id))
+      .returning();
+
+    const actor = (req as any).adminUser as AdminJwtPayload;
+    await logAudit({
+      actor,
+      action: "report.admin_deny",
+      targetType: "report",
+      targetId: id,
+      details: { type: existing.type, roadName: existing.roadName, source: (existing as any).source ?? "manual" },
+    });
+
+    return res.json({ id: updated.id, status: updated.status });
+  } catch (err) {
+    console.error("POST /admin/reports/:id/deny error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── POST /admin/reports/:id/reject-removal — dismiss driver's "Gone now" on a camera
 // Returns the camera to active status — it stays on the map.
 router.post("/reports/:id/reject-removal", requireFeature("reports"), async (req: Request, res: Response) => {
