@@ -337,8 +337,8 @@ function RootLayoutNav() {
         return;
       }
       setNavDestination(dest);
-      // Navigate to the Drive tab (index) where the map and navigation live
-      router.replace("/(tabs)");
+      // Navigate to Drive Mode where the map and navigation live
+      router.replace("/(tabs)/drive");
     },
     [hydrated, navReady, onboardingComplete, isSubscribed, setNavDestination, router]
   );
@@ -349,7 +349,7 @@ function RootLayoutNav() {
     const dest = pendingDeepLinkRef.current;
     pendingDeepLinkRef.current = null;
     setNavDestination(dest);
-    router.replace("/(tabs)");
+    router.replace("/(tabs)/drive");
   }, [navReady, setNavDestination, router]);
 
   useEffect(() => {

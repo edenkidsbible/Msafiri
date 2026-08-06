@@ -274,8 +274,9 @@ export function usePushNotifications() {
           const payloadLat = data?.lat as number | undefined;
           const payloadLng = data?.lng as number | undefined;
 
-          // Navigate to the map tab immediately
-          safePush("/(tabs)" as any);
+          // Navigate to Drive Mode (hosts the map focus + confirmation prompt)
+          // without auto-starting a trip.
+          safePush({ pathname: "/(tabs)/drive", params: { noAutoStart: "1" } } as any);
 
           // Center the map on the incident
           if (payloadLat != null && payloadLng != null) {

@@ -12,7 +12,7 @@ import { useColors } from "@/hooks/useColors";
 // The Drive tab already has its own inline triggers (the route-preview pill
 // and the active-nav chip), so the floating collapsed FAB is suppressed
 // there to avoid showing two redundant tap targets on the same screen.
-const DRIVE_TAB_PATH = "/";
+const DRIVE_TAB_PATH = "/drive";
 
 // The Map (browse-map) tab has its own "Report" button at left:16,bottom:+96
 // and a controls column at right:12,bottom:+96, so the default right:16,+90

@@ -64,4 +64,5 @@
 - [Navigation crash root causes and fixes](nav-crash-fixes.md) — three compounding JS-thread blockers: O(N) render-body haversine scan, setNearbyZones on every tick, routeIncidents O(zones×route) on every report poll.
 - [Google Routes API v2 field placement](google-routes-api-field-placement.md) — `heading` is inside `Location`, not on `Waypoint`; `avoidUTurns` doesn't exist; unknown fields → hard 400.
 - [expo-file-system v19 legacy import](expo-filesystem-v19-legacy.md) — legacy functions (documentDirectory, getInfoAsync, moveAsync, deleteAsync, makeDirectoryAsync) throw at runtime in v19; import from `expo-file-system/legacy` instead.
+- [Drive Mode route & auto-start](drive-mode-route.md) — drive screen is a hidden tab `/drive` (tab bar stays visible); trip auto-starts unless navDestination or noAutoStart=1; audio toggle owns setAlertVoiceDisabled/setSoundsMuted.
 - [Live Trip mode architecture](live-trip-mode.md) — startNavigation() never called; tripActive is local state; DriveMapView gets tripMode prop for green/blue polyline split.

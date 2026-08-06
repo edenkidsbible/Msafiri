@@ -1,167 +1,50 @@
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
-import { useColors } from "@/hooks/useColors";
-import { FloatingTabBar } from "@/components/FloatingTabBar";
+import { MsafiriTabBar } from "@/components/MsafiriTabBar";
 
-// ─── Platform helpers ─────────────────────────────────────────────────────────
-
-const isIOS = Platform.OS === "ios";
-
-// SF Symbols — conditional require so Metro never bundles iOS-only glyphs
-// into Android/web bundles (they render as foreign characters otherwise).
-function getSymbolView() {
-  if (!isIOS) return null;
-  try {
-    return (
-      require("expo-symbols") as {
-        SymbolView: React.ComponentType<{
-          name: string;
-          tintColor?: string;
-          size?: number;
-        }>;
-      }
-    ).SymbolView;
-  } catch {
-    return null;
-  }
-}
-const SymbolView = getSymbolView();
-
-// ─── Floating tab layout (iOS) ────────────────────────────────────────────────
-//
-// Uses a custom <FloatingTabBar> rendered via the `tabBar` prop so the bar
-// appears as a frosted-glass pill floating above the home indicator.
-// `tabBarStyle` is hidden so React Navigation doesn't render a second bar.
-
-function FloatingTabLayout() {
-  const colors = useColors();
-
+/**
+ * Five-tab navigation matching the UI-overhaul mockups:
+ * Home · Map · Report (elevated round green center button) · Garage · Profile.
+ *
+ * The same custom MsafiriTabBar renders on iOS, Android, and web so the bar
+ * is pixel-identical across platforms.
+ *
+ * Legacy screens (browse, trips, learn, fines, settings) stay registered as
+ * hidden tabs (href: null) so their routes keep working — they are rehomed /
+ * restyled in follow-up tasks. The drive screen is also a hidden tab so the
+ * tab bar remains visible in Drive Mode (per the mockup).
+ */
+export default function TabLayout() {
   return (
     <Tabs
-      tabBar={(props) => <FloatingTabBar {...props} />}
+      tabBar={(props) => <MsafiriTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        // Hide the default tab bar — FloatingTabBar takes over visually.
-        // Keep position:absolute so screens are full-height (no inset added).
+        // Hide the default tab bar — MsafiriTabBar takes over visually.
         tabBarStyle: {
           position: "absolute",
           height: 0,
           opacity: 0,
           overflow: "hidden",
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
       }}
     >
-      <Tabs.Screen name="index"    options={{ title: "Drive" }} />
-      <Tabs.Screen name="map"      options={{ title: "Map" }} />
-      <Tabs.Screen name="browse"   options={{ title: "Learn" }} />
-      <Tabs.Screen name="trips"    options={{ title: "Trips" }} />
-      {/* Learn hidden on iOS — only 5 tabs fit the floating bar cleanly */}
-      <Tabs.Screen name="learn"    options={{ title: "Learn", href: null }} />
+      {/* Visible tabs (order matters — matches the bar slots) */}
+      <Tabs.Screen name="index"   options={{ title: "Home" }} />
+      <Tabs.Screen name="map"     options={{ title: "Map" }} />
+      <Tabs.Screen name="report"  options={{ title: "Report" }} />
+      <Tabs.Screen name="garage"  options={{ title: "Garage" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+
+      {/* Drive Mode — hidden tab so the tab bar stays visible while driving */}
+      <Tabs.Screen name="drive"   options={{ href: null }} />
+
+      {/* Legacy routes — hidden but still routable until follow-up tasks rehome them */}
+      <Tabs.Screen name="browse"   options={{ href: null }} />
+      <Tabs.Screen name="trips"    options={{ href: null }} />
+      <Tabs.Screen name="learn"    options={{ href: null }} />
       <Tabs.Screen name="fines"    options={{ href: null }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
-}
-
-// ─── Classic tab layout (Android / web) ───────────────────────────────────────
-
-function ClassicTabLayout() {
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const isWeb = Platform.OS === "web";
-
-  const icon =
-    (
-      featherName: React.ComponentProps<typeof Feather>["name"],
-      sfName: string
-    ) =>
-    ({ color }: { color: string }) =>
-      isIOS && SymbolView ? (
-        <SymbolView name={sfName} tintColor={color} size={28} />
-      ) : (
-        <Feather name={featherName} size={24} color={color} />
-      );
-
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontFamily: "Inter_600SemiBold",
-          marginBottom: 3,
-        },
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
-          elevation: 0,
-          height: isWeb ? 84 : 92,
-        },
-        tabBarBackground: () => (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: colors.background },
-            ]}
-          />
-        ),
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{ title: "Drive", tabBarIcon: icon("activity", "gauge") }}
-      />
-      <Tabs.Screen
-        name="map"
-        options={{ title: "Map", tabBarIcon: icon("map", "map") }}
-      />
-      <Tabs.Screen
-        name="browse"
-        options={{
-          title: "Learn",
-          tabBarIcon: icon("book-open", "book"),
-        }}
-      />
-      <Tabs.Screen
-        name="trips"
-        options={{
-          title: "Trips",
-          tabBarIcon: icon("calendar", "calendar"),
-        }}
-      />
-      <Tabs.Screen
-        name="learn"
-        options={{
-          title: "Learn",
-          tabBarIcon: icon("book-open", "book"),
-        }}
-      />
-      <Tabs.Screen name="fines" options={{ href: null }} />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: icon("settings", "gearshape"),
-        }}
-      />
-    </Tabs>
-  );
-}
-
-// ─── Entry point ──────────────────────────────────────────────────────────────
-
-export default function TabLayout() {
-  // iOS → floating pill tab bar (iOS 18-style)
-  // Android / web → classic bottom tab bar
-  return isIOS ? <FloatingTabLayout /> : <ClassicTabLayout />;
 }

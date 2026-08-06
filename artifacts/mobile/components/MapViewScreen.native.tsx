@@ -785,7 +785,7 @@ export default function MapViewScreen() {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           // Switch to Drive tab so the turn-by-turn nav bar and voice guidance
           // are immediately visible without the driver having to tap manually.
-          router.replace("/");
+          router.replace("/(tabs)/drive");
         }}
       />
 
