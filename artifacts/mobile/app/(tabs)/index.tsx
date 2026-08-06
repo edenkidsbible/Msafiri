@@ -91,7 +91,7 @@ export default function HomeScreen() {
     currentLat,
     currentLng,
   } = useApp();
-  const { isRecording: dashcamRecording } = useDashcam();
+  const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
   const tabBarH = Platform.OS === "web" ? 84 : 96;
@@ -183,7 +183,19 @@ export default function HomeScreen() {
       valueColor: dashcamRecording ? c.speedDanger : c.mutedForeground,
       onPress: () => {
         if (dashcamRecording) {
-          router.push("/dashcam-clips");
+          Alert.alert(
+            "Dashcam — Recording",
+            "Your dashcam is actively recording.",
+            [
+              {
+                text: "Stop Recording",
+                style: "destructive",
+                onPress: () => stopDashcam(),
+              },
+              { text: "View Clips", onPress: () => router.push("/dashcam-clips") },
+              { text: "Dismiss", style: "cancel" },
+            ]
+          );
         } else {
           Alert.alert(
             "Dashcam is Off",
