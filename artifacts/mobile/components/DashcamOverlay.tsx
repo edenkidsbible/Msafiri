@@ -103,7 +103,9 @@ export default function DashcamOverlay() {
     if (isRecording || isDashcamOpen) {
       activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
     } else {
-      deactivateKeepAwake(KEEP_AWAKE_TAG);
+      // deactivateKeepAwake throws if the lock was never activated (e.g. on
+      // first render when both flags start false), so guard with try/catch.
+      try { deactivateKeepAwake(KEEP_AWAKE_TAG); } catch { /* not activated yet */ }
     }
   }, [isRecording, isDashcamOpen]);
 
