@@ -1,0 +1,27 @@
+UI Overhaul: Map & Report Pages
+What & Why
+Rebuild the Map tab and create the new Report tab per the mockups, using the design system from the foundation task. Reference mockups: attached_assets/Map_page_1786047712650.png, attached_assets/Report_page_1786047712651.png.
+
+The screenshots are the spec, not inspiration. The finished screens must look exactly like the mockups — same layout, section order, spacing, colors, iconography, typography, and card styles — with real app data replacing the sample content. Compare the built screens against the mockup images side by side before finishing; deviate only where a mockup element has no backing feature (then use the closest faithful placeholder or ask the user).
+
+Light mode: the mockups are dark-mode only, but the app supports both themes. Use the foundation task's theme-aware tokens so both screens (including the map style) have a polished light-mode equivalent; the dark version matches the screenshots exactly.
+
+Done looks like
+Map tab is pixel-faithful to Map_page_1786047712650.png in dark mode: "Where to?" search bar with mic + filter buttons, POI category chips (Find Nearby, Gas, Restaurant, Shopping, Gym), dark map showing community reports/incidents with the new colored icon badges, compass/layers/locate controls, weather+AQI chip, green "Report Incident" pill, and a draggable "Explore Nearby" bottom sheet listing nearby places with distance/hours. All existing map features (incident browsing, admin moderation, report details, search-to-navigate) still work.
+Report tab (center green + button) is pixel-faithful to Report_page_1786047712651.png in dark mode: header with "My Reports" link, Report Incident / Nearby Reports quick cards, a grid of report types (Speed Camera, Police, Alcoblow, Accident, Road Works, Traffic Jam, Hazard, Pothole, Debris, Flood, Animal, Other) that each open the existing report submission flow pre-selected, a "Recent Nearby Reports" list with distances and reporter info, and a "Thank you for reporting" stats card.
+Both screens look equally polished in light mode via the shared theme tokens.
+Submitting reports works exactly as today (location picking, undo toast, admin verify flows untouched).
+Out of scope
+Home, Drive Mode, Garage, Profile, onboarding/paywall (other tasks).
+Real POI/places data for Explore Nearby and category chips: if no places data source exists, ask the user how to source it (e.g. Google Places) or ship a graceful empty/placeholder state styled like the mockup.
+Steps
+Map screen restyle — Rebuild the Map tab UI to match the mockup exactly on top of the existing map/incident logic: search bar, category chips, new marker badge styling, map controls, Report Incident pill, Explore Nearby bottom sheet.
+Report tab — Build the new Report screen matching the mockup exactly: type grid wired into the existing ReportModal flow (pre-selecting the tapped type), recent nearby reports from the existing reports API, My Reports entry, and the community stats card (use a real count if available, otherwise ask the user).
+Fidelity & regression — Compare both screens against their mockups side by side and fix deviations; verify both in light mode; ensure the center tab button opens Report, map incident taps/details/admin flows still work, and report submission end-to-end is unchanged functionally.
+Relevant files
+artifacts/mobile/app/(tabs)/map.tsx
+artifacts/mobile/components/MapViewScreen.native.tsx
+artifacts/mobile/components/MapViewScreen.web.tsx
+artifacts/mobile/components/ReportModal.tsx
+artifacts/mobile/components/POICard.tsx
+artifacts/mobile/components/CrosshairPicker.native.tsx

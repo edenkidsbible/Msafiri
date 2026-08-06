@@ -59,6 +59,7 @@ interface ReportModalProps {
   onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation) => void;
   currentLat?: number | null;
   currentLng?: number | null;
+  initialType?: ReportType | null; // NEW — pre-selects this type when modal opens
   /** Called when the user wants to open the crosshair map picker. The parent
    *  renders CrosshairPickerModal at the root level so it is never nested
    *  inside another Modal (which causes silent iOS presentation failures). */
@@ -93,6 +94,7 @@ export default function ReportModal({
   onSubmit,
   currentLat = null,
   currentLng = null,
+  initialType = null,
   onOpenMapPicker,
 }: ReportModalProps) {
   const c = useColors();
@@ -132,6 +134,14 @@ export default function ReportModal({
     return clearIdleTimer;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // Pre-select the initialType when the modal becomes visible
+  useEffect(() => {
+    if (visible && initialType) {
+      setSel(initialType);
+      setSpeedLimit("");
+    }
+  }, [visible, initialType]);
 
   const reset = () => {
     setSel(null);

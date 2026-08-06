@@ -1,0 +1,27 @@
+UI Overhaul: New Tabs, Home & Drive Mode
+What & Why
+Complete visual overhaul of the mobile app to match the new mockups (dark, green-accent, card-based design). This foundation task restructures navigation into 5 tabs — Home, Map, Report (center green + button), Garage, Profile — and builds the new Home dashboard and the Drive Mode page, while keeping ALL existing functionality working. Reference mockups: attached_assets/Home1_1786047712654.png, attached_assets/Driving_page_1786047712655.png, plus the other four for the shared tab bar and design language.
+
+The screenshots are the spec, not inspiration. The finished screens must look exactly like the mockups — same layout, section order, spacing, colors, iconography, typography, corner radii, and card styles — with real app data replacing the sample content. Compare the built screens against the mockup images side by side before finishing; deviate only where a mockup element has no backing feature (then use the closest faithful placeholder or ask the user).
+
+Light mode: the mockups show dark mode only, but the app supports both themes (Appearance setting / themeOverride + useColors). Define BOTH palettes in the new tokens: dark matches the screenshots exactly; light is a carefully derived equivalent (same layout, components, and green accent on light surfaces, with proper contrast). Every new screen must look polished in both themes — never ship a screen that only works in dark.
+
+Done looks like
+Bottom tab bar matches the mockups exactly: Home (default), Map, elevated round green Report button in the center, Garage, Profile — consistent on iOS and Android.
+Home is pixel-faithful to Home1_1786047712654.png: Msafiri header with notification bell, greeting + weather chip, big green "Start Driving" card with car artwork, four status tiles (Dashcam, Live Alerts, Driving Score, Trip Sharing), horizontal Nearby Alerts cards, Accident Assistant promo card (links to the existing Crash Assistant feature), My Last Trip card.
+The Driving Score tile shows real data from the new persisted drive-session system (useDriveScore + driveSessionApi).
+Tapping Start Driving opens the full-screen Drive Mode page, pixel-faithful to Driving_page_1786047712655.png: "Drive Mode" header, top alert banner (e.g. speed camera ahead), map with route/incident markers, speed dial with limit, Report/Center buttons, weather + GPS chips, "Drive Safely" panel (speed, score, duration, distance), Dashcam toggle, red Stop Drive button, Audio Alerts toggle.
+Switching to light mode shows an equally polished light equivalent of every new screen; the existing theme toggle keeps working (note the drive page follows themeOverride/useColors, not the separate HUD/Night-Mode setting).
+All current drive functionality still works: GPS tracking, speed/limit alerts, voice guidance, navigation, Live Trip mode and sharing, SOS/crash detection, dashcam (incl. iOS background recording), drive session persistence, drive score, admin overlays.
+Old routes (trips, learn, fines, settings, browse) remain reachable (they are restyled/rehomed in follow-up tasks) — nothing 404s.
+New shared design tokens (colors, card styles, chip/tile components) exist with dark AND light palettes, used by Home/Drive and available to the other screens.
+Out of scope
+Map, Report, Garage, Profile page content (follow-up tasks).
+Onboarding/paywall redesign (follow-up task).
+New backend features (real weather API optional — if none is available, ask the user or use a graceful placeholder).
+Steps
+Design tokens & shared components — Extract the exact palette, typography scale, radii, and card/tile/chip styles from the six mockup screenshots into the tokens system, and derive a matching light-mode palette; build the reusable primitives (theme-aware) all overhaul screens will use.
+New 5-tab navigation — Restructure the tab layout to Home / Map / Report / Garage / Profile with the elevated center Report button; make Home the default tab. Keep old screens routable (hidden or as stack routes) so nothing breaks before follow-up tasks restyle them.
+Home dashboard — Build the new Home screen to match the mockup exactly, wiring each tile to real state (dashcam status, nearby alert counts, drive score from the persisted drive-session data, trip sharing status, last trip). The Accident Assistant card opens the existing Crash Assistant feature. Weather chip may be a placeholder if no weather source exists — ask the user.
+Drive Mode page — Move/restyle the current drive experience into a full-screen Drive Mode presentation launched from Start Driving, matching the mockup exactly: alert banner, speed dial, Drive Safely stats panel, Stop Drive, dashcam and audio-alert toggles. Preserve all existing drive logic, including the recently merged Live Trip mode (tripActive state, green/blue polyline split), drive-session persistence (useDriveScore + driveSessionApi), and the background-safe DashcamContext recording flow.
+Visual fidelity & regression pass — Compare Home and Drive Mode against their mockup images side by side and fix any layout/spacing/color deviations; verify both screens in light mode; verify drive alerts, navigation, reports, dashcam, admin tools, live trip, and drive-session saving all still function.

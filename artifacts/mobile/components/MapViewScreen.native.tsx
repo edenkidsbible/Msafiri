@@ -274,6 +274,9 @@ export default function MapViewScreen() {
   const openedAtRef = useRef(0);
   const now = Date.now();
 
+  const TAB_H = Platform.OS === "web" ? 84 : 96;
+  const EXPLORE_H = 110; // height of explore sheet content above tab bar
+
   // ── Look-ahead camera refs ──────────────────────────────────────────────────
   // Low-pass smoothed heading for the camera — avoids snap-rotations when GPS
   // bearing jumps.  null = not yet initialised.
@@ -518,6 +521,48 @@ export default function MapViewScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Search bar */}
+      <TouchableOpacity
+        style={[styles.searchBar, { top: insets.top + 8, backgroundColor: c.card }]}
+        onPress={() => setShowFindNearby(true)}
+        activeOpacity={0.88}
+      >
+        <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
+        <Text style={[styles.searchBarPlaceholder, { color: c.mutedForeground }]}>Where to?</Text>
+        <View style={[styles.searchBarIcon, { backgroundColor: c.muted }]}>
+          <Ionicons name="mic-outline" size={15} color={c.mutedForeground} />
+        </View>
+        <View style={[styles.searchBarIcon, { backgroundColor: c.muted }]}>
+          <Ionicons name="options-outline" size={15} color={c.mutedForeground} />
+        </View>
+      </TouchableOpacity>
+
+      {/* Category chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.chipsScroll, { top: insets.top + 64 }]}
+        contentContainerStyle={styles.chipsContent}
+      >
+        {([
+          { label: "Find Nearby", icon: "locate", color: c.primary },
+          { label: "Gas",         icon: "flame-outline" },
+          { label: "Restaurant",  icon: "restaurant-outline" },
+          { label: "Shopping",    icon: "bag-outline" },
+          { label: "Gym",         icon: "barbell-outline" },
+        ] as const).map((chip) => (
+          <TouchableOpacity
+            key={chip.label}
+            style={[styles.chip, { backgroundColor: c.card }]}
+            onPress={() => setShowFindNearby(true)}
+            activeOpacity={0.82}
+          >
+            <Ionicons name={chip.icon as any} size={14} color={"color" in chip ? chip.color : c.foreground} />
+            <Text style={[styles.chipTxt, { color: c.foreground }]}>{chip.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {mapPickerActive ? (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]} />
       ) : (
@@ -621,105 +666,55 @@ export default function MapViewScreen() {
       </MapView>
       )}
 
-      {/* Legend — minimize/maximize */}
-      <View style={[styles.legendWrap, { backgroundColor: c.card + "EE", top: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={styles.legendToggleRow}
-          onPress={() => setLegendCollapsed((v) => !v)}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.legendTitle, { color: c.foreground }]}>Map Guide</Text>
-          <Ionicons
-            name={legendCollapsed ? "chevron-down" : "chevron-up"}
-            size={18}
-            color={c.primary}
-          />
+      {/* Right controls — layers + locate */}
+      <View style={[styles.newControls, { bottom: insets.bottom + TAB_H + EXPLORE_H + 20, right: 12 }]}>
+        <TouchableOpacity style={[styles.newControlBtn, { backgroundColor: c.card }]} onPress={() => setShowTraffic(!showTraffic)}>
+          <Ionicons name="layers-outline" size={20} color={showTraffic ? c.primary : c.foreground} />
         </TouchableOpacity>
-        {!legendCollapsed && (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            style={styles.legendScroll}
-            contentContainerStyle={styles.legendContent}
-          >
-            {LEGEND_ITEMS.map((l) => (
-              <View key={l.key} style={styles.legendRow}>
-                <Text style={styles.legendEmoji}>{l.emoji}</Text>
-                <Text style={[styles.legendText, { color: c.foreground }]}>{l.label}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-      </View>
-
-      {/* Right controls */}
-      <View style={[styles.controls, { bottom: insets.bottom + 96 }]}>
-        <TouchableOpacity style={[styles.controlBtn, { backgroundColor: showTraffic ? c.primary : c.card }]} onPress={() => setShowTraffic(!showTraffic)}>
-          <Ionicons name="car" size={20} color={showTraffic ? "#FFF" : c.primary} />
-        </TouchableOpacity>
-        {activeRoute && (
-          <TouchableOpacity style={[styles.controlBtn, { backgroundColor: c.card }]} onPress={fitToRoute}>
-            <Ionicons name="expand-outline" size={20} color={c.primary} />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={[styles.controlBtn, { backgroundColor: c.card }]} onPress={centerOnUser}>
+        <TouchableOpacity style={[styles.newControlBtn, { backgroundColor: c.card }]} onPress={centerOnUser}>
           <Ionicons name="locate-outline" size={22} color={c.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* ── Bottom action row: Report · Find Nearby · X ahead ────────────────
-          All pills share the same height. Report pulses in Kenya red.
-          The incidents chip appears inline when a route has active alerts. */}
-      <View style={[styles.mapActionRow, { bottom: insets.bottom + 96 }]}>
+      {/* Weather/AQI chip */}
+      <View style={[styles.weatherChip, { backgroundColor: c.card + "E8", bottom: insets.bottom + TAB_H + EXPLORE_H + 20, left: 12 }]}>
+        <Text style={{ fontSize: 16 }}>🌤️</Text>
+        <View style={{ gap: 1 }}>
+          <Text style={[styles.weatherTemp, { color: c.foreground }]}>21°</Text>
+          <Text style={[styles.weatherAqi, { color: c.primary }]}>AQI 42  ● Good</Text>
+        </View>
+      </View>
 
-        {/* Report — Kenya flag color cycle: Red → Black → Green → Red */}
+      {/* Report Incident pill */}
+      <View style={[styles.reportPillRow, { bottom: insets.bottom + TAB_H + EXPLORE_H + 20 }]}>
         <TouchableOpacity
+          style={[styles.reportPill, { backgroundColor: c.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-          activeOpacity={0.82}
+          activeOpacity={0.88}
         >
-          <KenyaFlagPill style={styles.mapPill}>
-            <Ionicons name="warning" size={14} color="#FFF" />
-            <Text style={styles.mapPillTxt}>Report</Text>
-          </KenyaFlagPill>
+          <Ionicons name="add" size={16} color={c.isDark ? "#04170B" : "#FFF"} />
+          <Text style={[styles.reportPillTxt, { color: c.isDark ? "#04170B" : "#FFF" }]}>Report Incident</Text>
         </TouchableOpacity>
+      </View>
 
-        {/* Find Nearby — Kenya black */}
+      {/* Explore Nearby bottom sheet — peeks above the tab bar */}
+      <View style={[styles.exploreSheet, { bottom: insets.bottom + TAB_H - 8, backgroundColor: c.card }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+        <View style={styles.sheetHeader}>
+          <Text style={[styles.sheetHeaderTitle, { color: c.foreground }]}>Explore Nearby</Text>
+          <TouchableOpacity onPress={() => setShowFindNearby(true)} activeOpacity={0.8}>
+            <Text style={[styles.sheetSeeAll, { color: c.primary }]}>See all</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
-          style={[styles.mapPill, { backgroundColor: "#1A1A1A" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowFindNearby(true); }}
-          activeOpacity={0.85}
+          style={[styles.nearbyEmpty, { borderColor: c.border }]}
+          onPress={() => setShowFindNearby(true)}
+          activeOpacity={0.8}
         >
-          <Text style={styles.mapPillTxt}>🔍 Nearby</Text>
+          <Ionicons name="location-outline" size={20} color={c.mutedForeground} />
+          <Text style={[styles.nearbyEmptyTxt, { color: c.mutedForeground }]}>Find petrol stations, restaurants, and more</Text>
+          <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
         </TouchableOpacity>
-
-        {/* Incidents chip — Kenya green, inline so all fit one row */}
-        {routeIncidentsAhead.length > 0 && (
-          <TouchableOpacity
-            style={[styles.mapPill, { backgroundColor: "#006600" }]}
-            onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="warning" size={14} color="#FFF" />
-            <Text style={styles.mapPillTxt}>{routeIncidentsAhead.length} ahead ›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Recenter — appears inline when the map has been panned away */}
-        {mapDrifted && currentLat && currentLng && (
-          <TouchableOpacity
-            style={[styles.mapPill, { backgroundColor: "#FFFFFFEE", borderWidth: 1.5, borderColor: "#1565C0" }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              centerOnUser();
-              setMapDrifted(false);
-            }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="locate" size={14} color="#1565C0" />
-            <Text style={[styles.mapPillTxt, { color: "#1565C0" }]}>Recenter</Text>
-          </TouchableOpacity>
-        )}
-
       </View>
 
       {showTraffic && (
@@ -1180,15 +1175,68 @@ const styles = StyleSheet.create({
   },
   speedBadgeNum: { fontSize: 15, fontFamily: "Inter_700Bold", lineHeight: 17 },
   speedBadgeUnit: { fontSize: 8, fontFamily: "Inter_600SemiBold", opacity: 0.85, lineHeight: 9 },
-  legendWrap: {
-    position: "absolute", left: 12,
-    borderRadius: 12,
+  // ── New map UI overlays (overhaul) ────────────────────────────────────────
+  searchBar: {
+    position: "absolute", left: 12, right: 12,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 6, elevation: 6,
-    maxHeight: 320,
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 8,
+    zIndex: 20,
   },
-  legendScroll: { borderRadius: 12 },
-  legendContent: { padding: 10, gap: 6 },
+  searchBarPlaceholder: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  searchBarIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  chipsScroll: { position: "absolute", left: 0, right: 0, zIndex: 19 },
+  chipsContent: { paddingHorizontal: 12, gap: 8 },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12, shadowRadius: 3, elevation: 3,
+  },
+  chipTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  newControls: { position: "absolute", flexDirection: "column", gap: 10, zIndex: 15 },
+  newControlBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 5, elevation: 5,
+  },
+  weatherChip: {
+    position: "absolute", flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, zIndex: 15,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 5, elevation: 5,
+  },
+  weatherTemp: { fontSize: 15, fontFamily: "Inter_700Bold", lineHeight: 18 },
+  weatherAqi: { fontSize: 10, fontFamily: "Inter_500Medium", lineHeight: 13 },
+  reportPillRow: {
+    position: "absolute", left: 0, right: 0,
+    alignItems: "center", zIndex: 15,
+  },
+  reportPill: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 24, paddingVertical: 13, borderRadius: 30,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 10,
+  },
+  reportPillTxt: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  exploreSheet: {
+    position: "absolute", left: 0, right: 0, zIndex: 12,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.12, shadowRadius: 8, elevation: 12,
+  },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 10 },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  sheetHeaderTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  sheetSeeAll: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  nearbyEmpty: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderWidth: 1, borderRadius: 12, padding: 12,
+  },
+  nearbyEmptyTxt: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   emojiMarker: {
     width: 28, height: 28, borderRadius: 8,
     alignItems: "center", justifyContent: "center",
@@ -1201,34 +1249,6 @@ const styles = StyleSheet.create({
   legendEmoji: { fontSize: 16, width: 22, textAlign: "center", fontFamily: EMOJI_FONT_FAMILY },
   legendDot: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   legendText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  controls: { position: "absolute", right: 12, flexDirection: "column", gap: 10 },
-  controlBtn: {
-    width: 46, height: 46, borderRadius: 23,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 5, elevation: 5,
-  },
-  // ── Map page bottom action row (Kenya-colors pill set) ───────────────────
-  mapActionRow: {
-    position: "absolute", left: 16, zIndex: 15,
-    flexDirection: "row", gap: 8, alignItems: "center",
-  },
-  mapPill: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.28, shadowRadius: 7, elevation: 9,
-  },
-  mapPillTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  recenterBtn: {
-    position: "absolute", left: 16,
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#FFFFFFEE",
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18, shadowRadius: 6, elevation: 6,
-  },
-  recenterBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1565C0" },
   // Legacy refs kept to avoid TS errors on any surviving references
   findNearbyBtn: { flexDirection: "row" as const },
   findNearbyBtnText: { fontSize: 13, color: "#FFF" },
@@ -1245,11 +1265,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#00000020",
   },
   clusterBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#222" },
-  legendToggleRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, gap: 14, minWidth: 130,
-  },
-  legendTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
   trafficBadge: {
     position: "absolute", right: 12,
     flexDirection: "row", alignItems: "center", gap: 4,
