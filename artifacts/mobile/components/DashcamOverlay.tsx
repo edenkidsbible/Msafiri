@@ -84,10 +84,10 @@ const STORAGE_CAP_OPTIONS = [
 
 export default function DashcamOverlay() {
   const {
-    isRecording, isDashcamOpen,
+    isRecording, isDashcamOpen, backgroundRecordPending,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked,
-    closeDashcam, setCameraRef, onSegmentComplete,
+    closeDashcam, clearBackgroundRecordPending, setCameraRef, onSegmentComplete,
   } = useDashcam();
 
   const insets = useSafeAreaInsets();
@@ -129,12 +129,12 @@ export default function DashcamOverlay() {
 
   // ── Keep screen awake while dashcam is active ─────────────────────────────
   useEffect(() => {
-    if (isRecording || isDashcamOpen) {
+    if (isRecording || isDashcamOpen || backgroundRecordPending) {
       activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
     } else {
       try { deactivateKeepAwake(KEEP_AWAKE_TAG); } catch { /* not activated yet */ }
     }
-  }, [isRecording, isDashcamOpen]);
+  }, [isRecording, isDashcamOpen, backgroundRecordPending]);
 
   // ── Total recording duration counter ──────────────────────────────────────
   useEffect(() => {
@@ -232,9 +232,13 @@ export default function DashcamOverlay() {
 
   // ── Don't render on web or when fully idle ────────────────────────────────
   if (Platform.OS === "web") return null;
-  if (!isRecording && !isDashcamOpen) return null;
+  if (!isRecording && !isDashcamOpen && !backgroundRecordPending) return null;
 
-  const showUI       = isDashcamOpen;
+  // In background-record-pending mode the overlay mounts silently (opacity 0,
+  // no pointer events) just long enough for the CameraView to warm up. Once
+  // onCameraReady fires, startDashcam() is called, backgroundRecordPending is
+  // cleared, and we transition into the normal invisible-recording state.
+  const showUI = isDashcamOpen && !backgroundRecordPending;
   const qualityLabel = settings.quality === "1080p" ? "1080P" : "720P";
   const isHD         = settings.quality === "1080p";
   const storageUsedPct = Math.min(1, storageUsedBytes / settings.storageCap);
@@ -255,6 +259,14 @@ export default function DashcamOverlay() {
           facing="back"
           mode="video"
           videoQuality={settings.quality === "720p" ? "720p" : "1080p"}
+          onCameraReady={() => {
+            // Auto-start recording silently when the camera has warmed up for
+            // a background recording request. The overlay stays invisible.
+            if (backgroundRecordPending) {
+              startDashcam();
+              clearBackgroundRecordPending();
+            }
+          }}
         />
       )}
 

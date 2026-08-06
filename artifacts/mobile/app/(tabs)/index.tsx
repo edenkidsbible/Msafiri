@@ -198,7 +198,12 @@ export default function DriveScreen() {
   const { markDismissed } = useIncidentConfirmationPrompt();
 
   // Dashcam — REC indicator and open button in the action pills row
-  const { isRecording: dashcamRecording, openDashcam, lockCurrentClip } = useDashcam();
+  const {
+    isRecording: dashcamRecording,
+    openDashcam,
+    lockCurrentClip,
+    startBackgroundRecording,
+  } = useDashcam();
 
   // Sync dashcam recording state into AppContext so the accelerometer
   // crash detector runs even when navigation is not active.
@@ -1729,7 +1734,15 @@ export default function DriveScreen() {
                 }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  openDashcam();
+                  if (dashcamRecording) {
+                    // Already recording — open full overlay so driver can lock
+                    // or stop the clip without leaving the drive screen first.
+                    openDashcam();
+                  } else {
+                    // Not recording — start silently in the background so the
+                    // map and alerts remain fully visible.
+                    startBackgroundRecording();
+                  }
                 }}
                 activeOpacity={0.85}
               >

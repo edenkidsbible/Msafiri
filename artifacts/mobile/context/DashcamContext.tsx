@@ -64,6 +64,10 @@ export interface DashcamSettings {
 interface DashcamContextValue {
   isRecording: boolean;
   isDashcamOpen: boolean;
+  /** True while the camera is warming up for a silent background recording.
+   *  The overlay mounts at opacity 0; DashcamOverlay auto-calls startDashcam()
+   *  in onCameraReady and then clears this flag. */
+  backgroundRecordPending: boolean;
   segments: DashcamSegment[];
   storageUsedBytes: number;
   currentSegmentDuration: number;  // seconds elapsed in current 2-min segment
@@ -80,6 +84,12 @@ interface DashcamContextValue {
   closeDashcam: () => void;
   startDashcam: () => void;
   stopDashcam: () => void;
+  /** Start recording silently without showing the dashcam overlay UI.
+   *  The CameraView warms up at opacity 0; recording begins once the camera
+   *  is ready. The drive-screen pill shows "● REC" immediately after. */
+  startBackgroundRecording: () => void;
+  /** Called by DashcamOverlay once the camera is ready and recording starts. */
+  clearBackgroundRecordPending: () => void;
   lockCurrentClip: (reason?: string) => void;
   deleteSegment: (id: string) => Promise<void>;
   clearUnlocked: () => Promise<void>;
@@ -149,8 +159,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   // push_tokens stores. We load it ourselves from AsyncStorage during hydration
   // and expose it via pushDeviceIdRef; AppContext.deviceId is NOT used here.
 
-  const [isRecording, setIsRecording]       = useState(false);
-  const [isDashcamOpen, setIsDashcamOpen]   = useState(false);
+  const [isRecording, setIsRecording]             = useState(false);
+  const [isDashcamOpen, setIsDashcamOpen]         = useState(false);
+  const [backgroundRecordPending, setBackgroundRecordPending] = useState(false);
   const [segments, setSegments]             = useState<DashcamSegment[]>([]);
   const [settings, setSettings]             = useState<DashcamSettings>(DEFAULT_SETTINGS);
   const [currentSegmentDuration, setCurrentSegmentDuration] = useState(0);
@@ -570,6 +581,19 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const openDashcam  = useCallback(() => setIsDashcamOpen(true), []);
   const closeDashcam = useCallback(() => setIsDashcamOpen(false), []);
 
+  /** Start recording silently — overlay mounts at opacity 0, camera auto-starts
+   *  in onCameraReady without ever showing the dashcam UI. */
+  const startBackgroundRecording = useCallback(() => {
+    if (isRecordingRef.current) return; // already recording, nothing to do
+    setBackgroundRecordPending(true);
+  }, []);
+
+  /** Called by DashcamOverlay once onCameraReady fires and startDashcam() has
+   *  been called, so we clear the pending flag and the overlay stays invisible. */
+  const clearBackgroundRecordPending = useCallback(() => {
+    setBackgroundRecordPending(false);
+  }, []);
+
   const startDashcam = useCallback(() => {
     isRecordingRef.current  = true;
     segmentStartRef.current = Date.now();
@@ -692,18 +716,20 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<DashcamContextValue>(
     () => ({
-      isRecording, isDashcamOpen, segments, storageUsedBytes,
+      isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId,
       openDashcam, closeDashcam, startDashcam, stopDashcam,
+      startBackgroundRecording, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
       setCameraRef, onSegmentComplete,
     }),
     [
-      isRecording, isDashcamOpen, segments, storageUsedBytes,
+      isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId,
       openDashcam, closeDashcam, startDashcam, stopDashcam,
+      startBackgroundRecording, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
       setCameraRef, onSegmentComplete,
     ]
