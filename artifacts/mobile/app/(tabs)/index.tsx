@@ -60,9 +60,11 @@ function distStr(m: number): string {
 }
 
 function greetingFor(hour: number): string {
+  if (hour < 5)  return "Good night";
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  if (hour < 20) return "Good evening";
+  return "Good night";
 }
 
 function tripDateLabel(iso: string): string {
@@ -158,7 +160,8 @@ export default function HomeScreen() {
     router.push("/(tabs)/drive");
   };
 
-  const hour = new Date().getHours();
+  const [hour, setHour] = useState(() => new Date().getHours());
+  useFocusEffect(useCallback(() => { setHour(new Date().getHours()); }, []));
   const firstName = driverName ? driverName.split(" ")[0] : "driver";
 
   // ── Status tiles data ──────────────────────────────────────────────────────
