@@ -78,6 +78,11 @@ function durationStr(s: number): string {
   const m = Math.floor((s % 3600) / 60);
   return h > 0 ? `${h}h ${m}min` : `${m} min`;
 }
+function formatClockTime(d: Date): string {
+  const h = d.getHours() % 12 || 12;
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m} ${d.getHours() >= 12 ? "PM" : "AM"}`;
+}
 
 /** Format estimated arrival as a clock time, e.g. "Arrive 14:35" */
 function arrivalTimeStr(durationS: number): string {
@@ -291,6 +296,13 @@ export default function DriveScreen() {
   // window, so the driver is snapped back quickly without waiting.
   const alertFocusModeRef = useRef(false);
   const [navBarHeight, setNavBarHeight] = useState(0);
+  // ── Live Trip state ──────────────────────────────────────────────────────
+  const [tripActive, setTripActive] = useState(false);
+  const [tripStartTime, setTripStartTime] = useState<Date | null>(null);
+  const [liveTripSheetHeight, setLiveTripSheetHeight] = useState(0);
+  const avgSpeedSumRef = useRef(0);
+  const avgSpeedCountRef = useRef(0);
+  const [avgSpeedDisplay, setAvgSpeedDisplay] = useState(0);
   // Brief toast shown after a cluster dismiss — tells the driver how long alerts
   // are paused near this area so they know what to expect if they pass again.
   const [pauseNote, setPauseNote] = useState<string | null>(null);
@@ -361,6 +373,14 @@ export default function DriveScreen() {
       setMapDrifted(false);
     }
   }, [navigationActive]);
+
+  // Track avg speed during Live Trip
+  useEffect(() => {
+    if (!tripActive || currentSpeed <= 0) return;
+    avgSpeedSumRef.current += currentSpeed;
+    avgSpeedCountRef.current++;
+    setAvgSpeedDisplay(Math.round(avgSpeedSumRef.current / avgSpeedCountRef.current));
+  }, [tripActive, currentSpeed]);
 
   // Auto-resume timers (8 s / 30 s) have been intentionally removed.
   // The map now stays wherever the driver panned it until they explicitly tap
@@ -462,6 +482,23 @@ export default function DriveScreen() {
     }
   }, [startSharingTrip]);
 
+  const startTrip = useCallback(() => {
+    avgSpeedSumRef.current = 0;
+    avgSpeedCountRef.current = 0;
+    setAvgSpeedDisplay(0);
+    setTripActive(true);
+    setTripStartTime(new Date());
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, []);
+
+  const stopTrip = useCallback(() => {
+    setTripActive(false);
+    setTripStartTime(null);
+    setNavDestination(null);
+    setSearchText("");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [setNavDestination]);
+
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -533,7 +570,7 @@ export default function DriveScreen() {
 
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
-  const isMapMode  = (hasRoute || navigationActive) && !showResults;
+  const isMapMode  = hasRoute && !showResults;
   const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
 
   // ── Roundabout exit counter ───────────────────────────────────────────────
@@ -863,6 +900,7 @@ export default function DriveScreen() {
 
   const clearDestination = () => {
     Keyboard.dismiss();
+    if (tripActive) setTripActive(false);
     stopNavigation("manual");
     setNavDestination(null);
     setResumeDestination(null);
@@ -887,7 +925,7 @@ export default function DriveScreen() {
           they live outside this subtree. */}
       <View style={StyleSheet.absoluteFillObject}>
         <ErrorBoundary FallbackComponent={MapErrorFallback}>
-          <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} />
+          <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
         </ErrorBoundary>
       </View>
 
@@ -922,8 +960,8 @@ export default function DriveScreen() {
           // mode cover the speed strip up to just above the report buttons.
           // The +20 adds a small breathing gap above the gauge top edge.
           minPanelHeight={
-            navigationActive && navBarHeight > 0
-              ? navBarHeight + 20
+            tripActive && liveTripSheetHeight > 0
+              ? liveTripSheetHeight + 20
               : bottomBase + speedStripHeight + 20
           }
         />
@@ -938,8 +976,8 @@ export default function DriveScreen() {
           style={[
             styles.pauseNotePill,
             {
-              bottom: navigationActive && navBarHeight > 0
-                ? navBarHeight + 64
+              bottom: tripActive && liveTripSheetHeight > 0
+                ? liveTripSheetHeight + 64
                 : bottomBase + speedStripHeight + 64,
             },
           ]}
@@ -949,117 +987,44 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════
-          TOP: Navigation instruction card (during active navigation)
-      ══════════════════════════════════════════════════════════════════ */}
-      {navigationActive && currentStep && (
-        <View
-          style={[styles.navCard, {
-            top: topInset + 4,
-            backgroundColor: isDark ? "#0F2040F5" : "#1565C0F5",
-          }]}
-          onLayout={(e) => setNavCardHeight(e.nativeEvent.layout.height)}
-        >
-          <View style={styles.navCardIcon}>
-            <Ionicons name={maneuverIcon(currentStep.instruction)} size={30} color="#FFF" />
-            {currentStep.exitNumber != null && (
-              <Animated.View style={[styles.exitBadge, {
-                transform: [{ scale: exitBadgePulse }],
-                backgroundColor: targetExitIsNext ? "#FFC107" : "#FFF",
-              }]}>
-                <Text style={[styles.exitBadgeTxt, {
-                  color: targetExitIsNext ? "#7B3F00" : "#1565C0",
-                }]}>
-                  {currentStep.exitNumber}
-                </Text>
-              </Animated.View>
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.navInstruction} numberOfLines={2}>
-              {currentStep.instruction}
-            </Text>
-            {distToNextM != null && !isRoundaboutStep && (
-              <Text style={styles.navDist}>{distStr(distToNextM)}</Text>
-            )}
-            {/* Roundabout exit counter — shown instead of distance while in roundabout */}
-            {isRoundaboutStep && currentStep.exitNumber != null && (
-              <View style={styles.rabRow}>
-                {Array.from({ length: currentStep.exitNumber }).map((_, i) => {
-                  const isPassed = i < exitsPassed;
-                  const isTarget = i === currentStep.exitNumber! - 1;
-                  const isNextUp = isTarget && targetExitIsNext;
-                  return (
-                    <View
-                      key={i}
-                      style={[
-                        styles.rabDot,
-                        isPassed  && styles.rabDotPassed,
-                        isTarget  && !isPassed && styles.rabDotTarget,
-                        isNextUp  && styles.rabDotNext,
-                      ]}
-                    />
-                  );
-                })}
-                <Text style={styles.rabLabel}>
-                  {targetExitIsNext
-                    ? "Exit now!"
-                    : exitsPassed > 0
-                      ? `${currentStep.exitNumber - exitsPassed} more`
-                      : `Exit ${currentStep.exitNumber}`}
-                </Text>
-              </View>
-            )}
-            {isRoundaboutStep && distToNextM != null && (
-              <Text style={[styles.navDist, { opacity: 0.7 }]}>{distStr(distToNextM)}</Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* ── Faster route available banner ────────────────────────────────────
-          Appears during active navigation when the periodic background check
-          finds a route ≥ 3 min faster than the current remaining ETA.
-          Positioned just below the nav instruction card. */}
-      {navigationActive && !!fasterRoute && durationRemainingS != null && (
-        <View style={[styles.fasterRouteBanner, { top: topInset + 4 + navCardHeight + 6 }]}>
-          <Ionicons name="flash" size={14} color="#FFF" style={{ marginLeft: 12 }} />
-          <Text style={styles.fasterRouteTxt} numberOfLines={1}>
-            Faster route — save {Math.max(1, Math.round((durationRemainingS - fasterRoute.durationS) / 60))} min
-          </Text>
-          <TouchableOpacity
-            style={styles.fasterRouteSwitch}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              acceptFasterRoute();
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-          >
-            <Text style={styles.fasterRouteSwitchTxt}>Switch</Text>
+      {/* ── Live Trip header — translucent dark bar pinned at the top ─────────── */}
+      {tripActive && (
+        <View style={[styles.tripHeader, { paddingTop: topInset }]}>
+          <TouchableOpacity onPress={stopTrip} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{ paddingHorizontal: 10, paddingVertical: 8 }}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              dismissFasterRoute();
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-          >
-            <Ionicons name="close" size={16} color="#FFFFFFCC" />
+          <Text style={styles.tripHeaderTitle}>Live Trip</Text>
+          <TouchableOpacity onPress={stopTrip} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.tripHeaderEnd}>End Trip</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* GPS signal-lost chip — shown during dead reckoning (mid-nav only) */}
-      {navigationActive && gpsLost && (
-        <View style={[styles.gpsLostChip, { top: topInset + 4 }]}>
-          <Ionicons name="cloud-offline-outline" size={12} color="#FFF" />
-          <Text style={styles.gpsLostText}>GPS signal lost</Text>
+      {/* ── Live Trip info card — shows origin/destination, start time, LIVE badge ── */}
+      {tripActive && navDestination != null && (
+        <View style={[styles.tripInfoCard, { top: topInset + 54 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tripInProgress}>Trip in Progress</Text>
+              <Text style={styles.tripRoute} numberOfLines={1}>
+                Current Location → {navDestination.name.split(",")[0]}
+              </Text>
+              {tripStartTime != null && activeRoute != null && (
+                <Text style={styles.tripMeta}>
+                  Started {formatClockTime(tripStartTime)} · {distStr(activeRoute.distanceM)}
+                </Text>
+              )}
+            </View>
+            <View style={styles.tripLiveBadge}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FFF", marginRight: 4 }} />
+              <Text style={styles.tripLiveBadgeTxt}>LIVE</Text>
+            </View>
+          </View>
         </View>
       )}
 
       {/* Navigation-disabled chip — floats under the search bar when nav is off */}
-      {!navigationEnabled && !navigationActive && !showResults && !searchInputFocused && (
+      {!navigationEnabled && !tripActive && !showResults && !searchInputFocused && (
         <View
           pointerEvents="none"
           style={[styles.navDisabledChip, { top: topInset + 56 }]}
@@ -1070,9 +1035,9 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          TOP: Search bar + results (when not navigating)
+          TOP: Search bar + results (when not in Live Trip mode)
       ══════════════════════════════════════════════════════════════════ */}
-      {!navigationActive && (
+      {!tripActive && (
         <View
           style={[styles.searchArea, { top: topInset + 4 }]}
           pointerEvents="box-none"
@@ -1340,7 +1305,7 @@ export default function DriveScreen() {
       {/* ══════════════════════════════════════════════════════════════════
           RIGHT: Utility FABs — Traffic & Night mode (hidden during search/nav)
       ══════════════════════════════════════════════════════════════════ */}
-      {!showResults && !navigationActive && (
+      {!showResults && !tripActive && (
         <View style={[styles.fabCol, { top: topInset + 72, right: 12 }]}>
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: fabBg }]}
@@ -1373,49 +1338,24 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ── During-navigation Kenyan-colors action row ──────────────────────
-          Floats just above the nav bar. Recenter (when drifted) + Find Nearby (black) + Report (red, pulsing).
-          Replaces the old top-right vertical FAB column. */}
-      {!showResults && navigationActive && (
-        <View style={[styles.driveNavActionRow, { bottom: navBarHeight + 8 }]}>
-          {mapDrifted && (
-            <TouchableOpacity
-              style={[styles.driveActionPill, {
-                backgroundColor: "#FFFFFFEE",
-                borderWidth: 1.5, borderColor: "#1565C0",
-                shadowColor: "#1565C0",
-              }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                driveMapRef.current?.recenter();
-                setMapDrifted(false);
-              }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="locate" size={14} color="#1565C0" />
-              <Text style={[styles.driveActionPillTxt, { color: "#1565C0" }]}>Recenter</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Find Nearby — hidden when Recenter is visible to protect Report pill space */}
-          {!mapDrifted && (
-            <TouchableOpacity
-              style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.driveActionPillTxt}>🔍 Nearby</Text>
-            </TouchableOpacity>
-          )}
-
+      {/* ── Trip-mode action row — Recenter pill when drifted ─────────────────── */}
+      {!showResults && tripActive && mapDrifted && (
+        <View style={[styles.driveNavActionRow, { bottom: liveTripSheetHeight + 8 }]}>
           <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-            activeOpacity={0.82}
+            style={[styles.driveActionPill, {
+              backgroundColor: "#FFFFFFEE",
+              borderWidth: 1.5, borderColor: "#1565C0",
+              shadowColor: "#1565C0",
+            }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              driveMapRef.current?.recenter();
+              setMapDrifted(false);
+            }}
+            activeOpacity={0.85}
           >
-            <KenyaFlagPill style={styles.driveActionPill}>
-              <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📢</Text>
-              <Text style={styles.driveActionPillTxt}>Report</Text>
-            </KenyaFlagPill>
+            <Ionicons name="locate" size={14} color="#1565C0" />
+            <Text style={[styles.driveActionPillTxt, { color: "#1565C0" }]}>Recenter</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1721,137 +1661,87 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ── Pre-navigation Kenyan-colors action row ──────────────────────────
-          Sits above the speed strip when there is no active route or nav.
-          Share Location (green when live) · Find Nearby (black) · Report (red, pulsing).
-          Replaces the old separate reportBar + idleShareBtn + Find Nearby FAB. */}
+      {/* ── Idle-mode controls: Report Incident pill + small action pills ─────── */}
       {!isMapMode && !showResults && (
-        <View style={[styles.driveNavActionRow, { bottom: bottomBase + 8 + speedStripHeight + 8 }]}>
-
-          {/* Recenter — shown when map has drifted from GPS position */}
-          {mapDrifted && (
-            <TouchableOpacity
-              style={[styles.driveActionPill, {
-                backgroundColor: "#FFFFFFEE",
-                borderWidth: 1.5, borderColor: "#1565C0",
-                shadowColor: "#1565C0",
-              }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                driveMapRef.current?.recenter();
-                setMapDrifted(false);
-              }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="locate" size={14} color="#1565C0" />
-              <Text style={[styles.driveActionPillTxt, { color: "#1565C0" }]}>Recenter</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Share Location — Kenya green when actively sharing.
-              flexShrink: 1 lets this pill compress first on narrow screens (375pt)
-              before the row can overflow its right: 12 boundary. */}
+        <View style={{
+          position: "absolute", left: 12, right: 12, zIndex: 14,
+          flexDirection: "column", gap: 8,
+          bottom: bottomBase + 8 + speedStripHeight + 8,
+        }}>
+          {/* Prominent Report Incident — full-width green pill */}
           <TouchableOpacity
-            style={[styles.driveActionPill, {
-              backgroundColor: isSharingTrip ? "#006600" : fabBg,
-              flexShrink: 1, minWidth: 0,
-            }]}
-            onPress={handleSharePress}
-            disabled={sharingLoading}
+            style={styles.reportIncidentPill}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
             activeOpacity={0.85}
           >
-            {sharingLoading ? (
-              <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
-            ) : (
-              <>
-                <Ionicons
-                  name={isSharingTrip ? "radio" : "share-social-outline"}
-                  size={14}
-                  color={isSharingTrip ? "#FFF" : fgMuted}
-                />
-                <Text style={[styles.driveActionPillTxt, { color: isSharingTrip ? "#FFF" : fgMuted }]} numberOfLines={1}>
-                  {isSharingTrip ? "● Sharing" : "Share Location"}
-                </Text>
-              </>
+            <Ionicons name="add" size={18} color="#FFF" />
+            <Text style={styles.reportIncidentPillTxt}>Report Incident</Text>
+          </TouchableOpacity>
+
+          {/* Small action pills row */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {mapDrifted && (
+              <TouchableOpacity
+                style={[styles.driveActionPill, {
+                  backgroundColor: "#FFFFFFEE",
+                  borderWidth: 1.5, borderColor: "#1565C0",
+                  shadowColor: "#1565C0",
+                }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  driveMapRef.current?.recenter();
+                  setMapDrifted(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="locate" size={14} color="#1565C0" />
+                <Text style={[styles.driveActionPillTxt, { color: "#1565C0" }]}>Recenter</Text>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-
-          {/* Find Nearby — hidden when Recenter is visible to protect Report pill space */}
-          {!mapDrifted && (
-            <TouchableOpacity
-              style={[styles.driveActionPill, { backgroundColor: "#1A1A1A" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowRouteSearch(true); }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.driveActionPillTxt}>🔍 Nearby</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Report — Kenya flag color cycle */}
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-            activeOpacity={0.82}
-          >
-            <KenyaFlagPill style={styles.driveActionPill}>
-              <Text style={{ fontSize: 14, fontFamily: EMOJI_FONT_FAMILY }}>📢</Text>
-              <Text style={styles.driveActionPillTxt}>Report</Text>
-            </KenyaFlagPill>
-          </TouchableOpacity>
-
-          {/* Dashcam — dark pill, red dot when recording */}
-          {Platform.OS !== "web" && (
             <TouchableOpacity
               style={[styles.driveActionPill, {
-                backgroundColor: dashcamRecording ? "#B71C1C" : "#1A1A1A",
+                backgroundColor: isSharingTrip ? "#006600" : fabBg,
+                flexShrink: 1, minWidth: 0,
               }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                openDashcam();
-              }}
+              onPress={handleSharePress}
+              disabled={sharingLoading}
               activeOpacity={0.85}
             >
-              {dashcamRecording && (
-                <View style={{
-                  width: 7, height: 7, borderRadius: 3.5,
-                  backgroundColor: "#FF5252",
-                  marginRight: 2,
-                }} />
+              {sharingLoading ? (
+                <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
+              ) : (
+                <>
+                  <Ionicons
+                    name={isSharingTrip ? "radio" : "share-social-outline"}
+                    size={14}
+                    color={isSharingTrip ? "#FFF" : fgMuted}
+                  />
+                  <Text style={[styles.driveActionPillTxt, { color: isSharingTrip ? "#FFF" : fgMuted }]} numberOfLines={1}>
+                    {isSharingTrip ? "● Sharing" : "Share Location"}
+                  </Text>
+                </>
               )}
-              <Text style={styles.driveActionPillTxt}>
-                {dashcamRecording ? "● REC" : "🎥 Dashcam"}
-              </Text>
             </TouchableOpacity>
-          )}
-
-        </View>
-      )}
-
-      {/* ── Divergence preview chip ─────────────────────────────────────────
-          Floats above the action-pill row while the driver is off-route and
-          pink alternative polylines are visible on the map. */}
-      {!showResults && navigationActive && divergenceRoutes.length > 0 && (
-        // box-none so the containing row doesn't eat map touches outside the pill
-        <View
-          pointerEvents="box-none"
-          style={[styles.divergenceChipRow, { bottom: navBarHeight + 54 }]}
-        >
-          <TouchableOpacity
-            activeOpacity={0.75}
-            style={styles.divergenceChip}
-            onPress={() => {
-              // Commit to the first (best) divergence route instantly
-              selectRoute(divergenceRoutes[0]);
-              void startNavigation();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            }}
-          >
-            <Ionicons name="git-branch-outline" size={13} color="#FF2D78" />
-            <Text style={styles.divergenceChipTxt}>
-              {divergenceRoutes.length === 1
-                ? "Tap to take this route"
-                : `${divergenceRoutes.length} alternatives — tap one`}
-            </Text>
-          </TouchableOpacity>
+            {Platform.OS !== "web" && (
+              <TouchableOpacity
+                style={[styles.driveActionPill, {
+                  backgroundColor: dashcamRecording ? "#B71C1C" : "#1A1A1A",
+                }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  openDashcam();
+                }}
+                activeOpacity={0.85}
+              >
+                {dashcamRecording && (
+                  <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#FF5252", marginRight: 2 }} />
+                )}
+                <Text style={styles.driveActionPillTxt}>
+                  {dashcamRecording ? "● REC" : "🎥 Dashcam"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
@@ -1861,7 +1751,7 @@ export default function DriveScreen() {
           (empty steps, NaN distance, etc.) hides the sheet rather than
           crashing the whole drive screen.
       ══════════════════════════════════════════════════════════════════ */}
-      {isMapMode && !navigationActive && activeRoute && (<ErrorBoundary FallbackComponent={() => null}>
+      {isMapMode && !tripActive && activeRoute && (<ErrorBoundary FallbackComponent={() => null}>
         <View style={[styles.routeSheet, {
           backgroundColor: bg,
           paddingBottom: bottomBase,
@@ -1985,7 +1875,7 @@ export default function DriveScreen() {
             <SOSButton compact small={isSmall} />
             <TouchableOpacity
               style={[styles.startBtn, { backgroundColor: c.primary }]}
-              onPress={() => { startNavigation(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+              onPress={() => { startTrip(); }}
             >
               <Ionicons name="navigate" size={17} color="#FFF" />
               <Text style={styles.startBtnTxt}>Start</Text>
@@ -1995,314 +1885,92 @@ export default function DriveScreen() {
       </ErrorBoundary>)}
 
       {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM: Navigation active bar
+          BOTTOM: Live Trip sheet
       ══════════════════════════════════════════════════════════════════ */}
-      {navigationActive && (
+      {tripActive && (
         <View
-          style={[styles.navBar, { backgroundColor: bg, paddingBottom: bottomBase }]}
-          onLayout={(e) => setNavBarHeight(e.nativeEvent.layout.height)}
+          style={[styles.liveTripSheet, { backgroundColor: bg, paddingBottom: bottomInset + tabBarH + 4 }]}
+          onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
+          {/* Handle */}
+          <View style={[styles.sheetHandle, { backgroundColor: divBg }]} />
 
-          <View style={styles.navBarTopRow}>
-            {/* Left: speed digit + current limit ring + upcoming zone chip */}
-            <View style={[styles.navSpeedBlock, {
-              backgroundColor: overLimit ? "#E5393518" : (isDark ? "#00E67618" : "#E8F5E9"),
-              paddingHorizontal: isSmall ? 10 : 14,
-            }]}>
-              <Text style={[styles.navSpeedLabel, { color: overLimit ? "#E5393380" : (isDark ? "#00E67680" : "#2E7D3280") }]}>
-                YOUR SPEED
-              </Text>
-              <Text style={[styles.navSpeedNum, {
-                color: overLimit ? "#E53935" : (isDark ? "#00E676" : "#2E7D32"),
-                fontSize: isSmall ? 54 : 70,
-                lineHeight: isSmall ? 66 : 84,
-              }]}>
-                {Math.round(currentSpeed)}
-              </Text>
-              <Text style={[styles.navSpeedUnit, { color: overLimit ? "#E5393380" : (isDark ? "#00E67680" : "#2E7D3280") }]}>
-                km/h
-              </Text>
-              {currentSpeedLimit != null && (
-                <View style={{ alignItems: "center", marginTop: isSmall ? 4 : 6, gap: 2 }}>
-                  <Text style={[styles.navSpeedLabel, { color: fgMuted }]}>LIMIT</Text>
-                  <View style={[styles.navLimitRing, {
-                    borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#333"),
-                    width: isSmall ? 32 : 38,
-                    height: isSmall ? 32 : 38,
-                    borderRadius: isSmall ? 16 : 19,
-                  }]}>
-                    <Text style={[styles.navLimitNum, {
-                      color: overLimit ? "#E53935" : fgMain,
-                      fontSize: isSmall ? 12 : 14,
-                    }]}>
-                      {currentSpeedLimit}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {/* Upcoming camera/zone chip — next limit when different from current zone */}
-              {activeAlert?.source === "zone" && activeAlert.speedLimit != null &&
-                activeAlert.speedLimit !== currentSpeedLimit && (
-                <View style={[styles.navNextCamChip, { backgroundColor: isDark ? "#FFFFFF12" : "#00000010" }]}>
-                  <Ionicons
-                    name={activeAlert.type === "camera" ? "camera" : activeAlert.type === "police" ? "shield" : "warning"}
-                    size={9}
-                    color={fgMuted}
-                  />
-                  <Text style={[styles.navNextCamTxt, { color: fgMuted }]}>
-                    {activeAlert.speedLimit} km/h
-                  </Text>
-                </View>
-              )}
+          {/* Share Link row */}
+          <View style={styles.liveTripShareRow}>
+            <View style={[styles.liveTripShareIconWrap, { backgroundColor: isDark ? "#222" : "#F0F0F0" }]}>
+              <Ionicons name="share-social-outline" size={20} color={fgMain} />
             </View>
-
-            <View style={[styles.navDivider, { backgroundColor: divBg }]} />
-
-            {/* Right: ETA block (full width) then action row below.
-                Keeping ETA and buttons in separate rows eliminates the Android
-                overlap where long ETA text used to fight SOS + Stop for space. */}
-            <View style={{ flex: 1, gap: 6 }}>
-
-              {/* ETA / arrival / destination — unobstructed, full column width */}
-              <Animated.View style={{ opacity: etaFadeAnim }}>
-                <Text style={[styles.navEta, { color: fgMain }]}>
-                  {durationStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
-                </Text>
-                <Text style={[styles.navArrive, { color: fgMuted }]}>
-                  {arrivalTimeStr(durationRemainingS ?? (activeRoute?.durationS ?? 0))}
-                  {distanceRemainingM != null ? ` · ${distStr(distanceRemainingM)}` : ""}
-                </Text>
-                <Text style={[styles.navDest, { color: fgMuted }]} numberOfLines={1}>
-                  {navDestination?.name?.split(",")[0]}
-                </Text>
-                {resumeDestination && (
-                  <Text style={[styles.navResumeSub, { color: c.primary }]} numberOfLines={1}>
-                    ↩ en route to {resumeDestination.name?.split(",")[0]}
-                  </Text>
-                )}
-              </Animated.View>
-
-              {/* Alert chip — nearest incident on the active route.
-                  Uses primaryAlert which, during navigation, is sourced from
-                  routeIncidentsAhead[0] — already sorted by distance ahead.
-                  Tapping opens the same nearby-alerts sheet as the speed strip. */}
-              {primaryAlert && (
-                <TouchableOpacity
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowNearbySheet(true);
-                  }}
-                  activeOpacity={0.8}
-                  style={[styles.navAlertChip, {
-                    backgroundColor: primaryAlert.color + "22",
-                    borderColor: primaryAlert.color + "55",
-                  }]}
-                >
-                  <Text style={{ fontSize: 13, fontFamily: EMOJI_FONT_FAMILY }}>
-                    {resolveIncidentType(primaryAlert.type).emoji}
-                  </Text>
-                  <Text style={[styles.navAlertChipTxt, { color: primaryAlert.color }]}>
-                    {distStr(primaryAlert.distanceM)}
-                  </Text>
-                  {nearbyAlertCandidates.length > 1 && (
-                    <Ionicons name="chevron-forward" size={10} color={primaryAlert.color} />
-                  )}
-                </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.liveTripShareTitle, { color: fgMain }]}>Share Link</Text>
+              <Text style={[styles.liveTripShareSub, { color: fgMuted }]}>Anyone with the link can view</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.liveTripShareBtn, { backgroundColor: isSharingTrip ? "#00C853" : c.primary }]}
+              onPress={handleSharePress}
+              disabled={sharingLoading}
+              activeOpacity={0.85}
+            >
+              {sharingLoading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name={isSharingTrip ? "radio" : "share-social"} size={14} color="#FFF" />
+                  <Text style={styles.liveTripShareBtnTxt}>{isSharingTrip ? "Sharing" : "Share"}</Text>
+                </>
               )}
+            </TouchableOpacity>
+          </View>
 
-              {/* Action row: Share (flex) · SOS · Stop — own row, never squishes */}
-              <View style={styles.navActionRow}>
-                <TouchableOpacity
-                  style={[styles.navShareBtn, {
-                    flex: 1,
-                    backgroundColor: isSharingTrip ? "#00C853" : (isDark ? "#262626" : "#F2F2F2"),
-                  }]}
-                  onPress={handleSharePress}
-                  disabled={sharingLoading}
-                  activeOpacity={0.85}
-                >
-                  {sharingLoading ? (
-                    <ActivityIndicator size="small" color={isDark ? "#aaa" : "#888"} />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name={isSharingTrip ? "radio" : "share-social-outline"}
-                        size={14}
-                        color={isSharingTrip ? "#fff" : fgMuted}
-                      />
-                      <Text style={[styles.navShareBtnTxt, { color: isSharingTrip ? "#fff" : fgMuted }]} numberOfLines={1}>
-                        {isSharingTrip ? "● Sharing" : "Share ETA"}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-                <SOSButton compact small={isSmall} />
-                <TouchableOpacity
-                  style={styles.stopBtn}
-                  onPress={handleStopPress}
-                >
-                  <Ionicons name="stop-circle" size={15} color="#FFF" />
-                  <Text style={styles.stopBtnTxt}>Stop</Text>
-                </TouchableOpacity>
-              </View>
+          <View style={[styles.liveTripDivider, { backgroundColor: divBg }]} />
 
+          {/* Trip Details header */}
+          <View style={styles.liveTripDetailsHeader}>
+            <Ionicons name="arrow-forward" size={14} color={fgMuted} />
+            <Text style={[styles.liveTripDetailsLabel, { color: fgMuted }]}>Trip Details</Text>
+          </View>
+
+          {/* Stats row: Distance · ETA · Avg Speed */}
+          <View style={styles.liveTripStatsRow}>
+            <View style={styles.liveTripStat}>
+              <Text style={[styles.liveTripStatVal, { color: fgMain }]}>
+                {activeRoute ? distStr(activeRoute.distanceM) : "—"}
+              </Text>
+              <Text style={[styles.liveTripStatLbl, { color: fgMuted }]}>Distance</Text>
+            </View>
+            <View style={[styles.liveTripStatDiv, { backgroundColor: divBg }]} />
+            <View style={styles.liveTripStat}>
+              <Text style={[styles.liveTripStatVal, { color: fgMain }]}>
+                {activeRoute ? durationStr(activeRoute.durationS) : "—"}
+              </Text>
+              <Text style={[styles.liveTripStatLbl, { color: fgMuted }]}>ETA</Text>
+            </View>
+            <View style={[styles.liveTripStatDiv, { backgroundColor: divBg }]} />
+            <View style={styles.liveTripStat}>
+              <Text style={[styles.liveTripStatVal, { color: fgMain }]}>
+                {avgSpeedDisplay > 0 ? `${avgSpeedDisplay} km/h` : "— km/h"}
+              </Text>
+              <Text style={[styles.liveTripStatLbl, { color: fgMuted }]}>Avg Speed</Text>
             </View>
           </View>
 
-          {routeIncidentsAhead.length > 0 && (
+          <View style={[styles.liveTripDivider, { backgroundColor: divBg }]} />
+
+          {/* Report Incident + SOS */}
+          <View style={styles.liveTripActionRow}>
             <TouchableOpacity
-              style={[styles.incidentsBar, {
-                backgroundColor: isDark ? "#00E67614" : "#E5393512",
-                borderColor: isDark ? "#00E67640" : "#E5393530",
-              }]}
-              onPress={() => { setRouteIncidentsExpanded(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-              activeOpacity={0.8}
+              style={styles.liveTripReportBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+              activeOpacity={0.85}
             >
-              <Text style={styles.incidentsBarTxt} numberOfLines={1}>
-                {incidentSummaryParts(routeIncidentsAhead).map((p, i) => (
-                  <Text key={i}>
-                    {i > 0 ? "   " : ""}
-                    <Text style={{ fontFamily: EMOJI_FONT_FAMILY }}>{p.emoji}</Text> {p.label}
-                  </Text>
-                ))}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={isDark ? "#00E676" : "#E53935"} />
+              <Ionicons name="add" size={16} color="#FFF" />
+              <Text style={styles.liveTripReportBtnTxt}>Report Incident</Text>
             </TouchableOpacity>
-          )}
+            <SOSButton compact small={isSmall} />
+          </View>
         </View>
       )}
 
-      {/* ── Arrival card ──────────────────────────────────────────────────── */}
-      {arrivedInfo && (
-        <Modal
-          visible
-          transparent
-          animationType="slide"
-          onRequestClose={() => { clearArrival(); stopNavigation("arrived"); }}
-        >
-          <View style={styles.arrivalOverlay}>
-            <View style={[styles.arrivalSheet, { backgroundColor: c.card }]}>
-              <View style={[styles.arrivalHandle, { backgroundColor: c.border }]} />
-
-              {/* Icon + title */}
-              <View style={styles.arrivalIconWrap}>
-                <Ionicons name="checkmark-circle" size={60} color="#00C853" />
-              </View>
-              <Text style={[styles.arrivalHeading, { color: c.foreground }]}>You've arrived!</Text>
-              <Text style={[styles.arrivalDestName, { color: c.mutedForeground }]} numberOfLines={2}>
-                {arrivedInfo.destName}
-              </Text>
-
-              {/* Trip stats strip */}
-              <View style={[styles.arrivalStats, { backgroundColor: c.muted, borderColor: c.border }]}>
-                <View style={styles.arrivalStat}>
-                  <Text style={[styles.arrivalStatVal, { color: c.foreground }]}>
-                    {arrivedInfo.distM >= 1000
-                      ? `${(arrivedInfo.distM / 1000).toFixed(1)}`
-                      : `${Math.round(arrivedInfo.distM)}`}
-                  </Text>
-                  <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>
-                    {arrivedInfo.distM >= 1000 ? "km" : "m"}
-                  </Text>
-                </View>
-                <View style={[styles.arrivalStatDiv, { backgroundColor: c.border }]} />
-                <View style={styles.arrivalStat}>
-                  <Text style={[styles.arrivalStatVal, { color: c.foreground }]}>
-                    {Math.floor(arrivedInfo.durationS / 60)}
-                  </Text>
-                  <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>min</Text>
-                </View>
-                <View style={[styles.arrivalStatDiv, { backgroundColor: c.border }]} />
-                <View style={styles.arrivalStat}>
-                  <Text style={[styles.arrivalStatVal, { color: c.foreground }]}>
-                    {Math.round(arrivedInfo.maxSpeedKmh)}
-                  </Text>
-                  <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>km/h max</Text>
-                </View>
-                {arrivedInfo.alertsCount > 0 && (
-                  <>
-                    <View style={[styles.arrivalStatDiv, { backgroundColor: c.border }]} />
-                    <View style={styles.arrivalStat}>
-                      <Text style={[styles.arrivalStatVal, { color: "#E53935" }]}>
-                        {arrivedInfo.alertsCount}
-                      </Text>
-                      <Text style={[styles.arrivalStatLbl, { color: c.mutedForeground }]}>alerts</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-
-              {/* Resume destination prompt — shown when the stop was a Search Along Route POI */}
-              {resumeDestination ? (
-                <>
-                  <Text style={[styles.arrivalResumeName, { color: c.mutedForeground }]}>
-                    Original destination:
-                  </Text>
-                  <Text style={[styles.arrivalResumeDest, { color: c.foreground }]} numberOfLines={2}>
-                    {resumeDestination.name?.split(",")[0]}
-                  </Text>
-
-                  {/* Continue button */}
-                  <TouchableOpacity
-                    style={[styles.arrivalDoneBtn, { backgroundColor: c.primary, marginTop: 12 }]}
-                    onPress={() => {
-                      const dest = resumeDestination;
-                      clearArrival();
-                      setResumeDestination(null);
-                      setNavDestination(dest);
-                      startNavigation().catch(() => {});
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="navigate" size={16} color={c.primaryForeground} style={{ marginRight: 6 }} />
-                    <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>
-                      Continue to {resumeDestination.name?.split(",")[0]}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Decline link */}
-                  <TouchableOpacity
-                    style={styles.arrivalDeclineBtn}
-                    onPress={() => { clearArrival(); stopNavigation("arrived"); setResumeDestination(null); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.arrivalDeclineTxt, { color: c.mutedForeground }]}>
-                      No thanks, I'm done
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  {/* Parking search button */}
-                  <TouchableOpacity
-                    style={[styles.arrivalParkBtn, { backgroundColor: c.muted, borderColor: c.border }]}
-                    onPress={() => {
-                      clearArrival();
-                      stopNavigation("arrived");
-                      setSearchText("parking near me");
-                      runSearch("parking near me");
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="car-outline" size={18} color={c.foreground} />
-                    <Text style={[styles.arrivalParkTxt, { color: c.foreground }]}>Find Nearby Parking</Text>
-                  </TouchableOpacity>
-
-                  {/* Done button */}
-                  <TouchableOpacity
-                    style={[styles.arrivalDoneBtn, { backgroundColor: c.primary }]}
-                    onPress={() => { clearArrival(); stopNavigation("arrived"); }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.arrivalDoneTxt, { color: c.primaryForeground }]}>Done</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </Modal>
-      )}
+      {/* Arrival card removed — Live Trip mode ends via "End Trip" button */}
 
       {/* Report incident modal */}
       <ReportModal
@@ -3272,4 +2940,71 @@ const styles = StyleSheet.create({
     marginTop: 12,
     opacity: 0.7,
   },
+
+  // ── Live Trip header ───────────────────────────────────────────────────────
+  tripHeader: {
+    position: "absolute", left: 0, right: 0, zIndex: 20,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "#000000D0",
+    paddingHorizontal: 16, paddingBottom: 12,
+  },
+  tripHeaderTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
+  tripHeaderEnd:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#E53935" },
+
+  // ── Live Trip info card ────────────────────────────────────────────────────
+  tripInfoCard: {
+    position: "absolute", left: 12, right: 12, zIndex: 19,
+    backgroundColor: "#000000BB",
+    borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: "#FFFFFF15",
+  },
+  tripInProgress: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#00C853", marginBottom: 3 },
+  tripRoute:      { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  tripMeta:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#FFFFFFBB", marginTop: 2 },
+  tripLiveBadge:  {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#D32F2F", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  tripLiveBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", letterSpacing: 1 },
+
+  // ── Live Trip bottom sheet ─────────────────────────────────────────────────
+  liveTripSheet: {
+    position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 15,
+    paddingTop: 10, paddingHorizontal: 16,
+    borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.13, shadowRadius: 16, elevation: 16,
+  },
+  liveTripShareRow:     { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  liveTripShareIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  liveTripShareTitle:   { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  liveTripShareSub:     { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  liveTripShareBtn:     {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14,
+  },
+  liveTripShareBtnTxt:  { color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold" },
+  liveTripDivider:      { height: StyleSheet.hairlineWidth, marginVertical: 6 },
+  liveTripDetailsHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
+  liveTripDetailsLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  liveTripStatsRow:     { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  liveTripStat:         { flex: 1, alignItems: "center", gap: 3 },
+  liveTripStatVal:      { fontSize: 17, fontFamily: "Inter_700Bold" },
+  liveTripStatLbl:      { fontSize: 11, fontFamily: "Inter_400Regular" },
+  liveTripStatDiv:      { width: 1, height: 36, borderRadius: 1 },
+  liveTripActionRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
+  liveTripReportBtn:    {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#1B5E20", gap: 6, paddingVertical: 13, borderRadius: 16,
+  },
+  liveTripReportBtnTxt: { color: "#FFF", fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  // ── Idle drive — prominent Report Incident pill ────────────────────────────
+  reportIncidentPill: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#1B5E20", borderRadius: 28, paddingVertical: 13, gap: 8,
+    shadowColor: "#1B5E20", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45, shadowRadius: 8, elevation: 10,
+  },
+  reportIncidentPillTxt: { color: "#FFF", fontSize: 15, fontFamily: "Inter_700Bold" },
 });

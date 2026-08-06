@@ -415,11 +415,15 @@ const DriveMapView = forwardRef(function DriveMapView(
   {
     mapDrifted = false,
     onDriftChange,
+    tripMode = false,
   }: {
     /** True when the driver has panned/zoomed away from their GPS position.
      *  Auto-follow is suspended while drifted; recenter() clears it. */
     mapDrifted?: boolean;
     onDriftChange?: (drifted: boolean) => void;
+    /** When true, the driver is in Live Trip mode. The polyline shows a
+     *  green (covered) / blue (remaining) split; rerouting is suppressed. */
+    tripMode?: boolean;
   },
   ref: React.ForwardedRef<DriveMapViewHandle>,
 ) {
@@ -445,6 +449,7 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   const mapRef = useRef<MapView>(null);
   const hasCenteredRef = useRef(false);
+  const tripProjIdxRef = useRef(0); // windowed cursor for trip-mode polyline split
   const now = Date.now();
 
   // Tracks the last latitudeDelta applied to the map camera so recenter() can
@@ -1407,6 +1412,36 @@ const DriveMapView = forwardRef(function DriveMapView(
     return bestIdx - (bestIdx % AHEAD_IDX_STEP);
   }, [navigationActive, activeRoute, currentLat, currentLng]);
 
+  // Trip-mode polyline split — find the nearest coord index to the driver's
+  // current position so we can render green (covered) and blue (remaining)
+  // sections. Windowed search identical to navAheadStartIdx pattern.
+  const TRIP_STEP = 3;
+  const tripSplitIdx = useMemo(() => {
+    if (!tripMode || !activeRoute || currentLat == null || currentLng == null) {
+      tripProjIdxRef.current = 0;
+      return 0;
+    }
+    const coords = activeRoute.coords;
+    if (!Array.isArray(coords) || coords.length < 2) return 0;
+    const prior  = tripProjIdxRef.current;
+    const wStart = Math.max(0, prior - 3);
+    const wEnd   = Math.min(coords.length - 1, prior + 20);
+    let bestIdx  = prior, bestDist = Infinity;
+    for (let i = wStart; i <= wEnd; i++) {
+      const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestDist > 200) {
+      bestIdx = 0; bestDist = Infinity;
+      for (let i = 0; i < coords.length; i++) {
+        const d = haversine(currentLat, currentLng, coords[i].latitude, coords[i].longitude);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+    }
+    tripProjIdxRef.current = bestIdx;
+    return bestIdx - (bestIdx % TRIP_STEP);
+  }, [tripMode, activeRoute, currentLat, currentLng]);
+
   // Traffic-coloured segments for the active route — memoized on route id,
   // nav state, and the quantized slice index only.
   const activeRouteSegs = useMemo(() => {
@@ -1675,7 +1710,7 @@ const DriveMapView = forwardRef(function DriveMapView(
             the driver leaves the planned path, before the full reroute commits.
             Rendered above grey alts but below the primary blue route so the
             driver sees all options without losing the main corridor. */}
-        {(() => {
+        {!tripMode && (() => {
           // Sanitization is memoized in validDivergenceRoutes (rebuilds only
           // when divergenceRoutes changes) — a partial response from the
           // routing API (missing durationS, empty coords, or any NaN
@@ -1772,7 +1807,7 @@ const DriveMapView = forwardRef(function DriveMapView(
             banner is visible so the driver can see exactly where the alternative
             diverges before deciding to switch.  Rendered above divergence routes
             but below the primary blue route so the active corridor remains clear. */}
-        {navigationActive && fasterRoute && (() => {
+        {!tripMode && navigationActive && fasterRoute && (() => {
           // Sanitized + memoized in fasterRouteCoords — stable across GPS ticks.
           const coords = fasterRouteCoords;
           if (!coords) return null;
@@ -1798,16 +1833,47 @@ const DriveMapView = forwardRef(function DriveMapView(
           );
         })()}
 
-        {/* Active route — during navigation only show the section ahead of the driver.
-            The passed section is hidden entirely so the driver sees a clean,
-            uncluttered line from their current position to the destination. */}
-        {activeRouteSegs && (
+        {/* Route polyline — trip mode: green (covered) + blue (ahead) split.
+            Preview / non-trip: standard traffic-coloured segments. */}
+        {tripMode && activeRoute && activeRoute.coords.length >= 2 ? (
           <>
-            {/* During navigation only the ahead slice is rendered; the slice
-                index is quantized and the segments memoized (activeRouteSegs)
-                so the native polyline geometry is NOT rebuilt on every GPS
-                tick — only when the driver passes a few route coordinates or
-                the route itself changes. */}
+            {/* Green section — coords already driven */}
+            {tripSplitIdx > 1 && (
+              <>
+                <Polyline
+                  coordinates={activeRoute.coords.slice(0, tripSplitIdx + 1)}
+                  strokeColor="#FFFFFF30"
+                  strokeWidth={10}
+                  lineCap="round" lineJoin="round"
+                />
+                <Polyline
+                  coordinates={activeRoute.coords.slice(0, tripSplitIdx + 1)}
+                  strokeColor="#00C853"
+                  strokeWidth={6}
+                  lineCap="round" lineJoin="round"
+                />
+              </>
+            )}
+            {/* Blue section — coords ahead */}
+            {tripSplitIdx < activeRoute.coords.length - 1 && (
+              <>
+                <Polyline
+                  coordinates={activeRoute.coords.slice(tripSplitIdx)}
+                  strokeColor="#FFFFFF40"
+                  strokeWidth={10}
+                  lineCap="round" lineJoin="round"
+                />
+                <Polyline
+                  coordinates={activeRoute.coords.slice(tripSplitIdx)}
+                  strokeColor="#1565C0"
+                  strokeWidth={6}
+                  lineCap="round" lineJoin="round"
+                />
+              </>
+            )}
+          </>
+        ) : (activeRouteSegs && (
+          <>
             {activeRouteSegs.map((seg, i) => (
               <React.Fragment key={i}>
                 <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
@@ -1815,12 +1881,26 @@ const DriveMapView = forwardRef(function DriveMapView(
               </React.Fragment>
             ))}
           </>
-        )}
+        ))}
 
-        {/* Destination pin */}
+        {/* Destination marker — red dot in trip mode, blue nav pin in preview */}
         {activeRoute && activeRoute.coords.length > 0 && (
-          <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination" tracksViewChanges={false}>
-            <MarkerIcon ioniconName="navigate" bg="#1565C0" size={36} />
+          <Marker
+            coordinate={activeRoute.coords[activeRoute.coords.length - 1]}
+            anchor={{ x: 0.5, y: tripMode ? 0.5 : 1 }}
+            title="Destination"
+            tracksViewChanges={false}
+          >
+            {tripMode ? (
+              <View style={{
+                width: 18, height: 18, borderRadius: 9,
+                backgroundColor: "#E53935",
+                borderWidth: 3, borderColor: "#FFF",
+                shadowColor: "#E53935", shadowOpacity: 0.6, shadowRadius: 6, elevation: 8,
+              }} />
+            ) : (
+              <MarkerIcon ioniconName="navigate" bg="#1565C0" size={36} />
+            )}
           </Marker>
         )}
       </MapView>
