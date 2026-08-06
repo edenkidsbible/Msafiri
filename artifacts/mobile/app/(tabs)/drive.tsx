@@ -2253,10 +2253,10 @@ export default function DriveScreen() {
                     ? c.primary + "66"
                     : c.tileBorder,
                 }]}
-                onPress={() => {
+                onPress={async () => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   if (dashcamRecording || dashcamPending) stopDashcam();
-                  else startBackgroundRecording();
+                  else await startBackgroundRecording();
                 }}
                 activeOpacity={0.85}
               >

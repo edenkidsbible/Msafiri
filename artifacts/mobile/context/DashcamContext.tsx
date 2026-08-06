@@ -38,6 +38,15 @@ import { AppState, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
 
+// Dynamically load useCameraPermissions so this context stays web-safe.
+// On web the fallback is "always granted" (no camera access needed).
+let useCameraPermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
+if (Platform.OS !== "web") {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const mod = require("expo-camera");
+  useCameraPermissions = mod.useCameraPermissions ?? null;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface DashcamSegment {
@@ -92,9 +101,9 @@ interface DashcamContextValue {
   startDashcam: () => void;
   stopDashcam: () => void;
   /** Start recording silently without showing the dashcam overlay UI.
-   *  The CameraView warms up at opacity 0; recording begins once the camera
-   *  is ready. The drive-screen pill shows "● REC" immediately after. */
-  startBackgroundRecording: () => void;
+   *  Requests camera permission if not yet granted — shows the system dialog.
+   *  Resolves to false if permission was denied (nothing starts). */
+  startBackgroundRecording: () => Promise<boolean>;
   /** Called by DashcamOverlay once the camera is ready and recording starts. */
   clearBackgroundRecordPending: () => void;
   lockCurrentClip: (reason?: string) => void;
@@ -184,6 +193,14 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const [pushDeviceId, setPushDeviceId]     = useState<string | null>(null);
 
   // Refs — avoid re-renders on GPS/interval ticks
+  // Camera permission — requested before the first background recording attempt.
+  // Falls back to "always granted" on web (useCameraPermissions is null there).
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions
+    ? useCameraPermissions()
+    : [{ granted: true } as { granted: boolean }, async () => ({ granted: true })];
+  const requestCameraPermissionRef = useRef(requestCameraPermission);
+  useEffect(() => { requestCameraPermissionRef.current = requestCameraPermission; }, [requestCameraPermission]);
+
   const cameraRef              = useRef<CameraView | null>(null);
   const lockNextRef            = useRef<string | null>(null);
   const isRecordingRef         = useRef(false);
@@ -642,12 +659,18 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const openDashcam  = useCallback(() => setIsDashcamOpen(true), []);
   const closeDashcam = useCallback(() => setIsDashcamOpen(false), []);
 
-  /** Start recording silently — overlay mounts at opacity 0, camera auto-starts
-   *  in onCameraReady without ever showing the dashcam UI. */
-  const startBackgroundRecording = useCallback(() => {
-    if (isRecordingRef.current) return; // already recording, nothing to do
+  /** Start recording silently — requests camera permission if needed (system
+   *  dialog), then mounts overlay at opacity 0 so onCameraReady auto-starts.
+   *  Returns false if the user denied the permission request. */
+  const startBackgroundRecording = useCallback(async (): Promise<boolean> => {
+    if (isRecordingRef.current) return true; // already recording
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermissionRef.current();
+      if (!result?.granted) return false; // denied — don't start
+    }
     setBackgroundRecordPending(true);
-  }, []);
+    return true;
+  }, [cameraPermission?.granted]);
 
   /** Called by DashcamOverlay once onCameraReady fires and startDashcam() has
    *  been called, so we clear the pending flag and the overlay stays invisible. */
