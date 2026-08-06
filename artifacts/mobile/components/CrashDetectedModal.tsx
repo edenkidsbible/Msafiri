@@ -17,6 +17,7 @@ interface Props {
   onDismiss: () => void;
   onCallEmergency: () => void;
   onCountdownExpired: () => void;
+  onStartCrashReport?: () => void;
   countdownSeconds?: number;
 }
 
@@ -27,6 +28,7 @@ export default function CrashDetectedModal({
   onDismiss,
   onCallEmergency,
   onCountdownExpired,
+  onStartCrashReport,
   countdownSeconds = COUNTDOWN,
 }: Props) {
   const [remaining, setRemaining] = useState(countdownSeconds);
@@ -154,6 +156,17 @@ export default function CrashDetectedModal({
           <Text style={styles.fineBtnText}>I'm Fine</Text>
         </TouchableOpacity>
 
+        {onStartCrashReport && (
+          <TouchableOpacity
+            style={styles.crashReportBtn}
+            onPress={() => { onStartCrashReport(); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="document-text-outline" size={20} color="#fff" />
+            <Text style={styles.crashReportBtnText}>Start Crash Report</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={styles.emergencyBtn} onPress={handleCallEmergency} activeOpacity={0.85}>
           <Ionicons name="call" size={20} color="#FF3B30" />
           <Text style={styles.emergencyBtnText}>Call Emergency Services</Text>
@@ -235,6 +248,22 @@ const styles = StyleSheet.create({
   fineBtnText: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
+  crashReportBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#007AFF",
+    borderRadius: 18,
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  crashReportBtnText: {
+    fontSize: 17,
+    fontFamily: "Inter_600SemiBold",
     color: "#fff",
   },
   emergencyBtn: {

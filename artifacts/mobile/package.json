@@ -66,6 +66,7 @@
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "11.4.1",
     "@sentry/react-native": "~7.2.0",
+    "date-fns": "^4.4.0",
     "expo-audio": "~1.1.1",
     "expo-camera": "~17.0.10",
     "expo-dev-client": "~6.0.21",

@@ -30,6 +30,8 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      "pdfkit",       // uses fontkit → brotli → @swc/helpers CJS; must load from node_modules
+      "fontkit",
       "better-sqlite3",
       "sqlite3",
       "canvas",

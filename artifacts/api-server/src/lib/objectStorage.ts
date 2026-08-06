@@ -41,6 +41,38 @@ export class ObjectNotFoundError extends Error {
 export class ObjectStorageService {
   constructor() {}
 
+  /** Allocates an upload slot and returns a presigned PUT URL plus the file key
+   *  that must be stored server-side to reference the uploaded object later. */
+  async getUploadInfo(): Promise<{ uploadUrl: string; fileKey: string }> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const uploadUrl = await signObjectURL({ bucketName, objectName, method: 'PUT', ttlSec: 900 });
+    return { uploadUrl, fileKey: fullPath };
+  }
+
+  /** Returns a time-limited signed GET URL for a previously uploaded object. */
+  async getSignedDownloadUrl(fileKey: string, ttlSec = 3600): Promise<string> {
+    const { bucketName, objectName } = parseObjectPath(fileKey);
+    return signObjectURL({ bucketName, objectName, method: 'GET', ttlSec });
+  }
+
+  /** Server-side upload: stores a Buffer directly without a presigned URL round-trip.
+   *  Suitable for generated files (PDFs, etc.) that never leave the server. */
+  async uploadBuffer(fileKey: string, buffer: Buffer, contentType: string): Promise<void> {
+    const { bucketName, objectName } = parseObjectPath(fileKey);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(buffer, { contentType, resumable: false });
+  }
+
+  /** Downloads an object as a Buffer — used for embedding photos into PDFs. */
+  async downloadAsBuffer(fileKey: string): Promise<Buffer> {
+    const { bucketName, objectName } = parseObjectPath(fileKey);
+    const [buf] = await objectStorageClient.bucket(bucketName).file(objectName).download();
+    return buf as Buffer;
+  }
+
   getPublicObjectSearchPaths(): Array<string> {
     const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
     const paths = Array.from(

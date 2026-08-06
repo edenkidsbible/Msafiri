@@ -185,7 +185,7 @@ export default function DriveScreen() {
     fasterRoute, acceptFasterRoute, dismissFasterRoute,
     setMapPickerActive,
     deviceId,
-    crashDetected, clearCrash,
+    crashDetected, clearCrash, crashAssistantId,
     crashSensitivity,
     setDashcamActive,
   } = useApp();
@@ -200,6 +200,14 @@ export default function DriveScreen() {
   useEffect(() => { setDashcamActive(dashcamRecording); }, [dashcamRecording, setDashcamActive]);
 
   // ── Crash detection handlers ───────────────────────────────────────────
+  const handleStartCrashReport = useCallback(() => {
+    clearCrash();
+    const targetId = crashAssistantId;
+    if (targetId) {
+      router.push(`/crash-assistant/${targetId}`);
+    }
+  }, [crashAssistantId, clearCrash]);
+
   const handleCrashExpired = useCallback(async () => {
     // Fire-and-forget: send SMS to emergency contacts
     if (deviceId) {
@@ -2527,6 +2535,7 @@ export default function DriveScreen() {
         onDismiss={clearCrash}
         onCallEmergency={() => { Linking.openURL("tel:112").catch(() => {}); clearCrash(); }}
         onCountdownExpired={handleCrashExpired}
+        onStartCrashReport={handleStartCrashReport}
       />
 
       {/* #34 — Search Along Route */}

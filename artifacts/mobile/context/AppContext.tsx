@@ -371,6 +371,9 @@ interface AppContextValue {
   /** Dismiss the crash overlay — called when the driver taps "I'm Fine" or
    *  when the countdown expires (after sending SMS alerts). */
   clearCrash: () => void;
+  /** The ID of the Crash Assistant accident record created when a crash is detected.
+   *  Present once the async POST /accidents completes. Null until then or after clearCrash. */
+  crashAssistantId: string | null;
   /** g-force sensitivity level. Controls the impact threshold:
    *  Low = 4.5g (fewer false positives), Medium = 3.5g, High = 2.8g (more sensitive). */
   crashSensitivity: "low" | "medium" | "high";
@@ -1048,6 +1051,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
   // ── Crash detection ──────────────────────────────────────────────────────
   const [crashDetected, setCrashDetected] = useState(false);
+  const [crashAssistantId, setCrashAssistantId] = useState<string | null>(null);
   const [crashSensitivity, setCrashSensitivityState] = useState<"low" | "medium" | "high">("medium");
   const [dashcamActive, setDashcamActiveState] = useState(false);
   /** Rolling 2-second window of net magnitude samples (g − 9.8), at 20 Hz ≈ 40 entries. */
@@ -4047,6 +4051,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   sensitivity: crashSensitivityRef.current,
                 }).catch(() => {});
               }
+              // Create Crash Assistant record — enables driver to document the incident
+              // via the guided flow without re-entering GPS / speed data manually.
+              if (did) {
+                apiPost("/accidents", {
+                  deviceId:         did,
+                  lat,
+                  lng,
+                  speedBeforeKmh:   maxSpeed,
+                  speedAtImpactKmh: latestSpeed,
+                  headingDeg:       lastHeadingRef.current,
+                  tripStartAt:      currentTrip?.startTime
+                    ? new Date(currentTrip.startTime).toISOString()
+                    : null,
+                  destinationName:  navDestination?.name ?? null,
+                  distanceM:        currentTrip?.distance != null ? currentTrip.distance : null,
+                  durationS:        currentTrip?.startTime
+                    ? (now - currentTrip.startTime) / 1000
+                    : null,
+                  isManual: false,
+                }).then((data: { id: string }) => {
+                  setCrashAssistantId(data.id);
+                }).catch(() => {});
+              }
             }
           }
         }
@@ -4765,7 +4792,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hereIncidents, dismissHereIncident,
       mapPickerActive, setMapPickerActive,
       navigationEnabled,
-      crashDetected, clearCrash,
+      crashDetected, clearCrash, crashAssistantId,
       crashSensitivity, setCrashSensitivity,
       setDashcamActive,
     }}>

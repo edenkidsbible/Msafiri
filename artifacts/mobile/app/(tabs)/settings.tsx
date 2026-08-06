@@ -589,6 +589,24 @@ export default function SettingsScreen() {
             );
           })}
         </View>
+
+        {/* Crash Vault — access past accident records */}
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: c.card, borderColor: c.border, flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10 }]}
+          onPress={() => router.push("/crash-vault")}
+          activeOpacity={0.75}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#FF3B3018", alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#FF3B30" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: c.foreground }}>Crash Vault</Text>
+            <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: c.mutedForeground, marginTop: 1 }}>
+              View and share post-accident reports
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+        </TouchableOpacity>
       </View>
 
       {/* My Reports */}

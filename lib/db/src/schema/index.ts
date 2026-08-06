@@ -15,3 +15,4 @@ export * from "./dashcam";
 export * from "./emergency";
 export * from "./brakingEvents";
 export * from "./crashEvents";
+export * from "./accidents";
