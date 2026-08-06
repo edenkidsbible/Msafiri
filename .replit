@@ -63,4 +63,4 @@ SENTRY_PROJECT = "msafiri-mobile"
 [userenv.production]
 
 [objectStorage]
-defaultBucketID = "replit-objstore-32c128c9-4768-49c4-81dd-ef61cdf8fec4"
+defaultBucketID = "replit-objstore-e28de168-4fa9-4fa7-b9cf-33a11aaa24a2"
