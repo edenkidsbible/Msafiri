@@ -267,15 +267,16 @@ export default function CrashAssistantScreen() {
 
       setUploadingCategory(category);
 
-      // Get presigned PUT URL from server
+      // Get presigned PUT URL from server — include mimeType so the server can
+      // sign the URL with the exact Content-Type the PUT will carry.
+      const mimeType = asset.mimeType ?? "image/jpeg";
       const { photoId, uploadUrl } = await apiPost(`/accidents/${id}/photos/request-upload`, {
-        deviceId, category,
+        deviceId, category, contentType: mimeType,
       }) as { photoId: string; uploadUrl: string };
 
       // Upload via blob fetch (React Native supports this)
       const blobResponse = await fetch(asset.uri);
       const blob = await blobResponse.blob();
-      const mimeType = asset.mimeType ?? "image/jpeg";
       await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": mimeType },
@@ -949,7 +950,7 @@ function StatementStep({
     try {
       const { photoId, uploadUrl } = await apiPost(
         `/accidents/${accidentId}/photos/request-upload`,
-        { deviceId, category: "audio_statement" },
+        { deviceId, category: "audio_statement", contentType: "audio/m4a" },
       ) as { photoId: string; uploadUrl: string };
 
       const blob = await (await fetch(recordingUri)).blob();

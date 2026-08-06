@@ -30,9 +30,22 @@ import {
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage.js";
+import * as r2 from "../lib/r2Storage.js";
 
 const router = Router();
 const objectStorage = new ObjectStorageService();
+
+/** Legacy keys created by Replit Object Storage start with "/" (bucket-prefixed
+ *  private-dir paths). New R2 keys are relative (accidents/..., uploads/...). */
+function isLegacyKey(fileKey: string): boolean {
+  return fileKey.startsWith("/");
+}
+
+/** Signed GET URL for a stored fileKey — R2 for new keys, Replit for legacy. */
+async function signedDownloadUrl(fileKey: string, ttlSec: number): Promise<string> {
+  if (isLegacyKey(fileKey)) return objectStorage.getSignedDownloadUrl(fileKey, ttlSec);
+  return r2.getPresignedDownloadUrl(fileKey);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -506,7 +519,9 @@ router.patch("/accidents/:id", async (req: Request, res: Response) => {
 router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
-    const { deviceId, category } = req.body as { deviceId: string; category: string };
+    const { deviceId, category, contentType: rawContentType } = req.body as {
+      deviceId: string; category: string; contentType?: string;
+    };
     if (!deviceId || !category) return res.status(400).json({ error: "deviceId and category required" });
 
     const [existing] = await db.select({ id: accidentRecordsTable.id })
@@ -514,8 +529,28 @@ router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Re
       .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
     if (!existing) return res.status(404).json({ error: "Not found" });
 
-    const { uploadUrl, fileKey } = await objectStorage.getUploadInfo();
     const photoId = genId();
+
+    // Allowlist of MIME types the mobile client may send for accident media.
+    const ALLOWED_TYPES = new Set([
+      "image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif",
+      "image/webp", "audio/m4a", "audio/mp4", "audio/aac",
+    ]);
+    // Client should supply contentType matching what it will PUT; fall back by
+    // category so legacy clients that omit the field still work correctly.
+    const fallback = category === "audio_statement" ? "audio/m4a" : "image/jpeg";
+    const signedContentType =
+      rawContentType && ALLOWED_TYPES.has(rawContentType) ? rawContentType : fallback;
+
+    let uploadUrl: string;
+    let fileKey: string;
+    if (r2.isR2Configured()) {
+      fileKey = `accidents/${id}/photos/${photoId}`;
+      uploadUrl = await r2.getPresignedUploadUrl(fileKey, signedContentType);
+    } else {
+      // Fallback while R2 credentials are not configured
+      ({ uploadUrl, fileKey } = await objectStorage.getUploadInfo());
+    }
 
     await db.insert(accidentPhotosTable).values({
       id: photoId, accidentId: id, category, fileKey,
@@ -548,6 +583,24 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
       .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
     if (!record) return res.status(404).json({ error: "Not found" });
 
+    // Fetch the photo row to verify the upload actually landed in R2.
+    const [photo] = await db.select({ fileKey: accidentPhotosTable.fileKey })
+      .from(accidentPhotosTable)
+      .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+    if (!photo) return res.status(404).json({ error: "Photo record not found" });
+
+    // When R2 is active, HEAD the object to confirm the direct PUT succeeded
+    // before marking the record as confirmed. If missing, remove the orphan
+    // DB row so it is not silently reported as present.
+    if (r2.isR2Configured() && photo.fileKey && !isLegacyKey(photo.fileKey)) {
+      const exists = await r2.headObject(photo.fileKey);
+      if (!exists) {
+        await db.delete(accidentPhotosTable)
+          .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+        return res.status(400).json({ error: "Upload not found — the file was not uploaded to storage. Please retry." });
+      }
+    }
+
     await db.update(accidentPhotosTable)
       .set({ storageUrl: "confirmed" })
       .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
@@ -575,7 +628,7 @@ router.get("/accidents/:id/photos/:photoId/url", async (req: Request, res: Respo
       .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
     if (!photo?.fileKey) return res.status(404).json({ error: "Photo not found" });
 
-    const url = await objectStorage.getSignedDownloadUrl(photo.fileKey, 3600);
+    const url = await signedDownloadUrl(photo.fileKey, 3600);
     return res.json({ url });
   } catch (err) {
     console.error("GET photo url error:", err);
@@ -692,7 +745,7 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     // Return cached PDF URL if already generated
     if (record.pdfUrl && record.pdfFileKey) {
       try {
-        const url = await objectStorage.getSignedDownloadUrl(record.pdfFileKey, 3600 * 24);
+        const url = await signedDownloadUrl(record.pdfFileKey, 3600 * 24);
         return res.json({ url, cached: true });
       } catch { /* re-generate below */ }
     }
@@ -700,11 +753,17 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     // Generate PDF
     const pdfBuffer = await generatePdf(record, photos, witnesses, timeline);
 
-    // Upload to object storage
-    const privateDir = process.env.PRIVATE_OBJECT_DIR ?? "";
-    const fileKey = `${privateDir}/accidents/${id}/report.pdf`;
-    await objectStorage.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
-    const url = await objectStorage.getSignedDownloadUrl(fileKey, 3600 * 24);
+    // Upload to storage (R2 when configured, legacy Replit otherwise)
+    let fileKey: string;
+    if (r2.isR2Configured()) {
+      fileKey = `accidents/${id}/report.pdf`;
+      await r2.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
+    } else {
+      const privateDir = process.env.PRIVATE_OBJECT_DIR ?? "";
+      fileKey = `${privateDir}/accidents/${id}/report.pdf`;
+      await objectStorage.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
+    }
+    const url = await signedDownloadUrl(fileKey, 3600 * 24);
 
     // Cache the file key
     await db.update(accidentRecordsTable)
@@ -738,7 +797,7 @@ router.get("/accidents/:id/report/url", async (req: Request, res: Response) => {
 
     if (!record?.pdfFileKey) return res.status(404).json({ error: "No PDF generated yet" });
 
-    const url = await objectStorage.getSignedDownloadUrl(record.pdfFileKey, 3600 * 24);
+    const url = await signedDownloadUrl(record.pdfFileKey, 3600 * 24);
     return res.json({ url });
   } catch (err) {
     console.error("GET /accidents/:id/report/url error:", err);

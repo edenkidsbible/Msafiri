@@ -34,6 +34,12 @@ function hasAuthenticatedSession(
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned presigned URL.
  * Requires auth middleware so public callers cannot mint write-capable URLs.
+ *
+ * NOTE: This generic route intentionally keeps Replit Object Storage, which
+ * provides per-object ACL enforcement via objectAcl.ts. The dedicated media
+ * routes (accidents, TTS, course audio) use R2 directly with their own
+ * device/session ownership checks. Migrating this route to R2 is deferred
+ * until an equivalent owner-keyed ACL system for R2 is in place.
  */
 router.post(
   '/storage/uploads/request-url',

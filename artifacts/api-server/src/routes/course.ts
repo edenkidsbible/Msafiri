@@ -8,6 +8,7 @@ import {
   userCourseBookmarksTable,
 } from "@workspace/db";
 import { objectStorageClient } from "../lib/objectStorage";
+import * as r2 from "../lib/r2Storage";
 import { eq, asc, and, sql } from "drizzle-orm";
 
 const router = Router();
@@ -93,13 +94,65 @@ router.get("/course/audio/:slug", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "No audio for this lesson" });
     }
 
+    // audioUrl stored as object path e.g. "audio/lesson-slug.mp3" — same key in
+    // R2 and legacy Replit storage. Serve from R2 first, fall back to Replit.
+    const objectPath = lesson.audioUrl;
+
+    if (r2.isR2Configured()) {
+      const meta = await r2.headObject(objectPath);
+      if (meta) {
+        const totalSize = meta.size;
+        const rangeHeader = req.headers.range;
+
+        if (rangeHeader) {
+          // Validate Range header — only "bytes=start-end" and "bytes=start-"
+          // forms are supported. Return 416 for anything malformed or out-of-bounds.
+          const rangeMatch = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
+          if (!rangeMatch) {
+            res.setHeader("Content-Range", `bytes */${totalSize}`);
+            return res.status(416).json({ error: "Range Not Satisfiable" });
+          }
+          const start = parseInt(rangeMatch[1], 10);
+          const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : totalSize - 1;
+          if (isNaN(start) || isNaN(end) || start > end || start >= totalSize || end >= totalSize) {
+            res.setHeader("Content-Range", `bytes */${totalSize}`);
+            return res.status(416).json({ error: "Range Not Satisfiable" });
+          }
+
+          // Forward the validated range to R2 and use its response metadata.
+          const { body, contentLength, contentRange } =
+            await r2.getObjectStream(objectPath, `bytes=${start}-${end}`);
+          res.writeHead(206, {
+            "Content-Range": contentRange ?? `bytes ${start}-${end}/${totalSize}`,
+            "Accept-Ranges": "bytes",
+            "Content-Length": String(contentLength || end - start + 1),
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "public, max-age=86400",
+          });
+          body.pipe(res);
+          return;
+        }
+
+        // Full-file response.
+        const { body, contentLength } = await r2.getObjectStream(objectPath);
+        res.writeHead(200, {
+          "Accept-Ranges": "bytes",
+          "Content-Length": String(contentLength || totalSize),
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "public, max-age=86400",
+        });
+        body.pipe(res);
+        return;
+      }
+    }
+
     const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
     if (!bucketId) {
       return res.status(503).json({ error: "Object storage not configured" });
     }
 
-    // audioUrl stored as GCS object path e.g. "audio/lesson-slug.mp3"
-    const gcsPath = lesson.audioUrl;
+    // Legacy fallback: stream from Replit Object Storage
+    const gcsPath = objectPath;
     const file = objectStorageClient.bucket(bucketId).file(gcsPath);
 
     const [exists] = await file.exists();

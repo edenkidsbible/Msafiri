@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { createHash } from "crypto";
 import { objectStorageClient } from "../lib/objectStorage.js";
+import * as r2 from "../lib/r2Storage.js";
 
 const router = Router();
 
@@ -27,23 +28,38 @@ router.get("/tts", async (req: Request, res: Response) => {
 
   const apiKey  = process.env.ELEVENLABS_API_KEY;
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  const r2Ready = r2.isR2Configured();
   if (!apiKey)   return res.status(503).json({ error: "TTS not configured" });
-  if (!bucketId) return res.status(503).json({ error: "Storage not configured" });
+  if (!r2Ready && !bucketId) return res.status(503).json({ error: "Storage not configured" });
 
   const path = objPath(text);
-  const file = objectStorageClient.bucket(bucketId).file(path);
 
-  // ── Try cache first ────────────────────────────────────────────────────────
+  // ── Try cache first: R2, then legacy Replit storage ───────────────────────
   try {
-    const [exists] = await file.exists();
-    if (exists) {
-      const [meta] = await file.getMetadata();
-      res.setHeader("Content-Type",   "audio/mpeg");
-      res.setHeader("Cache-Control",  "public, max-age=7776000"); // 90 days
-      res.setHeader("Content-Length", String(meta.size));
-      res.setHeader("X-TTS-Cache",    "HIT");
-      file.createReadStream().pipe(res);
-      return;
+    if (r2Ready) {
+      const meta = await r2.headObject(path);
+      if (meta) {
+        const { body, contentLength } = await r2.getObjectStream(path);
+        res.setHeader("Content-Type",   "audio/mpeg");
+        res.setHeader("Cache-Control",  "public, max-age=7776000"); // 90 days
+        res.setHeader("Content-Length", String(contentLength));
+        res.setHeader("X-TTS-Cache",    "HIT");
+        body.pipe(res);
+        return;
+      }
+    }
+    if (bucketId) {
+      const file = objectStorageClient.bucket(bucketId).file(path);
+      const [exists] = await file.exists();
+      if (exists) {
+        const [meta] = await file.getMetadata();
+        res.setHeader("Content-Type",   "audio/mpeg");
+        res.setHeader("Cache-Control",  "public, max-age=7776000"); // 90 days
+        res.setHeader("Content-Length", String(meta.size));
+        res.setHeader("X-TTS-Cache",    "HIT-LEGACY");
+        file.createReadStream().pipe(res);
+        return;
+      }
     }
   } catch (err) {
     // Cache miss or storage error — fall through to generate
@@ -77,9 +93,14 @@ router.get("/tts", async (req: Request, res: Response) => {
     const buf = Buffer.from(await elRes.arrayBuffer());
 
     // Save to cache non-blocking — don't let a storage hiccup delay the response
-    file
-      .save(buf, { metadata: { contentType: "audio/mpeg" } })
-      .catch((err) => console.warn("[tts] cache save failed:", err));
+    if (r2Ready) {
+      r2.uploadBuffer(path, buf, "audio/mpeg")
+        .catch((err) => console.warn("[tts] R2 cache save failed:", err));
+    } else if (bucketId) {
+      objectStorageClient.bucket(bucketId).file(path)
+        .save(buf, { metadata: { contentType: "audio/mpeg" } })
+        .catch((err) => console.warn("[tts] cache save failed:", err));
+    }
 
     res.setHeader("Content-Type",   "audio/mpeg");
     res.setHeader("Cache-Control",  "public, max-age=7776000");

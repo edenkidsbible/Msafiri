@@ -8,6 +8,7 @@ import { startPushNotificationsJob } from "./jobs/pushNotifications";
 import { startDailyBackupJob } from "./jobs/dailyBackup";
 import { seedCourseIfEmpty } from "./startup/seedCourse";
 import { backfillCourseAudio } from "./startup/backfillCourseAudio";
+import { backfillR2Media } from "./startup/backfillR2Media";
 import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
@@ -94,4 +95,10 @@ app.listen(port, async (err) => {
   startHereTrafficJob();
   startPromoteScheduledReleasesJob();
   startClusterHazardsJob();
+
+  // One-time (idempotent) copy of legacy media into R2 — runs in the
+  // background so startup latency is unaffected.
+  backfillR2Media().catch((err) =>
+    logger.error({ err }, "R2 media backfill crashed"),
+  );
 });
