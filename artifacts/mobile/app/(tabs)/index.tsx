@@ -18,6 +18,7 @@ import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -30,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useDashcam } from "@/context/DashcamContext";
 import { useColors } from "@/hooks/useColors";
+import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import {
   DriveSession,
@@ -90,6 +92,7 @@ export default function HomeScreen() {
     currentLng,
   } = useApp();
   const { isRecording: dashcamRecording } = useDashcam();
+  const weather = useWeather(currentLat, currentLng);
 
   const tabBarH = Platform.OS === "web" ? 84 : 96;
 
@@ -114,12 +117,14 @@ export default function HomeScreen() {
   // ── Nearby alerts within 3 km, closest first ───────────────────────────────
   const nearbyAlerts = useMemo(() => {
     if (currentLat == null || currentLng == null) return [];
-    const items: { id: string; type: string; label: string; emoji: string; color: string; distanceM: number; road: string | null }[] = [];
+    const items: { id: string; type: string; label: string; emoji: string; color: string; distanceM: number; road: string | null; lat: number; lng: number }[] = [];
     for (const z of nearbyZones) {
+      if (z.lat == null || z.lng == null) continue;
       const meta = resolveIncidentType(z.type);
       items.push({
         id: `z-${z.id}`, type: z.type, label: meta.label, emoji: meta.emoji,
         color: meta.color, distanceM: z.distance, road: z.road ?? null,
+        lat: z.lat, lng: z.lng,
       });
     }
     for (const r of communityReports) {
@@ -129,6 +134,7 @@ export default function HomeScreen() {
       items.push({
         id: `r-${r.id}`, type: r.type, label: meta.label, emoji: meta.emoji,
         color: meta.color, distanceM: d, road: r.roadName ?? null,
+        lat: r.lat, lng: r.lng,
       });
     }
     for (const h of hereIncidents) {
@@ -138,6 +144,7 @@ export default function HomeScreen() {
       items.push({
         id: `h-${h.id}`, type: h.type, label: meta.label, emoji: meta.emoji,
         color: meta.color, distanceM: d, road: h.roadName ?? null,
+        lat: h.lat, lng: h.lng,
       });
     }
     items.sort((a, b) => a.distanceM - b.distanceM);
@@ -217,7 +224,7 @@ export default function HomeScreen() {
       title: "Trip Sharing",
       value: isSharingTrip ? "Active" : "Inactive",
       valueColor: isSharingTrip ? c.primary : c.mutedForeground,
-      onPress: startDriving,
+      onPress: () => router.push("/trip-sharing"),
     },
   ];
 
@@ -266,16 +273,20 @@ export default function HomeScreen() {
               Let's drive safe today.
             </Text>
           </View>
-          <View style={[styles.weatherChip, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Ionicons name="partly-sunny-outline" size={15} color="#FFB300" />
-              <Text style={[styles.weatherTxt, { color: c.foreground }]}>21°</Text>
+          {weather?.tempC != null && (
+            <View style={[styles.weatherChip, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name={weatherIcon(weather.weatherCode) as any} size={15} color="#FFB300" />
+                <Text style={[styles.weatherTxt, { color: c.foreground }]}>{weather.tempC}°</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                <Ionicons name="location-outline" size={11} color={c.primary} />
+                <Text style={[styles.weatherCity, { color: c.mutedForeground }]} numberOfLines={1}>
+                  {weather.locality ?? weather.description ?? "Nearby"}
+                </Text>
+              </View>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Ionicons name="location-outline" size={11} color={c.primary} />
-              <Text style={[styles.weatherCity, { color: c.mutedForeground }]}>Nairobi</Text>
-            </View>
-          </View>
+          )}
         </View>
 
         {/* ── Start Driving hero card ────────────────────────────────────── */}
@@ -288,7 +299,11 @@ export default function HomeScreen() {
           >
             <View style={styles.heroArtWrap}>
               <View style={styles.heroArtGlow} />
-              <Ionicons name="car-sport" size={58} color="#FFFFFF" style={{ opacity: 0.95 }} />
+              <Image
+                source={require("@/assets/images/hero-car.png")}
+                style={styles.heroCarImg}
+                resizeMode="cover"
+              />
             </View>
             <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
               <Text style={styles.heroTitle}>Start Driving</Text>
@@ -358,7 +373,12 @@ export default function HomeScreen() {
               <TouchableOpacity
                 key={a.id}
                 activeOpacity={0.8}
-                onPress={() => router.push("/(tabs)/map")}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/map",
+                    params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
+                  })
+                }
                 style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
               >
                 <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
@@ -383,7 +403,7 @@ export default function HomeScreen() {
         {/* ── Accident Assistant promo ───────────────────────────────────── */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => router.push("/crash-vault")}
+          onPress={() => router.push("/accident-assistant-info")}
           style={[styles.promoCard, { backgroundColor: c.card, borderColor: c.primary + "44" }]}
         >
           <View style={[styles.promoIcon, { backgroundColor: c.primary + "1E" }]}>
@@ -416,7 +436,7 @@ export default function HomeScreen() {
         {lastSession ? (
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => router.push("/(tabs)/garage")}
+            onPress={() => router.push(`/trip-detail/${lastSession.id}`)}
             style={[styles.tripCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
           >
             <View style={[styles.tripThumb, { backgroundColor: c.primary + "16" }]}>
@@ -509,6 +529,7 @@ const styles = StyleSheet.create({
     position: "absolute", width: 74, height: 74, borderRadius: 37,
     backgroundColor: "#FFFFFF1E",
   },
+  heroCarImg: { width: 74, height: 74, borderRadius: 37 },
   heroChevron: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFFFFF",
     alignItems: "center", justifyContent: "center",

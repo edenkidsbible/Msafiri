@@ -165,6 +165,69 @@ router.post("/drive-sessions/:id/end", async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /drive-sessions/:id — fetch a single session for a device ────────────
+
+router.get("/drive-sessions/:id", async (req: Request, res: Response) => {
+  try {
+    const id = (req.params as { id: string }).id;
+    const deviceId = (req.query as Record<string, string>).deviceId;
+
+    if (!deviceId?.trim()) {
+      return res.status(400).json({ error: "deviceId is required" });
+    }
+
+    // live_trips.id is a UUID — reject malformed ids up front so Postgres
+    // doesn't raise a cast error (which would surface as a 500).
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const result = await db.execute<Record<string, unknown>>(sql`
+      SELECT id, device_id, started_at, ended_at,
+             start_lat, start_lng, end_lat, end_lng,
+             distance_m, duration_s, avg_speed_kmh, max_speed_kmh,
+             score, harsh_brakes, harsh_accels, sharp_turns,
+             speeding_minutes, smooth_minutes,
+             speed_camera_alerts, police_alerts, hazards_encountered,
+             created_at
+      FROM live_trips
+      WHERE id = ${id}
+        AND device_id = ${deviceId.trim()}
+    `);
+
+    const r = result.rows[0];
+    if (!r) return res.status(404).json({ error: "Session not found" });
+
+    return res.json({
+      id:                 r.id,
+      deviceId:           r.device_id,
+      startedAt:          r.started_at,
+      endedAt:            r.ended_at,
+      startLat:           r.start_lat,
+      startLng:           r.start_lng,
+      endLat:             r.end_lat,
+      endLng:             r.end_lng,
+      distanceM:          r.distance_m          ?? 0,
+      durationS:          r.duration_s,
+      avgSpeedKmh:        r.avg_speed_kmh,
+      maxSpeedKmh:        r.max_speed_kmh,
+      score:              r.score,
+      harshBrakes:        r.harsh_brakes        ?? 0,
+      harshAccels:        r.harsh_accels        ?? 0,
+      sharpTurns:         r.sharp_turns         ?? 0,
+      speedingMinutes:    r.speeding_minutes     ?? 0,
+      smoothMinutes:      r.smooth_minutes       ?? 0,
+      speedCameraAlerts:  r.speed_camera_alerts  ?? 0,
+      policeAlerts:       r.police_alerts        ?? 0,
+      hazardsEncountered: r.hazards_encountered  ?? 0,
+      createdAt:          r.created_at,
+    });
+  } catch (err) {
+    console.error("GET /drive-sessions/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── GET /drive-sessions — list completed sessions for a device ────────────────
 
 router.get("/drive-sessions", async (req: Request, res: Response) => {

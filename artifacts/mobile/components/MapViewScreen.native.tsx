@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +22,7 @@ import { speakAlert } from "@/utils/alertTts";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
 import { formatTimeAgo } from "@/lib/timeAgo";
+import { useWeather, weatherIcon } from "@/hooks/useWeather";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 
@@ -233,6 +234,7 @@ export default function MapViewScreen() {
     mapPickerActive,
     setMapPickerActive,
   } = useApp();
+  const weather = useWeather(currentLat, currentLng);
 
   /** Returns true when the marker at (lat, lng) is behind the driver
    *  (angle from heading > 90°). When heading is unknown, all markers are
@@ -271,6 +273,31 @@ export default function MapViewScreen() {
   const [mapDrifted, setMapDrifted] = useState(false);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
+
+  // ── Alert focus (deep-link from the home screen's Nearby Alerts cards) ─────
+  // The home screen pushes /(tabs)/map?focusId=&focusLat=&focusLng=&focusTs=.
+  // We centre the camera on the alert and render an emphasized highlight ring
+  // under its marker so the driver can see which road it's on. focusTs makes
+  // re-tapping the same card re-trigger the effect.
+  const { focusId, focusLat, focusLng, focusTs } = useLocalSearchParams<{
+    focusId?: string; focusLat?: string; focusLng?: string; focusTs?: string;
+  }>();
+  const [focusedAlert, setFocusedAlert] = useState<{ id: string; lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!focusId || !focusLat || !focusLng) return;
+    const lat = parseFloat(focusLat);
+    const lng = parseFloat(focusLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setFocusedAlert({ id: focusId, lat, lng });
+    // Defer one tick so the MapView ref exists when arriving cold on this tab.
+    const t = setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        { latitude: lat, longitude: lng, latitudeDelta: 0.012, longitudeDelta: 0.012 },
+        600,
+      );
+    }, 350);
+    return () => clearTimeout(t);
+  }, [focusId, focusLat, focusLng, focusTs]);
   const openedAtRef = useRef(0);
   const now = Date.now();
 
@@ -657,6 +684,31 @@ export default function MapViewScreen() {
           />
         )}
 
+        {/* Focused alert highlight — emphasized pulsing-style ring around the
+            alert the driver tapped on the home screen's Nearby Alerts list. */}
+        {focusedAlert && (
+          <>
+            <Circle
+              center={{ latitude: focusedAlert.lat, longitude: focusedAlert.lng }}
+              radius={120}
+              strokeColor="#00C853"
+              fillColor="#00C85322"
+              strokeWidth={2.5}
+            />
+            <Marker
+              coordinate={{ latitude: focusedAlert.lat, longitude: focusedAlert.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              zIndex={999}
+              tracksViewChanges={true}
+              onPress={() => setFocusedAlert(null)}
+            >
+              <View collapsable={false} style={styles.focusRing}>
+                <View style={styles.focusRingInner} />
+              </View>
+            </Marker>
+          </>
+        )}
+
         {/* Destination */}
         {activeRoute && activeRoute.coords.length > 0 && (
           <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
@@ -676,14 +728,18 @@ export default function MapViewScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Weather/AQI chip */}
-      <View style={[styles.weatherChip, { backgroundColor: c.card + "E8", bottom: insets.bottom + TAB_H + EXPLORE_H + 20, left: 12 }]}>
-        <Text style={{ fontSize: 16 }}>🌤️</Text>
-        <View style={{ gap: 1 }}>
-          <Text style={[styles.weatherTemp, { color: c.foreground }]}>21°</Text>
-          <Text style={[styles.weatherAqi, { color: c.primary }]}>AQI 42  ● Good</Text>
+      {/* Weather chip — live current conditions for the driver's location */}
+      {weather?.tempC != null && (
+        <View style={[styles.weatherChip, { backgroundColor: c.card + "E8", bottom: insets.bottom + TAB_H + EXPLORE_H + 20, left: 12 }]}>
+          <Ionicons name={weatherIcon(weather.weatherCode) as any} size={18} color="#FFB300" />
+          <View style={{ gap: 1 }}>
+            <Text style={[styles.weatherTemp, { color: c.foreground }]}>{weather.tempC}°</Text>
+            <Text style={[styles.weatherAqi, { color: c.primary }]} numberOfLines={1}>
+              {weather.locality ?? weather.description ?? "Nearby"}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Report Incident pill */}
       <View style={[styles.reportPillRow, { bottom: insets.bottom + TAB_H + EXPLORE_H + 20 }]}>
@@ -1159,6 +1215,17 @@ export default function MapViewScreen() {
 }
 
 const styles = StyleSheet.create({
+  focusRing: {
+    width: 54, height: 54, borderRadius: 27,
+    borderWidth: 3, borderColor: "#00C853",
+    backgroundColor: "#00C85318",
+    alignItems: "center", justifyContent: "center",
+  },
+  focusRingInner: {
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: "#00C853",
+    borderWidth: 2, borderColor: "#FFFFFF",
+  },
   container: { flex: 1 },
   markerCircle: {
     alignItems: "center", justifyContent: "center",

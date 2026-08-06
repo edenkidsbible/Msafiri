@@ -136,6 +136,18 @@ export async function endDriveSession(
 }
 
 /**
+ * Fetch a single drive session by id (device-scoped).
+ */
+export async function getDriveSession(
+  deviceId:  string,
+  sessionId: string,
+): Promise<DriveSession> {
+  return apiGet<DriveSession>(
+    `/drive-sessions/${encodeURIComponent(sessionId)}?deviceId=${encodeURIComponent(deviceId)}`,
+  );
+}
+
+/**
  * Fetch the completed drive sessions for a device (newest first).
  */
 export async function listDriveSessions(

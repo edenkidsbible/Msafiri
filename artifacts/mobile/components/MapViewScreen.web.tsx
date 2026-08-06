@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -60,6 +61,27 @@ export default function MapViewScreen() {
   const [showReport, setShowReport] = useState(false);
   const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
 
+  // ── Alert focus (deep-link from the home screen's Nearby Alerts cards) ─────
+  // The web map is a list view, so "focus" here means: show a banner for the
+  // selected alert and emphasize + front-sort its row when it's a zone.
+  // focusTs makes re-tapping the same card re-trigger the effect.
+  const { focusId, focusLat, focusLng, focusTs } = useLocalSearchParams<{
+    focusId?: string; focusLat?: string; focusLng?: string; focusTs?: string;
+  }>();
+  const [focusedAlert, setFocusedAlert] = useState<{ id: string; lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!focusId || !focusLat || !focusLng) return;
+    const lat = parseFloat(focusLat);
+    const lng = parseFloat(focusLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setFocusedAlert({ id: focusId, lat, lng });
+  }, [focusId, focusLat, focusLng, focusTs]);
+  // Home prefixes ids by source: z-<zoneId>, r-<reportId>, h-<hereId>.
+  const focusedZoneId = focusedAlert?.id.startsWith("z-") ? focusedAlert.id.slice(2) : null;
+  const focusedReport = focusedAlert?.id.startsWith("r-")
+    ? communityReports.find((r) => r.id === focusedAlert.id.slice(2)) ?? null
+    : null;
+
   // Fade the ETA labels when durationRemainingS jumps >60 s (traffic refresh).
   // Small per-GPS-fix drift is below the threshold and passes through unchanged.
   const etaFadeAnim  = useRef(new Animated.Value(1)).current;
@@ -91,7 +113,14 @@ export default function MapViewScreen() {
 
   const zones = allZones.filter((z) => filter === "all" || z.type === filter)
     .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
-    .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    .sort((a, b) => {
+      // Front-sort the focused alert's row so it's immediately visible.
+      if (focusedZoneId) {
+        if (a.id === focusedZoneId) return -1;
+        if (b.id === focusedZoneId) return 1;
+      }
+      return (a.distance ?? Infinity) - (b.distance ?? Infinity);
+    });
 
   const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
     setShowReport(false);
@@ -286,13 +315,43 @@ export default function MapViewScreen() {
         </View>
       </View>
 
+      {/* Focused alert banner (deep-link from home's Nearby Alerts) */}
+      {focusedAlert && (
+        <View style={[styles.focusBanner, { backgroundColor: c.primary + "18", borderColor: c.primary }]}>
+          <View style={[styles.focusDot, { backgroundColor: c.primary }]} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.focusTitle, { color: c.foreground }]} numberOfLines={1}>
+              {focusedReport
+                ? `Reported ${focusedReport.type}${focusedReport.roadName ? ` · ${focusedReport.roadName}` : ""}`
+                : focusedZoneId
+                  ? "Selected alert highlighted below"
+                  : "Selected alert"}
+            </Text>
+            <Text style={[styles.focusSub, { color: c.mutedForeground }]} numberOfLines={1}>
+              {currentLat && currentLng
+                ? `${distStr(haversine(currentLat, currentLng, focusedAlert.lat, focusedAlert.lng))} away · ${focusedAlert.lat.toFixed(4)}, ${focusedAlert.lng.toFixed(4)}`
+                : `${focusedAlert.lat.toFixed(4)}, ${focusedAlert.lng.toFixed(4)}`}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setFocusedAlert(null)} style={{ padding: 4 }}>
+            <Ionicons name="close" size={16} color={c.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FlatList
         data={zones}
         keyExtractor={(z) => z.id}
         contentContainerStyle={{ paddingBottom: bottomInset + 100, paddingTop: 4 }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <View style={[styles.zoneRow, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View
+            style={[
+              styles.zoneRow,
+              { backgroundColor: c.card, borderColor: c.border },
+              focusedZoneId === item.id && { borderColor: c.primary, borderWidth: 2, backgroundColor: c.primary + "10" },
+            ]}
+          >
             <View style={[styles.zoneIconBox, { backgroundColor: TYPE_COLOR[item.type] + "22" }]}>
               <Ionicons name={TYPE_ICON[item.type] as "camera"} size={20} color={TYPE_COLOR[item.type]} />
             </View>
@@ -396,4 +455,12 @@ const styles = StyleSheet.create({
   zoneDist: { fontSize: 11, fontFamily: "Inter_400Regular" },
   reportsBadge: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   reportsBadgeText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  focusBanner: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 16, marginBottom: 8, padding: 12,
+    borderRadius: 14, borderWidth: 1.5,
+  },
+  focusDot: { width: 10, height: 10, borderRadius: 5 },
+  focusTitle: { fontSize: 13.5, fontFamily: "Inter_600SemiBold" },
+  focusSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });

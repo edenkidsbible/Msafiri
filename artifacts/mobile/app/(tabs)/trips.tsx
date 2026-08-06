@@ -3,7 +3,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
@@ -775,7 +775,11 @@ export default function TripsScreen() {
                   ? `${(s.distanceM / 1000).toFixed(1)} km`
                   : `${s.distanceM} m`;
                 return (
-                  <View style={[styles.driveSessionCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/trip-detail/${s.id}`)}
+                    style={[styles.driveSessionCard, { backgroundColor: c.card, borderColor: c.border }]}
+                  >
                     {/* Header row: date + score badge */}
                     <View style={styles.driveSessionHeader}>
                       <Text style={[styles.driveSessionDate, { color: c.foreground }]}>
@@ -844,7 +848,7 @@ export default function TripsScreen() {
                         )}
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 );
               }}
               ListEmptyComponent={
