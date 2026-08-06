@@ -74,6 +74,7 @@
     "expo-modules-core": "^3.0.30",
     "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.17",
+    "expo-sensors": "~15.0.8",
     "expo-sms": "^14.0.8",
     "expo-task-manager": "^14.0.9",
     "expo-updates": "~29.0.19",

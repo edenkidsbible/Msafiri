@@ -1,0 +1,39 @@
+AI Accident Detection & Emergency Alert
+What & Why
+Use the phone's accelerometer and GPS speed together to detect probable collisions in real time. When a crash is detected, the app prompts the driver ("Are you okay?") with a countdown; if unanswered it alerts emergency contacts via SMS and shares a live GPS link. This is the safety feature that makes Msafiri meaningfully different from every other Kenyan navigation app.
+
+Done looks like
+During any active drive (navigation or dashcam running), the app silently monitors the accelerometer.
+A sudden >3.5g impact combined with a speed drop from >20 km/h to <5 km/h within 2 seconds triggers the detection.
+A large full-screen "Are you okay?" modal appears immediately with: a 45-second countdown, a green "I'm Fine" button (large, easy to tap), and a red "Call Emergency" one-tap button.
+Tapping "I'm Fine" or tapping anywhere on the screen dismisses the alert entirely.
+If the countdown expires with no tap, the app automatically: sends SMS to all saved emergency contacts via Twilio (includes driver name, GPS coordinates, Google Maps link, and time of incident), and if dashcam was active, auto-locks the segment surrounding the event.
+Emergency contacts are managed in a new "Emergency Contacts" section of the Settings screen (add/edit/delete name + phone number). Up to 5 contacts.
+A manual "Test Alert" button in Settings lets the driver verify their contacts receive messages without a real crash.
+False positives from speed bumps or potholes are suppressed by requiring both the g-force threshold AND the speed drop together.
+Out of scope
+Alerting nearby Msafiri users of the incident (can be added as a follow-up using the existing community report push system).
+Automatic 911/999 dialling — one-tap button opens the phone dialler; fully automatic calling would require OS-level permissions not available on both platforms.
+Dashcam clip auto-lock — this hooks into the DashcamContext lockCurrentClip function; if dashcam is not active, the hook is a no-op.
+Insurance report PDF generation (separate feature).
+Steps
+Install expo-sensors — Add expo-sensors to the mobile package. No new permissions are required; accelerometer access is available without explicit permission on both platforms.
+
+Emergency contacts — backend — Add an emergency_contacts table (id, user_id, name, phone_e164, created_at). Add CRUD API routes under /api/emergency-contacts (list, create, update, delete). Add a Twilio SMS helper in api-server/src/lib/sms.ts using TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER env vars. Add POST /api/emergency/alert endpoint that accepts { lat, lng, driverName }, fetches the user's emergency contacts, and sends each one a Twilio SMS with a Google Maps link and incident details.
+
+Crash detection algorithm in AppContext — When navigation is active (or dashcam is active), subscribe to Accelerometer at 20 Hz. Maintain a 2-second rolling window of magnitude samples (sqrt(x²+y²+z²) − 9.8 to remove gravity). Trigger detection when: peak magnitude in the window exceeds 3.5g AND current GPS speed drops from ≥20 km/h to ≤5 km/h within the same window. Unsubscribe from accelerometer when neither navigation nor dashcam is active to preserve battery.
+
+"Are you okay?" overlay — Create components/CrashDetectedModal.tsx: full-screen dark red overlay, driver-facing message, large countdown ring (45 seconds), "I'm Fine" and "Call Emergency" buttons. Mount it in app/(tabs)/index.tsx gated on a new crashDetected flag in AppContext. On dismiss (any tap), clear the flag. On countdown expiry, call the emergency alert API and call DashcamContext.lockCurrentClip("crash") if dashcam is active.
+
+Emergency contacts settings UI — Add an "Emergency Contacts" section to app/(tabs)/settings.tsx with a list of saved contacts and an add/edit form (name + phone number with Kenyan number validation). Wire to the new API routes. Add a "Send Test Message" button that calls /api/emergency/alert with a [TEST] prefix in the SMS body.
+
+Sensitivity calibration — Add a sensitivity setting (Low / Medium / High) in Settings that adjusts the g-force threshold (4.5g / 3.5g / 2.8g) and speed-drop requirement. Default to Medium. Document the thresholds clearly so the user understands the tradeoff between false positives and missed detections.
+
+Relevant files
+artifacts/mobile/package.json
+artifacts/mobile/context/AppContext.tsx
+artifacts/mobile/app/(tabs)/index.tsx
+artifacts/mobile/app/(tabs)/settings.tsx
+artifacts/api-server/src/index.ts
+artifacts/api-server/package.json
+lib/db/src/schema.ts

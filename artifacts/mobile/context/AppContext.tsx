@@ -32,6 +32,7 @@ import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
+import { Accelerometer } from "expo-sensors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, speakNavCancel, prewarmNavAudio, getAlertVoiceDisabled } from "@/utils/alertTts";
@@ -364,6 +365,20 @@ interface AppContextValue {
    *  When false, the "Where to?" search bar becomes a places explorer only —
    *  no routing or voice guidance is offered. */
   navigationEnabled: boolean;
+  // ── Crash detection ──────────────────────────────────────────────────────
+  /** True when the accelerometer + speed-drop algorithm has detected a probable crash. */
+  crashDetected: boolean;
+  /** Dismiss the crash overlay — called when the driver taps "I'm Fine" or
+   *  when the countdown expires (after sending SMS alerts). */
+  clearCrash: () => void;
+  /** g-force sensitivity level. Controls the impact threshold:
+   *  Low = 4.5g (fewer false positives), Medium = 3.5g, High = 2.8g (more sensitive). */
+  crashSensitivity: "low" | "medium" | "high";
+  setCrashSensitivity: (v: "low" | "medium" | "high") => void;
+  /** Called by the drive screen to inform AppContext whether the dashcam is
+   *  currently recording, so the accelerometer subscription can be enabled
+   *  even when navigation is inactive. */
+  setDashcamActive: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -379,6 +394,7 @@ const KEYS = {
   VEHICLE_TYPE: "sdk_vehicle_type",
   SHARE: "sdk_share",  // active sharing session — persisted so it survives backgrounding
   DRIVER_NAME: "sdk_driver_name",  // display name shown to live-share recipients
+  CRASH_SENSITIVITY: "sdk_crash_sensitivity",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1030,6 +1046,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
   const [suppressedStaticIds, setSuppressedStaticIds] = useState<string[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
+  // ── Crash detection ──────────────────────────────────────────────────────
+  const [crashDetected, setCrashDetected] = useState(false);
+  const [crashSensitivity, setCrashSensitivityState] = useState<"low" | "medium" | "high">("medium");
+  const [dashcamActive, setDashcamActiveState] = useState(false);
+  /** Rolling 2-second window of net magnitude samples (g − 9.8), at 20 Hz ≈ 40 entries. */
+  const accelWindowRef = useRef<number[]>([]);
+  /** Rolling 2-second window of GPS speed readings (km/h). Populated by the GPS handler. */
+  const speedWindowRef = useRef<{ t: number; kmh: number }[]>([]);
+  const crashSensitivityRef = useRef<"low" | "medium" | "high">("medium");
+  const crashDetectedRef = useRef(false);
+  const dashcamActiveRef = useRef(false);
   const [driverHeading, setDriverHeading] = useState<number | null>(null);
   const allZonesRef = useRef<SpeedZone[]>(SPEED_ZONES);
   const dbStretchesRef = useRef<SpeedStretch[]>([]);
@@ -1237,7 +1264,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -1248,6 +1275,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(KEYS.VEHICLE_TYPE),
         AsyncStorage.getItem(KEYS.SHARE),
         AsyncStorage.getItem(KEYS.DRIVER_NAME),
+        AsyncStorage.getItem(KEYS.CRASH_SENSITIVITY),
       ]);
       if (storedVehicleType) {
         const v = storedVehicleType as VehicleTypeId;
@@ -1296,6 +1324,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedDriverName) {
         driverNameRef.current = storedDriverName;
         setDriverNameState(storedDriverName);
+      }
+      if (storedCrashSensitivity === "low" || storedCrashSensitivity === "medium" || storedCrashSensitivity === "high") {
+        setCrashSensitivityState(storedCrashSensitivity);
+        crashSensitivityRef.current = storedCrashSensitivity;
       }
       setOnboardingComplete(onboarded === "true");
       // Restore any sharing session that survived backgrounding or an app restart
@@ -1539,6 +1571,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastSetSpeedKmhRef.current = kmhInt;
       setCurrentSpeed(kmh);
     }
+    // Feed crash detection speed window (2s rolling)
+    const nowMs = Date.now();
+    speedWindowRef.current.push({ t: nowMs, kmh });
+    speedWindowRef.current = speedWindowRef.current.filter((s) => nowMs - s.t <= 2000);
 
     // Speed zones
     const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
@@ -3879,6 +3915,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(KEYS.VEHICLE_TYPE, v);
   }, []);
 
+  // ── Crash sensitivity persisted setting ─────────────────────────────────
+  const setCrashSensitivity = useCallback((v: "low" | "medium" | "high") => {
+    setCrashSensitivityState(v);
+    crashSensitivityRef.current = v;
+    AsyncStorage.setItem(KEYS.CRASH_SENSITIVITY, v);
+  }, []);
+
+  const clearCrash = useCallback(() => {
+    crashDetectedRef.current = false;
+    setCrashDetected(false);
+  }, []);
+
+  const setDashcamActive = useCallback((v: boolean) => {
+    dashcamActiveRef.current = v;
+    setDashcamActiveState(v);
+  }, []);
+
+  // ── Accelerometer crash detection ────────────────────────────────────────
+  // Subscribe at 20 Hz whenever navigation or dashcam is active.
+  // Detection fires when:
+  //   peak net-G in the 2s window > threshold  AND
+  //   GPS speed dropped from ≥20 km/h to ≤5 km/h within 2s
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const shouldMonitor = navigationActive || dashcamActive;
+    if (!shouldMonitor) {
+      accelWindowRef.current = [];
+      return;
+    }
+
+    const G_THRESHOLD: Record<"low" | "medium" | "high", number> = {
+      low: 4.5, medium: 3.5, high: 2.8,
+    };
+
+    Accelerometer.setUpdateInterval(50); // 20 Hz
+    const sub = Accelerometer.addListener(({ x, y, z }) => {
+      if (crashDetectedRef.current) return;
+      const rawG = Math.sqrt(x * x + y * y + z * z);
+      const netG = Math.abs(rawG - 9.8); // subtract Earth gravity baseline
+      accelWindowRef.current.push(netG);
+      // Keep only ~2 seconds worth of samples (20 Hz × 2 s = 40 samples)
+      if (accelWindowRef.current.length > 40) accelWindowRef.current.shift();
+
+      const threshold = G_THRESHOLD[crashSensitivityRef.current];
+      const peakG = Math.max(...accelWindowRef.current);
+      if (peakG < threshold) return;
+
+      // Check speed window: need a drop from ≥20 to ≤5 km/h within 2 s
+      const now = Date.now();
+      const recentSpeeds = speedWindowRef.current.filter((s) => now - s.t <= 2000);
+      if (recentSpeeds.length < 2) return;
+      const maxSpeed = Math.max(...recentSpeeds.map((s) => s.kmh));
+      const latestSpeed = recentSpeeds[recentSpeeds.length - 1]!.kmh;
+      if (maxSpeed >= 20 && latestSpeed <= 5) {
+        crashDetectedRef.current = true;
+        setCrashDetected(true);
+        accelWindowRef.current = [];
+      }
+    });
+
+    return () => sub.remove();
+  }, [navigationActive, dashcamActive]);
+
   const clearAllData = useCallback(async () => {
     await AsyncStorage.multiRemove([
       KEYS.TRIPS, KEYS.REPORTS, KEYS.HUD, KEYS.SOS,
@@ -4551,6 +4650,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hereIncidents, dismissHereIncident,
       mapPickerActive, setMapPickerActive,
       navigationEnabled,
+      crashDetected, clearCrash,
+      crashSensitivity, setCrashSensitivity,
+      setDashcamActive,
     }}>
       {children}
     </AppContext.Provider>

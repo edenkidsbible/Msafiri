@@ -11,6 +11,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -34,6 +35,7 @@ import { useDashcam } from "@/context/DashcamContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
+import CrashDetectedModal from "@/components/CrashDetectedModal";
 import KenyaFlagPill from "@/components/KenyaFlagPill";
 import DriveMapView, { type DriveMapViewHandle } from "@/components/DriveMapView";
 import { isCivilTwilight } from "@/utils/solarTwilight";
@@ -56,6 +58,7 @@ import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
 import { playSound } from "@/utils/sound";
 import { speakAlert } from "@/utils/alertTts";
+import { apiPost } from "@/utils/apiClient";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -182,12 +185,35 @@ export default function DriveScreen() {
     fasterRoute, acceptFasterRoute, dismissFasterRoute,
     setMapPickerActive,
     deviceId,
+    crashDetected, clearCrash,
+    crashSensitivity,
+    setDashcamActive,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
 
   // Dashcam — REC indicator and open button in the action pills row
-  const { isRecording: dashcamRecording, openDashcam } = useDashcam();
+  const { isRecording: dashcamRecording, openDashcam, lockCurrentClip } = useDashcam();
+
+  // Sync dashcam recording state into AppContext so the accelerometer
+  // crash detector runs even when navigation is not active.
+  useEffect(() => { setDashcamActive(dashcamRecording); }, [dashcamRecording, setDashcamActive]);
+
+  // ── Crash detection handlers ───────────────────────────────────────────
+  const handleCrashExpired = useCallback(async () => {
+    // Fire-and-forget: send SMS to emergency contacts
+    if (deviceId) {
+      apiPost("/emergency/alert", {
+        deviceId,
+        lat: currentLatRef.current ?? 0,
+        lng: currentLngRef.current ?? 0,
+        driverName,
+      }).catch(() => {});
+    }
+    // Lock the current dashcam segment as a crash clip
+    if (dashcamRecording) lockCurrentClip("crash");
+    clearCrash();
+  }, [deviceId, driverName, dashcamRecording, lockCurrentClip, clearCrash]);
 
   // Stable refs for currentLat/currentLng so effects that only need the
   // *current* position for a calculation (not to re-trigger on every fix)
@@ -2494,6 +2520,14 @@ export default function DriveScreen() {
           }}
         />
       )}
+
+      {/* Crash detection overlay — full-screen, highest z-index */}
+      <CrashDetectedModal
+        visible={crashDetected}
+        onDismiss={clearCrash}
+        onCallEmergency={() => { Linking.openURL("tel:112").catch(() => {}); clearCrash(); }}
+        onCountdownExpired={handleCrashExpired}
+      />
 
       {/* #34 — Search Along Route */}
       <RouteSearchSheet

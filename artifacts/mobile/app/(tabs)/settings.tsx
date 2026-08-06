@@ -2,7 +2,7 @@
 // and the navigation shell. Expo Router picks this up automatically.
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
@@ -32,6 +32,9 @@ import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { telemetryEnabled, sendTelemetryTestError } from "@/utils/telemetry";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
+
+interface EmergencyContact { id: string; name: string; phone: string }
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -44,6 +47,7 @@ export default function SettingsScreen() {
     clearAllData,
     driverName, setDriverName,
     deviceId,
+    crashSensitivity, setCrashSensitivity,
   } = useApp();
 
   const { isSubscribed } = useSubscription();
@@ -67,6 +71,13 @@ export default function SettingsScreen() {
   const [flaggingReportId, setFlaggingReportId] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
 
+  // ── Emergency contacts state ─────────────────────────────────────────────
+  const [ecContacts, setEcContacts] = useState<EmergencyContact[]>([]);
+  const [ecLoading, setEcLoading] = useState(false);
+  const [ecName, setEcName] = useState("");
+  const [ecPhone, setEcPhone] = useState("");
+  const [ecSaving, setEcSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -75,6 +86,64 @@ export default function SettingsScreen() {
     setName(sosContact?.name ?? "");
     setPhone(sosContact?.phone ?? "");
   }, [sosContact]);
+
+  const loadEmergencyContacts = useCallback(async () => {
+    if (!deviceId) return;
+    setEcLoading(true);
+    try {
+      const res = await apiGet<{ contacts: EmergencyContact[] }>(`/emergency-contacts?deviceId=${deviceId}`);
+      setEcContacts(res.contacts);
+    } catch { /* ignore */ } finally { setEcLoading(false); }
+  }, [deviceId]);
+
+  useEffect(() => { loadEmergencyContacts(); }, [loadEmergencyContacts]);
+
+  const addEmergencyContact = async () => {
+    if (!ecName.trim() || !ecPhone.trim()) {
+      Alert.alert("Incomplete", "Enter both a name and phone number.");
+      return;
+    }
+    if (!deviceId) return;
+    setEcSaving(true);
+    try {
+      const res = await apiPost<EmergencyContact>("/emergency-contacts", { deviceId, name: ecName.trim(), phone: ecPhone.trim() });
+      setEcContacts((prev) => [...prev, res]);
+      setEcName(""); setEcPhone("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not save contact. Check the number format (+254…).";
+      Alert.alert("Error", msg);
+    } finally { setEcSaving(false); }
+  };
+
+  const removeEmergencyContact = (id: string) => {
+    Alert.alert("Remove Contact", "Remove this emergency contact?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove", style: "destructive",
+        onPress: async () => {
+          try {
+            await apiDelete(`/emergency-contacts/${id}?deviceId=${deviceId}`, {});
+            setEcContacts((prev) => prev.filter((c) => c.id !== id));
+          } catch { Alert.alert("Error", "Could not remove contact."); }
+        },
+      },
+    ]);
+  };
+
+  const sendTestAlert = async () => {
+    if (!deviceId) return;
+    setSendingTest(true);
+    try {
+      const res = await apiPost<{ sent: number; total: number }>("/emergency/alert", {
+        deviceId, lat: 0, lng: 0, driverName, isTest: true,
+      });
+      Alert.alert("Test Sent", res.sent > 0
+        ? `Test message sent to ${res.sent} contact${res.sent !== 1 ? "s" : ""}.`
+        : "No contacts saved — add at least one contact first.");
+    } catch { Alert.alert("Error", "Could not send test alert. Check your connection."); }
+    finally { setSendingTest(false); }
+  };
 
   // Load saved places so we can show current Home / Work addresses
   useEffect(() => {
@@ -403,52 +472,122 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* SOS Contact */}
+      {/* Emergency Contacts */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>EMERGENCY SOS</Text>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>EMERGENCY CONTACTS</Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
-            Set an emergency contact. One tap sends them your GPS location via SMS.
+            If a crash is detected and you don't respond within 45 seconds, these contacts are automatically
+            alerted via SMS with your GPS location. Up to 5 contacts.
           </Text>
-          <View style={[styles.inputRow, { borderColor: c.border }]}>
-            <Ionicons name="person-outline" size={18} color={c.mutedForeground} />
-            <TextInput
-              style={[styles.input, { color: c.foreground }]}
-              placeholder="Contact name"
-              placeholderTextColor={c.mutedForeground}
-              value={name}
-              onChangeText={setName}
-              returnKeyType="next"
-            />
-          </View>
-          <View style={[styles.inputRow, { borderColor: c.border }]}>
-            <Ionicons name="call-outline" size={18} color={c.mutedForeground} />
-            <TextInput
-              style={[styles.input, { color: c.foreground }]}
-              placeholder="+254 7XX XXX XXX"
-              placeholderTextColor={c.mutedForeground}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              returnKeyType="done"
-            />
-          </View>
-          <View style={styles.contactActions}>
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: saved ? c.speedSafe : c.primary }]}
-              onPress={saveContact}
+
+          {/* Existing contacts list */}
+          {ecContacts.map((contact, idx) => (
+            <View
+              key={contact.id}
+              style={[
+                styles.inputRow,
+                { borderColor: c.border, justifyContent: "space-between" },
+                idx === 0 && { marginTop: 4 },
+              ]}
             >
-              <Ionicons name={saved ? "checkmark" : "save-outline"} size={16} color={c.primaryForeground} />
-              <Text style={[styles.saveBtnText, { color: c.primaryForeground }]}>
-                {saved ? "Saved!" : "Save Contact"}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                <Ionicons name="person-circle-outline" size={22} color={c.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: c.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{contact.name}</Text>
+                  <Text style={{ color: c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>{contact.phone}</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => removeEmergencyContact(contact.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="trash-outline" size={18} color={c.speedDanger} />
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {/* Add contact form (shown only if fewer than 5) */}
+          {ecContacts.length < 5 && (
+            <>
+              <View style={[styles.inputRow, { borderColor: c.border, marginTop: ecContacts.length > 0 ? 0 : 4 }]}>
+                <Ionicons name="person-outline" size={18} color={c.mutedForeground} />
+                <TextInput
+                  style={[styles.input, { color: c.foreground }]}
+                  placeholder="Contact name"
+                  placeholderTextColor={c.mutedForeground}
+                  value={ecName}
+                  onChangeText={setEcName}
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[styles.inputRow, { borderColor: c.border }]}>
+                <Ionicons name="call-outline" size={18} color={c.mutedForeground} />
+                <TextInput
+                  style={[styles.input, { color: c.foreground }]}
+                  placeholder="+254 7XX XXX XXX"
+                  placeholderTextColor={c.mutedForeground}
+                  value={ecPhone}
+                  onChangeText={setEcPhone}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: c.primary, opacity: ecSaving ? 0.6 : 1 }]}
+                onPress={addEmergencyContact}
+                disabled={ecSaving}
+              >
+                <Ionicons name={ecSaving ? "hourglass-outline" : "add"} size={16} color={c.primaryForeground} />
+                <Text style={[styles.saveBtnText, { color: c.primaryForeground }]}>
+                  {ecSaving ? "Saving…" : "Add Contact"}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Test alert button */}
+          {ecContacts.length > 0 && (
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginTop: 8 }]}
+              onPress={sendTestAlert}
+              disabled={sendingTest}
+            >
+              <Ionicons name={sendingTest ? "hourglass-outline" : "send-outline"} size={16} color={c.foreground} />
+              <Text style={[styles.saveBtnText, { color: c.foreground }]}>
+                {sendingTest ? "Sending…" : "Send Test Message"}
               </Text>
             </TouchableOpacity>
-            {sosContact && (
-              <TouchableOpacity style={[styles.removeBtn, { borderColor: c.border }]} onPress={clearContact}>
-                <Ionicons name="trash-outline" size={16} color={c.speedDanger} />
+          )}
+        </View>
+
+        {/* Crash detection sensitivity */}
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, marginTop: 10 }]}>
+          <Text style={[styles.cardLabel, { color: c.mutedForeground, marginBottom: 2 }]}>
+            Detection sensitivity — adjusts how sensitive the crash detector is.
+            Higher sensitivity catches more crashes but may produce occasional false positives on rough roads.
+          </Text>
+          {(["high", "medium", "low"] as const).map((level) => {
+            const labels = { high: "High — 2.8g (most sensitive)", medium: "Medium — 3.5g (recommended)", low: "Low — 4.5g (fewer false positives)" };
+            const selected = crashSensitivity === level;
+            return (
+              <TouchableOpacity
+                key={level}
+                style={[
+                  styles.inputRow,
+                  { borderColor: selected ? c.primary : c.border, justifyContent: "space-between",
+                    backgroundColor: selected ? c.primary + "12" : "transparent" },
+                ]}
+                onPress={() => { setCrashSensitivity(level); Haptics.selectionAsync(); }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: c.foreground, fontFamily: selected ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 14 }}>
+                  {labels[level]}
+                </Text>
+                {selected && <Ionicons name="checkmark-circle" size={18} color={c.primary} />}
               </TouchableOpacity>
-            )}
-          </View>
+            );
+          })}
         </View>
       </View>
 

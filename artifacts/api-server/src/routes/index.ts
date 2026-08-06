@@ -19,6 +19,7 @@ import poisRouter from "./pois.js";
 import trafficRouter from "./traffic.js";
 import appSettingsRouter from "./appSettings.js";
 import dashcamRouter from "./dashcam.js";
+import emergencyRouter from "./emergency.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(poisRouter);
 router.use(trafficRouter);
 router.use(appSettingsRouter);
 router.use(dashcamRouter);
+router.use(emergencyRouter);
 
 export default router;
