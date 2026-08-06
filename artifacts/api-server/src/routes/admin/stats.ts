@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { db, communityReportsTable, brakingEventsTable, hazardClustersTable } from "@workspace/db";
+import { db, communityReportsTable, brakingEventsTable, hazardClustersTable, crashTriggerEventsTable, emergencyAlertsLogTable } from "@workspace/db";
 import { sql, gte, eq } from "drizzle-orm";
 import { subDays, format, startOfDay } from "date-fns";
 
@@ -78,7 +78,9 @@ router.get("/hazard-stats", async (_req: Request, res: Response) => {
   try {
     const since7d = subDays(new Date(), 7);
 
-    const [totalEvents, activeClusters, autoReports, topHotspots] = await Promise.all([
+    const since30d = subDays(new Date(), 30);
+
+    const [totalEvents, activeClusters, autoReports, topHotspots, crashTriggers, crashAlerts] = await Promise.all([
       // Total braking events in the last 7 days
       db.select({ count: sql<number>`count(*)::int` })
         .from(brakingEventsTable)
@@ -108,7 +110,27 @@ router.get("/hazard-stats", async (_req: Request, res: Response) => {
         .leftJoin(communityReportsTable, eq(hazardClustersTable.reportId, communityReportsTable.id))
         .orderBy(sql`${hazardClustersTable.deviceCount} desc`)
         .limit(5),
+
+      // Crash modal triggers (last 30 days) — each = detector fired
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(crashTriggerEventsTable)
+        .where(gte(crashTriggerEventsTable.triggeredAt, since30d)),
+
+      // Real emergency alerts dispatched (last 30 days, non-test)
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(emergencyAlertsLogTable)
+        .where(
+          sql`${emergencyAlertsLogTable.createdAt} >= ${since30d} AND ${emergencyAlertsLogTable.isTest} = false`
+        ),
     ]);
+
+    const triggers = crashTriggers[0]?.count ?? 0;
+    const alerts   = crashAlerts[0]?.count   ?? 0;
+    // False-positive rate: triggers that didn't result in a real alert dispatch.
+    // 0 when no data yet; rounds to 2 decimal places.
+    const falsePositiveRate = triggers > 0
+      ? Math.round(((triggers - alerts) / triggers) * 100) / 100
+      : null;
 
     return res.json({
       totalEvents7d:      totalEvents[0]?.count ?? 0,
@@ -123,6 +145,12 @@ router.get("/hazard-stats", async (_req: Request, res: Response) => {
         eventCount:   h.eventCount,
         roadName:     h.roadName ?? null,
       })),
+      // Crash detection false-positive metrics (30-day rolling window)
+      crashDetection: {
+        triggers30d:       triggers,
+        realAlerts30d:     alerts,
+        falsePositiveRate, // null = no data yet; 0.0–1.0 fraction when data exists
+      },
     });
   } catch (err) {
     console.error("GET /admin/hazard-stats error:", err);

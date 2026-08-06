@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { db, emergencyContactsTable } from "@workspace/db";
+import { db, emergencyContactsTable, emergencyAlertsLogTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { sendSms } from "../lib/sms.js";
 
@@ -165,6 +165,19 @@ router.post("/emergency/alert", async (req: Request, res: Response) => {
       } catch (smsErr) {
         console.error("SMS send error to", contact.phoneE164, smsErr);
       }
+    }
+
+    // Log the dispatch so the admin dashboard can compute false-positive rate.
+    // We log even when sent=0 (e.g. no Twilio credentials) so trigger counts
+    // can be compared against intent-to-alert counts separately.
+    if (!isTest) {
+      db.insert(emergencyAlertsLogTable).values({
+        deviceId:     deviceId.trim(),
+        lat:          lat != null ? String(lat) : null,
+        lng:          lng != null ? String(lng) : null,
+        contactsSent: sent,
+        isTest:       false,
+      }).catch((e: Error) => console.error("emergencyAlertsLog insert error:", e));
     }
 
     return res.json({ sent, total: contacts.length });

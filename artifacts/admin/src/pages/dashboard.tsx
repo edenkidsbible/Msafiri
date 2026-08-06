@@ -44,6 +44,11 @@ interface HazardStats {
   activeClusters: number;
   autoCreatedReports: number;
   topHotspots: Array<{ reportId: string; lat: number; lng: number; dominantType: string; deviceCount: number; eventCount: number; roadName: string | null }>;
+  crashDetection: {
+    triggers30d:       number;
+    realAlerts30d:     number;
+    falsePositiveRate: number | null; // 0.0–1.0, null = no data yet
+  };
 }
 
 export default function Dashboard() {
@@ -236,6 +241,38 @@ export default function Dashboard() {
             )}
             {hazardStats && hazardStats.totalEvents7d === 0 && (
               <p className="text-xs text-muted-foreground text-center py-2">No events captured yet. Events are recorded silently during active drives.</p>
+            )}
+
+            {/* Crash detection false-positive metrics */}
+            {hazardStats?.crashDetection && (
+              <div className="border-t pt-3 mt-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Crash Detection (30d)</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-foreground">{hazardStats.crashDetection.triggers30d}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Modal triggers</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-foreground">{hazardStats.crashDetection.realAlerts30d}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Real alerts sent</div>
+                  </div>
+                  <div className="text-center">
+                    {hazardStats.crashDetection.falsePositiveRate != null ? (
+                      <>
+                        <div className={`text-lg font-bold ${hazardStats.crashDetection.falsePositiveRate > 0.5 ? "text-destructive" : hazardStats.crashDetection.falsePositiveRate > 0.2 ? "text-amber-500" : "text-emerald-500"}`}>
+                          {Math.round(hazardStats.crashDetection.falsePositiveRate * 100)}%
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">False-positive rate</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-lg font-bold text-muted-foreground">—</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">No data yet</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

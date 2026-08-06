@@ -1051,7 +1051,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [crashSensitivity, setCrashSensitivityState] = useState<"low" | "medium" | "high">("medium");
   const [dashcamActive, setDashcamActiveState] = useState(false);
   /** Rolling 2-second window of net magnitude samples (g − 9.8), at 20 Hz ≈ 40 entries. */
-  const accelWindowRef = useRef<number[]>([]);
+  // Each sample stores the net-G magnitude plus whether vertical G dominated
+  // (|z-9.8| > |x| AND |z-9.8| > |y|). Vertical-dominant samples are potholes,
+  // not crashes — they are excluded from the crash peak calculation.
+  const accelWindowRef    = useRef<Array<{ g: number; vd: boolean }>>([]);
+  // 200-sample (10 s at 20 Hz) rolling window used to compute the road-roughness
+  // noise floor. Rougher roads raise the effective crash threshold so potholes
+  // on bad Kenyan B-roads don't pile up into false crash alerts.
+  const roughnessWindowRef = useRef<number[]>([]);
   /** Rolling 2-second window of GPS speed readings (km/h). Populated by the GPS handler. */
   const speedWindowRef = useRef<{ t: number; kmh: number }[]>([]);
   const crashSensitivityRef = useRef<"low" | "medium" | "high">("medium");
@@ -3975,26 +3982,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     Accelerometer.setUpdateInterval(50); // 20 Hz
     const sub = Accelerometer.addListener(({ x, y, z }) => {
-      const rawG = Math.sqrt(x * x + y * y + z * z);
-      const netG = Math.abs(rawG - 9.8); // subtract Earth gravity baseline
-      accelWindowRef.current.push(netG);
-      // Keep only ~2 seconds worth of samples (20 Hz × 2 s = 40 samples)
+      const rawG    = Math.sqrt(x * x + y * y + z * z);
+      const netG    = Math.abs(rawG - 9.8);  // subtract Earth gravity baseline
+      const vertG   = Math.abs(z - 9.8);     // vertical component (above/below 1g)
+
+      // A sample is "vertically dominant" when the vertical G-force exceeds both
+      // horizontal axes — the signature of a pothole or speed bump, not a crash.
+      // These samples are excluded from crash peak calculation.
+      const vd = vertG > Math.abs(x) && vertG > Math.abs(y);
+
+      // ── 2-second crash window (40 samples) ─────────────────────────────
+      accelWindowRef.current.push({ g: netG, vd });
       if (accelWindowRef.current.length > 40) accelWindowRef.current.shift();
+
+      // ── 10-second roughness baseline (200 samples) ─────────────────────
+      // Tracks the road's background vibration level so the effective crash
+      // threshold rises on heavily potholed roads, preventing false alerts.
+      roughnessWindowRef.current.push(netG);
+      if (roughnessWindowRef.current.length > 200) roughnessWindowRef.current.shift();
 
       // ── Crash detection ────────────────────────────────────────────────
       if (!crashDetectedRef.current) {
-        const threshold = G_THRESHOLD[crashSensitivityRef.current];
-        const peakG = Math.max(...accelWindowRef.current);
-        if (peakG >= threshold) {
+        const baseThreshold = G_THRESHOLD[crashSensitivityRef.current];
+
+        // Road roughness adjustment: median of the 10-second baseline.
+        // A smooth road has ~0.15g baseline; a heavily potholed road can reach
+        // 0.8–1.2g.  We add (median − floor) to the threshold, capped at +1.5g,
+        // so the detector becomes progressively harder to trigger as road quality
+        // worsens.
+        const sorted  = [...roughnessWindowRef.current].sort((a, b) => a - b);
+        const medianG = sorted[Math.floor(sorted.length / 2)] ?? 0;
+        const roadAdj = Math.min(Math.max(medianG - 0.15, 0), 1.5);
+        const effectiveThreshold = baseThreshold + roadAdj;
+
+        // Only count non-vertically-dominant samples toward the crash peak.
+        // A pothole can push the raw peak over threshold — this filter ignores it.
+        const nonVdSamples = accelWindowRef.current.filter((s) => !s.vd);
+        const peakG = nonVdSamples.length > 0
+          ? Math.max(...nonVdSamples.map((s) => s.g))
+          : 0;
+
+        if (peakG >= effectiveThreshold) {
           const now = Date.now();
           const recentSpeeds = speedWindowRef.current.filter((s) => now - s.t <= 2000);
           if (recentSpeeds.length >= 2) {
-            const maxSpeed = Math.max(...recentSpeeds.map((s) => s.kmh));
+            const maxSpeed    = Math.max(...recentSpeeds.map((s) => s.kmh));
             const latestSpeed = recentSpeeds[recentSpeeds.length - 1]!.kmh;
             if (maxSpeed >= 20 && latestSpeed <= 5) {
               crashDetectedRef.current = true;
               setCrashDetected(true);
-              accelWindowRef.current = [];
+              accelWindowRef.current  = [];
+
+              // Log the trigger server-side so we can compute false-positive rates
+              // in the admin dashboard. Fire-and-forget; never surfaces to the driver.
+              const lat = currentLatRef.current;
+              const lng = currentLngRef.current;
+              const did = deviceIdRef.current;
+              if (did) {
+                apiPost("/telemetry/crash-trigger", {
+                  deviceId:    did,
+                  lat,
+                  lng,
+                  peakG,
+                  sensitivity: crashSensitivityRef.current,
+                }).catch(() => {});
+              }
             }
           }
         }
@@ -4021,7 +4073,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         hazardBatchRef.current.push({ eventType: "hard_braking", lat, lng, speedKmh: latestKmh, gForce: longG });
       }
       // pothole: vertical spike > 2.5g, speed change < 10 km/h
-      const vertG = Math.abs(z - 9.8);
+      // vertG is already computed above (used for crash vd check) — reuse it.
       if (vertG > 2.5 && Math.abs(speedDrop) < 10 && canFire("pothole")) {
         hazardLastFiredRef.current["pothole"] = now;
         hazardBatchRef.current.push({ eventType: "pothole", lat, lng, speedKmh: latestKmh, gForce: vertG });

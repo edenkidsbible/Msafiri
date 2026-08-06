@@ -14,3 +14,4 @@ export * from "./appSettings";
 export * from "./dashcam";
 export * from "./emergency";
 export * from "./brakingEvents";
+export * from "./crashEvents";
