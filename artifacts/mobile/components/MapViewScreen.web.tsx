@@ -11,6 +11,7 @@ import ReportModal from "@/components/ReportModal";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
+import { useWeather, weatherIcon } from "@/hooks/useWeather";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -108,6 +109,8 @@ export default function MapViewScreen() {
     targetExitNumber: isRoundaboutStep ? (currentStep?.exitNumber ?? null) : null,
   });
 
+  const weather = useWeather(currentLat, currentLng);
+
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -143,9 +146,20 @@ export default function MapViewScreen() {
     <View style={[styles.screen, { backgroundColor: c.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: c.foreground }]}>
-            {navDestination ? "Navigation" : "Speed Zones"}
-          </Text>
+          <View style={styles.titleGroup}>
+            <Text style={[styles.title, { color: c.foreground }]}>
+              {navDestination ? "Navigation" : "Speed Zones"}
+            </Text>
+            {weather?.tempC != null && (
+              <View style={[styles.weatherChip, { backgroundColor: c.card, borderColor: c.border }]}>
+                <Ionicons name={weatherIcon(weather.weatherCode) as any} size={14} color="#FFB300" />
+                <Text style={[styles.weatherTemp, { color: c.foreground }]}>{weather.tempC}°</Text>
+                <Text style={[styles.weatherLocality, { color: c.mutedForeground }]} numberOfLines={1}>
+                  {weather.locality ?? weather.description ?? ""}
+                </Text>
+              </View>
+            )}
+          </View>
           <View style={styles.headerBtns}>
             <TouchableOpacity
               style={[styles.trafficToggle, { backgroundColor: showTraffic ? c.primary : c.muted }]}
@@ -463,4 +477,12 @@ const styles = StyleSheet.create({
   focusDot: { width: 10, height: 10, borderRadius: 5 },
   focusTitle: { fontSize: 13.5, fontFamily: "Inter_600SemiBold" },
   focusSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  titleGroup: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },
+  weatherChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1,
+    flexShrink: 1,
+  },
+  weatherTemp: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  weatherLocality: { fontSize: 11, fontFamily: "Inter_500Medium", flexShrink: 1 },
 });
