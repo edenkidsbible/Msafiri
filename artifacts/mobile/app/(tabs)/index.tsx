@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -173,7 +174,21 @@ export default function HomeScreen() {
       title: "Dashcam",
       value: dashcamRecording ? "Recording" : Platform.OS === "web" ? "Unavailable" : "Off",
       valueColor: dashcamRecording ? c.speedDanger : c.mutedForeground,
-      onPress: () => router.push("/dashcam-clips"),
+      onPress: () => {
+        if (dashcamRecording) {
+          router.push("/dashcam-clips");
+        } else {
+          Alert.alert(
+            "Dashcam is Off",
+            "Start driving first, then turn on the Dashcam from the Drive screen.",
+            [
+              { text: "View Clips", onPress: () => router.push("/dashcam-clips") },
+              { text: "Start Driving", style: "default", onPress: () => router.push("/(tabs)/drive") },
+              { text: "OK", style: "cancel" },
+            ]
+          );
+        }
+      },
     },
     {
       key: "alerts",

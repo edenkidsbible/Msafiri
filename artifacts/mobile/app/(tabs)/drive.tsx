@@ -206,6 +206,7 @@ export default function DriveScreen() {
   const {
     isRecording: dashcamRecording,
     openDashcam,
+    stopDashcam,
     lockCurrentClip,
     startBackgroundRecording,
   } = useDashcam();
@@ -606,6 +607,12 @@ export default function DriveScreen() {
         const durationS = startTime
           ? Math.max(0, Math.round((Date.now() - startTime.getTime()) / 1000))
           : 0;
+        // Only persist sessions where the driver actually moved ≥ 50 m at speed
+        if (snap.distanceM < 50) {
+          sessionIdRef.current     = null;
+          tripStartTimeRef.current = null;
+          return;
+        }
         endDriveSession(sid, deviceId, {
           endLat:            currentLat,
           endLng:            currentLng,
@@ -2011,9 +2018,8 @@ export default function DriveScreen() {
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   if (dashcamRecording) {
-                    // Already recording — open full overlay so driver can lock
-                    // or stop the clip without leaving the drive screen first.
-                    openDashcam();
+                    // Already recording — stop the dashcam
+                    stopDashcam();
                   } else {
                     // Not recording — start silently in the background so the
                     // map and alerts remain fully visible.
@@ -2255,7 +2261,7 @@ export default function DriveScreen() {
                 }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  if (dashcamRecording) openDashcam();
+                  if (dashcamRecording) stopDashcam();
                   else startBackgroundRecording();
                 }}
                 activeOpacity={0.85}

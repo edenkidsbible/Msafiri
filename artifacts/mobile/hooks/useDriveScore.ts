@@ -211,6 +211,9 @@ export function useDriveScore({
     Accelerometer.setUpdateInterval(50); // 20 Hz
 
     const sub = Accelerometer.addListener(({ x, y, z }) => {
+      // Ignore accelerometer events when stationary — only score while moving
+      if (speedRef.current < 10) return;
+
       const rawMag = Math.sqrt(x * x + y * y + z * z);
       const netG   = Math.abs(rawMag - G);
 
@@ -289,8 +292,8 @@ export function useDriveScore({
         recompute();
       }
 
-      // Smooth driving: count seconds since last harsh event
-      smoothSecsRef.current += 1;
+      // Smooth driving: only count while moving (≥10 km/h)
+      if (speedRef.current >= 10) smoothSecsRef.current += 1;
       if (smoothSecsRef.current >= 60) {
         smoothSecsRef.current = 0;
         // Only credit a smooth minute if no harsh event in the last 60 s
@@ -315,7 +318,8 @@ export function useDriveScore({
     if (prevLat != null && prevLng != null) {
       const d = haversineM(prevLat, prevLng, currentLat, currentLng);
       // Ignore GPS jumps > 500 m (signal-loss artefacts)
-      if (d > 0 && d < 500) {
+      // Only accumulate distance when the vehicle is actually moving (≥10 km/h)
+      if (d > 0 && d < 500 && currentSpeed >= 10) {
         distanceRef.current += d;
         setDistanceM(Math.round(distanceRef.current));
       }
