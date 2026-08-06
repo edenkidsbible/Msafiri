@@ -4070,8 +4070,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     ? (now - currentTrip.startTime) / 1000
                     : null,
                   isManual: false,
-                }).then((data: { id: string }) => {
-                  setCrashAssistantId(data.id);
+                }).then((data) => {
+                  setCrashAssistantId((data as { id: string }).id);
                 }).catch(() => {});
               }
             }

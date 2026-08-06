@@ -29,6 +29,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { format } from "date-fns";
 import * as ImagePicker from "expo-image-picker";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { useApp } from "@/context/AppContext";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/utils/apiClient";
 import { useColors } from "@/hooks/useColors";
@@ -42,12 +49,22 @@ interface Weather {
   roadCondition?: string;
 }
 
-interface OtherDriver {
+/** Describes the other party — may be a vehicle, pedestrian/cyclist, or no other party at all. */
+interface OtherParty {
+  type?: "vehicle" | "pedestrian_cyclist" | "solo";
+  // Vehicle collision
+  vehicleType?: string; // 'Car' | 'Truck / Lorry' | 'Bus / Matatu' | 'Motorcycle / Boda boda' | 'Other'
+  vehicleReg?: string;
   name?: string;
   phone?: string;
   insuranceCompany?: string;
   policyNumber?: string;
-  vehicleReg?: string;
+  // Pedestrian/cyclist
+  injuries?: string;
+  // Solo incident — no other party
+  cause?: string;
+  // Shared free-text notes
+  notes?: string;
 }
 
 interface PoliceInfo {
@@ -96,10 +113,12 @@ interface AccidentRecord {
   distanceM?: number | null;
   durationS?: number | null;
   weather?: Weather | null;
-  otherDriver?: OtherDriver | null;
+  /** Stored as otherDriverJson on the server — now covers all incident types */
+  otherDriver?: OtherParty | null;
   police?: PoliceInfo | null;
   driverStatement?: string | null;
   hasPdf: boolean;
+  hasAudioStatement: boolean;
   dashcamClipId?: string | null;
   photos: Photo[];
   witnesses: Witness[];
@@ -112,14 +131,41 @@ const STEPS = ["evidence", "photos", "witnesses", "other_driver", "police", "sta
 type Step = typeof STEPS[number];
 
 const STEP_LABEL: Record<Step, string> = {
-  evidence:    "Evidence",
-  photos:      "Photos",
-  witnesses:   "Witnesses",
-  other_driver: "Other Driver",
-  police:      "Police",
-  statement:   "Statement",
-  report:      "Report",
+  evidence:     "Evidence",
+  photos:       "Photos",
+  witnesses:    "Witnesses",
+  other_driver: "Other Party",
+  police:       "Police",
+  statement:    "Statement",
+  report:       "Report",
 };
+
+const SOLO_CAUSES = [
+  "Tyre burst / blowout",
+  "Brake failure",
+  "Mechanical fault",
+  "Animal on road",
+  "Road hazard (pothole / debris)",
+  "Fell asleep at wheel",
+  "Medical emergency",
+  "Swerved to avoid obstacle",
+  "Lost control / skid",
+  "Other",
+] as const;
+
+const VEHICLE_TYPES = [
+  "Car",
+  "Truck / Lorry",
+  "Bus / Matatu",
+  "Motorcycle / Boda boda",
+  "Tuk-tuk",
+  "Other",
+] as const;
+
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 
 const PHOTO_CATEGORIES = [
   { id: "front_damage",   label: "Front Damage",   icon: "car-outline" },
@@ -144,11 +190,13 @@ export default function CrashAssistantScreen() {
   const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
 
   // Per-step form state
-  const [otherDriver, setOtherDriver] = useState<OtherDriver>({});
+  const [otherParty, setOtherParty] = useState<OtherParty>({});
   const [police, setPolice] = useState<PoliceInfo>({});
   const [statement, setStatement] = useState("");
   const [witnessForm, setWitnessForm] = useState({ name: "", phone: "", notes: "" });
   const [showWitnessForm, setShowWitnessForm] = useState(false);
+  // Audio statement state (tracks whether audio has been uploaded so the PDF can note it)
+  const [audioStatementUploaded, setAudioStatementUploaded] = useState(false);
 
   // Report step
   const [generating, setGenerating] = useState(false);
@@ -162,9 +210,10 @@ export default function CrashAssistantScreen() {
       const data: AccidentRecord = await apiGet(`/accidents/${id}?deviceId=${deviceId}`);
       setRecord(data);
       // Pre-populate form state from saved record
-      if (data.otherDriver) setOtherDriver(data.otherDriver);
+      if (data.otherDriver) setOtherParty(data.otherDriver);
       if (data.police) setPolice(data.police);
       if (data.driverStatement) setStatement(data.driverStatement);
+      if (data.hasAudioStatement) setAudioStatementUploaded(true);
       if (data.hasPdf) setPdfUrl(`report-ready`);
     } catch {
       Alert.alert("Error", "Could not load accident record.");
@@ -186,19 +235,14 @@ export default function CrashAssistantScreen() {
     if (!deviceId || !id || !record) return;
     try {
       if (currentStep === "other_driver") {
-        await apiPatch(`/accidents/${id}`, { deviceId, otherDriver });
+        await apiPatch(`/accidents/${id}`, { deviceId, otherDriver: otherParty });
       } else if (currentStep === "police") {
         await apiPatch(`/accidents/${id}`, { deviceId, police });
       } else if (currentStep === "statement") {
         await apiPatch(`/accidents/${id}`, { deviceId, driverStatement: statement });
       }
     } catch { /* fire-and-forget; user can retry */ }
-  }, [currentStep, deviceId, id, record, otherDriver, police, statement]);
-
-  // patch endpoint is /accidents/:id but method should be PATCH — apiPost handles body
-  // (the server uses router.patch but we map it via apiPost with method override — 
-  //  actually we need PATCH not POST; let's use a direct fetch via apiPost which sends POST.
-  // The server has PATCH /accidents/:id — we need to call that.)
+  }, [currentStep, deviceId, id, record, otherParty, police, statement]);
 
   const handleNext = useCallback(async () => {
     await saveCurrentStep();
@@ -305,8 +349,17 @@ export default function CrashAssistantScreen() {
     if (!deviceId || !id) return;
     setGenerating(true);
     try {
-      // Save statement before generating
-      await apiPatch(`/accidents/${id}`, { deviceId, driverStatement: statement, status: "complete" });
+      // Best-effort save — don't let a save failure block report generation.
+      // The report is generated from whatever data is already on the server.
+      try {
+        await apiPatch(`/accidents/${id}`, {
+          deviceId,
+          driverStatement: statement || undefined,
+          otherDriver: Object.keys(otherParty).length > 0 ? otherParty : undefined,
+          status: "complete",
+        });
+      } catch { /* proceed anyway */ }
+
       const { url } = await apiGet(`/accidents/${id}/report?deviceId=${deviceId}`) as { url: string };
       setPdfUrl(url);
       await loadRecord();
@@ -315,7 +368,7 @@ export default function CrashAssistantScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [deviceId, id, statement, loadRecord]);
+  }, [deviceId, id, statement, otherParty, loadRecord]);
 
   const shareReport = useCallback(async () => {
     if (!pdfUrl || pdfUrl === "report-ready") {
@@ -347,7 +400,7 @@ export default function CrashAssistantScreen() {
     );
   }
 
-  const hasPdfReady = record.hasPdf || (pdfUrl && pdfUrl !== "report-ready");
+  const hasPdfReady = !!(record.hasPdf || (pdfUrl && pdfUrl !== "report-ready"));
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -423,7 +476,7 @@ export default function CrashAssistantScreen() {
           )}
 
           {currentStep === "other_driver" && (
-            <OtherDriverStep value={otherDriver} onChange={setOtherDriver} colors={colors} styles={styles} />
+            <OtherPartyStep value={otherParty} onChange={setOtherParty} colors={colors} styles={styles} />
           )}
 
           {currentStep === "police" && (
@@ -431,7 +484,16 @@ export default function CrashAssistantScreen() {
           )}
 
           {currentStep === "statement" && (
-            <StatementStep value={statement} onChange={setStatement} colors={colors} styles={styles} />
+            <StatementStep
+              value={statement}
+              onChange={setStatement}
+              accidentId={id}
+              deviceId={deviceId ?? ""}
+              hasAudioStatement={audioStatementUploaded}
+              onAudioUploaded={() => { setAudioStatementUploaded(true); loadRecord(); }}
+              colors={colors}
+              styles={styles}
+            />
           )}
 
           {currentStep === "report" && (
@@ -688,22 +750,124 @@ function WitnessesStep({
   );
 }
 
-function OtherDriverStep({ value, onChange, colors, styles }: {
-  value: OtherDriver;
-  onChange: (v: OtherDriver) => void;
+/** Incident-type selector + dynamic other-party form. */
+function OtherPartyStep({ value, onChange, colors, styles }: {
+  value: OtherParty;
+  onChange: (v: OtherParty) => void;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const incidentType = value.type ?? null;
+
+  const INCIDENT_TYPES: { id: OtherParty["type"]; label: string; icon: string; desc: string }[] = [
+    { id: "vehicle",             label: "Vehicle Collision",    icon: "car-outline",        desc: "Collided with another vehicle" },
+    { id: "pedestrian_cyclist",  label: "Pedestrian / Cyclist", icon: "walk-outline",       desc: "Hit a pedestrian or cyclist" },
+    { id: "solo",                label: "Solo Incident",        icon: "warning-outline",    desc: "No other party — tyre burst, road hazard, etc." },
+  ];
+
   return (
     <View>
       <Text style={[styles.stepIntro, { color: colors.muted }]}>
-        Record the other driver's details. This information is included in your insurance report.
+        Select the type of incident. This shapes the rest of your report.
       </Text>
-      <FormInput label="Full Name" value={value.name ?? ""} onChangeText={(t) => onChange({ ...value, name: t })} placeholder="John Doe" colors={colors} styles={styles} />
-      <FormInput label="Phone Number" value={value.phone ?? ""} onChangeText={(t) => onChange({ ...value, phone: t })} placeholder="+254 700 000 000" keyboardType="phone-pad" colors={colors} styles={styles} />
-      <FormInput label="Vehicle Registration" value={value.vehicleReg ?? ""} onChangeText={(t) => onChange({ ...value, vehicleReg: t })} placeholder="KDA 123A" autoCapitalize="characters" colors={colors} styles={styles} />
-      <FormInput label="Insurance Company" value={value.insuranceCompany ?? ""} onChangeText={(t) => onChange({ ...value, insuranceCompany: t })} placeholder="Jubilee Insurance" colors={colors} styles={styles} />
-      <FormInput label="Policy Number" value={value.policyNumber ?? ""} onChangeText={(t) => onChange({ ...value, policyNumber: t })} placeholder="JB/000000/00" colors={colors} styles={styles} />
+
+      {/* Incident type selector */}
+      {INCIDENT_TYPES.map((t) => {
+        const selected = incidentType === t.id;
+        return (
+          <TouchableOpacity
+            key={t.id}
+            style={[
+              styles.incidentTypeCard,
+              {
+                backgroundColor: selected ? colors.primary + "12" : colors.card,
+                borderColor:     selected ? colors.primary         : colors.border,
+              },
+            ]}
+            onPress={() => onChange({ ...value, type: t.id })}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.incidentTypeIcon, { backgroundColor: selected ? colors.primary + "20" : colors.muted + "15" }]}>
+              <Ionicons name={t.icon as any} size={22} color={selected ? colors.primary : colors.muted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.incidentTypeLabel, { color: selected ? colors.primary : colors.text }]}>{t.label}</Text>
+              <Text style={[styles.incidentTypeDesc, { color: colors.muted }]}>{t.desc}</Text>
+            </View>
+            {selected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+          </TouchableOpacity>
+        );
+      })}
+
+      {/* ── Vehicle Collision ────────────────────────────────────────────────── */}
+      {incidentType === "vehicle" && (
+        <View style={styles.partyFormSection}>
+          <Text style={[styles.partyFormTitle, { color: colors.text }]}>Other Vehicle</Text>
+
+          {/* Vehicle type chips */}
+          <Text style={[styles.formLabel, { color: colors.muted, marginBottom: 8 }]}>Vehicle type</Text>
+          <View style={styles.chipRow}>
+            {VEHICLE_TYPES.map((vt) => {
+              const sel = value.vehicleType === vt;
+              return (
+                <TouchableOpacity
+                  key={vt}
+                  style={[styles.chip, { borderColor: sel ? colors.primary : colors.border, backgroundColor: sel ? colors.primary + "12" : "transparent" }]}
+                  onPress={() => onChange({ ...value, vehicleType: vt })}
+                >
+                  <Text style={[styles.chipText, { color: sel ? colors.primary : colors.muted }]}>{vt}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <FormInput label="Registration Number" value={value.vehicleReg ?? ""} onChangeText={(t) => onChange({ ...value, vehicleReg: t })} placeholder="KDA 123A" autoCapitalize="characters" colors={colors} styles={styles} />
+          <FormInput label="Driver Name" value={value.name ?? ""} onChangeText={(t) => onChange({ ...value, name: t })} placeholder="John Doe" colors={colors} styles={styles} />
+          <FormInput label="Driver Phone" value={value.phone ?? ""} onChangeText={(t) => onChange({ ...value, phone: t })} placeholder="+254 700 000 000" keyboardType="phone-pad" colors={colors} styles={styles} />
+          <FormInput label="Insurance Company" value={value.insuranceCompany ?? ""} onChangeText={(t) => onChange({ ...value, insuranceCompany: t })} placeholder="Jubilee Insurance" colors={colors} styles={styles} />
+          <FormInput label="Policy Number" value={value.policyNumber ?? ""} onChangeText={(t) => onChange({ ...value, policyNumber: t })} placeholder="JB/000000/00" colors={colors} styles={styles} />
+        </View>
+      )}
+
+      {/* ── Pedestrian / Cyclist ─────────────────────────────────────────────── */}
+      {incidentType === "pedestrian_cyclist" && (
+        <View style={styles.partyFormSection}>
+          <Text style={[styles.partyFormTitle, { color: colors.text }]}>Pedestrian / Cyclist Details</Text>
+          <FormInput label="Name (if known)" value={value.name ?? ""} onChangeText={(t) => onChange({ ...value, name: t })} placeholder="Optional" colors={colors} styles={styles} />
+          <FormInput label="Phone (if known)" value={value.phone ?? ""} onChangeText={(t) => onChange({ ...value, phone: t })} placeholder="+254 700 000 000" keyboardType="phone-pad" colors={colors} styles={styles} />
+          <FormInput label="Injuries / Condition" value={value.injuries ?? ""} onChangeText={(t) => onChange({ ...value, injuries: t })} placeholder="e.g. Conscious, leg injury — taken to KNH" multiline colors={colors} styles={styles} />
+          <FormInput label="Notes" value={value.notes ?? ""} onChangeText={(t) => onChange({ ...value, notes: t })} placeholder="Any other relevant details" multiline colors={colors} styles={styles} />
+        </View>
+      )}
+
+      {/* ── Solo Incident ────────────────────────────────────────────────────── */}
+      {incidentType === "solo" && (
+        <View style={styles.partyFormSection}>
+          <Text style={[styles.partyFormTitle, { color: colors.text }]}>What caused the incident?</Text>
+          <View style={styles.causeList}>
+            {SOLO_CAUSES.map((cause) => {
+              const sel = value.cause === cause;
+              return (
+                <TouchableOpacity
+                  key={cause}
+                  style={[
+                    styles.causeRow,
+                    {
+                      backgroundColor: sel ? colors.primary + "12" : colors.card,
+                      borderColor:     sel ? colors.primary         : colors.border,
+                    },
+                  ]}
+                  onPress={() => onChange({ ...value, cause })}
+                >
+                  <Text style={[styles.causeText, { color: sel ? colors.primary : colors.text }]}>{cause}</Text>
+                  {sel && <Ionicons name="checkmark-circle" size={18} color={colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <FormInput label="Additional notes" value={value.notes ?? ""} onChangeText={(t) => onChange({ ...value, notes: t })} placeholder="Describe what happened…" multiline colors={colors} styles={styles} />
+        </View>
+      )}
     </View>
   );
 }
@@ -727,31 +891,205 @@ function PoliceStep({ value, onChange, colors, styles }: {
   );
 }
 
-function StatementStep({ value, onChange, colors, styles }: {
+/** Statement step — text input tab or in-app audio recording tab. */
+function StatementStep({
+  value, onChange,
+  accidentId, deviceId,
+  hasAudioStatement, onAudioUploaded,
+  colors, styles,
+}: {
   value: string;
   onChange: (v: string) => void;
+  accidentId: string;
+  deviceId: string;
+  hasAudioStatement: boolean;
+  onAudioUploaded: () => void;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const [mode, setMode] = useState<"text" | "audio">("text");
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // expo-audio recording hooks (must be at component top level)
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
+
+  const startRecording = useCallback(async () => {
+    const { granted } = await requestRecordingPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Microphone Access Required", "Please allow microphone access in your device settings to record an audio statement.");
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await setAudioModeAsync({ playsInSilentMode: true } as any);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      Alert.alert("Error", "Could not start recording. Please try again.");
+    }
+  }, [recorder]);
+
+  const stopRecording = useCallback(async () => {
+    try {
+      await recorder.stop();
+      // Give a brief moment for the URI to be set
+      await new Promise<void>((r) => setTimeout(r, 200));
+      const uri = recorder.uri;
+      if (uri) setRecordingUri(uri);
+    } catch {
+      Alert.alert("Error", "Could not stop recording.");
+    }
+  }, [recorder]);
+
+  const uploadAudio = useCallback(async () => {
+    if (!recordingUri || !accidentId || !deviceId) return;
+    setUploading(true);
+    try {
+      const { photoId, uploadUrl } = await apiPost(
+        `/accidents/${accidentId}/photos/request-upload`,
+        { deviceId, category: "audio_statement" },
+      ) as { photoId: string; uploadUrl: string };
+
+      const blob = await (await fetch(recordingUri)).blob();
+      await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "audio/m4a" },
+        body: blob,
+      });
+      await apiPost(`/accidents/${accidentId}/photos/${photoId}/confirm`, { deviceId });
+      onAudioUploaded();
+      setRecordingUri(null); // mark as committed
+    } catch {
+      Alert.alert("Upload Failed", "Could not save your audio statement. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }, [recordingUri, accidentId, deviceId, onAudioUploaded]);
+
+  const discardRecording = useCallback(() => {
+    setRecordingUri(null);
+  }, []);
+
+  const isRecording = recorderState.isRecording;
+  const durationMs  = recorderState.durationMillis ?? 0;
+
   return (
     <View>
-      <Text style={[styles.stepIntro, { color: colors.muted }]}>
-        Write your account of what happened. Your statement is time-stamped and included in the insurance report.
-        You can use your keyboard's voice-input button to dictate.
-      </Text>
-      <View style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <TextInput
-          style={[styles.statementInput, { color: colors.text }]}
-          value={value}
-          onChangeText={onChange}
-          placeholder="Describe what happened in your own words. Include the sequence of events, road conditions, visibility, and any other relevant details..."
-          placeholderTextColor={colors.muted}
-          multiline
-          textAlignVertical="top"
-          returnKeyType="default"
-        />
+      {/* ── Mode tabs ────────────────────────────────────────────────────── */}
+      <View style={[styles.modeTabs, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {(["text", "audio"] as const).map((m) => (
+          <TouchableOpacity
+            key={m}
+            style={[styles.modeTab, mode === m && { backgroundColor: colors.primary }]}
+            onPress={() => setMode(m)}
+          >
+            <Ionicons
+              name={m === "text" ? "create-outline" : "mic-outline"}
+              size={16}
+              color={mode === m ? "#fff" : colors.muted}
+            />
+            <Text style={[styles.modeTabText, { color: mode === m ? "#fff" : colors.muted }]}>
+              {m === "text" ? "Write" : "Record"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
-      <Text style={[styles.charCount, { color: colors.muted }]}>{value.length} characters</Text>
+
+      {/* ── Write mode ───────────────────────────────────────────────────── */}
+      {mode === "text" && (
+        <>
+          <Text style={[styles.stepIntro, { color: colors.muted }]}>
+            Describe what happened. Use your keyboard's microphone button to dictate if preferred.
+          </Text>
+          <View style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.statementInput, { color: colors.text }]}
+              value={value}
+              onChangeText={onChange}
+              placeholder="Describe the sequence of events, road conditions, visibility, speed, what you saw, and anything else relevant to the incident…"
+              placeholderTextColor={colors.muted}
+              multiline
+              textAlignVertical="top"
+              returnKeyType="default"
+            />
+          </View>
+          <Text style={[styles.charCount, { color: colors.muted }]}>{value.length} characters</Text>
+        </>
+      )}
+
+      {/* ── Record mode ──────────────────────────────────────────────────── */}
+      {mode === "audio" && (
+        <View style={{ alignItems: "center", paddingTop: 16 }}>
+          {hasAudioStatement && !recordingUri && (
+            <View style={[styles.audioSavedBanner, { backgroundColor: "#34C75918", borderColor: "#34C759" }]}>
+              <Ionicons name="checkmark-circle" size={18} color="#34C759" />
+              <Text style={[styles.audioSavedText, { color: "#34C759" }]}>Audio statement saved</Text>
+            </View>
+          )}
+
+          {/* Big mic button */}
+          {!recordingUri && (
+            <>
+              <Text style={[styles.stepIntro, { color: colors.muted, textAlign: "center" }]}>
+                {isRecording
+                  ? "Recording in progress — tap to stop when done."
+                  : "Tap the microphone to start recording your statement."}
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.micBtn,
+                  { backgroundColor: isRecording ? "#FF3B30" : colors.primary },
+                ]}
+                onPress={isRecording ? stopRecording : startRecording}
+                activeOpacity={0.85}
+              >
+                <Ionicons name={isRecording ? "stop" : "mic"} size={36} color="#fff" />
+              </TouchableOpacity>
+
+              {isRecording && (
+                <Text style={[styles.recordTimer, { color: colors.primary }]}>
+                  {formatDuration(durationMs)}
+                </Text>
+              )}
+            </>
+          )}
+
+          {/* After recording — confirm / discard / upload */}
+          {recordingUri && (
+            <View style={{ width: "100%", gap: 12 }}>
+              <View style={[styles.audioReadyCard, { backgroundColor: colors.card, borderColor: colors.primary + "60" }]}>
+                <Ionicons name="musical-note-outline" size={24} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.audioReadyTitle, { color: colors.text }]}>Recording complete</Text>
+                  <Text style={[styles.audioReadySub, { color: colors.muted }]}>{formatDuration(durationMs)} recorded</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.uploadAudioBtn, { backgroundColor: colors.primary }]}
+                onPress={uploadAudio}
+                disabled={uploading}
+              >
+                {uploading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="cloud-upload-outline" size={20} color="#fff" />}
+                <Text style={styles.uploadAudioBtnText}>{uploading ? "Saving…" : "Save to Report"}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.discardAudioBtn, { borderColor: colors.border }]}
+                onPress={discardRecording}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+                <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#FF3B30" }}>Discard & Re-record</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -1060,6 +1398,68 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       flexDirection: "row", borderRadius: 14, overflow: "hidden",
       backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
       padding: 16, gap: 8,
+    },
+
+    // Incident type selector
+    incidentTypeCard: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10,
+    },
+    incidentTypeIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    incidentTypeLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+    incidentTypeDesc:  { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+    // Other party dynamic form
+    partyFormSection: { marginTop: 20, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    partyFormTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 14 },
+    chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+    chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+    chipText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+    causeList: { gap: 8, marginBottom: 16 },
+    causeRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1,
+    },
+    causeText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+
+    // Statement step — mode tabs
+    modeTabs: {
+      flexDirection: "row", borderRadius: 12, borderWidth: 1,
+      overflow: "hidden", marginBottom: 16,
+    },
+    modeTab: {
+      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 6, paddingVertical: 10,
+    },
+    modeTabText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+    // Recording UI
+    micBtn: {
+      width: 96, height: 96, borderRadius: 48,
+      alignItems: "center", justifyContent: "center",
+      marginVertical: 24,
+    },
+    recordTimer: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: 2, marginBottom: 8 },
+    audioSavedBanner: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+      marginBottom: 16, width: "100%",
+    },
+    audioSavedText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    audioReadyCard: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 4,
+    },
+    audioReadyTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    audioReadySub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+    uploadAudioBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 8, paddingVertical: 14, borderRadius: 12,
+    },
+    uploadAudioBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+    discardAudioBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1,
     },
   });
 }

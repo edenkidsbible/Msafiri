@@ -212,22 +212,47 @@ async function generatePdf(
       }
     }
 
-    // ── Other Driver ─────────────────────────────────────────────────────────
+    // ── Other Party ──────────────────────────────────────────────────────────
     if (record.otherDriverJson) {
       try {
         const od = JSON.parse(record.otherDriverJson) as {
-          name?: string; phone?: string; insuranceCompany?: string;
-          policyNumber?: string; vehicleReg?: string;
+          type?: string;
+          // vehicle
+          vehicleType?: string; vehicleReg?: string; name?: string; phone?: string;
+          insuranceCompany?: string; policyNumber?: string;
+          // pedestrian/cyclist
+          injuries?: string;
+          // solo
+          cause?: string;
+          notes?: string;
         };
-        if (od.name || od.vehicleReg) {
-          sectionTitle("Other Driver");
-          row("Name",              od.name);
-          row("Phone",             od.phone);
-          row("Insurance Company", od.insuranceCompany);
-          row("Policy Number",     od.policyNumber);
-          row("Vehicle Reg",       od.vehicleReg);
+        const hasContent = od.name || od.vehicleReg || od.cause || od.injuries || od.type;
+        if (hasContent) {
+          const secLabel =
+            od.type === "solo"               ? "Incident Cause (Solo — No Other Party)" :
+            od.type === "pedestrian_cyclist" ? "Other Party — Pedestrian / Cyclist"     :
+            /* vehicle or unset */             "Other Party — Vehicle";
+          sectionTitle(secLabel);
+
+          if (od.type === "solo") {
+            row("Cause",  od.cause);
+            row("Notes",  od.notes);
+          } else if (od.type === "pedestrian_cyclist") {
+            row("Name (if known)",       od.name);
+            row("Phone (if known)",      od.phone);
+            row("Injuries / Condition",  od.injuries);
+            row("Notes",                 od.notes);
+          } else {
+            // vehicle collision (explicit or legacy)
+            row("Vehicle Type",      od.vehicleType);
+            row("Registration",      od.vehicleReg);
+            row("Driver Name",       od.name);
+            row("Phone",             od.phone);
+            row("Insurance Company", od.insuranceCompany);
+            row("Policy Number",     od.policyNumber);
+          }
         }
-      } catch { /* malformed */ }
+      } catch { /* malformed JSON — skip */ }
     }
 
     // ── Police ───────────────────────────────────────────────────────────────
@@ -252,11 +277,20 @@ async function generatePdf(
       doc.fontSize(10).font("Helvetica").fillColor("#111").text(record.driverStatement, { width: W, lineGap: 4 });
     }
 
-    // ── Photos note ──────────────────────────────────────────────────────────
-    if (photos.length > 0) {
-      sectionTitle("Attached Evidence");
+    // ── Audio Statement ───────────────────────────────────────────────────────
+    const audioPhotos = photos.filter((p) => p.category === "audio_statement");
+    if (audioPhotos.length > 0) {
+      sectionTitle("Audio Statement");
       doc.fontSize(10).font("Helvetica").fillColor(muted)
-        .text(`${photos.length} photo(s) were captured at the scene. View the full Crash Vault record in Msafiri Kenya for embedded images.`);
+        .text("An audio statement was recorded at the scene. Open the Crash Vault in Msafiri Kenya to listen to the recording.");
+    }
+
+    // ── Scene Photos note ─────────────────────────────────────────────────────
+    const scenePhotos = photos.filter((p) => p.category !== "audio_statement");
+    if (scenePhotos.length > 0) {
+      sectionTitle("Attached Scene Photos");
+      doc.fontSize(10).font("Helvetica").fillColor(muted)
+        .text(`${scenePhotos.length} photo(s) were captured at the scene. View the full Crash Vault record in Msafiri Kenya for embedded images.`);
     }
 
     // ── Footer ───────────────────────────────────────────────────────────────
@@ -414,6 +448,7 @@ router.get("/accidents/:id", async (req: Request, res: Response) => {
       weather, otherDriver, police,
       driverStatement: r.driverStatement,
       hasPdf: !!r.pdfUrl,
+      hasAudioStatement: photos.some((p) => p.category === "audio_statement"),
       photos: photos.map((p) => ({
         id: p.id, category: p.category,
         url: p.fileKey ? `/accidents/${id}/photos/${p.id}/url` : null,

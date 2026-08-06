@@ -51,7 +51,7 @@ export default function CrashVaultScreen() {
   const load = useCallback(async () => {
     if (!deviceId) return;
     try {
-      const data = await apiGet(`/accidents?deviceId=${deviceId}`);
+      const data = await apiGet(`/accidents?deviceId=${deviceId}`) as { records: AccidentRecord[] };
       setRecords(data.records ?? []);
     } catch {
       // silently fail — empty state is shown
@@ -66,7 +66,7 @@ export default function CrashVaultScreen() {
   const handleNew = useCallback(async () => {
     if (!deviceId) return;
     try {
-      const data = await apiPost("/accidents", { deviceId, isManual: true });
+      const data = await apiPost("/accidents", { deviceId, isManual: true }) as { id: string };
       router.push(`/crash-assistant/${data.id}`);
     } catch {
       // ignore
