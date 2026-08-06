@@ -3932,11 +3932,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDashcamActiveState(v);
   }, []);
 
-  // ── Accelerometer crash detection ────────────────────────────────────────
+  // ── Hazard event batch refs ───────────────────────────────────────────────
+  // Batched silently during drives; flushed to /telemetry/braking-events every
+  // 60 s (or when navigation ends). No driver interaction required.
+  const hazardBatchRef   = useRef<Array<{ eventType: string; lat: number; lng: number; speedKmh: number; gForce: number }>>([]);
+  const hazardLastFiredRef = useRef<Record<string, number>>({});  // type → ms timestamp
+  const hazardFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const flushHazardBatch = useCallback(async () => {
+    const batch = hazardBatchRef.current.splice(0);
+    if (batch.length === 0) return;
+    const did = deviceIdRef.current;
+    if (!did) return;
+    apiPost("/telemetry/braking-events", {
+      events: batch.map((e) => ({ ...e, deviceId: did })),
+    }).catch(() => {}); // fire-and-forget, never surface to user
+  }, []);
+
+  // ── Accelerometer — crash detection + silent hazard detection ────────────
   // Subscribe at 20 Hz whenever navigation or dashcam is active.
-  // Detection fires when:
+  // Crash detection fires when:
   //   peak net-G in the 2s window > threshold  AND
   //   GPS speed dropped from ≥20 km/h to ≤5 km/h within 2s
+  // Hazard events (hard_braking, pothole, swerve) are classified separately
+  // and batch-posted silently.
   useEffect(() => {
     if (Platform.OS === "web") return;
     const shouldMonitor = navigationActive || dashcamActive;
@@ -3945,38 +3964,82 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Start 60-second flush timer
+    if (hazardFlushTimerRef.current) clearInterval(hazardFlushTimerRef.current);
+    hazardFlushTimerRef.current = setInterval(() => { flushHazardBatch(); }, 60_000);
+
     const G_THRESHOLD: Record<"low" | "medium" | "high", number> = {
       low: 4.5, medium: 3.5, high: 2.8,
     };
+    const HAZARD_DEBOUNCE_MS = 5_000;
 
     Accelerometer.setUpdateInterval(50); // 20 Hz
     const sub = Accelerometer.addListener(({ x, y, z }) => {
-      if (crashDetectedRef.current) return;
       const rawG = Math.sqrt(x * x + y * y + z * z);
       const netG = Math.abs(rawG - 9.8); // subtract Earth gravity baseline
       accelWindowRef.current.push(netG);
       // Keep only ~2 seconds worth of samples (20 Hz × 2 s = 40 samples)
       if (accelWindowRef.current.length > 40) accelWindowRef.current.shift();
 
-      const threshold = G_THRESHOLD[crashSensitivityRef.current];
-      const peakG = Math.max(...accelWindowRef.current);
-      if (peakG < threshold) return;
+      // ── Crash detection ────────────────────────────────────────────────
+      if (!crashDetectedRef.current) {
+        const threshold = G_THRESHOLD[crashSensitivityRef.current];
+        const peakG = Math.max(...accelWindowRef.current);
+        if (peakG >= threshold) {
+          const now = Date.now();
+          const recentSpeeds = speedWindowRef.current.filter((s) => now - s.t <= 2000);
+          if (recentSpeeds.length >= 2) {
+            const maxSpeed = Math.max(...recentSpeeds.map((s) => s.kmh));
+            const latestSpeed = recentSpeeds[recentSpeeds.length - 1]!.kmh;
+            if (maxSpeed >= 20 && latestSpeed <= 5) {
+              crashDetectedRef.current = true;
+              setCrashDetected(true);
+              accelWindowRef.current = [];
+            }
+          }
+        }
+      }
 
-      // Check speed window: need a drop from ≥20 to ≤5 km/h within 2 s
+      // ── Hazard event classification (silent, no driver interaction) ───
       const now = Date.now();
-      const recentSpeeds = speedWindowRef.current.filter((s) => now - s.t <= 2000);
-      if (recentSpeeds.length < 2) return;
-      const maxSpeed = Math.max(...recentSpeeds.map((s) => s.kmh));
-      const latestSpeed = recentSpeeds[recentSpeeds.length - 1]!.kmh;
-      if (maxSpeed >= 20 && latestSpeed <= 5) {
-        crashDetectedRef.current = true;
-        setCrashDetected(true);
-        accelWindowRef.current = [];
+      const lat = currentLatRef.current;
+      const lng = currentLngRef.current;
+      if (lat == null || lng == null) return;
+
+      const canFire = (type: string) =>
+        !((hazardLastFiredRef.current[type] ?? 0) + HAZARD_DEBOUNCE_MS > now);
+
+      const speedEntries = speedWindowRef.current.filter((s) => now - s.t <= 2500);
+      const latestKmh   = speedEntries.length > 0 ? speedEntries[speedEntries.length - 1]!.kmh : 0;
+      const oldestKmh   = speedEntries.length > 1 ? speedEntries[0]!.kmh : latestKmh;
+      const speedDrop   = oldestKmh - latestKmh; // positive = decelerating
+
+      // hard_braking: significant longitudinal deceleration + speed drop > 25 km/h in 2.5 s
+      const longG = Math.abs(y); // phone longitudinal axis
+      if (longG > 1.5 && speedDrop > 25 && canFire("hard_braking")) {
+        hazardLastFiredRef.current["hard_braking"] = now;
+        hazardBatchRef.current.push({ eventType: "hard_braking", lat, lng, speedKmh: latestKmh, gForce: longG });
+      }
+      // pothole: vertical spike > 2.5g, speed change < 10 km/h
+      const vertG = Math.abs(z - 9.8);
+      if (vertG > 2.5 && Math.abs(speedDrop) < 10 && canFire("pothole")) {
+        hazardLastFiredRef.current["pothole"] = now;
+        hazardBatchRef.current.push({ eventType: "pothole", lat, lng, speedKmh: latestKmh, gForce: vertG });
+      }
+      // swerve: lateral spike > 1.8g
+      const latG = Math.abs(x);
+      if (latG > 1.8 && canFire("swerve")) {
+        hazardLastFiredRef.current["swerve"] = now;
+        hazardBatchRef.current.push({ eventType: "swerve", lat, lng, speedKmh: latestKmh, gForce: latG });
       }
     });
 
-    return () => sub.remove();
-  }, [navigationActive, dashcamActive]);
+    return () => {
+      sub.remove();
+      if (hazardFlushTimerRef.current) { clearInterval(hazardFlushTimerRef.current); hazardFlushTimerRef.current = null; }
+      flushHazardBatch(); // flush remaining events on drive end
+    };
+  }, [navigationActive, dashcamActive, flushHazardBatch]);
 
   const clearAllData = useCallback(async () => {
     await AsyncStorage.multiRemove([

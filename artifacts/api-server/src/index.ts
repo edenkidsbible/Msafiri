@@ -14,6 +14,7 @@ import { syncStaticZones } from "./startup/syncStaticZones";
 import { seedPois } from "./startup/seedPois";
 import { startHereTrafficJob } from "./jobs/hereTraffic";
 import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
+import { startClusterHazardsJob } from "./jobs/clusterHazards";
 
 const rawPort = process.env["PORT"];
 
@@ -92,4 +93,5 @@ app.listen(port, async (err) => {
   startDailyBackupJob();
   startHereTrafficJob();
   startPromoteScheduledReleasesJob();
+  startClusterHazardsJob();
 });

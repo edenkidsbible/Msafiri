@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports, useAdminListBlockedDevices, useAdminBlockDevice, useAdminUnblockDevice, useAdminGetModerationQueue, useAdminApproveCameraRemoval, useAdminRejectCameraRemoval } from "@workspace/api-client-react";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw, Camera, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw, Camera, ChevronDown, ChevronUp, Cpu, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -100,6 +101,7 @@ export default function Reports() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"table" | "map">("table");
+  const [activeTab, setActiveTab] = useState<"all" | "auto">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
@@ -208,6 +210,22 @@ export default function Reports() {
     search: search || undefined,
     type:   typeFilter !== "all" ? typeFilter : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
+  });
+
+  // Auto-detected tab — fetches reports with source=auto using a plain fetch
+  // (generated hook types don't expose the source param)
+  const { data: autoData, isLoading: autoLoading, refetch: refetchAuto } = useQuery<{
+    reports: Array<{ id: string; type: string; lat: number; lng: number; status: string; confirmCount: number; denyCount: number; roadName?: string | null; createdAt: string }>;
+    total: number;
+  }>({
+    queryKey: ["/api/admin/reports", "auto"],
+    queryFn: async () => {
+      const token = getToken();
+      const r = await fetch("/api/admin/reports?source=auto&limit=100", { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error("Failed to fetch auto-detected reports");
+      return r.json();
+    },
+    enabled: activeTab === "auto",
   });
 
   const deleteMutation = useAdminDeleteReport({
@@ -679,7 +697,81 @@ export default function Reports() {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
+        {/* Source tabs — All Reports / Auto-Detected */}
+        <div className="flex gap-1 bg-muted/40 p-1 rounded-lg w-fit border">
+          <button
+            onClick={() => { setActiveTab("all"); setPage(1); }}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "all" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <List className="h-3.5 w-3.5" /> All Reports
+          </button>
+          <button
+            onClick={() => { setActiveTab("auto"); setPage(1); refetchAuto(); }}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "auto" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <Cpu className="h-3.5 w-3.5" /> Auto-Detected
+            {autoData && activeTab === "auto" && (
+              <span className="ml-1 bg-primary/10 text-primary text-xs px-1.5 py-0.5 rounded-full">{autoData.total}</span>
+            )}
+          </button>
+        </div>
+
+        {/* Auto-detected reports table */}
+        {activeTab === "auto" && (
+          <div className="rounded-xl border overflow-hidden">
+            {autoLoading ? (
+              <div className="flex items-center justify-center h-40 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading auto-detected reports…
+              </div>
+            ) : !autoData || autoData.reports.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
+                <Cpu className="h-8 w-8 opacity-30" />
+                <p className="text-sm">No auto-detected reports yet.</p>
+                <p className="text-xs">The clustering job creates reports once ≥5 devices report events within 60 m.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Description / Location</TableHead>
+                    <TableHead className="w-[120px]">Status</TableHead>
+                    <TableHead className="w-[100px]">Drivers</TableHead>
+                    <TableHead className="w-[160px]">Created</TableHead>
+                    <TableHead className="w-[80px] text-right">Map</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {autoData.reports.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        <Badge variant="outline" className={`capitalize text-xs font-medium ${TYPE_COLORS[r.type] ?? ""}`}>{r.type}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{r.roadName ?? `${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}`}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`capitalize text-xs ${STATUS_COLORS[r.status] ?? ""}`}>{r.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{r.confirmCount}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{format(new Date(r.createdAt), "dd MMM yyyy HH:mm")}</TableCell>
+                      <TableCell className="text-right">
+                        <a
+                          href={`https://www.google.com/maps?q=${r.lat},${r.lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        )}
+
+        {activeTab === "all" && <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search by road name..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-background" data-testid="input-search" />
@@ -698,8 +790,9 @@ export default function Reports() {
               {Object.keys(STATUS_COLORS).map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
+        </div>}
 
+        {activeTab === "all" && <>
         {/* Bulk action toolbar */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-lg px-4 py-3">
@@ -914,6 +1007,7 @@ export default function Reports() {
             )}
           </div>
         )}
+        </>}
       </div>
 
       {/* Edit dialog */}

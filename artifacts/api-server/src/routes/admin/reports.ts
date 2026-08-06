@@ -342,10 +342,12 @@ router.get("/reports", requireFeature("reports"), async (req: Request, res: Resp
     const type   = req.query.type   as string | undefined;
     const status = req.query.status as string | undefined;
     const search = req.query.search as string | undefined;
+    const source = req.query.source as string | undefined;
 
     const conditions: any[] = [];
     if (type)   conditions.push(eq(communityReportsTable.type, type));
     if (status) conditions.push(eq(communityReportsTable.status, status));
+    if (source) conditions.push(eq(communityReportsTable.source, source));
     if (search) {
       conditions.push(
         or(
@@ -388,6 +390,7 @@ router.get("/reports", requireFeature("reports"), async (req: Request, res: Resp
         denyCount:    r.denyCount,
         speedLimit:   r.speedLimit,
         roadName:     r.roadName,
+        source:       r.source ?? "manual",
         createdAt:    r.createdAt.toISOString(),
         expiresAt:    r.expiresAt?.toISOString() ?? null,
       })),

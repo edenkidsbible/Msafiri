@@ -1,0 +1,35 @@
+Automatic Road Hazard Detection
+What & Why
+Every Msafiri driver becomes a passive road sensor. The phone's accelerometer silently captures hard braking events, pothole impacts, and sharp swerves during drives. The API server clusters these events by GPS location across many drivers; when enough distinct devices report events at the same spot, a community hazard report is automatically created — no driver input required. This is the network effect engine: the map gets smarter with every trip.
+
+Done looks like
+During active drives, the app silently captures braking events (speed drop + g-force), pothole impacts (vertical spike without speed drop), and swerves (lateral g-force) and posts them to the API in the background without any driver interaction.
+Drivers never see or interact with this — it is completely silent.
+A backend clustering job runs every 30 minutes. When ≥5 distinct device IDs report events within a 60-metre radius over the last 7 days, a community report is automatically created at that location with source="auto".
+Auto-created reports are visible on the map and to all drivers immediately (same as manual reports), but are tagged as "auto-detected" so admins can distinguish them.
+In the admin panel, auto-detected reports appear in a dedicated filter tab ("Auto-Detected") where admins can verify or deny them exactly as they do manual reports.
+A basic stats endpoint (GET /api/admin/hazard-stats) shows total events captured, clusters formed, and reports auto-created — visible in the admin dashboard.
+Out of scope
+Per-driver driving score or behaviour reports.
+Notifications to drivers about new auto-detected hazards (they already appear on the map).
+Machine learning classification — rule-based thresholds are sufficient for Phase 1.
+Flooded road detection (requires different sensor approach — future work).
+Steps
+Braking event capture in the mobile app — Extend the accelerometer subscription added by the Accident Detection task. During active drives, classify events into three types using thresholds: hard_braking (speed drop >25 km/h in <2.5 s AND longitudinal g >1.5), pothole (vertical g spike >2.5g with <10 km/h speed change), swerve (lateral g >1.8g). Debounce so the same event is not reported twice within 5 seconds. Batch-post events to POST /api/telemetry/braking-events every 60 seconds (or on drive end) rather than one request per event, to minimise data usage.
+
+Braking events API and DB table — Create a braking_events table (id, device_id, event_type, lat, lng, speed_kmh, g_force, heading, created_at). Add POST /api/telemetry/braking-events (accepts an array, bulk inserts). No auth required — device_id is a stable anonymous identifier (the same one already used by the community reports system). Add a PostGIS index on the lat/lng columns for efficient spatial clustering queries.
+
+Clustering job — Create artifacts/api-server/src/jobs/clusterHazards.ts. The job runs every 30 minutes using the existing job scheduler pattern. It queries braking_events from the last 7 days, groups them into 60-metre clusters using a ST_DWithin window query, and for each cluster with ≥5 distinct device_id values that does not already have a linked community_report, inserts a new community report row with: type mapped from the dominant event type (hard_braking→HAZARD, pothole→SPEED_BUMP, swerve→HAZARD), coordinates set to the cluster centroid, source='auto', admin_verified=false, description auto-generated ("Auto-detected: N drivers reported hard braking here"). Also inserts a hazard_cluster row linking the report to the contributing events.
+
+Admin panel filter and display — Add an "Auto-Detected" tab/filter to the admin community reports table. Show the event count, distinct device count, event type breakdown, and a "View on Map" link for each auto-created report. Wire the existing verify/deny buttons so admins can confirm or remove auto-created reports with the same flow as manual ones.
+
+Hazard stats endpoint — Add GET /api/admin/hazard-stats returning total events (last 7 days), active clusters (≥5 devices), reports auto-created (all time), and top 5 hotspot locations. Display these as a small card in the admin dashboard.
+
+Relevant files
+artifacts/mobile/context/AppContext.tsx
+artifacts/mobile/utils/apiClient.ts
+artifacts/api-server/src/jobs/
+artifacts/api-server/src/index.ts
+artifacts/api-server/package.json
+artifacts/admin/src/
+lib/db/src/schema.ts

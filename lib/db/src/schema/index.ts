@@ -13,3 +13,4 @@ export * from "./pois";
 export * from "./appSettings";
 export * from "./dashcam";
 export * from "./emergency";
+export * from "./brakingEvents";

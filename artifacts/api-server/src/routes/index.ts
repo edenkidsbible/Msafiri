@@ -20,6 +20,7 @@ import trafficRouter from "./traffic.js";
 import appSettingsRouter from "./appSettings.js";
 import dashcamRouter from "./dashcam.js";
 import emergencyRouter from "./emergency.js";
+import telemetryRouter from "./telemetry.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(trafficRouter);
 router.use(appSettingsRouter);
 router.use(dashcamRouter);
 router.use(emergencyRouter);
+router.use(telemetryRouter);
 
 export default router;

@@ -1,10 +1,11 @@
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, AlertTriangle, CheckCircle2, AlertCircle, Timer, BarChart3, PieChart, TrendingUp, Download } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, AlertCircle, Timer, BarChart3, PieChart, TrendingUp, Download, Cpu, Zap, MapPin } from "lucide-react";
 import { useAdminGetStats } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { getToken } from "@/lib/auth";
+import { useQuery } from "@tanstack/react-query";
 import {
   BarChart,
   Bar,
@@ -38,12 +39,30 @@ function handleExport(type?: string, status?: string) {
     });
 }
 
+interface HazardStats {
+  totalEvents7d: number;
+  activeClusters: number;
+  autoCreatedReports: number;
+  topHotspots: Array<{ reportId: string; lat: number; lng: number; dominantType: string; deviceCount: number; eventCount: number; roadName: string | null }>;
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading, isError } = useAdminGetStats({
     query: {
       queryKey: ["admin-stats"],
       refetchInterval: 30000,
     },
+  });
+
+  const { data: hazardStats } = useQuery<HazardStats>({
+    queryKey: ["admin-hazard-stats"],
+    queryFn: async () => {
+      const token = getToken();
+      const r = await fetch("/api/admin/hazard-stats", { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    refetchInterval: 120000,
   });
 
   if (isLoading) {
@@ -174,6 +193,50 @@ export default function Dashboard() {
                 <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Reports" />
               </BarChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Hazard detection stats */}
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="border-b bg-muted/30 pb-4">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base font-semibold">Auto Hazard Detection</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground">{hazardStats?.totalEvents7d ?? "—"}</div>
+                <div className="text-xs text-muted-foreground mt-1">Events (7d)</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground">{hazardStats?.activeClusters ?? "—"}</div>
+                <div className="text-xs text-muted-foreground mt-1">Active Clusters</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground">{hazardStats?.autoCreatedReports ?? "—"}</div>
+                <div className="text-xs text-muted-foreground mt-1">Auto Reports</div>
+              </div>
+            </div>
+            {hazardStats && hazardStats.topHotspots.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Top Hotspots</p>
+                {hazardStats.topHotspots.map((h, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <span className="flex-1 truncate text-muted-foreground">{h.roadName ?? `${h.lat.toFixed(4)}, ${h.lng.toFixed(4)}`}</span>
+                    <span className="text-xs font-medium">{h.deviceCount} drivers</span>
+                    <a href={`https://www.google.com/maps?q=${h.lat},${h.lng}`} target="_blank" rel="noreferrer">
+                      <MapPin className="h-3.5 w-3.5 text-primary hover:opacity-70" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+            {hazardStats && hazardStats.totalEvents7d === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2">No events captured yet. Events are recorded silently during active drives.</p>
+            )}
           </CardContent>
         </Card>
 

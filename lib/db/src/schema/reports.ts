@@ -45,6 +45,9 @@ export const communityReportsTable = pgTable("community_reports", {
   // Verified" badge (vs the community "Verified" badge), get confirmCount=999
   // so they can never be deny-voted away, and have no expiry (expiresAt=null).
   adminVerified:  boolean("admin_verified").notNull().default(false),
+  // Origin of the report: "manual" = submitted by a driver; "auto" = created
+  // by the background hazard clustering job from silent accelerometer events.
+  source:         text("source").notNull().default("manual"),
 });
 
 export const insertReportSchema = createInsertSchema(communityReportsTable).omit({
