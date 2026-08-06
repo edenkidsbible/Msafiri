@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MAP_CHIPS, CATEGORIES, type QueryCategory, type POIResult, fetchNearbyPOIs, formatDist } from "@/utils/nearbyPlaces";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -310,9 +310,10 @@ export default function MapViewScreen() {
   const now = Date.now();
 
   const TAB_H = Platform.OS === "web" ? 84 : 96;
-  // Sheet grows when results are loaded to give them visible space.
+  const HALF_SCREEN = Math.round(Dimensions.get("window").height * 0.5);
+  // Sheet grows to half the screen when results are loaded.
   const EXPLORE_H = activeChipCat
-    ? (chipLoading ? 100 : chipResults.length > 0 ? 260 : 100)
+    ? (chipLoading ? 100 : chipResults.length > 0 ? HALF_SCREEN : 100)
     : 90;
 
   // ── Look-ahead camera refs ──────────────────────────────────────────────────
@@ -854,26 +855,8 @@ export default function MapViewScreen() {
       <View style={[styles.exploreSheet, {
         bottom: insets.bottom + TAB_H - 8,
         backgroundColor: c.card,
-        maxHeight: activeChipCat ? 300 : 110,
+        maxHeight: activeChipCat ? HALF_SCREEN : 110,
       }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
-        <View style={styles.sheetHeader}>
-          <Text style={[styles.sheetHeaderTitle, { color: c.foreground }]}>
-            {activeChipCat ? CATEGORIES[activeChipCat].label : "Explore Nearby"}
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              if (activeChipCat) { setActiveChipCat(null); setChipResults([]); setChipError(null); }
-              else setShowFindNearby(true);
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.sheetSeeAll, { color: activeChipCat ? c.mutedForeground : c.primary }]}>
-              {activeChipCat ? "Clear" : "Search"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Default state — no chip selected */}
         {!activeChipCat && (
           <TouchableOpacity
