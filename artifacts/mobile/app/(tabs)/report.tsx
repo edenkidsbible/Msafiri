@@ -23,7 +23,7 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { speakAlert } from "@/utils/alertTts";
 import { playSound } from "@/utils/sound";
-import { snapToRoad } from "@/utils/snapToRoad";
+import { snapToRoad, getRoadName } from "@/utils/snapToRoad";
 import type { CommunityReport } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { formatTimeAgo } from "@/lib/timeAgo";
@@ -248,12 +248,16 @@ export default function ReportScreen() {
           setShowReport(false);
           setInitialType(null);
           if (location) {
-            addReport(type, location.lat, location.lng, speedLimit);
+            const road = await getRoadName(location.lat, location.lng).catch(() => null);
+            addReport(type, location.lat, location.lng, speedLimit, road ?? undefined);
           } else if (currentLat !== null && currentLng !== null) {
             try {
               const routeSnap = snapToActiveRoute(currentLat, currentLng);
-              const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
-              addReport(type, snapped.lat, snapped.lng, speedLimit);
+              const [snapped, road] = await Promise.all([
+                routeSnap ? Promise.resolve(routeSnap) : snapToRoad(currentLat, currentLng),
+                getRoadName(currentLat, currentLng).catch(() => null),
+              ]);
+              addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined);
             } catch {
               addReport(type, currentLat, currentLng, speedLimit);
             }

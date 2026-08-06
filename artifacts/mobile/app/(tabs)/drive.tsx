@@ -52,7 +52,7 @@ import {
   removeRecentSearch,
   clearRecentSearches,
 } from "@/utils/recentSearches";
-import { snapToRoad } from "@/utils/snapToRoad";
+import { snapToRoad, getRoadName } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
@@ -2364,17 +2364,20 @@ export default function DriveScreen() {
         onSubmit={async (type, speedLimit, location) => {
           setShowReport(false);
           if (location) {
-            addReport(type, location.lat, location.lng, speedLimit);
+            const road = await getRoadName(location.lat, location.lng).catch(() => null);
+            addReport(type, location.lat, location.lng, speedLimit, road ?? undefined);
           } else if (currentLat !== null && currentLng !== null) {
             // Prefer the route polyline when navigating — it pins the marker on
             // the exact road the driver is using, not just the nearest road in
             // Google's database (which can be the wrong lane or a parallel road).
             try {
               const routeSnap = snapToActiveRoute(currentLat, currentLng);
-              const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
-              addReport(type, snapped.lat, snapped.lng, speedLimit);
+              const [snapped, road] = await Promise.all([
+                routeSnap ? Promise.resolve(routeSnap) : snapToRoad(currentLat, currentLng),
+                getRoadName(currentLat, currentLng).catch(() => null),
+              ]);
+              addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined);
             } catch {
-              // Fall back to raw GPS coords if snap fails
               addReport(type, currentLat, currentLng, speedLimit);
             }
           }

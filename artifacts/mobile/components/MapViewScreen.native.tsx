@@ -15,7 +15,7 @@ import RouteSearchSheet from "@/components/RouteSearchSheet";
 import * as Haptics from "expo-haptics";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal";
-import { snapToRoad } from "@/utils/snapToRoad";
+import { snapToRoad, getRoadName } from "@/utils/snapToRoad";
 import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
 import KenyaFlagPill from "@/components/KenyaFlagPill";
@@ -449,13 +449,17 @@ export default function MapViewScreen() {
     setShowReport(false);
     let id: string | undefined;
     if (location) {
-      id = addReport(type, location.lat, location.lng, speedLimit);
+      const road = await getRoadName(location.lat, location.lng).catch(() => null);
+      id = addReport(type, location.lat, location.lng, speedLimit, road ?? undefined);
     } else if (currentLat && currentLng) {
       // Use the route polyline snap when a route is active — it pins the marker
       // on the exact road rather than whatever nearest road Google Roads picks.
       const routeSnap = snapToActiveRoute(currentLat, currentLng);
-      const snapped = routeSnap ?? await snapToRoad(currentLat, currentLng);
-      id = addReport(type, snapped.lat, snapped.lng, speedLimit);
+      const [snapped, road] = await Promise.all([
+        routeSnap ? Promise.resolve(routeSnap) : snapToRoad(currentLat, currentLng),
+        getRoadName(currentLat, currentLng).catch(() => null),
+      ]);
+      id = addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined);
     }
     if (id) {
       setUndoReport({ id, type });

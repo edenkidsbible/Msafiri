@@ -6,6 +6,29 @@ import { logger } from "../lib/logger.js";
 
 const router: Router = Router();
 
+// ── Road-name geocoder ────────────────────────────────────────────────────────
+// Reverse-geocodes a lat/lng to the road name using the Google Geocoding API
+// (same key as the routing endpoints). Returns null on any failure so callers
+// can treat it as "unknown" safely.
+async function geocodeRoadName(lat: number, lng: number): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const url =
+      `https://maps.googleapis.com/maps/api/geocode/json` +
+      `?latlng=${lat},${lng}&result_type=route&key=${apiKey}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    const comp = data.results?.[0]?.address_components?.find(
+      (c: any) => Array.isArray(c.types) && c.types.includes("route")
+    );
+    return comp?.long_name ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Report types that must be reviewed by a moderator before they go live to
 // drivers. Kept small and deliberate — these are the types most likely to
 // cause real harm to drivers if a bad report goes live unreviewed.
@@ -339,6 +362,20 @@ router.post("/reports", async (req: Request, res: Response) => {
       logger.warn({ err, deviceId }, "Milestone push check failed")
     );
 
+    // ── Auto-fill missing road name ───────────────────────────────────────────
+    // If the client didn't supply a road name, reverse-geocode it now so that
+    // home-screen Nearby Alerts can display the road rather than a blank label.
+    // Fire-and-forget — the response isn't blocked on this.
+    if (!inserted.roadName) {
+      void geocodeRoadName(lat, lng).then(async (road) => {
+        if (!road) return;
+        await db
+          .update(communityReportsTable)
+          .set({ roadName: road })
+          .where(eq(communityReportsTable.id, inserted.id));
+      }).catch(() => {/* non-critical */});
+    }
+
     // ── Notify nearby drivers to refresh — only for reports that go live now ──
     // Moderated types (camera, police) stay in pending_review and aren't visible
     // to other drivers yet, so a refresh push would be a no-op for them.
@@ -394,6 +431,7 @@ router.post("/reports", async (req: Request, res: Response) => {
       action: "created",
       status: inserted.status,
       confirmCount: inserted.confirmCount,
+      roadName: inserted.roadName ?? null,
       clearedCount,
     });
   } catch (err) {

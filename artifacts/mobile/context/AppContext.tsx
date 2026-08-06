@@ -232,7 +232,7 @@ interface AppContextValue {
    *  cycle. Called by usePushNotifications when a silent "reports_refresh" push
    *  arrives so new pins appear within ~2 s of the original submission. */
   refreshReports: () => Promise<void>;
-  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => string;
+  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string) => string;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<{ ok: boolean; message?: string }>;
   deleteReport: (id: string) => Promise<void>;
@@ -4141,9 +4141,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
   // Posts a locally-created (not-yet-synced) report to the API. Shared by
   // addReport's initial attempt and the reconnect-triggered retry sweep below.
-  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
-    apiPost<{ id: string; status: string; confirmCount: number; action: string; clearedCount?: number }>(
-      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit }
+  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string) => {
+    apiPost<{ id: string; status: string; confirmCount: number; action: string; clearedCount?: number; roadName?: string | null }>(
+      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit, roadName }
     ).then((result) => {
       setCommunityReports((prev) => {
         let u: CommunityReport[];
@@ -4159,7 +4159,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } else {
           u = prev.map((rep) =>
             rep.id === localId
-              ? { ...rep, serverId: result.id, status: result.status as CommunityReport["status"], confirmCount: result.confirmCount }
+              ? {
+                  ...rep,
+                  serverId: result.id,
+                  status: result.status as CommunityReport["status"],
+                  confirmCount: result.confirmCount,
+                  // Back-fill road name from server (geocoded there when client didn't provide one)
+                  ...(result.roadName && !rep.roadName ? { roadName: result.roadName } : {}),
+                }
               : rep
           );
         }
@@ -4189,7 +4196,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
   useEffect(() => { syncReportToServerRef.current = syncReportToServer; }, [syncReportToServer]);
 
-  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => {
+  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string) => {
     // ── Duplicate-prevention pre-check ───────────────────────────────────────
     // Before creating an optimistic local report, scan the in-memory cache for
     // an existing active/confirmed report of the same type within 50 m.
@@ -4230,13 +4237,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       id: localId, type, lat, lng, timestamp: Date.now(), confirmed: 1,
       status: "active", confirmCount: 1, denyCount: 0, isOwn: true,
       speedLimit,
+      ...(roadName ? { roadName } : {}),
     };
     setCommunityReports((prev) => { const u = [r, ...prev]; AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u)); return u; });
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Submit to API; keep local copy as offline fallback (retried on reconnect)
     if (!isOfflineRef.current && deviceIdRef.current) {
-      syncReportToServer(localId, type, lat, lng, speedLimit);
+      syncReportToServer(localId, type, lat, lng, speedLimit, roadName);
     }
     return localId;
   }, [syncReportToServer]);
