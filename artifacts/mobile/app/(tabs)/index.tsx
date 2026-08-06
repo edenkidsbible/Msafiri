@@ -59,6 +59,11 @@ import RouteSearchSheet from "@/components/RouteSearchSheet";
 import { playSound } from "@/utils/sound";
 import { speakAlert } from "@/utils/alertTts";
 import { apiPost } from "@/utils/apiClient";
+import { useDriveScore } from "@/hooks/useDriveScore";
+import {
+  startDriveSession, updateDriveSession, endDriveSession,
+  scoreColor as getScoreColor, scoreLabel as getScoreLabel,
+} from "@/utils/driveSessionApi";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -308,6 +313,28 @@ export default function DriveScreen() {
   const avgSpeedSumRef = useRef(0);
   const avgSpeedCountRef = useRef(0);
   const [avgSpeedDisplay, setAvgSpeedDisplay] = useState(0);
+  // Drive-session server ID (null until the POST /drive-sessions call resolves)
+  const sessionIdRef     = useRef<string | null>(null);
+  // Ref-copy of tripStartTime for use inside callbacks without stale closures
+  const tripStartTimeRef = useRef<Date | null>(null);
+  // Tracks the last known tripActive value so the end-trip effect can detect
+  // the false → true transition and fire only once per trip.
+  const prevTripActiveRef = useRef(false);
+  // Alert counters incremented during the trip — sent to the server on end
+  const tripSpeedCamRef  = useRef(0);
+  const tripPoliceRef    = useRef(0);
+
+  // ── Driving score — sensor hook ───────────────────────────────────────────
+  // Subscribes to the accelerometer only during a Live Trip and classifies
+  // harsh brakes, rapid accels, and sharp turns for real-time score display.
+  const driveScore = useDriveScore({
+    active:            tripActive,
+    currentSpeed,
+    currentSpeedLimit,
+    currentLat,
+    currentLng,
+  });
+
   // Brief toast shown after a cluster dismiss — tells the driver how long alerts
   // are paused near this area so they know what to expect if they pass again.
   const [pauseNote, setPauseNote] = useState<string | null>(null);
@@ -491,10 +518,20 @@ export default function DriveScreen() {
     avgSpeedSumRef.current = 0;
     avgSpeedCountRef.current = 0;
     setAvgSpeedDisplay(0);
+    tripSpeedCamRef.current = 0;
+    tripPoliceRef.current   = 0;
+    const now = new Date();
+    tripStartTimeRef.current = now;
     setTripActive(true);
-    setTripStartTime(new Date());
+    setTripStartTime(now);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+    // Create server-side session (fire-and-forget — trip works offline too)
+    if (deviceId) {
+      startDriveSession(deviceId, currentLat, currentLng)
+        .then((id) => { sessionIdRef.current = id; })
+        .catch(() => {}); // gracefully degraded — end call will no-op when null
+    }
+  }, [deviceId, currentLat, currentLng]);
 
   const stopTrip = useCallback(() => {
     setTripActive(false);
@@ -502,7 +539,64 @@ export default function DriveScreen() {
     setNavDestination(null);
     setSearchText("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Finalisation is handled by the prevTripActiveRef effect below.
   }, [setNavDestination]);
+
+  // ── End-trip effect: finalise server session when tripActive goes false ───
+  useEffect(() => {
+    const wasActive = prevTripActiveRef.current;
+    prevTripActiveRef.current = tripActive;
+    if (!tripActive && wasActive) {
+      const sid = sessionIdRef.current;
+      if (sid && deviceId) {
+        const snap      = driveScore.getSnapshot();
+        const startTime = tripStartTimeRef.current;
+        const durationS = startTime
+          ? Math.max(0, Math.round((Date.now() - startTime.getTime()) / 1000))
+          : 0;
+        endDriveSession(sid, deviceId, {
+          endLat:            currentLat,
+          endLng:            currentLng,
+          distanceM:         snap.distanceM,
+          durationS,
+          avgSpeedKmh:       avgSpeedDisplay,
+          maxSpeedKmh:       snap.maxSpeedKmh,
+          harshBrakes:       snap.harshBrakes,
+          harshAccels:       snap.harshAccels,
+          sharpTurns:        snap.sharpTurns,
+          speedingMinutes:   snap.speedingMinutes,
+          smoothMinutes:     snap.smoothMinutes,
+          speedCameraAlerts: tripSpeedCamRef.current,
+          policeAlerts:      tripPoliceRef.current,
+        }).catch(() => {});
+        sessionIdRef.current     = null;
+        tripStartTimeRef.current = null;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripActive]);
+
+  // ── 30-second periodic stats push during a Live Trip ─────────────────────
+  useEffect(() => {
+    if (!tripActive || !deviceId) return;
+    const id = setInterval(() => {
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+      const snap = driveScore.getSnapshot();
+      updateDriveSession(sid, deviceId, {
+        distanceM:      snap.distanceM,
+        maxSpeedKmh:    snap.maxSpeedKmh,
+        avgSpeedKmh:    avgSpeedDisplay,
+        harshBrakes:    snap.harshBrakes,
+        harshAccels:    snap.harshAccels,
+        sharpTurns:     snap.sharpTurns,
+        speedingMinutes: snap.speedingMinutes,
+        smoothMinutes:  snap.smoothMinutes,
+      }).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripActive, deviceId]);
 
   const handleSharePress = useCallback(async () => {
     if (isSharingTrip) {
@@ -1942,6 +2036,43 @@ export default function DriveScreen() {
             <Text style={[styles.liveTripDetailsLabel, { color: fgMuted }]}>Trip Details</Text>
           </View>
 
+          {/* ── Driving Score row ─────────────────────────────────────── */}
+          {(() => {
+            const sc    = driveScore.score;
+            const clr   = getScoreColor(sc);
+            const lbl   = getScoreLabel(sc);
+            const events = [
+              driveScore.harshBrakes > 0 && `${driveScore.harshBrakes} brake${driveScore.harshBrakes > 1 ? "s" : ""}`,
+              driveScore.harshAccels > 0 && `${driveScore.harshAccels} accel`,
+              driveScore.sharpTurns  > 0 && `${driveScore.sharpTurns} turn${driveScore.sharpTurns > 1 ? "s" : ""}`,
+              driveScore.speedingMinutes > 0 && `${driveScore.speedingMinutes} min speeding`,
+            ].filter(Boolean).join(" · ");
+            return (
+              <View style={styles.liveTripScoreRow}>
+                {/* Coloured score number */}
+                <View style={[styles.liveTripScoreBadge, { backgroundColor: clr + "22" }]}>
+                  <Text style={[styles.liveTripScoreNum, { color: clr }]}>{sc}</Text>
+                </View>
+                {/* Label + event detail */}
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.liveTripScoreTitle, { color: clr }]}>{lbl}</Text>
+                  {events ? (
+                    <Text style={[styles.liveTripScoreDetail, { color: fgMuted }]} numberOfLines={1}>
+                      {events}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.liveTripScoreDetail, { color: fgMuted }]}>
+                      Smooth driving 🟢
+                    </Text>
+                  )}
+                </View>
+                <Text style={[styles.liveTripScoreLbl, { color: fgMuted }]}>Score</Text>
+              </View>
+            );
+          })()}
+
+          <View style={[styles.liveTripDivider, { backgroundColor: divBg }]} />
+
           {/* Stats row: Distance · ETA · Avg Speed */}
           <View style={styles.liveTripStatsRow}>
             <View style={styles.liveTripStat}>
@@ -3005,6 +3136,27 @@ const styles = StyleSheet.create({
   liveTripStatVal:      { fontSize: 17, fontFamily: "Inter_700Bold" },
   liveTripStatLbl:      { fontSize: 11, fontFamily: "Inter_400Regular" },
   liveTripStatDiv:      { width: 1, height: 36, borderRadius: 1 },
+  liveTripScoreRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 10,
+  },
+  liveTripScoreBadge: {
+    width: 52, height: 52, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+  },
+  liveTripScoreNum: {
+    fontSize: 22, fontFamily: "Inter_700Bold",
+  },
+  liveTripScoreTitle: {
+    fontSize: 14, fontFamily: "Inter_700Bold",
+  },
+  liveTripScoreDetail: {
+    fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2,
+  },
+  liveTripScoreLbl: {
+    fontSize: 11, fontFamily: "Inter_400Regular",
+  },
+
   liveTripActionRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
   liveTripReportBtn:    {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",

@@ -1,0 +1,393 @@
+I genuinely think this feature can become one of the reasons people open Msafiri even when they don't need navigation.
+
+The important thing is to avoid making it feel like a game with arbitrary points. Users should understand why they received a score and how to improve it.
+
+I would split it into three layers.
+
+Layer 1 - Trip Recording
+
+Every time the user taps Start Drive, Msafiri creates a Trip.
+
+Example
+
+Trip ID
+
+Start Time
+
+End Time
+
+Distance
+
+Duration
+
+Average Speed
+
+Max Speed
+
+Route
+
+Weather
+
+Driving Score
+
+Alerts Encountered
+
+Incidents Reported
+
+Nothing complicated.
+
+Every trip becomes permanent history.
+
+Layer 2 - Driving Analysis
+
+This is where the magic happens.
+
+Instead of only recording GPS...
+
+Record driving behaviour.
+
+Measure 1
+Speeding
+
+Track
+
+Current Speed
+
+Road Speed Limit
+
+Difference
+
+Example
+
+80 km/h zone
+
+Driver
+
+95 km/h
+
+Overspeed
+
+15 km/h
+
+Penalty applied.
+
+Measure 2
+Harsh Braking
+
+Using the phone accelerometer.
+
+Example
+
+Normal braking
+
+-2.0 m/s²
+
+Hard braking
+
+-5.5 m/s²
+
+Every harsh brake reduces the score slightly.
+
+Measure 3
+Rapid Acceleration
+
+Example
+
+0
+
+↓
+
+60 km/h
+
+in 3 seconds
+
+Aggressive acceleration.
+
+Small penalty.
+
+Measure 4
+Sharp Cornering
+
+Using
+
+Accelerometer
+
+Gyroscope
+
+If the phone detects excessive lateral force...
+
+⚠ Sharp Corner
+
+Penalty.
+
+Measure 5
+Phone Distraction
+
+If the app detects:
+
+Leaving Drive mode repeatedly, prolonged interaction while moving, or frequent screen touches during a trip.
+
+Don't penalize short, necessary interactions (like acknowledging an alert), but do detect extended use.
+
+Penalty.
+
+Measure 6
+Smooth Driving
+
+Reward
+
+No speeding
+
+No harsh braking
+
+No rapid acceleration
+
+No phone interaction
+
+Long smooth trip
+
+Bonus points.
+
+Positive reinforcement matters.
+
+Layer 3 - Final Score
+
+Instead of starting from zero...
+
+Everyone starts at
+
+100
+
+Example
+
+Trip
+
+32 km
+
+Started
+
+100
+
+Speeding
+
+-4
+
+Hard Brake
+
+-2
+
+Rapid Acceleration
+
+-3
+
+Smooth Driving
+
++2
+
+Final
+
+93
+
+Very easy to understand.
+
+Colour Ratings
+95-100
+
+Excellent
+
+🟢
+
+90-94
+
+Great
+
+🟢
+
+80-89
+
+Good
+
+🟡
+
+70-79
+
+Fair
+
+🟠
+
+Below 70
+
+Needs Improvement
+
+🔴
+
+Simple.
+
+Trip Details
+
+Every trip opens like this.
+
+Today's Drive
+
+Westlands
+
+↓
+
+CBD
+
+
+Distance
+
+18.2 km
+
+Duration
+
+34 minutes
+
+Average Speed
+
+41 km/h
+
+Driving Score
+
+96
+
+Excellent
+Driving Timeline
+
+Imagine a timeline.
+
+08:10
+
+Trip Started
+
+↓
+
+08:16
+
+📸 Speed Camera
+
+↓
+
+08:18
+
+⚠ Hard Brake
+
+↓
+
+08:25
+
+🚧 Road Works
+
+↓
+
+08:31
+
+🏁 Trip End
+
+Users love timelines.
+
+Monthly Statistics
+
+Garage should also have
+
+This Month
+
+Distance
+
+640 km
+
+Trips
+
+41
+
+Driving Score
+
+94
+
+Hours Driven
+
+21
+
+Fuel Estimate
+
+KES 8,420
+
+Time Saved
+
+3h 10m
+
+Speed Cameras Passed
+
+46
+
+Police Reports Seen
+
+19
+
+This gives users reasons to come back.
+
+Lifetime Statistics
+
+Very satisfying.
+
+Lifetime
+
+48,923 km
+
+638 Trips
+
+92 Driving Score
+
+143 Dashcam Videos
+
+2 Accident Reports
+
+481 Speed Camera Alerts
+
+192 Community Reports Submitted
+
+People become invested in their own data.
+
+Weekly Summary
+
+Every Monday.
+
+This Week
+
+You drove
+
+218 km
+
+Average Score
+
+94
+
+No speeding
+
+✓
+
+No phone use
+
+✓
+
+Excellent driving.
+Achievement System
+
+Don't overdo it, but a few meaningful milestones can motivate safe driving.
+
+🏅 First Trip
+
+🏅 100 km Driven
+
+🏅 500 km Driven
+
+🏅 First Community Report
+
+🏅 Safe Driver
+
+🏅 Night Driver
+
+🏅 30 Accident-Free Days
+
+🏅 Community Hero

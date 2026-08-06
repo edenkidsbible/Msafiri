@@ -47,6 +47,13 @@ import {
   updatePlannedTrip,
   deletePlannedTrip,
 } from "@/utils/tripsApi";
+import {
+  DriveSession,
+  listDriveSessions,
+  scoreColor,
+  scoreLabel,
+  formatDuration,
+} from "@/utils/driveSessionApi";
 
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
@@ -100,6 +107,11 @@ export default function TripsScreen() {
   const [trips, setTrips] = useState<PlannedTrip[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ── Drive History (Live Trip completed sessions) ───────────────────────────
+  const [driveHistory, setDriveHistory]         = useState<DriveSession[]>([]);
+  const [driveHistoryLoading, setDriveHistLoading] = useState(false);
+  const [driveHistoryLoaded,  setDriveHistLoaded]  = useState(false);
+
   // Saved-place add/edit modal
   const [placeModal, setPlaceModal] = useState(false);
   const [editingPlace, setEditingPlace] = useState<SavedPlace | null>(null);
@@ -135,6 +147,26 @@ export default function TripsScreen() {
   // the OS background-location runtime prompt fires (required by Google Play
   // and Apple App Store policy).
   const [showBgDisclosure, setShowBgDisclosure] = useState(false);
+
+  // ── Drive History fetch ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (tab !== "past" || driveHistoryLoaded || driveHistoryLoading || !deviceId) return;
+    setDriveHistLoading(true);
+    listDriveSessions(deviceId, 30)
+      .then(({ sessions }) => { setDriveHistory(sessions); setDriveHistLoaded(true); })
+      .catch(() => {})
+      .finally(() => setDriveHistLoading(false));
+  }, [tab, deviceId, driveHistoryLoaded, driveHistoryLoading]);
+
+  // Refresh on re-enter so new sessions appear
+  useEffect(() => {
+    if (tab === "past" && driveHistoryLoaded && deviceId) {
+      listDriveSessions(deviceId, 30)
+        .then(({ sessions }) => setDriveHistory(sessions))
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   /** Actually starts the share session and opens the native share sheet. */
   const doStartSharing = useCallback(async () => {
@@ -687,57 +719,150 @@ export default function TripsScreen() {
           }
         />
       ) : (
-        <FlatList
-          {...FLAT_LIST_PROPS}
-          data={tripHistory}
-          keyExtractor={(t) => t.id}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset + 100 }}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={tripHistory.length > 0}
-          ListHeaderComponent={
-            <>
-              {tripHistory.length > 0 && (
-                <View style={styles.summaryRow}>
-                  <View style={[styles.summaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                    <Text style={[styles.summaryVal, { color: c.primary }]}>{totalTrips}</Text>
-                    <Text style={[styles.summaryLbl, { color: c.mutedForeground }]}>Trips</Text>
+        /* ── Drive History (Live Trip sessions with driving score) ── */
+        (() => {
+          // Summary stats across all completed sessions
+          const totalDriveTrips = driveHistory.length;
+          const totalDriveKm    = driveHistory.reduce((s, t) => s + (t.distanceM ?? 0), 0) / 1000;
+          const avgScore        = totalDriveTrips
+            ? Math.round(driveHistory.reduce((s, t) => s + (t.score ?? 100), 0) / totalDriveTrips)
+            : null;
+
+          function sessionDateStr(iso: string): string {
+            const d   = new Date(iso);
+            const now = new Date();
+            const isToday = d.toDateString() === now.toDateString();
+            const time    = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
+            if (isToday) return `Today, ${time}`;
+            return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}, ${time}`;
+          }
+
+          return (
+            <FlatList
+              {...FLAT_LIST_PROPS}
+              data={driveHistory}
+              keyExtractor={(s) => s.id}
+              contentContainerStyle={{ paddingTop: 8, paddingBottom: bottomInset + 100 }}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                <>
+                  {/* Summary cards */}
+                  {totalDriveTrips > 0 && (
+                    <View style={styles.summaryRow}>
+                      <View style={[styles.summaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                        <Text style={[styles.summaryVal, { color: c.primary }]}>{totalDriveTrips}</Text>
+                        <Text style={[styles.summaryLbl, { color: c.mutedForeground }]}>Trips</Text>
+                      </View>
+                      <View style={[styles.summaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                        <Text style={[styles.summaryVal, { color: c.primary }]}>{totalDriveKm.toFixed(0)} km</Text>
+                        <Text style={[styles.summaryLbl, { color: c.mutedForeground }]}>Total</Text>
+                      </View>
+                      {avgScore != null && (
+                        <View style={[styles.summaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                          <Text style={[styles.summaryVal, { color: scoreColor(avgScore) }]}>{avgScore}</Text>
+                          <Text style={[styles.summaryLbl, { color: c.mutedForeground }]}>Avg Score</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </>
+              }
+              renderItem={({ item: s }) => {
+                const sc    = s.score ?? 100;
+                const color = scoreColor(sc);
+                const label = scoreLabel(sc);
+                const distKm = s.distanceM >= 1000
+                  ? `${(s.distanceM / 1000).toFixed(1)} km`
+                  : `${s.distanceM} m`;
+                return (
+                  <View style={[styles.driveSessionCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                    {/* Header row: date + score badge */}
+                    <View style={styles.driveSessionHeader}>
+                      <Text style={[styles.driveSessionDate, { color: c.foreground }]}>
+                        {sessionDateStr(s.startedAt)}
+                      </Text>
+                      <View style={[styles.driveScoreBadge, { backgroundColor: color + "20" }]}>
+                        <Text style={[styles.driveScoreNum, { color }]}>{sc}</Text>
+                        <Text style={[styles.driveScoreLabel, { color }]}>{label}</Text>
+                      </View>
+                    </View>
+
+                    {/* Stats row */}
+                    <View style={styles.driveSessionStats}>
+                      <View style={styles.driveSessionStat}>
+                        <Ionicons name="navigate-outline" size={13} color={c.mutedForeground} />
+                        <Text style={[styles.driveSessionStatTxt, { color: c.foreground }]}>{distKm}</Text>
+                      </View>
+                      {s.durationS != null && (
+                        <View style={styles.driveSessionStat}>
+                          <Ionicons name="time-outline" size={13} color={c.mutedForeground} />
+                          <Text style={[styles.driveSessionStatTxt, { color: c.foreground }]}>
+                            {formatDuration(s.durationS)}
+                          </Text>
+                        </View>
+                      )}
+                      {s.avgSpeedKmh != null && (
+                        <View style={styles.driveSessionStat}>
+                          <Ionicons name="speedometer-outline" size={13} color={c.mutedForeground} />
+                          <Text style={[styles.driveSessionStatTxt, { color: c.foreground }]}>
+                            {Math.round(s.avgSpeedKmh)} km/h avg
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Event chips — only show when there were incidents */}
+                    {(s.harshBrakes > 0 || s.harshAccels > 0 || s.sharpTurns > 0 || s.speedingMinutes > 0) && (
+                      <View style={styles.driveEventChips}>
+                        {s.harshBrakes > 0 && (
+                          <View style={[styles.driveEventChip, { backgroundColor: "#EF535020" }]}>
+                            <Text style={[styles.driveEventChipTxt, { color: "#EF5350" }]}>
+                              {s.harshBrakes} brake{s.harshBrakes > 1 ? "s" : ""}
+                            </Text>
+                          </View>
+                        )}
+                        {s.harshAccels > 0 && (
+                          <View style={[styles.driveEventChip, { backgroundColor: "#FB8C0020" }]}>
+                            <Text style={[styles.driveEventChipTxt, { color: "#FB8C00" }]}>
+                              {s.harshAccels} rapid accel
+                            </Text>
+                          </View>
+                        )}
+                        {s.sharpTurns > 0 && (
+                          <View style={[styles.driveEventChip, { backgroundColor: "#FBC02D20" }]}>
+                            <Text style={[styles.driveEventChipTxt, { color: "#FBC02D" }]}>
+                              {s.sharpTurns} sharp turn{s.sharpTurns > 1 ? "s" : ""}
+                            </Text>
+                          </View>
+                        )}
+                        {s.speedingMinutes > 0 && (
+                          <View style={[styles.driveEventChip, { backgroundColor: "#EF535020" }]}>
+                            <Text style={[styles.driveEventChipTxt, { color: "#EF5350" }]}>
+                              {s.speedingMinutes} min speeding
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                   </View>
-                  <View style={[styles.summaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                    <Text style={[styles.summaryVal, { color: c.primary }]}>{distStr(totalDist)}</Text>
-                    <Text style={[styles.summaryLbl, { color: c.mutedForeground }]}>Total</Text>
-                  </View>
-                  <View style={[styles.summaryCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                    <Text style={[styles.summaryVal, { color: totalAlerts > 0 ? c.speedDanger : c.primary }]}>
-                      {totalAlerts}
+                );
+              }}
+              ListEmptyComponent={
+                driveHistoryLoading ? (
+                  <ActivityIndicator style={{ marginTop: 48 }} color={c.primary} />
+                ) : (
+                  <View style={styles.empty}>
+                    <Ionicons name="car-outline" size={52} color={c.mutedForeground} />
+                    <Text style={[styles.emptyTitle, { color: c.foreground }]}>No drives yet</Text>
+                    <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
+                      Tap Start Drive on the Drive tab and your scored trips will appear here.
                     </Text>
-                    <Text style={[styles.summaryLbl, { color: c.mutedForeground }]}>Alerts</Text>
                   </View>
-                  <TouchableOpacity onPress={onClearHistory} style={styles.clearBtn}>
-                    <Ionicons name="trash-outline" size={18} color={c.mutedForeground} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              {currentTrip && (
-                <View style={[styles.activeTrip, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
-                  <View style={[styles.activeDot, { backgroundColor: c.speedSafe }]} />
-                  <Text style={[styles.activeTripText, { color: c.primary }]}>
-                    Trip in progress — {distStr(currentTrip.distance ?? 0)} · {Math.round(currentTrip.avgSpeed ?? 0)} km/h avg
-                  </Text>
-                </View>
-              )}
-            </>
-          }
-          renderItem={({ item }) => <TripCard trip={item} />}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="car-outline" size={52} color={c.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: c.foreground }]}>No trips yet</Text>
-              <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
-                Start driving and your trips will appear here automatically.
-              </Text>
-            </View>
-          }
-        />
+                )
+              }
+            />
+          );
+        })()
       )}
 
       {/* ── Add/Edit Saved Place modal ── */}
@@ -1295,4 +1420,34 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8,
   },
   privacyText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
+
+  // ── Drive History cards ────────────────────────────────────────────────────
+  driveSessionCard: {
+    borderWidth: 1, borderRadius: 16, marginHorizontal: 16, marginBottom: 10,
+    padding: 14, gap: 8,
+  },
+  driveSessionHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+  },
+  driveSessionDate: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  driveScoreBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  driveScoreNum:   { fontSize: 16, fontFamily: "Inter_700Bold" },
+  driveScoreLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  driveSessionStats: {
+    flexDirection: "row", gap: 14, flexWrap: "wrap",
+  },
+  driveSessionStat: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+  },
+  driveSessionStatTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  driveEventChips: {
+    flexDirection: "row", flexWrap: "wrap", gap: 6,
+  },
+  driveEventChip: {
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  driveEventChipTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });

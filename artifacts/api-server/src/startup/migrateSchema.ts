@@ -154,6 +154,40 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS device_secret_hash TEXT
     `);
 
+    // live_trips — drive-session records created by Live Trip mode.
+    // Stores sensor-derived event counts and the final driving score so the
+    // driver can review their history in the Trips → Drive History tab.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS live_trips (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        device_id           TEXT NOT NULL,
+        started_at          TIMESTAMP NOT NULL,
+        ended_at            TIMESTAMP,
+        start_lat           DOUBLE PRECISION,
+        start_lng           DOUBLE PRECISION,
+        end_lat             DOUBLE PRECISION,
+        end_lng             DOUBLE PRECISION,
+        distance_m          INTEGER NOT NULL DEFAULT 0,
+        duration_s          INTEGER,
+        avg_speed_kmh       DOUBLE PRECISION,
+        max_speed_kmh       DOUBLE PRECISION,
+        score               INTEGER,
+        harsh_brakes        INTEGER NOT NULL DEFAULT 0,
+        harsh_accels        INTEGER NOT NULL DEFAULT 0,
+        sharp_turns         INTEGER NOT NULL DEFAULT 0,
+        speeding_minutes    INTEGER NOT NULL DEFAULT 0,
+        smooth_minutes      INTEGER NOT NULL DEFAULT 0,
+        speed_camera_alerts INTEGER NOT NULL DEFAULT 0,
+        police_alerts       INTEGER NOT NULL DEFAULT 0,
+        hazards_encountered INTEGER NOT NULL DEFAULT 0,
+        created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS live_trips_device_id_idx
+        ON live_trips (device_id, started_at DESC)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
