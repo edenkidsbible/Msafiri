@@ -84,7 +84,7 @@ const STORAGE_CAP_OPTIONS = [
 
 export default function DashcamOverlay() {
   const {
-    isRecording, isDashcamOpen, backgroundRecordPending,
+    isRecording, isDashcamOpen, backgroundRecordPending, recordingEpoch,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked,
     closeDashcam, clearBackgroundRecordPending, setCameraRef, onSegmentComplete,
@@ -187,6 +187,11 @@ export default function DashcamOverlay() {
   }, [settingsPanelY, backdropOpacity]);
 
   // ── Recording loop ────────────────────────────────────────────────────────
+  // Depends on `recordingEpoch` in addition to `isRecording` so that the loop
+  // restarts when the app returns to foreground after an iOS background
+  // interruption (in which case isRecording stays true but the CameraView's
+  // recordAsync was already interrupted — DashcamContext bumps recordingEpoch
+  // to trigger a fresh loop iteration without toggling isRecording).
   useEffect(() => {
     if (!isRecording || Platform.OS === "web") return;
     loopCancelRef.current = false;
@@ -215,7 +220,7 @@ export default function DashcamOverlay() {
       localCameraRef.current?.stopRecording();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording]);
+  }, [isRecording, recordingEpoch]);
 
   // ── Screenshot ────────────────────────────────────────────────────────────
   const takeSnapshot = useCallback(async () => {

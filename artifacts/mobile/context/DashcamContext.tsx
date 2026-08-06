@@ -34,7 +34,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
 
@@ -73,6 +73,13 @@ interface DashcamContextValue {
   currentSegmentDuration: number;  // seconds elapsed in current 2-min segment
   uploadPending: number;
   settings: DashcamSettings;
+  /**
+   * Incremented each time we need the recording loop in DashcamOverlay to
+   * restart — specifically when returning to foreground after an iOS background
+   * interruption. The loop effect depends on this so it fires again without
+   * isRecording having toggled.
+   */
+  recordingEpoch: number;
   /**
    * The push-notification device ID loaded from AsyncStorage key
    * "@msafiri/deviceId" — the same key used by usePushNotifications.ts and
@@ -165,6 +172,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const [segments, setSegments]             = useState<DashcamSegment[]>([]);
   const [settings, setSettings]             = useState<DashcamSettings>(DEFAULT_SETTINGS);
   const [currentSegmentDuration, setCurrentSegmentDuration] = useState(0);
+  /** Bumped each time we need the recording loop in DashcamOverlay to restart
+   *  after an iOS background interruption. */
+  const [recordingEpoch, setRecordingEpoch] = useState(0);
   /**
    * `hydrated` becomes true only AFTER AsyncStorage is loaded AND the upload
    * queue is rebuilt. Enrollment/upload effects gate on this flag.
@@ -185,6 +195,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const secretRef              = useRef<string>("");
   const hydratedRef            = useRef(false);  // for use inside closure callbacks
   const pushDeviceIdRef        = useRef<string | null>(null);
+  /** True when the app went to background while recording was active.
+   *  Used to auto-restart the recording loop when the app returns to foreground. */
+  const backgroundedWhileRecordingRef = useRef(false);
   // Stable ref to processUploadQueue so setTimeout callbacks always call the
   // latest version without adding it to dependency arrays (which would create
   // circular deps since processUploadQueue's setTimeout calls itself).
@@ -295,6 +308,54 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }, 1000);
     return () => clearInterval(id);
   }, [isRecording]);
+
+  // ── iOS background handling ────────────────────────────────────────────────
+  // On iOS, CameraView.recordAsync is interrupted when the app is backgrounded.
+  // Strategy: detect AppState → background while recording, immediately stop the
+  // current segment cleanly (so it's locked + queued for upload), then bump
+  // recordingEpoch when the app returns to foreground so DashcamOverlay's
+  // recording loop restarts without isRecording ever toggling to false.
+  // isRecording remains true throughout — the pill stays "● REC".
+  //
+  // On Android background recording is allowed (FOREGROUND_SERVICE permission
+  // is declared), so we only apply this on iOS.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "background" || nextState === "inactive") {
+        // Only act if the dashcam is actively recording
+        if (!isRecordingRef.current) return;
+        backgroundedWhileRecordingRef.current = true;
+
+        // Lock the current segment: sets lockNextRef then calls stopRecording().
+        // DashcamOverlay's recordAsync resolves, onSegmentComplete fires with
+        // lockReason="background", the clip is saved and queued for upload.
+        lockNextRef.current = "background";
+        cameraRef.current?.stopRecording();
+
+        // Post an immediate local notification so the driver knows a clip was saved.
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Dashcam clip saved",
+            body: "A clip was saved automatically because the app moved to the background. Tap to review.",
+            data: { type: "dashcam_background_save" },
+          },
+          trigger: null,
+        }).catch(() => {});
+      } else if (nextState === "active") {
+        if (!backgroundedWhileRecordingRef.current) return;
+        backgroundedWhileRecordingRef.current = false;
+        // Bump epoch to restart the recording loop in DashcamOverlay.
+        // The CameraView is still mounted (isRecording never went false), so
+        // the new recordAsync call will start a fresh segment immediately.
+        setRecordingEpoch((e) => e + 1);
+      }
+    });
+
+    return () => subscription.remove();
+    // refs only — no state deps needed; the effect must remain stable
+  }, []);
 
   const storageUsedBytes = useMemo(
     () => segments.reduce((sum, s) => sum + s.sizeBytes, 0),
@@ -718,7 +779,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     () => ({
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
-      pushDeviceId,
+      pushDeviceId, recordingEpoch,
       openDashcam, closeDashcam, startDashcam, stopDashcam,
       startBackgroundRecording, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
@@ -727,7 +788,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     [
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
-      pushDeviceId,
+      pushDeviceId, recordingEpoch,
       openDashcam, closeDashcam, startDashcam, stopDashcam,
       startBackgroundRecording, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
