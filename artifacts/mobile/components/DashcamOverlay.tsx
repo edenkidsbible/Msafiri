@@ -19,7 +19,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -47,7 +50,6 @@ if (Platform.OS !== "web") {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** HH:MM:SS for total recording time */
 function fmtDuration(s: number): string {
   const h   = Math.floor(s / 3600).toString().padStart(2, "0");
   const m   = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
@@ -55,22 +57,36 @@ function fmtDuration(s: number): string {
   return `${h}:${m}:${sec}`;
 }
 
+function fmtStorage(bytes: number): string {
+  const gb = bytes / 1_073_741_824;
+  if (gb >= 0.1) return `${gb.toFixed(1)} GB`;
+  return `${Math.round(bytes / 1_048_576)} MB`;
+}
+
 function storageRemaining(used: number, cap: number): string {
   const freeBytes = Math.max(0, cap - used);
   const freeMins  = freeBytes / (4 * 1_048_576);
-  if (freeMins >= 60) return `~${Math.floor(freeMins / 60)}h remaining`;
-  return `~${Math.round(freeMins)}m remaining`;
+  if (freeMins >= 60) return `~${Math.floor(freeMins / 60)}h left`;
+  return `~${Math.round(freeMins)}m left`;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-const KEEP_AWAKE_TAG = "msafiri-dashcam";
+const KEEP_AWAKE_TAG   = "msafiri-dashcam";
+const PANEL_HEIGHT     = 340; // px — settings sheet height
+const STORAGE_CAP_OPTIONS = [
+  { label: "500 MB", bytes: 500 * 1_048_576 },
+  { label: "1 GB",   bytes: 1_073_741_824   },
+  { label: "2 GB",   bytes: 2 * 1_073_741_824 },
+];
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DashcamOverlay() {
   const {
     isRecording, isDashcamOpen,
     settings, storageUsedBytes, segments,
-    startDashcam, stopDashcam, lockCurrentClip, updateSettings,
+    startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked,
     closeDashcam, setCameraRef, onSegmentComplete,
   } = useDashcam();
 
@@ -88,10 +104,15 @@ export default function DashcamOverlay() {
   const flashOpacity = useRef(new Animated.Value(0)).current;
 
   // Alert banner state — triggered when a new locked clip starts saving
-  const [alertVisible, setAlertVisible]       = useState(false);
-  const [alertCountdown, setAlertCountdown]   = useState(30);
-  const [alertTitle, setAlertTitle]           = useState("Impact Detected");
+  const [alertVisible, setAlertVisible]     = useState(false);
+  const [alertCountdown, setAlertCountdown] = useState(30);
+  const [alertTitle, setAlertTitle]         = useState("Impact Detected");
   const prevLockedRef = useRef(0);
+
+  // Settings panel
+  const [settingsOpen, setSettingsOpen]     = useState(false);
+  const settingsPanelY = useRef(new Animated.Value(PANEL_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   const [permission, requestPermission] = useCameraPermissions
     ? useCameraPermissions()
@@ -131,18 +152,16 @@ export default function DashcamOverlay() {
       (s) => s.locked && (s.uploadStatus === "pending" || s.uploadStatus === "uploading")
     ).length;
     if (lockedPending > prevLockedRef.current) {
-      setAlertTitle(
-        segments.find((s) => s.locked && s.lockReason && s.lockReason !== "manual")
-          ? "Impact Detected"
-          : "Clip Locked"
+      const autoLocked = segments.find(
+        (s) => s.locked && s.lockReason && s.lockReason !== "manual"
       );
+      setAlertTitle(autoLocked ? "Impact Detected" : "Clip Locked");
       setAlertVisible(true);
       setAlertCountdown(30);
     }
     prevLockedRef.current = lockedPending;
   }, [segments]);
 
-  // Alert countdown ticker
   useEffect(() => {
     if (!alertVisible) return;
     if (alertCountdown <= 0) { setAlertVisible(false); return; }
@@ -150,10 +169,26 @@ export default function DashcamOverlay() {
     return () => clearTimeout(t);
   }, [alertVisible, alertCountdown]);
 
+  // ── Settings panel open/close ─────────────────────────────────────────────
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.parallel([
+      Animated.spring(settingsPanelY, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 220 }),
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+  }, [settingsPanelY, backdropOpacity]);
+
+  const closeSettings = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(settingsPanelY, { toValue: PANEL_HEIGHT, duration: 220, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setSettingsOpen(false));
+  }, [settingsPanelY, backdropOpacity]);
+
   // ── Recording loop ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isRecording || Platform.OS === "web") return;
-
     loopCancelRef.current = false;
 
     async function loop() {
@@ -161,27 +196,20 @@ export default function DashcamOverlay() {
         try {
           if (!localCameraRef.current) break;
           segmentStartRef.current = Date.now();
-
           const result = await localCameraRef.current.recordAsync({
             maxDuration: 120,
             muted: !settings.audioEnabled,
           });
-
           if (result?.uri) {
-            const durationS = Math.round(
-              (Date.now() - segmentStartRef.current) / 1000
-            );
+            const durationS = Math.round((Date.now() - segmentStartRef.current) / 1000);
             await onSegmentComplete(result.uri, durationS);
           }
-        } catch {
-          break;
-        }
+        } catch { break; }
         if (loopCancelRef.current) break;
       }
     }
 
     loop();
-
     return () => {
       loopCancelRef.current = true;
       localCameraRef.current?.stopRecording();
@@ -194,22 +222,22 @@ export default function DashcamOverlay() {
     if (!localCameraRef.current) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Flash effect
       Animated.sequence([
         Animated.timing(flashOpacity, { toValue: 1, duration: 80, useNativeDriver: true }),
         Animated.timing(flashOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]).start();
       await localCameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false });
-    } catch { /* silently fail — camera may not support it in all modes */ }
+    } catch { /* silently fail */ }
   }, [flashOpacity]);
 
   // ── Don't render on web or when fully idle ────────────────────────────────
   if (Platform.OS === "web") return null;
   if (!isRecording && !isDashcamOpen) return null;
 
-  const showUI = isDashcamOpen;
+  const showUI       = isDashcamOpen;
   const qualityLabel = settings.quality === "1080p" ? "1080P" : "720P";
   const isHD         = settings.quality === "1080p";
+  const storageUsedPct = Math.min(1, storageUsedBytes / settings.storageCap);
 
   return (
     <View
@@ -219,7 +247,7 @@ export default function DashcamOverlay() {
       ]}
       pointerEvents={showUI ? "auto" : "none"}
     >
-      {/* Camera feed — always mounted while recording or open */}
+      {/* Camera feed */}
       {CameraView && (
         <CameraView
           ref={cameraCallbackRef}
@@ -230,21 +258,23 @@ export default function DashcamOverlay() {
         />
       )}
 
-      {/* White flash overlay for screenshots */}
+      {/* Screenshot flash */}
       <Animated.View
-        style={[StyleSheet.absoluteFill, { backgroundColor: "#fff", opacity: flashOpacity, pointerEvents: "none" }]}
+        style={[StyleSheet.absoluteFill, { backgroundColor: "#fff", opacity: flashOpacity }]}
+        pointerEvents="none"
       />
 
       {showUI && (
         <View style={styles.overlay} pointerEvents="box-none">
 
-          {/* ── Top gradient + status bar ──────────────────────────────── */}
+          {/* ── Top gradient + status bar ──────────────────────────── */}
           <LinearGradient
-            colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0.0)"]}
+            colors={["rgba(0,0,0,0.78)", "rgba(0,0,0,0.0)"]}
             style={[styles.topGradient, { paddingTop: insets.top + 10 }]}
+            pointerEvents="box-none"
           >
             <View style={styles.topBar}>
-              {/* Left: REC indicator or Ready */}
+              {/* Left: REC / READY — tap collapses the UI */}
               <TouchableOpacity
                 style={styles.recRow}
                 onPress={() => { closeDashcam(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -260,7 +290,7 @@ export default function DashcamOverlay() {
                 )}
               </TouchableOpacity>
 
-              {/* Center: HH:MM:SS timer */}
+              {/* Center: HH:MM:SS */}
               <Text style={styles.timerText}>
                 {isRecording ? fmtDuration(totalDuration) : "00:00:00"}
               </Text>
@@ -276,7 +306,6 @@ export default function DashcamOverlay() {
               </View>
             </View>
 
-            {/* Storage remaining — subtle, just below the top bar */}
             {isRecording && (
               <Text style={styles.storageHint}>
                 {storageRemaining(storageUsedBytes, settings.storageCap)}
@@ -284,9 +313,9 @@ export default function DashcamOverlay() {
             )}
           </LinearGradient>
 
-          {/* ── Screenshot button — floating top-right ─────────────────── */}
+          {/* ── Screenshot button — floating top-right ─────────────── */}
           <TouchableOpacity
-            style={[styles.snapshotBtn, { top: insets.top + 60 }]}
+            style={[styles.snapshotBtn, { top: insets.top + 58 }]}
             onPress={takeSnapshot}
             activeOpacity={0.8}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -294,15 +323,19 @@ export default function DashcamOverlay() {
             <Ionicons name="camera-outline" size={22} color="#fff" />
           </TouchableOpacity>
 
-          {/* ── Spacer (camera view area) ───────────────────────────────── */}
+          {/* Spacer */}
           <View style={{ flex: 1 }} pointerEvents="none" />
 
-          {/* ── Bottom section ──────────────────────────────────────────── */}
+          {/* ── Bottom section ─────────────────────────────────────── */}
           <View style={styles.bottomSection}>
 
             {/* Alert banner */}
             {alertVisible && (
-              <View style={styles.alertCard}>
+              <TouchableOpacity
+                style={styles.alertCard}
+                onPress={() => setAlertVisible(false)}
+                activeOpacity={0.85}
+              >
                 <View style={styles.alertIcon}>
                   <Ionicons name="warning" size={20} color="#FF3B30" />
                 </View>
@@ -311,16 +344,20 @@ export default function DashcamOverlay() {
                   <Text style={styles.alertSub}>Saving video clip…</Text>
                 </View>
                 <Text style={styles.alertCountdown}>{alertCountdown}s</Text>
-              </View>
+              </TouchableOpacity>
             )}
 
             {/* Control bar */}
             <View style={[styles.controlBar, { paddingBottom: insets.bottom + 12 }]}>
 
-              {/* Gallery */}
+              {/* Gallery — closes overlay so clips page is visible; recording continues */}
               <TouchableOpacity
                 style={styles.ctrlItem}
-                onPress={() => { router.push("/dashcam-clips" as any); Haptics.selectionAsync(); }}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  closeDashcam();          // hides overlay; camera keeps recording in bg
+                  router.push("/dashcam-clips" as any);
+                }}
                 activeOpacity={0.7}
               >
                 <View style={styles.ctrlIconWrap}>
@@ -340,9 +377,13 @@ export default function DashcamOverlay() {
                 activeOpacity={0.7}
               >
                 <View style={[styles.ctrlIconWrap, !isRecording && styles.ctrlIconDisabled]}>
-                  <Ionicons name="lock-closed-outline" size={24} color={isRecording ? "#fff" : "#ffffff55"} />
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={24}
+                    color={isRecording ? "#fff" : "#ffffff44"}
+                  />
                 </View>
-                <Text style={[styles.ctrlLabel, !isRecording && { color: "#ffffff55" }]}>Lock Video</Text>
+                <Text style={[styles.ctrlLabel, !isRecording && { color: "#ffffff44" }]}>Lock Video</Text>
               </TouchableOpacity>
 
               {/* Center: Record / Stop */}
@@ -357,7 +398,6 @@ export default function DashcamOverlay() {
                     }}
                     activeOpacity={0.85}
                   >
-                    {/* Record: red ring with red fill */}
                     <View style={styles.recordInner} />
                   </TouchableOpacity>
                 ) : (
@@ -369,7 +409,6 @@ export default function DashcamOverlay() {
                     }}
                     activeOpacity={0.85}
                   >
-                    {/* Stop: white square */}
                     <View style={styles.stopInner} />
                   </TouchableOpacity>
                 )}
@@ -396,17 +435,13 @@ export default function DashcamOverlay() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Settings */}
+              {/* Settings — opens inline panel */}
               <TouchableOpacity
                 style={styles.ctrlItem}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  closeDashcam();
-                  router.push("/(tabs)/settings" as any);
-                }}
+                onPress={openSettings}
                 activeOpacity={0.7}
               >
-                <View style={styles.ctrlIconWrap}>
+                <View style={[styles.ctrlIconWrap, settingsOpen && styles.ctrlIconActive]}>
                   <Ionicons name="settings-outline" size={24} color="#fff" />
                 </View>
                 <Text style={styles.ctrlLabel}>Settings</Text>
@@ -423,6 +458,149 @@ export default function DashcamOverlay() {
             </View>
           )}
 
+          {/* ── Settings panel (slide-up sheet within dashcam) ──────── */}
+          {settingsOpen && (
+            <>
+              {/* Backdrop — tap to dismiss */}
+              <Animated.View
+                style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}
+                pointerEvents="auto"
+              >
+                <Pressable style={{ flex: 1 }} onPress={closeSettings} />
+              </Animated.View>
+
+              {/* Panel */}
+              <Animated.View
+                style={[
+                  styles.settingsPanel,
+                  { paddingBottom: insets.bottom + 16 },
+                  { transform: [{ translateY: settingsPanelY }] },
+                ]}
+              >
+                {/* Handle */}
+                <View style={styles.panelHandle} />
+                <Text style={styles.panelTitle}>Dashcam Settings</Text>
+
+                <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 4 }}>
+
+                  {/* ── Video Quality ─────────────────────────────── */}
+                  <Text style={styles.sectionLabel}>VIDEO QUALITY</Text>
+                  <View style={styles.chipRow}>
+                    {(["720p", "1080p"] as const).map((q) => (
+                      <TouchableOpacity
+                        key={q}
+                        style={[styles.chip, settings.quality === q && styles.chipActive]}
+                        onPress={() => { Haptics.selectionAsync(); updateSettings({ quality: q }); }}
+                      >
+                        <Ionicons
+                          name="videocam-outline"
+                          size={15}
+                          color={settings.quality === q ? "#fff" : "#ffffff88"}
+                        />
+                        <Text style={[styles.chipText, settings.quality === q && styles.chipTextActive]}>
+                          {q === "1080p" ? "1080p FHD" : "720p HD"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* ── Storage Cap ──────────────────────────────── */}
+                  <Text style={[styles.sectionLabel, { marginTop: 18 }]}>STORAGE LIMIT</Text>
+                  <View style={styles.chipRow}>
+                    {STORAGE_CAP_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.bytes}
+                        style={[styles.chip, settings.storageCap === opt.bytes && styles.chipActive]}
+                        onPress={() => { Haptics.selectionAsync(); updateSettings({ storageCap: opt.bytes }); }}
+                      >
+                        <Text style={[styles.chipText, settings.storageCap === opt.bytes && styles.chipTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Storage usage bar */}
+                  <View style={styles.storageBarRow}>
+                    <View style={styles.storageBarBg}>
+                      <View style={[styles.storageBarFill, { width: `${Math.round(storageUsedPct * 100)}%` as any }]} />
+                    </View>
+                    <Text style={styles.storageBarLabel}>
+                      {fmtStorage(storageUsedBytes)} / {fmtStorage(settings.storageCap)}
+                    </Text>
+                  </View>
+
+                  {/* ── Toggles ──────────────────────────────────── */}
+                  <Text style={[styles.sectionLabel, { marginTop: 18 }]}>OPTIONS</Text>
+
+                  <View style={styles.toggleRow}>
+                    <View style={styles.toggleInfo}>
+                      <Ionicons name="mic-outline" size={18} color="#fff" />
+                      <View>
+                        <Text style={styles.toggleLabel}>Microphone</Text>
+                        <Text style={styles.toggleSub}>Record ambient audio</Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={settings.audioEnabled}
+                      onValueChange={(v) => updateSettings({ audioEnabled: v })}
+                      trackColor={{ false: "#333", true: "#FF3B30" }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+
+                  <View style={[styles.toggleRow, { marginTop: 2 }]}>
+                    <View style={styles.toggleInfo}>
+                      <Ionicons name="wifi-outline" size={18} color="#fff" />
+                      <View>
+                        <Text style={styles.toggleLabel}>Wi-Fi upload only</Text>
+                        <Text style={styles.toggleSub}>Locked clips upload on Wi-Fi</Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={settings.wifiOnlyUpload}
+                      onValueChange={(v) => updateSettings({ wifiOnlyUpload: v })}
+                      trackColor={{ false: "#333", true: "#FF3B30" }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+
+                  {/* ── Actions ──────────────────────────────────── */}
+                  <Text style={[styles.sectionLabel, { marginTop: 18 }]}>STORAGE</Text>
+
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        closeSettings();
+                        closeDashcam();
+                        router.push("/dashcam-clips" as any);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="film-outline" size={18} color="#fff" />
+                      <Text style={styles.actionBtnText}>View Clips</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.actionBtnDanger]}
+                      onPress={() => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        clearUnlocked();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+                      <Text style={[styles.actionBtnText, { color: "#FF3B30" }]}>Clear Unlocked</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                </ScrollView>
+              </Animated.View>
+            </>
+          )}
+
         </View>
       )}
     </View>
@@ -434,15 +612,9 @@ export default function DashcamOverlay() {
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, justifyContent: "space-between" },
 
-  // ── Top gradient bar ──────────────────────────────────────────────────────
-  topGradient: { paddingHorizontal: 16, paddingBottom: 24 },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  // REC indicator
+  // Top gradient
+  topGradient: { paddingHorizontal: 16, paddingBottom: 28 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   recRow: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 80 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FF3B30" },
   recText: {
@@ -450,17 +622,13 @@ const styles = StyleSheet.create({
     // @ts-ignore
     fontVariant: ["tabular-nums"],
   },
-  readyText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
-
-  // Timer
+  readyText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
   timerText: {
     color: "#fff", fontSize: 22, fontWeight: "700",
     // @ts-ignore
     fontVariant: ["tabular-nums"],
     letterSpacing: 1,
   },
-
-  // Quality badge
   qualityRow: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 80, justifyContent: "flex-end" },
   qualityText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   fhdBadge: {
@@ -469,48 +637,38 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   fhdText: { color: "#fff", fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-
-  // Storage hint
   storageHint: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 11, fontWeight: "500",
+    color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "500",
     textAlign: "center", marginTop: 6,
-    // @ts-ignore
-    fontVariant: ["tabular-nums"],
   },
 
-  // ── Screenshot button ─────────────────────────────────────────────────────
+  // Screenshot button
   snapshotBtn: {
-    position: "absolute",
-    right: 16,
-    width: 46, height: 46,
-    borderRadius: 14,
+    position: "absolute", right: 16,
+    width: 46, height: 46, borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center", justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.2)",
   },
 
-  // ── Bottom section ────────────────────────────────────────────────────────
+  // Bottom section
   bottomSection: { gap: 0 },
 
   // Alert banner
   alertCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 12, marginBottom: 8,
-    backgroundColor: "rgba(20,20,20,0.88)",
+    backgroundColor: "rgba(18,18,18,0.9)",
     borderRadius: 14, padding: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)",
   },
   alertIcon: {
-    width: 36, height: 36,
-    borderRadius: 10,
+    width: 36, height: 36, borderRadius: 10,
     backgroundColor: "rgba(255,59,48,0.15)",
     alignItems: "center", justifyContent: "center",
   },
   alertTitle: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  alertSub:   { color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: "400", marginTop: 2 },
+  alertSub:   { color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2 },
   alertCountdown: {
     color: "#FF3B30", fontSize: 15, fontWeight: "800",
     // @ts-ignore
@@ -519,39 +677,29 @@ const styles = StyleSheet.create({
 
   // Control bar
   controlBar: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-around",
-    backgroundColor: "rgba(14,14,14,0.92)",
-    paddingTop: 18,
-    paddingHorizontal: 8,
+    flexDirection: "row", alignItems: "flex-start", justifyContent: "space-around",
+    backgroundColor: "rgba(12,12,12,0.93)",
+    paddingTop: 18, paddingHorizontal: 8,
   },
-
-  // Side control items
   ctrlItem: { flex: 1, alignItems: "center", gap: 6 },
   ctrlIconWrap: {
-    width: 46, height: 46,
-    borderRadius: 14,
+    width: 46, height: 46, borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center", justifyContent: "center",
   },
   ctrlIconDisabled: { backgroundColor: "rgba(255,255,255,0.03)" },
-  ctrlIconMuted:    { backgroundColor: "rgba(255,59,48,0.10)" },
+  ctrlIconMuted:    { backgroundColor: "rgba(255,59,48,0.12)" },
+  ctrlIconActive:   { backgroundColor: "rgba(255,255,255,0.18)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
   ctrlLabel: { color: "#fff", fontSize: 11, fontWeight: "500" },
-
-  // Center record/stop
   ctrlCenterWrap: { flex: 1, alignItems: "center", marginTop: -12 },
 
-  // Record button: white ring, red fill
+  // Record / Stop buttons
   recordBtn: {
     width: 72, height: 72, borderRadius: 36,
     borderWidth: 3.5, borderColor: "rgba(255,255,255,0.85)",
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "transparent",
   },
   recordInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#FF3B30" },
-
-  // Stop button: solid red circle, white square
   stopBtn: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: "#FF3B30",
@@ -566,4 +714,67 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.7)", paddingVertical: 10,
   },
   permissionText: { color: "#fff", fontSize: 13, fontWeight: "500" },
+
+  // ── Settings panel ──────────────────────────────────────────────────────────
+  settingsPanel: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "rgba(14,14,14,0.97)",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 12,
+    maxHeight: PANEL_HEIGHT + 80,
+    borderTopWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)",
+  },
+  panelHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignSelf: "center", marginBottom: 14,
+  },
+  panelTitle: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 6 },
+  sectionLabel: {
+    color: "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: "700",
+    letterSpacing: 0.8, marginBottom: 10,
+  },
+
+  // Quality / storage chips
+  chipRow: { flexDirection: "row", gap: 10 },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  chipActive: { backgroundColor: "#FF3B30", borderColor: "#FF3B30" },
+  chipText:   { color: "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: "600" },
+  chipTextActive: { color: "#fff" },
+
+  // Storage bar
+  storageBarRow: { marginTop: 10, gap: 6 },
+  storageBarBg: {
+    height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.12)", overflow: "hidden",
+  },
+  storageBarFill: { height: "100%", backgroundColor: "#FF3B30", borderRadius: 2 },
+  storageBarLabel: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
+
+  // Toggle rows
+  toggleRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)",
+  },
+  toggleInfo: { flexDirection: "row", alignItems: "center", gap: 12 },
+  toggleLabel: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  toggleSub:   { color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 1 },
+
+  // Action buttons
+  actionRow: { flexDirection: "row", gap: 10, marginTop: 12, marginBottom: 8 },
+  actionBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)",
+  },
+  actionBtnDanger: { backgroundColor: "rgba(255,59,48,0.08)", borderColor: "rgba(255,59,48,0.2)" },
+  actionBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
 });
