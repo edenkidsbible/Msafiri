@@ -67,25 +67,7 @@ const WEEKEND_NIGHT_MESSAGES = [
   { title: "🛑 Before you drive tonight", body: "Live alcoblow and roadblock reports just updated. Know what's ahead before you leave." },
 ];
 
-// ─── Re-engagement messages (3 tiers by inactivity duration) ─────────────────
-
-const REENGAGEMENT_3DAY = [
-  { title: "👀 Road conditions change daily", body: "See what's happening on Kenyan roads near you. New reports since your last visit." },
-  { title: "🚗 Miss anything on the roads?", body: "Live hazards, checkpoints, and cameras updated. Check in before your next drive." },
-  { title: "🛣️ Back on the road soon?", body: "Fresh reports are in from drivers near you. Tap to see what's changed." },
-];
-
-const REENGAGEMENT_7DAY = [
-  { title: "🚦 New road alerts near you", body: "Drivers near you have reported new road alerts this week. Stay ahead." },
-  { title: "📡 A week of road reports", body: "A lot has changed on Kenyan roads this week. Come back and see what's near you." },
-  { title: "📍 38 new alerts near you", body: "Community reports have been active this week. See what drivers are flagging near you." },
-];
-
-const REENGAGEMENT_14DAY = [
-  { title: "🛣️ We miss you, driver!", body: "Come back and stay ahead of traffic, speed cameras, and road hazards near you." },
-  { title: "🚗 Roads have changed since you left", body: "New hazards, cameras, and checkpoints reported near your area. Open Msafiri to catch up." },
-  { title: "🌍 Kenyan roads need your eyes", body: "Your reports help thousands of drivers. Come back and keep your community safe." },
-];
+// ─── Weekly engagement nudge (active users only) ─────────────────────────────
 
 const ENGAGEMENT_MESSAGES = [
   { title: "📍 Seen anything on the road?", body: "Report a hazard, camera, or pothole and help fellow drivers. Takes just 10 seconds!" },
@@ -94,39 +76,249 @@ const ENGAGEMENT_MESSAGES = [
   { title: "📡 Help drivers near you", body: "Drivers are relying on live reports right now. See something? Say something." },
 ];
 
+// ─── Feature marketing catalog ────────────────────────────────────────────────
+// 9 features × 4 inactivity tiers. Copy escalates from friendly reminder (T1)
+// through bold/bragging (T2-T3) to full value-proposition pitch (T4).
+// Per-device rotation is handled by pickFeatureForDevice() — different users
+// see different features, and the same user sees a different one each tier.
+
+interface FeatureMsg { title: string; body: string; }
+interface FeatureDef { id: string; t1: FeatureMsg; t2: FeatureMsg; t3: FeatureMsg; t4: FeatureMsg; }
+
+const FEATURE_CATALOG: FeatureDef[] = [
+  {
+    id: "dashcam",
+    t1: {
+      title: "📹 Your built-in dashcam is waiting",
+      body: "Record your drive automatically — no extra device, no extra cost. Tap to activate in Msafiri.",
+    },
+    t2: {
+      title: "📹 Dashcam apps charge Ksh 5,000+. Yours is free.",
+      body: "Msafiri records your drive in the background. Evidence is everything in an accident. You're not using it.",
+    },
+    t3: {
+      title: "📹 Without footage, it's your word against theirs",
+      body: "Every unrecorded drive is a risk. Msafiri's dashcam is already on your phone — you just haven't turned it on.",
+    },
+    t4: {
+      title: "📹 How do you prove what happened without footage?",
+      body: "Thousands of Msafiri drivers record every trip. Insurance claims, police disputes, hit-and-runs — footage wins every time. Still not recording?",
+    },
+  },
+  {
+    id: "speed_cameras",
+    t1: {
+      title: "📸 Speed camera on your route?",
+      body: "Msafiri gets real reports from real drivers. Know before you're caught — not after.",
+    },
+    t2: {
+      title: "📸 Kenyan traffic fines go up every year",
+      body: "Speed cameras, police traps, and checkpoints — all reported live. Other apps guess. Msafiri's community knows.",
+    },
+    t3: {
+      title: "📸 Every Msafiri driver sees cameras you don't",
+      body: "Real-time speed camera alerts from drivers on your exact road, right now. You're driving blind without us.",
+    },
+    t4: {
+      title: "📸 You've paid fines that Msafiri could've prevented",
+      body: "Speed cameras, alcoblow checkpoints, police traps — all reported by real drivers in real time. Still driving without us?",
+    },
+  },
+  {
+    id: "alcoblow",
+    t1: {
+      title: "🍺 Alcoblow checkpoint ahead?",
+      body: "Msafiri drivers report checkpoints in real time. Know what's on your route before you encounter it.",
+    },
+    t2: {
+      title: "🍺 Checkpoint reports near you — updated by the minute",
+      body: "Community-reported alcoblow checkpoints, roadblocks, and police traps. Not on any other Kenyan app like this.",
+    },
+    t3: {
+      title: "🍺 Every other Kenyan app is guessing",
+      body: "Msafiri's alcoblow alerts come from actual drivers on your road. Live. Not yesterday's data. Not a guess.",
+    },
+    t4: {
+      title: "🍺 You've been driving without a checkpoint warning system",
+      body: "Police checkpoints, alcoblow traps, surprise roadblocks — Msafiri drivers see them first. Come back and drive with eyes open.",
+    },
+  },
+  {
+    id: "trip_sharing",
+    t1: {
+      title: "🛡️ Share your trip with someone you trust",
+      body: "One tap lets family or friends follow your journey live — until you arrive safely.",
+    },
+    t2: {
+      title: "🛡️ Someone worries every time you drive alone",
+      body: "Msafiri trip sharing lets loved ones track your drive in real time. No other Kenyan driving app does this.",
+    },
+    t3: {
+      title: "🛡️ Most accidents happen on familiar roads",
+      body: "Send a live trip share before you drive. If something happens, someone will know exactly where you are.",
+    },
+    t4: {
+      title: "🛡️ Nobody knew where you were on your last drive",
+      body: "Msafiri trip sharing is the closest thing to a safety net on Kenyan roads. It takes 10 seconds. Still not using it?",
+    },
+  },
+  {
+    id: "crash_assistant",
+    t1: {
+      title: "🚨 Accident? Msafiri guides you step by step",
+      body: "From photos to police reports — the Crash Assistant walks you through everything at the scene.",
+    },
+    t2: {
+      title: "🚨 Most accident claims fail due to missing evidence",
+      body: "Msafiri's Crash Assistant documents everything at the scene — photos, location, statements, insurance details. All in one app.",
+    },
+    t3: {
+      title: "🚨 Other apps show you the map. We help you survive the aftermath.",
+      body: "Crash Assistant, dashcam footage, and accident documentation — all in one Kenyan app. Nothing else comes close.",
+    },
+    t4: {
+      title: "🚨 If you were in an accident today, would you know what to do?",
+      body: "Step-by-step guidance, auto-documentation, dashcam clips, insurance submission — Msafiri has you covered end to end.",
+    },
+  },
+  {
+    id: "audio_course",
+    t1: {
+      title: "🎧 Kenyan roads have rules you might not know",
+      body: "The Msafiri audio course covers what every driver on these roads should understand. Listen while you drive.",
+    },
+    t2: {
+      title: "🎧 Most Kenyan drivers have never read the Highway Code",
+      body: "We turned it into a 10-minute audio course you can finish on your commute. Already inside the app — free.",
+    },
+    t3: {
+      title: "🎧 The safety course other driving apps don't have",
+      body: "An audio course built specifically for Kenyan roads — speed zones, rules, hazards. Exclusive to Msafiri.",
+    },
+    t4: {
+      title: "🎧 You drive every day. But do you know all the rules?",
+      body: "The Msafiri audio course is already waiting for you. 10 minutes. Could save you a fine — or much worse.",
+    },
+  },
+  {
+    id: "car_service",
+    t1: {
+      title: "🔧 Need a mechanic or fuel station near you?",
+      body: "Find trusted garages, fuel stations, and car wash spots near you — already inside Msafiri under 'Nearby'.",
+    },
+    t2: {
+      title: "🔧 Still calling around for a mechanic?",
+      body: "Msafiri shows trusted garages and service centres near your location. No other Kenyan driving app does this in one place.",
+    },
+    t3: {
+      title: "🔧 5 apps for 5 needs. Or just Msafiri.",
+      body: "Navigation, hazards, speed cameras, service centres, dashcam — one app. You already have it. Use it.",
+    },
+    t4: {
+      title: "🔧 You've been managing too many apps for your car",
+      body: "Msafiri handles everything — from live alerts on the road to finding a mechanic after. Come back and simplify.",
+    },
+  },
+  {
+    id: "community_hazards",
+    t1: {
+      title: "⚠️ New hazards reported near you",
+      body: "Drivers near you are flagging fresh incidents right now. Live road intel from real people on your roads.",
+    },
+    t2: {
+      title: "⚠️ Your community is reporting hazards you're missing",
+      body: "Potholes, accidents, debris, road works — all live on Msafiri. No other app has this from actual Kenyan drivers.",
+    },
+    t3: {
+      title: "⚠️ Kenyan roads change by the hour. So do our alerts.",
+      body: "Real-time community hazard reports from drivers on your roads. Not from a government database updated monthly.",
+    },
+    t4: {
+      title: "⚠️ You've been driving without live road intelligence",
+      body: "Msafiri has the largest community of Kenyan drivers reporting live hazards. Every drive without it is a drive blind.",
+    },
+  },
+  {
+    id: "one_app",
+    t1: {
+      title: "📱 One app for everything on the road",
+      body: "Hazards, speed cameras, trip sharing, dashcam, crash help — all in Msafiri. Already on your phone.",
+    },
+    t2: {
+      title: "📱 You installed 4 apps for what Msafiri does alone",
+      body: "Navigation + hazards + cameras + dashcam + crash assistant. One app. Free. Kenyan-built.",
+    },
+    t3: {
+      title: "📱 No other Kenyan driving app comes close",
+      body: "We're not being modest — Msafiri has features no competitor offers in a single app. Come see what you've been missing.",
+    },
+    t4: {
+      title: "📱 You're still using 5 apps that Msafiri replaces for free",
+      body: "Speed cameras, alcoblow, dashcam, crash assistant, trip sharing, audio course, nearby services — all in one. Still away?",
+    },
+  },
+];
+
+// Per-device feature rotation: hash deviceId + tier so different users see
+// different features, and the same user sees a different feature as tiers escalate.
+function pickFeatureForDevice(deviceId: string, tier: 1 | 2 | 3 | 4): FeatureDef {
+  let hash = 5381;
+  for (let i = 0; i < deviceId.length; i++) {
+    hash = ((hash << 5) + hash + deviceId.charCodeAt(i)) >>> 0;
+  }
+  // Offset by tier×7 so tier escalation reliably shifts to a different feature.
+  const idx = (hash + tier * 7) % FEATURE_CATALOG.length;
+  return FEATURE_CATALOG[idx]!;
+}
+
+// Minimum gap between re-engagement pings per inactivity tier.
+// Longer inactive → less frequent (we don't want to spam truly dormant users).
+const TIER_COOLDOWN_DAYS: Record<1 | 2 | 3 | 4, number> = {
+  1: 4,   // 3–6 days inactive: friendly check-in every 4 days
+  2: 6,   // 7–13 days: bolder pitch every 6 days
+  3: 8,   // 14–29 days: controversial nudge every 8 days
+  4: 14,  // 30+ days: full value-prop every 2 weeks — don't overdo it
+};
+
+function getInactivityTier(inactiveDays: number): 1 | 2 | 3 | 4 {
+  if (inactiveDays >= 30) return 4;
+  if (inactiveDays >= 14) return 3;
+  if (inactiveDays >= 7)  return 2;
+  return 1;
+}
+
 // ─── Re-engagement job ────────────────────────────────────────────────────────
 
 async function checkReengagement(): Promise<void> {
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-  const fourDaysAgo  = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
 
-  // Devices inactive for 3+ days that haven't had a re-engagement push in the
-  // last 4 days (prevents a fresh-returned user from being re-engaged again
-  // within the same dormancy window; the 4-day gap also spaces out the
-  // 3d → 7d → 14d tiers naturally as inactivity accumulates).
-  const eligible = await db
+  // Fetch all devices inactive for 3+ days — cooldown filtering is per-tier in JS.
+  const inactive = await db
     .select()
     .from(pushTokensTable)
-    .where(
-      and(
-        lte(pushTokensTable.lastSeenAt, threeDaysAgo),
-        or(
-          isNull(pushTokensTable.lastReengagedAt),
-          lte(pushTokensTable.lastReengagedAt, fourDaysAgo)
-        )
-      )
-    );
+    .where(lte(pushTokensTable.lastSeenAt, threeDaysAgo));
 
-  if (eligible.length === 0) return;
+  if (inactive.length === 0) return;
 
-  const picks = eligible.map((row) => {
+  // Apply per-device, per-tier cooldown and build send list.
+  const picks: Array<{ row: typeof inactive[number]; msg: FeatureMsg }> = [];
+
+  for (const row of inactive) {
     const inactiveDays = Math.floor((now.getTime() - row.lastSeenAt.getTime()) / 86400000);
-    const pool = inactiveDays >= 14 ? REENGAGEMENT_14DAY
-               : inactiveDays >= 7  ? REENGAGEMENT_7DAY
-               :                      REENGAGEMENT_3DAY;
-    return { row, msg: pool[getDayOfYear() % pool.length]! };
-  });
+    const tier = getInactivityTier(inactiveDays);
+    const cooldownMs = TIER_COOLDOWN_DAYS[tier] * 24 * 60 * 60 * 1000;
+    const cooldownCutoff = new Date(now.getTime() - cooldownMs);
+
+    // Skip if already re-engaged recently enough for this tier's cooldown.
+    if (row.lastReengagedAt && row.lastReengagedAt > cooldownCutoff) continue;
+
+    const feature = pickFeatureForDevice(row.deviceId, tier);
+    const msg = feature[`t${tier}` as "t1" | "t2" | "t3" | "t4"];
+    picks.push({ row, msg });
+  }
+
+  if (picks.length === 0) return;
 
   const { ok, failed } = await sendPushNotifications(
     picks.map(({ row, msg }) => ({
@@ -134,18 +326,21 @@ async function checkReengagement(): Promise<void> {
       title: msg.title,
       body: msg.body,
       sound: "default" as const,
-      channelId: "msafiri_general",
+      channelId: "msafiri_alerts",   // use the high-importance channel
       data: { type: "re_engagement" },
     }))
   );
 
-  // Update lastReengagedAt for every targeted device so the cooldown resets
+  // Reset the cooldown clock for every notified device.
   await db
     .update(pushTokensTable)
     .set({ lastReengagedAt: now })
-    .where(inArray(pushTokensTable.deviceId, eligible.map((r) => r.deviceId)));
+    .where(inArray(pushTokensTable.deviceId, picks.map((p) => p.row.deviceId)));
 
-  logger.info({ count: eligible.length, ok, failed }, "Re-engagement notifications sent");
+  logger.info(
+    { total: inactive.length, sent: picks.length, ok, failed },
+    "Re-engagement feature-marketing notifications sent"
+  );
 }
 
 function getDayOfYear(): number {
@@ -233,6 +428,43 @@ async function sendAutoCampaign(type: string, title: string, body: string): Prom
   logger.info({ type, ok, failed }, "Auto push campaign sent");
 }
 
+// Active-only variant — only delivers to devices seen in the last 3 days.
+// Used for daily operational notifications (morning/midday/evening/etc.) so
+// inactive users don't receive road-condition alerts they can't act on; the
+// re-engagement system handles them separately with feature-marketing copy.
+const ACTIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+async function sendActiveCampaign(type: string, title: string, body: string): Promise<void> {
+  if (await alreadySentToday(type)) return;
+
+  const cutoff = new Date(Date.now() - ACTIVE_WINDOW_MS);
+  const tokens = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable)
+    .where(gte(pushTokensTable.lastSeenAt, cutoff));
+
+  if (tokens.length === 0) {
+    logger.info({ type }, "No active push tokens — skipping daily campaign");
+    return;
+  }
+
+  const [campaign] = await db
+    .insert(pushCampaignsTable)
+    .values({ title, body, type, status: "sending", createdBy: "system" })
+    .returning();
+
+  const { ok, failed } = await sendPushNotifications(
+    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, channelId: "msafiri_general", data: { type } }))
+  );
+
+  await db
+    .update(pushCampaignsTable)
+    .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed, targetCount: tokens.length })
+    .where(eq(pushCampaignsTable.id, campaign.id));
+
+  logger.info({ type, activeTokens: tokens.length, ok, failed }, "Active-only daily campaign sent");
+}
+
 // ─── Scheduled campaign processor ────────────────────────────────────────────
 
 async function processScheduledCampaigns(): Promise<void> {
@@ -314,36 +546,34 @@ async function checkDailyTriggers(): Promise<void> {
   const min = eat.getUTCMinutes();
   const weekend = isWeekendDay(eatDay);
 
-  // 6:00–6:05 AM EAT → morning reminder (1 of 3 daily sends)
+  // 6:00–6:05 AM EAT → morning reminder (active users only)
   if (eatHour === 6 && min < 5) {
     const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
-    await sendAutoCampaign("daily_morning", msg.title, msg.body);
+    await sendActiveCampaign("daily_morning", msg.title, msg.body);
   }
 
-  // 1:00–1:05 PM EAT → midday reminder (2 of 3 daily sends — new)
+  // 1:00–1:05 PM EAT → midday reminder (active users only)
   if (eatHour === 13 && min < 5) {
     const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
-    await sendAutoCampaign("daily_midday", msg.title, msg.body);
+    await sendActiveCampaign("daily_midday", msg.title, msg.body);
   }
 
-  // 4:30–4:35 PM EAT → evening reminder (3 of 3 daily sends)
+  // 4:30–4:35 PM EAT → evening reminder (active users only)
   if (eatHour === 16 && min >= 30 && min < 35) {
     const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
-    await sendAutoCampaign("daily_evening", msg.title, msg.body);
+    await sendActiveCampaign("daily_evening", msg.title, msg.body);
   }
 
-  // 9:00–9:05 PM EAT, Friday & Saturday only → weekend night safety
-  // (alcoblow checkpoints, hazards, debris — a 4th send on the two nights
-  // it matters most).
+  // 9:00–9:05 PM EAT, Friday & Saturday only → weekend night safety (active users only)
   if (isNightSafetyDay(eatDay) && eatHour === 21 && min < 5) {
     const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
-    await sendAutoCampaign("weekend_night_safety", msg.title, msg.body);
+    await sendActiveCampaign("weekend_night_safety", msg.title, msg.body);
   }
 
-  // Wednesday 12:00–12:05 PM EAT → weekly engagement nudge
+  // Wednesday 12:00–12:05 PM EAT → weekly engagement nudge (active users only)
   if (eatDay === 3 && eatHour === 12 && min < 5) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
-    await sendAutoCampaign("engagement", msg.title, msg.body);
+    await sendActiveCampaign("engagement", msg.title, msg.body);
   }
 
   // 10:00–10:05 AM EAT daily → re-engagement for devices inactive 3+ days
@@ -385,31 +615,31 @@ async function catchUpMissedTriggers(): Promise<void> {
   // Morning window closed at 06:05 EAT
   if (freshEnough(6 * 60 + 5)) {
     const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
-    await sendAutoCampaign("daily_morning", msg.title, msg.body);
+    await sendActiveCampaign("daily_morning", msg.title, msg.body);
   }
 
   // Midday window closed at 13:05 EAT
   if (freshEnough(13 * 60 + 5)) {
     const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
-    await sendAutoCampaign("daily_midday", msg.title, msg.body);
+    await sendActiveCampaign("daily_midday", msg.title, msg.body);
   }
 
   // Evening window closed at 16:35 EAT
   if (freshEnough(16 * 60 + 35)) {
     const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
-    await sendAutoCampaign("daily_evening", msg.title, msg.body);
+    await sendActiveCampaign("daily_evening", msg.title, msg.body);
   }
 
   // Weekend night safety window closed at 21:05 EAT (Fri & Sat only)
   if (isNightSafetyDay(eatDay) && freshEnough(21 * 60 + 5)) {
     const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
-    await sendAutoCampaign("weekend_night_safety", msg.title, msg.body);
+    await sendActiveCampaign("weekend_night_safety", msg.title, msg.body);
   }
 
   // Wednesday engagement window closed at 12:05 EAT
   if (eatDay === 3 && freshEnough(12 * 60 + 5)) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
-    await sendAutoCampaign("engagement", msg.title, msg.body);
+    await sendActiveCampaign("engagement", msg.title, msg.body);
   }
 
   // Re-engagement window closed at 10:05 EAT
