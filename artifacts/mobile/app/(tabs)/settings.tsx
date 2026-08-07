@@ -345,7 +345,7 @@ export default function SettingsScreen() {
             {/* Clips gallery */}
             <TouchableOpacity
               style={[styles.row, { borderBottomColor: c.border }]}
-              onPress={() => router.push("/dashcam-clips" as any)}
+              onPress={() => router.push("/dashcam-videos" as any)}
               activeOpacity={0.7}
             >
               <Ionicons name="film-outline" size={20} color={c.primary} />
@@ -610,7 +610,7 @@ export default function SettingsScreen() {
         {/* Crash Vault — access past accident records */}
         <TouchableOpacity
           style={[styles.card, { backgroundColor: c.card, borderColor: c.border, flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10 }]}
-          onPress={() => router.push("/crash-vault")}
+          onPress={() => router.push("/accident-reports" as any)}
           activeOpacity={0.75}
         >
           <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#FF3B3018", alignItems: "center", justifyContent: "center" }}>

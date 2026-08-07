@@ -32,8 +32,10 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { Image } from "expo-image";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -354,10 +356,37 @@ export default function AccidentReportsScreen() {
   // ── Bottom quick-action bar ───────────────────────────────────────────────
   function BottomBar() {
     const btns = [
-      { icon: "download-outline" as const, label: "Download\nGuide", onPress: () => Linking.openURL("https://msafirikenya.com/accident-guide") },
-      { icon: "share-social-outline" as const, label: "Share\nGuide", onPress: async () => Share.share({ title: "Msafiri Accident Guide", url: "https://msafirikenya.com/accident-guide" }) },
+      {
+        icon: "download-outline" as const,
+        label: "Download\nGuide",
+        onPress: async () => {
+          try {
+            const dest = `${FileSystem.cacheDirectory}msafiri-accident-guide.pdf`;
+            const dl = await FileSystem.downloadAsync(`${API_BASE}/accident-guide`, dest);
+            if (dl.status !== 200) { Alert.alert("Error", "Could not download guide."); return; }
+            const canShare = await Sharing.isAvailableAsync();
+            if (canShare) {
+              await Sharing.shareAsync(dest, { mimeType: "application/pdf", dialogTitle: "Msafiri Accident Guide", UTI: "com.adobe.pdf" });
+            } else {
+              await Linking.openURL(`${API_BASE}/accident-guide`);
+            }
+          } catch { Alert.alert("Error", "Could not download the guide. Check your connection."); }
+        },
+      },
+      {
+        icon: "share-social-outline" as const,
+        label: "Share\nGuide",
+        onPress: async () => {
+          try {
+            const dest = `${FileSystem.cacheDirectory}msafiri-accident-guide.pdf`;
+            const dl = await FileSystem.downloadAsync(`${API_BASE}/accident-guide`, dest);
+            if (dl.status !== 200) { Alert.alert("Error", "Could not load guide."); return; }
+            await Sharing.shareAsync(dest, { mimeType: "application/pdf", dialogTitle: "Share Accident Guide", UTI: "com.adobe.pdf" });
+          } catch { Alert.alert("Error", "Could not share the guide."); }
+        },
+      },
       { icon: "information-circle-outline" as const, label: "Report\nGuide", onPress: () => Alert.alert("Report Guide", "When involved in an accident:\n\n1. Stop safely\n2. Check for injuries\n3. Call 999 if needed\n4. Document the scene\n5. Exchange information\n6. File an OB number\n7. Notify your insurer within 24 hours") },
-      { icon: "call-outline" as const, label: "Emergency\nContacts", onPress: () => Alert.alert("Emergency Contacts", "Police: 999\nAmbulance: 999\nKRA Rescue: 0800 723 777\nNTSA: 0800 723 253") },
+      { icon: "call-outline" as const, label: "Emergency\nContacts", onPress: () => Alert.alert("Emergency Contacts", "Police: 999\nAmbulance: 999\nAA Kenya Rescue: 0722 203 203\nFire Brigade Nairobi: 020 222 2181") },
     ];
     return (
       <View style={s.bottomBar}>

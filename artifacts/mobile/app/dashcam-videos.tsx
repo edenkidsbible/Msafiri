@@ -23,6 +23,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { useVideoPlayer, VideoView } from "expo-video";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -495,7 +496,16 @@ export default function DashcamVideosScreen() {
       const { downloadUrl } = await res.json() as { downloadUrl: string };
       setPlayerConfig({
         uri: downloadUrl, title,
-        onShare: () => RNShare.share({ message: "Msafiri dashcam clip", url: downloadUrl }).catch(() => {}),
+        onShare: async () => {
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            const tmp = `${FileSystem.cacheDirectory}share_player_${clip.id}.mp4`;
+            await FileSystem.downloadAsync(downloadUrl, tmp).catch(() => {});
+            Sharing.shareAsync(tmp, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
+          } else {
+            RNShare.share({ message: "Msafiri dashcam clip", url: downloadUrl }).catch(() => {});
+          }
+        },
       });
     } catch { Alert.alert("Error", "Network error."); }
     finally { setLoadingId(null); }
@@ -539,20 +549,38 @@ export default function DashcamVideosScreen() {
   // ── Share ─────────────────────────────────────────────────────────────────────
   const handleShare = useCallback(async (clip: UnifiedClip) => {
     setMenuClip(null);
+    const canShare = await Sharing.isAvailableAsync();
+
+    // Local clip — share the file directly
     if (clip.source === "local" && clip.uri) {
-      RNShare.share({ message: `Msafiri dashcam clip — ${fmtTime(clip.startedAt)}`, url: Platform.OS === "ios" ? clip.uri : undefined }).catch(() => {});
+      if (canShare) {
+        await Sharing.shareAsync(clip.uri, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
+      } else {
+        RNShare.share({ message: `Msafiri dashcam clip — ${fmtTime(clip.startedAt)}` }).catch(() => {});
+      }
       return;
     }
+
+    // Server clip — get signed URL, download to a temp file, then share
     try {
       const secret = await AsyncStorage.getItem(SECRET_KEY);
-      if (!secret || !pushDeviceId) return;
+      if (!secret || !pushDeviceId) { Alert.alert("Error", "Dashcam not connected."); return; }
       const res = await fetch(`${API_BASE}/dashcam/clip/${clip.id}/url`, {
         headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
       });
       if (!res.ok) { Alert.alert("Error", "Could not get share link."); return; }
       const { downloadUrl } = await res.json() as { downloadUrl: string };
-      RNShare.share({ message: "Msafiri dashcam clip", url: downloadUrl }).catch(() => {});
-    } catch { Alert.alert("Error", "Network error."); }
+
+      if (canShare) {
+        // Download to cache dir then share so the sheet shows the actual file
+        const tmp = `${FileSystem.cacheDirectory}share_${clip.id}.mp4`;
+        await FileSystem.downloadAsync(downloadUrl, tmp);
+        await Sharing.shareAsync(tmp, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
+      } else {
+        // Fallback: share the signed URL as text
+        RNShare.share({ message: "Msafiri dashcam clip", url: downloadUrl }).catch(() => {});
+      }
+    } catch { Alert.alert("Error", "Could not share clip. Check your connection."); }
   }, [pushDeviceId]);
 
   // ── Download to device ────────────────────────────────────────────────────────
@@ -679,7 +707,7 @@ export default function DashcamVideosScreen() {
               </View>
               <TouchableOpacity
                 style={[vs.openBtn, { borderColor: c.primary }]}
-                onPress={() => { openDashcam(); router.back(); }}
+                onPress={() => openDashcam()}
               >
                 <Text style={[vs.openBtnText, { color: c.primary }]}>Open Dashcam</Text>
                 <Ionicons name="open-outline" size={13} color={c.primary} />
@@ -690,7 +718,7 @@ export default function DashcamVideosScreen() {
             <View style={vs.actionsGrid}>
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#22c55e14", borderColor: "#22c55e30" }]}
-                onPress={() => { openDashcam(); router.back(); }}
+                onPress={() => openDashcam()}
               >
                 <Ionicons name="videocam" size={24} color="#22c55e" />
                 <Text style={[vs.actionLabel, { color: c.foreground }]}>Live View</Text>
@@ -714,10 +742,7 @@ export default function DashcamVideosScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#8B5CF614", borderColor: "#8B5CF630" }]}
-                onPress={() => Alert.alert(
-                  "Dashcam Settings",
-                  `Quality: ${settings.quality}\nAudio: ${settings.audioEnabled ? "On" : "Off"}\nWi-Fi upload only: ${settings.wifiOnlyUpload ? "Yes" : "No"}\nStorage used: ${usedMB} MB\n\nOpen the dashcam camera to adjust settings.`
-                )}
+                onPress={() => router.push("/(tabs)/settings" as any)}
               >
                 <Ionicons name="settings-outline" size={24} color="#8B5CF6" />
                 <Text style={[vs.actionLabel, { color: c.foreground }]}>Settings</Text>
