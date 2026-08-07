@@ -707,10 +707,20 @@ export default function DashcamVideosScreen() {
               </View>
               <TouchableOpacity
                 style={[vs.openBtn, { borderColor: c.primary }]}
-                onPress={() => openDashcam()}
+                onPress={() => {
+                  if (isRecording) {
+                    // Already recording — just show the overlay
+                    openDashcam();
+                  } else {
+                    // Must be driving to use dashcam — redirect to Drive tab
+                    router.push("/(tabs)/drive" as any);
+                  }
+                }}
               >
-                <Text style={[vs.openBtnText, { color: c.primary }]}>Open Dashcam</Text>
-                <Ionicons name="open-outline" size={13} color={c.primary} />
+                <Text style={[vs.openBtnText, { color: c.primary }]}>
+                  {isRecording ? "Open Dashcam" : "Start Driving"}
+                </Text>
+                <Ionicons name={isRecording ? "open-outline" : "car-sport-outline"} size={13} color={c.primary} />
               </TouchableOpacity>
             </View>
 
@@ -718,11 +728,21 @@ export default function DashcamVideosScreen() {
             <View style={vs.actionsGrid}>
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#22c55e14", borderColor: "#22c55e30" }]}
-                onPress={() => openDashcam()}
+                onPress={() => {
+                  if (isRecording) {
+                    openDashcam();
+                  } else {
+                    router.push("/(tabs)/drive" as any);
+                  }
+                }}
               >
-                <Ionicons name="videocam" size={24} color="#22c55e" />
-                <Text style={[vs.actionLabel, { color: c.foreground }]}>Live View</Text>
-                <Text style={[vs.actionSub, { color: c.mutedForeground }]}>Real-time feed</Text>
+                <Ionicons name={isRecording ? "videocam" : "car-sport-outline"} size={24} color="#22c55e" />
+                <Text style={[vs.actionLabel, { color: c.foreground }]}>
+                  {isRecording ? "Live View" : "Start Drive"}
+                </Text>
+                <Text style={[vs.actionSub, { color: c.mutedForeground }]}>
+                  {isRecording ? "Real-time feed" : "Required to record"}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#3B82F614", borderColor: "#3B82F630" }]}

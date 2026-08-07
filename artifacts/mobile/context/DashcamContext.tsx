@@ -104,6 +104,12 @@ interface DashcamContextValue {
   closeDashcam: () => void;
   startDashcam: () => void;
   stopDashcam: () => void;
+  /**
+   * Lock the current clip then stop recording. Call this from the drive screen
+   * so the final segment is always saved and uploaded instead of discarded as
+   * an unlocked local-only clip.
+   */
+  stopAndSaveDashcam: () => void;
   /** Start recording silently without showing the dashcam overlay UI.
    *  Requests camera permission if not yet granted — shows the system dialog.
    *  Resolves to false if permission was denied (nothing starts). */
@@ -138,7 +144,7 @@ const MAX_UPLOAD_RETRIES   = UPLOAD_RETRY_BACKOFF.length;
 
 const DEFAULT_SETTINGS: DashcamSettings = {
   quality: "1080p",
-  audioEnabled: true,
+  audioEnabled: false,         // mic off by default — driver can enable anytime
   storageCap: 1_073_741_824,  // 1 GB
   wifiOnlyUpload: true,
 };
@@ -712,6 +718,22 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
+   * Lock the current in-progress segment AND stop recording in one action.
+   * Sets lockNextRef BEFORE calling stopRecording so the recording loop saves
+   * the final segment as a locked/uploadable clip rather than discarding it
+   * as an unlocked local-only segment. Called by the drive screen's dashcam
+   * toggle so every driver-initiated stop produces a saved clip.
+   */
+  const stopAndSaveDashcam = useCallback(() => {
+    if (!isRecordingRef.current) return;
+    lockNextRef.current = "manual"; // mark the final segment for upload
+    isRecordingRef.current = false;
+    setIsRecording(false);
+    setBackgroundRecordPending(false);
+    cameraRef.current?.stopRecording();
+  }, []);
+
+  /**
    * Lock the current in-progress segment. Calls stopRecording() so the current
    * recordAsync resolves; the DashcamOverlay loop processes the result and
    * calls onSegmentComplete with the lockReason from lockNextRef.
@@ -826,7 +848,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId, recordingEpoch,
-      openDashcam, closeDashcam, startDashcam, stopDashcam,
+      openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
       setCameraRef, onSegmentComplete,
@@ -835,7 +857,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId, recordingEpoch,
-      openDashcam, closeDashcam, startDashcam, stopDashcam,
+      openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
       setCameraRef, onSegmentComplete,

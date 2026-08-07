@@ -182,6 +182,7 @@ export default function DriveScreen() {
     backgroundRecordPending: dashcamPending,
     openDashcam,
     stopDashcam,
+    stopAndSaveDashcam,
     lockCurrentClip,
     startBackgroundRecording,
   } = useDashcam();
@@ -279,6 +280,10 @@ export default function DriveScreen() {
   const [audioAlertsOn, setAudioAlertsOn] = useState(true);
   // Guards the one-shot auto-start effect (Start Driving → instant trip).
   const autoStartedRef = useRef(false);
+
+  // 3-second pre-trip countdown (null = no countdown, 3/2/1 = counting down)
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
+  const countdownActiveRef = useRef(false);
 
   // ── Multi-vehicle: picker shown before auto-start ─────────────────────────
   const [driveVehicles,    setDriveVehicles]    = useState<SavedVehicle[]>([]);
@@ -425,28 +430,41 @@ export default function DriveScreen() {
   }, [startSharingTrip]);
 
   const startTrip = useCallback(() => {
+    if (countdownActiveRef.current || tripActive) return; // guard double-start
+    countdownActiveRef.current = true;
+    // Reset stats upfront so they read zero during the countdown
     avgSpeedSumRef.current = 0;
     avgSpeedCountRef.current = 0;
     setAvgSpeedDisplay(0);
     tripSpeedCamRef.current = 0;
     tripPoliceRef.current   = 0;
-    const now = new Date();
-    tripStartTimeRef.current = now;
-    setTripActive(true);
-    setTripStartTime(now);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Create server-side session (fire-and-forget — trip works offline too)
-    if (deviceId) {
-      startDriveSession(deviceId, currentLat, currentLng)
-        .then((id) => {
-          sessionIdRef.current = id;
-          // Record which vehicle drove this session for per-vehicle garage stats
-          const vid = driveVehicleRef.current?.id;
-          if (vid) recordSession(vid, id).catch(() => {});
-        })
-        .catch(() => {}); // gracefully degraded — end call will no-op when null
-    }
-  }, [deviceId, currentLat, currentLng]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Show 3-second countdown, then launch the trip
+    setCountdownValue(3);
+    setTimeout(() => setCountdownValue(2), 1000);
+    setTimeout(() => setCountdownValue(1), 2000);
+    setTimeout(() => {
+      setCountdownValue(null);
+      countdownActiveRef.current = false;
+      const now = new Date();
+      tripStartTimeRef.current = now;
+      setTripActive(true);
+      setTripStartTime(now);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // Create server-side session (fire-and-forget — trip works offline too)
+      if (deviceId) {
+        startDriveSession(deviceId, currentLat, currentLng)
+          .then((id) => {
+            sessionIdRef.current = id;
+            // Record which vehicle drove this session for per-vehicle garage stats
+            const vid = driveVehicleRef.current?.id;
+            if (vid) recordSession(vid, id).catch(() => {});
+          })
+          .catch(() => {}); // gracefully degraded — end call will no-op when null
+      }
+    }, 3000);
+  }, [tripActive, deviceId, currentLat, currentLng]);
 
   // ── Load vehicles once on mount so the picker has data ───────────────────
   useEffect(() => {
@@ -539,8 +557,10 @@ export default function DriveScreen() {
     setNavDestination(null);
     setSearchText("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Stop dashcam and save the current clip when driving ends
+    if (dashcamRecording) stopAndSaveDashcam();
     // Finalisation is handled by the prevTripActiveRef effect below.
-  }, [setNavDestination]);
+  }, [setNavDestination, dashcamRecording, stopAndSaveDashcam]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───
   useEffect(() => {
@@ -1831,8 +1851,8 @@ export default function DriveScreen() {
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   if (dashcamRecording) {
-                    // Already recording — stop the dashcam
-                    stopDashcam();
+                    // Stop the dashcam and save/lock the current clip
+                    stopAndSaveDashcam();
                   } else {
                     // Not recording — start silently in the background so the
                     // map and alerts remain fully visible. If permission was
@@ -1849,6 +1869,20 @@ export default function DriveScreen() {
                 <Text style={styles.driveActionPillTxt}>
                   {dashcamRecording ? "● REC" : "🎥 Dashcam"}
                 </Text>
+              </TouchableOpacity>
+            )}
+            {/* Lock current dashcam clip — only visible while recording */}
+            {dashcamRecording && Platform.OS !== "web" && (
+              <TouchableOpacity
+                style={[styles.driveActionPill, { backgroundColor: "#0D2E0D" }]}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  lockCurrentClip("manual");
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="lock-closed" size={12} color="#22c55e" />
+                <Text style={[styles.driveActionPillTxt, { color: "#22c55e" }]}>Lock Clip</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -2108,7 +2142,7 @@ export default function DriveScreen() {
                 }]}
                 onPress={async () => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  if (dashcamRecording || dashcamPending) stopDashcam();
+                  if (dashcamRecording || dashcamPending) stopAndSaveDashcam();
                   else {
                     // Denied permission → show the dashcam permission screen.
                     const ok = await startBackgroundRecording();
@@ -2148,6 +2182,27 @@ export default function DriveScreen() {
                     )}
                   </View>
                 </View>
+                {/* Lock clip shortcut — visible while recording so drivers never
+                    have to open the full dashcam overlay to protect a clip */}
+                {dashcamRecording && (
+                  <TouchableOpacity
+                    style={{
+                      width: 34, height: 34, borderRadius: 10,
+                      backgroundColor: c.primary + "1a",
+                      alignItems: "center", justifyContent: "center",
+                      borderWidth: 1, borderColor: c.primary + "44",
+                    }}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      lockCurrentClip("manual");
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="lock-closed" size={16} color={c.primary} />
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             ) : <View style={{ flex: 1 }} />}
 
@@ -2547,6 +2602,65 @@ export default function DriveScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── 3-second pre-trip countdown overlay ────────────────────────────── */}
+      {countdownValue !== null && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              zIndex: 9500,
+              backgroundColor: "rgba(0,0,0,0.82)",
+              alignItems: "center",
+              justifyContent: "center",
+            },
+          ]}
+          pointerEvents="box-only"
+        >
+          {/* Outer ring */}
+          <View style={{
+            width: 160, height: 160, borderRadius: 80,
+            borderWidth: 4, borderColor: "#00A84540",
+            alignItems: "center", justifyContent: "center",
+            marginBottom: 8,
+          }}>
+            <View style={{
+              width: 136, height: 136, borderRadius: 68,
+              borderWidth: 2.5, borderColor: "#00A845",
+              alignItems: "center", justifyContent: "center",
+            }}>
+              <Text style={{
+                color: "#fff",
+                fontSize: 80,
+                fontFamily: "Inter_900Black",
+                lineHeight: 88,
+                // @ts-ignore
+                fontVariant: ["tabular-nums"],
+              }}>
+                {countdownValue}
+              </Text>
+            </View>
+          </View>
+          <Text style={{
+            color: "rgba(255,255,255,0.7)",
+            fontSize: 17,
+            fontFamily: "Inter_600SemiBold",
+            letterSpacing: 0.5,
+          }}>
+            {countdownValue === 3 ? "Starting drive…" : countdownValue === 2 ? "Get ready" : "Almost…"}
+          </Text>
+          <View style={{
+            flexDirection: "row", alignItems: "center", gap: 6,
+            marginTop: 24, backgroundColor: "#00A84515",
+            paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+          }}>
+            <Ionicons name="shield-checkmark-outline" size={15} color="#00A845" />
+            <Text style={{ color: "#00A845", fontSize: 13, fontFamily: "Inter_600SemiBold" }}>
+              Drive safe — Msafiri is watching
+            </Text>
+          </View>
+        </View>
+      )}
 
     </Animated.View>
   );

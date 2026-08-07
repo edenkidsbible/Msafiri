@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -28,6 +29,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -119,6 +121,21 @@ export default function DashcamOverlay() {
   const [alertCountdown, setAlertCountdown] = useState(30);
   const [alertTitle, setAlertTitle]         = useState("Impact Detected");
   const prevLockedRef = useRef(0);
+
+  // First-time guide modal
+  const [guideVisible, setGuideVisible]     = useState(false);
+  const GUIDE_KEY = "dashcam_guide_seen_v1";
+  useEffect(() => {
+    if (!isDashcamOpen) return;
+    AsyncStorage.getItem(GUIDE_KEY).then((seen) => {
+      if (!seen) setGuideVisible(true);
+    }).catch(() => {});
+  }, [isDashcamOpen]);
+
+  const dismissGuide = useCallback(() => {
+    setGuideVisible(false);
+    AsyncStorage.setItem(GUIDE_KEY, "1").catch(() => {});
+  }, []);
 
   // Settings panel
   const [settingsOpen, setSettingsOpen]     = useState(false);
@@ -404,6 +421,84 @@ export default function DashcamOverlay() {
         style={[StyleSheet.absoluteFill, { backgroundColor: "#fff", opacity: flashOpacity }]}
         pointerEvents="none"
       />
+
+      {/* ── First-time guide modal ────────────────────────────────────────── */}
+      <Modal
+        visible={guideVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={dismissGuide}
+      >
+        <View style={styles.guideBackdrop}>
+          <View style={[styles.guideSheet, { paddingBottom: insets.bottom + 20 }]}>
+            {/* Header */}
+            <View style={styles.guideHeader}>
+              <View style={styles.guideIconWrap}>
+                <Text style={{ fontSize: 36 }}>🎥</Text>
+              </View>
+              <Text style={styles.guideTitle}>How Dashcam Works</Text>
+              <Text style={styles.guideSub}>
+                Your phone records the road while you drive. Here's what you need to know.
+              </Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 4 }}>
+              {([
+                {
+                  icon: "film-outline",
+                  color: "#60A5FA",
+                  title: "2-minute rolling clips",
+                  body: "The dashcam records in 2-minute segments, looping continuously. Old unlocked clips are overwritten when your storage limit is reached.",
+                },
+                {
+                  icon: "lock-closed-outline",
+                  color: "#F59E0B",
+                  title: "Lock a clip to keep it forever",
+                  body: "Tap 🔒 Lock Clip at any time during a drive — or tap it on the drive screen — to permanently protect the current clip. Locked clips are uploaded to cloud storage and never auto-deleted.",
+                },
+                {
+                  icon: "cloud-upload-outline",
+                  color: "#34D399",
+                  title: "What gets saved to cloud",
+                  body: "Only locked clips are uploaded. Unlocked clips stay on your device only and are removed when you run out of storage. Lock anything important — crashes, near-misses, incidents.",
+                },
+                {
+                  icon: "trash-outline",
+                  color: "#F87171",
+                  title: "What gets deleted",
+                  body: "When your storage limit is reached (default 1 GB), the oldest unlocked clips are deleted automatically. Locked clips are never automatically deleted.",
+                },
+                {
+                  icon: "car-sport-outline",
+                  color: "#A78BFA",
+                  title: "Driving is required",
+                  body: "The dashcam only records during an active drive. Start a drive from the Drive tab, then turn on the dashcam from the drive screen or this overlay.",
+                },
+              ] as { icon: any; color: string; title: string; body: string }[]).map((item, i) => (
+                <View key={i} style={styles.guideRow}>
+                  <View style={[styles.guideRowIcon, { backgroundColor: item.color + "1a" }]}>
+                    <Ionicons name={item.icon} size={22} color={item.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.guideRowTitle}>{item.title}</Text>
+                    <Text style={styles.guideRowBody}>{item.body}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.guideCta}
+              onPress={dismissGuide}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="videocam-outline" size={18} color="#fff" />
+              <Text style={styles.guideCtaTxt}>Got it — start recording</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {showUI && (
         <View style={styles.overlay} pointerEvents="box-none">
@@ -929,6 +1024,55 @@ const styles = StyleSheet.create({
   toggleInfo: { flexDirection: "row", alignItems: "center", gap: 12 },
   toggleLabel: { color: "#fff", fontSize: 14, fontWeight: "500" },
   toggleSub:   { color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 1 },
+
+  // ── First-time guide modal ──────────────────────────────────────────────────
+  guideBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "flex-end",
+  },
+  guideSheet: {
+    backgroundColor: "#111",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20, paddingTop: 24,
+    maxHeight: "88%",
+    borderTopWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)",
+  },
+  guideHeader: { alignItems: "center", marginBottom: 20 },
+  guideIconWrap: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 14,
+  },
+  guideTitle: {
+    color: "#fff", fontSize: 20, fontWeight: "800",
+    textAlign: "center", marginBottom: 8,
+  },
+  guideSub: {
+    color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: 20,
+    textAlign: "center",
+  },
+  guideRow: {
+    flexDirection: "row", gap: 14, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.07)",
+  },
+  guideRowIcon: {
+    width: 44, height: 44, borderRadius: 13,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  },
+  guideRowTitle: {
+    color: "#fff", fontSize: 14, fontWeight: "700", marginBottom: 4,
+  },
+  guideRowBody: {
+    color: "rgba(255,255,255,0.55)", fontSize: 13, lineHeight: 18,
+  },
+  guideCta: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#00A845", borderRadius: 18,
+    paddingVertical: 15, marginTop: 20,
+  },
+  guideCtaTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
 
   // Action buttons
   actionRow: { flexDirection: "row", gap: 10, marginTop: 12, marginBottom: 8 },
