@@ -5,7 +5,6 @@ import {
   RequestUploadUrlResponse,
 } from '@workspace/api-zod';
 import { Router, type IRouter, type Request, type Response, type NextFunction } from 'express';
-import { Readable } from 'stream';
 import jwt from 'jsonwebtoken';
 
 import type { AdminJwtPayload } from '../middleware/adminAuth.js';
@@ -38,14 +37,8 @@ const PUBLIC_UPLOAD_ALLOWED_MIME = new Set([
   'image/heic',
   'image/heif',
 ]);
-import {
-  ObjectNotFoundError,
-  ObjectStorageService,
-} from '../lib/objectStorage.js';
-import { getObjectAclPolicy } from '../lib/objectAcl.js';
 
 const router: IRouter = Router();
-const objectStorageService = new ObjectStorageService();
 
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 
@@ -337,45 +330,6 @@ router.get(
 );
 
 /**
- * GET /storage/public-objects/*
- *
- * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS (Replit Object Storage).
- * These are unconditionally public — no authentication or ACL checks.
- * IMPORTANT: Always provide this endpoint when object storage is set up.
- */
-router.get(
-  '/storage/public-objects/*filePath',
-  async (req: Request, res: Response) => {
-    try {
-      const raw = req.params.filePath;
-      const filePath = Array.isArray(raw) ? raw.join('/') : raw;
-      const file = await objectStorageService.searchPublicObject(filePath);
-      if (!file) {
-        res.status(404).json({ error: 'File not found' });
-        return;
-      }
-
-      const response = await objectStorageService.downloadObject(file);
-
-      res.status(response.status);
-      response.headers.forEach((value, key) => res.setHeader(key, value));
-
-      if (response.body) {
-        const nodeStream = Readable.fromWeb(
-          response.body as ReadableStream<Uint8Array>,
-        );
-        nodeStream.pipe(res);
-      } else {
-        res.end();
-      }
-    } catch (error) {
-      req.log.error({ err: error }, 'Error serving public object');
-      res.status(500).json({ error: 'Failed to serve public object' });
-    }
-  },
-);
-
-/**
  * GET /storage/objects/*
  *
  * Serve private object entities.  Authentication accepts an admin JWT Bearer
@@ -466,50 +420,9 @@ router.get(
       return;
     }
 
-    // ── Legacy path: Replit Object Storage ────────────────────────────────────
-    // Strict owner-only check, consistent with the R2 path:
-    //   - Read the "custom:aclPolicy" metadata written by objectAcl.ts.
-    //   - Allow only when policy.owner === principal.id  (exact match).
-    //   - No public-visibility bypass; no ACL-group bypass.
-    //
-    // Rationale: this is the authenticated private-file proxy.  Public-visibility
-    // legacy files should be served via a separate unauthenticated route (same
-    // pattern as /storage/r2-public-objects/*).  Using canAccessObject here would
-    // allow any authenticated admin to fetch another admin's file simply because
-    // the uploader marked it "public", violating the task objective.
-    try {
-      const objectFile =
-        await objectStorageService.getObjectEntityFile(objectPath);
-
-      const aclPolicy = await getObjectAclPolicy(objectFile);
-      const isOwner = aclPolicy?.owner === principal.id;
-      if (!isOwner) {
-        res.status(403).json({ error: 'Forbidden' });
-        return;
-      }
-
-      const response = await objectStorageService.downloadObject(objectFile);
-
-      res.status(response.status);
-      response.headers.forEach((value, key) => res.setHeader(key, value));
-
-      if (response.body) {
-        const nodeStream = Readable.fromWeb(
-          response.body as ReadableStream<Uint8Array>,
-        );
-        nodeStream.pipe(res);
-      } else {
-        res.end();
-      }
-    } catch (error) {
-      if (error instanceof ObjectNotFoundError) {
-        req.log.warn({ err: error }, 'Object not found');
-        res.status(404).json({ error: 'Object not found' });
-        return;
-      }
-      req.log.error({ err: error }, 'Error serving legacy object');
-      res.status(500).json({ error: 'Failed to serve object' });
-    }
+    // No legacy GCS fallback — Replit Object Storage has been retired.
+    // All objects were migrated to R2; unknown paths return 404.
+    res.status(404).json({ error: 'Object not found' });
   },
 );
 

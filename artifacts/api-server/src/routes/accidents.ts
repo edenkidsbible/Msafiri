@@ -29,21 +29,12 @@ import {
   accidentTimelineEventsTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { ObjectStorageService } from "../lib/objectStorage.js";
 import * as r2 from "../lib/r2Storage.js";
 
 const router = Router();
-const objectStorage = new ObjectStorageService();
 
-/** Legacy keys created by Replit Object Storage start with "/" (bucket-prefixed
- *  private-dir paths). New R2 keys are relative (accidents/..., uploads/...). */
-function isLegacyKey(fileKey: string): boolean {
-  return fileKey.startsWith("/");
-}
-
-/** Signed GET URL for a stored fileKey — R2 for new keys, Replit for legacy. */
-async function signedDownloadUrl(fileKey: string, ttlSec: number): Promise<string> {
-  if (isLegacyKey(fileKey)) return objectStorage.getSignedDownloadUrl(fileKey, ttlSec);
+/** Signed GET URL for a stored fileKey (R2 only — legacy GCS retired). */
+async function signedDownloadUrl(fileKey: string, _ttlSec: number): Promise<string> {
   return r2.getPresignedDownloadUrl(fileKey);
 }
 
@@ -542,15 +533,11 @@ router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Re
     const signedContentType =
       rawContentType && ALLOWED_TYPES.has(rawContentType) ? rawContentType : fallback;
 
-    let uploadUrl: string;
-    let fileKey: string;
-    if (r2.isR2Configured()) {
-      fileKey = `accidents/${id}/photos/${photoId}`;
-      uploadUrl = await r2.getPresignedUploadUrl(fileKey, signedContentType);
-    } else {
-      // Fallback while R2 credentials are not configured
-      ({ uploadUrl, fileKey } = await objectStorage.getUploadInfo());
+    if (!r2.isR2Configured()) {
+      return res.status(503).json({ error: "Object storage not configured" });
     }
+    const fileKey = `accidents/${id}/photos/${photoId}`;
+    const uploadUrl = await r2.getPresignedUploadUrl(fileKey, signedContentType);
 
     await db.insert(accidentPhotosTable).values({
       id: photoId, accidentId: id, category, fileKey,
@@ -592,7 +579,7 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
     // When R2 is active, HEAD the object to confirm the direct PUT succeeded
     // before marking the record as confirmed. If missing, remove the orphan
     // DB row so it is not silently reported as present.
-    if (r2.isR2Configured() && photo.fileKey && !isLegacyKey(photo.fileKey)) {
+    if (r2.isR2Configured() && photo.fileKey) {
       const exists = await r2.headObject(photo.fileKey);
       if (!exists) {
         await db.delete(accidentPhotosTable)
@@ -753,16 +740,12 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     // Generate PDF
     const pdfBuffer = await generatePdf(record, photos, witnesses, timeline);
 
-    // Upload to storage (R2 when configured, legacy Replit otherwise)
-    let fileKey: string;
-    if (r2.isR2Configured()) {
-      fileKey = `accidents/${id}/report.pdf`;
-      await r2.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
-    } else {
-      const privateDir = process.env.PRIVATE_OBJECT_DIR ?? "";
-      fileKey = `${privateDir}/accidents/${id}/report.pdf`;
-      await objectStorage.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
+    // Upload to R2 (only backend — legacy GCS retired)
+    if (!r2.isR2Configured()) {
+      return res.status(503).json({ error: "Object storage not configured" });
     }
+    const fileKey = `accidents/${id}/report.pdf`;
+    await r2.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
     const url = await signedDownloadUrl(fileKey, 3600 * 24);
 
     // Cache the file key

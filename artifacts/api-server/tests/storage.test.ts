@@ -127,34 +127,7 @@ vi.mock("../src/lib/r2ObjectAcl.js", async (importActual) => {
   };
 });
 
-// Mock objectAcl for the legacy GCS path's strict owner-only check.
-// getObjectAclPolicy is what the legacy route reads to determine the owner.
-const mockGetObjectAclPolicy = vi.fn();
-
-vi.mock("../src/lib/objectAcl.js", async (importActual) => {
-  const actual = await importActual<typeof import("../src/lib/objectAcl.js")>();
-  return {
-    ...actual,
-    getObjectAclPolicy: (...a: any[]) => mockGetObjectAclPolicy(...a),
-  };
-});
-
-// Mock Replit ObjectStorageService so legacy GCS path tests stay offline.
-const mockGetObjectEntityFile = vi.fn();
-const mockDownloadObject      = vi.fn();
-const mockSearchPublicObject  = vi.fn();
-
-vi.mock("../src/lib/objectStorage.js", () => {
-  class ObjectNotFoundError extends Error {
-    constructor() { super("not found"); this.name = "ObjectNotFoundError"; }
-  }
-  class ObjectStorageService {
-    getObjectEntityFile(...a: any[]) { return mockGetObjectEntityFile(...a); }
-    downloadObject(...a: any[])      { return mockDownloadObject(...a); }
-    searchPublicObject(...a: any[])  { return mockSearchPublicObject(...a); }
-  }
-  return { ObjectNotFoundError, ObjectStorageService };
-});
+// objectAcl.ts and objectStorage.ts have been deleted — Replit Object Storage retired.
 
 // ── Session helper ─────────────────────────────────────────────────────────────
 
@@ -290,7 +263,6 @@ describe("GET /api/storage/objects/* — R2 owner-keyed paths", () => {
     expect(mockCanAccessR2Object).toHaveBeenCalledWith(
       expect.objectContaining({ key: R2_KEY_OWNER }),
     );
-    expect(mockGetObjectEntityFile).not.toHaveBeenCalled();
   });
 
   it("returns 403 for a non-owner regardless of JWT role (role=admin)", async () => {
@@ -355,81 +327,53 @@ describe("GET /api/storage/objects/* — R2 owner-keyed paths", () => {
   });
 });
 
-// ── Tests: GET /api/storage/objects/* — legacy GCS paths ────────────────────
+// ── Tests: GET /api/storage/objects/* — legacy GCS paths (retired) ───────────
 //
-// The legacy route reads the GCS ACL policy via getObjectAclPolicy (mocked via
-// vi.mock of objectAcl.js above) and performs a strict policy.owner === userId
-// comparison.  Public-visibility metadata and ACL-group rules do NOT grant access
-// on this authenticated proxy route.
+// Replit Object Storage has been retired; all data migrated to R2.
+// Legacy two-segment paths (no encoded owner) must return 404 — no GCS fallback.
 
-describe("GET /api/storage/objects/* — legacy GCS paths", () => {
-  const fakeObjectFile = { name: LEGACY_UUID };
-
-  beforeEach(async () => {
+describe("GET /api/storage/objects/* — legacy paths return 404 (GCS retired)", () => {
+  beforeEach(() => {
     vi.clearAllMocks();
     mockIsR2Configured.mockReturnValue(true);
-    mockGetObjectEntityFile.mockResolvedValue(fakeObjectFile);
-    // Default: object has an owner ACL policy owned by OWNER_ID.
-    mockGetObjectAclPolicy.mockResolvedValue({ owner: OWNER_ID, visibility: "private" });
-
-    const { Readable } = await import("node:stream");
-    mockDownloadObject.mockResolvedValue(
-      new Response(Readable.toWeb(Readable.from(["legacy"])) as ReadableStream, {
-        headers: { "Content-Type": "text/plain" },
-        status: 200,
-      }),
-    );
   });
 
-  it("serves the file to the object owner (policy.owner matches principal.id)", async () => {
+  it("returns 404 for a legacy two-segment key (not a valid R2 owner-keyed path)", async () => {
     const token = makeAdminToken(OWNER_ID);
     const res = await supertest(app)
       .get(`/api/storage/objects/${LEGACY_GCS_KEY}`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(mockGetObjectEntityFile).toHaveBeenCalledWith(`/objects/${LEGACY_GCS_KEY}`);
-    expect(mockGetObjectAclPolicy).toHaveBeenCalledWith(fakeObjectFile);
-    // R2 ACL check must NOT have been invoked for a legacy path.
+    expect(res.status).toBe(404);
+    // No R2 calls — auth check and key-format check happen first.
     expect(mockCanAccessR2Object).not.toHaveBeenCalled();
     expect(mockHeadObject).not.toHaveBeenCalled();
-    expect(res.status).toBe(200);
   });
 
-  it("returns 403 for a non-owner (policy.owner ≠ principal.id)", async () => {
+  it("returns 404 for any user with a legacy key (no GCS owner-check bypass)", async () => {
     const token = makeAdminToken(OTHER_ID);
     const res = await supertest(app)
       .get(`/api/storage/objects/${LEGACY_GCS_KEY}`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(403);
-    expect(mockDownloadObject).not.toHaveBeenCalled();
+    expect(res.status).toBe(404);
   });
 
-  it("returns 403 even when visibility='public' (no public bypass on the authenticated proxy)", async () => {
-    // The ACL policy marks the object as public — a non-owner must still be denied.
-    // Public legacy objects should be served via a dedicated unauthenticated route.
-    mockGetObjectAclPolicy.mockResolvedValue({ owner: OWNER_ID, visibility: "public" });
-
-    const token = makeAdminToken(OTHER_ID);
+  it("returns 401 when unauthenticated with a legacy key (auth runs before key check)", async () => {
     const res = await supertest(app)
-      .get(`/api/storage/objects/${LEGACY_GCS_KEY}`)
-      .set("Authorization", `Bearer ${token}`);
+      .get(`/api/storage/objects/${LEGACY_GCS_KEY}`);
 
-    expect(res.status).toBe(403);
-    expect(mockDownloadObject).not.toHaveBeenCalled();
+    expect(res.status).toBe(401);
   });
 
-  it("returns 403 when no ACL policy metadata exists (object never had ACL set)", async () => {
-    // null policy → no owner → always denied.
-    mockGetObjectAclPolicy.mockResolvedValue(null);
-
+  it("makes no R2 I/O calls for a legacy key", async () => {
     const token = makeAdminToken(OWNER_ID);
-    const res = await supertest(app)
+    await supertest(app)
       .get(`/api/storage/objects/${LEGACY_GCS_KEY}`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(403);
-    expect(mockDownloadObject).not.toHaveBeenCalled();
+    expect(mockCanAccessR2Object).not.toHaveBeenCalled();
+    expect(mockHeadObject).not.toHaveBeenCalled();
   });
 });
 

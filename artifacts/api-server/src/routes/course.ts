@@ -7,7 +7,6 @@ import {
   userCourseProgressTable,
   userCourseBookmarksTable,
 } from "@workspace/db";
-import { objectStorageClient } from "../lib/objectStorage";
 import * as r2 from "../lib/r2Storage";
 import { eq, asc, and, sql } from "drizzle-orm";
 
@@ -146,50 +145,7 @@ router.get("/course/audio/:slug", async (req: Request, res: Response) => {
       }
     }
 
-    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    if (!bucketId) {
-      return res.status(503).json({ error: "Object storage not configured" });
-    }
-
-    // Legacy fallback: stream from Replit Object Storage
-    const gcsPath = objectPath;
-    const file = objectStorageClient.bucket(bucketId).file(gcsPath);
-
-    const [exists] = await file.exists();
-    if (!exists) {
-      return res.status(404).json({ error: "Audio file not found" });
-    }
-
-    const [metadata] = await file.getMetadata();
-    const totalSize = Number(metadata.size);
-
-    // Handle Range requests so the mobile audio player can scrub correctly.
-    const rangeHeader = req.headers.range;
-    if (rangeHeader) {
-      const [startStr, endStr] = rangeHeader.replace(/bytes=/, "").split("-");
-      const start = parseInt(startStr, 10);
-      const end = endStr ? parseInt(endStr, 10) : totalSize - 1;
-      const chunkSize = end - start + 1;
-
-      res.writeHead(206, {
-        "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-        "Accept-Ranges": "bytes",
-        "Content-Length": String(chunkSize),
-        "Content-Type": "audio/mpeg",
-        "Cache-Control": "public, max-age=86400",
-      });
-      file.createReadStream({ start, end }).pipe(res);
-      return;
-    } else {
-      res.writeHead(200, {
-        "Accept-Ranges": "bytes",
-        "Content-Length": String(totalSize),
-        "Content-Type": "audio/mpeg",
-        "Cache-Control": "public, max-age=86400",
-      });
-      file.createReadStream().pipe(res);
-      return;
-    }
+    return res.status(404).json({ error: "Audio file not found" });
   } catch (err) {
     console.error("GET /course/audio/:slug error:", err);
     return res.status(404).json({ error: "Audio file not found" });
