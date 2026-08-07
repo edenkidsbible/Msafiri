@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -157,35 +158,57 @@ function LogServiceModal({ visible, item, currentOdometerKm, onClose, onSaved }:
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "#00000080", justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: "#00000080" }} onPress={onClose} />
+        <View style={{ backgroundColor: cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+          {/* Drag handle */}
+          <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: borderCol }} />
+          </View>
+
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 12, marginBottom: 16 }}>
             <View>
               <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: c.foreground }}>Log Service</Text>
               {item && <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: 2 }}>{item.itemName}</Text>}
             </View>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={24} color={c.foreground} />
             </TouchableOpacity>
           </View>
 
-          {field("Date Completed", date, setDate, { placeholder: "YYYY-MM-DD" })}
-          {field("Mileage (km)", mileage, setMileage, { keyboardType: "numeric" })}
-          {field("Cost (KSh)", cost, setCost, { keyboardType: "numeric", placeholder: "Optional" })}
-          {field("Garage / Workshop", garage, setGarage, { placeholder: "Optional" })}
-          {field("Notes", notes, setNotes, { placeholder: "Optional" })}
-
-          <TouchableOpacity
-            style={{ backgroundColor: c.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
-            onPress={handleSave}
-            disabled={saving}
+          {/* Scrollable fields — grows up to 75% of the screen */}
+          <ScrollView
+            style={{ maxHeight: 420 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 8 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>
-              {saving ? "Saving…" : "Save Service Record"}
-            </Text>
-          </TouchableOpacity>
+            {field("Date Completed", date, setDate, { placeholder: "YYYY-MM-DD" })}
+            {field("Current Mileage (km)", mileage, setMileage, { keyboardType: "numeric", placeholder: "e.g. 45000" })}
+            {field("Cost (KSh)", cost, setCost, { keyboardType: "numeric", placeholder: "Optional" })}
+            {field("Garage / Workshop", garage, setGarage, { placeholder: "Optional" })}
+            {field("Notes", notes, setNotes, { placeholder: "Optional" })}
+          </ScrollView>
+
+          {/* Save button — always visible above keyboard */}
+          <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 32 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: c.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>
+                {saving ? "Saving…" : "Save Service Record"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

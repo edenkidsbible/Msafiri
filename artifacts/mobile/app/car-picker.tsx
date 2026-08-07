@@ -3,6 +3,7 @@ import React, { useCallback, useState, useRef, useMemo, useEffect } from "react"
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Image, ActivityIndicator, Platform, ScrollView,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
@@ -14,9 +15,13 @@ import {
   type CarMake, type CarModel,
 } from "@/data/carModels";
 import { apiGet, apiPost, API_BASE } from "@/utils/apiClient";
+import { savePendingDetails, type VehicleDetails } from "@/utils/savedVehicles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Step = "make" | "model" | "custom-make" | "custom-model" | "custom-done";
+type Step = "make" | "model" | "custom-make" | "custom-model" | "vehicle-details" | "custom-done";
+
+type FuelType = "Petrol" | "Diesel" | "Electric" | "Hybrid" | "CNG";
+type TransmissionType = "Automatic" | "Manual";
 
 interface CustomVehicleRecord {
   id: string;
@@ -88,6 +93,14 @@ export default function CarPickerScreen() {
   const [customModelName, setCustomModelName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Vehicle details step (fuel, transmission, odometer) — set just before vehicle-details
+  const [pendingMakeForDetails, setPendingMakeForDetails] = useState<CarMake | null>(null);
+  const [pendingModelForDetails, setPendingModelForDetails] = useState<CarModel | null>(null);
+  const [pendingIsCustom, setPendingIsCustom] = useState(false);
+  const [fuelType, setFuelType] = useState<FuelType>("Petrol");
+  const [transmission, setTransmission] = useState<TransmissionType>("Automatic");
+  const [odometerInput, setOdometerInput] = useState("");
+
   // Custom vehicles fetched from API (already-submitted community makes/models)
   const [customVehicles, setCustomVehicles] = useState<CustomVehicleRecord[]>([]);
 
@@ -153,27 +166,36 @@ export default function CarPickerScreen() {
       setQuery("");
       return;
     }
+    // Go to vehicle-details before committing; store pending selection
     const isCustom = selectedMake.id.startsWith("custom-") || model.id.startsWith("custom-");
-    if (isCustom) {
-      setCustomVehicle(selectedMake.id, model.id, selectedMake.name, model.name);
-    } else {
-      setVehicleModel(selectedMake.id, model.id);
-    }
-    router.back();
-  }, [selectedMake, setVehicleModel, setCustomVehicle]);
+    setPendingMakeForDetails(selectedMake);
+    setPendingModelForDetails(model);
+    setPendingIsCustom(isCustom);
+    setStep("vehicle-details");
+  }, [selectedMake]);
 
   const handleBack = useCallback(() => {
     if (step === "model") { setStep("make"); setQuery(""); }
     else if (step === "custom-make") { setStep("make"); setCustomMakeName(""); }
     else if (step === "custom-model") {
-      // Go back to model list if we came from a known make, otherwise back to custom-make
       if (selectedMake && selectedMake.id !== "__other__") setStep("model");
-      else { setStep("custom-make"); }
+      else setStep("custom-make");
       setCustomModelName("");
+    }
+    else if (step === "vehicle-details") {
+      // Return to wherever we came from
+      if (pendingIsCustom && !pendingModelForDetails?.id.startsWith("custom-")) {
+        // Was on custom-model step
+        setStep("custom-model");
+      } else if (pendingMakeForDetails) {
+        setStep("model");
+      } else {
+        setStep("make");
+      }
     }
     else if (step === "custom-done") { router.back(); }
     else { router.back(); }
-  }, [step, selectedMake]);
+  }, [step, selectedMake, pendingIsCustom, pendingMakeForDetails, pendingModelForDetails]);
 
   const handleCustomMakeNext = useCallback(() => {
     const trimmed = customMakeName.trim();
@@ -191,19 +213,52 @@ export default function CarPickerScreen() {
     const makeSlug = isKnownMake ? selectedMake!.id : `custom-${slugify(makeName)}`;
     const modelSlug = slugify(modelTrimmed);
     const knownMakeId = isKnownMake ? selectedMake!.id : null;
-
     const makeId = isKnownMake ? selectedMake!.id : makeSlug;
     const modelId = `custom-${modelSlug}`;
 
-    setSubmitting(true);
-    try {
-      await apiPost("/custom-vehicles", { makeName, modelName: modelTrimmed, knownMakeId });
-    } catch { /* offline — still proceed locally */ }
+    // Build synthetic make/model objects for the details step
+    const pendMake: CarMake = selectedMake
+      ? (selectedMake.id === "__other__" ? { id: makeId, name: makeName, emoji: "🚗", models: [] } : selectedMake)
+      : { id: makeId, name: makeName, emoji: "🚗", models: [] };
+    const pendModel: CarModel = { id: modelId, name: modelTrimmed };
 
+    // Submit to API in background
+    setSubmitting(true);
+    apiPost("/custom-vehicles", { makeName, modelName: modelTrimmed, knownMakeId })
+      .catch(() => {})
+      .finally(() => setSubmitting(false));
+
+    // Write AppContext immediately (offline-safe), then show vehicle-details
     setCustomVehicle(makeId, modelId, makeName, modelTrimmed);
-    setSubmitting(false);
-    setStep("custom-done");
+    setPendingMakeForDetails(pendMake);
+    setPendingModelForDetails(pendModel);
+    setPendingIsCustom(true);
+    setStep("vehicle-details");
   }, [customModelName, customMakeName, selectedMake, setCustomVehicle, submitting]);
+
+  const handleVehicleDetailsConfirm = useCallback(async () => {
+    if (!pendingMakeForDetails || !pendingModelForDetails) return;
+
+    // Save the extra details so applyPendingSlot can pick them up
+    const details: VehicleDetails = {
+      fuelType,
+      transmission,
+      odometerKm: odometerInput.trim() ? parseFloat(odometerInput) : undefined,
+    };
+    await savePendingDetails(details);
+
+    // Update AppContext if this was a standard (non-custom-model-entry) pick
+    if (!pendingIsCustom) {
+      setVehicleModel(pendingMakeForDetails.id, pendingModelForDetails.id);
+    }
+
+    // For custom routes we already called setCustomVehicle; show done state
+    if (pendingIsCustom) {
+      setStep("custom-done");
+    } else {
+      router.back();
+    }
+  }, [pendingMakeForDetails, pendingModelForDetails, pendingIsCustom, fuelType, transmission, odometerInput, setVehicleModel]);
 
   // ── Render items ─────────────────────────────────────────────────────────
   const renderMakeItem = useCallback(({ item }: { item: CarMake }) => {
@@ -273,10 +328,11 @@ export default function CarPickerScreen() {
 
   // ── Derived header title ─────────────────────────────────────────────────
   const headerTitle =
-    step === "make" ? "Select Make" :
-    step === "model" ? (selectedMake?.name ?? "Select Model") :
-    step === "custom-make" ? "Enter Your Make" :
-    step === "custom-model" ? "Enter Your Model" :
+    step === "make"             ? "Select Make" :
+    step === "model"            ? (selectedMake?.name ?? "Select Model") :
+    step === "custom-make"      ? "Enter Your Make" :
+    step === "custom-model"     ? "Enter Your Model" :
+    step === "vehicle-details"  ? "Vehicle Details" :
     "Vehicle Saved";
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -453,6 +509,127 @@ export default function CarPickerScreen() {
         </ScrollView>
       )}
 
+      {/* ── Vehicle Details step ────────────────────────────────────────── */}
+      {step === "vehicle-details" && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={insets.top + 56}
+        >
+          <ScrollView
+            contentContainerStyle={[styles.customForm, { paddingBottom: insets.bottom + 32 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.customCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
+              {/* Vehicle chip */}
+              {(pendingMakeForDetails || pendingModelForDetails) && (
+                <View style={[styles.makeChip, { backgroundColor: c.primary + "16", borderColor: c.primary + "40" }]}>
+                  <Ionicons name="car-sport-outline" size={14} color={c.primary} />
+                  <Text style={[styles.makeChipTxt, { color: c.primary }]}>
+                    {pendingMakeForDetails?.name ?? ""}{pendingModelForDetails ? ` ${pendingModelForDetails.name}` : ""}
+                  </Text>
+                </View>
+              )}
+
+              <Text style={[styles.customTitle, { color: c.foreground }]}>
+                A few more details
+              </Text>
+              <Text style={[styles.customSub, { color: c.mutedForeground }]}>
+                These help us personalise your maintenance schedule and odometer tracking. You can update them later.
+              </Text>
+
+              {/* Fuel Type */}
+              <View style={styles.detailSection}>
+                <Text style={[styles.detailLabel, { color: c.mutedForeground }]}>Fuel Type</Text>
+                <View style={styles.pillRow}>
+                  {(["Petrol", "Diesel", "Electric", "Hybrid", "CNG"] as FuelType[]).map(ft => (
+                    <TouchableOpacity
+                      key={ft}
+                      style={[
+                        styles.pill,
+                        { borderColor: fuelType === ft ? c.primary : c.tileBorder },
+                        fuelType === ft && { backgroundColor: c.primary + "20" },
+                      ]}
+                      onPress={() => setFuelType(ft)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.pillTxt, { color: fuelType === ft ? c.primary : c.mutedForeground }]}>{ft}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Transmission */}
+              <View style={styles.detailSection}>
+                <Text style={[styles.detailLabel, { color: c.mutedForeground }]}>Transmission</Text>
+                <View style={styles.pillRow}>
+                  {(["Automatic", "Manual"] as TransmissionType[]).map(tr => (
+                    <TouchableOpacity
+                      key={tr}
+                      style={[
+                        styles.pill,
+                        { borderColor: transmission === tr ? c.primary : c.tileBorder },
+                        transmission === tr && { backgroundColor: c.primary + "20" },
+                      ]}
+                      onPress={() => setTransmission(tr)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.pillTxt, { color: transmission === tr ? c.primary : c.mutedForeground }]}>{tr}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Current odometer */}
+              <View style={styles.detailSection}>
+                <Text style={[styles.detailLabel, { color: c.mutedForeground }]}>Current Odometer (km)</Text>
+                <TextInput
+                  style={[styles.customInput, { backgroundColor: c.muted, color: c.foreground }]}
+                  placeholder="e.g. 45000"
+                  placeholderTextColor={c.mutedForeground}
+                  value={odometerInput}
+                  onChangeText={t => setOdometerInput(t.replace(/[^0-9.]/g, ""))}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                />
+                <Text style={[styles.detailHint, { color: c.mutedForeground }]}>
+                  Used to calculate when maintenance is due. Leave blank if unsure.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: c.primary }]}
+                onPress={handleVehicleDetailsConfirm}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.confirmBtnTxt, { color: "#fff" }]}>
+                  {pendingIsCustom ? "Save & Continue →" : "Save Vehicle →"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => {
+                // Skip details entirely — still save empty details so applyPendingSlot clears the key
+                savePendingDetails({}).then(() => {
+                  if (!pendingIsCustom && pendingMakeForDetails && pendingModelForDetails) {
+                    setVehicleModel(pendingMakeForDetails.id, pendingModelForDetails.id);
+                  }
+                  if (pendingIsCustom) {
+                    setStep("custom-done");
+                  } else {
+                    router.back();
+                  }
+                });
+              }}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: c.mutedForeground, marginTop: 4 }}>
+                  Skip for now
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
+
       {/* ── Custom done — success state ─────────────────────────────────── */}
       {step === "custom-done" && (
         <ScrollView
@@ -573,6 +750,16 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   confirmBtnTxt: { fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  // ── Vehicle Details step ──────────────────────────────────────────────────
+  detailSection: { width: "100%", gap: 8 },
+  detailLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  detailHint: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16, marginTop: 4 },
+  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  pill: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5,
+  },
+  pillTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   // ── Done state ────────────────────────────────────────────────────────────
   doneCarImg: { width: 220, height: 140 },

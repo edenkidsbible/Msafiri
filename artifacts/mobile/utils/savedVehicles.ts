@@ -25,12 +25,23 @@ export interface SavedVehicle {
   customModelName: string | null;
   vehicleType: VehicleTypeId;
   isDefault: boolean;
+  // Optional extras collected during vehicle setup
+  fuelType?: "Petrol" | "Diesel" | "Electric" | "Hybrid" | "CNG";
+  transmission?: "Automatic" | "Manual";
+  odometerKm?: number;
+}
+
+export interface VehicleDetails {
+  fuelType?: SavedVehicle["fuelType"];
+  transmission?: SavedVehicle["transmission"];
+  odometerKm?: number;
 }
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
 
-const LIST_KEY         = "msafiri_vehicles_v1";
-export const PENDING_SLOT_KEY = "msafiri_pending_vehicle_slot";
+const LIST_KEY                    = "msafiri_vehicles_v1";
+export const PENDING_SLOT_KEY     = "msafiri_pending_vehicle_slot";
+const PENDING_DETAILS_KEY         = "msafiri_pending_vehicle_details";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +89,7 @@ export async function ensureVehicles(params: {
 
 /**
  * After car-picker returns, update the slot that was being edited.
+ * Also picks up any pending vehicle details (fuel type, transmission, odometer).
  * Returns the updated list (or null if no pending slot).
  */
 export async function applyPendingSlot(params: {
@@ -93,6 +105,10 @@ export async function applyPendingSlot(params: {
   const slot = parseInt(slotRaw, 10);
   await AsyncStorage.removeItem(PENDING_SLOT_KEY);
 
+  // Consume any extra details saved by the vehicle-details step
+  const details = await loadPendingDetails();
+  await clearPendingDetails();
+
   const list = await loadVehicles();
 
   if (slot === -1) {
@@ -105,6 +121,7 @@ export async function applyPendingSlot(params: {
       customModelName: params.customModelName,
       vehicleType: params.vehicleType,
       isDefault: false,
+      ...(details ?? {}),
     };
     const updated = [...list, newVehicle];
     await saveVehicles(updated);
@@ -114,9 +131,15 @@ export async function applyPendingSlot(params: {
   // Updating an existing slot
   const updated = list.map((v, i) =>
     i === slot
-      ? { ...v, makeId: params.makeId, modelId: params.modelId,
-          customMakeName: params.customMakeName, customModelName: params.customModelName,
-          vehicleType: params.vehicleType }
+      ? {
+          ...v,
+          makeId: params.makeId,
+          modelId: params.modelId,
+          customMakeName: params.customMakeName,
+          customModelName: params.customModelName,
+          vehicleType: params.vehicleType,
+          ...(details ?? {}),
+        }
       : v
   );
   await saveVehicles(updated);
@@ -143,4 +166,23 @@ export async function removeVehicle(id: string): Promise<SavedVehicle[]> {
 
 export async function setPendingSlot(slot: number): Promise<void> {
   await AsyncStorage.setItem(PENDING_SLOT_KEY, String(slot));
+}
+
+// ── Pending vehicle details (fuel type, transmission, odometer) ───────────────
+
+export async function savePendingDetails(details: VehicleDetails): Promise<void> {
+  await AsyncStorage.setItem(PENDING_DETAILS_KEY, JSON.stringify(details));
+}
+
+export async function loadPendingDetails(): Promise<VehicleDetails | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_DETAILS_KEY);
+    return raw ? (JSON.parse(raw) as VehicleDetails) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearPendingDetails(): Promise<void> {
+  await AsyncStorage.removeItem(PENDING_DETAILS_KEY);
 }
