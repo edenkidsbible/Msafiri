@@ -89,7 +89,7 @@ export default function GarageScreen() {
   const insets = useSafeAreaInsets();
   const tabBarH = Platform.OS === "web" ? 84 : 96;
   const { vehicleType, deviceId, vehicleMakeId, vehicleModelId } = useApp();
-  const { isSubscribed } = useSubscription();
+
 
   // Load drive sessions
   const [sessions, setSessions] = useState<DriveSession[]>([]);
@@ -224,7 +224,7 @@ export default function GarageScreen() {
                   </View>
                 </View>
 
-                {!vehicleMakeId ? (
+                {!vehicleMakeId && (
                   /* Prompt to pick a car */
                   <TouchableOpacity
                     style={[styles.selectCarBtn, { backgroundColor: c.primary }]}
@@ -234,10 +234,6 @@ export default function GarageScreen() {
                     <Ionicons name="car-outline" size={14} color="#fff" />
                     <Text style={styles.selectCarBtnTxt}>Select your car</Text>
                   </TouchableOpacity>
-                ) : (
-                  <View style={[styles.plateBox, { backgroundColor: c.background, borderColor: c.tileBorder }]}>
-                    <Text style={[styles.plateTxt, { color: c.foreground }]}>KDD 123A</Text>
-                  </View>
                 )}
 
                 <TouchableOpacity
@@ -336,23 +332,23 @@ export default function GarageScreen() {
           </View>
         </View>
 
-        {/* Premium Banner */}
-        {!isSubscribed && (
-          <View style={[styles.premiumBanner, { backgroundColor: c.isDark ? "#0A2411" : "#E7F3EA", borderColor: c.primary + "44", marginHorizontal: 16, marginTop: 24 }]}>
-            <View style={[styles.premiumIconWrap, { backgroundColor: c.primary + "22" }]}>
-              <Ionicons name="shield-checkmark" size={24} color={c.primary} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.premiumTitle, { color: c.foreground }]}>Unlock Premium Garage</Text>
-              <Text style={[styles.premiumSub, { color: c.mutedForeground }]}>
-                Get advanced insights, unlimited dashcam storage and more.
-              </Text>
-            </View>
-            <TouchableOpacity style={[styles.upgradeBtn, { borderColor: c.primary }]} onPress={() => router.push("/paywall" as any)}>
-              <Text style={[styles.upgradeBtnTxt, { color: c.primary }]}>Upgrade {">"}</Text>
-            </TouchableOpacity>
+        {/* Driving Course Promo */}
+        <TouchableOpacity
+          style={[styles.courseBanner, { backgroundColor: c.isDark ? "#0A1F2E" : "#EAF3FB", borderColor: "#3B82F644" }]}
+          onPress={() => router.push("/(tabs)/learn" as any)}
+          activeOpacity={0.82}
+        >
+          <View style={[styles.courseIconWrap, { backgroundColor: "#3B82F622" }]}>
+            <Ionicons name="school-outline" size={24} color="#3B82F6" />
           </View>
-        )}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.courseTitle, { color: c.foreground }]}>Kenya Driving Course</Text>
+            <Text style={[styles.courseSub, { color: c.mutedForeground }]}>
+              Master road rules, signs & safe driving habits. Included with your plan.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#3B82F6" />
+        </TouchableOpacity>
 
       </ScrollView>
     </View>
@@ -437,10 +433,6 @@ const styles = StyleSheet.create({
   vehicleLabel: { fontSize: 17, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   primaryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   primaryBadgeTxt: { fontSize: 11, fontFamily: "Inter_700Bold" },
-  plateBox: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
-  },
-  plateTxt: { fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 1 },
   selectCarBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
@@ -480,15 +472,12 @@ const styles = StyleSheet.create({
   },
   emptyTxt: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
 
-  premiumBanner: {
+  courseBanner: {
     flexDirection: "row", alignItems: "center", gap: 12,
     borderRadius: 16, borderWidth: 1, padding: 16,
+    marginHorizontal: 16, marginTop: 24,
   },
-  premiumIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  premiumTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  premiumSub: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
-  upgradeBtn: {
-    borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8,
-  },
-  upgradeBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  courseIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  courseTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  courseSub: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
 });
