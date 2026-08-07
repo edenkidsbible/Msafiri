@@ -956,7 +956,7 @@ const TOOLS = [
     label: "Accident\nReports",
     color: "#EF4444",
     bg: "#EF444420",
-    href: "/crash-vault",
+    href: "/accident-reports",
   },
 ];
 

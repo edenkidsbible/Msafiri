@@ -405,9 +405,12 @@ router.get("/accidents", async (req: Request, res: Response) => {
       records: records.map((r) => ({
         id: r.id, status: r.status, isManual: r.isManual,
         detectedAt: r.detectedAt.toISOString(),
+        updatedAt: r.updatedAt?.toISOString() ?? null,
         roadName: r.roadName, county: r.county,
         speedBeforeKmh: r.speedBeforeKmh, directionLabel: r.directionLabel,
+        otherDriverJson: r.otherDriverJson ?? null,
         pdfUrl: r.pdfUrl ? "/accidents/" + r.id + "/report/url" : null,
+        hasPdf: !!r.pdfUrl,
         photoCount: photoCounts[r.id] ?? 0,
         witnessCount: witnessCounts[r.id] ?? 0,
       })),
@@ -496,7 +499,8 @@ router.patch("/accidents/:id", async (req: Request, res: Response) => {
       ...(otherDriver !== undefined ? { otherDriverJson: JSON.stringify(otherDriver) } : {}),
       ...(police !== undefined     ? { policeJson: JSON.stringify(police) }          : {}),
       ...(driverStatement !== undefined ? { driverStatement }                        : {}),
-      ...(status === "complete"    ? { status: "complete" }                          : {}),
+      ...(status === "complete"    ? { status: "complete" as const }                  : {}),
+      ...(status === "archived"    ? { status: "archived" as const }                  : {}),
       updatedAt: new Date(),
     }).where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
       .returning({ id: accidentRecordsTable.id });
@@ -505,6 +509,26 @@ router.patch("/accidents/:id", async (req: Request, res: Response) => {
     return res.json({ ok: true });
   } catch (err) {
     console.error("PATCH /accidents/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── DELETE /accidents/:id ─────────────────────────────────────────────────────
+router.delete("/accidents/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const deviceId = (req.query.deviceId ?? req.body?.deviceId) as string;
+    if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
+
+    const updated = await db.update(accidentRecordsTable)
+      .set({ status: "abandoned", updatedAt: new Date() })
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+      .returning({ id: accidentRecordsTable.id });
+
+    if (!updated.length) return res.status(404).json({ error: "Not found" });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /accidents/:id error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
