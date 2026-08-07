@@ -398,22 +398,25 @@ const styles = StyleSheet.create({
   vehicleCard: {
     borderRadius: 20, borderWidth: 1,
     paddingTop: 18, paddingBottom: 18, paddingLeft: 18,
-    // Reserve right column so text never slides under the car image
-    paddingRight: 158,
+    // Reserve ~half the card for the pop-out car image; text lives in the left half
+    paddingRight: 176,
   },
   // Car image sits absolutely to the right, bleeding above and below the card
   vehicleImagePop: {
     position: "absolute",
     right: -14,
-    top: -22,
-    bottom: -22,
-    width: 186,
+    top: -26,
+    bottom: -26,
+    width: 204,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
   },
   vehicleImgWrap: {
-    width: 186, height: 124,
+    // Fill the full bleed height so contain-mode uses all available vertical space
+    width: 204,
+    flex: 1,
+    alignSelf: "stretch",
     alignItems: "center", justifyContent: "center",
     // Drop shadow gives the 3-D lift
     shadowColor: "#000",
@@ -423,7 +426,9 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   vehicleImg: {
-    width: 186, height: 124,
+    width: 204,
+    // Tall enough that contain-mode fills a big chunk of the card height
+    height: 200,
   },
 
   sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
