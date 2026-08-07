@@ -3,7 +3,9 @@ import {
   Dimensions,
   FlatList,
   Image,
+  ImageBackground,
   Platform,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,6 +18,11 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
+
+// Preloaded once at module level so require() doesn't re-evaluate on every render.
+// Metro resolves onboarding-intro.webp → @2x → @3x automatically based on device
+// pixel density, so the smallest file that fits the screen is always served.
+const INTRO_IMAGE = require("@/assets/images/onboarding-intro.webp");
 
 const { width } = Dimensions.get("window");
 
@@ -209,6 +216,88 @@ function VehiclePicker({ accent, vehicleType, setVehicleType }: {
   );
 }
 
+// ── Full-screen intro slide (shown before the feature slides) ─────────────────
+function IntroSlide({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const insets   = useSafeAreaInsets();
+  const topPad   = Platform.OS === "web" ? 44  : insets.top  + 16;
+  const botPad   = Platform.OS === "web" ? 34  : insets.bottom + 24;
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {/* Full-bleed image — Metro auto-picks @2x/@3x variant by device DPI */}
+      <ImageBackground
+        source={INTRO_IMAGE}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        // Gravity: align top so the headline ("Drive Smarter.") is always visible
+        // even on shorter/narrower screens where the bottom gets cropped.
+      />
+
+      {/* Subtle dark scrim — keeps the CTA bar readable without obscuring the image */}
+      <View style={introS.scrim} pointerEvents="none" />
+
+      {/* Skip — top-right */}
+      <TouchableOpacity
+        style={[introS.skipBtn, { top: topPad }]}
+        onPress={onSkip}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      >
+        <Text style={introS.skipTxt}>Skip</Text>
+      </TouchableOpacity>
+
+      {/* Bottom CTA */}
+      <View style={[introS.bottomBar, { paddingBottom: botPad }]}>
+        <TouchableOpacity style={introS.nextBtn} onPress={onNext} activeOpacity={0.87}>
+          <Text style={introS.nextTxt}>Get Started</Text>
+          <Ionicons name="arrow-forward-circle" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const introS = StyleSheet.create({
+  // Semi-transparent overlay — darkens the lower third so the green CTA button
+  // sits on a readable background regardless of what the image shows there.
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.15)",
+  },
+  skipBtn: {
+    position:          "absolute",
+    right:             20,
+    backgroundColor:   "rgba(0,0,0,0.40)",
+    paddingVertical:   6,
+    paddingHorizontal: 14,
+    borderRadius:      20,
+  },
+  skipTxt: { color: "#fff", fontSize: 14, fontFamily: "Inter_500Medium" },
+  bottomBar: {
+    position:          "absolute",
+    bottom:            0,
+    left:              0,
+    right:             0,
+    paddingHorizontal: 24,
+    paddingTop:        20,
+    backgroundColor:   "rgba(0,0,0,0.50)",
+  },
+  nextBtn: {
+    flexDirection:   "row",
+    alignItems:      "center",
+    justifyContent:  "center",
+    gap:             10,
+    backgroundColor: "#00A845",
+    paddingVertical: 17,
+    borderRadius:    18,
+    shadowColor:     "#00A845",
+    shadowOffset:    { width: 0, height: 4 },
+    shadowOpacity:   0.35,
+    shadowRadius:    12,
+    elevation:       6,
+  },
+  nextTxt: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
+});
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -220,6 +309,9 @@ export default function OnboardingScreen() {
     setVehicleType,
   } = useApp();
 
+  // The intro image is shown first; tapping "Get Started" reveals the
+  // icon-based feature slides. Skip on the intro jumps straight to finish.
+  const [showIntro, setShowIntro] = useState(true);
   const [activeIdx, setActiveIdx] = useState(0);
   const flatRef = useRef<FlatList<Slide>>(null);
 
@@ -247,10 +339,18 @@ export default function OnboardingScreen() {
   };
 
   const isLast = activeIdx === SLIDES.length - 1;
-  // Clamp defensively — rapid swipe gestures can momentarily push activeIdx
-  // out of range before the state settles, causing a crash on `.accentColor`.
   const safeIdx = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
   const accent  = SLIDES[safeIdx].accentColor;
+
+  // Show full-screen intro image first; "Get Started" transitions to feature slides.
+  if (showIntro) {
+    return (
+      <IntroSlide
+        onNext={() => setShowIntro(false)}
+        onSkip={finish}
+      />
+    );
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: "#FFFFFF" }]}>
