@@ -37,9 +37,9 @@ import { useDashcam } from "@/context/DashcamContext";
 import { useColors } from "@/hooks/useColors";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-import { API_BASE } from "@/utils/apiClient";
+import { getCarImageUrl } from "@/data/carModels";
 
-// ── Vehicle hero images (generated transparent PNGs) ─────────────────────────
+// ── Vehicle hero images — local fallbacks per vehicle type ───────────────────
 const VEHICLE_IMAGES: Record<string, ReturnType<typeof require>> = {
   car:        require("@/assets/images/vehicle-car.png"),
   motorcycle: require("@/assets/images/vehicle-motorcycle.png"),
@@ -49,6 +49,11 @@ const VEHICLE_IMAGES: Record<string, ReturnType<typeof require>> = {
   tractor:    require("@/assets/images/vehicle-tractor.png"),
 };
 const DEFAULT_VEHICLE_IMAGE = require("@/assets/images/vehicle-car.png");
+
+// Strip the "custom-" prefix car-picker adds to modelIds — R2 key uses the raw slug.
+function customModelSlug(modelId: string): string {
+  return modelId.startsWith("custom-") ? modelId.slice(7) : modelId;
+}
 import {
   DriveSession,
   listDriveSessions,
@@ -114,22 +119,27 @@ export default function HomeScreen() {
     navTripPaused,
     vehicleType,
     vehicleMakeId,
-    vehicleCustomMakeName,
+    vehicleModelId,
   } = useApp();
 
   // ── Resolve which image to show on the hero card ──────────────────────────
-  // Priority: (1) known make → R2 URL (served via the public-objects proxy),
-  //           (2) vehicle type → local transparent PNG,
-  //           (3) default car image.
+  // Priority: (1) both makeId + modelId set → /car-images/:make/:model endpoint
+  //                (handles webp conversion + caching server-side; custom slugs
+  //                 have "custom-" prefix stripped to match R2 key).
+  //           (2) only makeId (no model yet) → first standard model image
+  //           (3) neither set → local type-specific transparent PNG fallback
   const vehicleHeroSource = useMemo(() => {
-    // A real make was selected and it's not a "custom-*" id
-    if (vehicleMakeId && !vehicleMakeId.startsWith("custom-") && API_BASE) {
-      // R2 images are stored at car-makes/{makeId}.webp in the public folder
-      return { uri: `${API_BASE}/storage/r2-public-objects/car-makes/${vehicleMakeId}.webp` };
+    if (vehicleMakeId && !vehicleMakeId.startsWith("custom-")) {
+      const resolvedModel = vehicleModelId
+        ? customModelSlug(vehicleModelId)   // strips "custom-" for R2 key
+        : null;
+      if (resolvedModel) {
+        return { uri: getCarImageUrl(vehicleMakeId, resolvedModel) };
+      }
     }
     // Fall back to local type-specific image
     return VEHICLE_IMAGES[vehicleType ?? "car"] ?? DEFAULT_VEHICLE_IMAGE;
-  }, [vehicleMakeId, vehicleType]);
+  }, [vehicleMakeId, vehicleModelId, vehicleType]);
   const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
