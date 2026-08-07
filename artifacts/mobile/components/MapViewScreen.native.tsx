@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { MAP_CHIPS, CATEGORIES, type QueryCategory, type POIResult, fetchNearbyPOIs, formatDist } from "@/utils/nearbyPlaces";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -12,7 +12,7 @@ import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
-import PlaceSearchSheet from "@/components/PlaceSearchSheet";
+import { nominatimSearch, type GeoResult } from "@/utils/geocoding";
 import * as Haptics from "expo-haptics";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal";
@@ -271,7 +271,6 @@ export default function MapViewScreen() {
   const [selectedZone, setSelectedZone] = useState<typeof allZones[0] | null>(null);
   const zoneOpenedAtRef = useRef(0);
   const [adminZoneLocationTarget, setAdminZoneLocationTarget] = useState<typeof allZones[0] | null>(null);
-  const [showFindNearby, setShowFindNearby] = useState(false);
   const [mapDrifted, setMapDrifted] = useState(false);
   // ── Heading-up compass mode ─────────────────────────────────────────────────
   const [headingUpMode, setHeadingUpMode] = useState(false);
@@ -280,6 +279,12 @@ export default function MapViewScreen() {
   const [chipResults, setChipResults]     = useState<POIResult[]>([]);
   const [chipLoading, setChipLoading]     = useState(false);
   const [chipError, setChipError]         = useState<string | null>(null);
+  // ── Inline place search (geocoding) ─────────────────────────────────────────
+  const [placeQuery, setPlaceQuery]       = useState("");
+  const [placeResults, setPlaceResults]   = useState<GeoResult[]>([]);
+  const [placeLoading, setPlaceLoading]   = useState(false);
+  const [placeFocused, setPlaceFocused]   = useState(false);
+  const placeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
   const mapRef = useRef<MapView>(null);
 
@@ -312,10 +317,6 @@ export default function MapViewScreen() {
 
   const TAB_H = Platform.OS === "web" ? 84 : 96;
   const HALF_SCREEN = Math.round(Dimensions.get("window").height * 0.5);
-  // Sheet grows to half the screen when results are loaded.
-  const EXPLORE_H = activeChipCat
-    ? (chipLoading ? 100 : chipResults.length > 0 ? HALF_SCREEN : 100)
-    : 90;
 
   // ── Look-ahead camera refs ──────────────────────────────────────────────────
   // Low-pass smoothed heading for the camera — avoids snap-rotations when GPS
@@ -495,6 +496,42 @@ export default function MapViewScreen() {
     }
   }, [currentLat, currentLng, activeRoute]);
 
+  // ── Inline place search handlers ────────────────────────────────────────────
+  const runPlaceSearch = useCallback(async (q: string) => {
+    const text = q.trim();
+    if (text.length < 2) { setPlaceResults([]); setPlaceLoading(false); return; }
+    setPlaceLoading(true);
+    try {
+      const data = await nominatimSearch(text);
+      setPlaceResults(data);
+    } catch { setPlaceResults([]); } finally { setPlaceLoading(false); }
+  }, []);
+
+  const handlePlaceChange = (text: string) => {
+    setPlaceQuery(text);
+    // Tapping the text input clears any active chip category
+    if (activeChipCat) { setActiveChipCat(null); setChipResults([]); setChipError(null); }
+    if (placeTimerRef.current) clearTimeout(placeTimerRef.current);
+    if (text.trim().length < 2) { setPlaceResults([]); setPlaceLoading(false); return; }
+    setPlaceLoading(true);
+    placeTimerRef.current = setTimeout(() => runPlaceSearch(text), 400);
+  };
+
+  const clearPlaceSearch = () => {
+    setPlaceQuery(""); setPlaceResults([]); setPlaceLoading(false);
+    if (placeTimerRef.current) clearTimeout(placeTimerRef.current);
+  };
+
+  const handlePlaceSelect = (name: string, lat: number, lng: number) => {
+    Keyboard.dismiss();
+    clearPlaceSearch();
+    setActiveChipCat(null); setChipResults([]); setChipError(null);
+    setNavDestination({ name, lat, lng });
+    startNavigation();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.replace("/(tabs)/drive");
+  };
+
   const openCluster = (group: ClusterGroup) => {
     openedAtRef.current = Date.now();
     setSelectedCluster(group);
@@ -609,35 +646,140 @@ export default function MapViewScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Search bar */}
-      <TouchableOpacity
-        style={[styles.searchBar, { top: insets.top + 8, backgroundColor: c.card }]}
-        onPress={() => setShowFindNearby(true)}
-        activeOpacity={0.88}
-      >
-        <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
-        <Text style={[styles.searchBarPlaceholder, { color: c.mutedForeground }]}>Where to?</Text>
-      </TouchableOpacity>
+      {/* ── Inline search bar — always-visible TextInput ─────────────────────── */}
+      <View style={[styles.searchBar, { top: insets.top + 8, backgroundColor: c.card }]}>
+        <Ionicons name="search-outline" size={18} color={placeFocused ? c.primary : c.mutedForeground} />
+        <TextInput
+          style={[styles.searchBarInput, { color: c.foreground }]}
+          placeholder="Where to?"
+          placeholderTextColor={c.mutedForeground}
+          value={placeQuery}
+          onChangeText={handlePlaceChange}
+          onFocus={() => setPlaceFocused(true)}
+          onBlur={() => setTimeout(() => setPlaceFocused(false), 150)}
+          returnKeyType="search"
+          onSubmitEditing={() => runPlaceSearch(placeQuery)}
+          autoCorrect={false}
+          autoCapitalize="words"
+        />
+        {placeLoading
+          ? <ActivityIndicator size="small" color={c.primary} />
+          : placeQuery.length > 0
+            ? <TouchableOpacity onPress={clearPlaceSearch} hitSlop={10}>
+                <Ionicons name="close-circle" size={18} color={c.mutedForeground} />
+              </TouchableOpacity>
+            : null
+        }
+      </View>
 
-      {/* Category chips — 10 categories + "Search" opener */}
+      {/* ── Inline results dropdown — shows below the chips row ─────────────── */}
+      {(placeResults.length > 0 || (activeChipCat && (chipLoading || chipResults.length > 0 || !!chipError))) && (
+        <View style={[styles.searchDropdown, {
+          top: insets.top + 118,
+          backgroundColor: c.card,
+          shadowColor: "#000",
+        }]}>
+          {/* Geocoding results */}
+          {placeResults.length > 0 && (
+            <FlatList
+              data={placeResults}
+              keyExtractor={(_, i) => String(i)}
+              style={{ maxHeight: 320 }}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.dropdownRow, { borderColor: c.border }]}
+                  activeOpacity={0.72}
+                  onPress={() => handlePlaceSelect(item.short, item.lat, item.lng)}
+                >
+                  <View style={[styles.dropdownIcon, { backgroundColor: c.primary + "15" }]}>
+                    <Ionicons name="location-outline" size={16} color={c.primary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.dropdownName, { color: c.foreground }]} numberOfLines={1}>{item.short}</Text>
+                    {item.display !== item.short && (
+                      <Text style={[styles.dropdownAddr, { color: c.mutedForeground }]} numberOfLines={1}>{item.display}</Text>
+                    )}
+                  </View>
+                  <Ionicons name="navigate-outline" size={14} color={c.primary} />
+                </TouchableOpacity>
+              )}
+            />
+          )}
+
+          {/* Chip POI results */}
+          {activeChipCat && !placeResults.length && (
+            <>
+              {chipLoading && (
+                <View style={styles.dropdownStatus}>
+                  <ActivityIndicator size="small" color={c.primary} />
+                  <Text style={[styles.dropdownStatusTxt, { color: c.mutedForeground }]}>
+                    Finding nearby {CATEGORIES[activeChipCat].label.toLowerCase()}…
+                  </Text>
+                </View>
+              )}
+              {!chipLoading && chipError && (
+                <View style={styles.dropdownStatus}>
+                  <Ionicons name="cloud-offline-outline" size={18} color={c.mutedForeground} />
+                  <Text style={[styles.dropdownStatusTxt, { color: c.mutedForeground }]}>{chipError}</Text>
+                </View>
+              )}
+              {!chipLoading && !chipError && chipResults.length === 0 && (
+                <View style={styles.dropdownStatus}>
+                  <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
+                  <Text style={[styles.dropdownStatusTxt, { color: c.mutedForeground }]}>Nothing found nearby.</Text>
+                </View>
+              )}
+              {!chipLoading && chipResults.length > 0 && (
+                <FlatList
+                  data={chipResults}
+                  keyExtractor={(item) => String(item.id)}
+                  style={{ maxHeight: 320 }}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[styles.dropdownRow, { borderColor: c.border }]}
+                      activeOpacity={0.72}
+                      onPress={() => {
+                        setActiveChipCat(null); setChipResults([]); setChipError(null);
+                        setNavDestination({ name: item.name, lat: item.lat, lng: item.lng });
+                        startNavigation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        router.replace("/(tabs)/drive");
+                      }}
+                    >
+                      <View style={[styles.dropdownIcon, { backgroundColor: item.subtypeColor + "20" }]}>
+                        <Ionicons
+                          name={(MAP_CHIPS.find(ch => ch.cat === activeChipCat)?.icon ?? "location-outline") as any}
+                          size={16} color={item.subtypeColor}
+                        />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.dropdownName, { color: c.foreground }]} numberOfLines={1}>{item.name}</Text>
+                        {!!item.address && (
+                          <Text style={[styles.dropdownAddr, { color: c.mutedForeground }]} numberOfLines={1}>{item.address}</Text>
+                        )}
+                      </View>
+                      <View style={[styles.dropdownGoBtn, { backgroundColor: item.subtypeColor }]}>
+                        <Ionicons name="navigate" size={10} color="#FFF" />
+                        <Text style={styles.dropdownGoBtnTxt}>Go</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+            </>
+          )}
+        </View>
+      )}
+
+      {/* Category chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={[styles.chipsScroll, { top: insets.top + 64 }]}
         contentContainerStyle={styles.chipsContent}
       >
-        {/* "Search" chip opens the full RouteSearchSheet */}
-        <TouchableOpacity
-          style={[styles.chip, {
-            backgroundColor: showFindNearby ? c.primary : c.card,
-          }]}
-          onPress={() => setShowFindNearby(true)}
-          activeOpacity={0.82}
-        >
-          <Ionicons name="search-outline" size={14} color={showFindNearby ? "#FFF" : c.primary} />
-          <Text style={[styles.chipTxt, { color: showFindNearby ? "#FFF" : c.primary }]}>Search</Text>
-        </TouchableOpacity>
-
         {MAP_CHIPS.map((chip) => {
           const isActive = activeChipCat === chip.cat;
           const catColor = CATEGORIES[chip.cat].color;
@@ -807,7 +949,7 @@ export default function MapViewScreen() {
       )}
 
       {/* Right controls — compass + layers + locate */}
-      <View style={[styles.newControls, { bottom: insets.bottom + TAB_H + EXPLORE_H + 20, right: 12 }]}>
+      <View style={[styles.newControls, { bottom: insets.bottom + TAB_H + 20, right: 12 }]}>
         {/* Compass — toggles heading-up mode (road-ahead tracking) */}
         <TouchableOpacity
           style={[styles.newControlBtn, {
@@ -842,7 +984,7 @@ export default function MapViewScreen() {
 
       {/* Weather chip — live current conditions for the driver's location */}
       {weather?.tempC != null && (
-        <View style={[styles.weatherChip, { backgroundColor: c.card + "E8", bottom: insets.bottom + TAB_H + EXPLORE_H + 20, left: 12 }]}>
+        <View style={[styles.weatherChip, { backgroundColor: c.card + "E8", bottom: insets.bottom + TAB_H + 20, left: 12 }]}>
           <Ionicons name={weatherIcon(weather.weatherCode) as any} size={18} color="#FFB300" />
           <View style={{ gap: 1 }}>
             <Text style={[styles.weatherTemp, { color: c.foreground }]}>{weather.tempC}°</Text>
@@ -852,97 +994,6 @@ export default function MapViewScreen() {
           </View>
         </View>
       )}
-
-      {/* Explore Nearby bottom sheet — expands with category results */}
-      <View style={[styles.exploreSheet, {
-        bottom: insets.bottom + TAB_H - 8,
-        backgroundColor: c.card,
-        maxHeight: activeChipCat ? HALF_SCREEN : 110,
-      }]}>
-        {/* Default state — no chip selected */}
-        {!activeChipCat && (
-          <TouchableOpacity
-            style={[styles.nearbyEmpty, { borderColor: c.border }]}
-            onPress={() => setShowFindNearby(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="location-outline" size={20} color={c.mutedForeground} />
-            <Text style={[styles.nearbyEmptyTxt, { color: c.mutedForeground }]}>Tap a category above to find nearby places</Text>
-            <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
-          </TouchableOpacity>
-        )}
-
-        {/* Loading */}
-        {activeChipCat && chipLoading && (
-          <View style={styles.chipSheetLoader}>
-            <ActivityIndicator size="small" color={c.primary} />
-            <Text style={[styles.chipSheetMsg, { color: c.mutedForeground }]}>Finding nearby {CATEGORIES[activeChipCat].label.toLowerCase()}…</Text>
-          </View>
-        )}
-
-        {/* Error */}
-        {activeChipCat && !chipLoading && chipError && (
-          <View style={styles.chipSheetLoader}>
-            <Ionicons name="cloud-offline-outline" size={20} color={c.mutedForeground} />
-            <Text style={[styles.chipSheetMsg, { color: c.mutedForeground }]}>{chipError}</Text>
-          </View>
-        )}
-
-        {/* Results */}
-        {activeChipCat && !chipLoading && !chipError && chipResults.length === 0 && (
-          <View style={styles.chipSheetLoader}>
-            <Ionicons name="search-outline" size={20} color={c.mutedForeground} />
-            <Text style={[styles.chipSheetMsg, { color: c.mutedForeground }]}>Nothing found nearby.</Text>
-          </View>
-        )}
-
-        {activeChipCat && !chipLoading && chipResults.length > 0 && (
-          <FlatList
-            data={chipResults}
-            keyExtractor={(item) => String(item.id)}
-            style={{ marginTop: 4 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.chipResultRow, { borderColor: c.border }]}
-                activeOpacity={0.75}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setNavDestination({ name: item.name, lat: item.lat, lng: item.lng });
-                  startNavigation();
-                  setActiveChipCat(null);
-                  setChipResults([]);
-                  router.replace("/(tabs)/drive");
-                }}
-              >
-                <View style={[styles.chipResultIcon, { backgroundColor: item.subtypeColor + "20" }]}>
-                  <Ionicons
-                    name={(MAP_CHIPS.find(ch => ch.cat === activeChipCat)?.icon ?? "location-outline") as any}
-                    size={18}
-                    color={item.subtypeColor}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.chipResultName, { color: c.foreground }]} numberOfLines={1}>{item.name}</Text>
-                  {!!item.address && (
-                    <Text style={[styles.chipResultAddr, { color: c.mutedForeground }]} numberOfLines={1}>{item.address}</Text>
-                  )}
-                </View>
-                <View style={styles.chipResultRight}>
-                  <Text style={[styles.chipResultDist, { color: item.subtypeColor }]}>
-                    {formatDist(item.distAheadM, !!activeRoute)}
-                  </Text>
-                  <View style={[styles.chipGoBtn, { backgroundColor: item.subtypeColor }]}>
-                    <Ionicons name="navigate" size={11} color="#FFF" />
-                    <Text style={styles.chipGoBtnTxt}>Go</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
-          />
-        )}
-      </View>
 
       {showTraffic && (
         <View style={[styles.trafficBadge, { backgroundColor: c.primary, bottom: insets.bottom + 150 }]}>
@@ -988,21 +1039,6 @@ export default function MapViewScreen() {
           crosshairRequest?.onConfirm(lat, lng);
           setCrosshairRequest(null);
           setShowReport(true);   // restore report form with picked location set
-        }}
-      />
-
-      {/* "Where to?" place search — free-text geocoding destination picker */}
-      <PlaceSearchSheet
-        visible={showFindNearby}
-        onClose={() => setShowFindNearby(false)}
-        onSelect={(place) => {
-          setShowFindNearby(false);
-          setNavDestination({ name: place.name, lat: place.lat, lng: place.lng });
-          startNavigation();
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          // Switch to Drive tab so turn-by-turn nav + voice guidance are
-          // immediately visible without the driver needing to tap manually.
-          router.replace("/(tabs)/drive");
         }}
       />
 
@@ -1417,8 +1453,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 6, elevation: 8,
     zIndex: 20,
   },
-  searchBarPlaceholder: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
-  searchBarIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  searchBarInput: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", paddingVertical: 0 },
+  // ── Inline search results dropdown ────────────────────────────────────────
+  searchDropdown: {
+    position: "absolute", left: 12, right: 12, zIndex: 21,
+    borderRadius: 16, paddingVertical: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 16,
+  },
+  dropdownRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  dropdownIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  dropdownName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  dropdownAddr: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  dropdownGoBtn: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 14,
+  },
+  dropdownGoBtnTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  dropdownStatus: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 14, paddingVertical: 14,
+  },
+  dropdownStatusTxt: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
   chipsScroll: { position: "absolute", left: 0, right: 0, zIndex: 19 },
   chipsContent: { paddingHorizontal: 12, gap: 8 },
   chip: {
