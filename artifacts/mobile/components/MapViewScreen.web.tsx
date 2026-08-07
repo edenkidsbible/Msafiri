@@ -10,7 +10,6 @@ import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { snapToRoad } from "@/utils/snapToRoad";
-import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -50,12 +49,9 @@ export default function MapViewScreen() {
   const insets = useSafeAreaInsets();
   const {
     currentLat, currentLng, communityReports, addReport, deleteReport,
-    activeRoute, altRoutes, selectRoute, navigationActive,
-    navDestination, showTraffic, setShowTraffic,
-    currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS,
-    startNavigation, stopNavigation,
+    activeRoute, altRoutes, selectRoute,
+    navDestination, setNavDestination, showTraffic, setShowTraffic,
     vehicleType, routeTrafficDelayS, allZones,
-    fasterRoute, acceptFasterRoute, dismissFasterRoute,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
@@ -63,9 +59,6 @@ export default function MapViewScreen() {
   const [undoReport, setUndoReport] = useState<UndoableReport | null>(null);
 
   // ── Alert focus (deep-link from the home screen's Nearby Alerts cards) ─────
-  // The web map is a list view, so "focus" here means: show a banner for the
-  // selected alert and emphasize + front-sort its row when it's a zone.
-  // focusTs makes re-tapping the same card re-trigger the effect.
   const { focusId, focusLat, focusLng, focusTs } = useLocalSearchParams<{
     focusId?: string; focusLat?: string; focusLng?: string; focusTs?: string;
   }>();
@@ -77,37 +70,10 @@ export default function MapViewScreen() {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     setFocusedAlert({ id: focusId, lat, lng });
   }, [focusId, focusLat, focusLng, focusTs]);
-  // Home prefixes ids by source: z-<zoneId>, r-<reportId>, h-<hereId>.
   const focusedZoneId = focusedAlert?.id.startsWith("z-") ? focusedAlert.id.slice(2) : null;
   const focusedReport = focusedAlert?.id.startsWith("r-")
     ? communityReports.find((r) => r.id === focusedAlert.id.slice(2)) ?? null
     : null;
-
-  // Fade the ETA labels when durationRemainingS jumps >60 s (traffic refresh).
-  // Small per-GPS-fix drift is below the threshold and passes through unchanged.
-  const etaFadeAnim  = useRef(new Animated.Value(1)).current;
-  const prevEtaRef   = useRef<number | null>(null);
-  useEffect(() => {
-    const prev = prevEtaRef.current;
-    prevEtaRef.current = durationRemainingS;
-    if (prev == null || durationRemainingS == null) return;
-    if (Math.abs(durationRemainingS - prev) < 60) return;
-    Animated.sequence([
-      Animated.timing(etaFadeAnim, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(etaFadeAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
-    ]).start();
-  }, [durationRemainingS, etaFadeAnim]);
-
-  const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
-  const isRoundaboutStep = currentStep?.instruction?.toLowerCase().includes("roundabout") ?? false;
-
-  const { exitsPassed, targetExitIsNext } = useRoundaboutExitCounter({
-    currentLat,
-    currentLng,
-    currentStepIdx,
-    navigationActive,
-    targetExitNumber: isRoundaboutStep ? (currentStep?.exitNumber ?? null) : null,
-  });
 
   const weather = useWeather(currentLat, currentLng);
 
@@ -117,7 +83,6 @@ export default function MapViewScreen() {
   const zones = allZones.filter((z) => filter === "all" || z.type === filter)
     .map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle), distance: currentLat && currentLng ? haversine(currentLat, currentLng, z.lat, z.lng) : null }))
     .sort((a, b) => {
-      // Front-sort the focused alert's row so it's immediately visible.
       if (focusedZoneId) {
         if (a.id === focusedZoneId) return -1;
         if (b.id === focusedZoneId) return 1;
@@ -142,13 +107,16 @@ export default function MapViewScreen() {
     setUndoReport(null);
   };
 
+  /** Clear the active route preview and destination. */
+  const dismissRoute = () => setNavDestination(null);
+
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
         <View style={styles.headerRow}>
           <View style={styles.titleGroup}>
             <Text style={[styles.title, { color: c.foreground }]}>
-              {navDestination ? "Navigation" : "Speed Zones"}
+              {navDestination ? "Route Preview" : "Speed Zones"}
             </Text>
             {weather?.tempC != null && (
               <View style={[styles.weatherChip, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -177,112 +145,38 @@ export default function MapViewScreen() {
           </View>
         </View>
 
-        {/* Active route panel */}
+        {/* Route preview panel — shown whenever a destination is set */}
         {activeRoute && navDestination && (
-          <View style={[styles.routePanel, { backgroundColor: navigationActive ? "#1565C0" : c.card, borderColor: c.border }]}>
+          <View style={[styles.routePanel, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={styles.routePanelTop}>
-              <View>
-                <Text style={[styles.routeDestName, { color: navigationActive ? "#FFF" : c.foreground }]} numberOfLines={1}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.routeDestName, { color: c.foreground }]} numberOfLines={1}>
                   {navDestination.name.split(",")[0]}
                 </Text>
-                <Animated.View style={{ opacity: etaFadeAnim }}>
-                  <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFBB" : c.mutedForeground }]}>
-                    {durationStr(durationRemainingS ?? activeRoute.durationS)} · {distStr(distanceRemainingM ?? activeRoute.distanceM)}
-                  </Text>
-                  <Text style={[styles.routeMeta, { color: navigationActive ? "#FFFFFFAA" : c.mutedForeground, marginTop: 1 }]}>
-                    {arrivalTimeStr(durationRemainingS ?? activeRoute.durationS)}
-                  </Text>
-                </Animated.View>
+                <Text style={[styles.routeMeta, { color: c.mutedForeground }]}>
+                  {durationStr(activeRoute.durationS)} · {distStr(activeRoute.distanceM)}
+                </Text>
+                <Text style={[styles.routeMeta, { color: c.mutedForeground, marginTop: 1 }]}>
+                  {arrivalTimeStr(activeRoute.durationS)}
+                </Text>
                 {routeTrafficDelayS > 0 && (
-                  <Text style={[styles.routeMeta, { color: navigationActive ? "#FFD180" : "#E65100", marginTop: 1 }]}>
+                  <Text style={[styles.routeMeta, { color: "#E65100", marginTop: 1 }]}>
                     Community reports: +{Math.round(routeTrafficDelayS / 60)} min
                   </Text>
                 )}
               </View>
-              {navigationActive ? (
-                <TouchableOpacity style={styles.stopBtn} onPress={() => stopNavigation("manual")}>
-                  <Text style={styles.stopBtnText}>■ Stop</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={[styles.startBtn, { backgroundColor: c.primary }]} onPress={startNavigation}>
-                  <Ionicons name="navigate" size={14} color={c.primaryForeground} />
-                  <Text style={[styles.startBtnText, { color: c.primaryForeground }]}>Start</Text>
-                </TouchableOpacity>
-              )}
+              {/* Dismiss button — always visible while preview is active */}
+              <TouchableOpacity
+                style={[styles.dismissBtn, { backgroundColor: c.muted }]}
+                onPress={dismissRoute}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={16} color={c.foreground} />
+              </TouchableOpacity>
             </View>
 
-            {/* Faster route banner (nav active) */}
-            {navigationActive && !!fasterRoute && durationRemainingS != null && (
-              <View style={styles.fasterRouteBanner}>
-                <Ionicons name="flash" size={14} color="#00BCD4" />
-                <Text style={styles.fasterRouteTxt} numberOfLines={1}>
-                  Faster route — save {Math.max(1, Math.round((durationRemainingS - fasterRoute.durationS) / 60))} min
-                </Text>
-                <TouchableOpacity style={styles.fasterRouteSwitch} onPress={acceptFasterRoute}>
-                  <Text style={styles.fasterRouteSwitchTxt}>Switch</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.fasterRouteDismiss} onPress={dismissFasterRoute}>
-                  <Ionicons name="close" size={14} color="#FFFFFFAA" />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Current instruction (nav active) */}
-            {navigationActive && currentStep && (
-              <View>
-                <View style={styles.instructionRow}>
-                  <View style={{ position: "relative" }}>
-                    <Ionicons name="arrow-forward-circle-outline" size={18} color="#FFF" />
-                    {currentStep.exitNumber != null && (
-                      <View style={[styles.exitBadge, {
-                        backgroundColor: targetExitIsNext ? "#FFC107" : "#FFF",
-                      }]}>
-                        <Text style={[styles.exitBadgeTxt, {
-                          color: targetExitIsNext ? "#7B3F00" : "#1565C0",
-                        }]}>
-                          {currentStep.exitNumber}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.instructionText} numberOfLines={2}>
-                    {!isRoundaboutStep && distToNextM != null ? `In ${distToNextM}m — ` : ""}
-                    {currentStep.instruction}
-                  </Text>
-                </View>
-                {/* Roundabout exit counter strip */}
-                {isRoundaboutStep && currentStep.exitNumber != null && (
-                  <View style={styles.rabRow}>
-                    {Array.from({ length: currentStep.exitNumber }).map((_, i) => {
-                      const isPassed = i < exitsPassed;
-                      const isTarget = i === currentStep.exitNumber! - 1;
-                      const isNextUp = isTarget && targetExitIsNext;
-                      return (
-                        <View
-                          key={i}
-                          style={[
-                            styles.rabDot,
-                            isPassed && styles.rabDotPassed,
-                            isTarget && !isPassed && styles.rabDotTarget,
-                            isNextUp && styles.rabDotNext,
-                          ]}
-                        />
-                      );
-                    })}
-                    <Text style={styles.rabLabel}>
-                      {targetExitIsNext
-                        ? "Exit now!"
-                        : exitsPassed > 0
-                          ? `${currentStep.exitNumber - exitsPassed} more`
-                          : `Exit ${currentStep.exitNumber}`}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
             {/* Alternative routes */}
-            {altRoutes.length > 0 && !navigationActive && (
+            {altRoutes.length > 0 && (
               <View style={styles.altRow}>
                 {altRoutes.map((r, i) => (
                   <TouchableOpacity
@@ -298,8 +192,8 @@ export default function MapViewScreen() {
               </View>
             )}
 
-            {/* Turn-by-turn steps list */}
-            {!navigationActive && activeRoute.steps.slice(0, 5).map((step, i) => (
+            {/* First 5 steps — route overview only, not turn-by-turn instructions */}
+            {activeRoute.steps.slice(0, 5).map((step, i) => (
               <View key={i} style={[styles.stepRow, i > 0 && { borderTopColor: c.border, borderTopWidth: 1 }]}>
                 <View style={[styles.stepNum, { backgroundColor: c.muted }]}>
                   <Text style={[styles.stepNumText, { color: c.foreground }]}>{i + 1}</Text>
@@ -316,7 +210,7 @@ export default function MapViewScreen() {
         )}
 
         <Text style={[styles.sub, { color: c.mutedForeground }]}>
-          {navDestination ? "Set destination on Drive tab" : currentLat ? "Sorted by distance from your location" : `${zones.length} zones on Kenya roads`}
+          {navDestination ? "Route preview — set destination on the Drive tab" : currentLat ? "Sorted by distance from your location" : `${zones.length} zones on Kenya roads`}
         </Text>
         <View style={styles.filters}>
           {(["all", "camera", "police", "zone"] as ZoneFilter[]).map((f) => (
@@ -424,23 +318,10 @@ const styles = StyleSheet.create({
   reportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   reportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   routePanel: { borderRadius: 14, borderWidth: 1, marginBottom: 12, overflow: "hidden" },
-  routePanelTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
+  routePanelTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", padding: 12, gap: 8 },
   routeDestName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   routeMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  stopBtn: { backgroundColor: "#FFFFFF22", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  stopBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  startBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  startBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  instructionRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
-  instructionText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#FFF", lineHeight: 18 },
-  exitBadge: { position: "absolute", bottom: -4, right: -4, borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: "center", justifyContent: "center" },
-  exitBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", lineHeight: 14 },
-  rabRow: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingBottom: 10, flexWrap: "wrap" },
-  rabDot: { width: 9, height: 9, borderRadius: 5, borderWidth: 1.5, borderColor: "#FFFFFF55", backgroundColor: "transparent" },
-  rabDotPassed: { backgroundColor: "#FFFFFF80", borderColor: "#FFFFFF80" },
-  rabDotTarget: { width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: "#FFC107", backgroundColor: "transparent" },
-  rabDotNext: { backgroundColor: "#FFC107", borderColor: "#FFC107" },
-  rabLabel: { marginLeft: 4, fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
+  dismissBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   altRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 10, flexWrap: "wrap" },
   altChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
   altChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
@@ -449,11 +330,6 @@ const styles = StyleSheet.create({
   stepNumText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   stepText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular" },
   stepDist: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  fasterRouteBanner: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#FFFFFF22" },
-  fasterRouteTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#00BCD4" },
-  fasterRouteSwitch: { backgroundColor: "#00BCD4", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  fasterRouteSwitchTxt: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF" },
-  fasterRouteDismiss: { padding: 2 },
   filters: { flexDirection: "row", gap: 8 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   filterLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },

@@ -54,8 +54,6 @@ import {
 } from "@/utils/recentSearches";
 import { snapToRoad, getRoadName } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-import { useRoundaboutExitCounter } from "@/hooks/useRoundaboutExitCounter";
-import RouteSearchSheet from "@/components/RouteSearchSheet";
 import { playSound, setSoundsMuted } from "@/utils/sound";
 import { speakAlert, setAlertVoiceDisabled } from "@/utils/alertTts";
 import { apiPost } from "@/utils/apiClient";
@@ -87,25 +85,6 @@ function formatClockTime(d: Date): string {
   const h = d.getHours() % 12 || 12;
   const m = d.getMinutes().toString().padStart(2, "0");
   return `${h}:${m} ${d.getHours() >= 12 ? "PM" : "AM"}`;
-}
-
-/** Format estimated arrival as a clock time, e.g. "Arrive 14:35" */
-function arrivalTimeStr(durationS: number): string {
-  const d = new Date(Date.now() + durationS * 1000);
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, "0");
-  return `Arrive ${h}:${m}`;
-}
-
-function maneuverIcon(instruction: string): keyof typeof Ionicons.glyphMap {
-  const l = instruction.toLowerCase();
-  if (l.includes("right")) return "arrow-forward-circle";
-  if (l.includes("left"))  return "arrow-back-circle";
-  if (l.includes("roundabout")) return "reload-circle";
-  if (l.includes("arrived") || l.includes("destination")) return "checkmark-circle";
-  if (l.includes("head") || l.includes("depart")) return "navigate";
-  if (l.includes("merge")) return "git-merge-outline";
-  return "arrow-up-circle";
 }
 
 
@@ -180,19 +159,14 @@ export default function DriveScreen() {
     hereIncidents,
     setThemeOverride,
     navDestination, setNavDestination,
-    activeRoute, altRoutes, divergenceRoutes, selectRoute, routeLoading,
-    navigationActive, startNavigation, stopNavigation, navigationEnabled,
-    currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, zonesOnRoute,
+    activeRoute, altRoutes, selectRoute, routeLoading,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
-    addReport, currentLat, currentLng, snapToActiveRoute,
-    arrivedInfo, clearArrival,
+    addReport, currentLat, currentLng,
     pendingConfirmationReport, setPendingConfirmationReport,
     setPendingConfirmationSource,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, setDriverName,
-    gpsLost,
-    fasterRoute, acceptFasterRoute, dismissFasterRoute,
     setMapPickerActive,
     deviceId,
     crashDetected, clearCrash, crashAssistantId,
@@ -286,19 +260,8 @@ export default function DriveScreen() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
-  const [navCardHeight, setNavCardHeight] = useState(0);
   const [showNearbySheet, setShowNearbySheet] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
-  // #34 — Search Along Route
-  const [showRouteSearch, setShowRouteSearch] = useState(false);
-  // #6 — resume original destination after a Search Along Route stop
-  const [resumeDestination, setResumeDestination] = useState<import("@/context/AppContext").NavDestination | null>(null);
-  // Coordinates of the active divert stop — used for departure detection.
-  // Stored in a ref so the distance-check effect doesn't re-register on every GPS tick.
-  const divertStopRef = useRef<{ lat: number; lng: number } | null>(null);
-  // True once the driver has arrived within 200 m of the divert stop so we
-  // don't trigger departure before they've even reached the place.
-  const divertArrivedRef = useRef(false);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
@@ -307,7 +270,6 @@ export default function DriveScreen() {
   // effect to use a shorter 8 s window (peek) instead of the 30 s manual-pan
   // window, so the driver is snapped back quickly without waiting.
   const alertFocusModeRef = useRef(false);
-  const [navBarHeight, setNavBarHeight] = useState(0);
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
   // Elapsed seconds during the trip — drives the Drive Safely "Duration" tile.
@@ -408,13 +370,6 @@ export default function DriveScreen() {
     return () => clearInterval(id);
   }, [triggerAutoSwitch]);
 
-  // Clear drift state when navigation ends (e.g. driver taps Stop)
-  useEffect(() => {
-    if (!navigationActive) {
-      setMapDrifted(false);
-    }
-  }, [navigationActive]);
-
   // Track avg speed during Live Trip
   useEffect(() => {
     if (!tripActive || currentSpeed <= 0) return;
@@ -430,67 +385,6 @@ export default function DriveScreen() {
   // alertFocusModeRef is kept for callers that set it, but it no longer
   // triggers an auto-resume countdown.
 
-  // Safety net: clear resumeDestination whenever navigation ends without an arrival.
-  // When the driver arrives naturally, both navigationActive→false and arrivedInfo are
-  // set in the same React batch, so arrivedInfo is non-null here and we leave
-  // resumeDestination intact for the arrival modal to use.
-  useEffect(() => {
-    if (!navigationActive && arrivedInfo == null) {
-      setResumeDestination(null);
-      divertStopRef.current    = null;
-      divertArrivedRef.current = false;
-    }
-  }, [navigationActive, arrivedInfo]);
-
-  // ── Auto-depart detection ────────────────────────────────────────────────
-  // When the driver has a divert stop active AND navigation has ended (they've
-  // arrived at the stop or dismissed it), poll their GPS position every 5 s.
-  // Once they've been within 200 m (arrived), then move >350 m away
-  // (departed), automatically resume navigation to the saved destination.
-  //
-  // Uses an interval rather than GPS-state deps so this effect fires at 5 s
-  // granularity instead of re-running on every 1 Hz GPS fix — the detection
-  // does not need sub-second precision for departure timing.
-  useEffect(() => {
-    if (!resumeDestination) return;          // no divert in progress
-    if (navigationActive) return;            // still navigating to the stop
-    if (!arrivedInfo) return;                // arrival modal not showing
-
-    const check = () => {
-      const lat = currentLatRef.current;
-      const lng = currentLngRef.current;
-      if (lat == null || lng == null) return;
-
-      const stop = divertStopRef.current;
-      if (!stop) return;
-
-      const distFromStop = haversineM(lat, lng, stop.lat, stop.lng);
-
-      // Gate: mark as "arrived" once within 200 m of the divert stop
-      if (!divertArrivedRef.current && distFromStop <= 200) {
-        divertArrivedRef.current = true;
-      }
-
-      // Depart: driver was close, now >350 m away → auto-resume
-      if (divertArrivedRef.current && distFromStop > 350) {
-        const dest = resumeDestination;
-        clearArrival();
-        setResumeDestination(null);
-        divertStopRef.current    = null;
-        divertArrivedRef.current = false;
-        setNavDestination(dest);
-        startNavigation();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    };
-
-    check(); // run immediately on condition change
-    const id = setInterval(check, 5000);
-    return () => clearInterval(id);
-  // currentLat/currentLng intentionally omitted — read from refs above.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumeDestination, navigationActive, arrivedInfo,
-      clearArrival, setNavDestination, startNavigation]);
 
   // Extracted so both the direct path and the name-prompt confirm button can call it.
   const doStartSharing = useCallback(async (name: string) => {
@@ -691,45 +585,10 @@ export default function DriveScreen() {
     await doStartSharing(driverName);
   }, [isSharingTrip, stopSharingTrip, doStartSharing, driverName]);
 
-  // #10 — when driver taps Stop mid-SAR-stop, offer to resume the original destination
   const handleStopPress = useCallback(() => {
-    if (resumeDestination) {
-      const dest = resumeDestination;
-      const poiName = navDestination?.name.split(",")[0] ?? "this stop";
-      const originalName = dest.name.split(",")[0];
-      Alert.alert(
-        "Abandon stop?",
-        `Navigate to ${originalName} instead of continuing to ${poiName}?`,
-        [
-          {
-            text: "Yes, go to " + originalName,
-            style: "default",
-            onPress: () => {
-              // Swap destination without stopping — avoids triggering the
-              // safety-net useEffect that clears resumeDestination on Stop.
-              setResumeDestination(null);
-              setNavDestination(dest);
-              startNavigation();
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            },
-          },
-          {
-            text: "No, stop here",
-            style: "destructive",
-            onPress: () => {
-              setResumeDestination(null);
-              stopNavigation("manual");
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            },
-          },
-        ],
-      );
-    } else {
-      setResumeDestination(null);
-      stopNavigation("manual");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-  }, [resumeDestination, navDestination, setNavDestination, startNavigation, stopNavigation]);
+    stopTrip();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [stopTrip]);
 
   // Centralises search teardown so every dismiss path (outside tap, blur,
   // chevron button) all go through one place.
@@ -743,65 +602,10 @@ export default function DriveScreen() {
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
   const isMapMode  = hasRoute && !showResults;
-  const currentStep = activeRoute?.steps?.[currentStepIdx] ?? null;
-
-  // ── Roundabout exit counter ───────────────────────────────────────────────
-  const isRoundaboutStep = currentStep?.instruction?.toLowerCase().includes("roundabout") ?? false;
-  const { exitsPassed, targetExitIsNext } = useRoundaboutExitCounter({
-    currentLat,
-    currentLng,
-    currentStepIdx,
-    navigationActive,
-    targetExitNumber: isRoundaboutStep ? (currentStep?.exitNumber ?? null) : null,
-  });
-
-  // Fade animation for the ETA bar — fires when durationRemainingS jumps >60 s
-  // (traffic refresh). Small per-GPS-fix drift is below the threshold and ignored.
-  const etaFadeAnim = useRef(new Animated.Value(1)).current;
-  const prevEtaRef  = useRef<number | null>(null);
-
-  // Pulse animation for the exit badge when the target exit is next
-  const exitBadgePulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (targetExitIsNext) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(exitBadgePulse, {
-            toValue: 1.35,
-            duration: 380,
-            useNativeDriver: Platform.OS !== "web",
-          }),
-          Animated.timing(exitBadgePulse, {
-            toValue: 1.0,
-            duration: 380,
-            useNativeDriver: Platform.OS !== "web",
-          }),
-        ]),
-      );
-      loop.start();
-      return () => { loop.stop(); exitBadgePulse.setValue(1); };
-    }
-    exitBadgePulse.setValue(1);
-    return undefined;
-  }, [targetExitIsNext, exitBadgePulse]);
 
   // alertOverlayPulse ref declared early (rule of hooks: same order every render).
   // The driving useEffect lives after primaryAlert's useMemo below.
   const alertOverlayPulse = useRef(new Animated.Value(1)).current;
-
-  const prevTargetExitIsNextRef = useRef(false);
-
-  // Fade the ETA bar on large jumps (traffic refresh >60 s); ignore GPS drift.
-  useEffect(() => {
-    const prev = prevEtaRef.current;
-    prevEtaRef.current = durationRemainingS;
-    if (prev == null || durationRemainingS == null) return;
-    if (Math.abs(durationRemainingS - prev) < 60) return;
-    Animated.sequence([
-      Animated.timing(etaFadeAnim, { toValue: 0, duration: 150, useNativeDriver: Platform.OS !== "web" }),
-      Animated.timing(etaFadeAnim, { toValue: 1, duration: 250, useNativeDriver: Platform.OS !== "web" }),
-    ]).start();
-  }, [durationRemainingS, etaFadeAnim]);
 
   // Nearest incident ahead — considers BOTH static speed zones AND community
   // reports so a just-reported broken-down vehicle beats a distant speed camera.
@@ -864,9 +668,9 @@ export default function DriveScreen() {
   }, [nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
   const primaryAlert = useMemo(() => {
-    // While navigating, routeIncidentsAhead already merges zones + reports on
-    // the route and sorts by distance remaining — use it directly.
-    if (navigationActive && routeIncidentsAhead.length > 0) {
+    // With an active route, routeIncidentsAhead already merges zones + reports
+    // on the route and sorts by distance remaining — use it directly.
+    if (activeRoute && routeIncidentsAhead.length > 0) {
       // Skip incidents within 250 m — those are in-zone or just-passed.
       // The DriveAlertOverlay owns that range; the strip badge shows lookahead only.
       const inc = routeIncidentsAhead.find(i => (i.aheadDistanceM ?? 0) > 250);
@@ -950,7 +754,7 @@ export default function DriveScreen() {
     if (candidates.length === 0) return null;
     // Pick the closest — a HERE incident 200 m away wins over a camera 1 km away
     return candidates.sort((a, b) => a.distanceM - b.distanceM)[0];
-  }, [navigationActive, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
+  }, [activeRoute, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
   // ── Alert overlay heartbeat pulse ────────────────────────────────────────
   // Placed here (after primaryAlert useMemo) so alertDistM can read it safely.
@@ -1046,11 +850,6 @@ export default function DriveScreen() {
     setShowResults(false);
     setSearchInputFocused(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (!navigationEnabled) {
-      // Nav is off — just pan the map to the selected place, no routing
-      driveMapRef.current?.focusCoords(r.lat, r.lng);
-      return;
-    }
     setNavDestination({ name: r.display, lat: r.lat, lng: r.lng });
     // Persist to recents (newest-first, deduped)
     saveRecentSearch(r).then(setRecentSearches);
@@ -1065,19 +864,13 @@ export default function DriveScreen() {
     setShowResults(false);
     setSearchInputFocused(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (!navigationEnabled) {
-      driveMapRef.current?.focusCoords(place.lat, place.lng);
-      return;
-    }
     setNavDestination({ name: place.label, lat: place.lat, lng: place.lng });
-  }, [setNavDestination, navigationEnabled]);
+  }, [setNavDestination]);
 
   const clearDestination = () => {
     Keyboard.dismiss();
     if (tripActive) setTripActive(false);
-    stopNavigation("manual");
     setNavDestination(null);
-    setResumeDestination(null);
     setSearchText("");
     setGeoResults([]);
     setShowResults(false);
@@ -1221,17 +1014,6 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* Navigation-disabled chip — floats under the search bar when nav is off */}
-      {!navigationEnabled && !tripActive && !showResults && !searchInputFocused && (
-        <View
-          pointerEvents="none"
-          style={[styles.navDisabledChip, { top: topInset + 56 }]}
-        >
-          <Ionicons name="navigate-circle-outline" size={13} color="#888" />
-          <Text style={styles.navDisabledChipTxt}>Places explorer — navigation off</Text>
-        </View>
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════
           TOP: Search bar + results (when not in Live Trip mode)
       ══════════════════════════════════════════════════════════════════ */}
@@ -1261,7 +1043,7 @@ export default function DriveScreen() {
               placeholder={
                 isMapMode
                   ? navDestination?.name.split(",")[0] ?? "Change destination…"
-                  : navigationEnabled ? "Where to?" : "Explore places…"
+                  : "Where to?"
               }
               placeholderTextColor={isMapMode ? (isDark ? "#FFFFFFBB" : "#333333") : fgMuted}
               value={searchText}
@@ -1600,10 +1382,10 @@ export default function DriveScreen() {
             <View style={[styles.dmChip, { backgroundColor: isDark ? "#12171480" : "#FFFFFFCC" }]}>
               <View style={{
                 width: 8, height: 8, borderRadius: 4,
-                backgroundColor: gpsLost ? c.speedDanger : c.primary,
+                backgroundColor: locationGranted ? c.primary : c.speedDanger,
               }} />
               <Text style={[styles.dmChipTxt, { color: c.foreground }]}>
-                GPS {gpsLost ? "Lost" : (locationGranted ? "Good" : "Off")}
+                GPS {locationGranted ? "Good" : "Off"}
               </Text>
             </View>
           </View>
@@ -2158,9 +1940,9 @@ export default function DriveScreen() {
             <Text style={[styles.dmPanelTitle, { color: c.foreground }]}>Drive Safely</Text>
             {activeRoute != null && (
               <Text style={[styles.dmPanelEta, { color: c.mutedForeground }]} numberOfLines={1}>
-                {durationStr(durationRemainingS ?? activeRoute.durationS)}
+                {durationStr(activeRoute.durationS)}
                 {" · "}
-                {distStr(distanceRemainingM ?? activeRoute.distanceM)} left
+                {distStr(activeRoute.distanceM)} left
               </Text>
             )}
             <SOSButton compact small />
@@ -2299,7 +2081,6 @@ export default function DriveScreen() {
               <TouchableOpacity
                 style={styles.dmStopBtn}
                 onPress={() => {
-                  stopNavigation("manual");
                   stopTrip();
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
                   // Leave Drive Mode → back to Home
@@ -2371,9 +2152,8 @@ export default function DriveScreen() {
             // the exact road the driver is using, not just the nearest road in
             // Google's database (which can be the wrong lane or a parallel road).
             try {
-              const routeSnap = snapToActiveRoute(currentLat, currentLng);
               const [snapped, road] = await Promise.all([
-                routeSnap ? Promise.resolve(routeSnap) : snapToRoad(currentLat, currentLng),
+                snapToRoad(currentLat, currentLng),
                 getRoadName(currentLat, currentLng).catch(() => null),
               ]);
               addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined);
@@ -2579,61 +2359,6 @@ export default function DriveScreen() {
         onStartCrashReport={handleStartCrashReport}
       />
 
-      {/* #34 — Search Along Route */}
-      <RouteSearchSheet
-        visible={showRouteSearch}
-        onClose={() => setShowRouteSearch(false)}
-        onSelect={(poi) => {
-          setShowRouteSearch(false);
-
-          const doNavigate = (divert: boolean) => {
-            if (divert && navDestination) {
-              // Save original destination; store divert stop coords for departure detection
-              setResumeDestination(navDestination);
-              divertStopRef.current    = { lat: poi.lat, lng: poi.lng };
-              divertArrivedRef.current = false;
-            } else {
-              // Full destination change — discard any prior resume destination
-              setResumeDestination(null);
-              divertStopRef.current    = null;
-              divertArrivedRef.current = false;
-            }
-            setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
-            setSearchText(poi.name);
-            startNavigation();
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          };
-
-          // When there's already an active destination, ask the driver whether to
-          // divert (and resume later) or simply change the destination.
-          if (navDestination) {
-            const origName = navDestination.name.split(",")[0];
-            Alert.alert(
-              poi.name,
-              `How would you like to proceed?`,
-              [
-                {
-                  text: `Divert here, then continue to ${origName}`,
-                  onPress: () => doNavigate(true),
-                },
-                {
-                  text: "Change destination",
-                  style: "destructive",
-                  onPress: () => doNavigate(false),
-                },
-                {
-                  text: "Cancel",
-                  style: "cancel",
-                  onPress: () => setShowRouteSearch(true), // reopen the sheet
-                },
-              ],
-            );
-          } else {
-            // No prior destination — navigate directly without prompting
-            doNavigate(false);
-          }
-        }}
-      />
     </Animated.View>
   );
 }
@@ -2644,73 +2369,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#000" },
 
 
-  // ── Navigation instruction card ───────────────────────────────────────────
-  navCard: {
-    position: "absolute", left: 12, right: 12, zIndex: 20,
-    flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 22, padding: 16,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25, shadowRadius: 14, elevation: 12,
-  },
-  navCardIcon: {
-    width: 56, height: 56, borderRadius: 18,
-    backgroundColor: "#FFFFFF22",
-    alignItems: "center", justifyContent: "center",
-    overflow: "visible",
-  },
-  exitBadge: {
-    position: "absolute", bottom: -5, right: -5,
-    backgroundColor: "#FFF", borderRadius: 10,
-    minWidth: 20, height: 20, paddingHorizontal: 4,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25, shadowRadius: 3, elevation: 4,
-  },
-  exitBadgeTxt: {
-    color: "#1565C0", fontSize: 11, fontFamily: "Inter_700Bold", lineHeight: 14,
-  },
-  navInstruction: {
-    fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", lineHeight: 24,
-  },
-  navDist: {
-    fontSize: 24, fontFamily: "Inter_700Bold", color: "#90CAF9", marginTop: 4,
-  },
-  navAlertChip: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    alignSelf: "flex-start",
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 12, borderWidth: 1,
-  },
-  navAlertChipTxt: {
-    fontSize: 12, fontFamily: "Inter_600SemiBold",
-  },
-
-  // ── Roundabout exit counter ───────────────────────────────────────────────
-  rabRow: {
-    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap",
-  },
-  rabDot: {
-    width: 10, height: 10, borderRadius: 5,
-    borderWidth: 1.5, borderColor: "#FFFFFF55",
-    backgroundColor: "transparent",
-  },
-  rabDotPassed: {
-    backgroundColor: "#FFFFFF80",
-    borderColor: "#FFFFFF80",
-  },
-  rabDotTarget: {
-    width: 12, height: 12, borderRadius: 6,
-    borderWidth: 2, borderColor: "#FFC107",
-    backgroundColor: "transparent",
-  },
-  rabDotNext: {
-    backgroundColor: "#FFC107",
-    borderColor: "#FFC107",
-  },
-  rabLabel: {
-    marginLeft: 4,
-    fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF",
-  },
 
   // ── Search bar + results ─────────────────────────────────────────────────
   searchArea: {
@@ -2995,35 +2653,9 @@ const styles = StyleSheet.create({
   navArrive:    { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1, opacity: 0.75 },
   navDest:      { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   navResumeSub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2, opacity: 0.9 },
-  gpsLostChip:  { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#E65100EE", zIndex: 30 },
-  gpsLostText:  { color: "#FFF", fontSize: 11, fontFamily: "Inter_500Medium" },
   navDisabledChip: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#00000033", zIndex: 18 },
   navDisabledChipTxt: { color: "#AAA", fontSize: 11, fontFamily: "Inter_500Medium" },
 
-  // ── Faster-route banner ───────────────────────────────────────────────────
-  // Appears just below the nav instruction card when a periodic background
-  // check finds a route ≥ 3 min faster than the current remaining ETA.
-  fasterRouteBanner: {
-    position: "absolute", left: 12, right: 12, zIndex: 19,
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#1B5E20EE",
-    borderRadius: 14,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22, shadowRadius: 8, elevation: 10,
-  },
-  fasterRouteTxt: {
-    flex: 1, color: "#FFF", fontSize: 13, fontFamily: "Inter_600SemiBold",
-    paddingVertical: 11,
-  },
-  fasterRouteSwitch: {
-    backgroundColor: "#FFFFFF28",
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 10,
-    marginRight: 2,
-  },
-  fasterRouteSwitchTxt: {
-    color: "#FFF", fontSize: 13, fontFamily: "Inter_700Bold",
-  },
   stopBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "#E53935",

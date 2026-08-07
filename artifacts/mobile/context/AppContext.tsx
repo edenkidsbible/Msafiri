@@ -23,10 +23,6 @@ import {
   stopBackgroundShareTask,
   requestBackgroundLocationPermission,
 } from "@/utils/backgroundShare";
-import {
-  startBackgroundNavTask,
-  stopBackgroundNavTask,
-} from "@/utils/backgroundNavLocation";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
@@ -35,7 +31,7 @@ import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit }
 import { Accelerometer } from "expo-sensors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, speakNavStart, speakNavEnd, speakNavCancel, prewarmNavAudio, getAlertVoiceDisabled } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying } from "@/utils/alertTts";
 
 export interface CommunityReport {
   id: string;
@@ -82,14 +78,6 @@ export interface TripData {
 }
 
 export interface SOSContact { name: string; phone: string }
-
-export interface ArrivedInfo {
-  destName: string;
-  distM: number;
-  durationS: number;
-  maxSpeedKmh: number;
-  alertsCount: number;
-}
 
 export interface NavDestination {
   name: string;
@@ -246,9 +234,6 @@ interface AppContextValue {
   onboardingComplete: boolean;
   completeOnboarding: () => void;
   isOffline: boolean;
-  /** True when GPS signal has been absent for >5 s during active navigation.
-   *  Dead reckoning is used to project position during this window (max 15 s). */
-  gpsLost: boolean;
   vehicleType: VehicleTypeId;
   setVehicleType: (v: VehicleTypeId) => void;
   // Navigation
@@ -256,14 +241,7 @@ interface AppContextValue {
   setNavDestination: (d: NavDestination | null) => void;
   activeRoute: AppRoute | null;
   altRoutes: AppRoute[];
-  /** Pink alternative polylines shown on the map while the driver is off-route.
-   *  Populated as soon as the first diverged GPS fix is detected, cleared when the
-   *  driver returns to the route or a full reroute commits. Max 2 routes. */
-  divergenceRoutes: AppRoute[];
   selectRoute: (r: AppRoute) => void;
-  navigationActive: boolean;
-  startNavigation: () => Promise<void>;
-  stopNavigation: (reason?: "arrived" | "manual" | "timeout") => void;
   isSharingTrip: boolean;
   shareToken: string | null;
   shareLink: string | null;
@@ -271,14 +249,11 @@ interface AppContextValue {
   setDriverName: (name: string) => void;
   startSharingTrip: () => Promise<string | null>;
   stopSharingTrip: () => Promise<void>;
-  currentStepIdx: number;
-  distToNextM: number | null;
   distanceRemainingM: number | null;
   durationRemainingS: number | null;
   routeLoading: boolean;
   showTraffic: boolean;
   setShowTraffic: (v: boolean) => void;
-  zonesOnRoute: SpeedZone[];
   routeIncidentsAhead: RouteIncident[];
   routeTrafficDelayS: number;
   /** On-demand road-condition check from the driver's current location to an
@@ -288,8 +263,6 @@ interface AppContextValue {
   checkRouteStatus: (destLat: number, destLng: number) => Promise<RouteCheckResult | null>;
   routeIncidentsExpanded: boolean;
   setRouteIncidentsExpanded: (v: boolean) => void;
-  arrivedInfo: ArrivedInfo | null;
-  clearArrival: () => void;
   pendingConfirmationReport: CommunityReport | null;
   setPendingConfirmationReport: (r: CommunityReport | null) => void;
   pendingConfirmationSource: "proximity" | "recent" | null;
@@ -345,26 +318,11 @@ interface AppContextValue {
    *  polyline. Returns null when no route is active; the caller should then
    *  fall back to snapToRoad() (Google Roads API) or raw GPS. */
   snapToActiveRoute: (lat: number, lng: number) => { lat: number; lng: number } | null;
-  /** A faster route found during the periodic background check while
-   *  navigating. Non-null when an alternative saves ≥ 3 minutes over the
-   *  remaining time on the active route. Cleared on dismiss, accept, reroute,
-   *  or navigation stop. */
-  fasterRoute: AppRoute | null;
-  /** Switch to the suggested faster route and clear the banner. */
-  acceptFasterRoute: () => void;
-  /** Dismiss the faster-route banner without switching routes. The next
-   *  periodic check (≈2 min) can surface a new suggestion if conditions hold. */
-  dismissFasterRoute: () => void;
   /** True while any full-screen map picker modal is open (CrosshairPickerModal,
    *  AdminLocationPickerModal, SavedPlaceMapPicker). Consumers should unmount
    *  their MapView while this is true to avoid two-MapView native contention. */
   mapPickerActive: boolean;
   setMapPickerActive: (v: boolean) => void;
-  /** Whether turn-by-turn navigation is enabled system-wide.
-   *  Fetched from /app-settings on startup; defaults to true while loading.
-   *  When false, the "Where to?" search bar becomes a places explorer only —
-   *  no routing or voice guidance is offered. */
-  navigationEnabled: boolean;
   // ── Crash detection ──────────────────────────────────────────────────────
   /** True when the accelerometer + speed-drop algorithm has detected a probable crash. */
   crashDetected: boolean;
@@ -713,13 +671,7 @@ async function fetchGoogleRoute(
   }
 }
 
-function getZonesOnRoute(route: AppRoute, zones: SpeedZone[]): SpeedZone[] {
-  return zones.filter((z) =>
-    route.coords.some((c) => haversine(c.latitude, c.longitude, z.lat, z.lng) < 250)
-  );
-}
-
-const ROUTE_CORRIDOR_M = 250; // matches getZonesOnRoute's "on this route" threshold
+const ROUTE_CORRIDOR_M = 250;
 
 /** Cumulative distance (metres) from the route start to each coordinate. */
 function buildCumulativeDistances(coords: RouteCoord[]): number[] {
@@ -957,8 +909,6 @@ const ALERT_DIST = 600, IN_ZONE_DIST = 250, MIN_TRIP_DIST = 200, STOP_TIMEOUT_MS
  *  cameras at the same interchange).  Only the nearest member triggers an
  *  alert so the driver sees exactly one warning per site. */
 const CAMERA_CLUSTER_RADIUS = 50;
-const STEP_ADVANCE_DIST = 50;  // m — advance step index when past maneuver point
-const ARRIVAL_DIST = 30;        // m — advance final step + trigger arrival UI
 // Tighter than IN_ZONE_DIST: this gates the persistent "current road limit"
 // readout, so we only claim confidence in a posted limit when squarely
 // inside the admin-defined corridor — not just "somewhere nearby".
@@ -1006,7 +956,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Initialised to null (same as the driverHeading initial state) so the first
   // real heading value always passes the gate.
   const lastSetHeadingRef    = useRef<number | null>(null);
-  const distToNextMRef       = useRef<number | null>(null);
+  
   const durationRemainingRef = useRef<number | null>(null);
   const distanceRemainingRef = useRef<number | null>(null);
   // Share-trip
@@ -1014,43 +964,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sharePingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Navigation
   const [mapPickerActive, setMapPickerActive] = useState(false);
-  const [navigationEnabled, setNavigationEnabled] = useState(true);
   const [navDestination, setNavDestState] = useState<NavDestination | null>(null);
   const [activeRoute, setActiveRoute] = useState<AppRoute | null>(null);
   const [altRoutes, setAltRoutes] = useState<AppRoute[]>([]);
-  /** Pink "what's ahead" alternatives shown while the driver is off-route. */
-  const [divergenceRoutes, setDivergenceRoutes] = useState<AppRoute[]>([]);
-  /** Ref mirror so the GPS handler can check/clear without stale closure values. */
-  const divergenceRoutesRef  = useRef<AppRoute[]>([]);
-  /** Guard: true while a divergence fetch is in-flight to prevent concurrent calls. */
-  const divergenceFetchingRef = useRef(false);
-  /** Timestamp (ms) of the last completed divergence fetch — used by the reroute
-   *  callback to decide whether the cached routes are still fresh enough to reuse. */
-  const divergenceFetchedAtRef = useRef<number>(0);
-  const [navigationActive, setNavigationActive] = useState(false);
-  const [currentStepIdx, setCurrentStepIdx] = useState(0);
-  const [distToNextM, setDistToNextM] = useState<number | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [showTraffic, setShowTrafficState] = useState(false);
-  const [zonesOnRoute, setZonesOnRoute] = useState<SpeedZone[]>([]);
   const [routeIncidentsExpanded, setRouteIncidentsExpanded] = useState(false);
-  const [fasterRoute, setFasterRoute] = useState<AppRoute | null>(null);
-  /** Ref mirror so interval callbacks can read/clear without stale closures. */
-  const fasterRouteRef = useRef<AppRoute | null>(null);
-  /** True once the current faster-route suggestion has been announced by voice.
-   *  Prevents re-announcing on subsequent 2-min checks while the same banner
-   *  is still visible. Reset whenever fasterRouteRef is cleared. */
-  const fasterRouteAnnouncedRef = useRef(false);
-  /** Saving (seconds) of the most-recently-shown faster-route suggestion.
-   *  Updated alongside fasterRouteRef; read by dismissFasterRoute. */
-  const fasterRouteSavingRef = useRef<number>(0);
-  /** ms timestamp when the driver last dismissed the faster-route banner.
-   *  Enforces a 10-minute cooldown before re-showing the same suggestion. */
-  const fasterRouteDismissedAtRef = useRef<number | null>(null);
-  /** Saving (seconds) of the dismissed suggestion.  A new suggestion is only
-   *  surfaced during the cooldown window when it saves ≥ (dismissed saving + 2 min),
-   *  which signals a meaningfully different option rather than the same nagging one. */
-  const fasterRouteDismissedSavingRef = useRef<number>(0);
   const [dbZones, setDbZones] = useState<SpeedZone[]>([]);
   const [suppressedStaticIds, setSuppressedStaticIds] = useState<string[]>([]);
   const [dbStretches, setDbStretches] = useState<SpeedStretch[]>([]);
@@ -1091,7 +1010,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [shareCode,  setShareCode]  = useState<string | null>(null); // short code for the public share URL
 
-  const [arrivedInfo, setArrivedInfo] = useState<ArrivedInfo | null>(null);
   const [pendingConfirmationReport, setPendingConfirmationReport] = useState<CommunityReport | null>(null);
   const [pendingConfirmationSource, setPendingConfirmationSource] = useState<"proximity" | "recent" | null>(null);
   const [pendingFocusCoords, setPendingFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -1174,8 +1092,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifGranted = useRef(false);
   const routeRef = useRef<AppRoute | null>(null);
-  const stepIdxRef = useRef(0);
-  const navActiveRef = useRef(false);
   const lastLocationAtRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
   const speedHistoryRef = useRef<number[]>([]);
@@ -1198,52 +1114,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const routeMaxDistMRef = useRef(0);
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
-  // When the current turn-by-turn session started — used to auto-end a
-  // navigation session that's run far longer than the route could ever
-  // reasonably take (see the staleness check in handleLocation below).
-  const navStartRef = useRef<number | null>(null);
-  // Tracks server IDs seen in the previous poll — used to detect reports that
-  // were removed (expired / denied) while the driver is en route.
-  const prevPollServerIdsRef = useRef<Set<string>>(new Set());
-  // Timestamp of the last speed-driven nav-notification update (Android only).
-  // Throttles high-frequency GPS-speed writes to at most once every 3 seconds.
-  // Forwards to the memoized `stopNavigation` below so handleLocation (a
-  // stable useCallback defined earlier in this component) can trigger a
-  // full stop without needing it in its dependency array.
-  const stopNavigationRef = useRef<(reason?: "arrived" | "manual" | "timeout") => void>(() => {});
-  // Consecutive GPS fixes where the driver was off-route; triggers auto-reroute.
-  const offRouteCountRef        = useRef(0);
-  const isReroutingRef          = useRef(false);
-  // After any reroute we block the arrival check for 5 s so that GPS drift
-  // or immediate step-cascade on the new route can't trigger a false arrival.
-  const rerouteSettledUntilRef  = useRef(0);
-  // Ref bag for the periodic traffic-refresh interval — holds the latest
-  // nav state so the fixed-schedule interval never captures stale closures.
-  const trafficBagRef = useRef<{
-    navActive: boolean;
-    route: AppRoute | null;
-    dest: NavDestination | null;
-    lat: number | null;
-    lng: number | null;
-    remainingS: number | null;
-    distanceRemainingM: number | null;
-  }>({ navActive: false, route: null, dest: null, lat: null, lng: null, remainingS: null, distanceRemainingM: null });
-  // Timestamp (ms) until which off-route detection is suppressed after a
-  // reroute fires.  Prevents the reroute-loop where GPS jitter at a complex
-  // junction immediately triggers another reroute before the new route arrives.
-  const rerouteGraceUntilRef = useRef<number>(0);
-  // ── GPS signal-loss detection + dead reckoning ────────────────────────────
-  // When navigating, we track the time of the last real GPS fix. If fixes stop
-  // arriving for >5 s (tunnel, underpass, parking structure) we set gpsLost and
-  // begin projecting position along the route polyline using the last known
-  // speed and heading (dead reckoning), for up to 15 s before freezing.
-  const [gpsLost, setGpsLost] = useState(false);
-  const gpsLostRef      = useRef(false);   // stable ref for interval callbacks
-  const gpsLostSinceRef = useRef<number | null>(null); // when loss started
-  const lastNavFixAtRef = useRef(0);       // last real fix while navActive
   const lastHeadingRef  = useRef<number | null>(null); // last known heading (°)
-  const drStateRef      = useRef<{ lat: number; lng: number; speedMps: number; heading: number } | null>(null);
-  const triggerRerouteRef = useRef<((lat: number, lng: number) => void) | null>(null);
   const alertSourceRef = useRef<"zone" | "report" | "here" | null>(null);
   // Type and road of the currently active alert's zone (e.g. "camera", "Ngong Road").
   // Needed for cluster deduplication: a nearby camera on the SAME road must not
@@ -1378,10 +1249,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch { void AsyncStorage.removeItem(KEYS.SHARE); }
       }
       setHydrated(true);
-      // Fetch app-level feature flags (non-blocking — fail open)
-      apiGet<{ navigationEnabled: boolean }>("/app-settings").then((s) => {
-        setNavigationEnabled(s.navigationEnabled);
-      }).catch(() => { /* default is true */ });
       // Load or generate persistent device ID (used for deduplication on the server)
       const did = storedDeviceId ?? (genId() + genId());
       if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
@@ -1402,18 +1269,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // ── Keep voice refs in sync with state ───────────────────────────────────
-  // Pre-warm nav-start and nav-end TTS audio on mount so the server caches both
-  // MP3s before the driver's first trip. Fire-and-forget; no error surface.
-  useEffect(() => { prewarmNavAudio(); }, []);
-
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
   useEffect(() => { currentSpeedRef.current = currentSpeed; }, [currentSpeed]);
   useEffect(() => { currentSpeedLimitRef.current = currentSpeedLimit; }, [currentSpeedLimit]);
-  useEffect(() => { distToNextMRef.current = distToNextM; }, [distToNextM]);
 
   // ── Offline detection ─────────────────────────────────────────────────────
   // Reports created while offline (or whose initial POST failed) stay local
@@ -1502,15 +1363,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // and (c) a short rolling median to smooth out one-off spikes.
     const deviceKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
     const now = Date.now();
-    // Real GPS fix arrived — stamp it and clear any signal-loss state so
-    // off-route detection and step tracking operate on the actual position.
-    if (navActiveRef.current) lastNavFixAtRef.current = now;
-    if (gpsLostRef.current) {
-      gpsLostRef.current = false;
-      gpsLostSinceRef.current = null;
-      setGpsLost(false);
-      navBreadcrumb("gps", "signal regained");
-    }
     // Crash-telemetry trail: last GPS fixes before a crash (throttled to 1/5 s).
     gpsBreadcrumb(lat, lng, currentSpeedRef.current ?? 0, accuracyM);
     const prevFix = lastFixRef.current;
@@ -1694,21 +1546,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setDriverHeading(driverHeading);
       }
     }
-    // Update dead reckoning baseline — used by the DR interval when signal is lost.
     lastHeadingRef.current = driverHeading ?? lastHeadingRef.current;
-    drStateRef.current = { lat, lng, speedMps: Math.max(0, kmh / 3.6), heading: lastHeadingRef.current ?? 0 };
 
     // ── Current road resolution ───────────────────────────────────────────────
-    // During navigation the active step already carries a road name supplied by
-    // the Google Routes API. Outside navigation we ask the server to reverse-
-    // geocode the position at most once per 500 m or 60 s — never every GPS tick.
-    if (navActiveRef.current && routeRef.current) {
-      // Nav step carries the road name from Google Routes API.
-      // Write the result unconditionally — including null for unnamed steps —
-      // so a stale road from a previous leg is never kept past a turn.
-      const stepRoad = routeRef.current.steps[stepIdxRef.current]?.roadName;
-      currentRoadRef.current = stepRoad || null;
-    } else {
+    // Ask the server to reverse-geocode the position at most once per 500 m or
+    // 60 s — never every GPS tick.
+    {
       // ── Warm-up fetch on drive start ──────────────────────────────────────
       // When driving transitions false → true, fire an immediate getRoadName
       // regardless of the 500 m / 60 s throttle so the first kilometre uses a
@@ -1751,6 +1594,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     prevIsDrivingRef.current = isDriving;
+
 
     // ── Unified alert panel: zones + community reports ────────────────────────
     //
@@ -1945,21 +1789,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // ── Step-bearing fallback ─────────────────────────────────────────────
       // lastHeadingRef.current is null whenever the driver has moved < 5 m
       // since the last GPS fix (e.g. just after a slow-speed turn at a light).
-      // During active navigation we can proxy the driver's heading from the
-      // current route step's direction — from step[n].location → step[n+1].location.
-      // This fallback is used ONLY inside the divert-detection checks below;
-      // it never affects heading-dependent UI (speed label, map camera).
-      const stepFallbackHdg: number | null = (() => {
-        if (lastHeadingRef.current != null) return null; // real heading available
-        if (!navActiveRef.current) return null;           // not navigating
-        const steps = routeRef.current?.steps;
-        if (!steps) return null;
-        const idx   = stepIdxRef.current;
-        const cur   = steps[idx]?.location;
-        const next  = steps[idx + 1]?.location;
-        if (!cur || !next) return null;
-        return bearingDeg(cur.latitude, cur.longitude, next.latitude, next.longitude);
-      })();
+      const stepFallbackHdg: number | null = null;
 
       const shouldDismiss = (() => {
         // Alert source is gone from all data sources (denied, expired, removed from HERE).
@@ -2063,7 +1893,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Belt-and-suspenders: if the route's high-water mark has already advanced
         // past the alert's along-route position by ≥ 10 m, the driver has
         // physically driven through it even if GPS briefly snapped back.
-        if (navActiveRef.current && routeMaxDistMRef.current > 0) {
+        if (activeRoute && routeMaxDistMRef.current > 0) {
           const alertId = alertZoneRef.current!;
           const incident = routeIncidentsRef.current.find(
             (i) => i.id === `static-${alertId}` || i.id === `report-${alertId}` || i.id === alertId,
@@ -2344,200 +2174,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
 
-    // Safety net: if a navigation session has been running far longer than
-    // the route could realistically take, silently end it instead of
-    // continuing to announce turns toward a trip abandoned long ago (e.g.
-    // the app stayed alive in the background for hours after the driver
-    // gave up or switched away without tapping the in-app "Stop" button).
-    if (navActiveRef.current && navStartRef.current && routeRef.current) {
-      const maxDurationMs = Math.min(
-        Math.max((routeRef.current.durationS ?? 0) * 1000 * 2.5, 45 * 60 * 1000),
-        4 * 60 * 60 * 1000,
-      );
-      if (Date.now() - navStartRef.current > maxDurationMs) {
-        stopNavigationRef.current("timeout");
-      }
-    }
-
-    // ── Navigation step tracking ─────────────────────────────────────────────
-    if (navActiveRef.current && routeRef.current) {
-      const route = routeRef.current;
-      const steps = route.steps;
-      const idx   = stepIdxRef.current;
-
-      if (idx < steps.length) {
-        const step       = steps[idx];
-        const isLastStep = idx === steps.length - 1;
-
-        // ── Along-route distance to next maneuver ──────────────────────────
-        // Always keep the overall-route projection up-to-date: it is used by
-        // off-route detection (below) and the remaining-route corridor check
-        // for community-report filtering, both of which need routeProjIdxRef.
-        let driverAlongM: number | null = null;
-        if (route.cumDist?.length) {
-          const prior  = routeProjIdxRef.current;
-          const wStart = Math.max(0, prior - 5);
-          const wEnd   = Math.min(route.coords.length - 1, prior + 40);
-          const proj   = projectOntoRoute(route.coords, route.cumDist, lat, lng, wStart, wEnd)
-                      ?? projectOntoRoute(route.coords, route.cumDist, lat, lng);
-          if (proj) {
-            routeProjIdxRef.current = proj.matchedIdx;
-            driverAlongM = proj.alongRouteM;
-          }
-        }
-
-        // Measure remaining distance to the maneuver point along the step's
-        // own road geometry (step-level polyline) when it is available.  This
-        // eliminates the "signals early on curves" bug: the overall-route
-        // projection underestimates on tight bends because it measures the
-        // chord, not the arc.  Fall back to the overall-route projection (or
-        // haversine) when the server didn't supply a step polyline.
-        let dist: number;
-        if (step.stepCoords?.length && step.stepCumDist?.length) {
-          const stepLen = step.stepCumDist[step.stepCumDist.length - 1];
-          const proj    = projectOntoRoute(step.stepCoords, step.stepCumDist, lat, lng);
-          // Reject GPS outliers: if the nearest step-coord is >100 m away the fix
-          // has jumped off the step polyline.  Hold the previous distance for this
-          // tick rather than snapping to a misleading position.
-          if (proj && proj.offRouteM > 100 && distToNextMRef.current != null) {
-            dist = distToNextMRef.current;
-          } else {
-            dist = Math.max(0, stepLen - (proj?.alongRouteM ?? 0));
-          }
-        } else {
-          dist = driverAlongM != null
-            ? Math.max(0, step.stepAlongRouteM - driverAlongM)
-            : haversine(lat, lng, step.location.latitude, step.location.longitude);
-        }
-
-        // Only call setState when the rounded value actually changed — avoids
-        // a re-render cascade on every GPS tick when the driver is stationary.
-        const roundedDist = Math.round(dist);
-        if (roundedDist !== distToNextMRef.current) {
-          setDistToNextM(roundedDist);
-        }
-
-        // The final step gets a wider arrival radius than intermediate turns:
-        // urban GPS drift in dense areas can easily bias a fix by 30-40 m.
-        const dest = navDestRef.current;
-        const distToDest = dest ? haversine(lat, lng, dest.lat, dest.lng) : dist;
-
-        // Suppress arrival for 5 s after any reroute: the step cascade that
-        // fires immediately after a reroute (depart step at 0 m → advance →
-        // next step → advance…) can land on isLastStep with a stale or drifted
-        // distToDest and trigger a completely false "You have arrived" popup.
-        const rerouteSettled = Date.now() > rerouteSettledUntilRef.current;
-        const arrived = rerouteSettled && (
-          // Destination-proximity check runs on EVERY step, not just the last.
-          // Without this, a reroute that resets stepIdx to 0 combined with the
-          // 5 s arrival-suppression window can leave the driver physically past
-          // all intermediate maneuver points before steps start advancing —
-          // isLastStep never becomes true and arrival is never detected.
-          distToDest < ARRIVAL_DIST
-          || (isLastStep
-            ? dist < ARRIVAL_DIST
-            : dist < STEP_ADVANCE_DIST)
-        );
-
-        if (arrived) {
-          const nextIdx = idx + 1;
-          stepIdxRef.current = nextIdx;
-          setCurrentStepIdx(nextIdx);
-
-          if (nextIdx >= steps.length) {
-            navActiveRef.current = false;
-            navStartRef.current = null;
-            setNavigationActive(false);
-            playSound("confirm").catch(() => {}); // arrival tone
-            speakNavEnd().catch(() => {}); // arrival sign-off ("You've arrived!")
-            const trip = tripRef.current;
-            setArrivedInfo({
-              destName: (typeof navDestRef.current?.name === "string" ? navDestRef.current.name.split(",")[0] : null) ?? "your destination",
-              distM: trip?.distance ?? routeRef.current?.distanceM ?? 0,
-              durationS: Math.round((Date.now() - (trip?.startTime ?? Date.now())) / 1000),
-              maxSpeedKmh: trip?.maxSpeed ?? 0,
-              alertsCount: trip?.alertsCount ?? 0,
-            });
-            if (deviceIdRef.current) {
-              apiPost("/push/trip-complete", { deviceId: deviceIdRef.current }).catch(() => {});
-            }
-          }
-        }
-      }
-    }
-
-    // ── Off-route detection → auto-reroute ───────────────────────────────────
-    // Scan a window of route coords around the last projected index.  If the
-    // driver is > 50 m from the nearest point for 3 consecutive fixes, the
-    // reroute callback fetches a fresh route from the current position.
-    // Suppressed during dead reckoning and during the post-reroute grace period
-    // (10 s) to prevent the reroute-loop at complex junctions where GPS jitter
-    // can immediately re-trigger another reroute before the new route settles.
-    if (navActiveRef.current && routeRef.current && !gpsLostRef.current
-        && Date.now() > rerouteGraceUntilRef.current) {
-      const coords  = routeRef.current.coords;
-      // A route needs at least 2 points for the window scan to be meaningful;
-      // bail early so no code below ever indexes into an empty array.
-      if (coords.length >= 2) {
-      const prior   = Math.max(0, Math.min(routeProjIdxRef.current, coords.length - 1));
-      const wStart  = Math.max(0, prior - 10);
-      const wEnd    = Math.min(coords.length - 1, prior + 30);
-      let minOff    = Infinity;
-      for (let i = wStart; i <= wEnd; i++) {
-        const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
-        if (d < minOff) minOff = d;
-      }
-      if (minOff > 50) {
-        offRouteCountRef.current += 1;
-
-        // ── Divergence preview: fetch alternatives on the FIRST bad fix ─────
-        // Shows up to 2 pink polylines immediately so the driver can see what
-        // roads ahead lead to their destination before the full reroute commits.
-        // Gates: moving (>10 km/h), not near a maneuver (>200 m), not already
-        // fetching, and driver is not heading away from the destination.
-        if (offRouteCountRef.current === 1
-            && !divergenceFetchingRef.current
-            && !isReroutingRef.current
-            && navDestRef.current
-            && kmh > 10
-            && (distToNextMRef.current == null || distToNextMRef.current > 200)) {
-          const destBearing = bearingDeg(lat, lng, navDestRef.current.lat, navDestRef.current.lng);
-          if (driverHeading == null || angleDiffDeg(driverHeading, destBearing) <= 120) {
-            const _dest = navDestRef.current;
-            divergenceFetchingRef.current = true;
-            fetchGoogleRoute(lat, lng, _dest.lat, _dest.lng, driverHeading)
-              .then((routes) => {
-                const alts = routes.slice(0, 2);
-                // Reject stale responses: destination may have changed since fetch fired
-              if (alts.length > 0 && navActiveRef.current && navDestRef.current === _dest) {
-                  setDivergenceRoutes(alts);
-                  divergenceRoutesRef.current = alts;
-                  divergenceFetchedAtRef.current = Date.now();
-                }
-              })
-              .catch((e) => console.warn("[divergence] fetch failed:", e))
-              .finally(() => { divergenceFetchingRef.current = false; });
-          }
-        }
-
-        if (offRouteCountRef.current >= 2 && !isReroutingRef.current) {
-          offRouteCountRef.current = 0;
-          // Suppress off-route for 10 s after triggering a reroute so GPS
-          // jitter at complex junctions doesn't immediately loop back here.
-          rerouteGraceUntilRef.current = Date.now() + 10_000;
-          triggerRerouteRef.current?.(lat, lng);
-        }
-      } else {
-        offRouteCountRef.current = 0;
-        // Driver returned to route — clear divergence overlays.
-        if (divergenceRoutesRef.current.length > 0) {
-          setDivergenceRoutes([]);
-          divergenceRoutesRef.current = [];
-        }
-      }
-      } // end: coords.length >= 2 guard
-    }
-
     // Trip tracking
     if (kmh > 5) {
       if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
@@ -2620,23 +2256,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastLocationAtRef.current = Date.now();
       try {
         if (Platform.OS !== "web") {
-          // ── Adaptive accuracy / rate ───────────────────────────────────────
-          // During active navigation we need high-accuracy 1 Hz updates for
-          // smooth turn-by-turn, off-route detection, and voice timing.
-          // In idle mode (map browsing, no active navigation) we drop to
-          // Balanced accuracy at 5 s / 10 m intervals — the CPU cost of
-          // Highest-accuracy GPS polling is the primary cause of overheating
-          // and battery drain while the app is sitting idle on a dashboard.
-          const isNavActive = navActiveRef.current;
-          const gpsOptions = isNavActive
-            ? { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 }
-            // Idle mode: drop to Balanced accuracy and fire every 5 s on time.
-            // distanceInterval must stay 0 — using a distance gate means a
-            // stationary or slow-moving user gets no fixes at all, which trips
-            // the 8 s watchdog and causes an endless resubscribe loop (defeating
-            // the battery fix entirely). The saving comes from slower polling and
-            // lower accuracy class alone.
-            : { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 0 };
+          // Balanced accuracy at 5 s intervals — distanceInterval must stay 0
+          // so a stationary or slow-moving user still gets fixes without
+          // triggering the 8 s watchdog / endless resubscribe loop.
+          const gpsOptions = { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 0 };
 
           const sub = await Location.watchPositionAsync(
             gpsOptions,
@@ -2706,7 +2329,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn("GPS watch stalled — resubscribing");
         navBreadcrumb("gps", "watchdog resubscribe", {
           stalledForMs: Date.now() - lastLocationAtRef.current,
-          navActive: navActiveRef.current,
         });
         subscribe();
       }
@@ -2718,65 +2340,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(watchdog);
       teardown();
     };
-  // navigationActive is in the deps so the subscription is torn down and
-  // restarted whenever navigation starts or stops — idle uses Balanced/5 s,
-  // navigation uses Highest/1 s (see gpsOptions above in subscribe()).
-  }, [locationGranted, handleLocation, navigationActive]);
-
-  // ── Dead reckoning interval ────────────────────────────────────────────────
-  // Polls every second while the GPS subscription is active. When navigation
-  // is running and real fixes stop arriving for >5 s, this detects the gap,
-  // sets gpsLost, and projects the driver's position forward along the last
-  // known heading at the last known speed — for up to 15 s before freezing.
-  // This keeps distanceRemainingM / durationRemainingS counting down smoothly
-  // during short signal outages (tunnels, underpasses, parking structures).
-  useEffect(() => {
-    if (!locationGranted) return;
-    const id = setInterval(() => {
-      if (!navActiveRef.current) return;
-      const now = Date.now();
-      const sinceLastFix = now - lastNavFixAtRef.current;
-
-      // Detect signal loss (first time only — don't keep re-setting state)
-      if (sinceLastFix > 5000 && !gpsLostRef.current) {
-        gpsLostRef.current = true;
-        gpsLostSinceRef.current = now;
-        setGpsLost(true);
-        navBreadcrumb("gps", "signal lost — dead reckoning", { sinceLastFixMs: sinceLastFix });
-      }
-
-      if (!gpsLostRef.current) return;
-
-      // Freeze after 15 s — dead reckoning error compounds too quickly beyond that
-      const lostFor = now - (gpsLostSinceRef.current ?? now);
-      if (lostFor > 15000) return;
-
-      const dr = drStateRef.current;
-      if (!dr || dr.speedMps < 0.5 || lastHeadingRef.current == null) return;
-
-      // Project one second of travel in the last known heading direction.
-      // Simple flat-earth formula — accurate to <0.1 m error per 1 s step.
-      const distM      = dr.speedMps; // metres in 1 second
-      const headingRad = (dr.heading * Math.PI) / 180;
-      const newLat     = dr.lat + (distM * Math.cos(headingRad)) / 111320;
-      const newLng     = dr.lng + (distM * Math.sin(headingRad)) / (111320 * Math.cos(dr.lat * Math.PI / 180));
-
-      // Push the projected position into React state so currentRouteDistanceM
-      // (and therefore distanceRemainingM / durationRemainingS) keep updating.
-      setCurrentLat(newLat);
-      setCurrentLng(newLng);
-      drStateRef.current = { ...dr, lat: newLat, lng: newLng };
-    }, 1000);
-    return () => clearInterval(id);
-  }, [locationGranted]);
-
-  // Keep the screen awake while actively navigating so the OS doesn't dim/
-  // lock the display and throttle GPS callbacks mid-trip.
-  useEffect(() => {
-    if (!navigationActive) return;
-    activateKeepAwakeAsync("msafiri-navigation").catch(() => {});
-    return () => { deactivateKeepAwake("msafiri-navigation").catch(() => {}); };
-  }, [navigationActive]);
+  }, [locationGranted, handleLocation]);
 
   // ── Route fetching ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2785,10 +2349,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRouteLoading(true);
     setActiveRoute(null);
     setAltRoutes([]);
-    setZonesOnRoute([]);
     routeRef.current = null;
-    stepIdxRef.current = 0;
-    setCurrentStepIdx(0);
     routeProjIdxRef.current = 0;
     routeMaxDistMRef.current = 0;
 
@@ -2799,8 +2360,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setActiveRoute(primary);
         routeRef.current = primary;
         setAltRoutes(alts);
-        const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-        setZonesOnRoute(getZonesOnRoute(primary, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
       })
       .catch((e) => { if (!cancelled) console.warn("Routing:", e); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
@@ -2808,157 +2367,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination?.lat, navDestination?.lng]);
-
-  // ── Auto-reroute callback ─────────────────────────────────────────────────
-  // handleLocation fires this when the driver is consistently off-route.
-  // Fetches a fresh route from the current position and replaces the active
-  // route in-place, resetting the step index transparently.
-  useEffect(() => {
-    // ── commitReroute ───────────────────────────────────────────────────────
-    // Single source of truth for every state/ref mutation that must happen
-    // whenever a reroute is committed — whether the route came from the
-    // divergence cache or from a fresh fetchGoogleRoute call.  Keeping it in
-    // one place means a future change (new ref to reset, new voice logic, etc.)
-    // only needs to be made once and applies to both paths automatically.
-    function commitReroute(primary: AppRoute, alts: AppRoute[]) {
-      navBreadcrumb("nav", "reroute committed", {
-        routeId: primary.id,
-        coords: primary.coords.length,
-        altCount: alts.length,
-      });
-      setActiveRoute(primary);
-      routeRef.current = primary;
-      stepIdxRef.current = 0;
-      setCurrentStepIdx(0);
-      routeProjIdxRef.current = 0;
-      routeMaxDistMRef.current = 0;
-      // Dismiss the divergence preview — the new route has been committed.
-      setDivergenceRoutes([]);
-      divergenceRoutesRef.current = [];
-      setAltRoutes(alts);
-      // Clear any faster-route suggestion — the rerouted path is already optimal.
-      setFasterRoute(null);
-      fasterRouteRef.current = null;
-      fasterRouteAnnouncedRef.current = false;
-      fasterRouteDismissedAtRef.current = null;
-      fasterRouteDismissedSavingRef.current = 0;
-      const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-      setZonesOnRoute(
-        getZonesOnRoute(primary, allZonesRef.current).map((z) => ({
-          ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle),
-        }))
-      );
-      // Block arrival detection for 5 s so the rapid depart-step cascade on
-      // the new route (step 0 at 0 m → advance → step 1 …) can't trigger a
-      // false "You have arrived" before the route settles.
-      rerouteSettledUntilRef.current = Date.now() + 5_000;
-
-      // ── Clear stale alert geo-anchor ───────────────────────────────────────
-      // commitReroute is also called when the driver takes a different road.
-      // The old cluster anchor (set when a multi-alert was activated) must be
-      // cleared so it does not suppress new hazard clusters on the rerouted road.
-      alertAnchorLatRef.current    = null;
-      alertAnchorLngRef.current    = null;
-      alertAnchorExpiryRef.current = null;
-
-      // ── Reset distance-to-turn on reroute ─────────────────────────────────
-      // Without this, the first GPS tick after a reroute reads the stale
-      // distToNextMRef value from the old route and shows it as the turn
-      // distance for one tick before the projection catches up.
-      distToNextMRef.current = null;
-      setDistToNextM(null);
-
-      // ── Gap 3 fix: dismiss active alert if it's no longer on the new route ──
-      // An alert from the old route polyline must not persist after a reroute.
-      // Test: is the alert's stored position within 300 m of any point on the
-      // new polyline?  If not, dismiss with a 3-minute cooldown so it doesn't
-      // re-trigger immediately on the new road.
-      if (alertZoneRef.current) {
-        const iLat = alertItemLatRef.current;
-        const iLng = alertItemLngRef.current;
-        if (iLat != null && iLng != null) {
-          const onNewRoute = primary.coords.some(
-            (pt: RouteCoord) => haversine(iLat, iLng, pt.latitude, pt.longitude) < 300,
-          );
-          if (!onNewRoute) {
-            const dismissedId = alertZoneRef.current;
-            alertDismissCooldownRef.current.set(dismissedId, {
-              expiry: Date.now() + 180_000,
-              peakDistM: alertZoneLastDistRef.current ?? 0,
-            });
-            alertZoneRef.current              = null;
-            alertSourceRef.current            = null;
-            alertDismissed.current            = false;
-            alertZoneLastDistRef.current      = null;
-            alertItemLatRef.current           = null;
-            alertItemLngRef.current           = null;
-            alertApproachRoadRef.current      = null;
-            alertBearingDivCountRef.current   = 0;
-            alertDistReversalCountRef.current = 0;
-            lastSetAlertRef.current           = null;
-            setActiveAlert(null);
-          }
-        }
-      }
-    }
-
-    triggerRerouteRef.current = (lat: number, lng: number) => {
-      if (!navDestRef.current || isReroutingRef.current) return;
-      const dest = navDestRef.current;
-      isReroutingRef.current = true;
-      setRouteLoading(true);
-
-      // ── Divergence-cache fast path ─────────────────────────────────────────
-      // The divergence-preview fetch (triggered on the 1st bad GPS fix) already
-      // called fetchGoogleRoute from nearly the same position to the same
-      // destination.  If that result is ≤10 s old, reuse it directly and skip
-      // the redundant network round-trip that would otherwise follow on the 2nd
-      // bad fix.  If the cache is stale or empty, fall through to a fresh fetch.
-      const cachedRoutes = divergenceRoutesRef.current;
-      const cacheAge     = Date.now() - divergenceFetchedAtRef.current;
-      if (cachedRoutes.length > 0 && cacheAge <= 10_000) {
-        const [primary, ...alts] = cachedRoutes;
-        // Guard: a route with no steps cannot be committed — the step-projection
-        // logic would immediately fault.  Extend grace and fall through to a
-        // fresh fetch instead.
-        if (!primary || primary.steps.length === 0) {
-          console.warn("[reroute] cached primary has no steps — skipping cache, fetching fresh");
-          rerouteGraceUntilRef.current = Date.now() + 5_000;
-          // fall through to fresh fetch below
-        } else {
-          commitReroute(primary, alts);
-          setRouteLoading(false);
-          isReroutingRef.current = false;
-          return;
-        }
-      }
-
-      fetchGoogleRoute(lat, lng, dest.lat, dest.lng, lastHeadingRef.current)
-        .then((routes) => {
-          // Reject stale callbacks: destination or nav session changed while
-          // the network round-trip was in flight.
-          if (!navActiveRef.current || navDestRef.current !== dest) return;
-          if (!routes.length) return;
-          const [primary, ...alts] = routes;
-          // Mirror the divergence-cache guard: a route with no steps cannot be
-          // committed — step projection would immediately fault on the next GPS fix.
-          if (!primary || primary.steps.length === 0) {
-            console.warn("[reroute] fresh route has no steps — extending grace, will retry");
-            rerouteGraceUntilRef.current = Date.now() + 5_000;
-            return;
-          }
-          commitReroute(primary, alts);
-        })
-        .catch((e) => {
-          console.warn("[reroute] Routing:", e);
-          // On failure, push the grace window out further so a transient
-          // network error doesn't cause a rapid re-trigger loop — the driver
-          // will get a fresh reroute attempt once the grace period expires.
-          rerouteGraceUntilRef.current = Date.now() + 30_000;
-        })
-        .finally(() => { setRouteLoading(false); isReroutingRef.current = false; });
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync isOffline to a ref so callbacks can read it without re-rendering
   useEffect(() => { isOfflineRef.current = isOffline; }, [isOffline]);
@@ -3001,21 +2409,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         adminVerified: r.adminVerified,
         isOwn: false,
       }));
-      // #32: Detect reports that vanished (expired / denied) while the driver
-      // is navigating and the report was within the alert window.
-      if (navActiveRef.current && prevPollServerIdsRef.current.size > 0) {
-        const newIds = new Set(remote.map((r) => r.id));
-        const loc = pollLocationRef.current;
-        for (const prev of communityReportsRef.current) {
-          if (!prev.serverId) continue;
-          if (newIds.has(prev.serverId)) continue; // still active on server
-          if (!loc) continue;
-          const dist = haversine(loc.lat, loc.lng, prev.lat, prev.lng);
-          if (dist < IN_ZONE_DIST || dist > ALERT_DIST * 3) continue;
-          break;
-        }
-      }
-      prevPollServerIdsRef.current = new Set(remote.map((r) => r.id));
+      
 
       // Clean up locallyDeniedServerIdsRef: once the server no longer
       // returns a report (it has recorded the denial), we don't need to
@@ -3031,8 +2425,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Non-disruptive functional update: setCommunityReports only touches the
       // communityReports state slice. It never reads or writes alertZoneRef,
-      // activeAlert, distToNextM, navActiveRef, routeRef, or any other navigation
-      // ref — active drives and in-flight voice cues are completely unaffected.
+      // activeAlert, routeRef, or any other shared ref — active drives and
+      // in-flight voice cues are completely unaffected.
       setCommunityReports((prev) => {
         const owned = prev.filter((r) => r.isOwn);
         // Exclude any remote report whose server ID was locally denied but
@@ -3057,16 +2451,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!locationGranted) return;
-    refreshReports(); // immediate poll on mount + whenever nav-state changes
-    // During active navigation use a 30 s fallback interval — fast enough that
-    // even if a silent push is dropped by iOS/Android, the report appears before
-    // the driver has travelled more than ~830 m at highway speed, while reducing
-    // cell-radio wake-ups by 33% versus the old 20 s interval.  Silent push
-    // still delivers urgent new reports within ~2 s so safety isn't compromised.
-    const intervalMs = navigationActive ? 30_000 : 60_000;
-    const handle = setInterval(refreshReports, intervalMs);
+    refreshReports(); // immediate poll on mount
+    const handle = setInterval(refreshReports, 60_000);
     return () => clearInterval(handle);
-  }, [locationGranted, navigationActive, refreshReports]);
+  }, [locationGranted, refreshReports]);
 
   // HERE Live Traffic incidents — poll every 5 minutes; server-side job refreshes
   // the HERE API on the same cadence, so the mobile always gets a fresh snapshot.
@@ -3302,14 +2690,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...inc,
         aheadDistanceM: Math.max(0, inc.distanceAlongRouteM - effectiveDist),
       }));
-    if (!navigationActive || currentRouteDistanceM == null) return withAhead(routeIncidents);
+    if (currentRouteDistanceM == null) return withAhead(routeIncidents);
     // Only keep incidents that are still ahead of the driver. A 15 m rearward
     // tolerance absorbs GPS jitter at the exact crossing point without keeping
     // an already-passed camera visible in the "ahead" list for tens of seconds.
     return withAhead(
       routeIncidents.filter((inc) => inc.distanceAlongRouteM >= effectiveDist - 15)
     );
-  }, [routeIncidents, navigationActive, currentRouteDistanceM]);
+  }, [routeIncidents, currentRouteDistanceM]);
 
   // Keep routeIncidentsRef in sync so the GPS handler (a stable useEffect
   // closure) can look up along-route positions without closure staleness.
@@ -3425,141 +2813,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { durationRemainingRef.current = durationRemainingS; }, [durationRemainingS]);
   useEffect(() => { distanceRemainingRef.current = distanceRemainingM; }, [distanceRemainingM]);
 
-  // ── Periodic traffic refresh ───────────────────────────────────────────────
-  // Periodic background check fired every 2 min during active navigation.
-  // Two responsibilities per tick:
-  //   1. Faster-route detection — if Google's fastest route from the current
-  //      position saves ≥ 3 min over the remaining ETA, surface a dismissible
-  //      banner in the drive HUD so the driver can switch with one tap.
-  //   2. ETA drift patch — if the active-route ETA has drifted by > 5 min due
-  //      to changing traffic, silently update activeRoute.durationS so the
-  //      nav-bar arrival time stays accurate (polyline/steps unchanged).
-  const TRAFFIC_REFRESH_MS    = 2 * 60 * 1000; // 2 minutes between checks
-  const TRAFFIC_REFRESH_THR_S = 5 * 60;          // 5 min drift triggers an ETA patch
-  const FASTER_ROUTE_THR_S    = 3 * 60;          // 3 min saving triggers the banner
-
-  // Keep the bag current after every render so the fixed-interval callback
-  // always reads fresh state without being re-registered on every GPS fix.
-  useEffect(() => {
-    trafficBagRef.current = {
-      navActive: navigationActive,
-      route: activeRoute,
-      dest: navDestination,
-      lat: currentLat,
-      lng: currentLng,
-      remainingS: durationRemainingS,
-      distanceRemainingM,
-    };
-  });
-
-  // Registered once; reads state through the ref bag to avoid stale closures.
-  useEffect(() => {
-    const id = setInterval(async () => {
-      const b = trafficBagRef.current;
-      if (!b.navActive || !b.route || !b.dest || b.lat == null || b.lng == null) return;
-      if (isReroutingRef.current) return;
-      // Skip when almost arrived — savings threshold would exceed trip length.
-      if (b.remainingS != null && b.remainingS < FASTER_ROUTE_THR_S + 60) return;
-
-      try {
-        const routes = await fetchGoogleRoute(b.lat, b.lng, b.dest.lat, b.dest.lng, lastHeadingRef.current);
-        if (!routes.length) return;
-
-        // routes[0].durationS is the REMAINING time from current position on
-        // Google's fastest route.  Compare it against durationRemainingS (also
-        // remaining) so the threshold check is apples-to-apples.
-        const fastest      = routes[0];
-        const currentS     = b.remainingS ?? b.route.durationS;
-        const saving       = currentS - fastest.durationS;
-
-        // ── 1. Faster-route detection ────────────────────────────────────────
-        if (saving >= FASTER_ROUTE_THR_S) {
-          // Respect the dismiss cooldown: suppress if the driver dismissed
-          // within the last 10 min AND the new saving is not meaningfully
-          // better (< dismissed saving + 2 min) than what they already saw.
-          const dismissedAt = fasterRouteDismissedAtRef.current;
-          const dismissedSavingS = fasterRouteDismissedSavingRef.current;
-          const DISMISS_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
-          const DISMISS_EXTRA_S     = 2 * 60;          // must save 2 min more to break cooldown
-          const inCooldown =
-            dismissedAt != null &&
-            Date.now() - dismissedAt < DISMISS_COOLDOWN_MS &&
-            saving < dismissedSavingS + DISMISS_EXTRA_S;
-
-          if (!inCooldown) {
-            const wasNull = fasterRouteRef.current == null;
-            setFasterRoute(fastest);
-            fasterRouteRef.current = fastest;
-            fasterRouteSavingRef.current = saving;
-            // Announce once on first detection; skip if a turn cue is playing.
-            if (wasNull && !fasterRouteAnnouncedRef.current && !isAlertVoicePlaying()) {
-              fasterRouteAnnouncedRef.current = true;
-              const savingMin = Math.round(saving / 60);
-              const phrase = savingMin === 1
-                ? "Faster route found, saving 1 minute"
-                : `Faster route found, saving ${savingMin} minutes`;
-              speakAlertPhrase(phrase).catch(() => {});
-            }
-          }
-        } else {
-          // Conditions improved or route converged — clear any stale suggestion.
-          if (fasterRouteRef.current != null) {
-            setFasterRoute(null);
-            fasterRouteRef.current = null;
-            fasterRouteAnnouncedRef.current = false;
-          }
-        }
-
-        // ── 2. ETA drift patch (only when NOT showing a faster-route banner) ─
-        // When a faster-route banner is already visible we leave activeRoute
-        // untouched so the driver can compare the two ETAs clearly.
-        if (saving < FASTER_ROUTE_THR_S) {
-          const drift = Math.abs(fastest.durationS - currentS);
-          if (drift < TRAFFIC_REFRESH_THR_S) return;
-
-          // activeRoute.durationS is a TOTAL baseline; durationRemainingS is
-          // computed as (distanceRemainingM / totalDistanceM) * durationS.
-          // Back-convert: equivalentTotal = newRemainingS * (total / remaining).
-          const distRem   = b.distanceRemainingM;
-          const distTotal = b.route.distanceM;
-          const equivalentTotalS =
-            distRem != null && distRem > 0 && distTotal > 0
-              ? Math.round(fastest.durationS * (distTotal / distRem))
-              : fastest.durationS; // edge-case: at trip start remaining ≈ total
-
-          // Silently patch durationS only — polyline, steps, and route id are
-          // unchanged so the driver stays on the same road without any visual jump.
-          setActiveRoute((prev) => prev ? { ...prev, durationS: equivalentTotalS } : prev);
-        }
-      } catch { /* network error — silently keep current ETA */ }
-    }, TRAFFIC_REFRESH_MS);
-    return () => clearInterval(id);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Navigation actions ────────────────────────────────────────────────────
   const setNavDestination = useCallback((d: NavDestination | null) => {
     setNavDestState(d);
     navDestRef.current = d;
-    offRouteCountRef.current = 0;
     if (!d) {
       setActiveRoute(null);
       setAltRoutes([]);
-      setZonesOnRoute([]);
       routeRef.current = null;
       setRouteIncidentsExpanded(false);
     }
-    setNavigationActive(false);
-    navActiveRef.current = false;
-    navStartRef.current = null;
-    stepIdxRef.current = 0;
-    setCurrentStepIdx(0);
-    setDistToNextM(null);
-    // Clear any pending faster-route suggestion when destination changes.
-    setFasterRoute(null);
-    fasterRouteRef.current = null;
-    fasterRouteAnnouncedRef.current = false;
-    fasterRouteDismissedAtRef.current = null;
-    fasterRouteDismissedSavingRef.current = 0;
   }, []);
 
   const selectRoute = useCallback((r: AppRoute) => {
@@ -3570,40 +2833,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       setActiveRoute(r);
       routeRef.current = r;
-      const vehicle = getVehicleTypeDef(vehicleTypeRef.current);
-      setZonesOnRoute(getZonesOnRoute(r, allZonesRef.current).map((z) => ({ ...z, speedLimit: capSpeedLimit(z.speedLimit, vehicle) })));
-      stepIdxRef.current = 0;
-      setCurrentStepIdx(0);
-      setDistToNextM(null);
       routeProjIdxRef.current = 0;
       routeMaxDistMRef.current = 0;
     } catch (e) {
       console.warn("[selectRoute] error:", e);
     }
   }, [activeRoute]);
-
-  /** Switch to the suggested faster route and clear the banner. */
-  const acceptFasterRoute = useCallback(() => {
-    const route = fasterRouteRef.current;
-    navBreadcrumb("nav", "faster route accepted", { routeId: route?.id });
-    setFasterRoute(null);
-    fasterRouteRef.current = null;
-    fasterRouteAnnouncedRef.current = false;
-    fasterRouteDismissedAtRef.current = null;
-    fasterRouteDismissedSavingRef.current = 0;
-    if (route) selectRoute(route);
-  }, [selectRoute]);
-
-  /** Dismiss the banner without switching routes.  Records a cooldown so the
-   *  same suggestion is suppressed for 10 min (or until a meaningfully better
-   *  option — ≥ 2 min more saving — is detected). */
-  const dismissFasterRoute = useCallback(() => {
-    fasterRouteDismissedAtRef.current = Date.now();
-    fasterRouteDismissedSavingRef.current = fasterRouteSavingRef.current;
-    setFasterRoute(null);
-    fasterRouteRef.current = null;
-    fasterRouteAnnouncedRef.current = false;
-  }, []);
 
   // ── Trip sharing ─────────────────────────────────────────────────────────────
 
@@ -3665,10 +2900,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Include Live Activity state so the server can push ContentState
           // updates directly via APNs when the app is fully suspended.
           if (currentSpeedLimitRef.current != null) pingBody.speedLimitKmh = currentSpeedLimitRef.current;
-          if (distToNextMRef.current != null) pingBody.distToNextM = distToNextMRef.current;
-          const route = routeRef.current;
-          const stepIdx = stepIdxRef.current;
-          if (route?.steps[stepIdx]?.instruction) pingBody.nextInstruction = route.steps[stepIdx].instruction;
           if (typeof navDestRef.current?.name === "string") pingBody.destinationName = navDestRef.current.name.split(",")[0];
           pingBody.isSharingTrip = true;
           await apiPatch(`/share/${tk}/ping`, pingBody);
@@ -3688,117 +2919,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.warn("startSharingTrip failed:", e);
       return null;
     }
-  }, []);
-
-  const startNavigation = useCallback(async () => {
-    // Use routeRef.current (updated synchronously by selectRoute) instead of
-    // the activeRoute closure so that a divergence-route tap — which calls
-    // selectRoute(r) then immediately startNavigation() — always operates on
-    // the newly selected route even before React flushes the state update.
-    if (!routeRef.current) return;
-
-    navBreadcrumb("nav", "navigation start", {
-      routeId: routeRef.current.id,
-      coords: routeRef.current.coords.length,
-      steps: routeRef.current.steps.length,
-    });
-    stepIdxRef.current = 0;
-    setCurrentStepIdx(0);
-    routeProjIdxRef.current = 0;
-    navActiveRef.current = true;
-    navStartRef.current = Date.now();
-    setNavigationActive(true);
-    // Friendly Yna Agalo briefing — fire-and-forget, non-blocking.
-    speakNavStart().catch(() => {});
-    // NOTE: startBackgroundNavTask() is intentionally NOT called here.
-    // Calling Location.startLocationUpdatesAsync() from the foreground on iOS
-    // (especially with New Architecture / JSI enabled) crashes the native
-    // location engine. The AppState listener below handles starting the
-    // background task at the correct moment — when the app transitions to
-    // background/inactive, which is the only context iOS expects it in.
-  }, []); // no closure dependencies — activeRoute replaced by routeRef.current
-
-  const stopNavigation = useCallback((reason?: "arrived" | "manual" | "timeout") => {
-    navBreadcrumb("nav", "navigation stop", { reason: reason ?? "unknown" });
-    navActiveRef.current = false;
-    navStartRef.current = null;
-    setNavigationActive(false);
-    // Friendly Yna Agalo sign-off — only on genuine arrival, not manual cancel or timeout.
-    // The inline arrival block also fires speakNavEnd as the arrival card appears;
-    // this guard ensures it never plays on mid-trip cancellations or staleness timeouts.
-    if (reason === "arrived") speakNavEnd().catch(() => {});
-    else if (reason === "manual") speakNavCancel().catch(() => {});
-    // Short neutral chime on manual cancel or staleness timeout — gives the driver
-    // audio confirmation that navigation stopped without any speech.  Respects the
-    // same voiceDisabled flag used by the TTS system.
-    if ((reason === "manual" || reason === "timeout") && !getAlertVoiceDisabled()) {
-      playSound("confirm").catch(() => {});
-    }
-    // Stop the background nav task — no longer needed once navigation ends.
-    stopBackgroundNavTask().catch(() => {});
-    setDistToNextM(null);
-    setNavDestState(null);
-    navDestRef.current = null;
-    setActiveRoute(null);
-    setAltRoutes([]);
-    setDivergenceRoutes([]);
-    divergenceRoutesRef.current = [];
-    divergenceFetchingRef.current = false;
-    setZonesOnRoute([]);
-    routeRef.current = null;
-    stepIdxRef.current = 0;
-    setCurrentStepIdx(0);
-    routeProjIdxRef.current = 0;
-    setRouteIncidentsExpanded(false);
-    // Clear any pending faster-route suggestion when navigation stops.
-    setFasterRoute(null);
-    fasterRouteRef.current = null;
-    fasterRouteAnnouncedRef.current = false;
-    fasterRouteDismissedAtRef.current = null;
-    fasterRouteDismissedSavingRef.current = 0;
-    // Stop any active trip-sharing session when navigation ends
-    if (sharePingIntervalRef.current) {
-      clearInterval(sharePingIntervalRef.current);
-      sharePingIntervalRef.current = null;
-    }
-    stopBackgroundShareTask().catch(() => {});
-    const _tok = shareTokenRef.current;
-    shareTokenRef.current = null;
-    setShareToken(null);
-    setShareCode(null);
-    void AsyncStorage.removeItem(KEYS.SHARE);
-    if (_tok && deviceIdRef.current) {
-      apiDelete(`/share/${_tok}`, { deviceId: deviceIdRef.current }).catch(() => {});
-    }
-  }, []);
-
-  // Let handleLocation (defined earlier as a stable, empty-deps useCallback)
-  // reach the latest stopNavigation without needing it as a dependency.
-  useEffect(() => {
-    stopNavigationRef.current = stopNavigation;
-  }, [stopNavigation]);
-
-  // ── Background nav: keep GPS flowing when the screen is locked (iOS) ────────
-  // When navigation is active and the driver backgrounds the app (locks screen,
-  // switches away), iOS throttles watchPositionAsync. The TaskManager background
-  // location task keeps the OS location engine alive so fixes keep arriving.
-  // We mirror the share-task pattern: start on background, stop on foreground.
-  useEffect(() => {
-    if (Platform.OS !== "ios") return;
-
-    const handleAppStateChange = (nextState: AppStateStatus) => {
-      if (!navActiveRef.current) return;
-      if (nextState === "background" || nextState === "inactive") {
-        startBackgroundNavTask().catch(() => {});
-      } else if (nextState === "active") {
-        stopBackgroundNavTask().catch(() => {});
-      }
-    };
-
-    const sub = AppState.addEventListener("change", handleAppStateChange);
-    return () => sub.remove();
-  // navActiveRef is a ref — stable across renders, no dep needed
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Background share: keep pings alive when the app is backgrounded ────────
@@ -3861,9 +2981,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const sub = AppState.addEventListener("change", handleAppStateChange);
     return () => sub.remove();
   }, []);
-
-  const clearArrival = useCallback(() => { setArrivedInfo(null); setRouteIncidentsExpanded(false); }, []);
-
 
   // ── Other actions ─────────────────────────────────────────────────────────
   const dismissAlert = useCallback(() => {
@@ -3977,7 +3094,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Accelerometer — crash detection + silent hazard detection ────────────
-  // Subscribe at 20 Hz whenever navigation or dashcam is active.
+  // Subscribe at 20 Hz whenever dashcam is active.
   // Crash detection fires when:
   //   peak net-G in the 2s window > threshold  AND
   //   GPS speed dropped from ≥20 km/h to ≤5 km/h within 2s
@@ -3985,8 +3102,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // and batch-posted silently.
   useEffect(() => {
     if (Platform.OS === "web") return;
-    const shouldMonitor = navigationActive || dashcamActive;
-    if (!shouldMonitor) {
+    if (!dashcamActive) {
       accelWindowRef.current = [];
       return;
     }
@@ -4134,7 +3250,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (hazardFlushTimerRef.current) { clearInterval(hazardFlushTimerRef.current); hazardFlushTimerRef.current = null; }
       flushHazardBatch(); // flush remaining events on drive end
     };
-  }, [navigationActive, dashcamActive, flushHazardBatch]);
+  }, [dashcamActive, flushHazardBatch]);
 
   const clearAllData = useCallback(async () => {
     await AsyncStorage.multiRemove([
@@ -4787,8 +3903,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isOffline,
       vehicleType, setVehicleType,
       navDestination, setNavDestination,
-      activeRoute, altRoutes, divergenceRoutes, selectRoute,
-      navigationActive, startNavigation, stopNavigation,
+      activeRoute, altRoutes, selectRoute,
       isSharingTrip: shareToken !== null,
       shareToken,
       shareLink: (shareCode || shareToken) ? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${shareCode ?? shareToken}` : null,
@@ -4796,26 +3911,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDriverName,
       startSharingTrip,
       stopSharingTrip,
-      currentStepIdx, distToNextM, distanceRemainingM, durationRemainingS, routeLoading,
+      distanceRemainingM, durationRemainingS, routeLoading,
       showTraffic, setShowTraffic,
-      zonesOnRoute,
       routeIncidentsAhead, routeTrafficDelayS, checkRouteStatus, routeIncidentsExpanded, setRouteIncidentsExpanded,
-      arrivedInfo, clearArrival,
       pendingConfirmationReport, setPendingConfirmationReport,
       pendingConfirmationSource, setPendingConfirmationSource,
       hasVotedOnReport,
       pendingFocusCoords, setPendingFocusCoords,
       markReportPrompted, isReportPrompted,
-      gpsLost,
       driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
       adminEditZone, adminEditReport, adminCreateZone,
       snapToActiveRoute,
-      fasterRoute, acceptFasterRoute, dismissFasterRoute,
       hereIncidents, dismissHereIncident,
       mapPickerActive, setMapPickerActive,
-      navigationEnabled,
       crashDetected, clearCrash, crashAssistantId,
       crashSensitivity, setCrashSensitivity,
       setDashcamActive,

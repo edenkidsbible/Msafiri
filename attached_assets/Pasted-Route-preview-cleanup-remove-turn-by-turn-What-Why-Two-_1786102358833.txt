@@ -1,0 +1,31 @@
+Route preview cleanup & remove turn-by-turn
+What & Why
+Two related changes to how routes work. First, fix the stale route polyline: after picking a search/category result the route line is stored in app-wide context, so leaving the map page and coming back shows the line with no way to dismiss it. Second, the app no longer uses turn-by-turn navigation — the polyline is only a "possible route" preview, and the only active-driving line is the passed-route trail drawn behind the driver in Live Trip mode. All active navigation features (voice guidance, reroutes, step advancement, maneuver instructions, off-route detection, background nav tracking, nav notifications) must be removed from the app.
+
+Done looks like
+Selecting a search result or category place shows a route preview polyline, clearly as a preview only — no navigation starts, no voice, no maneuver instructions
+The user always has a visible way to dismiss the preview whenever the polyline is on screen, including after leaving the map page and returning
+Dismissing clears the route, destination marker, and alternative routes everywhere
+No turn-by-turn features remain reachable or in code: no voice turn cues, no rerouting/off-route detection, no step advancement, no maneuver cards, no navigation notifications, no background navigation location task
+Live Trip mode still works: trip start/stop, the green/blue passed-route line behind the driver, alerts, and trip sharing are unaffected
+Drive screen alerts (cameras, hazards, community reports) and the speed gauge continue to work as before
+Out of scope
+Removing route fetching itself — the preview still needs a routed line from the server
+Server routing endpoint removal (it still serves the preview); only strip navigation-specific behavior the app no longer consumes
+Any changes to Live Trip tracking, alert voice clips for hazards/cameras, or the admin/web artifacts beyond removing dead nav UI
+Steps
+Decouple preview from navigation — When a place is selected from search or category chips, fetch and show the route as a preview without starting navigation or forcing a redirect to the Drive tab; treat the destination + route purely as display state.
+Preview dismissal everywhere — Show a dismiss control (and destination summary) on the map screen whenever a preview route exists, so returning to the map still offers a way to clear it; dismissing clears destination, active route, and alternates via the existing teardown path.
+Remove turn-by-turn systems — Strip voice turn guidance, step advancement, off-route/reroute detection, maneuver instruction UI, roundabout exit counting, navigation notifications, and the background navigation location task, along with their settings and dead state, while carefully preserving Live Trip mode, the passed-route line, and hazard/camera alerting.
+Sweep dependents — Update every consumer of navigation state (drive screen, trips screen live-share, push notification handlers, web screens) so nothing references removed features, and confirm the app builds and behaves cleanly on both native and web.
+Relevant files
+artifacts/mobile/context/AppContext.tsx
+artifacts/mobile/components/MapViewScreen.native.tsx
+artifacts/mobile/components/MapViewScreen.web.tsx
+artifacts/mobile/components/DriveMapView.native.tsx
+artifacts/mobile/app/(tabs)/drive.tsx
+artifacts/mobile/app/(tabs)/trips.tsx
+artifacts/mobile/utils/backgroundNavLocation.ts
+artifacts/mobile/utils/NavigationNotification.ts
+artifacts/mobile/hooks/useRoundaboutExitCounter.ts
+artifacts/mobile/hooks/usePushNotifications.ts

@@ -83,7 +83,7 @@ export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const {
     deviceId, tripHistory, clearTripHistory, currentTrip,
-    isSharingTrip, shareLink, startSharingTrip, stopSharingTrip, navigationActive,
+    isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, currentLat, currentLng,
   } = useApp();
 
@@ -509,31 +509,19 @@ export default function TripsScreen() {
 
           {/* CTA */}
           {!isSharingTrip && (
-            navigationActive ? (
-              <TouchableOpacity
-                style={[styles.shareHeroCta, { backgroundColor: c.primary }]}
-                onPress={handleSharePress}
-                disabled={sharingLoading}
-                activeOpacity={0.85}
-              >
-                {sharingLoading ? <ActivityIndicator color="#fff" /> : (
-                  <>
-                    <Ionicons name="share-social" size={19} color="#fff" />
-                    <Text style={styles.shareHeroCtaTxt}>Share My Live Location</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.shareHeroNotice, { backgroundColor: c.muted }]}>
-                <Ionicons name="navigate-outline" size={18} color={c.mutedForeground} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.shareHeroNoticeTitle, { color: c.foreground }]}>No active drive</Text>
-                  <Text style={[styles.shareHeroNoticeSub, { color: c.mutedForeground }]}>
-                    Go to the Drive tab, enter a destination, and tap Start. Once navigation begins, come back here to share your live location.
-                  </Text>
-                </View>
-              </View>
-            )
+            <TouchableOpacity
+              style={[styles.shareHeroCta, { backgroundColor: c.primary }]}
+              onPress={handleSharePress}
+              disabled={sharingLoading}
+              activeOpacity={0.85}
+            >
+              {sharingLoading ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Ionicons name="share-social" size={19} color="#fff" />
+                  <Text style={styles.shareHeroCtaTxt}>Share My Live Location</Text>
+                </>
+              )}
+            </TouchableOpacity>
           )}
 
           {/* How it works */}
@@ -541,8 +529,8 @@ export default function TripsScreen() {
           {[
             {
               icon: "navigate-circle-outline" as const,
-              title: "Start navigation",
-              body: "Go to the Drive tab and enter your destination. Tap Start when you are ready.",
+              title: "Go to the Drive tab",
+              body: "Tap the Drive tab and tap Start Driving to begin your trip.",
             },
             {
               icon: "radio-outline" as const,

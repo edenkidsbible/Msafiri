@@ -38,10 +38,6 @@ const FILTER_TYPES = [
 
 // ── Camera helpers (mirrored from DriveMapView) ───────────────────────────────
 
-// Fixed zoom delta used during active navigation on this screen.
-// 0.007 ≈ 700 m visible — enough road ahead at city / highway speeds.
-const NAV_DELTA = 0.007;
-
 // Low-pass filter for heading — handles 360°/0° wraparound.
 function smoothHeading(current: number | null, target: number, alpha = 0.25): number {
   if (current == null) return target;
@@ -232,8 +228,7 @@ export default function MapViewScreen() {
     currentLat, currentLng,
     communityReports, addReport, deleteReport,
     activeRoute, altRoutes, selectRoute,
-    navigationActive, snapToActiveRoute,
-    navDestination, setNavDestination, startNavigation,
+    navDestination, setNavDestination,
     showTraffic, setShowTraffic,
     vehicleType, allZones,
     confirmReport, denyReport, flagReport,
@@ -386,8 +381,6 @@ export default function MapViewScreen() {
   // Low-pass smoothed heading for the camera — avoids snap-rotations when GPS
   // bearing jumps.  null = not yet initialised.
   const camHeadingRef        = useRef<number | null>(null);
-  // Tracks previous navigationActive so the effect detects the start/end transition.
-  const prevNavActiveRef     = useRef(navigationActive);
   // Ref mirror of mapDrifted so callbacks don't capture stale state.
   const mapDriftedRef        = useRef(false);
   // Mounted guard — all deferred native calls check this before running.
@@ -413,7 +406,7 @@ export default function MapViewScreen() {
   useEffect(() => {
     if (Platform.OS !== "ios") return;
     if (headingIntervalRef.current) { clearInterval(headingIntervalRef.current); headingIntervalRef.current = null; }
-    if (!navigationActive && !headingUpMode) return;
+    if (!headingUpMode) return;
     headingIntervalRef.current = setInterval(() => {
       if (!mountedRef.current || mapDriftedRef.current) return;
       const hdg = camHeadingRef.current;
@@ -425,67 +418,12 @@ export default function MapViewScreen() {
       mapRef.current?.animateCamera({ heading: hdg }, { duration: 800 });
     }, 1500);
     return () => { if (headingIntervalRef.current) { clearInterval(headingIntervalRef.current); headingIntervalRef.current = null; } };
-  }, [navigationActive, headingUpMode]);
-
-  // ── GPS-follow camera with look-ahead ──────────────────────────────────────
-  // During active navigation: keep the driver in the lower quarter of the
-  // screen so the road ahead is always visible.  Pauses when the driver pans
-  // (mapDrifted) and resumes when they tap Recenter.
-  useEffect(() => {
-    const wasActive = prevNavActiveRef.current;
-    prevNavActiveRef.current = navigationActive;
-
-    if (!navigationActive) {
-      if (wasActive) {
-        // Nav ended — restore north-up.
-        camHeadingRef.current = 0;
-        mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
-      }
-      return;
-    }
-
-    if (currentLat == null || currentLng == null) return;
-
-    // Nav just started — zoom in and orient to heading.
-    if (!wasActive) {
-      const initialHdg = (driverHeading != null && driverHeading >= 0) ? driverHeading : 0;
-      camHeadingRef.current      = initialHdg;
-      lastAnimatedHdgRef.current = null;
-      const center = lookAheadCenter(currentLat, currentLng, initialHdg, NAV_DELTA);
-      mapRef.current?.animateToRegion(
-        { ...center, latitudeDelta: NAV_DELTA, longitudeDelta: NAV_DELTA }, 400,
-      );
-      if (initialHdg > 0) {
-        setTimeout(() => {
-          if (mountedRef.current) mapRef.current?.animateCamera({ heading: initialHdg }, { duration: 300 });
-        }, 450);
-      }
-      return;
-    }
-
-    // Normal follow — skip when drifted or stationary.
-    if (mapDriftedRef.current) return;
-    if ((currentSpeed ?? 0) < 3) return;
-
-    // Advance smoothed heading.
-    if (driverHeading != null && driverHeading >= 0) {
-      camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
-    }
-
-    const center = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, NAV_DELTA);
-    // iOS: position only — heading sent by the 1500 ms interval to avoid
-    // MapKit composite-animation crash.  Android: combined update at 1 Hz.
-    const update: { center: typeof center; heading?: number } = { center };
-    if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-      update.heading = camHeadingRef.current;
-    }
-    mapRef.current?.animateCamera(update, { duration: 300 });
-  }, [navigationActive, currentLat, currentLng, driverHeading, currentSpeed]);
+  }, [headingUpMode]);
 
   // ── Heading-up compass mode camera ─────────────────────────────────────────
   // Keeps map oriented to driver direction outside of active navigation.
   useEffect(() => {
-    if (!headingUpMode || navigationActive) return;
+    if (!headingUpMode) return;
     if (mapDriftedRef.current) return;
     if (currentLat == null || currentLng == null) return;
     if (driverHeading == null || driverHeading < 0) return;
@@ -498,15 +436,15 @@ export default function MapViewScreen() {
     } else {
       mapRef.current?.animateCamera({ center, heading: hdg }, { duration: 300 });
     }
-  }, [headingUpMode, navigationActive, currentLat, currentLng, driverHeading]);
+  }, [headingUpMode, currentLat, currentLng, driverHeading]);
 
   // Restore north-up when compass mode is turned off (outside nav).
   useEffect(() => {
-    if (!headingUpMode && !navigationActive) {
+    if (!headingUpMode) {
       camHeadingRef.current = 0;
       mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
     }
-  }, [headingUpMode, navigationActive]);
+  }, [headingUpMode]);
 
   // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
   // for the full explanation. The freeze optimisation caused tap hit-detection
@@ -519,11 +457,8 @@ export default function MapViewScreen() {
       const road = await getRoadName(location.lat, location.lng).catch(() => null);
       id = addReport(type, location.lat, location.lng, speedLimit, road ?? undefined);
     } else if (currentLat && currentLng) {
-      // Use the route polyline snap when a route is active — it pins the marker
-      // on the exact road rather than whatever nearest road Google Roads picks.
-      const routeSnap = snapToActiveRoute(currentLat, currentLng);
       const [snapped, road] = await Promise.all([
-        routeSnap ? Promise.resolve(routeSnap) : snapToRoad(currentLat, currentLng),
+        snapToRoad(currentLat, currentLng),
         getRoadName(currentLat, currentLng).catch(() => null),
       ]);
       id = addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined);
@@ -591,7 +526,6 @@ export default function MapViewScreen() {
     clearPlaceSearch();
     setActiveChipCat(null); setChipResults([]); setChipError(null);
     setNavDestination({ name, lat, lng });
-    startNavigation();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.replace("/(tabs)/drive");
   };
@@ -676,9 +610,9 @@ export default function MapViewScreen() {
 
   const centerOnUser = () => {
     if (mapRef.current && currentLat && currentLng) {
-      if (navigationActive || headingUpMode) {
+      if (headingUpMode) {
         const hdg    = camHeadingRef.current ?? driverHeading ?? 0;
-        const delta  = navigationActive ? NAV_DELTA : 0.015;
+        const delta  = 0.015;
         const center = lookAheadCenter(currentLat, currentLng, hdg, delta);
         mapRef.current.animateToRegion(
           { ...center, latitudeDelta: delta, longitudeDelta: delta }, 600,
@@ -980,7 +914,6 @@ export default function MapViewScreen() {
                       onPress={() => {
                         setActiveChipCat(null); setChipResults([]); setChipError(null);
                         setNavDestination({ name: item.name, lat: item.lat, lng: item.lng });
-                        startNavigation();
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                         router.replace("/(tabs)/drive");
                       }}
@@ -1149,7 +1082,7 @@ export default function MapViewScreen() {
         {activeRoute && (
           <Polyline
             coordinates={activeRoute.coords}
-            strokeColor={navigationActive ? "#1565C0" : "#2196F3"}
+            strokeColor="#2196F3"
             strokeWidth={6} lineCap="round" lineJoin="round"
           />
         )}

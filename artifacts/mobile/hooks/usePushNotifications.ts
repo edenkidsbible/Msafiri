@@ -192,24 +192,16 @@ export function usePushNotifications() {
     currentLat,
     currentLng,
     markReportPrompted,
-    stopNavigation,
     stopSharingTrip,
-    navigationActive,
   } = useApp();
-  // Keep a stable ref so the response listener (registered once) always reads
-  // the latest navActive state without going stale.
-  const navActiveRef = useRef(navigationActive);
-  useEffect(() => { navActiveRef.current = navigationActive; }, [navigationActive]);
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   // Stable refs so the response listener (registered once with [] deps) always
   // calls the latest version of these functions without going stale.
-  const stopNavigationRef   = useRef(stopNavigation);
   const stopSharingTripRef  = useRef(stopSharingTrip);
   const refreshReportsRef   = useRef(refreshReports);
 
-  useEffect(() => { stopNavigationRef.current  = stopNavigation;  }, [stopNavigation]);
   useEffect(() => { stopSharingTripRef.current = stopSharingTrip; }, [stopSharingTrip]);
   useEffect(() => { refreshReportsRef.current  = refreshReports;  }, [refreshReports]);
 
@@ -238,19 +230,10 @@ export function usePushNotifications() {
 
     // Navigate now if the navigator is mounted, otherwise queue the route so
     // the navReady effect above delivers it as soon as the Stack mounts.
-    // During active navigation, route changes that would eject the driver from
-    // the drive screen are dropped — the driver must not lose their nav view
-    // mid-journey because an unrelated notification tapped in the background.
-    // Force-update navigations are the only exception (safety-critical).
     const safePush = (
       route: Parameters<typeof router.push>[0],
       opts?: { bypassNavBlock?: boolean },
     ) => {
-      if (navActiveRef.current && !opts?.bypassNavBlock) {
-        // Driver is actively navigating — swallow this tap silently.
-        // The notification is still delivered; it just won't disrupt the drive.
-        return;
-      }
       if (navReadyRef.current) {
         try { router.push(route); return; } catch { /* fall through to queue */ }
       }

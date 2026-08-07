@@ -100,28 +100,6 @@ function fmtDelta(deltaS: number, deltaM: number): string {
   return `${time} · ${dist}`;
 }
 
-// ─── Divergence badge — mid-route pill with time/distance delta ───────────────
-
-function DivergenceBadge({
-  label,
-  isRecommended,
-}: {
-  label: string;
-  isRecommended: boolean;
-}) {
-  return (
-    <View collapsable={false} style={ms.divBadgeWrap}>
-      {isRecommended && (
-        <View style={ms.divBadgeRec}>
-          <Text style={ms.divBadgeRecTxt}>✓ Recommended</Text>
-        </View>
-      )}
-      <View style={[ms.divBadgePill, isRecommended && ms.divBadgePillRec]}>
-        <Text style={ms.divBadgeTxt}>{label}</Text>
-      </View>
-    </View>
-  );
-}
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -429,8 +407,8 @@ const DriveMapView = forwardRef(function DriveMapView(
 ) {
   const {
     currentLat, currentLng, currentSpeed,
-    activeRoute, altRoutes, divergenceRoutes, selectRoute, startNavigation,
-    navigationActive, communityReports, showTraffic,
+    activeRoute, altRoutes, selectRoute,
+    communityReports, showTraffic,
     confirmReport, denyReport, flagReport,
     vehicleType, allZones,
     pendingFocusCoords, setPendingFocusCoords,
@@ -438,11 +416,8 @@ const DriveMapView = forwardRef(function DriveMapView(
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
     adminEditZone, adminEditReport, adminCreateZone,
     driverHeading,
-    durationRemainingS, distanceRemainingM,
-    fasterRoute,
     hereIncidents, dismissHereIncident,
     mapPickerActive,
-    currentStepIdx, distToNextM,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const { isDark } = useColors();
@@ -502,30 +477,6 @@ const DriveMapView = forwardRef(function DriveMapView(
   const camLatRef = useRef<number | null>(null);
   const camLngRef = useRef<number | null>(null);
 
-  // Always-current mirror of navigationActive — read inside deferred callbacks
-  // to avoid stale-closure bugs where a setTimeout captures the wrong value.
-  const navActiveRef = useRef(navigationActive);
-  useEffect(() => { navActiveRef.current = navigationActive; });
-
-  // ── Post-turn look-ahead blend refs ──────────────────────────────────────
-  // Mirror of currentStepIdx and distToNextM from AppContext, kept in refs so
-  // the follow effect can read them without listing them in its dep array
-  // (which would re-register the effect on every GPS tick).
-  const camStepIdxRef    = useRef(currentStepIdx);
-  const camDistToNextRef = useRef<number | null>(distToNextM);
-  useEffect(() => { camStepIdxRef.current    = currentStepIdx; }, [currentStepIdx]);
-  useEffect(() => { camDistToNextRef.current = distToNextM;    }, [distToNextM]);
-
-  // Step index for which postTurnBearingRef was last computed.  -1 forces a
-  // compute on the very first nav tick.
-  const blendStepIdxRef    = useRef(-1);
-  // Cached compass bearing of the road immediately after the upcoming turn.
-  // null = no next step, or bearing cannot be determined (e.g. arrive step).
-  const postTurnBearingRef = useRef<number | null>(null);
-
-  // Tracks the previous value of navigationActive so camera effects can detect
-  // the false→true (nav start) and true→false (nav end) transitions.
-  const prevNavActiveRef = useRef(navigationActive);
   // Post-navigation route-fit timer — stored so unmount can cancel it and a
   // late-firing callback never touches a dead map ref.
   const postNavFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -753,7 +704,7 @@ const DriveMapView = forwardRef(function DriveMapView(
   };
 
   useEffect(() => {
-    if (hasCenteredRef.current || navigationActive || currentLat == null || currentLng == null) return;
+    if (hasCenteredRef.current || currentLat == null || currentLng == null) return;
     hasCenteredRef.current = true;
     const t = setTimeout(() => {
       mapRef.current?.animateToRegion(
@@ -762,22 +713,21 @@ const DriveMapView = forwardRef(function DriveMapView(
       );
     }, 300);
     return () => clearTimeout(t);
-  }, [currentLat, currentLng, navigationActive]);
+  }, [currentLat, currentLng]);
 
-  // Step 1 — hardened route-fit: re-check navActiveRef inside the timer so
-  // that if navigation started during the 350 ms delay the fit is suppressed.
+  // Route preview fit: when a route is set, fit the map to show the full polyline.
   useEffect(() => {
-    if (navigationActive || !activeRoute?.coords.length) return;
+    if (!activeRoute?.coords.length) return;
     const coords = activeRoute.coords;
     const t = setTimeout(() => {
-      if (navActiveRef.current) return; // nav started during the delay — abort
+      if (!mountedRef.current) return;
       mapRef.current?.fitToCoordinates(coords, {
         edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
         animated: true,
       });
     }, 350);
     return () => clearTimeout(t);
-  }, [activeRoute?.id, navigationActive]);
+  }, [activeRoute?.id]);
 
   // How long a new zoom band must be sustained before the camera animates to it.
   // This prevents the zoom from pulsing on every noisy per-fix speed reading.
@@ -804,311 +754,78 @@ const DriveMapView = forwardRef(function DriveMapView(
   //   • Zoom hysteresis    — the target zoom band must be sustained for
   //     ZOOM_SUSTAIN_MS before the camera zooms, so a single noisy speed spike
   //     never pulses the camera.
+  // ── Browsing follow ────────────────────────────────────────────────────────
+  // Keep the driver's dot in the centre of the screen — pan + speed-adaptive
+  // zoom, north-up. Pauses automatically when they manually pan/zoom (drift
+  // flag), resuming on Recenter tap.
   useEffect(() => {
-    const wasActive = prevNavActiveRef.current;
-    prevNavActiveRef.current = navigationActive;
-
-    if (!navigationActive) {
-      if (wasActive) {
-        // Navigation just ended — restore north-up orientation first, then
-        // fit to the completed route (or pan to current position).
-        navBreadcrumb("map.camera", "post-nav restore (heading reset + route fit)");
-        camHeadingRef.current = 0;
-        mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
-        if (activeRoute?.coords.length) {
-          const coords = activeRoute.coords;
-          if (postNavFitTimerRef.current) clearTimeout(postNavFitTimerRef.current);
-          postNavFitTimerRef.current = setTimeout(() => {
-            postNavFitTimerRef.current = null;
-            if (!mountedRef.current) return;
-            mapRef.current?.fitToCoordinates(coords, {
-              edgePadding: { top: 80, right: 30, bottom: 230, left: 30 },
-              animated: true,
-            });
-          }, 300);
-        } else if (currentLat != null && currentLng != null) {
-          mapRef.current?.animateToRegion(
-            { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.05, longitudeDelta: 0.05 },
-            600
-          );
-        }
-        return;
-      }
-
-      // ── Browsing follow (no active route, no navigation) ─────────────────
-      // Keep the driver's dot in the centre of the screen while they're just
-      // driving around without a set destination — pan + speed-adaptive zoom,
-      // north-up so the map remains easy to read.
-      // Pauses automatically as soon as they manually pan/zoom (drift flag),
-      // resuming the moment they tap Recenter.
-      if (
-        !mapDriftedRef.current &&
-        !activeRoute &&           // route preview overrides follow — don't fight fitToCoordinates
-        currentLat != null &&
-        currentLng != null &&
-        hasCenteredRef.current    // initial center already done — safe to animate
-      ) {
-        // Stationary freeze: skip pan when parked and GPS hasn't moved meaningfully.
-        // Still advance camHeadingRef so the iOS heading interval and Android
-        // slow-rotation path have a fresh smoothed value to work from.
-        const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
-        if (isStationary && camLatRef.current != null && camLngRef.current != null) {
-          const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
-          if (moved < STATIONARY_MOVE_M) {
-            if (driverHeading != null && driverHeading >= 0) {
-              const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
-              camHeadingRef.current = smoothedHdg;
-              // Android: send a slow heading-only rotation while parked.
-              // On iOS the 1500 ms interval handles this.
-              if (Platform.OS !== "ios") {
-                const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
-                if (hdgDelta > 1.5) {
-                  lastAnimatedHeadingRef.current = smoothedHdg;
-                  mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
-                }
+    if (
+      !mapDriftedRef.current &&
+      !activeRoute &&           // route preview overrides follow — don't fight fitToCoordinates
+      currentLat != null &&
+      currentLng != null &&
+      hasCenteredRef.current    // initial center already done — safe to animate
+    ) {
+      // Stationary freeze: skip pan when parked and GPS hasn't moved meaningfully.
+      const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
+      if (isStationary && camLatRef.current != null && camLngRef.current != null) {
+        const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
+        if (moved < STATIONARY_MOVE_M) {
+          if (driverHeading != null && driverHeading >= 0) {
+            const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
+            camHeadingRef.current = smoothedHdg;
+            if (Platform.OS !== "ios") {
+              const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
+              if (hdgDelta > 1.5) {
+                lastAnimatedHeadingRef.current = smoothedHdg;
+                mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
               }
             }
-            return;
           }
+          return;
         }
-        camLatRef.current = currentLat;
-        camLngRef.current = currentLng;
-
-        // Advance heading smoothing in drive mode so the iOS heading interval
-        // and Android position call always have a fresh camHeadingRef value.
-        if (driverHeading != null && driverHeading >= 0) {
-          camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
-        }
-
-        // Zoom hysteresis: only apply new zoom band after it's been stable for
-        // ZOOM_SUSTAIN_MS milliseconds so a single noisy speed spike never pulses
-        // the view.
-        const targetDelta = speedToLatDelta(currentSpeed ?? 0);
-        const now = Date.now();
-        if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
-          if (zoomBandTimestampRef.current == null) {
-            zoomBandTimestampRef.current = now;
-          } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
-            // Sustained long enough — glide toward new zoom.
-            const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
-            appliedDeltaRef.current = smoothed;
-            lastDeltaRef.current    = smoothed;
-            zoomBandTimestampRef.current = null;
-            // Apply look-ahead offset so driver stays in the lower portion of the screen.
-            const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, smoothed);
-            mapRef.current?.animateToRegion(
-              { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
-              500,
-            );
-            // Android: follow with a heading update after zoom settles.
-            if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-              scheduleHeadingAnim(camHeadingRef.current, 150, 200);
-            }
-            return;
-          }
-          // Not yet sustained — pan only, don't zoom.
-        } else {
-          zoomBandTimestampRef.current = null; // back in the stable band
-        }
-
-        // Heading-up drive follow: pan to the look-ahead offset center.
-        // On iOS, heading is updated by the 1500 ms interval (no combined call).
-        // On Android, include the smoothed heading in this call for full 1 Hz rotation.
-        const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
-        const driveCameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
-          center: laCenter,
-        };
-        if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-          driveCameraUpdate.heading = camHeadingRef.current;
-        }
-        mapRef.current?.animateCamera(driveCameraUpdate, { duration: 300 });
       }
-      return;
-    }
+      camLatRef.current = currentLat;
+      camLngRef.current = currentLng;
 
-    // ── Navigation active ─────────────────────────────────────────────────
-    // While the driver has drifted (panned/zoomed away), don't fight them.
-    // Auto-tracking resumes only when they tap Recenter.
-    if (mapDriftedRef.current) return;
-
-    if (currentLat == null || currentLng == null) return;
-
-    const justStarted = !wasActive;
-
-    if (justStarted) {
-      // Nav start: zoom to street-level view and orient the map to the
-      // driver's heading.  Use animateToRegion for zoom (iOS altitude-safe),
-      // then animateCamera for heading separately.
-      const snapDelta = speedToLatDelta(currentSpeed ?? 0);
-      appliedDeltaRef.current = snapDelta;
-      lastDeltaRef.current    = snapDelta;
-      camLatRef.current       = currentLat;
-      camLngRef.current       = currentLng;
-      const initialHeading = (driverHeading != null && driverHeading >= 0) ? driverHeading : 0;
-      camHeadingRef.current   = initialHeading;
-      zoomBandTimestampRef.current = null;
-
-      navBreadcrumb("map.camera", "nav start zoom-in", { delta: snapDelta, heading: initialHeading });
-      // Reset the last-animated-heading baseline so the first real bearing
-      // after nav start is always sent (no stale throttle from a previous session).
-      lastAnimatedHeadingRef.current = null;
-      // Apply look-ahead offset so the driver starts in the lower portion of
-      // the screen from the very first navigation frame.
-      const laCenter = lookAheadCenter(currentLat, currentLng, initialHeading, snapDelta);
-      mapRef.current?.animateToRegion(
-        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
-        300
-      );
       if (driverHeading != null && driverHeading >= 0) {
-        scheduleHeadingAnim(driverHeading, 350, 300);
-        lastAnimatedHeadingRef.current = driverHeading;
+        camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
       }
-      return;
-    }
 
-    // ── Normal navigation follow ─────────────────────────────────────────
-    // Stationary freeze: don't pan when the driver is parked and GPS position
-    // hasn't moved meaningfully.
-    const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
-    if (isStationary && camLatRef.current != null && camLngRef.current != null) {
-      const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
-      if (moved < STATIONARY_MOVE_M) {
-        // Still advance camHeadingRef even when parked so the iOS heading
-        // interval and the Android heading-in-position call both have a fresh
-        // smoothed value to work from.
-        if (driverHeading != null && driverHeading >= 0) {
-          const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
-          camHeadingRef.current = smoothedHdg;
-          // Android only: send a slow heading-only update while parked so the
-          // map rotates to match the driver's bearing.  On iOS the 1500 ms
-          // interval handles this without combining with position.
-          if (Platform.OS !== "ios") {
-            const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
-            if (hdgDelta > 1.5) {
-              lastAnimatedHeadingRef.current = smoothedHdg;
-              mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
-            }
-          }
-        }
-        return;
-      }
-    }
-    camLatRef.current = currentLat;
-    camLngRef.current = currentLng;
-
-    // Always advance the low-pass heading smoothing so the iOS heading interval
-    // and Android's combined call both read a fresh value from camHeadingRef.
-    if (driverHeading != null && driverHeading >= 0) {
-      camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
-    }
-
-    // ── Post-turn look-ahead blend ────────────────────────────────────────
-    // Recompute the cached post-turn bearing whenever the active step changes.
-    // This is O(1): just an integer compare + at most 2 coordinate reads.
-    // We deliberately do NOT add currentStepIdx / distToNextM to the effect's
-    // dep array — they are mirrored in camStepIdxRef / camDistToNextRef and
-    // read here directly so the effect is never re-registered mid-GPS-tick.
-    const stepIdx = camStepIdxRef.current;
-    if (stepIdx !== blendStepIdxRef.current) {
-      blendStepIdxRef.current = stepIdx;
-      const steps = activeRoute?.steps;
-      const nextStep = steps?.[stepIdx + 1];
-      if (!nextStep) {
-        // Final/arrive step — no turn ahead; disable blend.
-        postTurnBearingRef.current = null;
-      } else if (nextStep.stepCoords && nextStep.stepCoords.length >= 2) {
-        // Derive bearing from the first segment of the next step's road geometry.
-        postTurnBearingRef.current = bearing(
-          nextStep.stepCoords[0].latitude,  nextStep.stepCoords[0].longitude,
-          nextStep.stepCoords[1].latitude,  nextStep.stepCoords[1].longitude,
-        );
-      } else {
-        // Fall back: bearing between the current step's end and next step's end.
-        const curStep = steps?.[stepIdx];
-        if (curStep) {
-          postTurnBearingRef.current = bearing(
-            curStep.location.latitude,  curStep.location.longitude,
-            nextStep.location.latitude, nextStep.location.longitude,
+      const targetDelta = speedToLatDelta(currentSpeed ?? 0);
+      const now = Date.now();
+      if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
+        if (zoomBandTimestampRef.current == null) {
+          zoomBandTimestampRef.current = now;
+        } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
+          const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
+          appliedDeltaRef.current = smoothed;
+          lastDeltaRef.current    = smoothed;
+          zoomBandTimestampRef.current = null;
+          const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, smoothed);
+          mapRef.current?.animateToRegion(
+            { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
+            500,
           );
-        } else {
-          postTurnBearingRef.current = null;
+          if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+            scheduleHeadingAnim(camHeadingRef.current, 150, 200);
+          }
+          return;
         }
-      }
-    }
-
-    // Blend look-ahead offset heading toward the post-turn bearing when close to
-    // the maneuver.  Only the center fed into lookAheadCenter is affected;
-    // camHeadingRef (used for map rotation) is left completely unchanged.
-    const distToNext     = camDistToNextRef.current;
-    const postTurnHdg    = postTurnBearingRef.current;
-    const camHdg         = camHeadingRef.current;
-    let lookAheadHdg: number | null = camHdg;
-    if (
-      camHdg != null &&
-      postTurnHdg != null &&
-      distToNext != null &&
-      distToNext < LOOK_AHEAD_BLEND_START_M
-    ) {
-      // t goes 0 → 1 as distToNext goes BLEND_START → 0.
-      const t = Math.max(0, 1 - distToNext / LOOK_AHEAD_BLEND_START_M);
-      lookAheadHdg = lerpAngle(camHdg, postTurnHdg, t);
-    }
-
-    // Zoom hysteresis: only change zoom when the target band has been sustained
-    // for ZOOM_SUSTAIN_MS.  When the band is stable, use animateCamera for the
-    // position update (cheaper than animateToRegion, no zoom/altitude side-effects).
-    const targetDelta = speedToLatDelta(currentSpeed ?? 0);
-    const now = Date.now();
-    let zoomChanged = false;
-
-    if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
-      if (zoomBandTimestampRef.current == null) {
-        zoomBandTimestampRef.current = now;
-      } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
-        const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
-        appliedDeltaRef.current = smoothed;
-        lastDeltaRef.current    = smoothed;
+      } else {
         zoomBandTimestampRef.current = null;
-        zoomChanged = true;
       }
-    } else {
-      zoomBandTimestampRef.current = null;
-    }
 
-    if (zoomChanged) {
-      // Zoom changed: animateToRegion for the zoom (iOS altitude-safe).
-      // Apply look-ahead offset so driver stays in the lower portion of screen.
-      // On Android, follow immediately with a heading-only animateCamera so
-      // track-up mode stays correct after the zoom.  On iOS the heading
-      // interval fires within ≤1500 ms — no need to schedule an extra call
-      // (which would overlap with animateToRegion on iOS anyway).
-      navBreadcrumb("map.camera", "nav follow zoom change", { delta: appliedDeltaRef.current });
-      const laCenter = lookAheadCenter(currentLat, currentLng, lookAheadHdg, appliedDeltaRef.current);
-      mapRef.current?.animateToRegion(
-        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: appliedDeltaRef.current, longitudeDelta: appliedDeltaRef.current },
-        300,
-      );
-      if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-        scheduleHeadingAnim(camHeadingRef.current, 150, 200);
-      }
-    } else {
-      // No zoom change: position-only animateCamera — safe on all platforms at
-      // any speed.  Apply look-ahead offset so driver sits in the lower portion
-      // of screen.  On iOS, heading is updated separately by the 1500 ms
-      // interval (see headingIntervalRef effect above) so the map still tracks
-      // the driver's direction without ever combining pan + rotation in a
-      // single MapKit call.  On Android, include heading in this call so
-      // track-up refreshes at the full 1 Hz GPS rate.
-      const laCenter = lookAheadCenter(currentLat, currentLng, lookAheadHdg, appliedDeltaRef.current);
-      const cameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
+      const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
+      const driveCameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
         center: laCenter,
       };
       if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-        cameraUpdate.heading = camHeadingRef.current;
+        driveCameraUpdate.heading = camHeadingRef.current;
       }
-      mapRef.current?.animateCamera(cameraUpdate, { duration: 300 });
+      mapRef.current?.animateCamera(driveCameraUpdate, { duration: 300 });
     }
-  }, [navigationActive, currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
+  }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
   // active. That drift means their view has left the GPS position — surface
@@ -1228,48 +945,25 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   const recenter = useCallback(() => {
     if (currentLat == null || currentLng == null) return;
-    navBreadcrumb("map.camera", "recenter tapped", { navActive: navActiveRef.current });
+    navBreadcrumb("map.camera", "recenter tapped");
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
-    // Reset the smoothing refs so the next GPS fix starts from the right
-    // baseline rather than whatever stale values were active before the pan.
     const snapDelta = speedToLatDelta(currentSpeed ?? 0);
     appliedDeltaRef.current      = snapDelta;
     lastDeltaRef.current         = snapDelta;
     camLatRef.current            = currentLat;
     camLngRef.current            = currentLng;
     zoomBandTimestampRef.current = null;
-    if (navActiveRef.current) {
-      // During navigation: snap to speed-adaptive zoom, restore heading-up
-      // (track-up mode), and apply look-ahead offset so the road ahead points up.
-      const hdg = (driverHeading != null && driverHeading >= 0)
-        ? smoothHeading(null, driverHeading) // snap, not smooth
-        : (camHeadingRef.current ?? 0);
-      camHeadingRef.current = hdg;
-      const laCenter = lookAheadCenter(currentLat, currentLng, hdg, snapDelta);
-      mapRef.current?.animateToRegion(
-        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
-        500,
-      );
-      scheduleHeadingAnim(hdg, 550, 300);
-    } else {
-      // Browsing: speed-adaptive zoom, heading-up with look-ahead framing so
-      // the majority of the screen shows the road ahead.
-      const hdg = (driverHeading != null && driverHeading >= 0)
-        ? smoothHeading(null, driverHeading) // snap, not smooth
-        : (camHeadingRef.current ?? 0);
-      camHeadingRef.current = hdg;
-      // Reset last-animated baseline so the iOS heading interval fires
-      // immediately on the next tick rather than skipping due to the stale value.
-      lastAnimatedHeadingRef.current = null;
-      const laCenter = lookAheadCenter(currentLat, currentLng, hdg, snapDelta);
-      mapRef.current?.animateToRegion(
-        { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
-        500,
-      );
-      // Restore heading-up (iOS interval will catch it within 1500 ms, but
-      // schedule an immediate call for a snappy recenter on both platforms).
-      scheduleHeadingAnim(hdg, 550, 300);
-    }
+    const hdg = (driverHeading != null && driverHeading >= 0)
+      ? smoothHeading(null, driverHeading)
+      : (camHeadingRef.current ?? 0);
+    camHeadingRef.current = hdg;
+    lastAnimatedHeadingRef.current = null;
+    const laCenter = lookAheadCenter(currentLat, currentLng, hdg, snapDelta);
+    mapRef.current?.animateToRegion(
+      { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
+      500,
+    );
+    scheduleHeadingAnim(hdg, 550, 300);
     onDriftChange?.(false);
   }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
 
@@ -1318,40 +1012,6 @@ const DriveMapView = forwardRef(function DriveMapView(
     [altRoutes],
   );
 
-  // Divergence preview routes: sanitized once per divergenceRoutes change.
-  const validDivergenceRoutes = useMemo(
-    () =>
-      divergenceRoutes
-        .map((r) => ({
-          ...r,
-          coords: (r.coords ?? []).filter(
-            (c) =>
-              c != null &&
-              typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
-              typeof c.longitude === "number" && Number.isFinite(c.longitude),
-          ),
-        }))
-        .filter(
-          (r) =>
-            r.coords.length >= 2 &&
-            typeof r.durationS === "number" && isFinite(r.durationS) &&
-            typeof r.distanceM === "number" && isFinite(r.distanceM),
-        ),
-    [divergenceRoutes],
-  );
-
-  // Faster-route preview coords: sanitized once per suggestion.
-  const fasterRouteCoords = useMemo(() => {
-    if (!fasterRoute) return null;
-    const coords = (fasterRoute.coords ?? []).filter(
-      (c) =>
-        c != null &&
-        typeof c.latitude === "number" && Number.isFinite(c.latitude) &&
-        typeof c.longitude === "number" && Number.isFinite(c.longitude),
-    );
-    return coords.length >= 2 ? coords : null;
-  }, [fasterRoute]);
-
   // Active-route "ahead" slice. The nearest-coordinate index still tracks the
   // driver, but it is quantized to steps of AHEAD_IDX_STEP so the memo below
   // only rebuilds the native polyline every ~4 passed coordinates instead of
@@ -1369,7 +1029,7 @@ const DriveMapView = forwardRef(function DriveMapView(
   // Windowed nearest-coord search — O(40) instead of O(N) on every GPS tick.
   // The full O(N) scan is used only on route start / reroute (once per route).
   const navAheadStartIdx = useMemo(() => {
-    if (!navigationActive || !activeRoute || currentLat == null || currentLng == null) {
+    if (!activeRoute || currentLat == null || currentLng == null) {
       navProjIdxRef.current  = 0;
       lastRouteIdRef.current = null;
       return 0;
@@ -1377,8 +1037,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     const coords = activeRoute.coords;
     if (!Array.isArray(coords) || coords.length < 2) return 0;
 
-    // Route changed (new route or reroute) — reset cursor and do a full scan
-    // once so the polyline slice starts at the right point immediately.
+    // Route changed — reset cursor and do a full scan once.
     const routeChanged = activeRoute.id !== lastRouteIdRef.current;
     if (routeChanged) {
       lastRouteIdRef.current = activeRoute.id;
@@ -1410,7 +1069,7 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     navProjIdxRef.current = bestIdx;
     return bestIdx - (bestIdx % AHEAD_IDX_STEP);
-  }, [navigationActive, activeRoute, currentLat, currentLng]);
+  }, [activeRoute, currentLat, currentLng]);
 
   // Trip-mode polyline split — find the nearest coord index to the driver's
   // current position so we can render green (covered) and blue (remaining)
@@ -1442,37 +1101,14 @@ const DriveMapView = forwardRef(function DriveMapView(
     return bestIdx - (bestIdx % TRIP_STEP);
   }, [tripMode, activeRoute, currentLat, currentLng]);
 
-  // Traffic-coloured segments for the active route — memoized on route id,
-  // nav state, and the quantized slice index only.
+  // Traffic-coloured segments for the active route — full route with traffic colouring.
   const activeRouteSegs = useMemo(() => {
     if (!activeRoute) return null;
     const coords = activeRoute.coords;
     if (!Array.isArray(coords) || coords.length < 2) return null;
-    if (navigationActive) {
-      const remaining = coords.slice(navAheadStartIdx);
-      if (remaining.length < 2) return null;
-      // NOTE: no side-effects (navBreadcrumb) inside useMemo — React may call
-      // this multiple times in concurrent mode. Breadcrumb moved to useEffect.
-      return buildTrafficSegments(remaining, activeRoute.speedIntervals, navAheadStartIdx);
-    }
-    // Pre-navigation: full route with traffic colouring.
     return buildTrafficSegments(coords, activeRoute.speedIntervals);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRoute, navigationActive, navAheadStartIdx]);
-
-  // Side-effect counterpart: record a breadcrumb whenever the active polyline
-  // actually rebuilds. Kept outside useMemo so it only fires once per commit.
-  useEffect(() => {
-    if (!activeRouteSegs || !activeRoute || !navigationActive) return;
-    navBreadcrumb("map.render", "active polyline rebuilt", {
-      routeId: activeRoute.id,
-      startIdx: navAheadStartIdx,
-      segments: activeRouteSegs.length,
-    });
-  // navAheadStartIdx intentionally omitted — we only want to log when the
-  // segments array reference changes, not on every index nudge.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRouteSegs]);
+  }, [activeRoute]);
 
   return (
     <>
@@ -1706,132 +1342,6 @@ const DriveMapView = forwardRef(function DriveMapView(
           );
         })}
 
-        {/* Divergence preview — pink "what's ahead" alternatives shown the moment
-            the driver leaves the planned path, before the full reroute commits.
-            Rendered above grey alts but below the primary blue route so the
-            driver sees all options without losing the main corridor. */}
-        {!tripMode && (() => {
-          // Sanitization is memoized in validDivergenceRoutes (rebuilds only
-          // when divergenceRoutes changes) — a partial response from the
-          // routing API (missing durationS, empty coords, or any NaN
-          // coordinate) would cause Math.min to return NaN/Infinity and
-          // Polyline to crash.
-          const validRoutes = validDivergenceRoutes;
-          if (!validRoutes.length) return null;
-
-          // Identify the recommended divergence route — fastest time wins; ties
-          // broken by shortest distance.  If both duration AND distance are
-          // equal, neither route is labelled "Recommended" (they show identical
-          // deltas, which is accurate and avoids a misleading label).
-          const fastestDurationS = Math.min(...validRoutes.map((r) => r.durationS));
-          const tiedRoutes = validRoutes.filter((r) => r.durationS === fastestDurationS);
-          const shortestDistM = Math.min(...tiedRoutes.map((r) => r.distanceM));
-          // Only a unique winner earns the label: if two routes still tie on
-          // distance after the duration tiebreak, recommendedId stays null.
-          const uniqueWinner = tiedRoutes.filter((r) => r.distanceM === shortestDistM);
-          const recommendedId = uniqueWinner.length === 1 ? uniqueWinner[0].id : null;
-
-          // Spread badge positions along the polyline so two badges don't
-          // stack on top of each other when the routes share a long common
-          // prefix before diverging.  With 2 routes we use 40 % and 60 %;
-          // a single route uses the 50 % midpoint.
-          const fractions =
-            validRoutes.length === 1
-              ? [0.5]
-              : validRoutes.length === 2
-              ? [0.38, 0.62]
-              : validRoutes.map((_, i) => 0.3 + (i / (validRoutes.length - 1)) * 0.4);
-
-          return validRoutes.map((r, idx) => {
-            const isRecommended = recommendedId !== null && r.id === recommendedId;
-            const innerColor = isRecommended ? "#FF2D78" : "#FF6FA0";
-            const outerColor = isRecommended ? "#FF2D7855" : "#FF6FA033";
-
-            // Delta vs. remaining travel time/distance on the original route.
-            // During active navigation, durationRemainingS/distanceRemainingM
-            // reflect how far is still to go from the driver's current position —
-            // a much more accurate baseline than the full route total.
-            // Falls back to the full-route totals when these are null (pre-navigation).
-            const baseS = activeRoute
-              ? (durationRemainingS ?? activeRoute.durationS)
-              : null;
-            const baseM = activeRoute
-              ? (distanceRemainingM ?? activeRoute.distanceM)
-              : null;
-            const deltaS = baseS != null ? r.durationS - baseS : 0;
-            const deltaM = baseM != null ? r.distanceM - baseM : 0;
-            const label = activeRoute ? fmtDelta(deltaS, deltaM) : fmtDuration(r.durationS);
-
-            const badgeCoord = midpointCoord(r.coords, fractions[idx]);
-
-            return (
-              <React.Fragment key={r.id}>
-                {/* Wide glow layer — provides a generous tap target */}
-                <Polyline
-                  coordinates={r.coords}
-                  strokeColor={outerColor}
-                  strokeWidth={9}
-                  lineCap="round"
-                  lineJoin="round"
-                  tappable
-                  onPress={() => { selectRoute(r); void startNavigation(); }}
-                />
-                {/* Bright inner stroke — visually the pink line */}
-                <Polyline
-                  coordinates={r.coords}
-                  strokeColor={innerColor}
-                  strokeWidth={5}
-                  lineCap="round"
-                  lineJoin="round"
-                  tappable
-                  onPress={() => { selectRoute(r); void startNavigation(); }}
-                />
-                {/* Mid-route badge showing time & distance delta */}
-                {r.coords.length >= 2 && badgeCoord != null && (
-                  <Marker
-                    coordinate={badgeCoord}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                    tracksViewChanges={false}
-                    zIndex={20}
-                    onPress={() => { selectRoute(r); void startNavigation(); }}
-                  >
-                    <DivergenceBadge label={label} isRecommended={isRecommended} />
-                  </Marker>
-                )}
-              </React.Fragment>
-            );
-          });
-        })()}
-
-        {/* Faster-route preview — teal/cyan polyline shown while the "Faster route"
-            banner is visible so the driver can see exactly where the alternative
-            diverges before deciding to switch.  Rendered above divergence routes
-            but below the primary blue route so the active corridor remains clear. */}
-        {!tripMode && navigationActive && fasterRoute && (() => {
-          // Sanitized + memoized in fasterRouteCoords — stable across GPS ticks.
-          const coords = fasterRouteCoords;
-          if (!coords) return null;
-          return (
-            <React.Fragment key={`faster-${fasterRoute.id}`}>
-              {/* Wide glow layer */}
-              <Polyline
-                coordinates={coords}
-                strokeColor="#00BCD455"
-                strokeWidth={9}
-                lineCap="round"
-                lineJoin="round"
-              />
-              {/* Bright teal inner stroke */}
-              <Polyline
-                coordinates={coords}
-                strokeColor="#00BCD4"
-                strokeWidth={5}
-                lineCap="round"
-                lineJoin="round"
-              />
-            </React.Fragment>
-          );
-        })()}
 
         {/* Route polyline — trip mode: green (covered) + blue (ahead) split.
             Preview / non-trip: standard traffic-coloured segments. */}

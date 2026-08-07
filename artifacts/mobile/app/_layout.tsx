@@ -77,7 +77,6 @@ import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
-import { defineNavBackgroundTask } from "@/utils/backgroundNavLocation";
 
 try {
   initializeRevenueCat();
@@ -89,7 +88,6 @@ try {
 // expo-task-manager requires tasks to be defined synchronously at module
 // load time — defining them inside a component or effect is too late.
 defineShareBackgroundTask();
-defineNavBackgroundTask();
 
 // Every @expo/vector-icons component (Ionicons, MaterialCommunityIcons,
 // Feather — the three families this app uses) calls `Font.loadAsync()` for

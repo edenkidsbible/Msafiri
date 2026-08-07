@@ -70,14 +70,14 @@ export function incidentDelayMin(inc: RouteIncident): number | null {
 
 export default function RouteIncidentsPanel() {
   const {
-    activeRoute, navigationActive, arrivedInfo,
+    activeRoute,
     routeIncidentsAhead, routeTrafficDelayS, routeIncidentsExpanded, setRouteIncidentsExpanded,
   } = useApp();
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
-  if (!activeRoute || arrivedInfo) return null;
+  if (!activeRoute) return null;
 
   const isDriveTab = pathname === DRIVE_TAB_PATH;
   const isMapTab   = pathname === MAP_TAB_PATH;
@@ -121,7 +121,7 @@ export default function RouteIncidentsPanel() {
 
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: c.foreground }]}>
-            {navigationActive ? "Incidents ahead" : "Incidents on this route"}
+            {"Incidents on this route"}
           </Text>
           <TouchableOpacity onPress={() => setRouteIncidentsExpanded(false)} hitSlop={10}>
             <Ionicons name="close" size={20} color={c.mutedForeground} />
@@ -148,9 +148,7 @@ export default function RouteIncidentsPanel() {
           <View style={styles.emptyState}>
             <Ionicons name="checkmark-circle-outline" size={28} color={c.mutedForeground} />
             <Text style={[styles.emptyTxt, { color: c.mutedForeground }]}>
-              {navigationActive
-                ? "Nothing reported ahead — drive safe."
-                : "No known cameras, checkpoints, or reports on this route."}
+              {"No known cameras, checkpoints, or reports on this route."}
             </Text>
           </View>
         ) : (
