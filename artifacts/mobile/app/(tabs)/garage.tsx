@@ -934,7 +934,7 @@ const TOOLS = [
     label: "Dashcam\nVideos",
     color: "#EF4444",
     bg: "#EF444420",
-    href: "/dashcam-clips",
+    href: "/dashcam-videos",
   },
   {
     key: "accident",

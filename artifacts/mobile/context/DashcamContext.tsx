@@ -61,6 +61,8 @@ export interface DashcamSegment {
   fileKey?: string;     // R2 key once uploaded
   serverId?: string;    // DB id once saved on server
   retryCount?: number;  // upload attempts so far (for bounded backoff)
+  lat?: number;         // GPS position at segment end (for location naming)
+  lng?: number;
 }
 
 export interface DashcamSettings {
@@ -112,7 +114,7 @@ interface DashcamContextValue {
   updateSettings: (partial: Partial<DashcamSettings>) => Promise<void>;
   // Internal — called by DashcamOverlay
   setCameraRef: (ref: CameraView | null) => void;
-  onSegmentComplete: (tempUri: string, durationS?: number) => Promise<void>;
+  onSegmentComplete: (tempUri: string, durationS?: number, coords?: { lat: number; lng: number }) => Promise<void>;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -465,6 +467,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             sizeBytes:  seg.sizeBytes,
             lockReason: seg.lockReason,
             startedAt:  new Date(seg.startedAt).toISOString(),
+            lat:        seg.lat ?? null,
+            lng:        seg.lng ?? null,
           }),
         });
         if (!metaRes.ok) throw new Error(`Metadata: ${metaRes.status}`);
@@ -706,7 +710,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const onSegmentComplete = useCallback(
-    async (tempUri: string, durationS?: number) => {
+    async (tempUri: string, durationS?: number, coords?: { lat: number; lng: number }) => {
       const lockReason = lockNextRef.current;
       lockNextRef.current = null;
 
@@ -730,6 +734,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           locked:       !!lockReason,
           lockReason:   lockReason ?? undefined,
           uploadStatus: lockReason ? "pending" : "none",
+          lat:          coords?.lat,
+          lng:          coords?.lng,
         };
 
         setSegments((prev) => {

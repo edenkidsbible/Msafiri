@@ -32,6 +32,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useDashcam } from "@/context/DashcamContext";
+import { useApp } from "@/context/AppContext";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
@@ -89,6 +90,12 @@ export default function DashcamOverlay() {
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked,
     closeDashcam, clearBackgroundRecordPending, setCameraRef, onSegmentComplete,
   } = useDashcam();
+
+  const { currentLat, currentLng } = useApp();
+  const latRef = useRef(currentLat);
+  const lngRef = useRef(currentLng);
+  useEffect(() => { latRef.current = currentLat; }, [currentLat]);
+  useEffect(() => { lngRef.current = currentLng; }, [currentLng]);
 
   const insets = useSafeAreaInsets();
 
@@ -214,7 +221,11 @@ export default function DashcamOverlay() {
           });
           if (result?.uri) {
             const durationS = Math.round((Date.now() - segmentStartRef.current) / 1000);
-            await onSegmentComplete(result.uri, durationS);
+            const lat = latRef.current, lng = lngRef.current;
+            await onSegmentComplete(
+              result.uri, durationS,
+              lat != null && lng != null ? { lat, lng } : undefined,
+            );
           }
         } catch { break; }
         if (loopCancelRef.current) break;

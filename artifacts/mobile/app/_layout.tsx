@@ -433,6 +433,7 @@ function RootLayoutNav() {
         <Stack.Screen name="trip-detail/[id]"        options={{ headerShown: false }} />
         <Stack.Screen name="vehicle-care"            options={{ headerShown: false }} />
         <Stack.Screen name="trip-history"            options={{ headerShown: false }} />
+        <Stack.Screen name="dashcam-videos"          options={{ headerShown: false }} />
       </Stack>
     </View>
   );
