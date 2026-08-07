@@ -1,4 +1,6 @@
 import {
+  ConfirmUploadBody,
+  ConfirmUploadResponse,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from '@workspace/api-zod';
@@ -11,15 +13,36 @@ import * as r2 from '../lib/r2Storage.js';
 import {
   buildUploadKey,
   canAccessR2Object,
+  getR2ObjectAclPolicy,
   normalizePrincipalId,
   objectPathToR2Key,
+  parseUploadKeyOwner,
   r2KeyToObjectPath,
-  ObjectPermission,
+  setR2ObjectAclPolicy,
 } from '../lib/r2ObjectAcl.js';
+
+/**
+ * MIME types allowed for public R2 uploads (blog images, press assets).
+ *
+ * Restricted to safe raster image formats so an attacker cannot upload
+ * HTML/JS/SVG and exploit the unauthenticated public-objects endpoint as a
+ * same-origin stored-XSS vector against other admin users.
+ */
+const PUBLIC_UPLOAD_ALLOWED_MIME = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+  'image/heic',
+  'image/heif',
+]);
 import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from '../lib/objectStorage.js';
+import { getObjectAclPolicy } from '../lib/objectAcl.js';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -149,6 +172,171 @@ router.post(
 );
 
 /**
+ * POST /storage/uploads/confirm
+ *
+ * Called by the client after a successful PUT to the presigned R2 URL.
+ * Writes ownership + visibility metadata onto the R2 object so that:
+ *  - The GET /storage/objects/* ACL can serve the file to its owner.
+ *  - Public objects can be served unauthenticated via /storage/r2-public-objects/*.
+ *
+ * Only the key-path owner may call this endpoint.  No role-based overrides
+ * are provided — admins are ordinary users with respect to object storage.
+ */
+router.post(
+  '/storage/uploads/confirm',
+  optionalAdminAuth,
+  async (req: Request, res: Response) => {
+    const principal = extractStoragePrincipal(req);
+    if (!principal) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!r2.isR2Configured()) {
+      res.status(503).json({ error: 'Object storage not configured' });
+      return;
+    }
+
+    const parsed = ConfirmUploadBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Missing or invalid fields' });
+      return;
+    }
+
+    const { objectPath, visibility } = parsed.data;
+    const r2Key = objectPathToR2Key(objectPath);
+    if (!r2Key) {
+      res.status(400).json({ error: 'Invalid objectPath — must be a new-format R2 path' });
+      return;
+    }
+
+    // Only the key-path owner may confirm their own object.
+    const keyOwner = parseUploadKeyOwner(r2Key);
+    const normalizedCallerId = normalizePrincipalId(principal.id);
+    if (keyOwner !== normalizedCallerId) {
+      res.status(403).json({ error: 'Forbidden — you are not the owner of this object' });
+      return;
+    }
+
+    // For public uploads: server-side MIME allowlist check via HeadObject.
+    // Prevents an attacker from requesting a public URL for HTML/JS/SVG and
+    // using the unauthenticated endpoint as a same-origin stored XSS vector.
+    if (visibility === 'public') {
+      let objectMeta: { size: number; contentType?: string } | null;
+      try {
+        objectMeta = await r2.headObject(r2Key);
+      } catch {
+        res.status(500).json({ error: 'Could not read uploaded object' });
+        return;
+      }
+      if (!objectMeta) {
+        res.status(404).json({ error: 'Object not found — upload may not have completed' });
+        return;
+      }
+      const mimeType = (objectMeta.contentType ?? '').toLowerCase().split(';')[0].trim();
+      if (!PUBLIC_UPLOAD_ALLOWED_MIME.has(mimeType)) {
+        res.status(415).json({
+          error: `Public uploads must be a supported image format. Received: ${mimeType || 'unknown'}`,
+        });
+        return;
+      }
+    }
+
+    try {
+      await setR2ObjectAclPolicy(r2Key, {
+        owner: normalizedCallerId,
+        visibility,
+      });
+
+      // For public objects return the unauthenticated URL so callers can embed
+      // it directly in public pages without routing through the auth proxy.
+      const publicUrl =
+        visibility === 'public'
+          ? `/api/storage/r2-public-objects/${r2Key}`
+          : undefined;
+
+      res.json(ConfirmUploadResponse.parse({ success: true, publicUrl }));
+    } catch (error) {
+      req.log.error({ err: error }, 'Error setting R2 ACL policy');
+      res.status(500).json({ error: 'Failed to confirm upload' });
+    }
+  },
+);
+
+/**
+ * GET /storage/r2-public-objects/*
+ *
+ * Unauthenticated endpoint for R2 objects that were confirmed with
+ * visibility="public".  Reads the object's metadata ACL and only serves
+ * the file when the stored visibility is "public".  Private objects return
+ * 403 so an attacker cannot enumerate objects by guessing keys.
+ *
+ * This endpoint is intentionally unauthenticated so public blog images,
+ * press assets, etc. can be embedded in marketing pages without requiring
+ * admin credentials.
+ */
+router.get(
+  '/storage/r2-public-objects/*path',
+  async (req: Request, res: Response) => {
+    if (!r2.isR2Configured()) {
+      res.status(503).json({ error: 'Object storage not configured' });
+      return;
+    }
+
+    const raw = req.params.path;
+    const r2Key = Array.isArray(raw) ? raw.join('/') : raw;
+
+    // Only serve objects with a server-confirmed public ACL.
+    let policy;
+    try {
+      policy = await getR2ObjectAclPolicy(r2Key);
+    } catch {
+      res.status(404).json({ error: 'Object not found' });
+      return;
+    }
+
+    if (!policy || policy.visibility !== 'public') {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    try {
+      const { body, contentLength, contentType } = await r2.getObjectStream(r2Key);
+
+      // Security headers — always set before streaming.
+      // nosniff: prevent browsers from MIME-sniffing away from the declared type.
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Public objects can be cached aggressively by CDN / browser.
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      // Only serve allowed image MIME types.  The confirm endpoint already
+      // enforces the allowlist at write time; this re-check defends against
+      // objects that bypassed the confirm step (e.g. pre-existing uploads).
+      const mime = (contentType ?? '').toLowerCase().split(';')[0].trim();
+      if (!PUBLIC_UPLOAD_ALLOWED_MIME.has(mime)) {
+        // Force download with a generic safe type so the browser never renders it.
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', 'attachment');
+        if (contentLength) res.setHeader('Content-Length', String(contentLength));
+        body.pipe(res);
+        return;
+      }
+
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', String(contentLength));
+      // Safe image — serve inline so browsers display it without a download prompt.
+      res.setHeader('Content-Disposition', 'inline');
+
+      body.pipe(res);
+    } catch {
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to serve object' });
+      }
+    }
+  },
+);
+
+/**
  * GET /storage/public-objects/*
  *
  * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS (Replit Object Storage).
@@ -230,13 +418,15 @@ router.get(
         return;
       }
 
-      // Owner-keyed ACL check (no I/O — resolved from key segments).
-      // Normalize the principal ID to UUID format so it matches the owner
-      // segment that was normalized the same way at upload time.
-      const allowed = await canAccessR2Object({
+      // Strict key-path ownership check (synchronous, no I/O).
+      // Only the encoded key-path owner may access the file here.
+      // Public objects must use the unauthenticated /storage/r2-public-objects/*
+      // route — key-path mismatch is an unconditional deny even if the object
+      // has visibility="public" metadata, preventing non-owner bypass via the
+      // public-visibility flag.
+      const allowed = canAccessR2Object({
         key: r2Key,
         userId: normalizePrincipalId(principal.id),
-        requestedPermission: ObjectPermission.READ,
       });
       if (!allowed) {
         res.status(403).json({ error: 'Forbidden' });
@@ -277,9 +467,26 @@ router.get(
     }
 
     // ── Legacy path: Replit Object Storage ────────────────────────────────────
+    // Strict owner-only check, consistent with the R2 path:
+    //   - Read the "custom:aclPolicy" metadata written by objectAcl.ts.
+    //   - Allow only when policy.owner === principal.id  (exact match).
+    //   - No public-visibility bypass; no ACL-group bypass.
+    //
+    // Rationale: this is the authenticated private-file proxy.  Public-visibility
+    // legacy files should be served via a separate unauthenticated route (same
+    // pattern as /storage/r2-public-objects/*).  Using canAccessObject here would
+    // allow any authenticated admin to fetch another admin's file simply because
+    // the uploader marked it "public", violating the task objective.
     try {
       const objectFile =
         await objectStorageService.getObjectEntityFile(objectPath);
+
+      const aclPolicy = await getObjectAclPolicy(objectFile);
+      const isOwner = aclPolicy?.owner === principal.id;
+      if (!isOwner) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
 
       const response = await objectStorageService.downloadObject(objectFile);
 

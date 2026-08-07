@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { uploadToR2 } from "@/lib/storage";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   FileText, Plus, MoreVertical, Eye, BookOpen,
-  Edit2, Trash2, TrendingUp, Globe, FileEdit, Download,
+  Edit2, Trash2, TrendingUp, Globe, FileEdit, Download, Upload, Loader2,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -118,6 +119,30 @@ export default function Blog() {
   const [deletePost, setDeletePost] = useState<BlogPost | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageUpload(file: File) {
+    setImageUploading(true);
+    setImageUploadProgress(0);
+    try {
+      const { objectPath, publicUrl } = await uploadToR2(file, {
+        visibility: "public",
+        onProgress: setImageUploadProgress,
+      });
+      // Use the unauthenticated public URL so marketing visitors can load the image.
+      const imageUrl = publicUrl ?? `/api/storage/objects${objectPath.replace(/^\/objects/, "")}`;
+      setForm((f) => ({ ...f, featuredImage: imageUrl }));
+      toast({ title: "Image uploaded" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err?.message ?? "Unknown error", variant: "destructive" });
+    } finally {
+      setImageUploading(false);
+      setImageUploadProgress(0);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  }
 
   const { data: statsData } = useQuery<BlogStats>({
     queryKey: ["/api/admin/blog/stats"],
@@ -518,12 +543,54 @@ export default function Blog() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Featured Image URL</Label>
-                <Input
-                  value={form.featuredImage}
-                  onChange={(e) => setForm((f) => ({ ...f, featuredImage: e.target.value }))}
-                  placeholder="https://..."
-                />
+                <Label>Featured Image</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    value={form.featuredImage}
+                    onChange={(e) => setForm((f) => ({ ...f, featuredImage: e.target.value }))}
+                    placeholder="https://... or upload a file →"
+                    className="flex-1"
+                    disabled={imageUploading}
+                  />
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={imageUploading}
+                    onClick={() => imageInputRef.current?.click()}
+                    className="shrink-0"
+                  >
+                    {imageUploading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        {Math.round(imageUploadProgress * 100)}%
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {form.featuredImage && (
+                  <img
+                    src={form.featuredImage}
+                    alt="Featured preview"
+                    className="mt-1 h-24 rounded-md object-cover border"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
               </div>
             </div>
 

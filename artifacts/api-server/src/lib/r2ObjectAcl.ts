@@ -200,50 +200,28 @@ export async function getR2ObjectAclPolicy(
  * Determine whether `userId` may perform `requestedPermission` on an R2 upload
  * object.
  *
- * Primary check: owner encoded in the key path (cheap, no network call).
- * If the key has no encoded owner, falls back to the object metadata policy.
+ * Access semantics (authenticated endpoint — GET /storage/objects/*):
+ *  - Key-path owner match → allowed.
+ *  - Key-path owner mismatch, or key has no encoded owner → unconditionally denied.
  *
- * Matches objectAcl.ts semantics:
- *  - Public objects → READ allowed for everyone.
- *  - Owner → all permissions allowed.
- *  - Otherwise → denied.
+ * Public-visibility objects are NOT accessible here regardless of metadata.
+ * They are served exclusively by the unauthenticated /storage/r2-public-objects/*
+ * route, which reads the metadata ACL directly.  This strict separation prevents
+ * an authenticated non-owner from bypassing access controls by relying on a
+ * public-visibility flag written by someone else.
+ *
+ * No role-based bypass is provided.  Admins are ordinary users with respect to
+ * object storage.
  */
-export async function canAccessR2Object({
+export function canAccessR2Object({
   key,
   userId,
-  requestedPermission,
-  policy,
 }: {
   key: string;
   userId?: string;
-  requestedPermission: ObjectPermission;
-  /** Pass a pre-fetched policy to avoid a second HeadObject call. */
-  policy?: R2AclPolicy | null;
-}): Promise<boolean> {
-  // 1. Key-path ownership check (no I/O).
-  //    New R2 keys encode the owner as the second path segment.
-  //    When a valid owner IS encoded:
-  //      - Owner match → allow immediately.
-  //      - Owner mismatch → deny immediately (no metadata fallback).
-  //    This avoids a spurious HeadObject call on every rejected access.
+}): boolean {
+  // Strict key-path ownership: only the encoded owner is allowed; no fallback.
   const keyOwner = parseUploadKeyOwner(key);
-  if (keyOwner !== null) {
-    return userId !== undefined && keyOwner === userId;
-  }
-
-  // 2. Metadata policy fallback — for objects without an owner in the key
-  //    (e.g. objects written by setR2ObjectAclPolicy after the fact).
-  const resolvedPolicy =
-    policy !== undefined ? policy : await getR2ObjectAclPolicy(key);
-  if (!resolvedPolicy) return false;
-
-  if (
-    resolvedPolicy.visibility === 'public' &&
-    requestedPermission === ObjectPermission.READ
-  ) {
-    return true;
-  }
-
-  if (!userId) return false;
-  return resolvedPolicy.owner === userId;
+  if (keyOwner === null || !userId) return false;
+  return keyOwner === userId;
 }
