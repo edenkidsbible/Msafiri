@@ -12,6 +12,7 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
@@ -19,6 +20,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -28,6 +30,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const COURSE_DISCLAIMER_KEY = "course_disclaimer_agreed";
 import { useApp } from "@/context/AppContext";
 import { useDashcam } from "@/context/DashcamContext";
 import { useColors } from "@/hooks/useColors";
@@ -155,6 +159,33 @@ export default function HomeScreen() {
 
   const score = lastSession?.score ?? null;
 
+  // ── Course disclaimer gate ────────────────────────────────────────────────
+  const [courseDisclaimerAgreed, setCourseDisclaimerAgreed] = useState(false);
+  const [showCourseDisclaimer, setShowCourseDisclaimer] = useState(false);
+  useFocusEffect(useCallback(() => {
+    AsyncStorage.getItem(COURSE_DISCLAIMER_KEY).then((v) => {
+      if (v === "1") setCourseDisclaimerAgreed(true);
+    }).catch(() => {});
+  }, []));
+
+  const openCourse = () => {
+    if (courseDisclaimerAgreed) {
+      router.push("/(tabs)/learn");
+    } else {
+      setShowCourseDisclaimer(true);
+    }
+  };
+
+  const handleCourseAgree = async () => {
+    await AsyncStorage.setItem(COURSE_DISCLAIMER_KEY, "1").catch(() => {});
+    setCourseDisclaimerAgreed(true);
+    setShowCourseDisclaimer(false);
+    router.push("/(tabs)/learn");
+  };
+
+  // ── Score info popup ──────────────────────────────────────────────────────
+  const [showScoreInfo, setShowScoreInfo] = useState(false);
+
   const startDriving = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     router.push("/(tabs)/drive");
@@ -230,7 +261,7 @@ export default function HomeScreen() {
       valueColor: score != null ? scoreColor(score) : c.mutedForeground,
       sub: score != null ? scoreLabel(score) : "No trips yet",
       ring: true,
-      onPress: () => router.push("/(tabs)/garage"),
+      onPress: () => setShowScoreInfo(true),
     },
     {
       key: "sharing",
@@ -317,7 +348,7 @@ export default function HomeScreen() {
               <Image
                 source={require("@/assets/images/hero-car.png")}
                 style={styles.heroCarImg}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
             <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
@@ -363,56 +394,135 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* ── Nearby Alerts ──────────────────────────────────────────────── */}
-        <View style={styles.sectionRow}>
-          <Text style={[styles.sectionTitle, { color: c.foreground }]}>Nearby Alerts</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/map")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.sectionLink, { color: c.primary }]}>See all</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── Nearby Alerts + Driving Course (adaptive) ──────────────────── */}
         {nearbyAlerts.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
-            <Ionicons name="checkmark-circle-outline" size={20} color={c.primary} />
-            <Text style={[styles.emptyTxt, { color: c.mutedForeground }]}>
-              {currentLat == null ? "Waiting for GPS…" : "All clear around you"}
-            </Text>
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-            style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
-          >
-            {nearbyAlerts.map((a) => (
-              <TouchableOpacity
-                key={a.id}
-                activeOpacity={0.8}
-                onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/map",
-                    params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
-                  })
-                }
-                style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-              >
-                <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
-                  <Text style={{ fontSize: 18, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
+          /* ── 0 alerts: full course marketing card replaces the section ── */
+          <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseFull, { borderColor: c.primary + "44" }]}>
+            <LinearGradient
+              colors={c.isDark ? ["#0D2B1A", "#0A1F14"] : ["#E8F5EE", "#D0EDD9"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.courseFullGrad}
+            >
+              <View style={styles.courseFullTop}>
+                <View style={[styles.courseFullIcon, { backgroundColor: c.primary + "22" }]}>
+                  <Ionicons name="book-outline" size={28} color={c.primary} />
                 </View>
-                <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={1}>
-                  {a.label}
-                </Text>
-                <Text style={[styles.alertDist, { color: a.color }]} numberOfLines={1}>
-                  {distStr(a.distanceM)} ahead
-                </Text>
-                {a.road ? (
-                  <Text style={[styles.alertRoad, { color: c.mutedForeground }]} numberOfLines={1}>
-                    {a.road}
-                  </Text>
-                ) : null}
+                <View style={[styles.courseFullBadge, { backgroundColor: c.primary }]}>
+                  <Text style={styles.courseFullBadgeTxt}>Free</Text>
+                </View>
+              </View>
+              <Text style={[styles.courseFullTitle, { color: c.foreground }]}>Kenya Driving Course</Text>
+              <Text style={[styles.courseFullSub, { color: c.mutedForeground }]}>
+                Road rules, traffic signs, hazard awareness &amp; more — 6 chapters written for Kenyan roads.
+              </Text>
+              <View style={styles.courseFullStats}>
+                <View style={styles.courseFullStat}>
+                  <Ionicons name="layers-outline" size={13} color={c.primary} />
+                  <Text style={[styles.courseFullStatTxt, { color: c.mutedForeground }]}>6 Chapters</Text>
+                </View>
+                <View style={styles.courseFullStat}>
+                  <Ionicons name="time-outline" size={13} color={c.primary} />
+                  <Text style={[styles.courseFullStatTxt, { color: c.mutedForeground }]}>~45 min read</Text>
+                </View>
+                <View style={styles.courseFullStat}>
+                  <Ionicons name="trophy-outline" size={13} color={c.primary} />
+                  <Text style={[styles.courseFullStatTxt, { color: c.mutedForeground }]}>With quizzes</Text>
+                </View>
+              </View>
+              <View style={[styles.courseFullBtn, { backgroundColor: c.primary }]}>
+                <Text style={styles.courseFullBtnTxt}>Start Learning</Text>
+                <Ionicons name="arrow-forward" size={15} color="#fff" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={[styles.sectionTitle, { color: c.foreground }]}>Nearby Alerts</Text>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/map")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.sectionLink, { color: c.primary }]}>See all</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+              style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
+            >
+              {nearbyAlerts.map((a) => (
+                <TouchableOpacity
+                  key={a.id}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/map",
+                      params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
+                    })
+                  }
+                  style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
+                >
+                  <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
+                    <Text style={{ fontSize: 18, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
+                  </View>
+                  <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={1}>
+                    {a.label}
+                  </Text>
+                  <Text style={[styles.alertDist, { color: a.color }]} numberOfLines={1}>
+                    {distStr(a.distanceM)} ahead
+                  </Text>
+                  {a.road ? (
+                    <Text style={[styles.alertRoad, { color: c.mutedForeground }]} numberOfLines={1}>
+                      {a.road}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+              {/* Course promo tile — visible without scrolling when there's 1 alert */}
+              {nearbyAlerts.length === 1 && (
+                <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseTile, { borderColor: c.primary + "44" }]}>
+                  <LinearGradient
+                    colors={c.isDark ? ["#0D2B1A", "#0A1F14"] : ["#E8F5EE", "#D0EDD9"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={styles.courseTileGrad}
+                  >
+                    <View style={[styles.courseTileIcon, { backgroundColor: c.primary + "22" }]}>
+                      <Ionicons name="book-outline" size={22} color={c.primary} />
+                    </View>
+                    <Text style={[styles.courseTileTitle, { color: c.foreground }]}>Driving Course</Text>
+                    <Text style={[styles.courseTileSub, { color: c.mutedForeground }]}>
+                      Kenya road rules &amp; signs
+                    </Text>
+                    <View style={[styles.courseTileBtn, { backgroundColor: c.primary + "22" }]}>
+                      <Text style={[styles.courseTileBtnTxt, { color: c.primary }]}>Learn →</Text>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+            {/* Course promo banner — shown below scroll when there are 2 alerts */}
+            {nearbyAlerts.length === 2 && (
+              <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseBanner, { borderColor: c.primary + "44" }]}>
+                <LinearGradient
+                  colors={c.isDark ? ["#0D2B1A", "#0A1F14"] : ["#E8F5EE", "#D0EDD9"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={styles.courseBannerGrad}
+                >
+                  <View style={[styles.courseBannerIcon, { backgroundColor: c.primary + "22" }]}>
+                    <Ionicons name="book-outline" size={18} color={c.primary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.courseBannerTitle, { color: c.foreground }]}>Kenya Driving Course</Text>
+                    <Text style={[styles.courseBannerSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                      6 chapters · road rules, signs &amp; hazards
+                    </Text>
+                  </View>
+                  <View style={[styles.courseBannerBtn, { backgroundColor: c.primary }]}>
+                    <Text style={styles.courseBannerBtnTxt}>Start</Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         {/* ── Accident Assistant promo ───────────────────────────────────── */}
@@ -497,6 +607,107 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Score Info Modal ──────────────────────────────────────────────── */}
+      <Modal visible={showScoreInfo} transparent animationType="fade" onRequestClose={() => setShowScoreInfo(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowScoreInfo(false)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: c.card }]} onPress={() => {}}>
+            <View style={styles.modalHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <View style={[styles.modalHeaderIcon, { backgroundColor: score != null ? scoreColor(score) + "1E" : c.primary + "1E" }]}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={score != null ? scoreColor(score) : c.primary} />
+              </View>
+              <View>
+                <Text style={[styles.modalTitle, { color: c.foreground }]}>Driving Score</Text>
+                {score != null && (
+                  <Text style={[styles.modalSub, { color: scoreColor(score) }]}>{score} · {scoreLabel(score)}</Text>
+                )}
+              </View>
+            </View>
+            <Text style={[styles.modalBody, { color: c.mutedForeground }]}>
+              Your score is calculated at the end of each trip based on how safely you drive. It ranges from 0–100.
+            </Text>
+            <View style={[styles.modalDivider, { backgroundColor: c.tileBorder }]} />
+            <Text style={[styles.modalSectionHead, { color: c.foreground }]}>What we measure</Text>
+            {[
+              { icon: "speedometer-outline" as const, color: "#EF5350", label: "Speed compliance", desc: "Staying within posted speed limits" },
+              { icon: "car-outline" as const,         color: "#FB8C00", label: "Smooth braking",   desc: "Avoiding harsh, sudden stops" },
+              { icon: "trending-up-outline" as const, color: "#29B6F6", label: "Smooth acceleration", desc: "Gentle throttle inputs from rest" },
+              { icon: "analytics-outline" as const,   color: "#66BB6A", label: "Consistent speed", desc: "Steady flow without erratic surges" },
+            ].map((f) => (
+              <View key={f.label} style={styles.scoreFactorRow}>
+                <View style={[styles.scoreFactorIcon, { backgroundColor: f.color + "1E" }]}>
+                  <Ionicons name={f.icon} size={17} color={f.color} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.scoreFactorLabel, { color: c.foreground }]}>{f.label}</Text>
+                  <Text style={[styles.scoreFactorDesc, { color: c.mutedForeground }]}>{f.desc}</Text>
+                </View>
+              </View>
+            ))}
+            <View style={[styles.modalDivider, { backgroundColor: c.tileBorder }]} />
+            <Text style={[styles.modalSectionHead, { color: c.foreground }]}>Score bands</Text>
+            {[
+              { range: "95 – 100", label: "Excellent", color: "#00C853" },
+              { range: "90 – 94",  label: "Great",     color: "#43A047" },
+              { range: "80 – 89",  label: "Good",      color: "#FBC02D" },
+              { range: "70 – 79",  label: "Fair",      color: "#FB8C00" },
+              { range: "0 – 69",   label: "Needs work", color: "#EF5350" },
+            ].map((b) => (
+              <View key={b.range} style={styles.scoreBandRow}>
+                <View style={[styles.scoreBandDot, { backgroundColor: b.color }]} />
+                <Text style={[styles.scoreBandRange, { color: c.mutedForeground }]}>{b.range}</Text>
+                <Text style={[styles.scoreBandLabel, { color: b.color }]}>{b.label}</Text>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={[styles.modalCloseBtn, { backgroundColor: c.primary }]}
+              onPress={() => setShowScoreInfo(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalCloseBtnTxt}>Got it</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Course Disclaimer Modal ───────────────────────────────────────── */}
+      <Modal visible={showCourseDisclaimer} transparent animationType="slide" onRequestClose={() => setShowCourseDisclaimer(false)}>
+        <View style={[styles.modalOverlay, { justifyContent: "flex-end" }]}>
+          <View style={[styles.disclaimerSheet, { backgroundColor: c.card }]}>
+            <View style={styles.modalHandle} />
+            <View style={[styles.disclaimerIconWrap, { backgroundColor: c.primary + "1E" }]}>
+              <Ionicons name="book-outline" size={32} color={c.primary} />
+            </View>
+            <Text style={[styles.disclaimerTitle, { color: c.foreground }]}>Before you start</Text>
+            <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+              <Text style={[styles.disclaimerBody, { color: c.mutedForeground }]}>
+                The Msafiri Kenya driving course is a refresher resource designed to help you review key road rules, traffic signs, and safe driving practices.
+              </Text>
+              <View style={[styles.disclaimerWarning, { backgroundColor: "#F59E0B" + "18", borderColor: "#F59E0B44" }]}>
+                <Ionicons name="warning-outline" size={18} color="#F59E0B" />
+                <Text style={[styles.disclaimerWarningTxt, { color: c.foreground }]}>
+                  <Text style={{ fontFamily: "Inter_600SemiBold" }}>This course is not a substitute </Text>
+                  for attending a licensed driving school, obtaining a valid driver's licence, or complying with NTSA requirements. It does not certify you to drive.
+                </Text>
+              </View>
+              <Text style={[styles.disclaimerBody, { color: c.mutedForeground }]}>
+                Always drive in accordance with the Traffic Act and exercise good judgement on the road. Msafiri Kenya is not liable for any decisions made based on course content.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.disclaimerBtn, { backgroundColor: c.primary }]}
+              onPress={handleCourseAgree}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.disclaimerBtnTxt}>I understand, open the course</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowCourseDisclaimer(false)} style={{ alignSelf: "center", marginTop: 12, paddingVertical: 4 }}>
+              <Text style={[styles.disclaimerCancelTxt, { color: c.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -531,7 +742,7 @@ const styles = StyleSheet.create({
 
   heroCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 20, paddingVertical: 26, paddingHorizontal: 18,
+    borderRadius: 20, paddingVertical: 20, paddingHorizontal: 18,
     marginTop: 16, overflow: "hidden",
   },
   heroTitle: { fontSize: 23, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
@@ -539,12 +750,12 @@ const styles = StyleSheet.create({
     fontSize: 12.5, fontFamily: "Inter_500Medium", color: "#FFFFFFCC",
     marginTop: 4, textAlign: "center", lineHeight: 17,
   },
-  heroArtWrap: { alignItems: "center", justifyContent: "center", width: 74 },
+  heroArtWrap: { alignItems: "center", justifyContent: "center", width: 110 },
   heroArtGlow: {
-    position: "absolute", width: 74, height: 74, borderRadius: 37,
-    backgroundColor: "#FFFFFF1E",
+    position: "absolute", width: 110, height: 110, borderRadius: 20,
+    backgroundColor: "#FFFFFF14",
   },
-  heroCarImg: { width: 74, height: 74, borderRadius: 37 },
+  heroCarImg: { width: 110, height: 100, borderRadius: 12 },
   heroChevron: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFFFFF",
     alignItems: "center", justifyContent: "center",
@@ -610,4 +821,91 @@ const styles = StyleSheet.create({
   tripStatsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
   tripStat: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   tripStatLbl: { fontSize: 10.5, fontFamily: "Inter_400Regular", marginTop: 1 },
+
+  // ── Course promo — full card (0 alerts) ────────────────────────────────────
+  courseFull: { borderRadius: 20, borderWidth: 1.5, marginTop: 18, overflow: "hidden" },
+  courseFullGrad: { padding: 18, gap: 10 },
+  courseFullTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  courseFullIcon: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  courseFullBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  courseFullBadgeTxt: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
+  courseFullTitle: { fontSize: 19, fontFamily: "Inter_700Bold" },
+  courseFullSub: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  courseFullStats: { flexDirection: "row", gap: 14 },
+  courseFullStat: { flexDirection: "row", alignItems: "center", gap: 4 },
+  courseFullStatTxt: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  courseFullBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
+    borderRadius: 13, paddingHorizontal: 18, paddingVertical: 11, marginTop: 4,
+  },
+  courseFullBtnTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // ── Course promo — inline tile (1 alert in scroll) ─────────────────────────
+  courseTile: { width: 185, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  courseTileGrad: { flex: 1, padding: 12, gap: 6 },
+  courseTileIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  courseTileTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  courseTileSub: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
+  courseTileBtn: { borderRadius: 9, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start", marginTop: 2 },
+  courseTileBtnTxt: { fontSize: 12, fontFamily: "Inter_700Bold" },
+
+  // ── Course promo — compact banner (2 alerts, below scroll) ─────────────────
+  courseBanner: { borderRadius: 14, borderWidth: 1, marginTop: 10, overflow: "hidden" },
+  courseBannerGrad: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
+  courseBannerIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  courseBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  courseBannerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  courseBannerBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  courseBannerBtnTxt: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // ── Score info modal ───────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1, backgroundColor: "#00000077",
+    alignItems: "center", justifyContent: "center", padding: 20,
+  },
+  modalSheet: {
+    width: "100%", maxWidth: 420, borderRadius: 24,
+    padding: 20, gap: 12,
+  },
+  modalHandle: {
+    width: 36, height: 4, borderRadius: 2, backgroundColor: "#88888844",
+    alignSelf: "center", marginBottom: 4,
+  },
+  modalHeaderIcon: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  modalSub: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 1 },
+  modalBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  modalDivider: { height: 1, marginVertical: 2 },
+  modalSectionHead: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  scoreFactorRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  scoreFactorIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  scoreFactorLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  scoreFactorDesc: { fontSize: 11.5, fontFamily: "Inter_400Regular", marginTop: 1 },
+  scoreBandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  scoreBandDot: { width: 8, height: 8, borderRadius: 4 },
+  scoreBandRange: { fontSize: 12.5, fontFamily: "Inter_500Medium", width: 70 },
+  scoreBandLabel: { fontSize: 12.5, fontFamily: "Inter_700Bold" },
+  modalCloseBtn: { borderRadius: 14, paddingVertical: 13, alignItems: "center", marginTop: 4 },
+  modalCloseBtnTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // ── Course disclaimer modal ────────────────────────────────────────────────
+  disclaimerSheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 28,
+    gap: 14,
+  },
+  disclaimerIconWrap: {
+    width: 60, height: 60, borderRadius: 18,
+    alignItems: "center", justifyContent: "center", alignSelf: "center",
+  },
+  disclaimerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  disclaimerBody: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 21 },
+  disclaimerWarning: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    borderRadius: 12, borderWidth: 1, padding: 12,
+  },
+  disclaimerWarningTxt: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  disclaimerBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
+  disclaimerBtnTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  disclaimerCancelTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
 });
