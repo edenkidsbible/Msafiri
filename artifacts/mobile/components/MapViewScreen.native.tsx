@@ -670,12 +670,22 @@ export default function MapViewScreen() {
               </TouchableOpacity>
             : null
         }
+        {placeFocused && (
+          <TouchableOpacity
+            onPress={() => { Keyboard.dismiss(); setPlaceFocused(false); }}
+            hitSlop={8}
+            style={[styles.searchDismissBtn, { backgroundColor: c.muted }]}
+          >
+            <Text style={[styles.searchDismissTxt, { color: c.mutedForeground }]}>Done</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Inline results dropdown — shows below the chips row ─────────────── */}
       {(placeResults.length > 0 || (activeChipCat && (chipLoading || chipResults.length > 0 || !!chipError))) && (
         <View style={[styles.searchDropdown, {
           top: insets.top + 118,
+          bottom: insets.bottom + TAB_H + 8,
           backgroundColor: c.card,
           shadowColor: "#000",
         }]}>
@@ -684,7 +694,7 @@ export default function MapViewScreen() {
             <FlatList
               data={placeResults}
               keyExtractor={(_, i) => String(i)}
-              style={{ maxHeight: 320 }}
+              style={{ flex: 1 }}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -734,7 +744,7 @@ export default function MapViewScreen() {
                 <FlatList
                   data={chipResults}
                   keyExtractor={(item) => String(item.id)}
-                  style={{ maxHeight: 320 }}
+                  style={{ flex: 1 }}
                   keyboardShouldPersistTaps="handled"
                   renderItem={({ item }) => (
                     <TouchableOpacity
@@ -831,6 +841,9 @@ export default function MapViewScreen() {
         showsTraffic={showTraffic}
         onPanDrag={() => { mapDriftedRef.current = true; setMapDrifted(true); }}
         onPress={() => {
+          // Dismiss keyboard and collapse search results when tapping the map
+          Keyboard.dismiss();
+          setPlaceFocused(false);
           if (activeChipCat) {
             setActiveChipCat(null);
             setChipResults([]);
@@ -1457,10 +1470,14 @@ const styles = StyleSheet.create({
   // ── Inline search results dropdown ────────────────────────────────────────
   searchDropdown: {
     position: "absolute", left: 12, right: 12, zIndex: 21,
-    borderRadius: 16, paddingVertical: 4,
+    borderRadius: 16, overflow: "hidden",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18, shadowRadius: 12, elevation: 16,
   },
+  searchDismissBtn: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+  },
+  searchDismissTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   dropdownRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,

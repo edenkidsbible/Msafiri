@@ -16,6 +16,7 @@ import creatorsRouter from "./creators.js";
 import searchRouter from "./search.js";
 import poisAdminRouter from "./pois.js";
 import settingsRouter from "./settings.js";
+import jobsRouter from "./jobs.js";
 
 const router = Router();
 
@@ -79,5 +80,7 @@ router.use(scopedFeature("/stats", "dashboard"), statsRouter);
 router.use(scopedFeature("/users", "team"), usersRouter);
 router.use(scopedFeature("/pois", "pois"), poisAdminRouter);
 router.use(scopedFeature("/settings", "app_settings"), settingsRouter);
+// Jobs router is mounted at an explicit path so /:jobName resolves correctly.
+router.use("/jobs", requireFeature("app_settings"), jobsRouter);
 
 export default router;
