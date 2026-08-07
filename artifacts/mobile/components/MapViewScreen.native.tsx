@@ -285,7 +285,17 @@ export default function MapViewScreen() {
   const [placeLoading, setPlaceLoading]   = useState(false);
   const [placeFocused, setPlaceFocused]   = useState(false);
   const placeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clusters = useMemo(() => clusterReports(communityReports), [communityReports]);
+  // ── Incident filter (search-bar filter button) ──────────────────────────────
+  // Client-side display filter for community report markers only.
+  // "all" = everything, "alcoblow" = alcoblow reports only, "other" = all non-alcoblow.
+  const [incidentFilter, setIncidentFilter] = useState<"all" | "alcoblow" | "other">("all");
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false);
+  const filteredReports = useMemo(() => {
+    if (incidentFilter === "alcoblow") return communityReports.filter((r) => r.type === "alcoblow");
+    if (incidentFilter === "other")    return communityReports.filter((r) => r.type !== "alcoblow");
+    return communityReports;
+  }, [communityReports, incidentFilter]);
+  const clusters = useMemo(() => clusterReports(filteredReports), [filteredReports]);
   const mapRef = useRef<MapView>(null);
 
   // ── Alert focus (deep-link from the home screen's Nearby Alerts cards) ─────
@@ -719,7 +729,64 @@ export default function MapViewScreen() {
             <Text style={[styles.searchDismissTxt, { color: c.mutedForeground }]}>Done</Text>
           </TouchableOpacity>
         )}
+        {/* Incident filter button — far right of the search bar */}
+        <TouchableOpacity
+          onPress={() => setFilterPickerOpen(true)}
+          hitSlop={8}
+          style={[
+            styles.filterBtn,
+            { backgroundColor: incidentFilter !== "all" ? c.primary + "18" : "transparent" },
+          ]}
+        >
+          <Ionicons
+            name={incidentFilter !== "all" ? "funnel" : "funnel-outline"}
+            size={18}
+            color={incidentFilter !== "all" ? c.primary : c.mutedForeground}
+          />
+          {incidentFilter !== "all" && (
+            <View style={[styles.filterDot, { backgroundColor: c.primary, borderColor: c.card }]} />
+          )}
+        </TouchableOpacity>
       </View>
+
+      {/* ── Incident filter picker ─────────────────────────────────────────── */}
+      <Modal
+        visible={filterPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterPickerOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterBackdrop}
+          activeOpacity={1}
+          onPress={() => setFilterPickerOpen(false)}
+        >
+          <View style={[styles.filterSheet, { top: insets.top + 60, backgroundColor: c.card }]}>
+            <Text style={[styles.filterTitle, { color: c.mutedForeground }]}>Show on map</Text>
+            {([
+              { key: "all",      label: "All reports",     icon: "layers-outline" as const },
+              { key: "alcoblow", label: "Alcoblow only",   icon: "beer-outline" as const },
+              { key: "other",    label: "Other incidents", icon: "warning-outline" as const },
+            ] as const).map((opt) => {
+              const active = incidentFilter === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.filterRow, active && { backgroundColor: c.primary + "12" }]}
+                  activeOpacity={0.7}
+                  onPress={() => { setIncidentFilter(opt.key); setFilterPickerOpen(false); }}
+                >
+                  <Ionicons name={opt.icon} size={18} color={active ? c.primary : c.mutedForeground} />
+                  <Text style={[styles.filterRowTxt, { color: active ? c.primary : c.foreground }]}>
+                    {opt.label}
+                  </Text>
+                  {active && <Ionicons name="checkmark" size={18} color={c.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ── Inline results dropdown — shows below the chips row ─────────────── */}
       {(placeResults.length > 0 || (activeChipCat && (chipLoading || chipResults.length > 0 || !!chipError))) && (
@@ -1553,6 +1620,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
   },
   searchDismissTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  // ── Incident filter button + picker ───────────────────────────────────────
+  filterBtn: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+  },
+  filterDot: {
+    position: "absolute", top: 2, right: 2,
+    width: 8, height: 8, borderRadius: 4, borderWidth: 1.5,
+  },
+  filterBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)" },
+  filterSheet: {
+    position: "absolute", right: 12, width: 220,
+    borderRadius: 14, paddingVertical: 6,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2, shadowRadius: 10, elevation: 12,
+  },
+  filterTitle: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase", letterSpacing: 0.6,
+    paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4,
+  },
+  filterRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 11,
+  },
+  filterRowTxt: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
   dropdownRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,
