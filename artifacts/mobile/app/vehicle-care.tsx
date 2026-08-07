@@ -9,7 +9,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -32,6 +32,8 @@ import {
   loadVehicleCareData,
   saveVehicleCareData,
   addServiceRecord,
+  updateServiceRecord,
+  deleteServiceRecord,
   computeItemStatuses,
   computeVehicleCareStats,
   estimatedOdometerKm,
@@ -41,6 +43,7 @@ import {
   ServiceRecord,
   ReminderConfig,
 } from "@/utils/vehicleCare";
+import { loadVehicles, saveVehicles } from "@/utils/savedVehicles";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // ── Circular health ring ──────────────────────────────────────────────────────
@@ -98,11 +101,12 @@ interface LogServiceModalProps {
   visible: boolean;
   item: ReminderConfig | null;
   currentOdometerKm: number;
+  editRecord?: ServiceRecord | null;   // when provided → edit mode
   onClose: () => void;
   onSaved: () => void;
 }
 
-function LogServiceModal({ visible, item, currentOdometerKm, onClose, onSaved }: LogServiceModalProps) {
+function LogServiceModal({ visible, item, currentOdometerKm, editRecord, onClose, onSaved }: LogServiceModalProps) {
   const c = useColors();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [mileage, setMileage] = useState(String(Math.round(currentOdometerKm)));
@@ -113,23 +117,53 @@ function LogServiceModal({ visible, item, currentOdometerKm, onClose, onSaved }:
 
   const cardBg   = c.isDark ? "#151917" : "#fff";
   const borderCol = c.isDark ? "#242B27" : "#E4EAE4";
+  const isEditMode = !!editRecord;
+
+  // Sync fields whenever the modal opens or edit target changes
+  useEffect(() => {
+    if (!visible) return;
+    if (editRecord) {
+      setDate(editRecord.date);
+      setMileage(String(editRecord.mileageKm));
+      setCost(editRecord.costKSh != null ? String(editRecord.costKSh) : "");
+      setGarage(editRecord.garage ?? "");
+      setNotes(editRecord.notes ?? "");
+    } else {
+      setDate(new Date().toISOString().slice(0, 10));
+      setMileage(String(Math.round(currentOdometerKm)));
+      setCost("");
+      setGarage("");
+      setNotes("");
+    }
+  }, [visible, editRecord]);
 
   async function handleSave() {
     if (!item) return;
     setSaving(true);
     try {
-      const record: ServiceRecord = {
-        id: Date.now().toString(),
-        itemId: item.itemId,
-        itemName: item.itemName,
-        category: item.category,
-        date,
-        mileageKm: parseFloat(mileage) || currentOdometerKm,
-        costKSh: cost ? parseFloat(cost) : undefined,
-        garage: garage || undefined,
-        notes: notes || undefined,
-      };
-      await addServiceRecord(record);
+      if (isEditMode && editRecord) {
+        await updateServiceRecord({
+          ...editRecord,
+          date,
+          mileageKm: parseFloat(mileage) || currentOdometerKm,
+          costKSh: cost ? parseFloat(cost) : undefined,
+          garage: garage || undefined,
+          notes: notes || undefined,
+        });
+      } else {
+        const record: ServiceRecord = {
+          id: Date.now().toString(),
+          itemId: item.itemId,
+          itemName: item.itemName,
+          category: item.category,
+          date,
+          mileageKm: parseFloat(mileage) || currentOdometerKm,
+          costKSh: cost ? parseFloat(cost) : undefined,
+          garage: garage || undefined,
+          notes: notes || undefined,
+        };
+        await addServiceRecord(record);
+      }
       onSaved();
       onClose();
     } finally {
@@ -203,7 +237,120 @@ function LogServiceModal({ visible, item, currentOdometerKm, onClose, onSaved }:
               activeOpacity={0.85}
             >
               <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>
-                {saving ? "Saving…" : "Save Service Record"}
+                {saving ? "Saving…" : isEditMode ? "Save Changes" : "Save Service Record"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── Update Odometer Modal ─────────────────────────────────────────────────────
+
+interface UpdateOdometerModalProps {
+  visible: boolean;
+  currentKm: number;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function UpdateOdometerModal({ visible, currentKm, onClose, onSaved }: UpdateOdometerModalProps) {
+  const c = useColors();
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const cardBg    = c.isDark ? "#151917" : "#fff";
+  const borderCol = c.isDark ? "#242B27" : "#E4EAE4";
+
+  useEffect(() => {
+    if (visible) setValue(currentKm > 0 ? String(Math.round(currentKm)) : "");
+  }, [visible, currentKm]);
+
+  async function handleSave() {
+    const km = parseFloat(value.replace(/,/g, ""));
+    if (isNaN(km) || km < 0) {
+      Alert.alert("Invalid Value", "Please enter a valid odometer reading.");
+      return;
+    }
+    setSaving(true);
+    try {
+      // Update vehicle care data — new reading resets trip accumulation
+      const data = await loadVehicleCareData();
+      data.initialOdometerKm  = km;
+      data.tripAccumulatedKm  = 0;
+      await saveVehicleCareData(data);
+
+      // Also update the default saved vehicle so the garage slide reflects it
+      const vehicles = await loadVehicles();
+      if (vehicles.length > 0) {
+        const updated = vehicles.map((v, i) => i === 0 ? { ...v, odometerKm: km } : v);
+        await saveVehicles(updated);
+      }
+
+      onSaved();
+      onClose();
+    } catch {
+      Alert.alert("Error", "Could not save odometer reading. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: "#00000080" }} onPress={onClose} />
+        <View style={{ backgroundColor: cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+          {/* Drag handle */}
+          <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: borderCol }} />
+          </View>
+
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 12, marginBottom: 20 }}>
+            <View>
+              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: c.foreground }}>Update Odometer</Text>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: 2 }}>
+                Current: {currentKm > 0 ? `${Math.round(currentKm).toLocaleString()} km` : "Not set"}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={24} color={c.foreground} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ paddingHorizontal: 24, paddingBottom: 32 }}>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.mutedForeground, marginBottom: 6 }}>
+              New Odometer Reading (km)
+            </Text>
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              keyboardType="numeric"
+              placeholder="e.g. 87500"
+              placeholderTextColor={c.mutedForeground}
+              style={{
+                borderWidth: 1, borderColor: borderCol, borderRadius: 12,
+                paddingHorizontal: 14, paddingVertical: 13,
+                color: c.foreground, fontFamily: "Inter_400Regular", fontSize: 16,
+                backgroundColor: c.isDark ? "#1A1F1C" : "#F8FAF8",
+                marginBottom: 18,
+              }}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: c.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>
+                {saving ? "Saving…" : "Update Odometer"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -224,18 +371,66 @@ export default function VehicleCareScreen() {
   const [tab, setTab] = useState<"overview" | "history" | "costs">("overview");
   const [logItem, setLogItem] = useState<ReminderConfig | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [editRecord, setEditRecord] = useState<ServiceRecord | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [showOdoModal, setShowOdoModal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      loadVehicleCareData().then(d => { if (alive) setData(d); });
+      (async () => {
+        let d = await loadVehicleCareData();
+        // Seed initialOdometerKm from the saved vehicle if not yet set
+        if (d.initialOdometerKm === 0) {
+          const vehicles = await loadVehicles();
+          const def = vehicles.find(v => v.isDefault) ?? vehicles[0];
+          if (def?.odometerKm && def.odometerKm > 0) {
+            d = { ...d, initialOdometerKm: def.odometerKm };
+            await saveVehicleCareData(d);
+          }
+        }
+        if (alive) setData(d);
+      })();
       return () => { alive = false; };
     }, [])
   );
 
   function reload() {
     loadVehicleCareData().then(setData);
+  }
+
+  function openLog(item: ReminderConfig) {
+    setLogItem(item);
+    setEditRecord(null);
+    setShowLog(true);
+  }
+
+  function handleEditRecord(r: ServiceRecord) {
+    const reminder = data?.reminders.find(rem => rem.itemId === r.itemId);
+    if (reminder) {
+      setLogItem(reminder);
+      setEditRecord(r);
+      setShowLog(true);
+    }
+  }
+
+  function handleDeleteRecord(id: string) {
+    Alert.alert(
+      "Delete Record",
+      "Remove this service record? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteServiceRecord(id);
+            setEditRecord(null);
+            reload();
+          },
+        },
+      ]
+    );
   }
 
   const selectedMake  = vehicleMakeId ? getMakeById(vehicleMakeId) : null;
@@ -292,11 +487,6 @@ export default function VehicleCareScreen() {
     });
   const totalCost = Object.values(costByCat).reduce((a, b) => a + b, 0);
 
-  function openLog(item: ReminderConfig) {
-    setLogItem(item);
-    setShowLog(true);
-  }
-
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
       {/* Header */}
@@ -317,22 +507,7 @@ export default function VehicleCareScreen() {
           </View>
           <TouchableOpacity
             style={{ backgroundColor: c.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 }}
-            onPress={() => {
-              // Prompt odometer update
-              Alert.alert(
-                "Update Odometer",
-                "Enter your current odometer reading to improve accuracy.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Update",
-                    onPress: () => {
-                      // Simple: user enters the value — full input can be done with a modal
-                    },
-                  },
-                ]
-              );
-            }}
+            onPress={() => setShowOdoModal(true)}
           >
             <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Update Odometer</Text>
           </TouchableOpacity>
@@ -407,27 +582,45 @@ export default function VehicleCareScreen() {
                 <Text style={[styles.groupTitle, { color: "#E5484D" }]}>⚠ Overdue</Text>
                 <View style={{ gap: 8 }}>
                   {overdue.map(s => (
-                    <TouchableOpacity
+                    <View
                       key={s.reminder.itemId}
-                      style={[styles.itemCard, { backgroundColor: cardBg, borderColor: "#E5484D40" }]}
-                      onPress={() => openLog(s.reminder)}
-                      activeOpacity={0.8}
+                      style={[styles.itemCard, { backgroundColor: cardBg, borderColor: "#E5484D40", flexDirection: "column", alignItems: "stretch" }]}
                     >
-                      <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[s.reminder.category]?.bg ?? "#88888820" }]}>
-                        <Ionicons name={(CATEGORY_ICONS[s.reminder.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[s.reminder.category]?.color ?? "#888"} />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
-                        <Text style={[styles.itemSub, { color: "#E5484D" }]}>
-                          {s.kmRemaining !== null && s.kmRemaining < 0 ? `${Math.abs(Math.round(s.kmRemaining)).toLocaleString()} km overdue` : ""}
-                          {s.daysRemaining !== null && s.daysRemaining < 0 ? (s.kmRemaining !== null ? " · " : "") + `${Math.abs(s.daysRemaining)}d overdue` : ""}
-                        </Text>
-                      </View>
-                      <View style={{ alignItems: "flex-end", gap: 6 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[s.reminder.category]?.bg ?? "#88888820" }]}>
+                          <Ionicons name={(CATEGORY_ICONS[s.reminder.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[s.reminder.category]?.color ?? "#888"} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
+                          <Text style={[styles.itemSub, { color: "#E5484D" }]}>
+                            {s.kmRemaining !== null && s.kmRemaining < 0 ? `${Math.abs(Math.round(s.kmRemaining)).toLocaleString()} km overdue` : ""}
+                            {s.daysRemaining !== null && s.daysRemaining < 0 ? (s.kmRemaining !== null ? " · " : "") + `${Math.abs(s.daysRemaining)}d overdue` : ""}
+                          </Text>
+                        </View>
                         <StatusPill status="overdue" />
-                        <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: c.primary }}>Log service →</Text>
                       </View>
-                    </TouchableOpacity>
+                      {/* Action row */}
+                      <View style={[styles.recordActions, { borderTopColor: borderCol }]}>
+                        <TouchableOpacity style={styles.recordActionBtn} onPress={() => openLog(s.reminder)}>
+                          <Ionicons name="add-circle-outline" size={14} color={c.primary} />
+                          <Text style={[styles.recordActionTxt, { color: c.primary }]}>Log Service</Text>
+                        </TouchableOpacity>
+                        {s.lastRecord && (
+                          <>
+                            <View style={styles.recordActionDiv} />
+                            <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleEditRecord(s.lastRecord!)}>
+                              <Ionicons name="pencil-outline" size={14} color={c.mutedForeground} />
+                              <Text style={[styles.recordActionTxt, { color: c.mutedForeground }]}>Edit last</Text>
+                            </TouchableOpacity>
+                            <View style={styles.recordActionDiv} />
+                            <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleDeleteRecord(s.lastRecord!.id)}>
+                              <Ionicons name="trash-outline" size={14} color="#E5484D" />
+                              <Text style={[styles.recordActionTxt, { color: "#E5484D" }]}>Delete last</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
+                    </View>
                   ))}
                 </View>
               </View>
@@ -439,27 +632,45 @@ export default function VehicleCareScreen() {
                 <Text style={[styles.groupTitle, { color: "#FFB300" }]}>🔔 Upcoming</Text>
                 <View style={{ gap: 8 }}>
                   {upcoming.map(s => (
-                    <TouchableOpacity
+                    <View
                       key={s.reminder.itemId}
-                      style={[styles.itemCard, { backgroundColor: cardBg, borderColor: "#FFB30030" }]}
-                      onPress={() => openLog(s.reminder)}
-                      activeOpacity={0.8}
+                      style={[styles.itemCard, { backgroundColor: cardBg, borderColor: "#FFB30030", flexDirection: "column", alignItems: "stretch" }]}
                     >
-                      <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[s.reminder.category]?.bg ?? "#88888820" }]}>
-                        <Ionicons name={(CATEGORY_ICONS[s.reminder.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[s.reminder.category]?.color ?? "#888"} />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
-                        <Text style={[styles.itemSub, { color: "#FFB300" }]}>
-                          {s.kmRemaining !== null && s.kmRemaining >= 0 ? `${Math.round(s.kmRemaining).toLocaleString()} km remaining` : ""}
-                          {s.daysRemaining !== null && s.daysRemaining >= 0 ? (s.kmRemaining !== null && s.kmRemaining >= 0 ? " · " : "") + `${s.daysRemaining}d remaining` : ""}
-                        </Text>
-                      </View>
-                      <View style={{ alignItems: "flex-end", gap: 6 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[s.reminder.category]?.bg ?? "#88888820" }]}>
+                          <Ionicons name={(CATEGORY_ICONS[s.reminder.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[s.reminder.category]?.color ?? "#888"} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
+                          <Text style={[styles.itemSub, { color: "#FFB300" }]}>
+                            {s.kmRemaining !== null && s.kmRemaining >= 0 ? `${Math.round(s.kmRemaining).toLocaleString()} km remaining` : ""}
+                            {s.daysRemaining !== null && s.daysRemaining >= 0 ? (s.kmRemaining !== null && s.kmRemaining >= 0 ? " · " : "") + `${s.daysRemaining}d remaining` : ""}
+                          </Text>
+                        </View>
                         <StatusPill status="upcoming" />
-                        <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: c.primary }}>Log service →</Text>
                       </View>
-                    </TouchableOpacity>
+                      {/* Action row */}
+                      <View style={[styles.recordActions, { borderTopColor: borderCol }]}>
+                        <TouchableOpacity style={styles.recordActionBtn} onPress={() => openLog(s.reminder)}>
+                          <Ionicons name="add-circle-outline" size={14} color={c.primary} />
+                          <Text style={[styles.recordActionTxt, { color: c.primary }]}>Log Service</Text>
+                        </TouchableOpacity>
+                        {s.lastRecord && (
+                          <>
+                            <View style={styles.recordActionDiv} />
+                            <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleEditRecord(s.lastRecord!)}>
+                              <Ionicons name="pencil-outline" size={14} color={c.mutedForeground} />
+                              <Text style={[styles.recordActionTxt, { color: c.mutedForeground }]}>Edit last</Text>
+                            </TouchableOpacity>
+                            <View style={styles.recordActionDiv} />
+                            <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleDeleteRecord(s.lastRecord!.id)}>
+                              <Ionicons name="trash-outline" size={14} color="#E5484D" />
+                              <Text style={[styles.recordActionTxt, { color: "#E5484D" }]}>Delete last</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
+                    </View>
                   ))}
                 </View>
               </View>
@@ -541,42 +752,55 @@ export default function VehicleCareScreen() {
             <Text style={[styles.groupTitle, { color: c.foreground, marginBottom: 12 }]}>{activeCategory}</Text>
             <View style={{ gap: 8 }}>
               {(categoryItems ?? []).map(s => (
-                <TouchableOpacity
+                <View
                   key={s.reminder.itemId}
-                  style={[styles.itemCard, { backgroundColor: cardBg, borderColor: borderCol }]}
-                  onPress={() => openLog(s.reminder)}
-                  activeOpacity={0.8}
+                  style={[styles.itemCard, { backgroundColor: cardBg, borderColor: borderCol, flexDirection: "column", alignItems: "stretch" }]}
                 >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
-                      <StatusPill status={s.status} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
+                        <StatusPill status={s.status} />
+                      </View>
+                      {s.lastRecord ? (
+                        <Text style={[styles.itemSub, { color: subText }]}>
+                          Last: {new Date(s.lastRecord.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                          {s.lastRecord.mileageKm ? ` · ${s.lastRecord.mileageKm.toLocaleString()} km` : ""}
+                          {s.lastRecord.costKSh ? ` · KSh ${s.lastRecord.costKSh.toLocaleString()}` : ""}
+                        </Text>
+                      ) : (
+                        <Text style={[styles.itemSub, { color: subText }]}>No service logged</Text>
+                      )}
+                      {s.reminder.intervalKm && (
+                        <Text style={[styles.itemSub, { color: subText, marginTop: 2 }]}>
+                          Interval: every {s.reminder.intervalKm.toLocaleString()} km
+                          {s.reminder.intervalMonths ? ` or ${s.reminder.intervalMonths} months` : ""}
+                        </Text>
+                      )}
                     </View>
-                    {s.lastRecord ? (
-                      <Text style={[styles.itemSub, { color: subText }]}>
-                        Last: {new Date(s.lastRecord.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-                        {s.lastRecord.mileageKm ? ` · ${s.lastRecord.mileageKm.toLocaleString()} km` : ""}
-                        {s.lastRecord.costKSh ? ` · KSh ${s.lastRecord.costKSh.toLocaleString()}` : ""}
-                      </Text>
-                    ) : (
-                      <Text style={[styles.itemSub, { color: subText }]}>No service logged</Text>
-                    )}
-                    {s.reminder.intervalKm && (
-                      <Text style={[styles.itemSub, { color: subText, marginTop: 2 }]}>
-                        Interval: every {s.reminder.intervalKm.toLocaleString()} km
-                        {s.reminder.intervalMonths ? ` or ${s.reminder.intervalMonths} months` : ""}
-                      </Text>
-                    )}
                   </View>
-                  <View style={{ alignItems: "center", justifyContent: "center" }}>
-                    <TouchableOpacity
-                      style={{ backgroundColor: c.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 }}
-                      onPress={() => openLog(s.reminder)}
-                    >
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" }}>Log</Text>
+                  {/* Action row */}
+                  <View style={[styles.recordActions, { borderTopColor: borderCol }]}>
+                    <TouchableOpacity style={styles.recordActionBtn} onPress={() => openLog(s.reminder)}>
+                      <Ionicons name="add-circle-outline" size={14} color={c.primary} />
+                      <Text style={[styles.recordActionTxt, { color: c.primary }]}>Log Service</Text>
                     </TouchableOpacity>
+                    {s.lastRecord && (
+                      <>
+                        <View style={styles.recordActionDiv} />
+                        <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleEditRecord(s.lastRecord!)}>
+                          <Ionicons name="pencil-outline" size={14} color={c.mutedForeground} />
+                          <Text style={[styles.recordActionTxt, { color: c.mutedForeground }]}>Edit last</Text>
+                        </TouchableOpacity>
+                        <View style={styles.recordActionDiv} />
+                        <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleDeleteRecord(s.lastRecord!.id)}>
+                          <Ionicons name="trash-outline" size={14} color="#E5484D" />
+                          <Text style={[styles.recordActionTxt, { color: "#E5484D" }]}>Delete last</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
-                </TouchableOpacity>
+                </View>
               ))}
             </View>
           </>
@@ -596,24 +820,38 @@ export default function VehicleCareScreen() {
             ) : (
               <View style={{ gap: 10 }}>
                 {historyRecords.map(r => (
-                  <View key={r.id} style={[styles.itemCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
-                    <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[r.category]?.bg ?? "#88888820" }]}>
-                      <Ionicons name={(CATEGORY_ICONS[r.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[r.category]?.color ?? "#888"} />
+                  <View key={r.id} style={[styles.itemCard, { backgroundColor: cardBg, borderColor: borderCol, flexDirection: "column", alignItems: "stretch" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                      <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[r.category]?.bg ?? "#88888820" }]}>
+                        <Ionicons name={(CATEGORY_ICONS[r.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[r.category]?.color ?? "#888"} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.itemName, { color: c.foreground }]}>{r.itemName}</Text>
+                        <Text style={[styles.itemSub, { color: subText }]}>
+                          {new Date(r.date).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}
+                        </Text>
+                        <Text style={[styles.itemSub, { color: subText }]}>
+                          {r.mileageKm.toLocaleString()} km
+                          {r.costKSh ? ` · KSh ${r.costKSh.toLocaleString()}` : ""}
+                          {r.garage ? ` · ${r.garage}` : ""}
+                        </Text>
+                        {r.notes && <Text style={[styles.itemSub, { color: subText, fontStyle: "italic" }]}>{r.notes}</Text>}
+                      </View>
+                      <View style={[styles.itemIconWrap, { backgroundColor: c.primary + "20" }]}>
+                        <Ionicons name="checkmark" size={18} color={c.primary} />
+                      </View>
                     </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.itemName, { color: c.foreground }]}>{r.itemName}</Text>
-                      <Text style={[styles.itemSub, { color: subText }]}>
-                        {new Date(r.date).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}
-                      </Text>
-                      <Text style={[styles.itemSub, { color: subText }]}>
-                        {r.mileageKm.toLocaleString()} km
-                        {r.costKSh ? ` · KSh ${r.costKSh.toLocaleString()}` : ""}
-                        {r.garage ? ` · ${r.garage}` : ""}
-                      </Text>
-                      {r.notes && <Text style={[styles.itemSub, { color: subText, fontStyle: "italic" }]}>{r.notes}</Text>}
-                    </View>
-                    <View style={[styles.itemIconWrap, { backgroundColor: c.primary + "20" }]}>
-                      <Ionicons name="checkmark" size={18} color={c.primary} />
+                    {/* Edit / Delete actions */}
+                    <View style={[styles.recordActions, { borderTopColor: borderCol }]}>
+                      <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleEditRecord(r)}>
+                        <Ionicons name="pencil-outline" size={14} color={c.primary} />
+                        <Text style={[styles.recordActionTxt, { color: c.primary }]}>Edit</Text>
+                      </TouchableOpacity>
+                      <View style={styles.recordActionDiv} />
+                      <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleDeleteRecord(r.id)}>
+                        <Ionicons name="trash-outline" size={14} color="#E5484D" />
+                        <Text style={[styles.recordActionTxt, { color: "#E5484D" }]}>Delete</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ))}
@@ -674,12 +912,21 @@ export default function VehicleCareScreen() {
 
       </ScrollView>
 
-      {/* Log Service Modal */}
+      {/* Log Service Modal (supports both add and edit) */}
       <LogServiceModal
         visible={showLog}
         item={logItem}
         currentOdometerKm={odometer}
-        onClose={() => setShowLog(false)}
+        editRecord={editRecord}
+        onClose={() => { setShowLog(false); setEditRecord(null); }}
+        onSaved={reload}
+      />
+
+      {/* Update Odometer Modal */}
+      <UpdateOdometerModal
+        visible={showOdoModal}
+        currentKm={odometer}
+        onClose={() => setShowOdoModal(false)}
         onSaved={reload}
       />
     </View>
@@ -734,6 +981,18 @@ const styles = StyleSheet.create({
   catBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
 
   card: { borderRadius: 16, borderWidth: 1, padding: 16 },
+
+  // ── Edit / Delete action row below each service card ──────────────────────
+  recordActions: {
+    flexDirection: "row", alignItems: "center",
+    borderTopWidth: StyleSheet.hairlineWidth, marginTop: 10, paddingTop: 8,
+  },
+  recordActionBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
+    paddingVertical: 4,
+  },
+  recordActionTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  recordActionDiv: { width: StyleSheet.hairlineWidth, height: 16, backgroundColor: "#88888840" },
 
   emptyState: {
     borderRadius: 16, borderWidth: 1, padding: 24,

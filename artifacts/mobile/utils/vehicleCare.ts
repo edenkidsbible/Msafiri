@@ -120,6 +120,18 @@ export async function addServiceRecord(record: ServiceRecord): Promise<void> {
   await saveVehicleCareData(data);
 }
 
+export async function updateServiceRecord(record: ServiceRecord): Promise<void> {
+  const data = await loadVehicleCareData();
+  data.records = data.records.map(r => r.id === record.id ? record : r);
+  await saveVehicleCareData(data);
+}
+
+export async function deleteServiceRecord(id: string): Promise<void> {
+  const data = await loadVehicleCareData();
+  data.records = data.records.filter(r => r.id !== id);
+  await saveVehicleCareData(data);
+}
+
 export async function updateTripOdometer(additionalKm: number): Promise<void> {
   const data = await loadVehicleCareData();
   data.tripAccumulatedKm = (data.tripAccumulatedKm ?? 0) + additionalKm;
