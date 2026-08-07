@@ -1,6 +1,7 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 
@@ -31,7 +32,9 @@ export default function AboutScreen() {
           <Ionicons name="navigate" size={36} color={c.primary} />
         </View>
         <Text style={[s.appName, { color: c.foreground }]}>Msafiri</Text>
-        <Text style={[s.version, { color: c.mutedForeground }]}>Version 1.0.0</Text>
+        <Text style={[s.version, { color: c.mutedForeground }]}>
+          Version {Constants.expoConfig?.version ?? "2.0.0"}
+        </Text>
         <Text style={[s.tagline, { color: c.mutedForeground }]}>
           Drive smarter. Stay protected on Kenyan roads.
         </Text>

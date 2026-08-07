@@ -3,7 +3,7 @@ module.exports = {
     name: "Msafiri",
     slug: "msafiri-kenya",
     owner: "edenkids-organization",
-    version: "1.0.2",
+    version: "2.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "msafiri",
@@ -16,7 +16,7 @@ module.exports = {
     },
     ios: {
       bundleIdentifier: "com.msafirikenya.app",
-      buildNumber: "1",
+      buildNumber: "93",
       supportsTablet: false,
       config: {
         googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
@@ -58,7 +58,7 @@ module.exports = {
     },
     android: {
       package: "com.msafirikenya.app",
-      versionCode: 27,
+      versionCode: 93,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       permissions: [
         "ACCESS_FINE_LOCATION",
