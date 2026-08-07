@@ -63,7 +63,7 @@ export interface DashcamSegment {
   fileKey?: string;     // R2 key once uploaded
   serverId?: string;    // DB id once saved on server
   retryCount?: number;  // upload attempts so far (for bounded backoff)
-  lat?: number;         // GPS position at segment end (for location naming)
+  lat?: number;         // GPS coords at recording start
   lng?: number;
 }
 
@@ -802,6 +802,13 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       const destUri = `${SEGMENTS_DIR}${id}.mp4`;
 
       try {
+        // Ensure the destination directory exists before every save — not just
+        // at hydration. If the OS cleared the directory (low-storage purge,
+        // first install before hydration completed, etc.) a missing directory
+        // causes moveAsync to throw, and the clip is silently lost. This call
+        // is idempotent: it no-ops if the directory already exists.
+        await FileSystem.makeDirectoryAsync(SEGMENTS_DIR, { intermediates: true });
+
         await FileSystem.moveAsync({ from: tempUri, to: destUri });
         const info      = await FileSystem.getInfoAsync(destUri);
         const sizeBytes = (info as any).size ?? 0;
@@ -830,7 +837,18 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           processUploadQueue();
         }
       } catch (err) {
-        console.warn("[Dashcam] onSegmentComplete error:", err);
+        // Log with enough detail to diagnose future failures.
+        console.warn("[Dashcam] onSegmentComplete error — clip NOT saved:", err);
+        // Surface to the user only for manually-locked clips where they
+        // explicitly intended to keep the footage.
+        if (lockReason === "manual") {
+          const { Alert } = require("react-native");
+          Alert.alert(
+            "Clip Could Not Be Saved",
+            "There was a problem saving this dashcam clip to your device. " +
+            "Check that you have enough storage space and try again.",
+          );
+        }
       }
     },
     [evictIfNeeded, processUploadQueue]

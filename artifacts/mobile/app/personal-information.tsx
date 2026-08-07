@@ -39,7 +39,11 @@ export default function PersonalInformationScreen() {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission needed", "Allow photo library access to set a profile photo.");
+        Alert.alert(
+          "Photo Library Access Required",
+          "Msafiri needs photo library access to set your profile photo and to attach evidence photos in the Crash Assistant.\n\nTo enable: Settings → Privacy & Security → Photos → Msafiri → select \"All Photos\" or \"Selected Photos\".",
+          [{ text: "OK" }]
+        );
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({

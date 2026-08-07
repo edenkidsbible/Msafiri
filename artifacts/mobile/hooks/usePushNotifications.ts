@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { useRouter, useRootNavigationState } from "expo-router";
@@ -86,6 +86,18 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
   let finalStatus = existingStatus;
 
   if (existingStatus !== "granted") {
+    // Show a pre-explanation only the first time (when the system dialog will
+    // actually appear). Already-denied status skips straight to the check.
+    if (existingStatus === "undetermined") {
+      await new Promise<void>(resolve =>
+        Alert.alert(
+          "Safety Alerts & Notifications",
+          "Msafiri sends real-time push notifications for speed cameras, police checkpoints, road hazards, and accidents reported near your route — even when the app is in the background.\n\nYou can manage which notifications you receive in Settings at any time.",
+          [{ text: "Continue", onPress: () => resolve() }],
+          { cancelable: false }
+        )
+      );
+    }
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }

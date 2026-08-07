@@ -73,6 +73,12 @@ export async function ensureVehicles(params: {
   const existing = await loadVehicles();
   if (existing.length > 0) return existing;
 
+  // Do NOT seed when AppContext has no valid vehicle identity. This covers the
+  // case where the user deliberately deleted all their vehicles — we cleared
+  // AppContext make/model to "" at that point. Without this guard, every
+  // garage focus would re-create the deleted vehicle from stale AppContext keys.
+  if (!params.makeId) return [];
+
   // Seed from the single AppContext vehicle
   const seed: SavedVehicle = {
     id: "v0",

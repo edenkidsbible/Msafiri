@@ -401,6 +401,7 @@ export default function GarageScreen() {
   const {
     vehicleType, deviceId, vehicleMakeId, vehicleModelId,
     vehicleCustomMakeName, vehicleCustomModelName,
+    setVehicleModel, setCustomVehicle, setVehicleType,
   } = useApp();
 
   const [sessions,         setSessions]         = useState<DriveSession[]>([]);
@@ -544,6 +545,26 @@ export default function GarageScreen() {
   async function handleSetDefault(id: string) {
     const updated = await setDefaultVehicle(id);
     setVehicles(updated);
+    // ── Sync AppContext to the newly-default vehicle ──────────────────────────
+    // Without this, AppContext still holds the OLD default's make/model.
+    // Consequences if left unsynced:
+    //   • Every screen that reads vehicleMakeId/vehicleModelId shows the wrong car
+    //   • If the old default is later deleted, the single-vehicle focus sync
+    //     overwrites the new default with the old default's identity (data swap)
+    const newDefault = updated.find(v => v.id === id);
+    if (newDefault) {
+      if (newDefault.customMakeName || newDefault.customModelName) {
+        setCustomVehicle(
+          newDefault.makeId        ?? "",
+          newDefault.modelId       ?? "",
+          newDefault.customMakeName ?? "",
+          newDefault.customModelName ?? "",
+        );
+      } else {
+        setVehicleModel(newDefault.makeId ?? "", newDefault.modelId ?? "");
+      }
+      setVehicleType(newDefault.vehicleType);
+    }
   }
 
   function handleRemoveVehicle(id: string) {
@@ -552,6 +573,39 @@ export default function GarageScreen() {
     const name = vehicle
       ? (vehicle.customModelName?.trim() || vehicle.modelId || "this vehicle")
       : "this vehicle";
+
+    // Shared helper — sync AppContext to whichever vehicle is now the default,
+    // or clear it when all vehicles have been removed.
+    //
+    // WHY this is critical:
+    //   Without syncing, AppContext still holds the deleted/old-default vehicle's
+    //   make/model/type after a removal. This causes two bugs:
+    //   1. If the removed vehicle was the only one, ensureVehicles() re-seeds it
+    //      from stale AppContext keys on the very next garage focus → the deleted
+    //      vehicle silently reappears.
+    //   2. If one vehicle remains, the single-vehicle focus sync sees
+    //      list[0].makeId !== vehicleMakeId (deleted vs remaining) and overwrites
+    //      the remaining vehicle's identity with the deleted vehicle's data.
+    const syncAppContextAfterRemove = (updated: typeof vehicles) => {
+      const newDefault = updated.find(v => v.isDefault) ?? updated[0] ?? null;
+      if (newDefault) {
+        if (newDefault.customMakeName || newDefault.customModelName) {
+          setCustomVehicle(
+            newDefault.makeId         ?? "",
+            newDefault.modelId        ?? "",
+            newDefault.customMakeName  ?? "",
+            newDefault.customModelName ?? "",
+          );
+        } else {
+          setVehicleModel(newDefault.makeId ?? "", newDefault.modelId ?? "");
+        }
+        setVehicleType(newDefault.vehicleType);
+      } else {
+        // All vehicles gone — clear vehicle identity so ensureVehicles skips
+        // re-seeding on the next focus (it guards on empty makeId).
+        setVehicleModel("", "");
+      }
+    };
 
     if (isLast) {
       // Removing the only vehicle → strong warning about losing Vehicle Care data
@@ -566,6 +620,7 @@ export default function GarageScreen() {
             onPress: async () => {
               const updated = await removeVehicle(id);
               setVehicles(updated);
+              syncAppContextAfterRemove(updated);
             },
           },
         ],
@@ -583,6 +638,7 @@ export default function GarageScreen() {
             onPress: async () => {
               const updated = await removeVehicle(id);
               setVehicles(updated);
+              syncAppContextAfterRemove(updated);
               // If we removed the slide that was being viewed, snap back
               setSlideIndex(prev => Math.max(0, Math.min(prev, updated.length - 1)));
             },

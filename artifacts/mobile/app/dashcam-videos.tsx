@@ -409,8 +409,8 @@ export default function DashcamVideosScreen() {
       uploadStatus: s.uploadStatus,
       source:       "local",
       serverId:     s.serverId,
-      lat:          (s as any).lat,
-      lng:          (s as any).lng,
+      lat:          s.lat,
+      lng:          s.lng,
     }));
     return [...local, ...serverOnly].sort((a, b) => b.startedAt - a.startedAt);
   }, [segments, serverClips]);

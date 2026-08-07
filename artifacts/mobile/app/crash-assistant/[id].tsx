@@ -1226,7 +1226,11 @@ function StatementStep({
   const startRecording = useCallback(async () => {
     const { granted } = await requestRecordingPermissionsAsync();
     if (!granted) {
-      Alert.alert("Microphone Access Required", "Please allow microphone access in your device settings to record an audio statement.");
+      Alert.alert(
+        "Microphone Access Required",
+        "Msafiri needs microphone access to record your voice statement as part of this accident report.\n\nTo enable: Settings → Privacy & Security → Microphone → Msafiri → turn on.",
+        [{ text: "OK" }]
+      );
       return;
     }
     // Set audio mode so recording works on iOS even in silent mode.

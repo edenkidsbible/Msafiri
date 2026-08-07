@@ -61,8 +61,8 @@ export default function EmergencyContactsScreen() {
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
-          "Permission needed",
-          "Allow Msafiri to access your contacts so you can pick emergency contacts quickly.",
+          "Contacts Access Required",
+          "Msafiri needs contacts access to add emergency SOS contacts. These contacts receive your GPS location automatically if you trigger the SOS button while driving.\n\nTo enable: Settings → Privacy & Security → Contacts → Msafiri → turn on.",
           [{ text: "OK" }]
         );
         return;

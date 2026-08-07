@@ -22,23 +22,36 @@ module.exports = {
         googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
       },
       infoPlist: {
+        // ── Location ────────────────────────────────────────────────────────
         NSLocationWhenInUseUsageDescription:
-          "Msafiri uses your location to show your real-time speed and alert you to nearby speed cameras, police checkpoints, and road hazards reported by other drivers.",
+          "Msafiri uses your GPS location to display your real-time speed, alert you to nearby speed cameras, police checkpoints, and road hazards reported by other drivers, and provide turn-by-turn navigation guidance. Location is only used while the app is in the foreground.",
         NSLocationAlwaysAndWhenInUseUsageDescription:
-          "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
+          "Msafiri uses background location to keep navigation voice cues and speed alerts active when your screen locks, and to share your live position with trusted contacts during Trip Sharing. Your location data is never used for advertising or sold to third parties.",
         NSLocationAlwaysUsageDescription:
-          "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
+          "Msafiri uses background location to keep navigation voice cues and speed alerts active when your screen locks, and to share your live position with trusted contacts during Trip Sharing. Your location data is never used for advertising or sold to third parties.",
         // "location" keeps watchPositionAsync alive when screen locks (nav cues).
         // "audio" lets the TTS voice play through even when the app is backgrounded
         // or the screen is off — required for navigation voice on a locked phone.
+
+        // ── Contacts ────────────────────────────────────────────────────────
         NSContactsUsageDescription:
-          "Msafiri lets you pick emergency contacts directly from your address book so you don't have to type phone numbers manually.",
+          "Msafiri reads your address book only when you choose a contact to add as an emergency SOS contact. These contacts receive a message with your GPS coordinates if you trigger the SOS button while driving. Msafiri does not store, upload, or share your full contacts list.",
+
+        // ── Camera ──────────────────────────────────────────────────────────
+        // Two distinct in-app uses must be declared to pass App Store review.
         NSCameraUsageDescription:
-          "Msafiri uses your camera to record dashcam footage while you drive. Recordings are stored locally on your device and only uploaded to the cloud when you manually lock a clip.",
+          "Msafiri uses your camera for two purposes: (1) Dashcam — records continuous footage while you drive; clips are stored on your device and only uploaded when you choose to lock one. (2) Crash Assistant — lets you photograph accident scenes and vehicles when documenting an incident for your records or insurance.",
+
+        // ── Microphone ──────────────────────────────────────────────────────
+        // Two distinct in-app uses must be declared to pass App Store review.
         NSMicrophoneUsageDescription:
-          "Msafiri can optionally record audio with dashcam footage so you can hear what was happening at the time of an incident.",
+          "Msafiri uses your microphone for two purposes: (1) Dashcam audio — optionally records sound alongside dashcam video so you can hear what was happening during a clip. (2) Crash Assistant — lets you record a voice statement as part of an accident report for your own records.",
+
+        // ── Photo Library ───────────────────────────────────────────────────
+        // Two distinct in-app uses must be declared to pass App Store review.
         NSPhotoLibraryUsageDescription:
-          "Msafiri lets you choose a photo from your library to use as your profile picture.",
+          "Msafiri accesses your photo library for two purposes: (1) Profile photo — lets you add a personal photo to your driver profile. (2) Crash Assistant — lets you attach photos from your library as evidence when documenting an accident.",
+
         UIBackgroundModes: ["location", "audio"],
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -91,9 +104,9 @@ module.exports = {
         "expo-location",
         {
           locationWhenInUsePermission:
-            "Msafiri uses your location to show your real-time speed and alert you to nearby speed cameras, police checkpoints, and road hazards reported by other drivers.",
+            "Msafiri uses your GPS location to display your real-time speed, alert you to nearby speed cameras, police checkpoints, and road hazards, and provide turn-by-turn navigation. Location is only used while the app is in the foreground.",
           locationAlwaysAndWhenInUsePermission:
-            "Msafiri uses your location in the background only while Live Trip Sharing is active, so the people following your trip can see your position even when your screen is locked.",
+            "Msafiri uses background location to keep navigation voice cues and speed alerts active when your screen locks, and to share your live position with trusted contacts during Trip Sharing. Your location data is never used for advertising or sold to third parties.",
           isIosBackgroundLocationEnabled: true,
           isAndroidBackgroundLocationEnabled: true,
         },
@@ -126,18 +139,20 @@ module.exports = {
       [
         "expo-camera",
         {
+          // Android shows these strings in the runtime permission dialog.
           cameraPermission:
-            "Msafiri uses your camera to record dashcam footage while you drive.",
+            "Msafiri uses your camera to record dashcam footage while driving and to photograph accident scenes in the Crash Assistant.",
           microphonePermission:
-            "Msafiri can optionally record audio with dashcam footage.",
+            "Msafiri records audio alongside dashcam clips and captures voice statements in the Crash Assistant accident report.",
           recordAudioAndroid: true,
         },
       ],
       [
         "expo-image-picker",
         {
+          // Android shows this string in the runtime permission dialog.
           photosPermission:
-            "Msafiri lets you choose a photo from your library to use as your profile picture.",
+            "Msafiri accesses your photo library to set your profile photo and to attach accident evidence photos in the Crash Assistant.",
           // Profile photo only needs the photo library, not the camera/mic.
           cameraPermission: false,
           microphonePermission: false,
@@ -146,8 +161,9 @@ module.exports = {
       [
         "expo-contacts",
         {
+          // Android shows this string in the runtime permission dialog.
           contactsPermission:
-            "Msafiri lets you pick emergency contacts directly from your address book so you don't have to type phone numbers manually.",
+            "Msafiri reads your contacts only when you add an emergency SOS contact. These contacts receive your GPS location if you trigger the SOS button while driving. Your contacts list is never stored or shared.",
         },
       ],
       "expo-video",

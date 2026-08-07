@@ -889,6 +889,20 @@ function estimateTrafficDelayS(incidents: RouteIncident[]): number {
 
 async function requestNotificationPermissionInternal(): Promise<boolean> {
   if (Platform.OS === "web") return false;
+  // Check first — only show the pre-explanation when the system dialog will
+  // actually appear (i.e. status is "undetermined"). If permission was already
+  // granted or permanently denied we skip straight to the status check.
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  if (existing === "undetermined") {
+    await new Promise<void>(resolve =>
+      Alert.alert(
+        "Safety Alerts & Notifications",
+        "Msafiri sends real-time push notifications for speed cameras, police checkpoints, road hazards, and accidents reported near your route — even when the app is running in the background.\n\nYou can manage which notifications you receive in Settings at any time.",
+        [{ text: "Continue", onPress: () => resolve() }],
+        { cancelable: false }
+      )
+    );
+  }
   const { status } = await Notifications.requestPermissionsAsync();
   return status === "granted";
 }
@@ -1364,6 +1378,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (Platform.OS === "web") {
       if ("geolocation" in navigator) setLocationGranted(true);
       return;
+    }
+    // Only show the pre-explanation when the system dialog will appear.
+    // If permission is already granted or permanently denied, skip the Alert.
+    const { status: existing } = await Location.getForegroundPermissionsAsync();
+    if (existing === "undetermined") {
+      await new Promise<void>(resolve =>
+        Alert.alert(
+          "Location Access",
+          "Msafiri needs your GPS location to:\n\n• Show your real-time speed\n• Alert you to nearby speed cameras, police checkpoints, and road hazards\n• Provide turn-by-turn navigation\n\nYour location is only used while the app is active and is never shared without your permission.",
+          [{ text: "Continue", onPress: () => resolve() }],
+          { cancelable: false }
+        )
+      );
     }
     const { status } = await Location.requestForegroundPermissionsAsync();
     setLocationGranted(status === "granted");

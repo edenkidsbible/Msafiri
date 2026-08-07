@@ -2226,30 +2226,56 @@ export default function DriveScreen() {
                 }}
                 activeOpacity={0.85}
               >
-                <View style={[styles.dmToggleIcon, {
-                  backgroundColor: dashcamRecording
-                    ? c.speedDanger + "22"
-                    : dashcamPending
-                    ? c.primary + "22"
-                    : (isDark ? "#232926" : "#FFFFFF"),
-                }]}>
-                  {dashcamPending && !dashcamRecording
-                    ? <ActivityIndicator size="small" color={c.primary} />
-                    : <Ionicons name="videocam-outline" size={18} color={
-                        dashcamRecording ? c.speedDanger : c.foreground
-                      } />
-                  }
+                {/* Icon + floating lock badge — lock sits on top of the icon so
+                  it never consumes horizontal space in the card row. This
+                  keeps the text column at full width on all screen sizes. */}
+                <View style={{ position: "relative" }}>
+                  <View style={[styles.dmToggleIcon, {
+                    backgroundColor: dashcamRecording
+                      ? c.speedDanger + "22"
+                      : dashcamPending
+                      ? c.primary + "22"
+                      : (isDark ? "#232926" : "#FFFFFF"),
+                  }]}>
+                    {dashcamPending && !dashcamRecording
+                      ? <ActivityIndicator size="small" color={c.primary} />
+                      : <Ionicons name="videocam-outline" size={18} color={
+                          dashcamRecording ? c.speedDanger : c.foreground
+                        } />
+                    }
+                  </View>
+                  {/* Lock badge — tap to protect current clip without opening
+                      the full dashcam overlay. Floats top-right of the icon. */}
+                  {dashcamRecording && (
+                    <TouchableOpacity
+                      style={[styles.dmLockBadge, { backgroundColor: c.primary, borderColor: c.card }]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        lockCurrentClip("manual");
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons name="lock-closed" size={9} color="#FFF" />
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.dmToggleTitle, { color: c.foreground }]}>Dashcam</Text>
+                  <Text style={[styles.dmToggleTitle, { color: c.foreground }]} numberOfLines={1}>
+                    Dashcam
+                  </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Text style={[styles.dmToggleSub, {
-                      color: dashcamRecording
-                        ? c.speedDanger
-                        : dashcamPending
-                        ? c.primary
-                        : c.mutedForeground,
-                    }]}>
+                    <Text
+                      style={[styles.dmToggleSub, {
+                        color: dashcamRecording
+                          ? c.speedDanger
+                          : dashcamPending
+                          ? c.primary
+                          : c.mutedForeground,
+                      }]}
+                      numberOfLines={1}
+                    >
                       {dashcamRecording ? "Recording" : dashcamPending ? "Starting…" : "Off"}
                     </Text>
                     {dashcamRecording && (
@@ -2257,27 +2283,6 @@ export default function DriveScreen() {
                     )}
                   </View>
                 </View>
-                {/* Lock clip shortcut — visible while recording so drivers never
-                    have to open the full dashcam overlay to protect a clip */}
-                {dashcamRecording && (
-                  <TouchableOpacity
-                    style={{
-                      width: 34, height: 34, borderRadius: 10,
-                      backgroundColor: c.primary + "1a",
-                      alignItems: "center", justifyContent: "center",
-                      borderWidth: 1, borderColor: c.primary + "44",
-                    }}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      lockCurrentClip("manual");
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    activeOpacity={0.75}
-                  >
-                    <Ionicons name="lock-closed" size={16} color={c.primary} />
-                  </TouchableOpacity>
-                )}
               </TouchableOpacity>
             ) : <View style={{ flex: 1 }} />}
 
@@ -2291,6 +2296,9 @@ export default function DriveScreen() {
                 style={[styles.dmStopBtn, {
                   backgroundColor: tripPaused ? "#E5A20D" : "#E5484D",
                   shadowColor:     tripPaused ? "#E5A20D" : "#E5484D",
+                  // Scale down on narrow phones so the two cards each get more room
+                  width: isSmall ? 54 : 62, height: isSmall ? 54 : 62,
+                  borderRadius: isSmall ? 27 : 31,
                 }]}
                 onPress={tripPaused ? resumeTrip : pauseTrip}
                 onLongPress={() => {
@@ -2330,8 +2338,13 @@ export default function DriveScreen() {
                 />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.dmToggleTitle, { color: c.foreground }]}>Audio Alerts</Text>
-                <Text style={[styles.dmToggleSub, { color: audioAlertsOn ? c.primary : c.mutedForeground }]}>
+                <Text style={[styles.dmToggleTitle, { color: c.foreground }]} numberOfLines={1}>
+                  {isSmall ? "Audio" : "Audio Alerts"}
+                </Text>
+                <Text
+                  style={[styles.dmToggleSub, { color: audioAlertsOn ? c.primary : c.mutedForeground }]}
+                  numberOfLines={1}
+                >
                   {audioAlertsOn ? "On" : "Off"}
                 </Text>
               </View>
@@ -3453,11 +3466,21 @@ const styles = StyleSheet.create({
   dmToggleTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   dmToggleSub:   { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
   dmStopBtn: {
+    // width/height/borderRadius are overridden inline with isSmall
     width: 62, height: 62, borderRadius: 31,
     backgroundColor: "#E5484D",
     alignItems: "center", justifyContent: "center",
     shadowColor: "#E5484D", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5, shadowRadius: 10, elevation: 10,
+  },
+  dmLockBadge: {
+    // Floating badge anchored to the top-right corner of the dashcam icon.
+    // Absolute position means it never takes horizontal space in the card row,
+    // so the text column always has full available width on all screen sizes.
+    position: "absolute", top: -5, right: -5,
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5,
   },
   dmStopSquare: { width: 20, height: 20, borderRadius: 5, backgroundColor: "#FFF" },
   dmStopLbl: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
