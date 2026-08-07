@@ -1200,7 +1200,7 @@ export default function DriveScreen() {
 
       {/* ── Live Trip info card — shows origin/destination, start time, LIVE badge ── */}
       {tripActive && navDestination != null && (
-        <View style={[styles.tripInfoCard, { top: topInset + (primaryAlert ? 90 : 8) }]}>
+        <View style={[styles.tripInfoCard, { top: topInset + (primaryAlert ? 90 : 16) }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={styles.tripInProgress}>Trip in Progress</Text>
@@ -3439,10 +3439,15 @@ const styles = StyleSheet.create({
   dmStopLbl: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
   // ── Live Trip info card ────────────────────────────────────────────────────
+  // Positioned between the speed gauge (left: 14, width: 96) and the
+  // right-edge buttons (right: 14, width: 60) so neither is obscured.
   tripInfoCard: {
-    position: "absolute", left: 12, right: 12, zIndex: 19,
+    position: "absolute",
+    left: 120,   // 14 (gauge left) + 96 (gauge width) + 10 gap
+    right: 82,   // 14 (buttons right) + 60 (button width) + 8 gap
+    zIndex: 19,
     backgroundColor: "#000000BB",
-    borderRadius: 16, padding: 14,
+    borderRadius: 16, padding: 10,
     borderWidth: 1, borderColor: "#FFFFFF15",
   },
   tripInProgress: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#00C853", marginBottom: 3 },
