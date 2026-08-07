@@ -23,10 +23,10 @@ const { width, height } = Dimensions.get("window");
 // ── Brand palette ─────────────────────────────────────────────────────────────
 const GREEN       = "#00A845";
 const GREEN_DARK  = "#006B3C";
-const FLAG_RED    = "#BB0000";
-const FLAG_BLACK  = "#1C1C1E";
-const SURFACE     = "#F7F9F7";
-const BORDER      = "#E4EAE4";
+const FLAG_RED    = "#BB0000";   // Kenya flag red — badge colours & brand name only
+const SCREEN_BG   = "#EDF7F2";   // light green tint — matches app-wide background
+const SURFACE     = "#DDEEE6";   // slightly deeper tint for card surfaces
+const BORDER      = "#C8E6D5";   // green-tinted border
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type AlertBadge = { emoji: string; label: string; color: string };
@@ -50,7 +50,7 @@ const SLIDES: Slide[] = [
   {
     id:         "1",
     kind:       "grid",
-    accentColor: FLAG_RED,
+    accentColor: GREEN,
     chip:       "ALERTS",
     heroEmoji:  "📡",
     headline:   "Every Threat.\nDetected.",
@@ -67,7 +67,7 @@ const SLIDES: Slide[] = [
   {
     id:         "2",
     kind:       "feature",
-    accentColor: FLAG_BLACK,
+    accentColor: GREEN,
     chip:       "DASHCAM & SAFETY",
     heroEmoji:  "🎥",
     headline:   "Record Every\nJourney.",
@@ -95,7 +95,7 @@ const SLIDES: Slide[] = [
   {
     id:         "4",
     kind:       "feature",
-    accentColor: "#7B3FE4",
+    accentColor: GREEN,
     chip:       "LEARN",
     heroEmoji:  "🎓",
     headline:   "Pass Your Test.\nDrive Better.",
@@ -109,7 +109,7 @@ const SLIDES: Slide[] = [
   {
     id:         "5",
     kind:       "picker",
-    accentColor: FLAG_RED,
+    accentColor: GREEN,
     chip:       "YOUR VEHICLE",
     heroEmoji:  "🚗",
     headline:   "Your Vehicle,\nYour Limit.",
@@ -419,7 +419,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex:            1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SCREEN_BG,
   },
 
   // Header
