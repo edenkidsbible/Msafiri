@@ -128,11 +128,18 @@ export default function DashcamOverlay() {
   );
 
   // ── Keep screen awake while dashcam is active ─────────────────────────────
+  // keepAwakeActive tracks whether activateKeepAwakeAsync completed successfully
+  // so we never call deactivateKeepAwake before the lock was acquired (which
+  // throws on web and crashes the preview).
+  const keepAwakeActiveRef = useRef(false);
   useEffect(() => {
     if (isRecording || isDashcamOpen || backgroundRecordPending) {
-      activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
-    } else {
-      try { deactivateKeepAwake(KEEP_AWAKE_TAG); } catch { /* not activated yet */ }
+      activateKeepAwakeAsync(KEEP_AWAKE_TAG)
+        .then(() => { keepAwakeActiveRef.current = true; })
+        .catch(() => {});
+    } else if (keepAwakeActiveRef.current) {
+      keepAwakeActiveRef.current = false;
+      try { deactivateKeepAwake(KEEP_AWAKE_TAG); } catch { /* ignore */ }
     }
   }, [isRecording, isDashcamOpen, backgroundRecordPending]);
 
