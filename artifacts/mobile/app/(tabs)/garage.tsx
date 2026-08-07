@@ -55,7 +55,8 @@ function tripDateLabel(iso: string): string {
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
 }
 
-/** Car image in the My Vehicle card — transparent PNG from R2, falls back to emoji. */
+/** Car image in the My Vehicle card — transparent PNG from R2, falls back to emoji.
+ *  Rendered large; the parent positions it to pop out of the card's boundaries. */
 function VehicleImage({ makeId, modelId, vehicleType }: { makeId: string | null; modelId: string | null; vehicleType: string }) {
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -63,18 +64,18 @@ function VehicleImage({ makeId, modelId, vehicleType }: { makeId: string | null;
 
   if (!makeId || !modelId || failed) {
     return (
-      <Text style={[{ fontSize: 72, fontFamily: EMOJI_FONT_FAMILY }]}>
+      <Text style={{ fontSize: 90, fontFamily: EMOJI_FONT_FAMILY, textShadowColor: "rgba(0,0,0,0.18)", textShadowOffset: { width: 0, height: 6 }, textShadowRadius: 10 }}>
         {getVehicleEmoji(vehicleType)}
       </Text>
     );
   }
 
   return (
-    <View style={{ width: 120, height: 80, alignItems: "center", justifyContent: "center" }}>
+    <View style={styles.vehicleImgWrap}>
       {loading && <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />}
       <Image
         source={{ uri: getCarImageUrl(makeId, modelId) }}
-        style={{ width: 120, height: 80 }}
+        style={styles.vehicleImg}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
         onError={() => { setFailed(true); setLoading(false); }}
@@ -208,48 +209,52 @@ export default function GarageScreen() {
           </View>
         </View>
 
-        {/* My Vehicle Card */}
-        <View style={[styles.vehicleCard, { backgroundColor: c.card, borderColor: c.tileBorder, marginHorizontal: 16 }]}>
-          <Text style={[styles.sectionTitle, { color: c.foreground }]}>My Vehicle</Text>
-          <View style={styles.vehicleContent}>
-            <View style={styles.vehicleLeft}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <Text style={[styles.vehicleLabel, { color: c.foreground }]} numberOfLines={1}>
-                  {vehicleDisplayName}
-                </Text>
-                <View style={[styles.primaryBadge, { backgroundColor: c.primary + "22" }]}>
-                  <Text style={[styles.primaryBadgeTxt, { color: c.primary }]}>Primary</Text>
+        {/* My Vehicle Card — outer wrapper is the positioning context for the pop-out car */}
+        <View style={[styles.vehicleCardOuter, { marginHorizontal: 16 }]}>
+          <View style={[styles.vehicleCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
+            <Text style={[styles.sectionTitle, { color: c.foreground }]}>My Vehicle</Text>
+            <View style={styles.vehicleContent}>
+              <View style={styles.vehicleLeft}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <Text style={[styles.vehicleLabel, { color: c.foreground }]} numberOfLines={1}>
+                    {vehicleDisplayName}
+                  </Text>
+                  <View style={[styles.primaryBadge, { backgroundColor: c.primary + "22" }]}>
+                    <Text style={[styles.primaryBadgeTxt, { color: c.primary }]}>Primary</Text>
+                  </View>
                 </View>
-              </View>
 
-              {!vehicleMakeId ? (
-                /* Prompt to pick a car */
+                {!vehicleMakeId ? (
+                  /* Prompt to pick a car */
+                  <TouchableOpacity
+                    style={[styles.selectCarBtn, { backgroundColor: c.primary }]}
+                    onPress={() => router.push("/car-picker" as any)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="car-outline" size={14} color="#fff" />
+                    <Text style={styles.selectCarBtnTxt}>Select your car</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.plateBox, { backgroundColor: c.background, borderColor: c.tileBorder }]}>
+                    <Text style={[styles.plateTxt, { color: c.foreground }]}>KDD 123A</Text>
+                  </View>
+                )}
+
                 <TouchableOpacity
-                  style={[styles.selectCarBtn, { backgroundColor: c.primary }]}
+                  style={[styles.outlineBtn, { borderColor: c.border }]}
                   onPress={() => router.push("/car-picker" as any)}
-                  activeOpacity={0.8}
                 >
-                  <Ionicons name="car-outline" size={14} color="#fff" />
-                  <Text style={styles.selectCarBtnTxt}>Select your car</Text>
+                  <Text style={[styles.outlineBtnTxt, { color: c.foreground }]}>
+                    {vehicleMakeId ? "Change Car >" : "Vehicle Details >"}
+                  </Text>
                 </TouchableOpacity>
-              ) : (
-                <View style={[styles.plateBox, { backgroundColor: c.background, borderColor: c.tileBorder }]}>
-                  <Text style={[styles.plateTxt, { color: c.foreground }]}>KDD 123A</Text>
-                </View>
-              )}
+              </View>
+            </View>
+          </View>
 
-              <TouchableOpacity
-                style={[styles.outlineBtn, { borderColor: c.border }]}
-                onPress={() => router.push("/car-picker" as any)}
-              >
-                <Text style={[styles.outlineBtnTxt, { color: c.foreground }]}>
-                  {vehicleMakeId ? "Change Car >" : "Vehicle Details >"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.vehicleRight}>
-              <VehicleImage makeId={vehicleMakeId} modelId={vehicleModelId} vehicleType={vehicleType} />
-            </View>
+          {/* Car image — absolutely positioned so it bleeds above and below the card */}
+          <View style={styles.vehicleImagePop} pointerEvents="none">
+            <VehicleImage makeId={vehicleMakeId} modelId={vehicleModelId} vehicleType={vehicleType} />
           </View>
         </View>
 
@@ -385,12 +390,45 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 13, fontFamily: "Inter_700Bold" },
   statTitle: { fontSize: 11, fontFamily: "Inter_500Medium" },
 
-  vehicleCard: {
-    borderRadius: 20, borderWidth: 1, padding: 18, marginBottom: 20,
+  // Outer wrapper is the positioning context; bottom margin accounts for image bleed
+  vehicleCardOuter: {
+    position: "relative",
+    marginBottom: 36,
   },
+  vehicleCard: {
+    borderRadius: 20, borderWidth: 1,
+    paddingTop: 18, paddingBottom: 18, paddingLeft: 18,
+    // Reserve right column so text never slides under the car image
+    paddingRight: 158,
+  },
+  // Car image sits absolutely to the right, bleeding above and below the card
+  vehicleImagePop: {
+    position: "absolute",
+    right: -14,
+    top: -22,
+    bottom: -22,
+    width: 186,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  vehicleImgWrap: {
+    width: 186, height: 124,
+    alignItems: "center", justifyContent: "center",
+    // Drop shadow gives the 3-D lift
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  vehicleImg: {
+    width: 186, height: 124,
+  },
+
   sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  vehicleContent: { flexDirection: "row", marginTop: 14, alignItems: "center" },
-  vehicleLeft: { flex: 1, alignItems: "flex-start", gap: 10 },
+  vehicleContent: { marginTop: 14 },
+  vehicleLeft: { alignItems: "flex-start", gap: 10 },
   vehicleLabel: { fontSize: 17, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   primaryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   primaryBadgeTxt: { fontSize: 11, fontFamily: "Inter_700Bold" },
@@ -407,7 +445,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, marginTop: 4
   },
   outlineBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  vehicleRight: { width: 130, alignItems: "center", justifyContent: "center" },
 
   quickAccessSection: { marginBottom: 20 },
   quickCard: {
