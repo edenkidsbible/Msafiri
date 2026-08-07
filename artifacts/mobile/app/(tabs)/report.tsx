@@ -48,10 +48,10 @@ function distStr(m: number): string {
 
 // Grid items — order matches mockup exactly.
 // Each entry resolves its emoji, color, and label from the canonical INCIDENT_TYPES map.
-const GRID_TYPES: (ReportType | null)[] = [
+const GRID_TYPES: ReportType[] = [
   "camera", "police", "alcoblow", "accident",
   "roadworks", "traffic", "hazard", "pothole",
-  "debris", "weather", "breakdown", null,
+  "debris", "weather", "breakdown", "clear",
 ];
 
 export default function ReportScreen() {
@@ -105,7 +105,7 @@ export default function ReportScreen() {
           </View>
           <TouchableOpacity
             style={[styles.myReportsBtn, { backgroundColor: c.card, borderColor: c.border }]}
-            onPress={() => router.push("/(tabs)/map")}
+            onPress={() => router.push("/my-reports" as any)}
             activeOpacity={0.82}
           >
             <Ionicons name="clipboard-outline" size={14} color={c.primary} />
@@ -148,8 +148,7 @@ export default function ReportScreen() {
         <Text style={[styles.sectionTitle, { color: c.foreground }]}>What would you like to report?</Text>
         <View style={styles.grid}>
           {GRID_TYPES.map((type, i) => {
-            const def = resolveIncidentType(type ?? "__unknown");
-            const label = type === null ? "Other" : def.label;
+            const def = resolveIncidentType(type);
             return (
               <TouchableOpacity
                 key={i}
@@ -160,7 +159,7 @@ export default function ReportScreen() {
                 <View style={[styles.gridIconBox, { backgroundColor: def.color + "25" }]}>
                   <Text style={{ fontSize: 26, fontFamily: EMOJI_FONT_FAMILY }}>{def.emoji}</Text>
                 </View>
-                <Text style={[styles.gridLabel, { color: c.foreground }]}>{label}</Text>
+                <Text style={[styles.gridLabel, { color: c.foreground }]}>{def.label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -186,8 +185,20 @@ export default function ReportScreen() {
               const isClose = r.distance != null && r.distance < 500;
               const distColor = isClose ? "#E53935" : c.primary;
               return (
-                <View
+                <TouchableOpacity
                   key={r.id}
+                  activeOpacity={0.75}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/map",
+                      params: {
+                        focusId: r.id,
+                        focusLat: String(r.lat),
+                        focusLng: String(r.lng),
+                        focusTs: String(Date.now()),
+                      },
+                    })
+                  }
                   style={[
                     styles.reportRow,
                     i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
@@ -205,13 +216,13 @@ export default function ReportScreen() {
                       Reported {formatTimeAgo(r.timestamp, now)}
                     </Text>
                   </View>
-                  {r.distance != null && (
-                    <View style={styles.reportDist}>
+                  <View style={styles.reportDist}>
+                    {r.distance != null && (
                       <Text style={[styles.reportDistTxt, { color: distColor }]}>{distStr(r.distance)}</Text>
-                      <Ionicons name={isClose ? "chevron-down" : "chevron-forward"} size={14} color={distColor} />
-                    </View>
-                  )}
-                </View>
+                    )}
+                    <Ionicons name="chevron-forward" size={14} color={c.mutedForeground} />
+                  </View>
+                </TouchableOpacity>
               );
             })}
           </View>

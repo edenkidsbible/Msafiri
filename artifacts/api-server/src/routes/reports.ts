@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, communityReportsTable, pushTokensTable, blockedDevicesTable } from "@workspace/db";
-import { eq, and, or, lt, ne, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
+import { eq, and, or, lt, ne, gte, sql, inArray, count, isNotNull, desc } from "drizzle-orm";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -565,6 +565,40 @@ router.post("/reports/:id/confirm", async (req: Request, res: Response) => {
     return res.json({ confirmCount: newCount, status: report.status, expiresAt: newExpiresAt?.getTime() ?? null });
   } catch (err) {
     console.error("POST /reports/:id/confirm error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /reports/mine — all reports submitted by this device ─────────────────
+router.get("/reports/mine", async (req: Request, res: Response) => {
+  try {
+    const { deviceId } = req.query as { deviceId?: string };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    const rows = await db
+      .select()
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.deviceId, deviceId))
+      .orderBy(desc(communityReportsTable.createdAt));
+
+    return res.json({
+      reports: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        lat: r.lat,
+        lng: r.lng,
+        status: r.status,
+        confirmCount: r.confirmCount,
+        denyCount: r.denyCount,
+        speedLimit: r.speedLimit,
+        roadName: r.roadName,
+        adminVerified: r.adminVerified ?? false,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.getTime() : Date.now(),
+        expiresAt: r.expiresAt instanceof Date ? r.expiresAt.getTime() : null,
+      })),
+    });
+  } catch (err) {
+    console.error("GET /reports/mine error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import { ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { MAP_CHIPS, CATEGORIES, type QueryCategory, type POIResult, fetchNearbyPOIs, formatDist } from "@/utils/nearbyPlaces";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -297,12 +297,21 @@ export default function MapViewScreen() {
     focusId?: string; focusLat?: string; focusLng?: string; focusTs?: string;
   }>();
   const [focusedAlert, setFocusedAlert] = useState<{ id: string; lat: number; lng: number } | null>(null);
+
+  // ── Pulsing ring animation refs ───────────────────────────────────────────
+  const pulseRing1 = useRef(new Animated.Value(0)).current;
+  const pulseRing2 = useRef(new Animated.Value(0)).current;
+  const pulseRing3 = useRef(new Animated.Value(0)).current;
+  const pulseAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const focusDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!focusId || !focusLat || !focusLng) return;
     const lat = parseFloat(focusLat);
     const lng = parseFloat(focusLng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     setFocusedAlert({ id: focusId, lat, lng });
+
     // Defer one tick so the MapView ref exists when arriving cold on this tab.
     const t = setTimeout(() => {
       mapRef.current?.animateToRegion(
@@ -310,7 +319,38 @@ export default function MapViewScreen() {
         600,
       );
     }, 350);
-    return () => clearTimeout(t);
+
+    // Start expanding ring animation — 3 rings staggered by 466 ms each.
+    pulseAnimRef.current?.stop();
+    [pulseRing1, pulseRing2, pulseRing3].forEach((v) => v.setValue(0));
+    const makeRing = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1, duration: 1400, useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ]),
+      );
+    const anim = Animated.parallel([
+      makeRing(pulseRing1, 0),
+      makeRing(pulseRing2, 467),
+      makeRing(pulseRing3, 933),
+    ]);
+    pulseAnimRef.current = anim;
+    anim.start();
+
+    // Auto-dismiss after 3 seconds.
+    if (focusDismissTimer.current) clearTimeout(focusDismissTimer.current);
+    focusDismissTimer.current = setTimeout(() => {
+      pulseAnimRef.current?.stop();
+      setFocusedAlert(null);
+    }, 3000);
+
+    return () => {
+      clearTimeout(t);
+      if (focusDismissTimer.current) clearTimeout(focusDismissTimer.current);
+      pulseAnimRef.current?.stop();
+    };
   }, [focusId, focusLat, focusLng, focusTs]);
   const openedAtRef = useRef(0);
   const now = Date.now();
@@ -927,26 +967,51 @@ export default function MapViewScreen() {
           />
         )}
 
-        {/* Focused alert highlight — emphasized pulsing-style ring around the
-            alert the driver tapped on the home screen's Nearby Alerts list. */}
+        {/* Focused alert highlight — three animated expanding rings that pulse
+            outward for 3 seconds then auto-dismiss. Tapping the centre dot
+            also clears the focus immediately. */}
         {focusedAlert && (
           <>
-            <Circle
-              center={{ latitude: focusedAlert.lat, longitude: focusedAlert.lng }}
-              radius={120}
-              strokeColor="#00C853"
-              fillColor="#00C85322"
-              strokeWidth={2.5}
-            />
             <Marker
               coordinate={{ latitude: focusedAlert.lat, longitude: focusedAlert.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
               zIndex={999}
-              tracksViewChanges={true}
-              onPress={() => setFocusedAlert(null)}
+              tracksViewChanges
+              onPress={() => {
+                pulseAnimRef.current?.stop();
+                if (focusDismissTimer.current) clearTimeout(focusDismissTimer.current);
+                setFocusedAlert(null);
+              }}
             >
-              <View collapsable={false} style={styles.focusRing}>
-                <View style={styles.focusRingInner} />
+              <View collapsable={false} style={styles.focusMarkerWrap}>
+                {/* Ring 1 — largest, slowest to appear */}
+                <Animated.View style={[
+                  styles.pulseRing,
+                  {
+                    transform: [{ scale: pulseRing1.interpolate({ inputRange: [0, 1], outputRange: [0.4, 3.2] }) }],
+                    opacity:   pulseRing1.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.6, 0] }),
+                  },
+                ]} />
+                {/* Ring 2 */}
+                <Animated.View style={[
+                  styles.pulseRing,
+                  {
+                    transform: [{ scale: pulseRing2.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.6] }) }],
+                    opacity:   pulseRing2.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.65, 0] }),
+                  },
+                ]} />
+                {/* Ring 3 — smallest, innermost */}
+                <Animated.View style={[
+                  styles.pulseRing,
+                  {
+                    transform: [{ scale: pulseRing3.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.0] }) }],
+                    opacity:   pulseRing3.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.7, 0] }),
+                  },
+                ]} />
+                {/* Static centre dot */}
+                <View style={styles.focusRing}>
+                  <View style={styles.focusRingInner} />
+                </View>
               </View>
             </Marker>
           </>
@@ -1430,6 +1495,16 @@ export default function MapViewScreen() {
 }
 
 const styles = StyleSheet.create({
+  focusMarkerWrap: {
+    width: 80, height: 80,
+    alignItems: "center", justifyContent: "center",
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 54, height: 54, borderRadius: 27,
+    borderWidth: 2.5, borderColor: "#00C853",
+    backgroundColor: "#00C85312",
+  },
   focusRing: {
     width: 54, height: 54, borderRadius: 27,
     borderWidth: 3, borderColor: "#00C853",
