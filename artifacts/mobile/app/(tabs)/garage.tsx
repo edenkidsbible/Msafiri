@@ -87,19 +87,45 @@ function fmtDur(s: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-// ── Vehicle image (R2 PNG with 2-level fallback) ──────────────────────────────
+// ── Vehicle image (R2 PNG with smart fallback) ───────────────────────────────
+//
+// Resolution order:
+//   1. Standard model image  →  car-images/{makeId}/{modelId}.png
+//   2. For custom models:    →  car-images/{makeId}/{firstStandardModel}.png
+//   3. Give up              →  emoji
+//
+// "other/default" is intentionally never tried — it doesn't exist in R2.
+
+import { CAR_MAKES } from "@/data/carModels";
+
+/** Returns the first standard modelId for a given makeId, or null. */
+function firstStandardModel(makeId: string): string | null {
+  const make = CAR_MAKES.find(m => m.id === makeId);
+  return make?.models?.[0]?.id ?? null;
+}
 
 function VehicleImage({ v }: { v: SavedVehicle }) {
-  const [tryDefault, setTryDefault] = useState(false);
-  const [failed,     setFailed]     = useState(false);
-  const [loading,    setLoading]    = useState(true);
   const c = useColors();
 
-  const isCustom =
+  const isCustomModel =
     !v.makeId || v.makeId.startsWith("custom-") ||
     !v.modelId || v.modelId.startsWith("custom-");
 
-  if (!v.makeId || !v.modelId || failed) {
+  // For custom models, build the fallback URI upfront from the first
+  // standard model of the same make, so we only ever make one network request.
+  const resolvedModelId: string | null = (() => {
+    if (!v.makeId || v.makeId.startsWith("custom-")) return null;
+    if (!v.modelId || v.modelId.startsWith("custom-")) {
+      return firstStandardModel(v.makeId);
+    }
+    return v.modelId;
+  })();
+
+  const [failed,  setFailed]  = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // No resolvable model or previous load failure → show emoji
+  if (!resolvedModelId || failed) {
     return (
       <Text style={{ fontSize: 80, fontFamily: EMOJI_FONT_FAMILY }}>
         {getVehicleEmoji(v.vehicleType)}
@@ -107,9 +133,7 @@ function VehicleImage({ v }: { v: SavedVehicle }) {
     );
   }
 
-  const uri = tryDefault
-    ? `${API_BASE}/car-images/other/default`
-    : getCarImageUrl(v.makeId, v.modelId);
+  const uri = getCarImageUrl(v.makeId!, resolvedModelId);
 
   return (
     <View style={styles.vehicleImgWrap}>
@@ -121,11 +145,7 @@ function VehicleImage({ v }: { v: SavedVehicle }) {
         style={styles.vehicleImg}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
-        onError={() => {
-          setLoading(false);
-          if (!tryDefault && isCustom) setTryDefault(true);
-          else setFailed(true);
-        }}
+        onError={() => { setLoading(false); setFailed(true); }}
       />
     </View>
   );
