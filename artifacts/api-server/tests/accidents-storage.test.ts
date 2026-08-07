@@ -114,6 +114,17 @@ describe("POST /api/accidents/:id/photos/request-upload", () => {
     mockDb.insert.mockImplementation(() => ({
       values: vi.fn().mockResolvedValue([]),
     }));
+
+    // The endpoint wraps its DB inserts in a transaction. Proxy tx.select/insert
+    // back to the same mockDb stubs so per-test mock setups are honoured.
+    mockDb.transaction_.mockImplementation(async (callback: any) => {
+      const tx = {
+        select: (...a: any[]) => mockDb.select(...a),
+        insert: (...a: any[]) => mockDb.insert(...a),
+        delete: (...a: any[]) => mockDb.delete_(...a),
+      };
+      return callback(tx);
+    });
   });
 
   it("400 when deviceId is missing", async () => {

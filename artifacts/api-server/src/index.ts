@@ -17,6 +17,7 @@ import { startHereTrafficJob } from "./jobs/hereTraffic";
 import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
 import { startClusterHazardsJob } from "./jobs/clusterHazards";
 import { startPurgePhotoOrphansJob } from "./jobs/purgePhotoOrphans";
+import { startAbandonDraftAccidentsJob } from "./jobs/abandonDraftAccidents";
 
 const rawPort = process.env["PORT"];
 
@@ -97,6 +98,7 @@ app.listen(port, async (err) => {
   startPromoteScheduledReleasesJob();
   startClusterHazardsJob();
   startPurgePhotoOrphansJob();
+  startAbandonDraftAccidentsJob();
 
   // One-time (idempotent) copy of legacy media into R2 — runs in the
   // background so startup latency is unaffected.

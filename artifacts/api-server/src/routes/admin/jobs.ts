@@ -5,6 +5,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { runPurgePhotoOrphans } from "../../jobs/purgePhotoOrphans.js";
+import { runAbandonDraftAccidents } from "../../jobs/abandonDraftAccidents.js";
 import { logger } from "../../lib/logger.js";
 
 const router = Router();
@@ -23,6 +24,21 @@ router.post("/:jobName", async (req: Request, res: Response) => {
         res.json({ ok: true, job: jobName, result });
       } catch (err) {
         logger.error({ err }, "admin: purge-photo-orphans failed");
+        res.status(500).json({ error: "Job failed — check server logs" });
+      }
+      break;
+    }
+
+    case "abandon-draft-accidents": {
+      try {
+        const result = await runAbandonDraftAccidents();
+        logger.info(
+          { actor: (req as any).adminUser?.email, result },
+          "admin: manual abandon-draft-accidents run",
+        );
+        res.json({ ok: true, job: jobName, result });
+      } catch (err) {
+        logger.error({ err }, "admin: abandon-draft-accidents failed");
         res.status(500).json({ error: "Job failed — check server logs" });
       }
       break;

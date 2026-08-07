@@ -28,7 +28,7 @@ import {
   accidentWitnessesTable,
   accidentTimelineEventsTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ne } from "drizzle-orm";
 import * as r2 from "../lib/r2Storage.js";
 
 const router = Router();
@@ -98,7 +98,7 @@ async function fetchWeather(lat: number, lng: number): Promise<object | null> {
 async function getFullRecord(id: string, deviceId: string) {
   const [record] = await db
     .select().from(accidentRecordsTable)
-    .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
+    .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
   if (!record) return null;
   const [photos, witnesses, timeline] = await Promise.all([
     db.select().from(accidentPhotosTable).where(eq(accidentPhotosTable.accidentId, id)),
@@ -374,7 +374,10 @@ router.get("/accidents", async (req: Request, res: Response) => {
     if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
 
     const records = await db.select().from(accidentRecordsTable)
-      .where(eq(accidentRecordsTable.deviceId, deviceId))
+      .where(and(
+        eq(accidentRecordsTable.deviceId, deviceId),
+        ne(accidentRecordsTable.status, "abandoned"),
+      ))
       .orderBy(desc(accidentRecordsTable.detectedAt));
 
     // Attach photo & witness counts
@@ -483,12 +486,10 @@ router.patch("/accidents/:id", async (req: Request, res: Response) => {
     };
     if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
 
-    const [existing] = await db.select({ id: accidentRecordsTable.id })
-      .from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
-    if (!existing) return res.status(404).json({ error: "Not found" });
-
-    await db.update(accidentRecordsTable).set({
+    // Single atomic UPDATE — ownership + abandoned guard in one statement.
+    // If the record was marked abandoned between the client check and this call,
+    // the ne() predicate ensures 0 rows are returned → 404.
+    const updated = await db.update(accidentRecordsTable).set({
       ...(roadName !== undefined   ? { roadName }                                    : {}),
       ...(county !== undefined     ? { county }                                      : {}),
       ...(nearbyLandmark !== undefined ? { nearbyLandmark }                          : {}),
@@ -497,7 +498,9 @@ router.patch("/accidents/:id", async (req: Request, res: Response) => {
       ...(driverStatement !== undefined ? { driverStatement }                        : {}),
       ...(status === "complete"    ? { status: "complete" }                          : {}),
       updatedAt: new Date(),
-    }).where(eq(accidentRecordsTable.id, id));
+    }).where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+      .returning({ id: accidentRecordsTable.id });
+    if (!updated.length) return res.status(404).json({ error: "Not found" });
 
     return res.json({ ok: true });
   } catch (err) {
@@ -514,11 +517,6 @@ router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Re
       deviceId: string; category: string; contentType?: string;
     };
     if (!deviceId || !category) return res.status(400).json({ error: "deviceId and category required" });
-
-    const [existing] = await db.select({ id: accidentRecordsTable.id })
-      .from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
-    if (!existing) return res.status(404).json({ error: "Not found" });
 
     const photoId = genId();
 
@@ -539,16 +537,24 @@ router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Re
     const fileKey = `accidents/${id}/photos/${photoId}`;
     const uploadUrl = await r2.getPresignedUploadUrl(fileKey, signedContentType);
 
-    await db.insert(accidentPhotosTable).values({
-      id: photoId, accidentId: id, category, fileKey,
+    // Atomically re-verify the parent is still active before committing child rows.
+    // Presigning happens before the transaction (external I/O must not hold a
+    // transaction open), so we accept the presigned URL may be unused if the
+    // parent was abandoned in the window — that is harmless.
+    let notFound = false;
+    await db.transaction(async (tx) => {
+      const [parent] = await tx.select({ id: accidentRecordsTable.id })
+        .from(accidentRecordsTable)
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+      if (!parent) { notFound = true; return; }
+      await tx.insert(accidentPhotosTable).values({ id: photoId, accidentId: id, category, fileKey });
+      await tx.insert(accidentTimelineEventsTable).values({
+        accidentId: id, eventType: "photo_added",
+        description: `${category.replace(/_/g, " ")} photo added`,
+        occurredAt: new Date(),
+      });
     });
-
-    // Timeline event for photo upload
-    await db.insert(accidentTimelineEventsTable).values({
-      accidentId: id, eventType: "photo_added",
-      description: `${category.replace(/_/g, " ")} photo added`,
-      occurredAt: new Date(),
-    });
+    if (notFound) return res.status(404).json({ error: "Not found" });
 
     return res.json({ photoId, uploadUrl });
   } catch (err) {
@@ -567,7 +573,7 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
 
     const [record] = await db.select({ id: accidentRecordsTable.id })
       .from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
     if (!record) return res.status(404).json({ error: "Not found" });
 
     // Fetch the photo row to verify the upload actually landed in R2.
@@ -608,7 +614,7 @@ router.get("/accidents/:id/photos/:photoId/url", async (req: Request, res: Respo
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
     const [record] = await db.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
     if (!record) return res.status(404).json({ error: "Not found" });
 
     const [photo] = await db.select().from(accidentPhotosTable)
@@ -631,12 +637,15 @@ router.delete("/accidents/:id/photos/:photoId", async (req: Request, res: Respon
     const deviceId = req.query.deviceId as string;
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
-    const [record] = await db.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
-    if (!record) return res.status(404).json({ error: "Not found" });
-
-    await db.delete(accidentPhotosTable)
-      .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+    let notFound = false;
+    await db.transaction(async (tx) => {
+      const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+      if (!parent) { notFound = true; return; }
+      await tx.delete(accidentPhotosTable)
+        .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+    });
+    if (notFound) return res.status(404).json({ error: "Not found" });
 
     return res.status(204).send();
   } catch (err) {
@@ -654,15 +663,19 @@ router.post("/accidents/:id/witnesses", async (req: Request, res: Response) => {
     };
     if (!deviceId || !name) return res.status(400).json({ error: "deviceId and name required" });
 
-    const [record] = await db.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
-    if (!record) return res.status(404).json({ error: "Not found" });
+    let notFound = false;
+    let witness: typeof accidentWitnessesTable.$inferSelect | undefined;
+    await db.transaction(async (tx) => {
+      const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+      if (!parent) { notFound = true; return; }
+      [witness] = await tx.insert(accidentWitnessesTable)
+        .values({ accidentId: id, name, phone: phone ?? null, notes: notes ?? null })
+        .returning();
+    });
+    if (notFound) return res.status(404).json({ error: "Not found" });
 
-    const [witness] = await db.insert(accidentWitnessesTable)
-      .values({ accidentId: id, name, phone: phone ?? null, notes: notes ?? null })
-      .returning();
-
-    return res.status(201).json({ id: witness.id, name: witness.name, phone: witness.phone, notes: witness.notes });
+    return res.status(201).json({ id: witness!.id, name: witness!.name, phone: witness!.phone, notes: witness!.notes });
   } catch (err) {
     console.error("POST witnesses error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -677,12 +690,15 @@ router.delete("/accidents/:id/witnesses/:witnessId", async (req: Request, res: R
     const deviceId = req.query.deviceId as string;
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
-    const [record] = await db.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
-    if (!record) return res.status(404).json({ error: "Not found" });
-
-    await db.delete(accidentWitnessesTable)
-      .where(and(eq(accidentWitnessesTable.id, witnessId), eq(accidentWitnessesTable.accidentId, id)));
+    let notFound = false;
+    await db.transaction(async (tx) => {
+      const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+      if (!parent) { notFound = true; return; }
+      await tx.delete(accidentWitnessesTable)
+        .where(and(eq(accidentWitnessesTable.id, witnessId), eq(accidentWitnessesTable.accidentId, id)));
+    });
+    if (notFound) return res.status(404).json({ error: "Not found" });
 
     return res.status(204).send();
   } catch (err) {
@@ -700,14 +716,17 @@ router.post("/accidents/:id/timeline-event", async (req: Request, res: Response)
     };
     if (!deviceId || !eventType) return res.status(400).json({ error: "deviceId and eventType required" });
 
-    const [record] = await db.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
-    if (!record) return res.status(404).json({ error: "Not found" });
-
-    await db.insert(accidentTimelineEventsTable).values({
-      accidentId: id, eventType, description: description ?? null,
-      occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+    let notFound = false;
+    await db.transaction(async (tx) => {
+      const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+      if (!parent) { notFound = true; return; }
+      await tx.insert(accidentTimelineEventsTable).values({
+        accidentId: id, eventType, description: description ?? null,
+        occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+      });
     });
+    if (notFound) return res.status(404).json({ error: "Not found" });
 
     return res.status(201).json({ ok: true });
   } catch (err) {
@@ -748,10 +767,11 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     await r2.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
     const url = await signedDownloadUrl(fileKey, 3600 * 24);
 
-    // Cache the file key
+    // Cache the file key. The ne() guard means an abandoned record is not
+    // promoted to "complete" even if the sweep ran during PDF generation.
     await db.update(accidentRecordsTable)
       .set({ pdfUrl: url, pdfFileKey: fileKey, status: "complete", updatedAt: new Date() })
-      .where(eq(accidentRecordsTable.id, id));
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
 
     // Timeline event
     await db.insert(accidentTimelineEventsTable).values({
@@ -776,7 +796,7 @@ router.get("/accidents/:id/report/url", async (req: Request, res: Response) => {
 
     const [record] = await db.select({ pdfFileKey: accidentRecordsTable.pdfFileKey })
       .from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId)));
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
 
     if (!record?.pdfFileKey) return res.status(404).json({ error: "No PDF generated yet" });
 
