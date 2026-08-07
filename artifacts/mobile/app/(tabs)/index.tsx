@@ -463,62 +463,99 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionLink, { color: c.primary }]}>See all</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-              style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
-            >
-              {nearbyAlerts.map((a) => (
-                <TouchableOpacity
-                  key={a.id}
-                  activeOpacity={0.8}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(tabs)/map",
-                      params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
-                    })
-                  }
-                  style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-                >
-                  <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
-                    <Text style={{ fontSize: 18, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
-                  </View>
-                  <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={1}>
-                    {a.label}
-                  </Text>
-                  <Text style={[styles.alertDist, { color: a.color }]} numberOfLines={1}>
-                    {distStr(a.distanceM)} ahead
-                  </Text>
-                  {a.road ? (
-                    <Text style={[styles.alertRoad, { color: c.mutedForeground }]} numberOfLines={1}>
-                      {a.road}
-                    </Text>
-                  ) : null}
-                </TouchableOpacity>
-              ))}
-              {/* Course promo tile — visible without scrolling when there's 1 alert */}
-              {nearbyAlerts.length === 1 && (
-                <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseTile, { borderColor: c.primary + "44" }]}>
-                  <LinearGradient
-                    colors={c.isDark ? ["#0D2B1A", "#0A1F14"] : ["#E8F5EE", "#D0EDD9"]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                    style={styles.courseTileGrad}
+            {nearbyAlerts.length === 2 ? (
+              /* ── 2 alerts: full-width 2-column grid, horizontal card layout ── */
+              <View style={styles.alertDuoRow}>
+                {nearbyAlerts.map((a) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    activeOpacity={0.8}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(tabs)/map",
+                        params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
+                      })
+                    }
+                    style={[styles.alertDuoCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
                   >
-                    <View style={[styles.courseTileIcon, { backgroundColor: c.primary + "22" }]}>
-                      <Ionicons name="book-outline" size={22} color={c.primary} />
+                    <View style={[styles.alertDuoIcon, { backgroundColor: a.color + "22" }]}>
+                      <Text style={{ fontSize: 22, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
                     </View>
-                    <Text style={[styles.courseTileTitle, { color: c.foreground }]}>Driving Course</Text>
-                    <Text style={[styles.courseTileSub, { color: c.mutedForeground }]}>
-                      Kenya road rules &amp; signs
+                    <View style={styles.alertDuoText}>
+                      <Text style={[styles.alertDuoType, { color: c.foreground }]} numberOfLines={1}>
+                        {a.label}
+                      </Text>
+                      <Text style={[styles.alertDuoDist, { color: a.color }]} numberOfLines={1}>
+                        {distStr(a.distanceM)} ahead
+                      </Text>
+                      {a.road ? (
+                        <Text style={[styles.alertDuoRoad, { color: c.mutedForeground }]} numberOfLines={1}>
+                          {a.road}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              /* ── 1 or 3+ alerts: horizontal scroll with narrow cards ── */
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+                style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
+              >
+                {nearbyAlerts.map((a) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    activeOpacity={0.8}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(tabs)/map",
+                        params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
+                      })
+                    }
+                    style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
+                  >
+                    <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
+                      <Text style={{ fontSize: 18, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
+                    </View>
+                    <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={1}>
+                      {a.label}
                     </Text>
-                    <View style={[styles.courseTileBtn, { backgroundColor: c.primary + "22" }]}>
-                      <Text style={[styles.courseTileBtnTxt, { color: c.primary }]}>Learn →</Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
+                    <Text style={[styles.alertDist, { color: a.color }]} numberOfLines={1}>
+                      {distStr(a.distanceM)} ahead
+                    </Text>
+                    {a.road ? (
+                      <Text style={[styles.alertRoad, { color: c.mutedForeground }]} numberOfLines={1}>
+                        {a.road}
+                      </Text>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
+                {/* Course promo tile — visible without scrolling when there's 1 alert */}
+                {nearbyAlerts.length === 1 && (
+                  <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseTile, { borderColor: c.primary + "44" }]}>
+                    <LinearGradient
+                      colors={c.isDark ? ["#0D2B1A", "#0A1F14"] : ["#E8F5EE", "#D0EDD9"]}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                      style={styles.courseTileGrad}
+                    >
+                      <View style={[styles.courseTileIcon, { backgroundColor: c.primary + "22" }]}>
+                        <Ionicons name="book-outline" size={22} color={c.primary} />
+                      </View>
+                      <Text style={[styles.courseTileTitle, { color: c.foreground }]}>Driving Course</Text>
+                      <Text style={[styles.courseTileSub, { color: c.mutedForeground }]}>
+                        Kenya road rules &amp; signs
+                      </Text>
+                      <View style={[styles.courseTileBtn, { backgroundColor: c.primary + "22" }]}>
+                        <Text style={[styles.courseTileBtnTxt, { color: c.primary }]}>Learn →</Text>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            )}
             {/* Course promo banner — shown below scroll when there are 2 alerts */}
             {nearbyAlerts.length === 2 && (
               <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseBanner, { borderColor: c.primary + "44" }]}>
@@ -803,6 +840,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
   sectionLink: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
+  // ── Narrow scroll cards (1 alert or 3+) ─────────────────────────────────
   alertCard: {
     width: 140, borderRadius: 16, borderWidth: 1, padding: 12, gap: 6,
   },
@@ -810,6 +848,23 @@ const styles = StyleSheet.create({
   alertType: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 2 },
   alertDist: { fontSize: 12.5, fontFamily: "Inter_700Bold" },
   alertRoad: { fontSize: 11, fontFamily: "Inter_400Regular" },
+
+  // ── 2-column full-width grid cards (exactly 2 alerts) ────────────────────
+  alertDuoRow: {
+    flexDirection: "row", gap: 10,
+  },
+  alertDuoCard: {
+    flex: 1, flexDirection: "row", alignItems: "center",
+    gap: 10, borderRadius: 16, borderWidth: 1, padding: 12,
+  },
+  alertDuoIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  alertDuoText: { flex: 1, minWidth: 0, gap: 2 },
+  alertDuoType: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  alertDuoDist: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  alertDuoRoad: { fontSize: 11, fontFamily: "Inter_400Regular" },
 
   emptyCard: {
     flexDirection: "row", alignItems: "center", gap: 8,
