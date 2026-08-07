@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -9,6 +9,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { DriveSession, listDriveSessions, scoreColor, scoreLabel, formatDuration } from "@/utils/driveSessionApi";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { useDriveScore } from "@/hooks/useDriveScore";
+import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const QUICK_LINKS = [
@@ -54,11 +55,39 @@ function tripDateLabel(iso: string): string {
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
 }
 
+/** Car image in the My Vehicle card — transparent PNG from R2, falls back to emoji. */
+function VehicleImage({ makeId, modelId, vehicleType }: { makeId: string | null; modelId: string | null; vehicleType: string }) {
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const c = useColors();
+
+  if (!makeId || !modelId || failed) {
+    return (
+      <Text style={[{ fontSize: 72, fontFamily: EMOJI_FONT_FAMILY }]}>
+        {getVehicleEmoji(vehicleType)}
+      </Text>
+    );
+  }
+
+  return (
+    <View style={{ width: 120, height: 80, alignItems: "center", justifyContent: "center" }}>
+      {loading && <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />}
+      <Image
+        source={{ uri: getCarImageUrl(makeId, modelId) }}
+        style={{ width: 120, height: 80 }}
+        resizeMode="contain"
+        onLoad={() => setLoading(false)}
+        onError={() => { setFailed(true); setLoading(false); }}
+      />
+    </View>
+  );
+}
+
 export default function GarageScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const tabBarH = Platform.OS === "web" ? 84 : 96;
-  const { vehicleType, deviceId } = useApp();
+  const { vehicleType, deviceId, vehicleMakeId, vehicleModelId } = useApp();
   const { isSubscribed } = useSubscription();
 
   // Load drive sessions
@@ -89,6 +118,13 @@ export default function GarageScreen() {
   const sColor = scoreColor(lastSessionScore);
 
   const recentTrips = completedSessions.slice(0, 3);
+
+  // Resolve selected make/model display names
+  const selectedMake = vehicleMakeId ? getMakeById(vehicleMakeId) : null;
+  const selectedModel = (vehicleMakeId && vehicleModelId) ? getModelById(vehicleMakeId, vehicleModelId) : null;
+  const vehicleDisplayName = selectedMake && selectedModel
+    ? `${selectedMake.name} ${selectedModel.name}`
+    : getVehicleLabel(vehicleType);
 
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>
@@ -177,26 +213,42 @@ export default function GarageScreen() {
           <Text style={[styles.sectionTitle, { color: c.foreground }]}>My Vehicle</Text>
           <View style={styles.vehicleContent}>
             <View style={styles.vehicleLeft}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={[styles.vehicleLabel, { color: c.foreground }]}>{getVehicleLabel(vehicleType)}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Text style={[styles.vehicleLabel, { color: c.foreground }]} numberOfLines={1}>
+                  {vehicleDisplayName}
+                </Text>
                 <View style={[styles.primaryBadge, { backgroundColor: c.primary + "22" }]}>
                   <Text style={[styles.primaryBadgeTxt, { color: c.primary }]}>Primary</Text>
                 </View>
               </View>
-              <View style={[styles.plateBox, { backgroundColor: c.background, borderColor: c.tileBorder }]}>
-                <Text style={[styles.plateTxt, { color: c.foreground }]}>KDD 123A</Text>
-              </View>
+
+              {!vehicleMakeId ? (
+                /* Prompt to pick a car */
+                <TouchableOpacity
+                  style={[styles.selectCarBtn, { backgroundColor: c.primary }]}
+                  onPress={() => router.push("/car-picker" as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="car-outline" size={14} color="#fff" />
+                  <Text style={styles.selectCarBtnTxt}>Select your car</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.plateBox, { backgroundColor: c.background, borderColor: c.tileBorder }]}>
+                  <Text style={[styles.plateTxt, { color: c.foreground }]}>KDD 123A</Text>
+                </View>
+              )}
+
               <TouchableOpacity
                 style={[styles.outlineBtn, { borderColor: c.border }]}
-                onPress={() => router.push("/personal-information" as any)}
+                onPress={() => router.push("/car-picker" as any)}
               >
-                <Text style={[styles.outlineBtnTxt, { color: c.foreground }]}>Vehicle Details {">"}</Text>
+                <Text style={[styles.outlineBtnTxt, { color: c.foreground }]}>
+                  {vehicleMakeId ? "Change Car >" : "Vehicle Details >"}
+                </Text>
               </TouchableOpacity>
             </View>
             <View style={styles.vehicleRight}>
-              <Text style={[{ fontSize: 72, fontFamily: EMOJI_FONT_FAMILY }]}>
-                {getVehicleEmoji(vehicleType)}
-              </Text>
+              <VehicleImage makeId={vehicleMakeId} modelId={vehicleModelId} vehicleType={vehicleType} />
             </View>
           </View>
         </View>
@@ -339,18 +391,23 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   vehicleContent: { flexDirection: "row", marginTop: 14, alignItems: "center" },
   vehicleLeft: { flex: 1, alignItems: "flex-start", gap: 10 },
-  vehicleLabel: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  vehicleLabel: { fontSize: 17, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   primaryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   primaryBadgeTxt: { fontSize: 11, fontFamily: "Inter_700Bold" },
   plateBox: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
   },
   plateTxt: { fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  selectCarBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+  },
+  selectCarBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   outlineBtn: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, marginTop: 4
   },
   outlineBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  vehicleRight: { width: 90, alignItems: "center", justifyContent: "center" },
+  vehicleRight: { width: 130, alignItems: "center", justifyContent: "center" },
 
   quickAccessSection: { marginBottom: 20 },
   quickCard: {

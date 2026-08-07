@@ -851,3 +851,10 @@ id = "o0aErKjF_UwhmOLRhruUm"
 uri = "file://artifacts/mobile/assets/sounds/keli/exit_5th.mp3"
 type = "audio"
 title = "exit_5th"
+
+[[outputs]]
+id = "-i3dCehNi5MS1sHZwZdD1"
+uri = "file://attached_assets/car_previews/alto-preview.png"
+type = "image"
+title = "Suzuki Alto — style sample (dark & light)"
+description = "Proposed studio style for all car images: 3/4 front studio shot, transparent PNG, shown against dark and light backgrounds."

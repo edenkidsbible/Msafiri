@@ -236,6 +236,12 @@ interface AppContextValue {
   isOffline: boolean;
   vehicleType: VehicleTypeId;
   setVehicleType: (v: VehicleTypeId) => void;
+  /** Selected car make id (e.g. "toyota"). Null when not yet chosen. */
+  vehicleMakeId: string | null;
+  /** Selected car model id (e.g. "hilux"). Null when not yet chosen. */
+  vehicleModelId: string | null;
+  /** Save make + model together; always set both at once. */
+  setVehicleModel: (makeId: string, modelId: string) => void;
   // Navigation
   navDestination: NavDestination | null;
   setNavDestination: (d: NavDestination | null) => void;
@@ -358,6 +364,8 @@ const KEYS = {
   DEVICE_ID: "sdk_device_id",
   THEME: "sdk_theme",
   VEHICLE_TYPE: "sdk_vehicle_type",
+  VEHICLE_MAKE_ID: "sdk_vehicle_make_id",
+  VEHICLE_MODEL_ID: "sdk_vehicle_model_id",
   SHARE: "sdk_share",  // active sharing session — persisted so it survives backgrounding
   DRIVER_NAME: "sdk_driver_name",  // display name shown to live-share recipients
   CRASH_SENSITIVITY: "sdk_crash_sensitivity",
@@ -940,6 +948,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isOffline, setIsOffline] = useState(false);
   const [vehicleType, setVehicleTypeState] = useState<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   const vehicleTypeRef = useRef<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
+  const [vehicleMakeId, setVehicleMakeIdState] = useState<string | null>(null);
+  const [vehicleModelId, setVehicleModelIdState] = useState<string | null>(null);
   const currentLatRef = useRef<number | null>(null);
   const currentLngRef = useRef<number | null>(null);
   // Extra navigation refs used by the share-trip ping interval so it can read
@@ -1152,7 +1162,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto, storedMakeId, storedModelId] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -1165,6 +1175,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(KEYS.DRIVER_NAME),
         AsyncStorage.getItem(KEYS.CRASH_SENSITIVITY),
         AsyncStorage.getItem("profile_photo_uri"),
+        AsyncStorage.getItem(KEYS.VEHICLE_MAKE_ID),
+        AsyncStorage.getItem(KEYS.VEHICLE_MODEL_ID),
       ]);
       if (storedVehicleType) {
         const v = storedVehicleType as VehicleTypeId;
@@ -1219,6 +1231,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         crashSensitivityRef.current = storedCrashSensitivity;
       }
       if (storedProfilePhoto) setProfilePhotoUriState(storedProfilePhoto);
+      if (storedMakeId) setVehicleMakeIdState(storedMakeId);
+      if (storedModelId) setVehicleModelIdState(storedModelId);
       setOnboardingComplete(onboarded === "true");
       // Restore any sharing session that survived backgrounding or an app restart
       if (savedShare) {
@@ -3059,6 +3073,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(KEYS.VEHICLE_TYPE, v);
   }, []);
 
+  const setVehicleModel = useCallback((makeId: string, modelId: string) => {
+    setVehicleMakeIdState(makeId);
+    setVehicleModelIdState(modelId);
+    AsyncStorage.setItem(KEYS.VEHICLE_MAKE_ID, makeId).catch(() => {});
+    AsyncStorage.setItem(KEYS.VEHICLE_MODEL_ID, modelId).catch(() => {});
+  }, []);
+
   // ── Crash sensitivity persisted setting ─────────────────────────────────
   const setCrashSensitivity = useCallback((v: "low" | "medium" | "high") => {
     setCrashSensitivityState(v);
@@ -3256,6 +3277,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.multiRemove([
       KEYS.TRIPS, KEYS.REPORTS, KEYS.HUD, KEYS.SOS,
       KEYS.ONBOARDING, KEYS.DEVICE_ID, KEYS.THEME, KEYS.VEHICLE_TYPE,
+      KEYS.VEHICLE_MAKE_ID, KEYS.VEHICLE_MODEL_ID,
     ]);
     setTripHistory([]);
     setCommunityReports([]);
@@ -3264,6 +3286,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setThemeOverrideState("system");
     setVehicleTypeState(DEFAULT_VEHICLE_TYPE);
     vehicleTypeRef.current = DEFAULT_VEHICLE_TYPE;
+    setVehicleMakeIdState(null);
+    setVehicleModelIdState(null);
     if (Platform.OS !== "web") Appearance.setColorScheme(null);
     const newId = genId() + genId();
     await AsyncStorage.setItem(KEYS.DEVICE_ID, newId);
@@ -3902,6 +3926,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hydrated, onboardingComplete, completeOnboarding,
       isOffline,
       vehicleType, setVehicleType,
+      vehicleMakeId, vehicleModelId, setVehicleModel,
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
       isSharingTrip: shareToken !== null,

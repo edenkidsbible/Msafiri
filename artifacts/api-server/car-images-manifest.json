@@ -1,0 +1,1135 @@
+{
+  "generated": "2026-08-07T12:52:35.406Z",
+  "totalImages": 282,
+  "note": "All images uploaded to R2 at car-images/{makeId}/{modelId}.png. Run upload-car-images.mjs to regenerate.",
+  "images": [
+    {
+      "key": "car-images/audi/a3.png",
+      "sizeBytes": 1050814
+    },
+    {
+      "key": "car-images/audi/a4.png",
+      "sizeBytes": 1086718
+    },
+    {
+      "key": "car-images/audi/a5.png",
+      "sizeBytes": 1052431
+    },
+    {
+      "key": "car-images/audi/a6.png",
+      "sizeBytes": 1051425
+    },
+    {
+      "key": "car-images/audi/q2.png",
+      "sizeBytes": 1023911
+    },
+    {
+      "key": "car-images/audi/q3.png",
+      "sizeBytes": 1072737
+    },
+    {
+      "key": "car-images/audi/q5.png",
+      "sizeBytes": 1229071
+    },
+    {
+      "key": "car-images/audi/q7.png",
+      "sizeBytes": 1224739
+    },
+    {
+      "key": "car-images/bmw/1-series.png",
+      "sizeBytes": 1114832
+    },
+    {
+      "key": "car-images/bmw/2-series.png",
+      "sizeBytes": 978754
+    },
+    {
+      "key": "car-images/bmw/3-series.png",
+      "sizeBytes": 992596
+    },
+    {
+      "key": "car-images/bmw/5-series.png",
+      "sizeBytes": 1187425
+    },
+    {
+      "key": "car-images/bmw/7-series.png",
+      "sizeBytes": 1158191
+    },
+    {
+      "key": "car-images/bmw/x1.png",
+      "sizeBytes": 1065270
+    },
+    {
+      "key": "car-images/bmw/x3.png",
+      "sizeBytes": 1047579
+    },
+    {
+      "key": "car-images/bmw/x5.png",
+      "sizeBytes": 1060855
+    },
+    {
+      "key": "car-images/bmw/x6.png",
+      "sizeBytes": 1015505
+    },
+    {
+      "key": "car-images/chevrolet/aveo.png",
+      "sizeBytes": 1346432
+    },
+    {
+      "key": "car-images/chevrolet/captiva.png",
+      "sizeBytes": 1120835
+    },
+    {
+      "key": "car-images/chevrolet/cruze.png",
+      "sizeBytes": 1024142
+    },
+    {
+      "key": "car-images/chevrolet/trailblazer.png",
+      "sizeBytes": 1094770
+    },
+    {
+      "key": "car-images/daihatsu/hijet.png",
+      "sizeBytes": 1136130
+    },
+    {
+      "key": "car-images/daihatsu/mira.png",
+      "sizeBytes": 1041340
+    },
+    {
+      "key": "car-images/daihatsu/rocky.png",
+      "sizeBytes": 999835
+    },
+    {
+      "key": "car-images/daihatsu/terios.png",
+      "sizeBytes": 1093931
+    },
+    {
+      "key": "car-images/ford/ecosport.png",
+      "sizeBytes": 1110168
+    },
+    {
+      "key": "car-images/ford/escape.png",
+      "sizeBytes": 1118120
+    },
+    {
+      "key": "car-images/ford/everest.png",
+      "sizeBytes": 1102557
+    },
+    {
+      "key": "car-images/ford/explorer.png",
+      "sizeBytes": 1045799
+    },
+    {
+      "key": "car-images/ford/focus.png",
+      "sizeBytes": 1070995
+    },
+    {
+      "key": "car-images/ford/fusion.png",
+      "sizeBytes": 1033113
+    },
+    {
+      "key": "car-images/ford/kuga.png",
+      "sizeBytes": 1101465
+    },
+    {
+      "key": "car-images/ford/mustang.png",
+      "sizeBytes": 1015892
+    },
+    {
+      "key": "car-images/ford/ranger.png",
+      "sizeBytes": 1092811
+    },
+    {
+      "key": "car-images/honda/accord.png",
+      "sizeBytes": 1031192
+    },
+    {
+      "key": "car-images/honda/airwave.png",
+      "sizeBytes": 1043436
+    },
+    {
+      "key": "car-images/honda/civic.png",
+      "sizeBytes": 1102980
+    },
+    {
+      "key": "car-images/honda/cr-v.png",
+      "sizeBytes": 1368258
+    },
+    {
+      "key": "car-images/honda/fit.png",
+      "sizeBytes": 1282788
+    },
+    {
+      "key": "car-images/honda/freed.png",
+      "sizeBytes": 996065
+    },
+    {
+      "key": "car-images/honda/grace.png",
+      "sizeBytes": 1067123
+    },
+    {
+      "key": "car-images/honda/hr-v.png",
+      "sizeBytes": 1062584
+    },
+    {
+      "key": "car-images/honda/insight.png",
+      "sizeBytes": 1062534
+    },
+    {
+      "key": "car-images/honda/jazz.png",
+      "sizeBytes": 1029887
+    },
+    {
+      "key": "car-images/honda/odyssey.png",
+      "sizeBytes": 1034450
+    },
+    {
+      "key": "car-images/honda/pilot.png",
+      "sizeBytes": 1038059
+    },
+    {
+      "key": "car-images/honda/shuttle.png",
+      "sizeBytes": 1080232
+    },
+    {
+      "key": "car-images/honda/stepwgn.png",
+      "sizeBytes": 1028883
+    },
+    {
+      "key": "car-images/honda/stream.png",
+      "sizeBytes": 1200708
+    },
+    {
+      "key": "car-images/honda/vezel.png",
+      "sizeBytes": 1038888
+    },
+    {
+      "key": "car-images/hyundai/accent.png",
+      "sizeBytes": 1047459
+    },
+    {
+      "key": "car-images/hyundai/creta.png",
+      "sizeBytes": 1040984
+    },
+    {
+      "key": "car-images/hyundai/elantra.png",
+      "sizeBytes": 1005729
+    },
+    {
+      "key": "car-images/hyundai/i10.png",
+      "sizeBytes": 1097645
+    },
+    {
+      "key": "car-images/hyundai/i20.png",
+      "sizeBytes": 1265715
+    },
+    {
+      "key": "car-images/hyundai/kona.png",
+      "sizeBytes": 983531
+    },
+    {
+      "key": "car-images/hyundai/santa-fe.png",
+      "sizeBytes": 1015933
+    },
+    {
+      "key": "car-images/hyundai/sonata.png",
+      "sizeBytes": 1019354
+    },
+    {
+      "key": "car-images/hyundai/tucson.png",
+      "sizeBytes": 1048498
+    },
+    {
+      "key": "car-images/hyundai/venue.png",
+      "sizeBytes": 1044048
+    },
+    {
+      "key": "car-images/isuzu/d-max.png",
+      "sizeBytes": 1126641
+    },
+    {
+      "key": "car-images/isuzu/frr.png",
+      "sizeBytes": 1069282
+    },
+    {
+      "key": "car-images/isuzu/mu-x.png",
+      "sizeBytes": 1074568
+    },
+    {
+      "key": "car-images/isuzu/npr.png",
+      "sizeBytes": 1009421
+    },
+    {
+      "key": "car-images/isuzu/nqr.png",
+      "sizeBytes": 1262407
+    },
+    {
+      "key": "car-images/isuzu/trooper.png",
+      "sizeBytes": 1055927
+    },
+    {
+      "key": "car-images/jaguar/f-pace.png",
+      "sizeBytes": 1023887
+    },
+    {
+      "key": "car-images/jaguar/xe.png",
+      "sizeBytes": 1236646
+    },
+    {
+      "key": "car-images/jaguar/xf.png",
+      "sizeBytes": 1194880
+    },
+    {
+      "key": "car-images/jeep/cherokee.png",
+      "sizeBytes": 1058213
+    },
+    {
+      "key": "car-images/jeep/compass.png",
+      "sizeBytes": 1059890
+    },
+    {
+      "key": "car-images/jeep/grand-cherokee.png",
+      "sizeBytes": 1006287
+    },
+    {
+      "key": "car-images/jeep/renegade.png",
+      "sizeBytes": 1273869
+    },
+    {
+      "key": "car-images/jeep/wrangler.png",
+      "sizeBytes": 1078207
+    },
+    {
+      "key": "car-images/kia/carnival.png",
+      "sizeBytes": 1052508
+    },
+    {
+      "key": "car-images/kia/cerato.png",
+      "sizeBytes": 991334
+    },
+    {
+      "key": "car-images/kia/picanto.png",
+      "sizeBytes": 1019612
+    },
+    {
+      "key": "car-images/kia/rio.png",
+      "sizeBytes": 1061227
+    },
+    {
+      "key": "car-images/kia/seltos.png",
+      "sizeBytes": 992092
+    },
+    {
+      "key": "car-images/kia/sorento.png",
+      "sizeBytes": 1079999
+    },
+    {
+      "key": "car-images/kia/soul.png",
+      "sizeBytes": 1090089
+    },
+    {
+      "key": "car-images/kia/sportage.png",
+      "sizeBytes": 1198209
+    },
+    {
+      "key": "car-images/kia/stinger.png",
+      "sizeBytes": 1012208
+    },
+    {
+      "key": "car-images/land-rover/defender.png",
+      "sizeBytes": 1023897
+    },
+    {
+      "key": "car-images/land-rover/discovery-sport.png",
+      "sizeBytes": 1093602
+    },
+    {
+      "key": "car-images/land-rover/discovery.png",
+      "sizeBytes": 1081720
+    },
+    {
+      "key": "car-images/land-rover/freelander.png",
+      "sizeBytes": 1100976
+    },
+    {
+      "key": "car-images/land-rover/range-rover-evoque.png",
+      "sizeBytes": 1048155
+    },
+    {
+      "key": "car-images/land-rover/range-rover-sport.png",
+      "sizeBytes": 1225542
+    },
+    {
+      "key": "car-images/land-rover/range-rover-velar.png",
+      "sizeBytes": 1026382
+    },
+    {
+      "key": "car-images/land-rover/range-rover.png",
+      "sizeBytes": 985481
+    },
+    {
+      "key": "car-images/lexus/ct.png",
+      "sizeBytes": 1073869
+    },
+    {
+      "key": "car-images/lexus/es.png",
+      "sizeBytes": 1060816
+    },
+    {
+      "key": "car-images/lexus/gx.png",
+      "sizeBytes": 1213505
+    },
+    {
+      "key": "car-images/lexus/is.png",
+      "sizeBytes": 1059662
+    },
+    {
+      "key": "car-images/lexus/lx.png",
+      "sizeBytes": 1038827
+    },
+    {
+      "key": "car-images/lexus/nx.png",
+      "sizeBytes": 1054015
+    },
+    {
+      "key": "car-images/lexus/rx.png",
+      "sizeBytes": 1059083
+    },
+    {
+      "key": "car-images/lexus/ux.png",
+      "sizeBytes": 1076968
+    },
+    {
+      "key": "car-images/mazda/atenza.png",
+      "sizeBytes": 1017083
+    },
+    {
+      "key": "car-images/mazda/axela.png",
+      "sizeBytes": 1071163
+    },
+    {
+      "key": "car-images/mazda/biante.png",
+      "sizeBytes": 1073365
+    },
+    {
+      "key": "car-images/mazda/bongo.png",
+      "sizeBytes": 1034368
+    },
+    {
+      "key": "car-images/mazda/bt-50.png",
+      "sizeBytes": 1071598
+    },
+    {
+      "key": "car-images/mazda/carol.png",
+      "sizeBytes": 1048498
+    },
+    {
+      "key": "car-images/mazda/cx-3.png",
+      "sizeBytes": 1020042
+    },
+    {
+      "key": "car-images/mazda/cx-30.png",
+      "sizeBytes": 1053788
+    },
+    {
+      "key": "car-images/mazda/cx-5.png",
+      "sizeBytes": 1056403
+    },
+    {
+      "key": "car-images/mazda/cx-8.png",
+      "sizeBytes": 1093373
+    },
+    {
+      "key": "car-images/mazda/demio.png",
+      "sizeBytes": 1362079
+    },
+    {
+      "key": "car-images/mazda/mpv.png",
+      "sizeBytes": 1069438
+    },
+    {
+      "key": "car-images/mazda/premacy.png",
+      "sizeBytes": 1013572
+    },
+    {
+      "key": "car-images/mazda/verisa.png",
+      "sizeBytes": 1053987
+    },
+    {
+      "key": "car-images/mercedes-benz/a-class.png",
+      "sizeBytes": 1035535
+    },
+    {
+      "key": "car-images/mercedes-benz/b-class.png",
+      "sizeBytes": 1025203
+    },
+    {
+      "key": "car-images/mercedes-benz/c-class.png",
+      "sizeBytes": 1185552
+    },
+    {
+      "key": "car-images/mercedes-benz/cla.png",
+      "sizeBytes": 1008181
+    },
+    {
+      "key": "car-images/mercedes-benz/e-class.png",
+      "sizeBytes": 1025553
+    },
+    {
+      "key": "car-images/mercedes-benz/gla.png",
+      "sizeBytes": 1112326
+    },
+    {
+      "key": "car-images/mercedes-benz/glc.png",
+      "sizeBytes": 1084216
+    },
+    {
+      "key": "car-images/mercedes-benz/gle.png",
+      "sizeBytes": 1341734
+    },
+    {
+      "key": "car-images/mercedes-benz/glk.png",
+      "sizeBytes": 1032007
+    },
+    {
+      "key": "car-images/mercedes-benz/ml.png",
+      "sizeBytes": 1104957
+    },
+    {
+      "key": "car-images/mercedes-benz/s-class.png",
+      "sizeBytes": 1211164
+    },
+    {
+      "key": "car-images/mercedes-benz/sprinter.png",
+      "sizeBytes": 1229012
+    },
+    {
+      "key": "car-images/mercedes-benz/vito.png",
+      "sizeBytes": 1025752
+    },
+    {
+      "key": "car-images/mitsubishi/asx.png",
+      "sizeBytes": 1094789
+    },
+    {
+      "key": "car-images/mitsubishi/attrage.png",
+      "sizeBytes": 1085868
+    },
+    {
+      "key": "car-images/mitsubishi/canter.png",
+      "sizeBytes": 1107457
+    },
+    {
+      "key": "car-images/mitsubishi/colt.png",
+      "sizeBytes": 1015683
+    },
+    {
+      "key": "car-images/mitsubishi/delica.png",
+      "sizeBytes": 1058606
+    },
+    {
+      "key": "car-images/mitsubishi/eclipse-cross.png",
+      "sizeBytes": 1039047
+    },
+    {
+      "key": "car-images/mitsubishi/fuso-fighter.png",
+      "sizeBytes": 1017607
+    },
+    {
+      "key": "car-images/mitsubishi/galant.png",
+      "sizeBytes": 1203620
+    },
+    {
+      "key": "car-images/mitsubishi/grandis.png",
+      "sizeBytes": 1029799
+    },
+    {
+      "key": "car-images/mitsubishi/l200.png",
+      "sizeBytes": 1313142
+    },
+    {
+      "key": "car-images/mitsubishi/lancer.png",
+      "sizeBytes": 1049376
+    },
+    {
+      "key": "car-images/mitsubishi/mirage.png",
+      "sizeBytes": 1049150
+    },
+    {
+      "key": "car-images/mitsubishi/outlander.png",
+      "sizeBytes": 1023416
+    },
+    {
+      "key": "car-images/mitsubishi/pajero-mini.png",
+      "sizeBytes": 1113870
+    },
+    {
+      "key": "car-images/mitsubishi/pajero-sport.png",
+      "sizeBytes": 1049756
+    },
+    {
+      "key": "car-images/mitsubishi/pajero.png",
+      "sizeBytes": 1102847
+    },
+    {
+      "key": "car-images/mitsubishi/rvr.png",
+      "sizeBytes": 1031091
+    },
+    {
+      "key": "car-images/mitsubishi/shogun.png",
+      "sizeBytes": 1102280
+    },
+    {
+      "key": "car-images/nissan/ad-van.png",
+      "sizeBytes": 975460
+    },
+    {
+      "key": "car-images/nissan/bluebird.png",
+      "sizeBytes": 1347676
+    },
+    {
+      "key": "car-images/nissan/caravan.png",
+      "sizeBytes": 1063183
+    },
+    {
+      "key": "car-images/nissan/cube.png",
+      "sizeBytes": 1029673
+    },
+    {
+      "key": "car-images/nissan/dualis.png",
+      "sizeBytes": 1042592
+    },
+    {
+      "key": "car-images/nissan/elgrand.png",
+      "sizeBytes": 1034373
+    },
+    {
+      "key": "car-images/nissan/juke.png",
+      "sizeBytes": 1041247
+    },
+    {
+      "key": "car-images/nissan/kicks.png",
+      "sizeBytes": 1083609
+    },
+    {
+      "key": "car-images/nissan/lafesta.png",
+      "sizeBytes": 1090964
+    },
+    {
+      "key": "car-images/nissan/latio.png",
+      "sizeBytes": 1064059
+    },
+    {
+      "key": "car-images/nissan/leaf.png",
+      "sizeBytes": 1029661
+    },
+    {
+      "key": "car-images/nissan/march.png",
+      "sizeBytes": 1061175
+    },
+    {
+      "key": "car-images/nissan/micra.png",
+      "sizeBytes": 1056481
+    },
+    {
+      "key": "car-images/nissan/murano.png",
+      "sizeBytes": 1048102
+    },
+    {
+      "key": "car-images/nissan/navara.png",
+      "sizeBytes": 1185128
+    },
+    {
+      "key": "car-images/nissan/note.png",
+      "sizeBytes": 1066852
+    },
+    {
+      "key": "car-images/nissan/nv200.png",
+      "sizeBytes": 1045112
+    },
+    {
+      "key": "car-images/nissan/nv350.png",
+      "sizeBytes": 1105121
+    },
+    {
+      "key": "car-images/nissan/patrol.png",
+      "sizeBytes": 1069702
+    },
+    {
+      "key": "car-images/nissan/qashqai.png",
+      "sizeBytes": 1095374
+    },
+    {
+      "key": "car-images/nissan/serena.png",
+      "sizeBytes": 1084472
+    },
+    {
+      "key": "car-images/nissan/sunny.png",
+      "sizeBytes": 1031473
+    },
+    {
+      "key": "car-images/nissan/sylphy.png",
+      "sizeBytes": 1175602
+    },
+    {
+      "key": "car-images/nissan/teana.png",
+      "sizeBytes": 1008844
+    },
+    {
+      "key": "car-images/nissan/tiida.png",
+      "sizeBytes": 1057966
+    },
+    {
+      "key": "car-images/nissan/wingroad.png",
+      "sizeBytes": 1067029
+    },
+    {
+      "key": "car-images/nissan/x-trail.png",
+      "sizeBytes": 1067282
+    },
+    {
+      "key": "car-images/peugeot/2008.png",
+      "sizeBytes": 1237451
+    },
+    {
+      "key": "car-images/peugeot/206.png",
+      "sizeBytes": 1043866
+    },
+    {
+      "key": "car-images/peugeot/207.png",
+      "sizeBytes": 1009896
+    },
+    {
+      "key": "car-images/peugeot/208.png",
+      "sizeBytes": 1046931
+    },
+    {
+      "key": "car-images/peugeot/3008.png",
+      "sizeBytes": 1262712
+    },
+    {
+      "key": "car-images/peugeot/307.png",
+      "sizeBytes": 1021942
+    },
+    {
+      "key": "car-images/peugeot/308.png",
+      "sizeBytes": 1010963
+    },
+    {
+      "key": "car-images/peugeot/406.png",
+      "sizeBytes": 1236415
+    },
+    {
+      "key": "car-images/peugeot/5008.png",
+      "sizeBytes": 1093356
+    },
+    {
+      "key": "car-images/peugeot/504.png",
+      "sizeBytes": 1297985
+    },
+    {
+      "key": "car-images/peugeot/508.png",
+      "sizeBytes": 1291721
+    },
+    {
+      "key": "car-images/peugeot/partner.png",
+      "sizeBytes": 1165019
+    },
+    {
+      "key": "car-images/porsche/cayenne.png",
+      "sizeBytes": 1039680
+    },
+    {
+      "key": "car-images/porsche/macan.png",
+      "sizeBytes": 1265446
+    },
+    {
+      "key": "car-images/porsche/panamera.png",
+      "sizeBytes": 1004878
+    },
+    {
+      "key": "car-images/renault/duster.png",
+      "sizeBytes": 1057866
+    },
+    {
+      "key": "car-images/renault/kwid.png",
+      "sizeBytes": 1079858
+    },
+    {
+      "key": "car-images/renault/megane.png",
+      "sizeBytes": 1087177
+    },
+    {
+      "key": "car-images/subaru/crosstrek.png",
+      "sizeBytes": 1283380
+    },
+    {
+      "key": "car-images/subaru/exiga.png",
+      "sizeBytes": 1049443
+    },
+    {
+      "key": "car-images/subaru/forester.png",
+      "sizeBytes": 1105540
+    },
+    {
+      "key": "car-images/subaru/impreza.png",
+      "sizeBytes": 1310919
+    },
+    {
+      "key": "car-images/subaru/legacy.png",
+      "sizeBytes": 1038005
+    },
+    {
+      "key": "car-images/subaru/levorg.png",
+      "sizeBytes": 1037850
+    },
+    {
+      "key": "car-images/subaru/outback.png",
+      "sizeBytes": 1094219
+    },
+    {
+      "key": "car-images/subaru/trezia.png",
+      "sizeBytes": 1082775
+    },
+    {
+      "key": "car-images/subaru/tribeca.png",
+      "sizeBytes": 1091196
+    },
+    {
+      "key": "car-images/subaru/wrx.png",
+      "sizeBytes": 1033551
+    },
+    {
+      "key": "car-images/subaru/xv.png",
+      "sizeBytes": 1022981
+    },
+    {
+      "key": "car-images/suzuki/alto.png",
+      "sizeBytes": 993847
+    },
+    {
+      "key": "car-images/suzuki/baleno.png",
+      "sizeBytes": 1116846
+    },
+    {
+      "key": "car-images/suzuki/celerio.png",
+      "sizeBytes": 1057542
+    },
+    {
+      "key": "car-images/suzuki/ertiga.png",
+      "sizeBytes": 1036177
+    },
+    {
+      "key": "car-images/suzuki/escudo.png",
+      "sizeBytes": 1088926
+    },
+    {
+      "key": "car-images/suzuki/every.png",
+      "sizeBytes": 1111534
+    },
+    {
+      "key": "car-images/suzuki/hustler.png",
+      "sizeBytes": 1133911
+    },
+    {
+      "key": "car-images/suzuki/ignis.png",
+      "sizeBytes": 1335724
+    },
+    {
+      "key": "car-images/suzuki/jimny.png",
+      "sizeBytes": 1067724
+    },
+    {
+      "key": "car-images/suzuki/solio.png",
+      "sizeBytes": 1108744
+    },
+    {
+      "key": "car-images/suzuki/swift.png",
+      "sizeBytes": 1082833
+    },
+    {
+      "key": "car-images/suzuki/sx4.png",
+      "sizeBytes": 1278141
+    },
+    {
+      "key": "car-images/suzuki/vitara.png",
+      "sizeBytes": 1030007
+    },
+    {
+      "key": "car-images/suzuki/wagon-r.png",
+      "sizeBytes": 1371611
+    },
+    {
+      "key": "car-images/toyota/allion.png",
+      "sizeBytes": 1059658
+    },
+    {
+      "key": "car-images/toyota/alphard.png",
+      "sizeBytes": 1049102
+    },
+    {
+      "key": "car-images/toyota/aqua.png",
+      "sizeBytes": 1033815
+    },
+    {
+      "key": "car-images/toyota/auris.png",
+      "sizeBytes": 1094057
+    },
+    {
+      "key": "car-images/toyota/avanza.png",
+      "sizeBytes": 1259142
+    },
+    {
+      "key": "car-images/toyota/avensis.png",
+      "sizeBytes": 1152067
+    },
+    {
+      "key": "car-images/toyota/axio.png",
+      "sizeBytes": 1013159
+    },
+    {
+      "key": "car-images/toyota/belta.png",
+      "sizeBytes": 1275499
+    },
+    {
+      "key": "car-images/toyota/c-hr.png",
+      "sizeBytes": 1242458
+    },
+    {
+      "key": "car-images/toyota/camry.png",
+      "sizeBytes": 1027174
+    },
+    {
+      "key": "car-images/toyota/coaster.png",
+      "sizeBytes": 1126454
+    },
+    {
+      "key": "car-images/toyota/corolla-cross.png",
+      "sizeBytes": 1070377
+    },
+    {
+      "key": "car-images/toyota/corolla.png",
+      "sizeBytes": 1035497
+    },
+    {
+      "key": "car-images/toyota/crown.png",
+      "sizeBytes": 1249815
+    },
+    {
+      "key": "car-images/toyota/dyna.png",
+      "sizeBytes": 1047011
+    },
+    {
+      "key": "car-images/toyota/estima.png",
+      "sizeBytes": 981706
+    },
+    {
+      "key": "car-images/toyota/fielder.png",
+      "sizeBytes": 996677
+    },
+    {
+      "key": "car-images/toyota/fj-cruiser.png",
+      "sizeBytes": 1090934
+    },
+    {
+      "key": "car-images/toyota/fortuner.png",
+      "sizeBytes": 1050812
+    },
+    {
+      "key": "car-images/toyota/harrier.png",
+      "sizeBytes": 1056264
+    },
+    {
+      "key": "car-images/toyota/hiace.png",
+      "sizeBytes": 960219
+    },
+    {
+      "key": "car-images/toyota/hilux.png",
+      "sizeBytes": 1063147
+    },
+    {
+      "key": "car-images/toyota/isis.png",
+      "sizeBytes": 1081841
+    },
+    {
+      "key": "car-images/toyota/ist.png",
+      "sizeBytes": 1080759
+    },
+    {
+      "key": "car-images/toyota/land-cruiser-70.png",
+      "sizeBytes": 1063572
+    },
+    {
+      "key": "car-images/toyota/land-cruiser-prado.png",
+      "sizeBytes": 1076594
+    },
+    {
+      "key": "car-images/toyota/land-cruiser.png",
+      "sizeBytes": 1191905
+    },
+    {
+      "key": "car-images/toyota/mark-x.png",
+      "sizeBytes": 1035668
+    },
+    {
+      "key": "car-images/toyota/noah.png",
+      "sizeBytes": 1167068
+    },
+    {
+      "key": "car-images/toyota/passo.png",
+      "sizeBytes": 1293256
+    },
+    {
+      "key": "car-images/toyota/platz.png",
+      "sizeBytes": 1297506
+    },
+    {
+      "key": "car-images/toyota/porte.png",
+      "sizeBytes": 1307551
+    },
+    {
+      "key": "car-images/toyota/premio.png",
+      "sizeBytes": 1030624
+    },
+    {
+      "key": "car-images/toyota/prius.png",
+      "sizeBytes": 1030724
+    },
+    {
+      "key": "car-images/toyota/probox.png",
+      "sizeBytes": 1031106
+    },
+    {
+      "key": "car-images/toyota/ractis.png",
+      "sizeBytes": 1284787
+    },
+    {
+      "key": "car-images/toyota/raize.png",
+      "sizeBytes": 1058422
+    },
+    {
+      "key": "car-images/toyota/rav-4.png",
+      "sizeBytes": 1064440
+    },
+    {
+      "key": "car-images/toyota/rush.png",
+      "sizeBytes": 1103431
+    },
+    {
+      "key": "car-images/toyota/sienta.png",
+      "sizeBytes": 1072305
+    },
+    {
+      "key": "car-images/toyota/spacio.png",
+      "sizeBytes": 1114695
+    },
+    {
+      "key": "car-images/toyota/succeed.png",
+      "sizeBytes": 1004611
+    },
+    {
+      "key": "car-images/toyota/townace.png",
+      "sizeBytes": 992842
+    },
+    {
+      "key": "car-images/toyota/vanguard.png",
+      "sizeBytes": 1061496
+    },
+    {
+      "key": "car-images/toyota/vellfire.png",
+      "sizeBytes": 1013778
+    },
+    {
+      "key": "car-images/toyota/vios.png",
+      "sizeBytes": 1231150
+    },
+    {
+      "key": "car-images/toyota/vitz.png",
+      "sizeBytes": 1094079
+    },
+    {
+      "key": "car-images/toyota/voxy.png",
+      "sizeBytes": 1049746
+    },
+    {
+      "key": "car-images/toyota/wish.png",
+      "sizeBytes": 1076116
+    },
+    {
+      "key": "car-images/toyota/yaris-cross.png",
+      "sizeBytes": 1038258
+    },
+    {
+      "key": "car-images/toyota/yaris.png",
+      "sizeBytes": 1241463
+    },
+    {
+      "key": "car-images/volkswagen/amarok.png",
+      "sizeBytes": 1035188
+    },
+    {
+      "key": "car-images/volkswagen/caddy.png",
+      "sizeBytes": 1028303
+    },
+    {
+      "key": "car-images/volkswagen/golf.png",
+      "sizeBytes": 1043777
+    },
+    {
+      "key": "car-images/volkswagen/jetta.png",
+      "sizeBytes": 1010703
+    },
+    {
+      "key": "car-images/volkswagen/passat.png",
+      "sizeBytes": 1032638
+    },
+    {
+      "key": "car-images/volkswagen/polo.png",
+      "sizeBytes": 1007638
+    },
+    {
+      "key": "car-images/volkswagen/t-cross.png",
+      "sizeBytes": 1055471
+    },
+    {
+      "key": "car-images/volkswagen/tiguan.png",
+      "sizeBytes": 1084237
+    },
+    {
+      "key": "car-images/volkswagen/touareg.png",
+      "sizeBytes": 1079458
+    },
+    {
+      "key": "car-images/volkswagen/touran.png",
+      "sizeBytes": 1210751
+    },
+    {
+      "key": "car-images/volvo/s60.png",
+      "sizeBytes": 1002388
+    },
+    {
+      "key": "car-images/volvo/s90.png",
+      "sizeBytes": 1266236
+    },
+    {
+      "key": "car-images/volvo/v40.png",
+      "sizeBytes": 1039664
+    },
+    {
+      "key": "car-images/volvo/v60.png",
+      "sizeBytes": 1000343
+    },
+    {
+      "key": "car-images/volvo/xc40.png",
+      "sizeBytes": 992669
+    },
+    {
+      "key": "car-images/volvo/xc60.png",
+      "sizeBytes": 1063179
+    },
+    {
+      "key": "car-images/volvo/xc90.png",
+      "sizeBytes": 1079682
+    }
+  ]
+}
