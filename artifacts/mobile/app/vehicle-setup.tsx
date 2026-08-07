@@ -24,6 +24,7 @@ import { useApp } from "@/context/AppContext";
 import { saveVehicles, loadVehicles } from "@/utils/savedVehicles";
 import { CAR_MAKES } from "@/data/carModels";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
+import CarLogoImage from "@/components/CarLogoImage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -238,7 +239,7 @@ export default function VehicleSetup() {
                       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMakeId(make.id); setIsCustomMake(false); setModelId(null); setIsCustomModel(false); }}
                       activeOpacity={0.8}
                     >
-                      <Text style={cs.makeEmoji}>{make.emoji}</Text>
+                      <CarLogoImage makeId={make.id} width={56} height={28} emoji={make.emoji} />
                       <Text style={[cs.makeName, { color: selected ? "#00A845" : "#ddd" }]} numberOfLines={1}>{make.name}</Text>
                     </TouchableOpacity>
                   );

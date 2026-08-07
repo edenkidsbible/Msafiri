@@ -121,7 +121,10 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
   }, []);
 
   const makeId = vehicle.makeId!;
-  const isModelCustom = !vehicle.modelId || vehicle.modelId.startsWith("custom-");
+  // A model is "custom" only when it actually exists and carries the prefix —
+  // missing modelId means the user chose a make but hasn't picked a model yet,
+  // which is a valid state (treated the same as phase 1 silhouette).
+  const isModelCustom = !!vehicle.modelId && vehicle.modelId.startsWith("custom-");
 
   if (phase >= 2) {
     // Local PNG fallback
@@ -137,8 +140,21 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
 
   let uri: string;
   if (phase === 0) {
-    const slug = isModelCustom ? customModelSlug(vehicle.modelId!) : vehicle.modelId!;
-    uri = getCarImageUrl(makeId, slug);
+    if (!vehicle.modelId) {
+      // Make known but no model chosen yet — show first standard-model silhouette
+      // rather than crashing. Fall through to the phase-1 path.
+      const fallback = firstStandardModel(makeId);
+      if (!fallback) {
+        const src = VEHICLE_IMAGES[vehicle.vehicleType] ?? DEFAULT_IMAGE;
+        return (
+          <Image source={src} style={[{ width, height }, style]} resizeMode="contain" />
+        );
+      }
+      uri = getCarImageUrl(makeId, fallback);
+    } else {
+      const slug = isModelCustom ? customModelSlug(vehicle.modelId) : vehicle.modelId;
+      uri = getCarImageUrl(makeId, slug);
+    }
   } else {
     const fallback = firstStandardModel(makeId);
     if (!fallback) {

@@ -14,6 +14,7 @@ import {
   SORTED_MAKES, sortedModels, getCarImageUrl,
   type CarMake, type CarModel,
 } from "@/data/carModels";
+import CarLogoImage from "@/components/CarLogoImage";
 import { apiGet, apiPost, API_BASE } from "@/utils/apiClient";
 import { savePendingDetails, type VehicleDetails } from "@/utils/savedVehicles";
 
@@ -275,7 +276,11 @@ export default function CarPickerScreen() {
         activeOpacity={0.7}
       >
         <View style={[styles.emojiBox, { backgroundColor: isOther ? c.primary + "18" : c.muted }]}>
-          <Text style={styles.emoji}>{item.emoji}</Text>
+          {isOther ? (
+            <Text style={styles.emoji}>{item.emoji}</Text>
+          ) : (
+            <CarLogoImage makeId={item.id} width={52} height={28} emoji={item.emoji} />
+          )}
         </View>
         <Text style={[styles.rowLabel, { color: isOther ? c.primary : c.foreground }]}>
           {item.name}

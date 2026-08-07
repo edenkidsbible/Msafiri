@@ -28,6 +28,7 @@ import {
 } from "@/utils/driveSessionApi";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
+import CarLogoImage from "@/components/CarLogoImage";
 import { API_BASE } from "@/utils/apiClient";
 import {
   loadVehicleCareData,
@@ -292,7 +293,10 @@ function VehicleSlide({
         <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
           {/* Name + primary badge */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
-            <Text style={[styles.vehicleName, { color: foreground }]} numberOfLines={1}>
+            {v.makeId && !v.makeId.startsWith("custom-") && (
+              <CarLogoImage makeId={v.makeId} width={44} height={22} emoji={getVehicleEmoji(v.vehicleType)} />
+            )}
+            <Text style={[styles.vehicleName, { color: foreground, flex: 1 }]} numberOfLines={1}>
               {vehicleDisplayName(v)}
             </Text>
             {v.isDefault && (
