@@ -96,6 +96,8 @@ export default function HomeScreen() {
     hereIncidents,
     currentLat,
     currentLng,
+    themeOverride,
+    setThemeOverride,
   } = useApp();
   const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
@@ -297,6 +299,24 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
+          {/* ── Dark / light mode toggle ───────────────────────────────── */}
+          <TouchableOpacity
+            style={[styles.bellBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              const next = c.isDark ? "light" : "dark";
+              setThemeOverride(next);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={c.isDark ? "sunny" : "moon"}
+              size={18}
+              color={c.isDark ? "#FFC107" : "#3949AB"}
+            />
+          </TouchableOpacity>
+
+          {/* ── Notifications bell ─────────────────────────────────────── */}
           <TouchableOpacity
             style={[styles.bellBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
             onPress={() => router.push("/app-settings/notifications" as any)}

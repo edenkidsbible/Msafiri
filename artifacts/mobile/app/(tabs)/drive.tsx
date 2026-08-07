@@ -1283,7 +1283,8 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          RIGHT: Utility FABs — Traffic & Night mode (hidden during search/nav)
+          RIGHT: Utility FABs — Recenter & Traffic (hidden during trip/search)
+                 Theme toggle is always shown (not gated by tripActive).
       ══════════════════════════════════════════════════════════════════ */}
       {!showResults && !tripActive && (
         <View style={[styles.fabCol, { top: topInset + 72, right: 12 }]}>
@@ -1300,22 +1301,36 @@ export default function DriveScreen() {
           >
             <Ionicons name="car-outline" size={19} color={showTraffic ? "#FFF" : (isDark ? "#CCC" : "#555")} />
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: fabBg }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              manualThemeRef.current = true; // suppress auto-switch for this session
-              setThemeOverride(isDark ? "light" : "dark");
-            }}
-          >
-            <Ionicons
-              name={isDark ? "sunny" : "moon"}
-              size={19}
-              color={isDark ? "#FFC107" : "#3949AB"}
-            />
-          </TouchableOpacity>
         </View>
+      )}
+
+      {/* Theme toggle — always visible when not searching */}
+      {!showResults && (
+        <TouchableOpacity
+          style={[
+            styles.fab,
+            {
+              backgroundColor: fabBg,
+              position: "absolute",
+              right: 12,
+              zIndex: 12,
+              // When browsing: sit below recenter + traffic (2×43 + 2×9 gap = 104 px).
+              // When tripActive those FABs are hidden, so snap to the top slot.
+              top: topInset + 72 + (tripActive ? 0 : 104),
+            },
+          ]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            manualThemeRef.current = true; // suppress auto-switch for this session
+            setThemeOverride(isDark ? "light" : "dark");
+          }}
+        >
+          <Ionicons
+            name={isDark ? "sunny" : "moon"}
+            size={19}
+            color={isDark ? "#FFC107" : "#3949AB"}
+          />
+        </TouchableOpacity>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
