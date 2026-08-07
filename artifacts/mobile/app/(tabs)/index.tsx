@@ -301,8 +301,18 @@ export default function HomeScreen() {
         {/* ── Header: logo + name · theme toggle · profile avatar ────────── */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <View style={[styles.logoWrap, { backgroundColor: c.primary }]}>
-              <Ionicons name="shield-checkmark" size={18} color={c.isDark ? "#04170B" : "#FFFFFF"} />
+            {/* Logo mark — white bg ring ensures the black arc stays visible
+                on dark surfaces without needing a separate dark-mode asset. */}
+            <View style={[styles.logoWrap, {
+              backgroundColor: c.isDark ? "#FFFFFF" : "transparent",
+              borderRadius: 9,
+              overflow: "hidden",
+            }]}>
+              <Image
+                source={require("@/assets/images/msafiri-logo-transparent.png")}
+                style={{ width: 30, height: 30 }}
+                resizeMode="contain"
+              />
             </View>
             <View>
               <Text style={[styles.logoTxt, { color: c.foreground }]}>Msafiri</Text>

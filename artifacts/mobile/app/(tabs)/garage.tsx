@@ -454,8 +454,13 @@ export default function GarageScreen() {
             customModelName: vehicleCustomModelName,
             vehicleType,
           });
-          // Always keep slot 0 (default) in sync with AppContext
-          if (list.length > 0 && (
+          // Keep slot 0 in sync with AppContext, BUT only when there is a
+          // single vehicle. With multiple vehicles AppContext may still hold a
+          // non-default vehicle's data (e.g. right after the user added a new
+          // vehicle via car-picker, which writes its make/model into AppContext).
+          // Running the sync in that case would overwrite the default vehicle
+          // with the new vehicle's data — the data-exchange bug.
+          if (list.length === 1 && (
             list[0].makeId !== vehicleMakeId || list[0].modelId !== vehicleModelId
           )) {
             list = list.map((v, i) =>

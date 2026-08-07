@@ -303,7 +303,13 @@ export default function SettingsScreen() {
       {/* Subscription banner */}
       {isSubscribed ? (
         <View style={[styles.proBanner, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
-          <Ionicons name="shield-checkmark" size={20} color={c.primary} />
+          <View style={styles.proBannerLogo}>
+            <Image
+              source={require("@/assets/images/msafiri-logo-transparent.png")}
+              style={{ width: 36, height: 36 }}
+              resizeMode="contain"
+            />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.proBannerTitle, { color: c.foreground }]}>Msafiri</Text>
             <Text style={[styles.proBannerSub, { color: c.mutedForeground }]}>Your subscription is active</Text>
@@ -315,7 +321,14 @@ export default function SettingsScreen() {
           onPress={() => setShowPaywall(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="shield-checkmark-outline" size={20} color={c.primaryForeground} />
+          {/* White bg so the black logo arc stays readable against the green banner */}
+          <View style={[styles.proBannerLogo, { backgroundColor: "#FFFFFF" }]}>
+            <Image
+              source={require("@/assets/images/msafiri-logo-transparent.png")}
+              style={{ width: 36, height: 36 }}
+              resizeMode="contain"
+            />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Subscribe to Msafiri</Text>
             <Text style={[styles.proBannerSub, { color: c.primaryForeground + "CC" }]}>
@@ -1234,6 +1247,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 20,
     borderRadius: 18, paddingVertical: 16, paddingHorizontal: 18,
     borderWidth: 1,
+  },
+  proBannerLogo: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
   proBannerTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
   proBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },

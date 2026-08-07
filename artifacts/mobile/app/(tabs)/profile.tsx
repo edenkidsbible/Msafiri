@@ -212,8 +212,15 @@ export default function ProfileScreen() {
           styles.premiumCard, 
           { backgroundColor: c.card, borderColor: c.tileBorder, borderLeftWidth: 4, borderLeftColor: c.primary, marginHorizontal: 16 }
         ]}>
-          <View style={[styles.premiumIconWrap, { backgroundColor: c.primary + "22" }]}>
-            <Ionicons name="shield-checkmark" size={22} color={c.primary} />
+          <View style={[styles.premiumIconWrap, {
+            backgroundColor: c.isDark ? "#FFFFFF" : "#F5F5F5",
+            overflow: "hidden",
+          }]}>
+            <Image
+              source={require("@/assets/images/msafiri-logo-transparent.png")}
+              style={{ width: 36, height: 36 }}
+              resizeMode="contain"
+            />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
