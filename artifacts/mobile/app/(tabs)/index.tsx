@@ -101,6 +101,7 @@ export default function HomeScreen() {
     setThemeOverride,
     navTripActive,
     navTripPaused,
+    profilePhotoUri,
   } = useApp();
 
   // Increments each time the Home tab gains focus so DefaultVehicleImage
@@ -297,7 +298,7 @@ export default function HomeScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header: logo + name · bell ─────────────────────────────────── */}
+        {/* ── Header: logo + name · theme toggle · profile avatar ────────── */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <View style={[styles.logoWrap, { backgroundColor: c.primary }]}>
@@ -310,34 +311,42 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
-          {/* ── Dark / light mode toggle ───────────────────────────────── */}
-          <TouchableOpacity
-            style={[styles.bellBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const next = c.isDark ? "light" : "dark";
-              setThemeOverride(next);
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name={c.isDark ? "sunny" : "moon"}
-              size={18}
-              color={c.isDark ? "#FFC107" : "#3949AB"}
-            />
-          </TouchableOpacity>
 
-          {/* ── Notifications bell ─────────────────────────────────────── */}
-          <TouchableOpacity
-            style={[styles.bellBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-            onPress={() => router.push("/app-settings/notifications" as any)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="notifications-outline" size={20} color={c.foreground} />
-            {nearbyAlerts.length > 0 && (
-              <View style={[styles.bellDot, { backgroundColor: c.primary, borderColor: c.background }]} />
-            )}
-          </TouchableOpacity>
+          {/* Theme toggle + profile avatar — grouped tight on the right */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {/* Dark / light mode toggle */}
+            <TouchableOpacity
+              style={[styles.bellBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const next = c.isDark ? "light" : "dark";
+                setThemeOverride(next);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name={c.isDark ? "sunny" : "moon"}
+                size={18}
+                color={c.isDark ? "#FFC107" : "#3949AB"}
+              />
+            </TouchableOpacity>
+
+            {/* Profile avatar — navigates to personal information */}
+            <TouchableOpacity
+              style={[styles.profileAvatarBtn, { backgroundColor: c.card, borderColor: c.tileBorder }]}
+              onPress={() => router.push("/personal-information" as any)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {profilePhotoUri ? (
+                <Image
+                  source={{ uri: profilePhotoUri }}
+                  style={styles.profileAvatarImg}
+                />
+              ) : (
+                <Ionicons name="person-outline" size={19} color={c.mutedForeground} />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Greeting + weather chip ────────────────────────────────────── */}
@@ -876,6 +885,11 @@ const styles = StyleSheet.create({
     position: "absolute", top: 8, right: 9,
     width: 9, height: 9, borderRadius: 5, borderWidth: 1.5,
   },
+  profileAvatarBtn: {
+    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  profileAvatarImg: { width: 40, height: 40, borderRadius: 20 },
 
   greetRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 },
   greetTitle: { fontSize: 21, fontFamily: "Inter_700Bold" },

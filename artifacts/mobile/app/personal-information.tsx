@@ -1,24 +1,33 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useEffect, useState } from "react";
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { getVehicleTypeDef } from "@/data/vehicleTypes";
+import { getVehicleTypeDef, VEHICLE_TYPES } from "@/data/vehicleTypes";
+import type { VehicleTypeId } from "@/data/vehicleTypes";
+
+// Emoji per vehicle type (mirrors vehicle-setup.tsx)
+function typeEmoji(id: string): string {
+  return id === "motorcycle" ? "🏍️" : id === "bus" ? "🚌" : id === "psv" ? "🚐" :
+         id === "truck" ? "🚛" : id === "tractor" ? "🚜" : "🚗";
+}
 
 export default function PersonalInformationScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { driverName, setDriverName, vehicleType, setProfilePhotoUri } = useApp();
+  const { driverName, setDriverName, vehicleType, setVehicleType, setProfilePhotoUri } = useApp();
 
   const [name, setName] = useState(driverName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [showVehiclePicker, setShowVehiclePicker] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
@@ -144,11 +153,11 @@ export default function PersonalInformationScreen() {
             <Text style={[styles.label, { color: c.mutedForeground }]}>Vehicle Type</Text>
             <TouchableOpacity 
               style={[styles.input, styles.readOnlyRow, { backgroundColor: c.muted }]}
-              onPress={() => router.push("/(tabs)/settings")}
+              onPress={() => setShowVehiclePicker(true)}
               activeOpacity={0.7}
             >
               <Text style={{ color: c.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }}>{vehicleLabel}</Text>
-              <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
+              <Ionicons name="chevron-expand" size={16} color={c.mutedForeground} />
             </TouchableOpacity>
           </View>
         </View>
@@ -162,6 +171,58 @@ export default function PersonalInformationScreen() {
           <Text style={[styles.saveBtnText, { color: c.primaryForeground }]}>Save Changes</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ── Vehicle type bottom-sheet picker ─────────────────────────────── */}
+      <Modal
+        visible={showVehiclePicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowVehiclePicker(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
+          onPress={() => setShowVehiclePicker(false)}
+        >
+          {/* Stop tap propagation so tapping inside the sheet doesn't close it */}
+          <Pressable onPress={() => {}}>
+            <View style={[styles.vehicleSheet, { backgroundColor: c.card }]}>
+              <View style={styles.sheetHandle} />
+              <Text style={[styles.sheetTitle, { color: c.foreground }]}>Select Vehicle Type</Text>
+              <View style={styles.vehicleGrid}>
+                {VEHICLE_TYPES.map((vt) => {
+                  const active = vehicleType === vt.id;
+                  return (
+                    <TouchableOpacity
+                      key={vt.id}
+                      style={[
+                        styles.vehicleGridItem,
+                        {
+                          backgroundColor: active ? c.primary + "22" : c.muted,
+                          borderColor: active ? c.primary : "transparent",
+                        },
+                      ]}
+                      onPress={() => {
+                        setVehicleType(vt.id as VehicleTypeId);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowVehiclePicker(false);
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.vehicleGridEmoji}>{typeEmoji(vt.id)}</Text>
+                      <Text style={[styles.vehicleGridLabel, { color: active ? c.primary : c.foreground }]}>
+                        {vt.shortLabel ?? vt.label}
+                      </Text>
+                      {active && (
+                        <Ionicons name="checkmark-circle" size={16} color={c.primary} style={styles.vehicleGridCheck} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -189,4 +250,18 @@ const styles = StyleSheet.create({
   
   saveBtn: { padding: 16, borderRadius: 12, alignItems: "center", justifyContent: "center", marginTop: "auto" },
   saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+
+  // Vehicle type bottom-sheet
+  vehicleSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingHorizontal: 20, paddingBottom: 36 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#88888844", alignSelf: "center", marginBottom: 16 },
+  sheetTitle: { fontSize: 17, fontFamily: "Inter_700Bold", marginBottom: 16 },
+  vehicleGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  vehicleGridItem: {
+    width: "47%", borderRadius: 14, borderWidth: 1.5,
+    paddingVertical: 14, paddingHorizontal: 12,
+    alignItems: "center", justifyContent: "center", gap: 6,
+  },
+  vehicleGridEmoji: { fontSize: 28 },
+  vehicleGridLabel: { fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "center" },
+  vehicleGridCheck: { position: "absolute", top: 8, right: 8 },
 });
