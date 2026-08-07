@@ -236,7 +236,7 @@ function parseNavigationUrl(url: string): { name: string; lat: number; lng: numb
 
 function RootLayoutNav() {
   const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination } = useApp();
-  const { isSubscribed, isLoading: subLoading } = useSubscription();
+  const { isSubscribed, isLoading: subLoading, trialExpiredUnpaid } = useSubscription();
   const c = useColors();
   const router = useRouter();
   // Explicit navigator-ready signal: the root navigation state gets a key only
@@ -311,7 +311,10 @@ function RootLayoutNav() {
     // session. wasSubscribed guards against a transient isSubscribed=false that
     // RevenueCat emits while re-validating entitlements after a background resume.
     if (!isSubscribed && !wasSubscribed.current) {
-      router.replace("/paywall");
+      // Route to the trial-ended screen if the user's free trial has expired
+      // without subscribing, so they get a clear explanation rather than the
+      // normal paywall (which would incorrectly re-offer a trial they've used).
+      router.replace(trialExpiredUnpaid ? "/trial-ended" : "/paywall");
     } else {
       requestLocationPermission().catch(() => {});
     }
@@ -419,6 +422,10 @@ function RootLayoutNav() {
         />
         <Stack.Screen
           name="paywall"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="trial-ended"
           options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen name="about"   options={{ title: "About Msafiri" }} />

@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useSubscription } from "@/lib/revenuecat";
+import { useSubscription, REVENUECAT_ENTITLEMENT_IDENTIFIER } from "@/lib/revenuecat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { AdminPinModal } from "@/components/AdminPinModal";
@@ -361,12 +361,25 @@ export default function PaywallScreen() {
 
   async function handleRestore() {
     try {
-      await restore();
-      setResult("restored");
+      const info = await restore();
+      // Purchases.restorePurchases() always "succeeds" from the SDK's perspective —
+      // it only throws on network errors. We must check whether an active entitlement
+      // was actually found; if not, the restore succeeded technically but the user
+      // has no subscription we can honour.
+      const hasActive =
+        info?.entitlements?.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
+      if (hasActive) {
+        setResult("restored");
+      } else {
+        setErrorMessage(
+          "No active subscription was found for this account. If you subscribed on a different Apple or Google account, switch accounts and try again. Contact support@msafirikenya.com if the issue persists."
+        );
+        setResult("error");
+      }
     } catch (e: any) {
       setErrorMessage(
         e?.message ??
-          "No active subscription was found for your account. If you believe this is an error, please contact support."
+          "Restore failed. Please check your connection and try again."
       );
       setResult("error");
     }

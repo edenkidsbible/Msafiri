@@ -59,7 +59,7 @@ export default function ProfileScreen() {
   const tabBarH = Platform.OS === "web" ? 84 : 96;
   
   const { driverName, clearAllData, deviceId, profilePhotoUri } = useApp();
-  const { isSubscribed, customerInfo } = useSubscription();
+  const { isSubscribed, customerInfo, isOnTrial, subscriptionPlan } = useSubscription();
   const version = Constants.expoConfig?.version ?? "2.1.0";
 
   // Saved profile details — reloaded on focus so edits made on the
@@ -120,21 +120,28 @@ export default function ProfileScreen() {
 
   const initials = driverName ? driverName.substring(0, 2).toUpperCase() : "DR";
 
-  // Derive the real renewal/expiration date from RevenueCat customer info.
-  // expirationDate is an ISO string (e.g. "2026-08-01T00:00:00Z") or null for lifetime.
+  // Derive the renewal/expiry label from RevenueCat customer info.
   const renewalDateLabel = (() => {
     if (!isSubscribed) return null;
-    const expiresDate =
-      customerInfo?.entitlements.active?.["pro"]?.expirationDate;
-    if (!expiresDate) return null; // lifetime or unavailable
+    const expiresDate = customerInfo?.entitlements.active?.["pro"]?.expirationDate;
+    if (!expiresDate) return null;
     const d = new Date(expiresDate);
     if (isNaN(d.getTime())) return null;
-    return "Renews on " + d.toLocaleDateString("en-KE", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    if (isOnTrial) {
+      const daysLeft = Math.max(0, Math.ceil((d.getTime() - Date.now()) / 86_400_000));
+      if (daysLeft === 0) return "Trial ends today";
+      return `Trial ends in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}`;
+    }
+    return "Renews " + d.toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
   })();
+
+  // Plan pill label + colour
+  const planPillLabel =
+    subscriptionPlan === "trial"   ? "Free Trial"
+    : subscriptionPlan === "weekly"  ? "Weekly"
+    : subscriptionPlan === "monthly" ? "Monthly"
+    : null;
+  const planPillColor = subscriptionPlan === "trial" ? "#F59E0B" : c.primary;
 
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>
@@ -211,20 +218,22 @@ export default function ProfileScreen() {
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
               <Text style={[styles.premiumTitle, { color: c.foreground }]}>Msafiri Premium</Text>
-              {isSubscribed && (
-                <View style={[styles.activePill, { backgroundColor: c.primary + "22" }]}>
-                  <Text style={[styles.activeTxt, { color: c.primary }]}>Active</Text>
+              {planPillLabel && (
+                <View style={[styles.activePill, { backgroundColor: planPillColor + "22" }]}>
+                  <Text style={[styles.activeTxt, { color: planPillColor }]}>{planPillLabel}</Text>
                 </View>
               )}
             </View>
             <Text style={[styles.premiumSub, { color: c.mutedForeground }]} numberOfLines={1}>
-              {isSubscribed ? "You're enjoying all Premium benefits" : "Unlock exclusive features today"}
+              {isSubscribed
+                ? isOnTrial
+                  ? "Enjoying all Premium features — trial active"
+                  : `${subscriptionPlan === "weekly" ? "Weekly" : "Monthly"} plan · All features unlocked`
+                : "Unlock exclusive features today"}
             </Text>
-            {(isSubscribed ? (renewalDateLabel ?? "") : "Subscribe now") ? (
-              <Text style={[styles.premiumDate, { color: c.primary }]} numberOfLines={1}>
-                {isSubscribed ? (renewalDateLabel ?? "") : "Subscribe now"}
-              </Text>
-            ) : null}
+            <Text style={[styles.premiumDate, { color: planPillColor ?? c.primary }]} numberOfLines={1}>
+              {isSubscribed ? (renewalDateLabel ?? "") : "Subscribe now"}
+            </Text>
           </View>
           <TouchableOpacity style={[styles.manageBtn, { borderColor: c.border }]} onPress={() => router.push("/paywall" as any)}>
             <Text style={[styles.manageBtnTxt, { color: c.foreground }]}>{isSubscribed ? "Manage >" : "Subscribe >"}</Text>

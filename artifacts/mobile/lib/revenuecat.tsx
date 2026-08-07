@@ -140,10 +140,48 @@ function useSubscriptionContext() {
     BYPASS_PAYWALL ||
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
+  // The active entitlement object (only present while subscribed)
+  const proActive = customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER];
+  // The all-time entitlement object — persists even after expiry
+  const proAll    = customerInfoQuery.data?.entitlements.all?.[REVENUECAT_ENTITLEMENT_IDENTIFIER];
+
+  // True when the current entitlement was acquired through a free trial period
+  const isOnTrial = isSubscribed && proActive?.periodType === "TRIAL";
+
+  // Discriminates which plan the user is on.
+  // Product identifiers are expected to contain "week" for weekly plans; all
+  // others (monthly, annual, lifetime) are treated as "monthly" for display.
+  const subscriptionPlan: "trial" | "weekly" | "monthly" | null =
+    !isSubscribed ? null
+    : isOnTrial   ? "trial"
+    : (proActive?.productIdentifier ?? "").toLowerCase().includes("week") ? "weekly"
+    : "monthly";
+
+  // True when the user previously had a TRIAL entitlement that has since expired
+  // without the user purchasing a paid plan. Detected via two complementary signals:
+  //   1. entitlements.all has the "pro" entry with periodType="TRIAL" and isActive=false
+  //   2. iOS only: the store reports INELIGIBLE for all available products (used up trial)
+  const trialExpiredUnpaid =
+    !isSubscribed &&
+    !BYPASS_PAYWALL &&
+    !!(
+      (proAll && !proAll.isActive && proAll.periodType === "TRIAL") ||
+      (Platform.OS === "ios" &&
+        productIdentifiers.length > 0 &&
+        productIdentifiers.some(
+          (id) =>
+            trialEligibilityQuery.data?.[id]?.status ===
+            Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_INELIGIBLE
+        ))
+    );
+
   return {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     isSubscribed,
+    isOnTrial,
+    subscriptionPlan,
+    trialExpiredUnpaid,
     // isLoading: subscription status only — used by _layout.tsx to gate routing.
     // Offerings loading is intentionally excluded so the routing gate doesn't
     // block for the full retry window when sandbox products are slow to resolve.
