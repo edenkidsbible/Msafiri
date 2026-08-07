@@ -12,6 +12,7 @@ import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import RouteSearchSheet from "@/components/RouteSearchSheet";
+import PlaceSearchSheet from "@/components/PlaceSearchSheet";
 import * as Haptics from "expo-haptics";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { AdminLocationPickerModal } from "@/components/AdminLocationPickerModal";
@@ -616,12 +617,6 @@ export default function MapViewScreen() {
       >
         <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
         <Text style={[styles.searchBarPlaceholder, { color: c.mutedForeground }]}>Where to?</Text>
-        <View style={[styles.searchBarIcon, { backgroundColor: c.muted }]}>
-          <Ionicons name="mic-outline" size={15} color={c.mutedForeground} />
-        </View>
-        <View style={[styles.searchBarIcon, { backgroundColor: c.muted }]}>
-          <Ionicons name="options-outline" size={15} color={c.mutedForeground} />
-        </View>
       </TouchableOpacity>
 
       {/* Category chips — 10 categories + "Search" opener */}
@@ -693,6 +688,13 @@ export default function MapViewScreen() {
         showsCompass
         showsTraffic={showTraffic}
         onPanDrag={() => { mapDriftedRef.current = true; setMapDrifted(true); }}
+        onPress={() => {
+          if (activeChipCat) {
+            setActiveChipCat(null);
+            setChipResults([]);
+            setChipError(null);
+          }
+        }}
       >
         {/* Speed zone markers — null-guard coordinates to prevent the iOS
             NSInvalidArgumentException crash when lat/lng is null/undefined.
@@ -989,22 +991,17 @@ export default function MapViewScreen() {
         }}
       />
 
-      {/* Find Nearby sheet — same as drive page but accessible from the map tab */}
-      <RouteSearchSheet
+      {/* "Where to?" place search — free-text geocoding destination picker */}
+      <PlaceSearchSheet
         visible={showFindNearby}
         onClose={() => setShowFindNearby(false)}
-        onSelect={(poi) => {
+        onSelect={(place) => {
           setShowFindNearby(false);
-          if (navDestination) {
-            // Preserve the existing destination as resume target if the
-            // fuel-divert flow is available (merged via task branch).
-            // The hook call order must stay stable, so we update state here.
-          }
-          setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng });
+          setNavDestination({ name: place.name, lat: place.lat, lng: place.lng });
           startNavigation();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          // Switch to Drive tab so the turn-by-turn nav bar and voice guidance
-          // are immediately visible without the driver having to tap manually.
+          // Switch to Drive tab so turn-by-turn nav + voice guidance are
+          // immediately visible without the driver needing to tap manually.
           router.replace("/(tabs)/drive");
         }}
       />
