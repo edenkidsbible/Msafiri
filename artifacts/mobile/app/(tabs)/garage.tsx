@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -87,65 +87,95 @@ function fmtDur(s: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-// ── Vehicle image (R2 PNG with smart fallback) ───────────────────────────────
+// ── Vehicle image (R2 PNG — custom-first with poll-retry) ────────────────────
 //
-// Resolution order:
-//   1. Standard model image  →  car-images/{makeId}/{modelId}.png
-//   2. For custom models:    →  car-images/{makeId}/{firstStandardModel}.png
-//   3. Give up              →  emoji
+// Resolution order per render:
+//   1. Custom model generated image  →  car-images/{makeId}/{modelSlug}.png
+//      (strip "custom-" prefix from modelId — that's the R2 key the server writes)
+//   2. On 404: first standard model of that make as silhouette fallback
+//   3. On 404 again: emoji
 //
-// "other/default" is intentionally never tried — it doesn't exist in R2.
+// For custom models that are still generating, we retry the image URL every
+// 15 s (up to 4 retries ≈ 1 min) so the card auto-updates once the image lands.
 
 import { CAR_MAKES } from "@/data/carModels";
 
-/** Returns the first standard modelId for a given makeId, or null. */
 function firstStandardModel(makeId: string): string | null {
   const make = CAR_MAKES.find(m => m.id === makeId);
   return make?.models?.[0]?.id ?? null;
 }
 
-function VehicleImage({ v }: { v: SavedVehicle }) {
+// Strip the "custom-" prefix the car-picker adds to modelIds — the R2 key
+// written by customVehicles route uses the raw slug (no prefix).
+function customModelSlug(modelId: string): string {
+  return modelId.startsWith("custom-") ? modelId.slice(7) : modelId;
+}
+
+function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; height: number }) {
   const c = useColors();
 
-  const isCustomModel =
-    !v.makeId || v.makeId.startsWith("custom-") ||
-    !v.modelId || v.modelId.startsWith("custom-");
+  const isMakeFully  = !v.makeId  || v.makeId.startsWith("custom-");
+  const isModelCustom = !v.modelId || v.modelId.startsWith("custom-");
 
-  // For custom models, build the fallback URI upfront from the first
-  // standard model of the same make, so we only ever make one network request.
-  const resolvedModelId: string | null = (() => {
-    if (!v.makeId || v.makeId.startsWith("custom-")) return null;
-    if (!v.modelId || v.modelId.startsWith("custom-")) {
-      return firstStandardModel(v.makeId);
-    }
-    return v.modelId;
-  })();
-
-  const [failed,  setFailed]  = useState(false);
+  // Phase 0 = custom generated image; Phase 1 = standard make fallback; Phase 2 = emoji
+  const [phase,   setPhase]   = useState(0);
   const [loading, setLoading] = useState(true);
+  const retryCount = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // No resolvable model or previous load failure → show emoji
-  if (!resolvedModelId || failed) {
+  useEffect(() => {
+    return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
+  }, []);
+
+  // No usable make → jump straight to emoji
+  if (isMakeFully || phase >= 2) {
     return (
-      <Text style={{ fontSize: 80, fontFamily: EMOJI_FONT_FAMILY }}>
+      <Text style={{ fontSize: height * 0.55, fontFamily: EMOJI_FONT_FAMILY, textAlign: "center" }}>
         {getVehicleEmoji(v.vehicleType)}
       </Text>
     );
   }
 
-  const uri = getCarImageUrl(v.makeId!, resolvedModelId);
+  const makeId = v.makeId!;
+
+  // Phase 0: try the custom-generated image (or standard image for non-custom models)
+  // Phase 1: try the first standard model image as a silhouette fallback
+  let uri: string;
+  if (phase === 0) {
+    const modelSlug = isModelCustom ? customModelSlug(v.modelId!) : v.modelId!;
+    uri = getCarImageUrl(makeId, modelSlug);
+  } else {
+    const fallback = firstStandardModel(makeId);
+    if (!fallback) { setPhase(2); return null; }
+    uri = getCarImageUrl(makeId, fallback);
+  }
+
+  function handleError() {
+    setLoading(false);
+    if (phase === 0 && isModelCustom && retryCount.current < 4) {
+      // Custom image not ready yet — poll every 15 s
+      retryCount.current += 1;
+      retryTimer.current = setTimeout(() => {
+        setLoading(true); // re-trigger Image load
+      }, 15_000);
+    } else {
+      setPhase(p => p + 1);
+      setLoading(true);
+    }
+  }
 
   return (
-    <View style={styles.vehicleImgWrap}>
+    <View style={{ width, height, alignItems: "center", justifyContent: "center" }}>
       {loading && (
         <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />
       )}
       <Image
+        key={`${uri}-${retryCount.current}`}   // force re-mount on retry
         source={{ uri }}
-        style={styles.vehicleImg}
+        style={{ width, height }}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
-        onError={() => { setLoading(false); setFailed(true); }}
+        onError={handleError}
       />
     </View>
   );
@@ -154,14 +184,15 @@ function VehicleImage({ v }: { v: SavedVehicle }) {
 // ── Circular health ring ──────────────────────────────────────────────────────
 
 function HealthRing({
-  pct, size = 72, strokeColor,
-}: { pct: number; size?: number; strokeColor: string }) {
+  pct, size = 72, strokeColor, trackColor,
+}: { pct: number; size?: number; strokeColor: string; trackColor?: string }) {
   const r    = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
   const dash = Math.max(0, Math.min(1, pct / 100)) * circ;
+  const track = trackColor ?? "#2A3530";
   return (
     <Svg width={size} height={size}>
-      <Circle cx={size/2} cy={size/2} r={r} stroke="#2A3530" strokeWidth={7} fill="none" />
+      <Circle cx={size/2} cy={size/2} r={r} stroke={track} strokeWidth={7} fill="none" />
       <Circle
         cx={size/2} cy={size/2} r={r}
         stroke={strokeColor} strokeWidth={7} fill="none"
@@ -206,74 +237,91 @@ interface VehicleSlideProps {
   borderCol: string;
   subText: string;
   primary: string;
+  foreground: string;
   onChangeVehicle: (index: number) => void;
   onSetDefault: (id: string) => void;
 }
 
+// Image fills the card width minus 2×card-padding (16px each side)
+const IMG_W = CARD_W - 32;
+const IMG_H = Math.round(IMG_W * 0.54); // ~16:9-ish ratio, typically ~196px on 402w
+
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
-  odometerKm, cardBg, borderCol, subText, primary,
+  odometerKm, cardBg, borderCol, subText, primary, foreground,
   onChangeVehicle, onSetDefault,
 }: VehicleSlideProps) {
+  const trackColor = cardBg === "#151917" || cardBg.startsWith("#0") ? "#2A3530" : "#DDE6DA";
+  const fuelLabel = v.fuelType ?? "Petrol";
+  const trLabel   = v.transmission ?? "Automatic";
+  const odoDisplay = (() => {
+    if (v.odometerKm && v.odometerKm > 0)
+      return `${v.odometerKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+    if (odometerKm > 0)
+      return `${odometerKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+    return "— km";
+  })();
+
   return (
-    <View style={{ width: CARD_W, paddingRight: 0 }}>
-      <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol, width: "100%" }]}>
-        {/* Default badge */}
-        {v.isDefault && (
-          <View style={[styles.defaultBadge, { backgroundColor: primary + "22" }]}>
-            <Ionicons name="star" size={10} color={primary} />
-            <Text style={[styles.defaultBadgeTxt, { color: primary }]}>Default</Text>
-          </View>
-        )}
+    <View style={{ width: CARD_W }}>
+      <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol, width: "100%", padding: 0, overflow: "hidden" }]}>
 
-        {/* Main row: image | info | health ring */}
-        <View style={styles.vehicleRow}>
-          {/* Car image from R2 */}
-          <VehicleImage v={v} />
-
-          {/* Vehicle info */}
-          <View style={styles.vehicleInfo}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <Text style={[styles.vehicleName, { color: "#F2F5F2" }]} numberOfLines={1}>
-                {vehicleDisplayName(v)}
-              </Text>
-              {v.isDefault && (
-                <View style={styles.primaryBadge}>
-                  <Text style={styles.primaryBadgeTxt}>Primary</Text>
-                </View>
-              )}
+        {/* ── Car image — full card width, prominent ── */}
+        <View style={[styles.vehicleImgWrap, { backgroundColor: cardBg, width: IMG_W + 32, height: IMG_H + 16 }]}>
+          <VehicleImage v={v} width={IMG_W} height={IMG_H} />
+          {/* Default badge floats over image */}
+          {v.isDefault && (
+            <View style={[styles.defaultBadge, { backgroundColor: primary + "DD", position: "absolute", top: 10, left: 10 }]}>
+              <Ionicons name="star" size={10} color="#fff" />
+              <Text style={[styles.defaultBadgeTxt, { color: "#fff" }]}>Default</Text>
             </View>
-            <Text style={[styles.vehicleSub, { color: subText }]}>Petrol • Automatic</Text>
-            <Text style={[styles.vehicleOdoLabel, { color: subText }]}>Estimated Odometer</Text>
-            <Text style={[styles.vehicleOdoValue, { color: "#F2F5F2" }]}>
-              {odometerKm > 0
-                ? `${odometerKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
-                : "— km"}
+          )}
+        </View>
+
+        {/* ── Text content ── */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+          {/* Name + primary badge */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+            <Text style={[styles.vehicleName, { color: foreground }]} numberOfLines={1}>
+              {vehicleDisplayName(v)}
             </Text>
-            <Text style={[styles.vehicleOdoSub, { color: subText }]}>Updated from your trips</Text>
-          </View>
-
-          {/* Health ring */}
-          <View style={styles.vehicleHealthWrap}>
-            <View style={{ position: "relative", alignItems: "center", justifyContent: "center" }}>
-              <HealthRing pct={healthScore} strokeColor={healthColor} />
-              <View style={{ position: "absolute", alignItems: "center" }}>
-                <Text style={[styles.healthPct, { color: "#F2F5F2" }]}>{healthScore}%</Text>
+            {v.isDefault && (
+              <View style={styles.primaryBadge}>
+                <Text style={styles.primaryBadgeTxt}>Primary</Text>
               </View>
+            )}
+          </View>
+          <Text style={[styles.vehicleSub, { color: subText }]}>{fuelLabel} • {trLabel}</Text>
+
+          {/* Odo + Health ring side-by-side */}
+          <View style={styles.vehicleInfoRow}>
+            {/* Odometer */}
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text style={[styles.vehicleOdoLabel, { color: subText }]}>Estimated Odometer</Text>
+              <Text style={[styles.vehicleOdoValue, { color: foreground }]}>{odoDisplay}</Text>
+              <Text style={[styles.vehicleOdoSub, { color: subText }]}>Updated from your trips</Text>
             </View>
-            <Text style={[styles.healthTitle, { color: subText }]}>Vehicle Health</Text>
-            <Text style={[styles.healthLabel, { color: healthColor }]}>{healthLabel}</Text>
+
+            {/* Health ring */}
             <TouchableOpacity
+              style={styles.vehicleHealthWrap}
               onPress={() => router.push("/vehicle-care" as any)}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              activeOpacity={0.8}
             >
-              <Ionicons name="chevron-forward" size={18} color={subText} />
+              <View style={{ position: "relative", alignItems: "center", justifyContent: "center" }}>
+                <HealthRing pct={healthScore} size={68} strokeColor={healthColor} trackColor={trackColor} />
+                <View style={{ position: "absolute", alignItems: "center" }}>
+                  <Text style={[styles.healthPct, { color: foreground }]}>{healthScore}%</Text>
+                </View>
+              </View>
+              <Text style={[styles.healthTitle, { color: subText }]}>Health</Text>
+              <Text style={[styles.healthLabel, { color: healthColor }]}>{healthLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Action buttons */}
-        <View style={[styles.vehicleActionRow, { borderTopColor: borderCol }]}>
+        {/* ── Action buttons ── */}
+        <View style={[styles.vehicleActionRow, { borderTopColor: borderCol, marginHorizontal: 16, marginBottom: 14 }]}>
           <TouchableOpacity
             style={[styles.vehicleActionBtn, { backgroundColor: primary + "18", borderColor: primary + "40" }]}
             onPress={() => onChangeVehicle(index)}
@@ -301,8 +349,8 @@ function VehicleSlide({
 // ── "Add Vehicle" slide ───────────────────────────────────────────────────────
 
 function AddVehicleSlide({
-  cardBg, borderCol, primary, onAdd,
-}: { cardBg: string; borderCol: string; primary: string; onAdd: () => void }) {
+  cardBg, borderCol, primary, foreground, subText, onAdd,
+}: { cardBg: string; borderCol: string; primary: string; foreground: string; subText: string; onAdd: () => void }) {
   return (
     <View style={{ width: CARD_W }}>
       <TouchableOpacity
@@ -313,8 +361,8 @@ function AddVehicleSlide({
         <View style={[styles.addVehicleIcon, { backgroundColor: primary + "20" }]}>
           <Ionicons name="add" size={28} color={primary} />
         </View>
-        <Text style={[styles.addVehicleTitle, { color: "#F2F5F2" }]}>Add Another Vehicle</Text>
-        <Text style={[styles.addVehicleSub, { color: "#8A948C" }]}>
+        <Text style={[styles.addVehicleTitle, { color: foreground }]}>Add Another Vehicle</Text>
+        <Text style={[styles.addVehicleSub, { color: subText }]}>
           Track maintenance and details for all your vehicles
         </Text>
       </TouchableOpacity>
@@ -445,6 +493,7 @@ export default function GarageScreen() {
       return (
         <AddVehicleSlide
           cardBg={cardBg} borderCol={borderCol} primary={c.primary}
+          foreground={c.foreground} subText={subText}
           onAdd={handleAddVehicle}
         />
       );
@@ -455,6 +504,7 @@ export default function GarageScreen() {
         healthScore={healthScore} healthLabel={healthLabel} healthColor={healthColor}
         odometerKm={odometerKm}
         cardBg={cardBg} borderCol={borderCol} subText={subText} primary={c.primary}
+        foreground={c.foreground}
         onChangeVehicle={handleChangeVehicle}
         onSetDefault={handleSetDefault}
       />
@@ -817,37 +867,41 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   viewAllLink:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  // My Vehicles
+  // My Vehicles — stacked layout (image on top, info below)
   defaultBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
-    alignSelf: "flex-start", marginBottom: 8,
+    alignSelf: "flex-start",
   },
   defaultBadgeTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
-  vehicleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  // Image strip — fills full card width, aligned center
+  vehicleImgWrap: {
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
 
-  vehicleImgWrap: { width: 140, height: 100, alignItems: "center", justifyContent: "center" },
-  vehicleImg:     { width: 140, height: 100 },
+  // Info row: odo info flex-left | health ring fixed-right
+  vehicleInfoRow: {
+    flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10, marginBottom: 4,
+  },
 
-  vehicleInfo: { flex: 1, minWidth: 0, gap: 2 },
-  vehicleName: { fontSize: 14, fontFamily: "Inter_700Bold", flexShrink: 1 },
+  vehicleName: { fontSize: 15, fontFamily: "Inter_700Bold", flexShrink: 1 },
   primaryBadge: {
     backgroundColor: "#3B82F620", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
   },
   primaryBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#3B82F6" },
-  vehicleSub:      { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  vehicleOdoLabel: { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 5 },
-  vehicleOdoValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  vehicleSub:      { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  vehicleOdoLabel: { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 2 },
+  vehicleOdoValue: { fontSize: 18, fontFamily: "Inter_700Bold" },
   vehicleOdoSub:   { fontSize: 10, fontFamily: "Inter_400Regular" },
 
-  vehicleHealthWrap: { width: 76, alignItems: "center", gap: 2 },
-  healthPct:   { fontSize: 14, fontFamily: "Inter_700Bold" },
+  vehicleHealthWrap: { alignItems: "center", gap: 2 },
+  healthPct:   { fontSize: 13, fontFamily: "Inter_700Bold" },
   healthTitle: { fontSize: 9,  fontFamily: "Inter_500Medium", textAlign: "center" },
   healthLabel: { fontSize: 10, fontFamily: "Inter_700Bold" },
 
   vehicleActionRow: {
-    flexDirection: "row", gap: 8, marginTop: 14,
+    flexDirection: "row", gap: 8,
     paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth,
   },
   vehicleActionBtn: {
