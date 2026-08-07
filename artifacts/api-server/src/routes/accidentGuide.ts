@@ -200,7 +200,7 @@ function buildGuide(): Buffer {
     for (const [title, body] of steps3) step(steps3.indexOf([title, body]) + 1, title, body);
 
     y += 4;
-    tipBox("Crash Assistant reports are stored securely in your Crash Vault. You can share or download them at any time from the Accident Reports screen.");
+    tipBox("Crash Assistant reports are stored securely in the app. You can share or download them at any time from the Accident Reports screen.");
 
     // Check if we need a new page
     if (y > PAGE_H - 200) {
@@ -216,15 +216,14 @@ function buildGuide(): Buffer {
     sectionHeading("Emergency Contacts — Kenya", "📞");
 
     // Contact card background
-    const contactH = 168;
+    const contactH = 150;
     doc.rect(ML, y, CONTENT, contactH).fill(GREEN_LIGHT);
     y += 12;
 
     contactRow("Emergency Services",  "999",           GREEN_DARK);
     contactRow("Police (Alt)",        "0800 722 203");
     contactRow("Ambulance / KRCS",    "0800 723 253");
-    contactRow("AA Kenya Rescue",     "0722 203 203");
-    contactRow("Fire Brigade Nairobi","020 222 2181");
+    contactRow("AA Kenya Rescue",     "0709 933 000");
     contactRow("Kenyatta Hospital",   "020 272 6300");
     contactRow("Aga Khan Emergency",  "020 366 2000");
 

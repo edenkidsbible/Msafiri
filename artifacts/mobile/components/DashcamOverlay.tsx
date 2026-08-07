@@ -391,7 +391,7 @@ export default function DashcamOverlay() {
                 onPress={() => {
                   Haptics.selectionAsync();
                   closeDashcam();          // hides overlay; camera keeps recording in bg
-                  router.push("/dashcam-clips" as any);
+                  router.push("/dashcam-videos" as any);
                 }}
                 activeOpacity={0.7}
               >
@@ -610,7 +610,7 @@ export default function DashcamOverlay() {
                         Haptics.selectionAsync();
                         closeSettings();
                         closeDashcam();
-                        router.push("/dashcam-clips" as any);
+                        router.push("/dashcam-videos" as any);
                       }}
                       activeOpacity={0.7}
                     >

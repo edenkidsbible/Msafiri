@@ -12,7 +12,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -66,6 +66,20 @@ import {
   saveTripLocation,
 } from "@/utils/tripLocationCache";
 import { reverseGeocode } from "@/utils/geocoding";
+import { apiGet, apiDelete } from "@/utils/apiClient";
+
+// ── Shared trip session (from /share/sessions/:deviceId) ─────────────────────
+
+interface SharedSession {
+  token: string;
+  shortCode: string;
+  destinationName: string | null;
+  createdAt: string;
+  endedAt: string | null;
+  expiresAt: string;
+  lastPingAt: string | null;
+  ended: boolean;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -414,12 +428,13 @@ function AddTripModal({ visible, editing, savedPlaces, deviceId, onClose, onSave
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-type Tab = "all" | "upcoming" | "past";
+type Tab = "all" | "upcoming" | "past" | "shared";
 
 export default function TripHistoryScreen() {
   const c       = useColors();
   const insets  = useSafeAreaInsets();
   const { deviceId } = useApp();
+  const params = useLocalSearchParams<{ tab?: string }>();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
@@ -434,7 +449,14 @@ export default function TripHistoryScreen() {
   const [plannedTrips, setPlannedTrips] = useState<PlannedTrip[]>([]);
   const [savedPlaces,  setSavedPlaces]  = useState<SavedPlace[]>([]);
 
-  const [tab, setTab] = useState<Tab>("all");
+  const [tab, setTab] = useState<Tab>(params.tab === "shared" ? "shared" : "all");
+
+  // Land on the Shared tab when re-navigated with ?tab=shared
+  useEffect(() => {
+    if (params.tab === "shared") setTab("shared");
+  }, [params.tab]);
+  const [sharedSessions, setSharedSessions] = useState<SharedSession[]>([]);
+  const [sharedBusy, setSharedBusy] = useState<string | null>(null);
   const [upcomingExpanded, setUpcomingExpanded] = useState(true);
   const [recentExpanded,   setRecentExpanded]   = useState(true);
   const [loading, setLoading] = useState(true);
@@ -459,7 +481,10 @@ export default function TripHistoryScreen() {
         deviceId ? listSavedPlaces(deviceId)        : Promise.resolve([] as SavedPlace[]),
         AsyncStorage.getItem(HIDDEN_SESSIONS_KEY),
         loadTripLocationCache(),
-      ]).then(([vs, { sessions: ss }, trips, places, hiddenRaw, locCache]) => {
+        deviceId
+          ? apiGet<{ sessions: SharedSession[] }>(`/share/sessions/${deviceId}`).catch(() => ({ sessions: [] as SharedSession[] }))
+          : Promise.resolve({ sessions: [] as SharedSession[] }),
+      ]).then(([vs, { sessions: ss }, trips, places, hiddenRaw, locCache, shared]) => {
         if (!alive) return;
         setVehicles(vs);
         setActiveVehicle(prev => {
@@ -472,6 +497,7 @@ export default function TripHistoryScreen() {
         setPlannedTrips(trips);
         setSavedPlaces(places);
         setLocationCache(locCache);
+        setSharedSessions(shared.sessions ?? []);
 
         // Background: geocode sessions missing from cache (up to 15 most recent)
         const uncached = ss
@@ -627,6 +653,58 @@ export default function TripHistoryScreen() {
     ]);
   }
 
+  async function reloadShared() {
+    if (!deviceId) return;
+    try {
+      const { sessions } = await apiGet<{ sessions: SharedSession[] }>(`/share/sessions/${deviceId}`);
+      setSharedSessions(sessions ?? []);
+    } catch {}
+  }
+
+  function handleStopSharing(s: SharedSession) {
+    Alert.alert("Stop Sharing", "Viewers will no longer see your live location for this trip.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Stop Sharing",
+        style: "destructive",
+        onPress: async () => {
+          if (!deviceId) return;
+          setSharedBusy(s.token);
+          try {
+            await apiDelete(`/share/${s.token}`, { deviceId });
+            await reloadShared();
+          } catch {
+            Alert.alert("Error", "Could not stop sharing. Please try again.");
+          } finally {
+            setSharedBusy(null);
+          }
+        },
+      },
+    ]);
+  }
+
+  function handleDeleteShared(s: SharedSession) {
+    Alert.alert("Delete Shared Trip", "Permanently remove this shared trip record?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          if (!deviceId) return;
+          setSharedBusy(s.token);
+          try {
+            await apiDelete(`/share/${s.token}/permanent`, { deviceId });
+            setSharedSessions(prev => prev.filter(p => p.token !== s.token));
+          } catch {
+            Alert.alert("Error", "Could not delete this shared trip.");
+          } finally {
+            setSharedBusy(null);
+          }
+        },
+      },
+    ]);
+  }
+
   async function reloadTrips() {
     if (!deviceId) return;
     try {
@@ -708,14 +786,14 @@ export default function TripHistoryScreen() {
 
           {/* ── Tab bar ── */}
           <View style={[styles.tabBar, { backgroundColor: cardBg, borderBottomColor: borderCol }]}>
-            {(["all", "upcoming", "past"] as Tab[]).map(t => (
+            {(["all", "upcoming", "past", "shared"] as Tab[]).map(t => (
               <TouchableOpacity
                 key={t}
                 style={[styles.tabBtn, tab === t && { borderBottomColor: c.primary, borderBottomWidth: 2 }]}
                 onPress={() => setTab(t)}
               >
                 <Text style={[styles.tabBtnTxt, { color: tab === t ? c.primary : subText }]}>
-                  {t === "all" ? "All Trips" : t === "upcoming" ? "Upcoming" : "Past"}
+                  {t === "all" ? "All Trips" : t === "upcoming" ? "Upcoming" : t === "past" ? "Past" : "Shared"}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -916,6 +994,90 @@ export default function TripHistoryScreen() {
                   </Text>
                   <Ionicons name="chevron-forward" size={16} color={c.primary} />
                 </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* ── Shared trips ── */}
+          {tab === "shared" && (
+            <View style={{ marginTop: 16, marginHorizontal: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+                <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: c.foreground, flex: 1 }}>
+                  Shared Trips
+                </Text>
+                {sharedSessions.length > 0 && (
+                  <View style={{ backgroundColor: "#8B7CF620", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#8B7CF6" }}>{sharedSessions.length}</Text>
+                  </View>
+                )}
+              </View>
+
+              {sharedSessions.length === 0 ? (
+                <View style={[styles.emptyState, { backgroundColor: cardBg, borderColor: borderCol }]}>
+                  <Ionicons name="radio-outline" size={28} color={subText} />
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: c.foreground, marginTop: 10 }}>No shared trips yet</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: subText, marginTop: 4, textAlign: "center" }}>
+                    Tap "Share Trip" while driving to share your live location with family and friends.
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.tripListCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
+                  {sharedSessions.map((s, idx) => {
+                    const sd = sessionDate(s.createdAt);
+                    const busy = sharedBusy === s.token;
+                    return (
+                      <View key={s.token}>
+                        {idx > 0 && <View style={[styles.divider, { backgroundColor: borderCol }]} />}
+                        <View style={styles.tripRow}>
+                          <DateBlock month={sd.monthShort} day={sd.day} weekday={sd.weekday} borderCol={borderCol} />
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[styles.tripLabel, { color: c.foreground }]} numberOfLines={1}>
+                              {s.destinationName || `Trip · ${s.shortCode}`}
+                            </Text>
+                            <View style={[styles.tripMeta, { marginTop: 3 }]}>
+                              <Text style={[styles.tripMetaTxt, { color: subText }]}>
+                                Started {sd.timeStr}  ·  Code {s.shortCode}
+                              </Text>
+                            </View>
+                            {s.ended && s.endedAt && (
+                              <Text style={[styles.tripMetaTxt, { color: subText, marginTop: 2 }]}>
+                                Ended {sessionDate(s.endedAt).timeStr}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={{ alignItems: "flex-end", gap: 8 }}>
+                            <View style={[styles.statusBadge, { backgroundColor: s.ended ? subText + "20" : c.primary + "20" }]}>
+                              <Text style={[styles.statusBadgeTxt, { color: s.ended ? subText : c.primary }]}>
+                                {s.ended ? "Ended" : "Active"}
+                              </Text>
+                            </View>
+                            {busy ? (
+                              <ActivityIndicator size="small" color={c.primary} />
+                            ) : s.ended ? (
+                              <TouchableOpacity
+                                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                                onPress={() => handleDeleteShared(s)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Ionicons name="trash-outline" size={14} color="#FF3B30" />
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FF3B30" }}>Delete</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <TouchableOpacity
+                                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                                onPress={() => handleStopSharing(s)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Ionicons name="stop-circle-outline" size={15} color="#FF9500" />
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FF9500" }}>Stop sharing</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </View>
           )}

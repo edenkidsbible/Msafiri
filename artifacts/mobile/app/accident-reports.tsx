@@ -386,7 +386,7 @@ export default function AccidentReportsScreen() {
         },
       },
       { icon: "information-circle-outline" as const, label: "Report\nGuide", onPress: () => Alert.alert("Report Guide", "When involved in an accident:\n\n1. Stop safely\n2. Check for injuries\n3. Call 999 if needed\n4. Document the scene\n5. Exchange information\n6. File an OB number\n7. Notify your insurer within 24 hours") },
-      { icon: "call-outline" as const, label: "Emergency\nContacts", onPress: () => Alert.alert("Emergency Contacts", "Police: 999\nAmbulance: 999\nAA Kenya Rescue: 0722 203 203\nFire Brigade Nairobi: 020 222 2181") },
+      { icon: "call-outline" as const, label: "Emergency\nContacts", onPress: () => Alert.alert("Emergency Contacts", "Police: 999\nAmbulance: 999\nAA Kenya Rescue: 0709 933 000") },
     ];
     return (
       <View style={s.bottomBar}>

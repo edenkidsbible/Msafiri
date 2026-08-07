@@ -3,7 +3,7 @@
  *
  * Reached from the home-screen "Accident Assistant" promo card's Learn More
  * button. Explains the guided 7-step flow, the Evidence Vault, and what the
- * assistant captures automatically, with a CTA into the Crash Vault.
+ * assistant captures automatically, with a CTA into Accident Reports.
  */
 
 import React from "react";
@@ -103,8 +103,8 @@ export default function AccidentAssistantInfoScreen() {
             <Text style={[styles.vaultTitle, { color: c.foreground }]}>Your Evidence Vault</Text>
             <Text style={[styles.vaultBody, { color: c.mutedForeground }]}>
               Every accident record — photos, witnesses, timeline, and the final
-              PDF — is stored safely in your Crash Vault, ready whenever police
-              or your insurer ask.
+              PDF — is stored safely in your Accident Reports, ready whenever
+              police or your insurer ask.
             </Text>
           </View>
         </View>
@@ -112,11 +112,11 @@ export default function AccidentAssistantInfoScreen() {
         {/* CTA */}
         <TouchableOpacity
           style={[styles.cta, { backgroundColor: c.primary }]}
-          onPress={() => router.push("/crash-vault")}
+          onPress={() => router.push("/accident-reports")}
           activeOpacity={0.85}
         >
-          <Ionicons name="folder-open-outline" size={19} color={c.isDark ? "#04170B" : "#FFFFFF"} />
-          <Text style={[styles.ctaTxt, { color: c.isDark ? "#04170B" : "#FFFFFF" }]}>Open Crash Vault</Text>
+          <Ionicons name="document-text-outline" size={19} color={c.isDark ? "#04170B" : "#FFFFFF"} />
+          <Text style={[styles.ctaTxt, { color: c.isDark ? "#04170B" : "#FFFFFF" }]}>View Accident Reports</Text>
         </TouchableOpacity>
         <Text style={[styles.ctaHint, { color: c.mutedForeground }]}>
           You can start a report manually any time — no crash required.

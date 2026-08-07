@@ -228,7 +228,7 @@ export default function HomeScreen() {
                 style: "destructive",
                 onPress: () => stopDashcam(),
               },
-              { text: "View Clips", onPress: () => router.push("/dashcam-clips") },
+              { text: "View Clips", onPress: () => router.push("/dashcam-videos") },
               { text: "Dismiss", style: "cancel" },
             ]
           );
@@ -237,7 +237,7 @@ export default function HomeScreen() {
             "Dashcam is Off",
             "Start driving first, then turn on the Dashcam from the Drive screen.",
             [
-              { text: "View Clips", onPress: () => router.push("/dashcam-clips") },
+              { text: "View Clips", onPress: () => router.push("/dashcam-videos") },
               { text: "Start Driving", style: "default", onPress: () => router.push("/(tabs)/drive") },
               { text: "OK", style: "cancel" },
             ]
@@ -272,7 +272,7 @@ export default function HomeScreen() {
       title: "Trip Sharing",
       value: isSharingTrip ? "Active" : "Inactive",
       valueColor: isSharingTrip ? c.primary : c.mutedForeground,
-      onPress: () => router.push("/trip-sharing"),
+      onPress: () => router.push("/trip-history?tab=shared" as any),
     },
   ];
 
@@ -655,7 +655,7 @@ export default function HomeScreen() {
         {/* ── My Last Trip ───────────────────────────────────────────────── */}
         <View style={styles.sectionRow}>
           <Text style={[styles.sectionTitle, { color: c.foreground }]}>My Last Trip</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/garage")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={() => router.push("/trip-history")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={[styles.sectionLink, { color: c.primary }]}>View all</Text>
           </TouchableOpacity>
         </View>

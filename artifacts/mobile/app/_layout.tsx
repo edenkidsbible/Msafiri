@@ -435,7 +435,6 @@ function RootLayoutNav() {
         <Stack.Screen name="force-update"     options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="creator-program" options={{ headerShown: false }} />
         <Stack.Screen name="live/[code]"     options={{ headerShown: false }} />
-        <Stack.Screen name="trip-sharing"            options={{ headerShown: false }} />
         <Stack.Screen name="accident-assistant-info" options={{ headerShown: false }} />
         <Stack.Screen name="trip-detail/[id]"        options={{ headerShown: false }} />
         <Stack.Screen name="vehicle-care"            options={{ headerShown: false }} />

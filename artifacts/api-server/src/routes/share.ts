@@ -224,6 +224,69 @@ router.delete("/share/:token", async (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// ── GET /share/sessions/:deviceId — driver lists own sessions ─────────────────
+// Returns active and ended sessions for the device (newest first).
+router.get("/share/sessions/:deviceId", async (req: Request, res: Response) => {
+  const deviceId = req.params["deviceId"] as string;
+  if (!deviceId) { res.status(400).json({ error: "deviceId required" }); return; }
+
+  await expireStale();
+
+  try {
+    const rows = await db
+      .select({
+        token:           sharingSessionsTable.token,
+        shortCode:       sharingSessionsTable.shortCode,
+        destinationName: sharingSessionsTable.destinationName,
+        createdAt:       sharingSessionsTable.createdAt,
+        endedAt:         sharingSessionsTable.endedAt,
+        expiresAt:       sharingSessionsTable.expiresAt,
+        lastPingAt:      sharingSessionsTable.lastPingAt,
+      })
+      .from(sharingSessionsTable)
+      .where(eq(sharingSessionsTable.deviceId, deviceId));
+
+    const sessions = rows
+      .map(r => ({ ...r, ended: !!r.endedAt || r.expiresAt < new Date() }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({ sessions });
+  } catch (err) {
+    logger.error(err, "failed to list share sessions");
+    res.status(500).json({ error: "failed to list sessions" });
+  }
+});
+
+// ── DELETE /share/:token/permanent — driver deletes an ended session ──────────
+// Body: { deviceId }. Only ended/expired sessions may be deleted.
+router.delete("/share/:token/permanent", async (req: Request, res: Response) => {
+  const token = req.params["token"] as string;
+  if (!isValidUuid(token)) { res.status(404).json({ error: "session not found" }); return; }
+  const { deviceId } = req.body ?? {};
+  if (!deviceId || typeof deviceId !== "string") {
+    res.status(400).json({ error: "deviceId required" }); return;
+  }
+
+  const [session] = await db
+    .select({
+      deviceId:  sharingSessionsTable.deviceId,
+      endedAt:   sharingSessionsTable.endedAt,
+      expiresAt: sharingSessionsTable.expiresAt,
+    })
+    .from(sharingSessionsTable)
+    .where(eq(sharingSessionsTable.token, token));
+
+  if (!session) { res.status(404).json({ error: "session not found" }); return; }
+  if (session.deviceId !== deviceId) { res.status(403).json({ error: "forbidden" }); return; }
+  if (!session.endedAt && session.expiresAt >= new Date()) {
+    res.status(409).json({ error: "session still active — stop sharing first" }); return;
+  }
+
+  await db.delete(sharingSessionsTable).where(eq(sharingSessionsTable.token, token));
+  logger.info({ token }, "share session deleted by driver");
+  res.json({ ok: true });
+});
+
 // ── GET /share/:code — viewer polls for the latest state ──────────────────────
 // Accepts either an 8-char shortCode (new) or a full UUID (backward compat).
 // Public — no auth required. Lazy-expires stale sessions before returning.

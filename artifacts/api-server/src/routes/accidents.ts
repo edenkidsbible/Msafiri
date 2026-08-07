@@ -286,7 +286,7 @@ async function generatePdf(
     if (audioPhotos.length > 0) {
       sectionTitle("Audio Statement");
       doc.fontSize(10).font("Helvetica").fillColor(muted)
-        .text("An audio statement was recorded at the scene. Open the Crash Vault in Msafiri Kenya to listen to the recording.");
+        .text("An audio statement was recorded at the scene. Open Accident Reports in Msafiri Kenya to listen to the recording.");
     }
 
     // ── Scene Photos note ─────────────────────────────────────────────────────
@@ -294,7 +294,7 @@ async function generatePdf(
     if (scenePhotos.length > 0) {
       sectionTitle("Attached Scene Photos");
       doc.fontSize(10).font("Helvetica").fillColor(muted)
-        .text(`${scenePhotos.length} photo(s) were captured at the scene. View the full Crash Vault record in Msafiri Kenya for embedded images.`);
+        .text(`${scenePhotos.length} photo(s) were captured at the scene. View the full accident record in Msafiri Kenya for embedded images.`);
     }
 
     // ── Footer ───────────────────────────────────────────────────────────────

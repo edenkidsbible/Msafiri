@@ -617,7 +617,7 @@ export default function SettingsScreen() {
             <Ionicons name="shield-checkmark-outline" size={20} color="#FF3B30" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: c.foreground }}>Crash Vault</Text>
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: c.foreground }}>Accident Reports</Text>
             <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: c.mutedForeground, marginTop: 1 }}>
               View and share post-accident reports
             </Text>
