@@ -37,6 +37,18 @@ import { useDashcam } from "@/context/DashcamContext";
 import { useColors } from "@/hooks/useColors";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { resolveIncidentType } from "@/constants/incidentTypes";
+import { API_BASE } from "@/utils/apiClient";
+
+// ── Vehicle hero images (generated transparent PNGs) ─────────────────────────
+const VEHICLE_IMAGES: Record<string, ReturnType<typeof require>> = {
+  car:        require("@/assets/images/vehicle-car.png"),
+  motorcycle: require("@/assets/images/vehicle-motorcycle.png"),
+  truck:      require("@/assets/images/vehicle-truck.png"),
+  psv:        require("@/assets/images/vehicle-bus.png"),
+  bus:        require("@/assets/images/vehicle-bus.png"),
+  tractor:    require("@/assets/images/vehicle-tractor.png"),
+};
+const DEFAULT_VEHICLE_IMAGE = require("@/assets/images/vehicle-car.png");
 import {
   DriveSession,
   listDriveSessions,
@@ -100,7 +112,24 @@ export default function HomeScreen() {
     setThemeOverride,
     navTripActive,
     navTripPaused,
+    vehicleType,
+    vehicleMakeId,
+    vehicleCustomMakeName,
   } = useApp();
+
+  // ── Resolve which image to show on the hero card ──────────────────────────
+  // Priority: (1) known make → R2 URL (served via the public-objects proxy),
+  //           (2) vehicle type → local transparent PNG,
+  //           (3) default car image.
+  const vehicleHeroSource = useMemo(() => {
+    // A real make was selected and it's not a "custom-*" id
+    if (vehicleMakeId && !vehicleMakeId.startsWith("custom-") && API_BASE) {
+      // R2 images are stored at car-makes/{makeId}.webp in the public folder
+      return { uri: `${API_BASE}/storage/r2-public-objects/car-makes/${vehicleMakeId}.webp` };
+    }
+    // Fall back to local type-specific image
+    return VEHICLE_IMAGES[vehicleType ?? "car"] ?? DEFAULT_VEHICLE_IMAGE;
+  }, [vehicleMakeId, vehicleType]);
   const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
@@ -362,39 +391,43 @@ export default function HomeScreen() {
           <LinearGradient
             colors={
               navTripPaused
-                ? ["#7C5C00", "#4A3800"]   // amber — paused
+                ? ["#7C5C00", "#3A2D00"]
                 : navTripActive
-                ? ["#0A4A28", "#072B18"]   // deep green — active
+                ? ["#0A4A28", "#052215"]
                 : [c.heroGradientStart, c.heroGradientEnd]
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
           >
-            <View style={styles.heroArtWrap}>
-              <View style={styles.heroArtGlow} />
+            {/* Vehicle image — large & prominent, spans the full card height */}
+            <View style={styles.heroImgWrap}>
               <Image
-                source={require("@/assets/images/hero-car.png")}
-                style={styles.heroCarImg}
+                source={vehicleHeroSource}
+                style={styles.heroVehicleImg}
                 resizeMode="contain"
+                // Fall back to the local generic image if the R2 URL fails
+                onError={() => {/* silently fall back — React Native will show the broken-image placeholder; a future improvement could swap the source */}}
               />
             </View>
-            <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+
+            {/* Text + CTA, right-aligned */}
+            <View style={styles.heroTextCol}>
               {navTripPaused ? (
                 <>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#FFB300" }} />
-                    <Text style={[styles.heroTitle, { color: "#FFB300" }]}>Trip Paused</Text>
+                  <View style={styles.heroStatusRow}>
+                    <View style={[styles.heroStatusDot, { backgroundColor: "#FFB300" }]} />
+                    <Text style={[styles.heroStatusLabel, { color: "#FFB300" }]}>Trip Paused</Text>
                   </View>
-                  <Text style={styles.heroSub}>Tap to resume driving</Text>
+                  <Text style={styles.heroActionLine}>Tap to resume driving</Text>
                 </>
               ) : navTripActive ? (
                 <>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#34D399" }} />
-                    <Text style={[styles.heroTitle, { color: "#34D399" }]}>Drive Active</Text>
+                  <View style={styles.heroStatusRow}>
+                    <View style={[styles.heroStatusDot, { backgroundColor: "#34D399" }]} />
+                    <Text style={[styles.heroStatusLabel, { color: "#34D399" }]}>Drive Active</Text>
                   </View>
-                  <Text style={styles.heroSub}>Tap to view drive screen</Text>
+                  <Text style={styles.heroActionLine}>Tap to view drive screen</Text>
                 </>
               ) : (
                 <>
@@ -402,13 +435,14 @@ export default function HomeScreen() {
                   <Text style={styles.heroSub}>Navigate, get alerts{"\n"}and stay protected</Text>
                 </>
               )}
-            </View>
-            <View style={styles.heroChevron}>
-              <Ionicons
-                name={navTripPaused ? "play-circle-outline" : navTripActive ? "radio-outline" : "chevron-forward"}
-                size={22}
-                color={navTripPaused ? "#FFB300" : navTripActive ? "#34D399" : "#0A7C3A"}
-              />
+
+              <View style={styles.heroChevron}>
+                <Ionicons
+                  name={navTripPaused ? "play" : navTripActive ? "radio-outline" : "chevron-forward"}
+                  size={18}
+                  color={navTripPaused ? "#FFB300" : navTripActive ? "#34D399" : "#0A7C3A"}
+                />
+              </View>
             </View>
           </LinearGradient>
         </Pressable>
@@ -874,25 +908,39 @@ const styles = StyleSheet.create({
   weatherCity: { fontSize: 10.5, fontFamily: "Inter_500Medium" },
 
   heroCard: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 20, paddingVertical: 20, paddingHorizontal: 18,
-    marginTop: 16, overflow: "hidden",
+    flexDirection: "row", alignItems: "stretch",
+    borderRadius: 22, marginTop: 16, overflow: "hidden",
+    minHeight: 152,
   },
-  heroTitle: { fontSize: 23, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  // Large vehicle image on the left — no padding so it bleeds to the card edge
+  heroImgWrap: {
+    width: 175, alignItems: "flex-end", justifyContent: "flex-end",
+  },
+  heroVehicleImg: { width: 185, height: 148 },
+  // Text + CTA column on the right
+  heroTextCol: {
+    flex: 1, paddingVertical: 20, paddingRight: 18, paddingLeft: 4,
+    justifyContent: "center", gap: 6,
+  },
+  heroStatusRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  heroStatusDot: { width: 8, height: 8, borderRadius: 4 },
+  heroStatusLabel: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  heroActionLine: {
+    fontSize: 12, fontFamily: "Inter_400Regular", color: "#FFFFFFBB", lineHeight: 17,
+  },
+  heroTitle: { fontSize: 21, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   heroSub: {
-    fontSize: 12.5, fontFamily: "Inter_500Medium", color: "#FFFFFFCC",
-    marginTop: 4, textAlign: "center", lineHeight: 17,
+    fontSize: 12, fontFamily: "Inter_400Regular", color: "#FFFFFFBB",
+    lineHeight: 17,
   },
-  heroArtWrap: { alignItems: "center", justifyContent: "center", width: 110 },
-  heroArtGlow: {
-    position: "absolute", width: 110, height: 110, borderRadius: 20,
-    backgroundColor: "#FFFFFF14",
-  },
-  heroCarImg: { width: 110, height: 100, borderRadius: 12 },
   heroChevron: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFFFFF",
-    alignItems: "center", justifyContent: "center",
+    marginTop: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFFFFF",
+    alignItems: "center", justifyContent: "center", alignSelf: "flex-start",
   },
+  // Legacy — kept so no unused-style warnings; no longer rendered
+  heroArtWrap: { width: 0, height: 0 },
+  heroArtGlow: { width: 0, height: 0, position: "absolute" },
+  heroCarImg: { width: 0, height: 0 },
 
   tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
   tile: {

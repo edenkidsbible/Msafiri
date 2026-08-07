@@ -2267,42 +2267,36 @@ export default function DriveScreen() {
               </TouchableOpacity>
             ) : <View style={{ flex: 1 }} />}
 
-            {/* Centre column: Pause (small) + Stop Drive (large red) */}
+            {/* Centre column: single multi-state transport-control button
+                 ▶ play   = resume (when paused)
+                 ⏸ pause  = pause  (when active)
+                Long-press → stop the trip entirely (like a stop button ■)
+                This mirrors how recording devices work: one button, three states. */}
             <View style={{ alignItems: "center", gap: 6 }}>
-              {/* Pause / Resume button */}
               <TouchableOpacity
-                style={[
-                  styles.pauseBtn,
-                  { backgroundColor: tripPaused ? c.primary + "22" : (isDark ? "#2A2A2A" : "#E8E8E8") },
-                ]}
+                style={[styles.dmStopBtn, {
+                  backgroundColor: tripPaused ? "#E5A20D" : "#E5484D",
+                  shadowColor:     tripPaused ? "#E5A20D" : "#E5484D",
+                }]}
                 onPress={tripPaused ? resumeTrip : pauseTrip}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={tripPaused ? "play" : "pause"}
-                  size={14}
-                  color={tripPaused ? c.primary : c.mutedForeground}
-                />
-                <Text style={[styles.pauseBtnTxt, { color: tripPaused ? c.primary : c.mutedForeground }]}>
-                  {tripPaused ? "Resume" : "Pause"}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Stop Drive */}
-              <TouchableOpacity
-                style={styles.dmStopBtn}
-                onPress={() => {
+                onLongPress={() => {
                   stopTrip();
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-                  // Leave Drive Mode → back to Home
                   if (router.canGoBack()) router.back();
                   else router.replace("/(tabs)");
                 }}
+                delayLongPress={600}
                 activeOpacity={0.85}
               >
-                <View style={styles.dmStopSquare} />
+                <Ionicons
+                  name={tripPaused ? "play" : "pause"}
+                  size={26}
+                  color="#FFF"
+                />
               </TouchableOpacity>
-              <Text style={[styles.dmStopLbl, { color: c.foreground }]}>Stop Drive</Text>
+              <Text style={[styles.dmStopLbl, { color: c.mutedForeground }]}>
+                {tripPaused ? "Resume" : "Hold to stop"}
+              </Text>
             </View>
 
             {/* Audio Alerts card */}
