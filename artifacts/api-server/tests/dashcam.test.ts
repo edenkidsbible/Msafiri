@@ -457,6 +457,25 @@ describe("clip ownership enforcement", () => {
     expect(res.status).toBe(404);
   });
 
+  it("200 GET clip URL with correct secretHash returns signed R2 GET URL", async () => {
+    const { getPresignedDownloadUrl } = await import("../src/lib/r2Storage.js");
+    const hash = createHash("sha256").update(`${DEVICE_ID}:${SECRET}`).digest("hex");
+    mockDb.select.mockImplementation(() =>
+      makeSelectBuilder([{
+        id: CLIP_ID, fileKey: FILE_KEY,
+        deviceSecretHash: hash,
+        deviceId: DEVICE_ID,
+      }])
+    );
+
+    const res = await request.get(`/api/dashcam/clip/${CLIP_ID}/url`).set(authHeaders());
+
+    expect(res.status).toBe(200);
+    expect(res.body.downloadUrl).toContain("r2.example.com");
+    expect(res.body.expiresIn).toBe(3600);
+    expect(vi.mocked(getPresignedDownloadUrl)).toHaveBeenCalledWith(FILE_KEY);
+  });
+
   it("200 DELETE clip with correct secretHash", async () => {
     const hash = createHash("sha256").update(`${DEVICE_ID}:${SECRET}`).digest("hex");
     mockDb.select.mockImplementation(() =>
