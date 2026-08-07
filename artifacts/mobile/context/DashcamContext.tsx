@@ -41,10 +41,12 @@ import type { CameraView } from "expo-camera";
 // Dynamically load useCameraPermissions so this context stays web-safe.
 // On web the fallback is "always granted" (no camera access needed).
 let useCameraPermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
+let useMicrophonePermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
 if (Platform.OS !== "web") {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require("expo-camera");
   useCameraPermissions = mod.useCameraPermissions ?? null;
+  useMicrophonePermissions = mod.useMicrophonePermissions ?? null;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -202,6 +204,14 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     : [{ granted: true } as { granted: boolean }, async () => ({ granted: true })];
   const requestCameraPermissionRef = useRef(requestCameraPermission);
   useEffect(() => { requestCameraPermissionRef.current = requestCameraPermission; }, [requestCameraPermission]);
+
+  // Microphone permission — needed by recordAsync when audio is enabled.
+  // Denial is non-fatal: the overlay records muted instead of failing silently.
+  const [micPermission, requestMicPermission] = useMicrophonePermissions
+    ? useMicrophonePermissions()
+    : [{ granted: true } as { granted: boolean }, async () => ({ granted: true })];
+  const requestMicPermissionRef = useRef(requestMicPermission);
+  useEffect(() => { requestMicPermissionRef.current = requestMicPermission; }, [requestMicPermission]);
 
   const cameraRef              = useRef<CameraView | null>(null);
   const lockNextRef            = useRef<string | null>(null);
@@ -672,9 +682,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       const result = await requestCameraPermissionRef.current();
       if (!result?.granted) return false; // denied — don't start
     }
+    // Also request microphone up front when audio is enabled — recordAsync
+    // with audio throws without it, which used to kill the recording loop
+    // silently. Denial is fine: the overlay falls back to muted recording.
+    if (settingsRef.current.audioEnabled && !micPermission?.granted) {
+      try { await requestMicPermissionRef.current(); } catch { /* muted fallback */ }
+    }
     setBackgroundRecordPending(true);
     return true;
-  }, [cameraPermission?.granted]);
+  }, [cameraPermission?.granted, micPermission?.granted]);
 
   /** Called by DashcamOverlay once onCameraReady fires and startDashcam() has
    *  been called, so we clear the pending flag and the overlay stays invisible. */

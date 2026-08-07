@@ -68,6 +68,9 @@ import { getMakeById, getModelById } from "@/data/carModels";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Animated TouchableOpacity for the pulsing trip-mode alert banner.
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
@@ -84,12 +87,6 @@ function durationStr(s: number): string {
   const m = Math.floor((s % 3600) / 60);
   return h > 0 ? `${h}h ${m}min` : `${m} min`;
 }
-function formatClockTime(d: Date): string {
-  const h = d.getHours() % 12 || 12;
-  const m = d.getMinutes().toString().padStart(2, "0");
-  return `${h}:${m} ${d.getHours() >= 12 ? "PM" : "AM"}`;
-}
-
 
 function incidentSummaryParts(incidents: { type: string; source: string }[]): { emoji: string; label: string }[] {
   const camCount = incidents.filter((i) => i.type === "camera").length;
@@ -648,6 +645,9 @@ export default function DriveScreen() {
   // alertOverlayPulse ref declared early (rule of hooks: same order every render).
   // The driving useEffect lives after primaryAlert's useMemo below.
   const alertOverlayPulse = useRef(new Animated.Value(1)).current;
+  // Whole-overlay heartbeat scale — animated in the same loop as the ring
+  // opacity so the entire alert overlay visibly "beats" when an alert is near.
+  const alertOverlayScale = useRef(new Animated.Value(1)).current;
 
   // Nearest incident ahead — considers BOTH static speed zones AND community
   // reports so a just-reported broken-down vehicle beats a distant speed camera.
@@ -715,7 +715,10 @@ export default function DriveScreen() {
     if (activeRoute && routeIncidentsAhead.length > 0) {
       // Skip incidents within 250 m — those are in-zone or just-passed.
       // The DriveAlertOverlay owns that range; the strip badge shows lookahead only.
-      const inc = routeIncidentsAhead.find(i => (i.aheadDistanceM ?? 0) > 250);
+      // Speed-camera priority: a camera ahead outranks other incident types
+      // even when they are nearer — the rest stay reachable via the list.
+      const ahead = routeIncidentsAhead.filter(i => (i.aheadDistanceM ?? 0) > 250);
+      const inc = ahead.find(i => i.type === "camera") ?? ahead[0];
       if (inc) {
         return {
           type:       inc.type,
@@ -733,6 +736,8 @@ export default function DriveScreen() {
     type AlertCandidate = {
       type: string; typeName: string; speedLimit?: number;
       distanceM: number; color: string; road?: string | null;
+      /** Speed camera / speed zone — outranks other types within the radius. */
+      isSpeedCam?: boolean;
     };
     const candidates: AlertCandidate[] = [];
 
@@ -746,6 +751,7 @@ export default function DriveScreen() {
         type: aheadZone.type, typeName: resolveIncidentType(aheadZone.type).label,
         speedLimit: aheadZone.speedLimit, distanceM: aheadZone.distance,
         color: resolveIncidentType(aheadZone.type).color, road: aheadZone.road,
+        isSpeedCam: aheadZone.type === "camera" || aheadZone.speedLimit != null,
       });
     }
 
@@ -771,6 +777,7 @@ export default function DriveScreen() {
           speedLimit: nearestReport.speedLimit ?? undefined,
           distanceM: nearestDist, color: resolveIncidentType(nearestReport.type).color,
           road: nearestReport.roadName,
+          isSpeedCam: nearestReport.type === "camera",
         });
       }
       // HERE Live Traffic incidents within 3 km
@@ -794,8 +801,11 @@ export default function DriveScreen() {
     }
 
     if (candidates.length === 0) return null;
-    // Pick the closest — a HERE incident 200 m away wins over a camera 1 km away
-    return candidates.sort((a, b) => a.distanceM - b.distanceM)[0];
+    // Speed-camera priority: within the candidate radius a speed camera /
+    // speed zone outranks other alert types even when they are nearer.
+    // Everything else stays reachable via the nearby-alerts list.
+    candidates.sort((a, b) => a.distanceM - b.distanceM);
+    return candidates.find(c => c.isSpeedCam) ?? candidates[0];
   }, [activeRoute, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
   // ── Alert overlay heartbeat pulse ────────────────────────────────────────
@@ -818,21 +828,35 @@ export default function DriveScreen() {
     const active = locationGranted && !overLimit && !routeLoading && primaryAlert != null;
     if (!active || alertDistTier < 0) {
       alertOverlayPulse.setValue(1);
+      alertOverlayScale.setValue(1);
       return undefined;
     }
+    const nd = Platform.OS !== "web";
     const duration = alertDistTier === 2 ? 350 : alertDistTier === 1 ? 600 : 1000;
     const minVal   = alertDistTier === 2 ? 0.55 : alertDistTier === 1 ? 0.70 : 0.83;
+    // Heartbeat amplitude for the whole overlay — deepest when very close.
+    const amp      = alertDistTier === 2 ? 0.06 : alertDistTier === 1 ? 0.04 : 0.025;
+    // Scale sequence is a "lub-dub" beat whose total time matches the ring
+    // opacity sequence (2 × duration) so the parallel loop never stutters.
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(alertOverlayPulse, { toValue: minVal, duration, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(alertOverlayPulse, { toValue: 1,      duration, useNativeDriver: Platform.OS !== "web" }),
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(alertOverlayPulse, { toValue: minVal, duration, useNativeDriver: nd }),
+          Animated.timing(alertOverlayPulse, { toValue: 1,      duration, useNativeDriver: nd }),
+        ]),
+        Animated.sequence([
+          Animated.timing(alertOverlayScale, { toValue: 1 + amp,       duration: duration * 0.4,  useNativeDriver: nd }),
+          Animated.timing(alertOverlayScale, { toValue: 1,             duration: duration * 0.35, useNativeDriver: nd }),
+          Animated.timing(alertOverlayScale, { toValue: 1 + amp * 0.6, duration: duration * 0.35, useNativeDriver: nd }),
+          Animated.timing(alertOverlayScale, { toValue: 1,             duration: duration * 0.9,  useNativeDriver: nd }),
+        ]),
       ]),
     );
     loop.start();
-    return () => { loop.stop(); alertOverlayPulse.setValue(1); };
+    return () => { loop.stop(); alertOverlayPulse.setValue(1); alertOverlayScale.setValue(1); };
   // alertDistTier is the coarse bucketed version of alertDistM — intentional.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alertDistTier, locationGranted, overLimit, routeLoading, !!primaryAlert, alertOverlayPulse]);
+  }, [alertDistTier, locationGranted, overLimit, routeLoading, !!primaryAlert, alertOverlayPulse, alertOverlayScale]);
 
   // HUD-aware colours
   const bg       = isDark ? "#0A0A0AEF" : "#FFFFFFF0";
@@ -1000,13 +1024,14 @@ export default function DriveScreen() {
 
       {/* ── Drive Mode top alert banner — e.g. "Speed camera ahead · 200 m" ──── */}
       {tripActive && primaryAlert && (
-        <TouchableOpacity
+        <AnimatedTouchable
           activeOpacity={0.85}
           onPress={() => { if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true); }}
           style={[styles.dmAlertBanner, {
             top: topInset + 8,
             backgroundColor: isDark ? "#101613F2" : "#FFFFFFF5",
             borderColor: primaryAlert.distanceM < 500 ? primaryAlert.color : c.primary + "66",
+            transform: [{ scale: alertOverlayScale }],
           }]}
         >
           <View style={[styles.dmAlertIconWrap, { backgroundColor: primaryAlert.color + "22" }]}>
@@ -1030,29 +1055,15 @@ export default function DriveScreen() {
               <Text style={styles.dmLimitBadgeTxt}>{primaryAlert.speedLimit}</Text>
             </View>
           )}
-        </TouchableOpacity>
+        </AnimatedTouchable>
       )}
 
-      {/* ── Live Trip info card — shows origin/destination, start time, LIVE badge ── */}
+      {/* ── Compact LIVE pill — replaces the bulky trip info card so the top
+          stays clear for nearby-alert overlays. Styled like the red REC pill. ── */}
       {tripActive && navDestination != null && (
-        <View style={[styles.tripInfoCard, { top: topInset + (primaryAlert ? 90 : 16) }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tripInProgress}>Trip in Progress</Text>
-              <Text style={styles.tripRoute} numberOfLines={1}>
-                Current Location → {navDestination.name.split(",")[0]}
-              </Text>
-              {tripStartTime != null && activeRoute != null && (
-                <Text style={styles.tripMeta}>
-                  Started {formatClockTime(tripStartTime)} · {distStr(activeRoute.distanceM)}
-                </Text>
-              )}
-            </View>
-            <View style={styles.tripLiveBadge}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FFF", marginRight: 4 }} />
-              <Text style={styles.tripLiveBadgeTxt}>LIVE</Text>
-            </View>
-          </View>
+        <View style={[styles.livePill, { top: topInset + (primaryAlert ? 90 : 16) }]}>
+          <View style={styles.livePillDot} />
+          <Text style={styles.livePillTxt}>LIVE</Text>
         </View>
       )}
 
@@ -1617,14 +1628,15 @@ export default function DriveScreen() {
               Border colour shifts RED → ORANGE → AMBER → alert-colour as
               distance grows. SOS (zIndex 10) always floats on top. */}
           {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert.distanceM <= 1000 && (
-            // Outer View is always fully opaque — hides the gauge + right-panel
-            // content underneath. A separate inner Animated.View ring pulses to
-            // give the heartbeat effect without making the background see-through.
-            <View
+            // Outer view is always fully opaque — hides the gauge + right-panel
+            // content underneath. The inner ring's opacity pulses AND the whole
+            // overlay scales in a lub-dub heartbeat so it's noticeable at a glance.
+            <Animated.View
               style={[styles.alertOverlay, {
                 backgroundColor: bgOpaque,
                 borderLeftColor: overlayBorderColor,
                 borderLeftWidth: overlayBorderWidth,
+                transform: [{ scale: alertOverlayScale }],
               }]}
             >
               {/* Pulsing ring glow — only this opacity animates, not the whole overlay */}
@@ -1740,7 +1752,7 @@ export default function DriveScreen() {
                   </View>
                 )}
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           )}
 
           {/* SOS — above the overlay via zIndex 10 */}
@@ -1823,8 +1835,10 @@ export default function DriveScreen() {
                     stopDashcam();
                   } else {
                     // Not recording — start silently in the background so the
-                    // map and alerts remain fully visible.
-                    startBackgroundRecording();
+                    // map and alerts remain fully visible. If permission was
+                    // denied, open the dashcam's permission-request screen so
+                    // the user understands why nothing started.
+                    startBackgroundRecording().then((ok) => { if (!ok) openDashcam(); });
                   }
                 }}
                 activeOpacity={0.85}
@@ -2095,7 +2109,11 @@ export default function DriveScreen() {
                 onPress={async () => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   if (dashcamRecording || dashcamPending) stopDashcam();
-                  else await startBackgroundRecording();
+                  else {
+                    // Denied permission → show the dashcam permission screen.
+                    const ok = await startBackgroundRecording();
+                    if (!ok) openDashcam();
+                  }
                 }}
                 activeOpacity={0.85}
               >
@@ -3241,26 +3259,21 @@ const styles = StyleSheet.create({
   dmStopSquare: { width: 20, height: 20, borderRadius: 5, backgroundColor: "#FFF" },
   dmStopLbl: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
-  // ── Live Trip info card ────────────────────────────────────────────────────
-  // Positioned between the speed gauge (left: 14, width: 96) and the
-  // right-edge buttons (right: 14, width: 60) so neither is obscured.
-  tripInfoCard: {
+  // ── Compact LIVE pill — replaces the old trip info card. Styled to match
+  // the red "● REC" dashcam pill; sits next to the speed gauge (left: 14,
+  // width: 96) so the rest of the top row stays free for alert overlays.
+  livePill: {
     position: "absolute",
     left: 120,   // 14 (gauge left) + 96 (gauge width) + 10 gap
-    right: 82,   // 14 (buttons right) + 60 (button width) + 8 gap
     zIndex: 19,
-    backgroundColor: "#000000BB",
-    borderRadius: 16, padding: 10,
-    borderWidth: 1, borderColor: "#FFFFFF15",
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "#B71C1C", borderRadius: 16,
+    paddingHorizontal: 12, paddingVertical: 7,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
   },
-  tripInProgress: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#00C853", marginBottom: 3 },
-  tripRoute:      { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  tripMeta:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#FFFFFFBB", marginTop: 2 },
-  tripLiveBadge:  {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: "#D32F2F", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
-  },
-  tripLiveBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", letterSpacing: 1 },
+  livePillDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#FF5252" },
+  livePillTxt: { color: "#FFF", fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1 },
 
   // ── Live Trip bottom sheet ─────────────────────────────────────────────────
   liveTripSheet: {

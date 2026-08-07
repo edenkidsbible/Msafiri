@@ -1732,15 +1732,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return best ? { incident: best, dist: bestDist } : null;
     })();
 
-    // (4) Pick winner: closest of zone / community-report / HERE incident
+    // (4) Pick winner: closest of zone / community-report / HERE incident —
+    // EXCEPT that a speed camera / speed zone outranks other alert types
+    // within the radius (drive-test feedback: the camera matters most; the
+    // rest stay reachable via the nearby list / extras).
     const zoneDist   = zoneCandidate?.distance ?? Infinity;
     const reportDist = reportCandidate?.dist   ?? Infinity;
     const hereDist   = hereCandidate?.dist     ?? Infinity;
     const minDist    = Math.min(zoneDist, reportDist, hereDist);
+    const zoneIsSpeedCam =
+      zoneCandidate != null &&
+      (zoneCandidate.type === "camera" || zoneCandidate.speedLimit != null);
     const winner: DriveAlert | null =
       minDist === Infinity
         ? null
-        : minDist === zoneDist
+        : (zoneIsSpeedCam || minDist === zoneDist)
           ? {
               id: zoneCandidate!.id,
               source: "zone" as const,

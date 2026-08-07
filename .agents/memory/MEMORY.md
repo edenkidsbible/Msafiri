@@ -66,4 +66,5 @@
 - [expo-file-system v19 legacy import](expo-filesystem-v19-legacy.md) — legacy functions (documentDirectory, getInfoAsync, moveAsync, deleteAsync, makeDirectoryAsync) throw at runtime in v19; import from `expo-file-system/legacy` instead.
 - [Drive Mode route & auto-start](drive-mode-route.md) — drive screen is a hidden tab `/drive` (tab bar stays visible); trip auto-starts unless navDestination or noAutoStart=1; audio toggle owns setAlertVoiceDisabled/setSoundsMuted.
 - [Live Trip mode architecture](live-trip-mode.md) — startNavigation() never called; tripActive is local state; DriveMapView gets tripMode prop for green/blue polyline split.
+- [Dashcam recordAsync loop resilience](dashcam-record-loop-resilience.md) — never break the record loop on one failure; mic permission separate from camera (muted fallback); permission gate replaces UI.
 - [Multi-vehicle session scoping](multi-vehicle-session-scoping.md) — drive sessions have no vehicleId server-side; bridge with local vehicleSessionMap (AsyncStorage); default vehicle gets all unclaimed sessions as catch-all.

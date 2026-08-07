@@ -18,6 +18,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -39,11 +40,13 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 // ── Lazy-load expo-camera so the web bundle is not broken ─────────────────────
 let CameraView: any    = null;
 let useCameraPermissions: any = null;
+let useMicrophonePermissions: any = null;
 if (Platform.OS !== "web") {
   try {
     const mod = require("expo-camera");
-    CameraView             = mod.CameraView;
-    useCameraPermissions   = mod.useCameraPermissions;
+    CameraView               = mod.CameraView;
+    useCameraPermissions     = mod.useCameraPermissions;
+    useMicrophonePermissions = mod.useMicrophonePermissions;
   } catch {
     // Expo Go may not have the native camera module — degrade gracefully
   }
@@ -124,6 +127,19 @@ export default function DashcamOverlay() {
   const [permission, requestPermission] = useCameraPermissions
     ? useCameraPermissions()
     : [{ granted: true }, async () => ({ granted: true })];
+
+  const [micPermission, requestMicPermission] = useMicrophonePermissions
+    ? useMicrophonePermissions()
+    : [{ granted: true }, async () => ({ granted: true })];
+
+  // Whether recordAsync should be muted — read via ref at record time so the
+  // loop effect never restarts mid-segment. Recording with audio enabled but
+  // no mic permission throws, which used to silently kill the whole loop
+  // (REC indicator stayed on but no clips were ever saved).
+  const recordMutedRef = useRef(true);
+  useEffect(() => {
+    recordMutedRef.current = !settings.audioEnabled || !micPermission?.granted;
+  }, [settings.audioEnabled, micPermission?.granted]);
 
   // ── Register camera ref with DashcamContext ────────────────────────────────
   const cameraCallbackRef = useCallback(
@@ -211,24 +227,51 @@ export default function DashcamOverlay() {
     loopCancelRef.current = false;
 
     async function loop() {
-      while (true) {
+      // Consecutive-failure counter — a single recordAsync rejection used to
+      // `break` the loop instantly, so a camera that wasn't quite ready yet
+      // (common when auto-started from the drive screen right after
+      // onCameraReady) left the REC indicator on while saving zero clips.
+      // Instead: back off briefly and retry; only give up after several
+      // consecutive failures. Reset on every successful segment.
+      let consecutiveFailures = 0;
+      const MAX_FAILURES = 6;
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+      while (!loopCancelRef.current) {
+        if (!localCameraRef.current) {
+          // Camera ref not attached yet — wait instead of aborting.
+          consecutiveFailures++;
+          if (consecutiveFailures >= MAX_FAILURES) break;
+          await sleep(500);
+          continue;
+        }
         try {
-          if (!localCameraRef.current) break;
           segmentStartRef.current = Date.now();
           const result = await localCameraRef.current.recordAsync({
             maxDuration: 120,
-            muted: !settings.audioEnabled,
+            muted: recordMutedRef.current,
           });
           if (result?.uri) {
+            consecutiveFailures = 0;
             const durationS = Math.round((Date.now() - segmentStartRef.current) / 1000);
             const lat = latRef.current, lng = lngRef.current;
             await onSegmentComplete(
               result.uri, durationS,
               lat != null && lng != null ? { lat, lng } : undefined,
             );
+          } else if (!loopCancelRef.current) {
+            // Resolved with no file (camera interrupted / not ready) — retry.
+            consecutiveFailures++;
+            if (consecutiveFailures >= MAX_FAILURES) break;
+            await sleep(700);
           }
-        } catch { break; }
-        if (loopCancelRef.current) break;
+        } catch (err) {
+          if (loopCancelRef.current) break;
+          console.warn("[Dashcam] recordAsync failed, retrying:", err);
+          consecutiveFailures++;
+          if (consecutiveFailures >= MAX_FAILURES) break;
+          await sleep(700);
+        }
       }
     }
 
@@ -256,6 +299,55 @@ export default function DashcamOverlay() {
   // ── Don't render on web or when fully idle ────────────────────────────────
   if (Platform.OS === "web") return null;
   if (!isRecording && !isDashcamOpen && !backgroundRecordPending) return null;
+
+  // ── Permission gate ────────────────────────────────────────────────────────
+  // Without camera permission the CameraView never produces a picture, so
+  // rendering the full dashcam UI is misleading. Show a dedicated
+  // permission-request state instead — controls and preview only mount once
+  // the permission is actually granted.
+  if (!permission?.granted) {
+    if (!isDashcamOpen) return null; // background start already handles denial
+    return (
+      <View style={[StyleSheet.absoluteFill, styles.permScreen]}>
+        <TouchableOpacity
+          style={[styles.permCloseBtn, { top: insets.top + 10 }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); closeDashcam(); }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="close" size={26} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.permIconWrap}>
+          <Ionicons name="videocam-off-outline" size={44} color="#FF3B30" />
+        </View>
+        <Text style={styles.permTitle}>Camera access needed</Text>
+        <Text style={styles.permBody}>
+          The dashcam records the road ahead using your phone's camera. Allow
+          camera access to start recording — clips stay on your device unless
+          you lock them.
+        </Text>
+        <TouchableOpacity
+          style={styles.permGrantBtn}
+          activeOpacity={0.85}
+          onPress={async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            const res = await requestPermission();
+            if (!res?.granted && res?.canAskAgain === false) {
+              // Permanently denied — the system dialog won't show again.
+              Linking.openSettings().catch(() => {});
+            }
+          }}
+        >
+          <Ionicons name="videocam-outline" size={18} color="#fff" />
+          <Text style={styles.permGrantTxt}>Allow Camera Access</Text>
+        </TouchableOpacity>
+        {permission?.canAskAgain === false && (
+          <Text style={styles.permHint}>
+            Camera was denied earlier — enable it in your phone's Settings.
+          </Text>
+        )}
+      </View>
+    );
+  }
 
   // In background-record-pending mode the overlay mounts silently (opacity 0,
   // no pointer events) just long enough for the CameraView to warm up. Once
@@ -427,7 +519,11 @@ export default function DashcamOverlay() {
                   <TouchableOpacity
                     style={styles.recordBtn}
                     onPress={async () => {
-                      if (!permission?.granted) { await requestPermission(); return; }
+                      // Camera permission is guaranteed by the gate above; ask
+                      // for the mic here so audio-enabled recording never throws.
+                      if (settings.audioEnabled && !micPermission?.granted) {
+                        try { await requestMicPermission(); } catch { /* muted fallback */ }
+                      }
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                       startDashcam();
                     }}
@@ -484,14 +580,6 @@ export default function DashcamOverlay() {
 
             </View>
           </View>
-
-          {/* Permission hint */}
-          {!permission?.granted && (
-            <View style={styles.permissionBanner}>
-              <Ionicons name="camera-outline" size={18} color="#fff" />
-              <Text style={styles.permissionText}>Camera permission required to record.</Text>
-            </View>
-          )}
 
           {/* ── Settings panel (slide-up sheet within dashcam) ──────── */}
           {settingsOpen && (
@@ -742,13 +830,39 @@ const styles = StyleSheet.create({
   },
   stopInner: { width: 26, height: 26, borderRadius: 4, backgroundColor: "#fff" },
 
-  // Permission hint
-  permissionBanner: {
-    position: "absolute", bottom: 120, left: 0, right: 0,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "rgba(0,0,0,0.7)", paddingVertical: 10,
+  // ── Permission gate screen ──────────────────────────────────────────────────
+  permScreen: {
+    backgroundColor: "#0B0B0B", zIndex: 9999,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 32,
   },
-  permissionText: { color: "#fff", fontSize: 13, fontWeight: "500" },
+  permCloseBtn: {
+    position: "absolute", right: 18,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center", justifyContent: "center",
+  },
+  permIconWrap: {
+    width: 88, height: 88, borderRadius: 44,
+    backgroundColor: "rgba(255,59,48,0.12)",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 20,
+  },
+  permTitle: { color: "#fff", fontSize: 20, fontWeight: "800", marginBottom: 10, textAlign: "center" },
+  permBody: {
+    color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 21,
+    textAlign: "center", marginBottom: 26,
+  },
+  permGrantBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#FF3B30", borderRadius: 26,
+    paddingHorizontal: 24, paddingVertical: 14,
+  },
+  permGrantTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  permHint: {
+    color: "rgba(255,255,255,0.45)", fontSize: 12,
+    textAlign: "center", marginTop: 14,
+  },
 
   // ── Settings panel ──────────────────────────────────────────────────────────
   settingsPanel: {
