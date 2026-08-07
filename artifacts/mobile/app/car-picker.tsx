@@ -110,7 +110,7 @@ export default function CarPickerScreen() {
         activeOpacity={0.7}
       >
         <View style={[styles.modelThumb, { backgroundColor: c.muted }]}>
-          <CarImage makeId={selectedMake.id} modelId={item.id} emoji={selectedMake.emoji} size={72} />
+          <CarImage makeId={selectedMake.id} modelId={item.id} emoji={selectedMake.emoji} size={108} />
         </View>
         <Text style={[styles.modelLabel, { color: c.foreground }]}>{item.name}</Text>
         {isSelected && <Ionicons name="checkmark-circle" size={20} color={c.primary} />}
@@ -211,11 +211,11 @@ const styles = StyleSheet.create({
   rowLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
 
   modelRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 14, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 14,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 14, borderWidth: 1, paddingVertical: 6, paddingHorizontal: 14,
   },
   modelThumb: {
-    width: 88, height: 58, borderRadius: 10, alignItems: "center", justifyContent: "center", overflow: "hidden",
+    width: 120, height: 78, borderRadius: 10, alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
   modelLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
 
