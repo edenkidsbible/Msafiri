@@ -17,13 +17,17 @@ const SOURCES = {
 export type SoundKey = keyof typeof SOURCES;
 
 const players: Partial<Record<SoundKey, AudioPlayer>> = {};
-let audioModeReady = false;
+let audioModeReady    = false;
+// Set to true while the dashcam is actively recording with audio so that
+// ensureAudioMode() doesn't override back to allowsRecording:false mid-clip.
+let dashcamAudioActive = false;
 
 /** Set the global audio session mode once. Exported so alertTts.ts shares the
  *  same flag — ensures setAudioModeAsync is only ever called once, preventing
- *  the rapid double-call that briefly resets the session and stops background music. */
+ *  the rapid double-call that briefly resets the session and stops background music.
+ *  No-ops while dashcam audio is active (dashcam owns the session then). */
 export async function ensureAudioMode() {
-  if (audioModeReady || Platform.OS === "web") return;
+  if (audioModeReady || Platform.OS === "web" || dashcamAudioActive) return;
   audioModeReady = true;
   try {
     // Play alerts even if the phone's ringer is silenced (like nav apps do),
@@ -37,6 +41,53 @@ export async function ensureAudioMode() {
     });
   } catch {
     // Non-critical — sounds still work with default audio mode
+  }
+}
+
+/**
+ * Switch the iOS AVAudioSession so the dashcam microphone and Bluetooth A2DP
+ * music can coexist.
+ *
+ * recording = true  → PlayAndRecord + MixWithOthers
+ *   iOS keeps the A2DP (high-quality BT audio) route active, the device
+ *   microphone records alongside it, and in-app alerts play over the top.
+ *
+ * recording = false → restore the baseline PlayAndRecord-off / DuckOthers mode
+ *   so alert sounds duck music again and no recording route is held open.
+ *
+ * On Android, the OS audio-focus system already allows simultaneous A2DP + mic;
+ * this call is still safe to make there (expo-audio passes the options through)
+ * but has no behavioural effect on most Android devices.
+ */
+export async function setDashcamAudioMode(recording: boolean): Promise<void> {
+  if (Platform.OS === "web") return;
+  dashcamAudioActive = recording;
+  try {
+    if (recording) {
+      await setAudioModeAsync({
+        playsInSilentMode:          true,
+        // mixWithOthers: don't interrupt other apps' audio output (BT music).
+        interruptionMode:           "mixWithOthers",
+        // allowsRecording:true → iOS uses AVAudioSessionCategoryPlayAndRecord,
+        // which keeps the microphone open without killing the A2DP output route.
+        allowsRecording:            true,
+        shouldPlayInBackground:     true,
+        shouldRouteThroughEarpiece: false,
+      });
+    } else {
+      await setAudioModeAsync({
+        playsInSilentMode:          true,
+        interruptionMode:           "duckOthers",
+        allowsRecording:            false,
+        shouldPlayInBackground:     true,
+        shouldRouteThroughEarpiece: false,
+      });
+      // Mode is now clean; mark ready so ensureAudioMode() skips a redundant call.
+      audioModeReady = true;
+    }
+  } catch {
+    // Non-critical — recording continues, music may be briefly interrupted
+    dashcamAudioActive = false;
   }
 }
 

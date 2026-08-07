@@ -36,6 +36,7 @@ import { useDashcam } from "@/context/DashcamContext";
 import { useApp } from "@/context/AppContext";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import { setDashcamAudioMode } from "@/utils/sound";
 
 // ── Lazy-load expo-camera so the web bundle is not broken ─────────────────────
 let CameraView: any    = null;
@@ -149,6 +150,19 @@ export default function DashcamOverlay() {
     },
     [setCameraRef]
   );
+
+  // ── Audio session: let BT music and the mic coexist ──────────────────────
+  // When recording with audio enabled (and mic permission granted), switch to
+  // PlayAndRecord + MixWithOthers so iOS keeps the Bluetooth A2DP route open
+  // instead of tearing it down to grab the microphone exclusively.
+  // Restores the baseline session (DuckOthers, no recording) the moment
+  // audio recording stops for any reason (muted, stopped, unmounted).
+  const audioRecording = isRecording && settings.audioEnabled && !!micPermission?.granted;
+  useEffect(() => {
+    if (Platform.OS === "web" || !audioRecording) return;
+    setDashcamAudioMode(true);
+    return () => { setDashcamAudioMode(false); };
+  }, [audioRecording]);
 
   // ── Keep screen awake while dashcam is active ─────────────────────────────
   // keepAwakeActive tracks whether activateKeepAwakeAsync completed successfully
