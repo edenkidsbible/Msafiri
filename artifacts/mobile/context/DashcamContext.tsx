@@ -114,6 +114,15 @@ interface DashcamContextValue {
    *  Requests camera permission if not yet granted — shows the system dialog.
    *  Resolves to false if permission was denied (nothing starts). */
   startBackgroundRecording: () => Promise<boolean>;
+  /**
+   * Proactively request both camera AND microphone permissions before the user
+   * taps the dashcam button. Should be called from the drive screen's
+   * useFocusEffect so first-time users see both prompts in the right sequence
+   * (iOS will not reliably show two system dialogs back-to-back without a gap).
+   * Safe to call repeatedly — skips any already-determined permission.
+   * Returns { cameraGranted, micGranted }.
+   */
+  requestDashcamPermissions: () => Promise<{ cameraGranted: boolean; micGranted: boolean }>;
   /** Called by DashcamOverlay once the camera is ready and recording starts. */
   clearBackgroundRecordPending: () => void;
   lockCurrentClip: (reason?: string) => void;
@@ -679,21 +688,55 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const openDashcam  = useCallback(() => setIsDashcamOpen(true), []);
   const closeDashcam = useCallback(() => setIsDashcamOpen(false), []);
 
+  /**
+   * Request camera then microphone permissions with a gap between them so iOS
+   * has time to dismiss one system dialog before showing the next.
+   * Safe to call when permissions are already granted — skips those.
+   */
+  const requestDashcamPermissions = useCallback(async (): Promise<{ cameraGranted: boolean; micGranted: boolean }> => {
+    let cameraGranted = cameraPermission?.granted ?? false;
+    let micGranted    = micPermission?.granted    ?? false;
+
+    if (!cameraGranted) {
+      try {
+        const res = await requestCameraPermissionRef.current();
+        cameraGranted = res?.granted ?? false;
+      } catch { cameraGranted = false; }
+    }
+
+    if (!micGranted) {
+      // iOS will not reliably show a second system dialog immediately after
+      // the first — give it 500 ms to fully dismiss the camera prompt first.
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      try {
+        const res = await requestMicPermissionRef.current();
+        micGranted = res?.granted ?? false;
+      } catch { micGranted = false; }
+    }
+
+    return { cameraGranted, micGranted };
+  }, [cameraPermission?.granted, micPermission?.granted]);
+
   /** Start recording silently — requests camera permission if needed (system
    *  dialog), then mounts overlay at opacity 0 so onCameraReady auto-starts.
    *  Returns false if the user denied the permission request. */
   const startBackgroundRecording = useCallback(async (): Promise<boolean> => {
     if (isRecordingRef.current) return true; // already recording
+
+    // Request camera permission if not yet granted.
     if (!cameraPermission?.granted) {
       const result = await requestCameraPermissionRef.current();
       if (!result?.granted) return false; // denied — don't start
     }
-    // Also request microphone up front when audio is enabled — recordAsync
-    // with audio throws without it, which used to kill the recording loop
-    // silently. Denial is fine: the overlay falls back to muted recording.
-    if (settingsRef.current.audioEnabled && !micPermission?.granted) {
+
+    // Always request microphone (not just when audioEnabled) — on iOS both
+    // must be determined before CameraView mounts, and the system dialogs
+    // need a short gap between them to display reliably.
+    if (!micPermission?.granted) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
       try { await requestMicPermissionRef.current(); } catch { /* muted fallback */ }
     }
+
     setBackgroundRecordPending(true);
     return true;
   }, [cameraPermission?.granted, micPermission?.granted]);
@@ -849,7 +892,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId, recordingEpoch,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
-      startBackgroundRecording, clearBackgroundRecordPending,
+      startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
       setCameraRef, onSegmentComplete,
     }),
@@ -858,7 +901,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId, recordingEpoch,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
-      startBackgroundRecording, clearBackgroundRecordPending,
+      startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
       setCameraRef, onSegmentComplete,
     ]

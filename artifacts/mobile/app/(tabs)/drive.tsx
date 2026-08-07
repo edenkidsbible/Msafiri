@@ -186,7 +186,21 @@ export default function DriveScreen() {
     stopAndSaveDashcam,
     lockCurrentClip,
     startBackgroundRecording,
+    requestDashcamPermissions,
   } = useDashcam();
+
+  // Proactively request camera + microphone permissions each time the drive
+  // screen comes into focus — before the user taps the dashcam button.
+  // This ensures first-time users see both system dialogs in the correct order
+  // (camera → 500 ms gap → microphone) rather than having them fire back-to-back
+  // when recording is already trying to start, which causes iOS to drop one.
+  // The call is a no-op when both permissions are already granted.
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== "web") {
+      requestDashcamPermissions().catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
 
   // Sync dashcam recording state into AppContext so the accelerometer
   // crash detector runs even when navigation is not active.

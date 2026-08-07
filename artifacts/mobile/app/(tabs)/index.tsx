@@ -37,23 +37,7 @@ import { useDashcam } from "@/context/DashcamContext";
 import { useColors } from "@/hooks/useColors";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-import { getCarImageUrl } from "@/data/carModels";
-
-// ── Vehicle hero images — local fallbacks per vehicle type ───────────────────
-const VEHICLE_IMAGES: Record<string, ReturnType<typeof require>> = {
-  car:        require("@/assets/images/vehicle-car.png"),
-  motorcycle: require("@/assets/images/vehicle-motorcycle.png"),
-  truck:      require("@/assets/images/vehicle-truck.png"),
-  psv:        require("@/assets/images/vehicle-bus.png"),
-  bus:        require("@/assets/images/vehicle-bus.png"),
-  tractor:    require("@/assets/images/vehicle-tractor.png"),
-};
-const DEFAULT_VEHICLE_IMAGE = require("@/assets/images/vehicle-car.png");
-
-// Strip the "custom-" prefix car-picker adds to modelIds — R2 key uses the raw slug.
-function customModelSlug(modelId: string): string {
-  return modelId.startsWith("custom-") ? modelId.slice(7) : modelId;
-}
+import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
 import {
   DriveSession,
   listDriveSessions,
@@ -117,29 +101,12 @@ export default function HomeScreen() {
     setThemeOverride,
     navTripActive,
     navTripPaused,
-    vehicleType,
-    vehicleMakeId,
-    vehicleModelId,
   } = useApp();
 
-  // ── Resolve which image to show on the hero card ──────────────────────────
-  // Priority: (1) both makeId + modelId set → /car-images/:make/:model endpoint
-  //                (handles webp conversion + caching server-side; custom slugs
-  //                 have "custom-" prefix stripped to match R2 key).
-  //           (2) only makeId (no model yet) → first standard model image
-  //           (3) neither set → local type-specific transparent PNG fallback
-  const vehicleHeroSource = useMemo(() => {
-    if (vehicleMakeId && !vehicleMakeId.startsWith("custom-")) {
-      const resolvedModel = vehicleModelId
-        ? customModelSlug(vehicleModelId)   // strips "custom-" for R2 key
-        : null;
-      if (resolvedModel) {
-        return { uri: getCarImageUrl(vehicleMakeId, resolvedModel) };
-      }
-    }
-    // Fall back to local type-specific image
-    return VEHICLE_IMAGES[vehicleType ?? "car"] ?? DEFAULT_VEHICLE_IMAGE;
-  }, [vehicleMakeId, vehicleModelId, vehicleType]);
+  // Increments each time the Home tab gains focus so DefaultVehicleImage
+  // re-reads loadVehicles() and shows any vehicle the user just changed.
+  const [heroRefreshKey, setHeroRefreshKey] = useState(0);
+
   const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
@@ -209,6 +176,9 @@ export default function HomeScreen() {
     AsyncStorage.getItem(COURSE_DISCLAIMER_KEY).then((v) => {
       if (v === "1") setCourseDisclaimerAgreed(true);
     }).catch(() => {});
+    // Bump the refresh key so DefaultVehicleImage re-reads loadVehicles()
+    // and shows any vehicle the user just changed in the Garage.
+    setHeroRefreshKey((k) => k + 1);
   }, []));
 
   const openCourse = () => {
@@ -410,14 +380,12 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
           >
-            {/* Vehicle image — large & prominent, spans the full card height */}
+            {/* Vehicle image — same source + fallback chain as Garage tab */}
             <View style={styles.heroImgWrap}>
-              <Image
-                source={vehicleHeroSource}
-                style={styles.heroVehicleImg}
-                resizeMode="contain"
-                // Fall back to the local generic image if the R2 URL fails
-                onError={() => {/* silently fall back — React Native will show the broken-image placeholder; a future improvement could swap the source */}}
+              <DefaultVehicleImage
+                width={185}
+                height={148}
+                refreshKey={heroRefreshKey}
               />
             </View>
 
@@ -430,6 +398,7 @@ export default function HomeScreen() {
                     <Text style={[styles.heroStatusLabel, { color: "#FFB300" }]}>Trip Paused</Text>
                   </View>
                   <Text style={styles.heroActionLine}>Tap to resume driving</Text>
+                  <Text style={styles.heroLongPressHint}>Long press ▶ on drive screen to end trip</Text>
                 </>
               ) : navTripActive ? (
                 <>
@@ -438,6 +407,7 @@ export default function HomeScreen() {
                     <Text style={[styles.heroStatusLabel, { color: "#34D399" }]}>Drive Active</Text>
                   </View>
                   <Text style={styles.heroActionLine}>Tap to view drive screen</Text>
+                  <Text style={styles.heroLongPressHint}>Long press ⏸ on drive screen to end trip</Text>
                 </>
               ) : (
                 <>
@@ -937,6 +907,10 @@ const styles = StyleSheet.create({
   heroStatusLabel: { fontSize: 16, fontFamily: "Inter_700Bold" },
   heroActionLine: {
     fontSize: 12, fontFamily: "Inter_400Regular", color: "#FFFFFFBB", lineHeight: 17,
+  },
+  heroLongPressHint: {
+    fontSize: 10, fontFamily: "Inter_400Regular", color: "#FFFFFF66",
+    lineHeight: 14, marginTop: 2,
   },
   heroTitle: { fontSize: 21, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   heroSub: {
