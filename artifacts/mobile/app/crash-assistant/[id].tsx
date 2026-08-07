@@ -467,8 +467,8 @@ export default function CrashAssistantScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Crash Assistant</Text>
@@ -483,24 +483,62 @@ export default function CrashAssistantScreen() {
         </View>
       </View>
 
-      {/* ── Step Progress Bar ────────────────────────────────────────────── */}
-      <View style={styles.progressRow}>
-        {STEPS.map((step, i) => (
-          <TouchableOpacity
-            key={step}
-            style={[
-              styles.progressDot,
-              i < stepIdx && { backgroundColor: colors.primary },
-              i === stepIdx && { backgroundColor: colors.primary, transform: [{ scaleX: 1 }] },
-              i > stepIdx && { backgroundColor: colors.border },
-            ]}
-            onPress={() => setStepIdx(i)}
-          >
-            {i < stepIdx && <Ionicons name="checkmark" size={10} color="#fff" />}
-          </TouchableOpacity>
-        ))}
+      {/* ── Step Progress ────────────────────────────────────────────────── */}
+      <View style={styles.progressWrap}>
+        {STEPS.map((step, i) => {
+          const done    = i < stepIdx;
+          const current = i === stepIdx;
+          return (
+            <React.Fragment key={step}>
+              <TouchableOpacity
+                style={[
+                  styles.progressStep,
+                  done    && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  current && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  !done && !current && { backgroundColor: "transparent", borderColor: colors.border },
+                ]}
+                onPress={() => setStepIdx(i)}
+                activeOpacity={0.75}
+              >
+                {done ? (
+                  <Ionicons name="checkmark" size={11} color="#fff" />
+                ) : (
+                  <Text style={[
+                    styles.progressStepNum,
+                    { color: current ? "#fff" : colors.mutedForeground },
+                  ]}>
+                    {i + 1}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              {i < STEPS.length - 1 && (
+                <View style={[
+                  styles.progressLine,
+                  { backgroundColor: i < stepIdx ? colors.primary : colors.border },
+                ]} />
+              )}
+            </React.Fragment>
+          );
+        })}
       </View>
-      <Text style={[styles.stepName, { color: colors.primary }]}>{STEP_LABEL[currentStep]}</Text>
+
+      {/* ── Current step label ──────────────────────────────────────────── */}
+      <View style={styles.stepLabelRow}>
+        <Ionicons
+          name={
+            currentStep === "evidence"     ? "shield-checkmark-outline" :
+            currentStep === "photos"       ? "camera-outline" :
+            currentStep === "witnesses"    ? "people-outline" :
+            currentStep === "other_driver" ? "car-outline" :
+            currentStep === "police"       ? "shield-outline" :
+            currentStep === "statement"    ? "create-outline" :
+                                             "document-text-outline"
+          }
+          size={18}
+          color={colors.primary}
+        />
+        <Text style={[styles.stepName, { color: colors.text }]}>{STEP_LABEL[currentStep]}</Text>
+      </View>
 
       {/* ── Step Content ─────────────────────────────────────────────────── */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -578,29 +616,36 @@ export default function CrashAssistantScreen() {
       {/* ── Navigation Buttons ────────────────────────────────────────────── */}
       <SafeAreaView edges={["bottom"]} style={[styles.navBar, { borderTopColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.navBtn, { borderColor: colors.border }]}
+          style={[
+            styles.navBtn,
+            { borderColor: stepIdx === 0 ? colors.border + "60" : colors.border,
+              opacity: stepIdx === 0 ? 0.4 : 1 },
+          ]}
           onPress={handleBack}
           disabled={stepIdx === 0}
+          activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={20} color={stepIdx === 0 ? colors.mutedForeground : colors.text} />
-          <Text style={[styles.navBtnText, { color: stepIdx === 0 ? colors.mutedForeground : colors.text }]}>Back</Text>
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <Text style={[styles.navBtnText, { color: colors.text }]}>Back</Text>
         </TouchableOpacity>
 
         {stepIdx < STEPS.length - 1 ? (
           <TouchableOpacity
             style={[styles.navBtnPrimary, { backgroundColor: colors.primary }]}
             onPress={handleNext}
+            activeOpacity={0.85}
           >
             <Text style={styles.navBtnPrimaryText}>Continue</Text>
-            <Ionicons name="chevron-forward" size={20} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.primaryForeground ?? "#fff"} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.navBtnPrimary, { backgroundColor: "#34C759" }]}
+            style={[styles.navBtnPrimary, { backgroundColor: colors.success ?? colors.primary }]}
             onPress={() => router.back()}
+            activeOpacity={0.85}
           >
             <Ionicons name="checkmark-circle" size={20} color="#fff" />
-            <Text style={styles.navBtnPrimaryText}>Done</Text>
+            <Text style={styles.navBtnPrimaryText}>Complete</Text>
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -614,52 +659,121 @@ function EvidenceStep({ record, colors, styles }: { record: AccidentRecord; colo
   const speedBefore = record.speedBeforeKmh ? Math.round(record.speedBeforeKmh) : null;
   const speedImpact = record.speedAtImpactKmh ? Math.round(record.speedAtImpactKmh) : null;
 
+  // Build grouped rows for each section
+  const locationRows = [
+    record.roadName         && { label: "Road",        value: record.roadName },
+    record.nearbyLandmark   && { label: "Nearby",       value: record.nearbyLandmark },
+    record.county           && { label: "County",       value: record.county },
+    (record.lat != null && record.lng != null)
+      && { label: "Coordinates", value: `${Number(record.lat).toFixed(5)}, ${Number(record.lng).toFixed(5)}` },
+  ].filter(Boolean) as { label: string; value: string }[];
+
+  const speedRows = [
+    speedBefore != null && { label: "Before impact", value: `${speedBefore} km/h`, highlight: true },
+    speedImpact != null && { label: "At impact",     value: `${speedImpact} km/h`, highlight: true },
+    record.directionLabel   && { label: "Direction",    value: record.directionLabel },
+  ].filter(Boolean) as { label: string; value: string; highlight?: boolean }[];
+
+  const weatherRows = record.weather ? [
+    record.weather.description && { label: "Conditions",   value: record.weather.description },
+    record.weather.tempC != null && { label: "Temperature", value: `${record.weather.tempC}°C` },
+    record.weather.roadCondition && { label: "Road surface", value: record.weather.roadCondition },
+  ].filter(Boolean) as { label: string; value: string }[] : [];
+
   return (
     <View>
-      <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* Type banner */}
+      <View style={[styles.infoCard, {
+        backgroundColor: record.isManual ? colors.card : "#FF3B3010",
+        borderColor: record.isManual ? colors.border : "#FF3B3040",
+      }]}>
         <View style={styles.infoCardHeader}>
-          <Ionicons name={record.isManual ? "document-text" : "warning"} size={20} color={record.isManual ? colors.primary : "#FF3B30"} />
-          <Text style={[styles.infoCardTitle, { color: colors.text }]}>
-            {record.isManual ? "Manual Report" : "Crash Auto-Detected"}
-          </Text>
+          <View style={{
+            width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center",
+            backgroundColor: record.isManual ? colors.primary + "18" : "#FF3B3018",
+          }}>
+            <Ionicons name={record.isManual ? "document-text-outline" : "warning-outline"} size={20}
+              color={record.isManual ? colors.primary : "#FF3B30"} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.infoCardTitle, { color: colors.text }]}>
+              {record.isManual ? "Manual Report" : "Crash Auto-Detected"}
+            </Text>
+            <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
+              {record.isManual
+                ? "You started this report manually."
+                : "Collision detected automatically."}
+            </Text>
+          </View>
         </View>
-        <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
-          {record.isManual
-            ? "You started this report manually. Fill in the details below."
-            : "Crash Assistant detected a collision and captured the data below automatically."}
-        </Text>
       </View>
 
-      <SectionHeader title="Location" icon="location-outline" colors={colors} />
-      <InfoRow label="Road" value={record.roadName} colors={colors} styles={styles} />
-      <InfoRow label="Nearby" value={record.nearbyLandmark} colors={colors} styles={styles} />
-      <InfoRow label="County" value={record.county} colors={colors} styles={styles} />
-      {record.lat != null && record.lng != null && (
-        <InfoRow label="Coordinates" value={`${Number(record.lat).toFixed(5)}, ${Number(record.lng).toFixed(5)}`} colors={colors} styles={styles} />
+      {/* Location */}
+      {locationRows.length > 0 && (
+        <>
+          <SectionHeader title="Location" icon="location-outline" colors={colors} />
+          <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {locationRows.map((row, i) => (
+              <View
+                key={row.label}
+                style={i < locationRows.length - 1 ? styles.groupRow : styles.groupRowLast}
+              >
+                <Text style={[styles.infoLabel, { flex: 1 }]}>{row.label}</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        </>
       )}
 
-      {(speedBefore != null || speedImpact != null) && (
+      {/* Speed */}
+      {speedRows.length > 0 && (
         <>
           <SectionHeader title="Vehicle Speed" icon="speedometer-outline" colors={colors} />
-          {speedBefore != null && <InfoRow label="Before impact" value={`${speedBefore} km/h`} colors={colors} styles={styles} highlight />}
-          {speedImpact != null && <InfoRow label="At impact" value={`${speedImpact} km/h`} colors={colors} styles={styles} highlight />}
-          {record.directionLabel && <InfoRow label="Direction" value={record.directionLabel} colors={colors} styles={styles} />}
+          <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {speedRows.map((row, i) => (
+              <View
+                key={row.label}
+                style={i < speedRows.length - 1 ? styles.groupRow : styles.groupRowLast}
+              >
+                <Text style={[styles.infoLabel, { flex: 1 }]}>{row.label}</Text>
+                <Text style={[styles.infoValue, { color: row.highlight ? colors.primary : colors.text }]}>
+                  {row.value}
+                </Text>
+              </View>
+            ))}
+          </View>
         </>
       )}
 
-      {record.weather && (
+      {/* Weather */}
+      {weatherRows.length > 0 && (
         <>
-          <SectionHeader title="Weather" icon="partly-sunny-outline" colors={colors} />
-          <InfoRow label="Conditions" value={record.weather.description} colors={colors} styles={styles} />
-          {record.weather.tempC != null && <InfoRow label="Temperature" value={`${record.weather.tempC}°C`} colors={colors} styles={styles} />}
-          <InfoRow label="Road" value={record.weather.roadCondition} colors={colors} styles={styles} />
+          <SectionHeader title="Weather & Road" icon="partly-sunny-outline" colors={colors} />
+          <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {weatherRows.map((row, i) => (
+              <View
+                key={row.label}
+                style={i < weatherRows.length - 1 ? styles.groupRow : styles.groupRowLast}
+              >
+                <Text style={[styles.infoLabel, { flex: 1 }]}>{row.label}</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
         </>
       )}
 
+      {/* Dashcam */}
       {record.dashcamClipId && (
         <>
           <SectionHeader title="Dashcam" icon="videocam-outline" colors={colors} />
-          <InfoRow label="Clip locked" value="Dashcam footage saved automatically" colors={colors} styles={styles} />
+          <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.groupRowLast}>
+              <Text style={[styles.infoLabel, { flex: 1 }]}>Clip status</Text>
+              <Text style={[styles.infoValue, { color: colors.primary }]}>Footage saved</Text>
+            </View>
+          </View>
         </>
       )}
 
@@ -1188,19 +1302,27 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
   return (
     <View>
       {/* Timeline */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Timeline</Text>
-      {record.timeline.map((evt) => (
-        <View key={evt.id} style={styles.timelineRow}>
-          <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.timelineTime, { color: colors.mutedForeground }]}>
-              {format(new Date(evt.occurredAt), "h:mm a")}
-            </Text>
-            <Text style={[styles.timelineDesc, { color: colors.text }]}>{evt.description ?? evt.eventType}</Text>
-          </View>
+      <SectionHeader title="Timeline" icon="time-outline" colors={colors} />
+      {record.timeline.length > 0 ? (
+        <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 0, paddingHorizontal: 14, paddingVertical: 8 }]}>
+          {record.timeline.map((evt, i) => (
+            <View key={evt.id} style={[styles.timelineRow, i === record.timeline.length - 1 && { marginBottom: 4 }]}>
+              <View style={{ alignItems: "center", width: 20 }}>
+                <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+                {i < record.timeline.length - 1 && (
+                  <View style={{ width: 2, flex: 1, backgroundColor: colors.border, marginTop: 4 }} />
+                )}
+              </View>
+              <View style={{ flex: 1, paddingBottom: i < record.timeline.length - 1 ? 12 : 0 }}>
+                <Text style={[styles.timelineTime, { color: colors.mutedForeground }]}>
+                  {format(new Date(evt.occurredAt), "h:mm a")}
+                </Text>
+                <Text style={[styles.timelineDesc, { color: colors.text }]}>{evt.description ?? evt.eventType}</Text>
+              </View>
+            </View>
+          ))}
         </View>
-      ))}
-      {record.timeline.length === 0 && (
+      ) : (
         <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>No timeline events recorded.</Text>
       )}
 
@@ -1330,140 +1452,174 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
     loadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
+    // ── Header (matches accident-reports.tsx) ─────────────────────────────
     header: {
-      flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12,
-      gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+      flexDirection: "row", alignItems: "flex-start",
+      paddingHorizontal: 16, paddingVertical: 12, gap: 12,
     },
-    headerBtn: { width: 36 },
-    headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
-    headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
-    stepBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+    headerBack: { width: 36, height: 36, alignItems: "center", justifyContent: "center", marginTop: 2 },
+    headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+    headerSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+    stepBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 2 },
     stepBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
-    progressRow: {
-      flexDirection: "row", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4,
-      gap: 6, alignItems: "center",
+    // ── Step progress ─────────────────────────────────────────────────────
+    progressWrap: {
+      flexDirection: "row", alignItems: "center",
+      paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4,
     },
-    progressDot: {
-      flex: 1, height: 6, borderRadius: 3,
+    progressStep: {
+      width: 26, height: 26, borderRadius: 13, borderWidth: 1.5,
       alignItems: "center", justifyContent: "center",
     },
-    stepName: {
-      fontSize: 20, fontFamily: "Inter_700Bold",
-      paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12,
+    progressStepNum: { fontSize: 11, fontFamily: "Inter_700Bold" },
+    progressLine: { flex: 1, height: 2, borderRadius: 1 },
+
+    // ── Step label row ────────────────────────────────────────────────────
+    stepLabelRow: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14,
     },
+    stepName: { fontSize: 20, fontFamily: "Inter_700Bold" },
 
     content: { paddingHorizontal: 16, paddingBottom: 32 },
 
+    // ── Nav bar ───────────────────────────────────────────────────────────
     navBar: {
       flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingTop: 12,
       borderTopWidth: StyleSheet.hairlineWidth,
     },
     navBtn: {
       flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1,
+      gap: 6, paddingVertical: 14, borderRadius: 16, borderWidth: 1,
     },
     navBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
     navBtnPrimary: {
       flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 14, borderRadius: 14,
+      gap: 8, paddingVertical: 14, borderRadius: 16,
     },
     navBtnPrimaryText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
-    // Evidence step
+    // ── Evidence step ─────────────────────────────────────────────────────
     infoCard: {
-      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8,
+      borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12,
     },
-    infoCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+    infoCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
     infoCardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-    infoNote: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+    infoNote: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
     infoRow: {
       flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
-      paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border + "60",
+      paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border + "70",
     },
-    infoLabel: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+    infoLabel: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, color: colors.mutedForeground },
     infoValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 2, textAlign: "right" },
     evidenceNote: {
       flexDirection: "row", gap: 8, marginTop: 20,
-      padding: 12, borderRadius: 10, backgroundColor: colors.muted + "12",
+      padding: 14, borderRadius: 14, backgroundColor: colors.muted + "15",
       alignItems: "flex-start",
     },
     evidenceNoteText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
 
-    // Photos step
+    // ── Section heading (uppercase accent) ───────────────────────────────
+    sectionHeading: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      marginTop: 20, marginBottom: 8,
+    },
+    sectionHeadingText: {
+      fontSize: 11, fontFamily: "Inter_600SemiBold",
+      textTransform: "uppercase", letterSpacing: 0.8,
+    },
+
+    // ── Grouped info card ─────────────────────────────────────────────────
+    groupCard: {
+      borderRadius: 16, borderWidth: 1, overflow: "hidden",
+      marginBottom: 12,
+    },
+    groupRow: {
+      flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
+      padding: 12, borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border + "70",
+    },
+    groupRowLast: {
+      flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
+      padding: 12,
+    },
+
+    // ── Photos step ───────────────────────────────────────────────────────
     stepIntro: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20, marginBottom: 16 },
-    photoCatCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10 },
+    photoCatCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10 },
     photoCatHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-    photoCatIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    photoCatIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
     photoCatLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
     photoCatCount: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
     addPhotoBtn: {
       flexDirection: "row", alignItems: "center", gap: 4,
-      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
+      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
     },
     addPhotoBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
     photoList: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
     photoChip: {
       flexDirection: "row", alignItems: "center", gap: 4,
-      paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1,
+      paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1,
     },
     photoChipText: { fontSize: 12, fontFamily: "Inter_400Regular" },
 
-    // Witnesses step
-    witnessCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10 },
+    // ── Witnesses step ────────────────────────────────────────────────────
+    witnessCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10 },
     witnessCardRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
     witnessName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
     witnessSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
     emptyState: {
-      alignItems: "center", padding: 32, borderRadius: 14,
+      alignItems: "center", padding: 36, borderRadius: 16,
       borderWidth: 1, borderStyle: "dashed", gap: 8, marginBottom: 16,
     },
     emptyStateText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-    witnessForm: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 10 },
+    witnessForm: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 10 },
     addBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 16, borderRadius: 14, borderWidth: 1.5, marginTop: 4,
+      gap: 8, paddingVertical: 16, borderRadius: 16, borderWidth: 1.5, marginTop: 4,
     },
     addBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
     formField: { marginBottom: 14 },
-    formLabel: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 6 },
+    formLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
     formInput: {
-      borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
       fontSize: 14, fontFamily: "Inter_400Regular",
     },
     formBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
     formCancelBtn: {
-      flex: 1, alignItems: "center", paddingVertical: 12,
-      borderRadius: 10, borderWidth: 1,
+      flex: 1, alignItems: "center", paddingVertical: 13,
+      borderRadius: 12, borderWidth: 1,
     },
     formCancelBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    formSaveBtn: { flex: 2, alignItems: "center", paddingVertical: 12, borderRadius: 10 },
+    formSaveBtn: { flex: 2, alignItems: "center", paddingVertical: 13, borderRadius: 12 },
     formSaveBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
-    // Statement step
+    // ── Statement step ────────────────────────────────────────────────────
     statementBox: {
-      borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8,
+      borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 8,
     },
     statementInput: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 24, minHeight: 200 },
     charCount: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "right", marginBottom: 4 },
 
-    // Report step
+    // ── Report step ───────────────────────────────────────────────────────
     sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 12 },
-    timelineRow: { flexDirection: "row", gap: 12, marginBottom: 12, alignItems: "flex-start" },
-    timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
+    timelineRow: { flexDirection: "row", gap: 14, marginBottom: 12, alignItems: "flex-start" },
+    timelineDot: { width: 12, height: 12, borderRadius: 6, marginTop: 3 },
     timelineTime: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 2 },
     timelineDesc: { fontSize: 14, fontFamily: "Inter_400Regular" },
     reportCard: {
       borderRadius: 16, borderWidth: 1, padding: 16, marginTop: 20, marginBottom: 16,
     },
     reportCardTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 6 },
-    reportCardSub: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19, marginBottom: 16 },
+    reportCardSub: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, marginBottom: 16 },
     generateBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 14, borderRadius: 12,
+      gap: 8, paddingVertical: 15, borderRadius: 14,
     },
     generateBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
-    reportReadyRow: { flexDirection: "row", gap: 12, alignItems: "center", marginBottom: 14 },
+    reportReadyRow: { flexDirection: "row", gap: 14, alignItems: "center", marginBottom: 16 },
     reportReadyIcon: {
       width: 56, height: 56, borderRadius: 14,
       backgroundColor: "#34C75918", alignItems: "center", justifyContent: "center",
@@ -1472,75 +1628,75 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     reportReadySub: { fontSize: 13, fontFamily: "Inter_400Regular" },
     shareBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 14, borderRadius: 12,
+      gap: 8, paddingVertical: 15, borderRadius: 14,
     },
     shareBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
     summaryRow: {
-      flexDirection: "row", borderRadius: 14, overflow: "hidden",
+      flexDirection: "row", borderRadius: 16, overflow: "hidden",
       backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
       padding: 16, gap: 8,
     },
 
-    // Incident type selector
+    // ── Incident type selector ────────────────────────────────────────────
     incidentTypeCard: {
       flexDirection: "row", alignItems: "center", gap: 12,
-      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10,
+      borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10,
     },
     incidentTypeIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
     incidentTypeLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
     incidentTypeDesc:  { fontSize: 12, fontFamily: "Inter_400Regular" },
 
-    // Other party dynamic form
+    // ── Other party dynamic form ──────────────────────────────────────────
     partyFormSection: { marginTop: 20, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     partyFormTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 14 },
     chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-    chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+    chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
     chipText: { fontSize: 13, fontFamily: "Inter_400Regular" },
     causeList: { gap: 8, marginBottom: 16 },
     causeRow: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1,
+      paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1,
     },
     causeText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
-    // Statement step — mode tabs
+    // ── Statement mode tabs ───────────────────────────────────────────────
     modeTabs: {
-      flexDirection: "row", borderRadius: 12, borderWidth: 1,
+      flexDirection: "row", borderRadius: 14, borderWidth: 1,
       overflow: "hidden", marginBottom: 16,
     },
     modeTab: {
       flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 6, paddingVertical: 10,
+      gap: 6, paddingVertical: 11,
     },
     modeTabText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-    // Recording UI
+    // ── Recording UI ──────────────────────────────────────────────────────
     micBtn: {
-      width: 96, height: 96, borderRadius: 48,
+      width: 100, height: 100, borderRadius: 50,
       alignItems: "center", justifyContent: "center",
       marginVertical: 24,
     },
     recordTimer: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: 2, marginBottom: 8 },
     audioSavedBanner: {
       flexDirection: "row", alignItems: "center", gap: 8,
-      borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
       marginBottom: 16, width: "100%",
     },
     audioSavedText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
     audioReadyCard: {
       flexDirection: "row", alignItems: "center", gap: 12,
-      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 4,
+      borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 4,
     },
     audioReadyTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
     audioReadySub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
     uploadAudioBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 14, borderRadius: 12,
+      gap: 8, paddingVertical: 15, borderRadius: 14,
     },
     uploadAudioBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
     discardAudioBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1,
+      gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1,
     },
   });
 }
