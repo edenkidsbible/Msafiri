@@ -45,6 +45,7 @@ import {
   removeVehicle,
   PENDING_SLOT_KEY,
 } from "@/utils/savedVehicles";
+import { getSessionsForVehicle } from "@/utils/vehicleSessionMap";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -393,7 +394,8 @@ export default function GarageScreen() {
     vehicleCustomMakeName, vehicleCustomModelName,
   } = useApp();
 
-  const [sessions,   setSessions]   = useState<DriveSession[]>([]);
+  const [sessions,         setSessions]         = useState<DriveSession[]>([]);
+  const [filteredSessions, setFilteredSessions] = useState<DriveSession[]>([]);
   const [careStats,  setCareStats]  = useState<VehicleCareStats | null>(null);
   const [odometerKm, setOdometerKm] = useState(0);
   const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
@@ -461,9 +463,24 @@ export default function GarageScreen() {
     }, [deviceId, vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType])
   );
 
+  // ── Per-vehicle session filtering ───────────────────────────────────────────
+  // When the user swipes to a different vehicle slide, filter the full session
+  // list down to only those recorded for that vehicle via the session map.
+  useEffect(() => {
+    if (sessions.length === 0 || vehicles.length === 0) {
+      setFilteredSessions(sessions);
+      return;
+    }
+    const activeVehicle  = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
+    const defaultVehicle = vehicles.find(v => v.isDefault) ?? vehicles[0];
+    getSessionsForVehicle(activeVehicle.id, defaultVehicle.id, sessions)
+      .then(filtered => setFilteredSessions(filtered))
+      .catch(() => setFilteredSessions(sessions));
+  }, [sessions, vehicles, slideIndex]);
+
   // ── Computed stats ──────────────────────────────────────────────────────────
 
-  const completed   = sessions.filter(s => s.endedAt != null);
+  const completed   = filteredSessions.filter(s => s.endedAt != null);
   const totalDistKm = completed.reduce((a, s) => a + s.distanceM, 0) / 1000;
   const totalDurS   = completed.reduce((a, s) => a + (s.durationS ?? 0), 0);
   const totalTrips  = completed.length;
@@ -668,9 +685,22 @@ export default function GarageScreen() {
         {/* ── Garage Overview — 3 items, 1 row ── */}
         <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
           <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>
-            <Text style={[styles.sectionTitle, { color: c.foreground, marginBottom: 14 }]}>
-              Garage Overview
-            </Text>
+            {/* Header: title + vehicle context pill when not on default slide */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <Text style={[styles.sectionTitle, { color: c.foreground }]}>
+                Garage Overview
+              </Text>
+              {vehicles.length > 1 && vehicles[slideIndex] && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4,
+                  backgroundColor: c.primary + "18", borderRadius: 12,
+                  paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Ionicons name="car-outline" size={11} color={c.primary} />
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: c.primary }} numberOfLines={1}>
+                    {vehicleDisplayName(vehicles[slideIndex])}
+                  </Text>
+                </View>
+              )}
+            </View>
             <View style={styles.overviewRow}>
               {/* Total Distance */}
               <View style={[styles.overviewTile, { borderRightWidth: 1, borderRightColor: borderCol }]}>

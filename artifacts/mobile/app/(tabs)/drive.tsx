@@ -62,6 +62,9 @@ import {
   startDriveSession, updateDriveSession, endDriveSession,
   scoreColor as getScoreColor, scoreLabel as getScoreLabel,
 } from "@/utils/driveSessionApi";
+import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
+import { recordSession } from "@/utils/vehicleSessionMap";
+import { getMakeById, getModelById } from "@/data/carModels";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -279,6 +282,13 @@ export default function DriveScreen() {
   const [audioAlertsOn, setAudioAlertsOn] = useState(true);
   // Guards the one-shot auto-start effect (Start Driving → instant trip).
   const autoStartedRef = useRef(false);
+
+  // ── Multi-vehicle: picker shown before auto-start ─────────────────────────
+  const [driveVehicles,    setDriveVehicles]    = useState<SavedVehicle[]>([]);
+  const [showVehiclePicker, setShowVehiclePicker] = useState(false);
+  const driveVehicleRef = useRef<SavedVehicle | null>(null); // vehicle for the current trip
+  // Stable ref keeps the vehicles list readable from the focus-effect closure
+  const driveVehiclesRef = useRef<SavedVehicle[]>([]);
   const [tripStartTime, setTripStartTime] = useState<Date | null>(null);
   const [liveTripSheetHeight, setLiveTripSheetHeight] = useState(0);
   const avgSpeedSumRef = useRef(0);
@@ -431,16 +441,35 @@ export default function DriveScreen() {
     // Create server-side session (fire-and-forget — trip works offline too)
     if (deviceId) {
       startDriveSession(deviceId, currentLat, currentLng)
-        .then((id) => { sessionIdRef.current = id; })
+        .then((id) => {
+          sessionIdRef.current = id;
+          // Record which vehicle drove this session for per-vehicle garage stats
+          const vid = driveVehicleRef.current?.id;
+          if (vid) recordSession(vid, id).catch(() => {});
+        })
         .catch(() => {}); // gracefully degraded — end call will no-op when null
     }
   }, [deviceId, currentLat, currentLng]);
+
+  // ── Load vehicles once on mount so the picker has data ───────────────────
+  useEffect(() => {
+    loadVehicles().then(list => {
+      driveVehiclesRef.current = list;
+      setDriveVehicles(list);
+      // Pre-select default vehicle so single-vehicle users never see the picker
+      const def = list.find(v => v.isDefault) ?? list[0];
+      if (def) driveVehicleRef.current = def;
+    }).catch(() => {});
+  }, []);
 
   // ── Drive Mode auto-start ─────────────────────────────────────────────────
   // Tapping "Start Driving" on Home lands here and the trip starts instantly.
   // Exception: when a destination is already set (Map tab navigation or a
   // deep-link), the route preview sheet shows first so the driver can inspect
   // alt routes and tap Start themselves — preserving the pre-overhaul flow.
+  //
+  // When the user has multiple saved vehicles, show a picker first so the trip
+  // is recorded against the right vehicle. The picker then calls startTrip().
   //
   // Uses useFocusEffect (not useEffect) because drive.tsx is a permanently-
   // mounted hidden tab. A mount-only effect fires exactly once and never
@@ -452,15 +481,28 @@ export default function DriveScreen() {
   useFocusEffect(useCallback(() => {
     if (autoStartedRef.current) return;
     autoStartedRef.current = true;
-    if (!navDestination && noAutoStart !== "1") startTrip();
+    if (!navDestination && noAutoStart !== "1") {
+      if (driveVehiclesRef.current.length > 1) {
+        // Multiple vehicles — show picker before starting
+        setShowVehiclePicker(true);
+      } else {
+        startTrip();
+      }
+    }
   // navDestination and noAutoStart are intentionally included so a fresh
   // destination set by the Map tab is visible when focus arrives.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination, noAutoStart]));
 
-  // Reset the auto-start guard when the trip ends so re-entry auto-starts again.
+  // Reset the auto-start guard and vehicle picker state when the trip ends.
   useEffect(() => {
-    if (!tripActive) autoStartedRef.current = false;
+    if (!tripActive) {
+      autoStartedRef.current = false;
+      // Clear drive vehicle so the picker shows fresh on the next trip
+      driveVehicleRef.current = driveVehiclesRef.current.find(v => v.isDefault)
+        ?? driveVehiclesRef.current[0]
+        ?? null;
+    }
   }, [tripActive]);
 
   // Tick the trip duration once per second while active.
@@ -2373,6 +2415,120 @@ export default function DriveScreen() {
         onCountdownExpired={handleCrashExpired}
         onStartCrashReport={handleStartCrashReport}
       />
+
+      {/* ── Vehicle picker — shown before auto-start when user has 2+ vehicles ── */}
+      <Modal
+        visible={showVehiclePicker}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => {
+          // User pressed back — cancel and go back to previous tab
+          setShowVehiclePicker(false);
+          autoStartedRef.current = false;
+          router.back();
+        }}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#00000080" }}>
+          <View style={{
+            backgroundColor: c.isDark ? "#111917" : "#fff",
+            borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            paddingBottom: insets.bottom + 16,
+          }}>
+            {/* Drag handle */}
+            <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 6 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: c.tileBorder }} />
+            </View>
+
+            {/* Header */}
+            <View style={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 18 }}>
+              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: c.foreground }}>
+                Which vehicle are you driving?
+              </Text>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: 4 }}>
+                Select a vehicle so your trip is recorded correctly.
+              </Text>
+            </View>
+
+            {/* Vehicle options */}
+            {driveVehicles.map(v => {
+              const make  = v.makeId ? getMakeById(v.makeId) : null;
+              const model = (v.makeId && v.modelId) ? getModelById(v.makeId, v.modelId) : null;
+              const name  = make && model
+                ? `${make.name} ${model.name}`
+                : (v.customMakeName && v.customModelName)
+                ? `${v.customMakeName} ${v.customModelName}`
+                : "My Vehicle";
+              const emoji = (() => {
+                switch (v.vehicleType) {
+                  case "psv": return "🚐";
+                  case "bus": return "🚌";
+                  case "truck": return "🚛";
+                  case "motorcycle": return "🏍️";
+                  case "tractor": return "🚜";
+                  default: return "🚗";
+                }
+              })();
+              const isSelected = driveVehicleRef.current?.id === v.id;
+              return (
+                <TouchableOpacity
+                  key={v.id}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    driveVehicleRef.current = v;
+                    setShowVehiclePicker(false);
+                    startTrip();
+                  }}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 14,
+                    paddingHorizontal: 20, paddingVertical: 14, marginHorizontal: 12,
+                    marginBottom: 8, borderRadius: 18, borderWidth: 1.5,
+                    backgroundColor: isSelected ? c.primary + "12" : c.card,
+                    borderColor: isSelected ? c.primary : c.tileBorder,
+                  }}
+                >
+                  <View style={{
+                    width: 52, height: 52, borderRadius: 16,
+                    backgroundColor: c.primary + "18",
+                    alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Text style={{ fontSize: 26, fontFamily: EMOJI_FONT_FAMILY }}>{emoji}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: c.foreground }} numberOfLines={1}>
+                      {name}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: 2 }}>
+                      {[v.fuelType, v.transmission].filter(Boolean).join(" · ") || "No details set"}
+                      {v.isDefault ? "  ·  Default" : ""}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <Ionicons name="checkmark-circle" size={22} color={c.primary} />
+                  )}
+                  {!isSelected && (
+                    <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Cancel */}
+            <TouchableOpacity
+              style={{ alignItems: "center", paddingVertical: 14, marginTop: 4 }}
+              onPress={() => {
+                setShowVehiclePicker(false);
+                autoStartedRef.current = false;
+                router.back();
+              }}
+            >
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>
+                Cancel — go back
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </Animated.View>
   );
