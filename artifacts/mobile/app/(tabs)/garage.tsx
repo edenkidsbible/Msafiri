@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -41,6 +42,7 @@ import {
   applyPendingSlot,
   setPendingSlot,
   setDefaultVehicle,
+  removeVehicle,
   PENDING_SLOT_KEY,
 } from "@/utils/savedVehicles";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -238,8 +240,10 @@ interface VehicleSlideProps {
   subText: string;
   primary: string;
   foreground: string;
+  totalVehicles: number;
   onChangeVehicle: (index: number) => void;
   onSetDefault: (id: string) => void;
+  onRemove: (id: string) => void;
 }
 
 // Image fills the card width minus 2×card-padding (16px each side)
@@ -249,7 +253,7 @@ const IMG_H = Math.round(IMG_W * 0.54); // ~16:9-ish ratio, typically ~196px on 
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
   odometerKm, cardBg, borderCol, subText, primary, foreground,
-  onChangeVehicle, onSetDefault,
+  totalVehicles, onChangeVehicle, onSetDefault, onRemove,
 }: VehicleSlideProps) {
   const trackColor = cardBg === "#151917" || cardBg.startsWith("#0") ? "#2A3530" : "#DDE6DA";
   const fuelLabel = v.fuelType ?? "Petrol";
@@ -340,6 +344,14 @@ function VehicleSlide({
               <Text style={[styles.vehicleActionTxt, { color: "#3B82F6" }]}>Set as Default</Text>
             </TouchableOpacity>
           )}
+          {/* Remove vehicle — always shown */}
+          <TouchableOpacity
+            style={[styles.vehicleActionBtn, { backgroundColor: "#EF444418", borderColor: "#EF444440", flex: 0, paddingHorizontal: 12 }]}
+            onPress={() => onRemove(v.id)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="trash-outline" size={15} color="#EF4444" />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -486,6 +498,52 @@ export default function GarageScreen() {
     setVehicles(updated);
   }
 
+  function handleRemoveVehicle(id: string) {
+    const isLast = vehicles.length === 1;
+    const vehicle = vehicles.find(v => v.id === id);
+    const name = vehicle
+      ? (vehicle.customModelName?.trim() || vehicle.modelId || "this vehicle")
+      : "this vehicle";
+
+    if (isLast) {
+      // Removing the only vehicle → strong warning about losing Vehicle Care data
+      Alert.alert(
+        "Remove Last Vehicle?",
+        `Removing ${name} will erase all Vehicle Care history — maintenance records, service logs, and cost data — and you won't be able to track your service until you add a vehicle again.\n\nThis cannot be undone.`,
+        [
+          { text: "Keep Vehicle", style: "cancel" },
+          {
+            text: "Remove Anyway",
+            style: "destructive",
+            onPress: async () => {
+              const updated = await removeVehicle(id);
+              setVehicles(updated);
+            },
+          },
+        ],
+      );
+    } else {
+      // Still have other vehicles → simpler confirm
+      Alert.alert(
+        "Remove Vehicle",
+        `Remove ${name} from your garage?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              const updated = await removeVehicle(id);
+              setVehicles(updated);
+              // If we removed the slide that was being viewed, snap back
+              setSlideIndex(prev => Math.max(0, Math.min(prev, updated.length - 1)));
+            },
+          },
+        ],
+      );
+    }
+  }
+
   // ── Render helpers ──────────────────────────────────────────────────────────
 
   function renderVehicleItem({ item, index }: { item: SavedVehicle | "add"; index: number }) {
@@ -505,8 +563,10 @@ export default function GarageScreen() {
         odometerKm={odometerKm}
         cardBg={cardBg} borderCol={borderCol} subText={subText} primary={c.primary}
         foreground={c.foreground}
+        totalVehicles={vehicles.length}
         onChangeVehicle={handleChangeVehicle}
         onSetDefault={handleSetDefault}
+        onRemove={handleRemoveVehicle}
       />
     );
   }
