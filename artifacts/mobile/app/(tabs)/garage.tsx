@@ -47,6 +47,10 @@ import {
   PENDING_SLOT_KEY,
 } from "@/utils/savedVehicles";
 import { getSessionsForVehicle } from "@/utils/vehicleSessionMap";
+import {
+  TripLocationMap,
+  loadTripLocationCache,
+} from "@/utils/tripLocationCache";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -397,6 +401,7 @@ export default function GarageScreen() {
 
   const [sessions,         setSessions]         = useState<DriveSession[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<DriveSession[]>([]);
+  const [locationCache,    setLocationCache]    = useState<TripLocationMap>({});
   const [careStats,  setCareStats]  = useState<VehicleCareStats | null>(null);
   const [odometerKm, setOdometerKm] = useState(0);
   const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
@@ -412,10 +417,15 @@ export default function GarageScreen() {
       // Bump tick so the care-stats effect re-runs on every focus
       setFocusTick(t => t + 1);
 
-      // Load drive sessions
+      // Load drive sessions + location cache
       if (deviceId) {
-        listDriveSessions(deviceId, 50)
-          .then(({ sessions: s }) => { if (alive) setSessions(s); })
+        Promise.all([
+          listDriveSessions(deviceId, 50),
+          loadTripLocationCache(),
+        ])
+          .then(([{ sessions: s }, locCache]) => {
+            if (alive) { setSessions(s); setLocationCache(locCache); }
+          })
           .catch(() => {});
       }
 
@@ -888,7 +898,11 @@ export default function GarageScreen() {
                       {tripDateLabel(t.startedAt)}
                     </Text>
                     <Text style={[styles.tripRoute, { color: c.foreground }]} numberOfLines={1}>
-                      Nairobi → CBD
+                      {locationCache[t.id]
+                        ? locationCache[t.id].to && locationCache[t.id].to !== locationCache[t.id].from
+                          ? `${locationCache[t.id].from} → ${locationCache[t.id].to}`
+                          : locationCache[t.id].from
+                        : "—"}
                     </Text>
                     <Text style={[styles.tripStats, { color: subText }]} numberOfLines={1}>
                       {t.distanceM >= 1000

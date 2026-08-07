@@ -1,5 +1,24 @@
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 
+/** Reverse-geocode a lat/lng to a short human-readable place name.
+ *  Uses Photon (komoot) which is open and requires no API key.
+ *  Returns an empty string on failure. */
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
+    const res  = await fetchWithTimeout(url, {}, 9000);
+    const data = await res.json() as { features?: any[] };
+    const feature = data.features?.[0];
+    if (!feature) return "";
+    const p    = feature.properties ?? {};
+    const name = (p.name as string) ?? (p.street as string) ?? "";
+    const city = (p.city as string) ?? (p.county as string) ?? (p.district as string) ?? "";
+    return [name, city].filter(Boolean).join(", ").substring(0, 60);
+  } catch {
+    return "";
+  }
+}
+
 export interface GeoResult {
   display: string;
   short: string;

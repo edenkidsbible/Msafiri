@@ -21,6 +21,12 @@ import {
   formatDuration,
 } from "@/utils/driveSessionApi";
 import TripRouteMap from "@/components/TripRouteMap";
+import { reverseGeocode } from "@/utils/geocoding";
+import {
+  TripLocation,
+  getTripLocation,
+  saveTripLocation,
+} from "@/utils/tripLocationCache";
 
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
@@ -43,6 +49,7 @@ export default function TripDetailScreen() {
   const [session, setSession] = useState<DriveSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [locationNames, setLocationNames] = useState<TripLocation | null>(null);
 
   const load = useCallback(async () => {
     if (!deviceId || !id) return;
@@ -58,6 +65,38 @@ export default function TripDetailScreen() {
   }, [deviceId, id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Resolve location names: check cache first, then reverse-geocode and persist.
+  useEffect(() => {
+    if (!session || !id) return;
+    let cancelled = false;
+    (async () => {
+      // Check cache
+      const cached = await getTripLocation(id);
+      if (cached) { if (!cancelled) setLocationNames(cached); return; }
+
+      // Geocode start and end in parallel
+      const startLat = session.startLat ?? 0;
+      const startLng = session.startLng ?? 0;
+      const endLat   = session.endLat   ?? startLat;
+      const endLng   = session.endLng   ?? startLng;
+
+      if (!startLat && !startLng) return; // no coordinates at all
+
+      const [from, to] = await Promise.all([
+        reverseGeocode(startLat, startLng),
+        (session.endLat != null && session.endLng != null)
+          ? reverseGeocode(endLat, endLng)
+          : Promise.resolve(""),
+      ]);
+
+      if (!from && !to) return; // geocoding failed, don't cache empty result
+      const loc: TripLocation = { from: from || "Start", to: to || from };
+      await saveTripLocation(id, loc);
+      if (!cancelled) setLocationNames(loc);
+    })();
+    return () => { cancelled = true; };
+  }, [session, id]);
 
   const score = session?.score ?? null;
 
@@ -88,8 +127,15 @@ export default function TripDetailScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {/* Date */}
+          {/* Date + route label */}
           <Text style={[styles.dateTxt, { color: c.mutedForeground }]}>{fmtDateTime(session.startedAt)}</Text>
+          {locationNames && (
+            <Text style={[styles.routeLabel, { color: c.foreground }]} numberOfLines={1}>
+              {locationNames.from}
+              {locationNames.to && locationNames.to !== locationNames.from
+                ? ` → ${locationNames.to}` : ""}
+            </Text>
+          )}
 
           {/* Route map — only shown when we have at least a start coordinate */}
           {session.startLat != null && session.startLng != null && (
@@ -211,7 +257,8 @@ const styles = StyleSheet.create({
   retryBtn: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10, marginTop: 4 },
   retryTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-  dateTxt: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 12 },
+  dateTxt: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
+  routeLabel: { fontSize: 17, fontFamily: "Inter_700Bold", marginBottom: 12 },
 
   scoreCard: {
     flexDirection: "row", alignItems: "center", gap: 14,

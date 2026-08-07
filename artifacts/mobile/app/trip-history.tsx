@@ -60,6 +60,12 @@ import {
   updatePlannedTrip,
 } from "@/utils/tripsApi";
 import { getSessionsForVehicle } from "@/utils/vehicleSessionMap";
+import {
+  TripLocationMap,
+  loadTripLocationCache,
+  saveTripLocation,
+} from "@/utils/tripLocationCache";
+import { reverseGeocode } from "@/utils/geocoding";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -423,6 +429,7 @@ export default function TripHistoryScreen() {
   const [sessions,         setSessions]         = useState<DriveSession[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<DriveSession[]>([]);
   const [hiddenIds,        setHiddenIds]        = useState<Set<string>>(new Set());
+  const [locationCache,    setLocationCache]    = useState<TripLocationMap>({});
 
   const [plannedTrips, setPlannedTrips] = useState<PlannedTrip[]>([]);
   const [savedPlaces,  setSavedPlaces]  = useState<SavedPlace[]>([]);
@@ -451,7 +458,8 @@ export default function TripHistoryScreen() {
         deviceId ? listPlannedTrips(deviceId)       : Promise.resolve([] as PlannedTrip[]),
         deviceId ? listSavedPlaces(deviceId)        : Promise.resolve([] as SavedPlace[]),
         AsyncStorage.getItem(HIDDEN_SESSIONS_KEY),
-      ]).then(([vs, { sessions: ss }, trips, places, hiddenRaw]) => {
+        loadTripLocationCache(),
+      ]).then(([vs, { sessions: ss }, trips, places, hiddenRaw, locCache]) => {
         if (!alive) return;
         setVehicles(vs);
         setActiveVehicle(prev => {
@@ -463,6 +471,29 @@ export default function TripHistoryScreen() {
         setHiddenIds(hidden);
         setPlannedTrips(trips);
         setSavedPlaces(places);
+        setLocationCache(locCache);
+
+        // Background: geocode sessions missing from cache (up to 15 most recent)
+        const uncached = ss
+          .filter(s => s.startLat != null && s.startLng != null && !locCache[s.id])
+          .slice(0, 15);
+        if (uncached.length > 0) {
+          (async () => {
+            const updated: TripLocationMap = { ...locCache };
+            for (const s of uncached) {
+              if (!alive) break;
+              const from = await reverseGeocode(s.startLat!, s.startLng!);
+              if (!from) continue;
+              const to = (s.endLat != null && s.endLng != null)
+                ? await reverseGeocode(s.endLat, s.endLng)
+                : "";
+              const loc = { from, to: to || from };
+              await saveTripLocation(s.id, loc);
+              updated[s.id] = loc;
+            }
+            if (alive) setLocationCache({ ...updated });
+          })();
+        }
       }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
 
       return () => { alive = false; };
@@ -841,7 +872,11 @@ export default function TripHistoryScreen() {
                             <DateBlock month={sd.monthShort} day={sd.day} weekday={sd.weekday} borderCol={borderCol} />
                             <View style={{ flex: 1, minWidth: 0 }}>
                               <Text style={[styles.tripLabel, { color: c.foreground }]} numberOfLines={1}>
-                                {timePeriod(s.startedAt)} Drive
+                                {locationCache[s.id]
+                                  ? locationCache[s.id].to && locationCache[s.id].to !== locationCache[s.id].from
+                                    ? `${locationCache[s.id].from} → ${locationCache[s.id].to}`
+                                    : locationCache[s.id].from
+                                  : `${timePeriod(s.startedAt)} Drive`}
                               </Text>
                               <View style={[styles.tripMeta, { marginTop: 3 }]}>
                                 <Text style={[styles.tripMetaTxt, { color: subText }]}>
