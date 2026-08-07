@@ -3,7 +3,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  ImageBackground,
   Platform,
   StatusBar,
   StyleSheet,
@@ -19,163 +18,197 @@ import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
 
-// Preloaded once at module level so require() doesn't re-evaluate on every render.
-// Metro resolves onboarding-intro.webp → @2x → @3x automatically based on device
-// pixel density, so the smallest file that fits the screen is always served.
-const INTRO_IMAGE = require("@/assets/images/onboarding-intro.webp");
+const { width, height } = Dimensions.get("window");
 
-const { width } = Dimensions.get("window");
-
-// ── Kenya flag palette ─────────────────────────────────────────────────────────
-const FLAG_RED   = "#BB0000";
-const FLAG_BLACK = "#1C1C1E";
-const FLAG_GREEN = "#006B3C";
+// ── Brand palette ─────────────────────────────────────────────────────────────
+const GREEN       = "#00A845";
+const GREEN_DARK  = "#006B3C";
+const FLAG_RED    = "#BB0000";
+const FLAG_BLACK  = "#1C1C1E";
+const SURFACE     = "#F7F9F7";
+const BORDER      = "#E4EAE4";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type FeatureCard = {
-  icon: string;
-  iconSet: "Ionicons" | "MaterialCommunityIcons";
-  title: string;
-  sub: string;
-};
+type AlertBadge = { emoji: string; label: string; color: string };
 
 type BaseSlide = {
   id: string;
   accentColor: string;
-  accentLabel: string;
-  headline: [string, string];
-  accentLine: 0 | 1;
-  body: string;
+  chip: string;
+  heroEmoji: string;
+  headline: string;
+  sub: string;
 };
 
-type CardSlide    = BaseSlide & { kind: "card";     heroIcon: string; heroIconSet: "Ionicons" | "MaterialCommunityIcons"; features: FeatureCard[] };
-type IncidentSlide= BaseSlide & { kind: "incident"; heroIcon: string };
-type PickerSlide  = BaseSlide & { kind: "picker" };
-type Slide = CardSlide | IncidentSlide | PickerSlide;
-
-// ── Incident data ─────────────────────────────────────────────────────────────
-const INCIDENTS = [
-  { emoji: "📷", label: "Speed Camera",  color: FLAG_RED   },
-  { emoji: "👮", label: "Police",         color: "#1565C0" },
-  { emoji: "🍺", label: "Alcoblow",       color: "#E65100" },
-  { emoji: "💥", label: "Accident",       color: "#C62828" },
-  { emoji: "🚧", label: "Roadblock",      color: "#F57C00" },
-  { emoji: "🚦", label: "Traffic Jam",    color: FLAG_GREEN },
-];
+type GridSlide   = BaseSlide & { kind: "grid";   badges: AlertBadge[] };
+type FeatureSlide= BaseSlide & { kind: "feature"; features: { emoji: string; text: string }[] };
+type PickerSlide = BaseSlide & { kind: "picker" };
+type Slide = GridSlide | FeatureSlide | PickerSlide;
 
 // ── Slide data ────────────────────────────────────────────────────────────────
 const SLIDES: Slide[] = [
   {
-    id: "1",
-    kind: "card",
+    id:         "1",
+    kind:       "grid",
     accentColor: FLAG_RED,
-    accentLabel: "SPEED CAMERAS",
-    heroIcon: "camera",
-    heroIconSet: "Ionicons",
-    features: [
-      { icon: "location",     iconSet: "Ionicons", title: "Live Distance",   sub: "Updates every second"  },
-      { icon: "volume-high",  iconSet: "Ionicons", title: "Voice Alert",     sub: "Voice alerts warn you early"  },
-      { icon: "flash",        iconSet: "Ionicons", title: "Instant Warning", sub: "Before you arrive"     },
+    chip:       "ALERTS",
+    heroEmoji:  "📡",
+    headline:   "Every Threat.\nDetected.",
+    sub:        "Speed cameras, alcoblow, police & roadblocks — all reported live.",
+    badges: [
+      { emoji: "📷", label: "Speed Camera",  color: FLAG_RED    },
+      { emoji: "🍺", label: "Alcoblow",       color: "#E65100"  },
+      { emoji: "👮", label: "Police",          color: "#1565C0"  },
+      { emoji: "🚧", label: "Roadblock",       color: "#F57C00"  },
+      { emoji: "🚦", label: "Traffic Jam",     color: GREEN_DARK },
+      { emoji: "⚠️", label: "Hazards",         color: "#795548"  },
     ],
-    headline: ["Never Get Caught", "by a Speed Camera"],
-    accentLine: 0,
-    body: "Live distance warnings, voice alerts, and alarm sounds — all before you reach any camera.",
   },
   {
-    id: "2",
-    kind: "card",
+    id:         "2",
+    kind:       "feature",
     accentColor: FLAG_BLACK,
-    accentLabel: "NAVIGATION",
-    heroIcon: "navigate",
-    heroIconSet: "Ionicons",
+    chip:       "DASHCAM & SAFETY",
+    heroEmoji:  "🎥",
+    headline:   "Record Every\nJourney.",
+    sub:        "Built-in dashcam. Automatic crash detection. Instant reports.",
     features: [
-      { icon: "shield-checkmark", iconSet: "Ionicons", title: "Camera-Aware",  sub: "See every camera ahead" },
-      { icon: "time",             iconSet: "Ionicons", title: "ETA + Delays",  sub: "Traffic accounted for"  },
-      { icon: "git-branch",       iconSet: "Ionicons", title: "Alt Routes",    sub: "Pick the safest path"   },
+      { emoji: "📹", text: "Auto dashcam recording" },
+      { emoji: "🆘", text: "Crash detection & SOS" },
+      { emoji: "📋", text: "Insurance-ready reports" },
     ],
-    headline: ["Plan Every Route", "Around Cameras"],
-    accentLine: 0,
-    body: "See every camera ahead before you start. Pick the fastest route that keeps you compliant.",
   },
   {
-    id: "3",
-    kind: "incident",
-    accentColor: FLAG_GREEN,
-    accentLabel: "COMMUNITY MAP",
-    heroIcon: "people",
-    headline: ["Kenyan Drivers", "Are Watching for You"],
-    accentLine: 0,
-    body: "Police checkpoints, alcoblows, accidents, and road works — all reported live by drivers around you.",
-  },
-  {
-    id: "4",
-    kind: "card",
-    accentColor: FLAG_BLACK,
-    accentLabel: "DRIVE MODE",
-    heroIcon: "speedometer",
-    heroIconSet: "Ionicons",
+    id:         "3",
+    kind:       "feature",
+    accentColor: GREEN,
+    chip:       "NAVIGATION",
+    heroEmoji:  "🗺️",
+    headline:   "Drive Smart.\nArrive Safe.",
+    sub:        "Camera-aware routing, live ETA, and real-time trip sharing.",
     features: [
-      { icon: "speedometer", iconSet: "Ionicons", title: "Live Speed",      sub: "Real GPS km/h"           },
-      { icon: "eye",         iconSet: "Ionicons", title: "Zone Limit",      sub: "Current road's limit"    },
-      { icon: "warning",     iconSet: "Ionicons", title: "Overspeed Alert", sub: "Red warning instantly"   },
+      { emoji: "📍", text: "Share live location" },
+      { emoji: "🛡️", text: "Camera-aware routes" },
+      { emoji: "⏱️", text: "Live ETA with delays" },
     ],
-    headline: ["Your Speed vs the Limit.", "Every Single Second."],
-    accentLine: 0,
-    body: "Real-time speed display, zone limits, and an instant red alert the moment you exceed the limit.",
   },
   {
-    id: "5",
-    kind: "picker",
+    id:         "4",
+    kind:       "feature",
+    accentColor: "#7B3FE4",
+    chip:       "LEARN",
+    heroEmoji:  "🎓",
+    headline:   "Pass Your Test.\nDrive Better.",
+    sub:        "Official NTSA driving course with audio lessons and quizzes.",
+    features: [
+      { emoji: "📖", text: "Full NTSA course content" },
+      { emoji: "🔊", text: "Audio lessons to listen along" },
+      { emoji: "✅", text: "Progress-tracked quizzes" },
+    ],
+  },
+  {
+    id:         "5",
+    kind:       "picker",
     accentColor: FLAG_RED,
-    accentLabel: "YOUR VEHICLE",
-    headline: ["Your Vehicle,", "Your Speed Limit"],
-    accentLine: 0,
-    body: "Speed limits vary by vehicle class in Kenya. Set yours once and we always show the right limit.",
+    chip:       "YOUR VEHICLE",
+    heroEmoji:  "🚗",
+    headline:   "Your Vehicle,\nYour Limit.",
+    sub:        "Speed limits differ by class in Kenya. Set yours once — we handle the rest.",
   },
 ];
 
-// ── Hero icon box ─────────────────────────────────────────────────────────────
-function HeroIcon({ icon, iconSet, color }: { icon: string; iconSet: "Ionicons" | "MaterialCommunityIcons"; color: string }) {
-  const IconComp = iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
+// ── Alert badge grid ──────────────────────────────────────────────────────────
+function AlertGrid({ badges }: { badges: AlertBadge[] }) {
+  const cellW = (width - 48 - 12) / 3;
   return (
-    <View style={[styles.heroBox, { backgroundColor: color + "14" }]}>
-      <IconComp name={icon as any} size={64} color={color} />
-    </View>
-  );
-}
-
-// ── Three feature cards ───────────────────────────────────────────────────────
-function FeatureCards({ features, accent }: { features: FeatureCard[]; accent: string }) {
-  return (
-    <View style={styles.cardsRow}>
-      {features.map((f, i) => {
-        const IconComp = f.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
-        return (
-          <View key={i} style={styles.card}>
-            <IconComp name={f.icon as any} size={22} color={accent} />
-            <Text style={styles.cardTitle}>{f.title}</Text>
-            <Text style={styles.cardSub}>{f.sub}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-// ── Incident type grid ────────────────────────────────────────────────────────
-function IncidentGrid() {
-  const cellW = (width - 40 - 16) / 3;
-  return (
-    <View style={styles.incidentGrid}>
-      {INCIDENTS.map((inc, i) => (
-        <View key={i} style={[styles.incidentCell, { width: cellW, backgroundColor: inc.color + "12", borderColor: inc.color + "33" }]}>
-          <Text style={styles.incidentEmoji}>{inc.emoji}</Text>
-          <Text style={[styles.incidentLabel, { color: inc.color }]}>{inc.label}</Text>
+    <View style={g.grid}>
+      {badges.map((b, i) => (
+        <View key={i} style={[g.cell, { width: cellW, backgroundColor: b.color + "10", borderColor: b.color + "30" }]}>
+          <Text style={g.emoji}>{b.emoji}</Text>
+          <Text style={[g.label, { color: b.color }]}>{b.label}</Text>
         </View>
       ))}
     </View>
   );
 }
+
+const g = StyleSheet.create({
+  grid: {
+    flexDirection:  "row",
+    flexWrap:       "wrap",
+    gap:            8,
+    width:          "100%",
+    justifyContent: "center",
+  },
+  cell: {
+    borderRadius:    16,
+    borderWidth:     1,
+    paddingVertical: 14,
+    alignItems:      "center",
+    gap:             6,
+  },
+  emoji: { fontSize: 26 },
+  label: {
+    fontSize:   11,
+    fontFamily: "Inter_600SemiBold",
+    textAlign:  "center",
+    lineHeight: 14,
+  },
+});
+
+// ── Feature list ──────────────────────────────────────────────────────────────
+function FeatureList({ features, accent }: { features: { emoji: string; text: string }[]; accent: string }) {
+  return (
+    <View style={f.list}>
+      {features.map((item, i) => (
+        <View key={i} style={[f.row, { borderColor: accent + "20", backgroundColor: accent + "08" }]}>
+          <View style={[f.emojiBox, { backgroundColor: accent + "16" }]}>
+            <Text style={f.emoji}>{item.emoji}</Text>
+          </View>
+          <Text style={f.text}>{item.text}</Text>
+          <View style={[f.check, { backgroundColor: accent }]}>
+            <Ionicons name="checkmark" size={12} color="#fff" />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const f = StyleSheet.create({
+  list:    { width: "100%", gap: 10 },
+  row: {
+    flexDirection:     "row",
+    alignItems:        "center",
+    gap:               14,
+    paddingVertical:   14,
+    paddingHorizontal: 16,
+    borderRadius:      18,
+    borderWidth:       1,
+  },
+  emojiBox: {
+    width:          44,
+    height:         44,
+    borderRadius:   12,
+    alignItems:     "center",
+    justifyContent: "center",
+  },
+  emoji:   { fontSize: 22 },
+  text: {
+    flex:       1,
+    fontSize:   15,
+    fontFamily: "Inter_600SemiBold",
+    color:      "#0C120E",
+    lineHeight: 20,
+  },
+  check: {
+    width:          24,
+    height:         24,
+    borderRadius:   12,
+    alignItems:     "center",
+    justifyContent: "center",
+  },
+});
 
 // ── Vehicle picker ────────────────────────────────────────────────────────────
 function VehiclePicker({ accent, vehicleType, setVehicleType }: {
@@ -183,119 +216,57 @@ function VehiclePicker({ accent, vehicleType, setVehicleType }: {
   vehicleType: VehicleTypeId | null;
   setVehicleType: (id: VehicleTypeId) => void;
 }) {
-  const cardW = (width - 40 - 16) / 3;
+  const cardW = (width - 48 - 16) / 3;
   return (
-    <View style={styles.vehicleHero}>
-      <View style={[styles.heroBox, { backgroundColor: accent + "14" }]}>
-        <Ionicons name="car-sport" size={64} color={accent} />
-      </View>
-      <View style={styles.vehicleGrid}>
-        {VEHICLE_TYPES.map((v) => {
-          const sel = vehicleType === v.id;
-          const IconComp = v.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
-          return (
-            <TouchableOpacity
-              key={v.id}
-              style={[styles.vehicleCard, {
-                width: cardW,
-                backgroundColor: sel ? accent + "14" : "#F5F5F5",
-                borderColor:     sel ? accent       : "#E0E0E0",
-              }]}
-              onPress={() => { setVehicleType(v.id as VehicleTypeId); Haptics.selectionAsync(); }}
-              activeOpacity={0.8}
-            >
-              <IconComp name={v.icon as any} size={26} color={sel ? accent : "#888"} />
-              <Text style={[styles.vehicleCardLabel, { color: sel ? accent : "#555" }]}>
-                {v.shortLabel}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+    <View style={v.vehicleGrid}>
+      {VEHICLE_TYPES.map((vt) => {
+        const sel = vehicleType === vt.id;
+        const IconComp = vt.iconSet === "Ionicons" ? Ionicons : MaterialCommunityIcons;
+        return (
+          <TouchableOpacity
+            key={vt.id}
+            style={[v.vehicleCard, {
+              width:           cardW,
+              backgroundColor: sel ? accent + "16" : SURFACE,
+              borderColor:     sel ? accent        : BORDER,
+              shadowColor:     sel ? accent        : "transparent",
+              shadowOpacity:   sel ? 0.18          : 0,
+              shadowOffset:    { width: 0, height: 4 },
+              shadowRadius:    8,
+              elevation:       sel ? 4             : 0,
+            }]}
+            onPress={() => { setVehicleType(vt.id as VehicleTypeId); Haptics.selectionAsync(); }}
+            activeOpacity={0.8}
+          >
+            <IconComp name={vt.icon as any} size={28} color={sel ? accent : "#8A9E8A"} />
+            <Text style={[v.vehicleLabel, { color: sel ? accent : "#555" }]}>{vt.shortLabel}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
-// ── Full-screen intro slide (shown before the feature slides) ─────────────────
-function IntroSlide({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
-  const insets   = useSafeAreaInsets();
-  const topPad   = Platform.OS === "web" ? 44  : insets.top  + 16;
-  const botPad   = Platform.OS === "web" ? 34  : insets.bottom + 24;
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {/* Full-bleed image — Metro auto-picks @2x/@3x variant by device DPI */}
-      <ImageBackground
-        source={INTRO_IMAGE}
-        style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-        // Gravity: align top so the headline ("Drive Smarter.") is always visible
-        // even on shorter/narrower screens where the bottom gets cropped.
-      />
-
-      {/* Subtle dark scrim — keeps the CTA bar readable without obscuring the image */}
-      <View style={introS.scrim} pointerEvents="none" />
-
-      {/* Skip — top-right */}
-      <TouchableOpacity
-        style={[introS.skipBtn, { top: topPad }]}
-        onPress={onSkip}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-      >
-        <Text style={introS.skipTxt}>Skip</Text>
-      </TouchableOpacity>
-
-      {/* Bottom CTA */}
-      <View style={[introS.bottomBar, { paddingBottom: botPad }]}>
-        <TouchableOpacity style={introS.nextBtn} onPress={onNext} activeOpacity={0.87}>
-          <Text style={introS.nextTxt}>Get Started</Text>
-          <Ionicons name="arrow-forward-circle" size={22} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-const introS = StyleSheet.create({
-  // Semi-transparent overlay — darkens the lower third so the green CTA button
-  // sits on a readable background regardless of what the image shows there.
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.15)",
+const v = StyleSheet.create({
+  vehicleGrid: {
+    flexDirection:  "row",
+    flexWrap:       "wrap",
+    justifyContent: "center",
+    gap:            10,
+    width:          "100%",
   },
-  skipBtn: {
-    position:          "absolute",
-    right:             20,
-    backgroundColor:   "rgba(0,0,0,0.40)",
-    paddingVertical:   6,
-    paddingHorizontal: 14,
-    borderRadius:      20,
-  },
-  skipTxt: { color: "#fff", fontSize: 14, fontFamily: "Inter_500Medium" },
-  bottomBar: {
-    position:          "absolute",
-    bottom:            0,
-    left:              0,
-    right:             0,
-    paddingHorizontal: 24,
-    paddingTop:        20,
-    backgroundColor:   "rgba(0,0,0,0.50)",
-  },
-  nextBtn: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    justifyContent:  "center",
-    gap:             10,
-    backgroundColor: "#00A845",
-    paddingVertical: 17,
+  vehicleCard: {
+    paddingVertical: 14,
     borderRadius:    18,
-    shadowColor:     "#00A845",
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.35,
-    shadowRadius:    12,
-    elevation:       6,
+    borderWidth:     1.5,
+    alignItems:      "center",
+    gap:             7,
   },
-  nextTxt: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
+  vehicleLabel: {
+    fontSize:   11,
+    fontFamily: "Inter_600SemiBold",
+    textAlign:  "center",
+  },
 });
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -309,9 +280,6 @@ export default function OnboardingScreen() {
     setVehicleType,
   } = useApp();
 
-  // The intro image is shown first; tapping "Get Started" reveals the
-  // icon-based feature slides. Skip on the intro jumps straight to finish.
-  const [showIntro, setShowIntro] = useState(true);
   const [activeIdx, setActiveIdx] = useState(0);
   const flatRef = useRef<FlatList<Slide>>(null);
 
@@ -338,34 +306,21 @@ export default function OnboardingScreen() {
     router.replace("/paywall");
   };
 
-  const isLast = activeIdx === SLIDES.length - 1;
+  const isLast  = activeIdx === SLIDES.length - 1;
   const safeIdx = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
   const accent  = SLIDES[safeIdx].accentColor;
 
-  // Show full-screen intro image first; "Get Started" transitions to feature slides.
-  if (showIntro) {
-    return (
-      <IntroSlide
-        onNext={() => setShowIntro(false)}
-        onSkip={finish}
-      />
-    );
-  }
-
   return (
-    <View style={[styles.screen, { backgroundColor: "#FFFFFF" }]}>
+    <View style={styles.screen}>
+      <StatusBar barStyle="dark-content" />
 
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        {/* Left spacer balances the Skip button so brand stays truly centred */}
         <View style={styles.headerSide} />
         <View style={styles.brandRow}>
-          <Image
-            source={require("@/assets/images/icon.png")}
-            style={styles.brandIcon}
-          />
+          <Image source={require("@/assets/images/icon.png")} style={styles.brandIcon} />
           <Text style={styles.brandName}>
-            Msafiri{" "}<Text style={styles.brandKenya}>Kenya</Text>
+            Msafiri<Text style={styles.brandKenya}> Kenya</Text>
           </Text>
         </View>
         <View style={[styles.headerSide, { alignItems: "flex-end" }]}>
@@ -374,9 +329,6 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* ── Divider ── */}
-      <View style={styles.headerDivider} />
 
       {/* ── Slides ── */}
       <FlatList<Slide>
@@ -392,42 +344,34 @@ export default function OnboardingScreen() {
         renderItem={({ item }) => (
           <View style={[styles.slide, { width }]}>
 
-            {/* Accent label chip */}
-            <View style={[styles.labelChip, { backgroundColor: item.accentColor + "14", borderColor: item.accentColor + "44" }]}>
-              <View style={[styles.labelDot, { backgroundColor: item.accentColor }]} />
-              <Text style={[styles.labelTxt, { color: item.accentColor }]}>{item.accentLabel}</Text>
+            {/* Chip */}
+            <View style={[styles.chip, { backgroundColor: item.accentColor + "12", borderColor: item.accentColor + "40" }]}>
+              <View style={[styles.chipDot, { backgroundColor: item.accentColor }]} />
+              <Text style={[styles.chipTxt, { color: item.accentColor }]}>{item.chip}</Text>
             </View>
 
-            {/* Hero section */}
-            {item.kind === "card" && (
-              <>
-                <HeroIcon icon={item.heroIcon} iconSet={item.heroIconSet} color={item.accentColor} />
-                <FeatureCards features={item.features} accent={item.accentColor} />
-              </>
-            )}
-            {item.kind === "incident" && (
-              <>
-                <HeroIcon icon={item.heroIcon} iconSet="Ionicons" color={item.accentColor} />
-                <IncidentGrid />
-              </>
-            )}
-            {item.kind === "picker" && (
-              <VehiclePicker
-                accent={item.accentColor}
-                vehicleType={vehicleType}
-                setVehicleType={setVehicleType}
-              />
-            )}
+            {/* Hero emoji */}
+            <View style={[styles.heroWrap, { backgroundColor: item.accentColor + "0F" }]}>
+              <Text style={styles.heroEmoji}>{item.heroEmoji}</Text>
+            </View>
+
+            {/* Content area */}
+            <View style={styles.contentArea}>
+              {item.kind === "grid"    && <AlertGrid   badges={item.badges}   />}
+              {item.kind === "feature" && <FeatureList features={item.features} accent={item.accentColor} />}
+              {item.kind === "picker"  && (
+                <VehiclePicker
+                  accent={item.accentColor}
+                  vehicleType={vehicleType}
+                  setVehicleType={setVehicleType}
+                />
+              )}
+            </View>
 
             {/* Text block */}
             <View style={styles.textBlock}>
-              <Text style={[styles.headlineAccent, { color: item.accentColor }]}>
-                {item.headline[item.accentLine]}
-              </Text>
-              <Text style={styles.headlineNormal}>
-                {item.headline[item.accentLine === 0 ? 1 : 0]}
-              </Text>
-              <Text style={styles.body}>{item.body}</Text>
+              <Text style={[styles.headline, { color: item.accentColor }]}>{item.headline}</Text>
+              <Text style={styles.sub}>{item.sub}</Text>
             </View>
 
           </View>
@@ -443,15 +387,16 @@ export default function OnboardingScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.dot, {
-              backgroundColor: i === activeIdx ? accent : "#D0D0D0",
+              backgroundColor: i === activeIdx ? accent : "#D0D5D0",
               width:           i === activeIdx ? 28     : 8,
+              opacity:         i === activeIdx ? 1      : 0.6,
             }]} />
           </TouchableOpacity>
         ))}
       </View>
 
       {/* ── CTA ── */}
-      <View style={[styles.actions, { paddingBottom: bottomInset + 16 }]}>
+      <View style={[styles.actions, { paddingBottom: bottomInset + 20 }]}>
         <TouchableOpacity
           style={[styles.ctaBtn, { backgroundColor: accent, shadowColor: accent }]}
           onPress={next}
@@ -472,181 +417,95 @@ export default function OnboardingScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  screen: {
+    flex:            1,
+    backgroundColor: "#FFFFFF",
+  },
 
   // Header
   header: {
     flexDirection:     "row",
     alignItems:        "center",
     paddingHorizontal: 24,
-    paddingBottom:     12,
+    paddingBottom:     14,
   },
   headerSide: { flex: 1 },
-  headerDivider: {
-    height:           1,
-    backgroundColor:  "#F0F0F0",
-    marginHorizontal: 20,
-    marginBottom:     4,
-  },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  brandIcon: { width: 28, height: 28, borderRadius: 6 },
+  brandRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
+  brandIcon:  { width: 30, height: 30, borderRadius: 8 },
   brandName: {
     fontSize:      17,
     fontFamily:    "Inter_700Bold",
-    color:         "#0A0E1A",
+    color:         "#0C120E",
     letterSpacing: -0.3,
   },
   brandKenya: { color: FLAG_RED },
   skipTxt: {
-    fontSize:   14,
-    fontFamily: "Inter_500Medium",
-    color:      "#888",
+    fontSize:        13,
+    fontFamily:      "Inter_500Medium",
+    color:           "#9AAA9A",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
 
   // Slide
   slide: {
     alignItems:        "center",
-    paddingHorizontal: 20,
-    paddingTop:        16,
+    paddingHorizontal: 24,
+    paddingTop:        6,
+    paddingBottom:     4,
+    gap:               16,
   },
 
-  // Accent label chip
-  labelChip: {
+  // Chip
+  chip: {
     flexDirection:     "row",
     alignItems:        "center",
     alignSelf:         "center",
     gap:               6,
-    paddingVertical:   5,
-    paddingHorizontal: 12,
-    borderRadius:      20,
+    paddingVertical:   6,
+    paddingHorizontal: 14,
+    borderRadius:      24,
     borderWidth:       1,
-    marginBottom:      20,
   },
-  labelDot: { width: 6, height: 6, borderRadius: 3 },
-  labelTxt: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1.2 },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipTxt: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1.4 },
 
-  // Hero icon box
-  heroBox: {
-    width:          112,
-    height:         112,
+  // Hero emoji
+  heroWrap: {
+    width:          96,
+    height:         96,
     borderRadius:   28,
     alignItems:     "center",
     justifyContent: "center",
-    marginBottom:   16,
+  },
+  heroEmoji: { fontSize: 52, lineHeight: 60 },
+
+  // Content area (grid / feature list / picker)
+  contentArea: {
+    width: "100%",
   },
 
-  // Feature cards
-  cardsRow: {
-    flexDirection: "row",
-    gap:           8,
-    marginBottom:  18,
-    width:         "100%",
-  },
-  card: {
-    flex:            1,
-    backgroundColor: "#F6F6F6",
-    borderRadius:    16,
-    borderWidth:     1,
-    borderColor:     "#EBEBEB",
-    paddingVertical:   12,
-    paddingHorizontal: 6,
-    alignItems:      "center",
-    gap:             4,
-  },
-  cardTitle: {
-    fontSize:   12,
-    fontFamily: "Inter_600SemiBold",
-    color:      "#1a1a1a",
-    textAlign:  "center",
-    lineHeight: 16,
-  },
-  cardSub: {
-    fontSize:   10,
-    fontFamily: "Inter_400Regular",
-    color:      "#888",
-    textAlign:  "center",
-    lineHeight: 14,
-  },
-
-  // Incident grid
-  incidentGrid: {
-    flexDirection:  "row",
-    flexWrap:       "wrap",
-    gap:            8,
-    marginBottom:   24,
-    width:          "100%",
-    justifyContent: "center",
-  },
-  incidentCell: {
-    borderRadius:   14,
-    borderWidth:    1,
-    paddingVertical: 10,
-    alignItems:     "center",
-    gap:            4,
-  },
-  incidentEmoji: { fontSize: 22 },
-  incidentLabel: {
-    fontSize:   11,
-    fontFamily: "Inter_600SemiBold",
-    textAlign:  "center",
-    lineHeight: 14,
-  },
-
-  // Vehicle picker hero
-  vehicleHero: {
-    alignItems: "center",
-    width:      "100%",
-  },
-  vehicleGrid: {
-    flexDirection:  "row",
-    flexWrap:       "wrap",
-    justifyContent: "center",
-    gap:            8,
-    width:          "100%",
-    marginBottom:   24,
-  },
-  vehicleCard: {
-    paddingVertical: 12,
-    borderRadius:    14,
-    borderWidth:     1.5,
-    alignItems:      "center",
-    gap:             6,
-  },
-  vehicleCardLabel: {
-    fontSize:   12,
-    fontFamily: "Inter_600SemiBold",
-    textAlign:  "center",
-  },
-
-  // Text block — flex:1 so it fills the remaining slide height;
-  // justifyContent:"center" spreads the whitespace evenly above and below.
+  // Text block
   textBlock: {
-    flex:              1,
-    width:             "100%",
-    alignItems:        "center",
-    justifyContent:    "center",
-    paddingHorizontal: 8,
+    width:      "100%",
+    alignItems: "center",
+    gap:        8,
+    paddingTop: 4,
   },
-  headlineAccent: {
-    fontSize:   34,
-    fontFamily: "Inter_700Bold",
-    textAlign:  "center",
-    lineHeight: 40,
+  headline: {
+    fontSize:      34,
+    fontFamily:    "Inter_700Bold",
+    textAlign:     "center",
+    lineHeight:    42,
+    letterSpacing: -0.5,
   },
-  headlineNormal: {
-    fontSize:     34,
-    fontFamily:   "Inter_700Bold",
-    color:        "#0A0E1A",
-    textAlign:    "center",
-    lineHeight:   40,
-    marginBottom: 12,
-  },
-  body: {
-    fontSize:   16,
+  sub: {
+    fontSize:   15,
     fontFamily: "Inter_400Regular",
-    color:      "#666",
+    color:      "#5F6B62",
     textAlign:  "center",
-    lineHeight: 24,
+    lineHeight: 22,
+    maxWidth:   300,
   },
 
   // Dots
@@ -655,27 +514,30 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems:     "center",
     gap:            6,
-    marginBottom:   18,
+    paddingVertical: 10,
   },
-  dot: { height: 8, borderRadius: 4 },
+  dot: { height: 8, borderRadius: 4, transition: "width 0.2s" } as any,
 
   // CTA
-  actions: { paddingHorizontal: 24 },
+  actions: {
+    paddingHorizontal: 24,
+  },
   ctaBtn: {
     flexDirection:   "row",
     alignItems:      "center",
     justifyContent:  "center",
     gap:             10,
-    paddingVertical: 17,
-    borderRadius:    18,
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.22,
-    shadowRadius:    12,
-    elevation:       6,
+    paddingVertical: 18,
+    borderRadius:    20,
+    shadowOffset:    { width: 0, height: 6 },
+    shadowOpacity:   0.25,
+    shadowRadius:    14,
+    elevation:       8,
   },
   ctaTxt: {
     fontSize:   17,
     fontFamily: "Inter_700Bold",
     color:      "#FFF",
+    letterSpacing: 0.2,
   },
 });
