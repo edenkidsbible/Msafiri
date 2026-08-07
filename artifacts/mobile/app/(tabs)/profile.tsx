@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share, Linking } from "react-native";
+import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
@@ -108,9 +108,12 @@ export default function ProfileScreen() {
   const handleInvite = async () => {
     try {
       await Share.share({
-        message: "Join me on Msafiri Kenya! Smarter roads, safer journeys.",
+        message:
+          "I've been using Msafiri Kenya for real-time speed camera alerts, police checkpoints, and road safety — it's a must-have on Kenyan roads!\n\n" +
+          "📱 iOS: https://apps.apple.com/ke/app/msafiri-kenya/id6789483834\n" +
+          "🤖 Android: https://play.google.com/store/apps/details?id=com.msafirikenya.app",
       });
-    } catch (error) {
+    } catch {
       // Ignore
     }
   };
@@ -238,14 +241,8 @@ export default function ProfileScreen() {
               onPress={() => router.push("/personal-information" as any)} 
             />
             <SettingsRow 
-              icon="card-outline" iconColor={c.primary} 
-              title="Subscription" sub="Manage your plan and billing" 
-              badge="Premium" badgeColor={c.primary}
-              onPress={() => router.push("/paywall" as any)} 
-            />
-            <SettingsRow 
               icon="gift-outline" iconColor="#8B5CF6" 
-              title="Invite Friends" sub="Invite and earn rewards" 
+              title="Invite Friends" sub="Share Msafiri with friends" 
               onPress={handleInvite}
               isLast
             />
@@ -290,13 +287,8 @@ export default function ProfileScreen() {
           <View style={[styles.sectionGroup, { backgroundColor: c.card, borderColor: c.tileBorder, marginHorizontal: 16 }]}>
             <SettingsRow 
               icon="help-circle-outline" iconColor="#3B82F6" 
-              title="Help Center" sub="FAQs and support" 
-              onPress={() => Linking.openURL("https://msafirikenya.com").catch(() => {})} 
-            />
-            <SettingsRow 
-              icon="school-outline" iconColor="#F59E0B" 
-              title="Driver Safety Course" sub="Manage your driving skills" 
-              onPress={() => router.push("/(tabs)/learn")} 
+              title="Help Center" sub="Contact us and get support" 
+              onPress={() => router.push("/contact" as any)} 
             />
             <SettingsRow 
               icon="information-circle-outline" iconColor="#6B7280" 
