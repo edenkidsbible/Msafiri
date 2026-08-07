@@ -77,15 +77,18 @@ function makeSelectBuilder(rows: any[]) {
     from:    vi.fn().mockReturnThis(),
     where:   vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    for:     vi.fn().mockReturnThis(),   // SELECT … FOR UPDATE
     limit:   vi.fn().mockResolvedValue(rows),
     then:    (resolve: (v: any[]) => any) => Promise.resolve(rows).then(resolve),
   };
 }
 
-function makeUpdateBuilder() {
-  const set   = vi.fn().mockReturnThis();
-  const where = vi.fn().mockResolvedValue(undefined);
-  return { set, where };
+function makeUpdateBuilder(returning: any[] = [{ id: ACCIDENT_ID }]) {
+  return {
+    set:       vi.fn().mockReturnThis(),
+    where:     vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue(returning),
+  };
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────

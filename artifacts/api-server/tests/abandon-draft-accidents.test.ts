@@ -135,6 +135,7 @@ function makeSelectBuilder(rows: any[]) {
     from:    vi.fn().mockReturnThis(),
     where:   vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    for:     vi.fn().mockReturnThis(),   // SELECT … FOR UPDATE
     limit:   vi.fn().mockResolvedValue(rows),
     then:    (resolve: (v: any[]) => any) => Promise.resolve(rows).then(resolve),
   };

@@ -545,7 +545,8 @@ router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Re
     await db.transaction(async (tx) => {
       const [parent] = await tx.select({ id: accidentRecordsTable.id })
         .from(accidentRecordsTable)
-        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+        .for("update");
       if (!parent) { notFound = true; return; }
       await tx.insert(accidentPhotosTable).values({ id: photoId, accidentId: id, category, fileKey });
       await tx.insert(accidentTimelineEventsTable).values({
@@ -571,20 +572,13 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
     const { deviceId } = req.body as { deviceId: string };
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
-    const [record] = await db.select({ id: accidentRecordsTable.id })
-      .from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
-    if (!record) return res.status(404).json({ error: "Not found" });
-
-    // Fetch the photo row to verify the upload actually landed in R2.
+    // Step 1 — fetch photo fileKey (needed for R2 HEAD; no row lock yet).
     const [photo] = await db.select({ fileKey: accidentPhotosTable.fileKey })
       .from(accidentPhotosTable)
       .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
     if (!photo) return res.status(404).json({ error: "Photo record not found" });
 
-    // When R2 is active, HEAD the object to confirm the direct PUT succeeded
-    // before marking the record as confirmed. If missing, remove the orphan
-    // DB row so it is not silently reported as present.
+    // Step 2 — R2 existence check (external I/O; must not be inside a transaction).
     if (r2.isR2Configured() && photo.fileKey) {
       const exists = await r2.headObject(photo.fileKey);
       if (!exists) {
@@ -597,9 +591,21 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
       }
     }
 
-    await db.update(accidentPhotosTable)
-      .set({ storageUrl: "confirmed" })
-      .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+    // Step 3 — atomically confirm. FOR UPDATE on the parent serialises against
+    // the abandon sweep: if the sweep has not yet committed it waits for this
+    // transaction; if it already committed the ne() predicate returns no rows.
+    let notFound = false;
+    await db.transaction(async (tx) => {
+      const [parent] = await tx.select({ id: accidentRecordsTable.id })
+        .from(accidentRecordsTable)
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+        .for("update");
+      if (!parent) { notFound = true; return; }
+      await tx.update(accidentPhotosTable)
+        .set({ storageUrl: "confirmed" })
+        .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+    });
+    if (notFound) return res.status(404).json({ error: "Not found" });
 
     return res.json({ ok: true });
   } catch (err) {
@@ -643,7 +649,8 @@ router.delete("/accidents/:id/photos/:photoId", async (req: Request, res: Respon
     let notFound = false;
     await db.transaction(async (tx) => {
       const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+        .for("update");
       if (!parent) { notFound = true; return; }
       await tx.delete(accidentPhotosTable)
         .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
@@ -670,7 +677,8 @@ router.post("/accidents/:id/witnesses", async (req: Request, res: Response) => {
     let witness: typeof accidentWitnessesTable.$inferSelect | undefined;
     await db.transaction(async (tx) => {
       const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+        .for("update");
       if (!parent) { notFound = true; return; }
       [witness] = await tx.insert(accidentWitnessesTable)
         .values({ accidentId: id, name, phone: phone ?? null, notes: notes ?? null })
@@ -696,7 +704,8 @@ router.delete("/accidents/:id/witnesses/:witnessId", async (req: Request, res: R
     let notFound = false;
     await db.transaction(async (tx) => {
       const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+        .for("update");
       if (!parent) { notFound = true; return; }
       await tx.delete(accidentWitnessesTable)
         .where(and(eq(accidentWitnessesTable.id, witnessId), eq(accidentWitnessesTable.accidentId, id)));
@@ -722,7 +731,8 @@ router.post("/accidents/:id/timeline-event", async (req: Request, res: Response)
     let notFound = false;
     await db.transaction(async (tx) => {
       const [parent] = await tx.select({ id: accidentRecordsTable.id }).from(accidentRecordsTable)
-        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+        .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+        .for("update");
       if (!parent) { notFound = true; return; }
       await tx.insert(accidentTimelineEventsTable).values({
         accidentId: id, eventType, description: description ?? null,
@@ -770,13 +780,22 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     await r2.uploadBuffer(fileKey, pdfBuffer, "application/pdf");
     const url = await signedDownloadUrl(fileKey, 3600 * 24);
 
-    // Cache the file key. The ne() guard means an abandoned record is not
-    // promoted to "complete" even if the sweep ran during PDF generation.
-    await db.update(accidentRecordsTable)
+    // Atomically mark complete and insert the timeline event only if the sweep
+    // has not yet abandoned this record.  Zero returning rows means the sweep
+    // won the race; skip the timeline insert and surface a conflict error so
+    // the client knows the report is available but the record is abandoned.
+    const updatedRows = await db.update(accidentRecordsTable)
       .set({ pdfUrl: url, pdfFileKey: fileKey, status: "complete", updatedAt: new Date() })
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
+      .returning({ id: accidentRecordsTable.id });
 
-    // Timeline event
+    if (!updatedRows.length) {
+      // PDF is already in R2 and the URL is valid, but we cannot mark the
+      // record complete.  Return 409 so the client can surface a useful error.
+      return res.status(409).json({ error: "Record was abandoned while generating the report. The PDF is ready but the report cannot be saved." });
+    }
+
+    // Only write the timeline event if the parent UPDATE committed.
     await db.insert(accidentTimelineEventsTable).values({
       accidentId: id, eventType: "report_generated",
       description: "PDF report generated", occurredAt: new Date(),
