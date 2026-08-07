@@ -926,7 +926,7 @@ const TOOLS = [
     label: "Trip\nHistory",
     color: "#3B82F6",
     bg: "#3B82F620",
-    href: "/(tabs)/trips",
+    href: "/trip-history",
   },
   {
     key: "dashcam",
