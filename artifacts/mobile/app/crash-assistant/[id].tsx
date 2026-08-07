@@ -37,7 +37,7 @@ import {
   useAudioRecorderState,
 } from "expo-audio";
 import { useApp } from "@/context/AppContext";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/utils/apiClient";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "@/utils/apiClient";
 import { useColors } from "@/hooks/useColors";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -188,6 +188,9 @@ export default function CrashAssistantScreen() {
   const [stepIdx, setStepIdx] = useState(0);
   const [saving, setSaving] = useState(false);
   const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
+  // Tracks photos whose R2 upload was not confirmed — keyed by category so the
+  // PhotosStep can render a per-category retry chip.
+  const [failedUploads, setFailedUploads] = useState<Record<string, Array<{ uri: string; mimeType: string }>>>({});
 
   // Per-step form state
   const [otherParty, setOtherParty] = useState<OtherParty>({});
@@ -255,6 +258,39 @@ export default function CrashAssistantScreen() {
 
   // ── Photo Upload ──────────────────────────────────────────────────────────
 
+  // Core upload helper shared by the initial pick and the retry path.
+  const runUpload = useCallback(async (
+    category: string,
+    uri: string,
+    mimeType: string,
+  ): Promise<"ok" | "confirm_failed"> => {
+    if (!deviceId || !id) return "ok";
+
+    const { photoId, uploadUrl } = await apiPost(`/accidents/${id}/photos/request-upload`, {
+      deviceId, category, contentType: mimeType,
+    }) as { photoId: string; uploadUrl: string };
+
+    // Upload via blob fetch (React Native supports this)
+    const blobResponse = await fetch(uri);
+    const blob = await blobResponse.blob();
+    await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": mimeType },
+      body: blob,
+    });
+
+    // Confirm server-side — 410 means the PUT never reached R2.
+    try {
+      await apiPost(`/accidents/${id}/photos/${photoId}/confirm`, { deviceId });
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 410 || err.status === 404)) {
+        return "confirm_failed";
+      }
+      throw err;
+    }
+    return "ok";
+  }, [deviceId, id]);
+
   const pickAndUploadPhoto = useCallback(async (category: string, source: "camera" | "library") => {
     if (!deviceId || !id) return;
     try {
@@ -264,27 +300,19 @@ export default function CrashAssistantScreen() {
 
       if (result.canceled || !result.assets[0]) return;
       const asset = result.assets[0];
+      const mimeType = asset.mimeType ?? "image/jpeg";
 
       setUploadingCategory(category);
 
-      // Get presigned PUT URL from server — include mimeType so the server can
-      // sign the URL with the exact Content-Type the PUT will carry.
-      const mimeType = asset.mimeType ?? "image/jpeg";
-      const { photoId, uploadUrl } = await apiPost(`/accidents/${id}/photos/request-upload`, {
-        deviceId, category, contentType: mimeType,
-      }) as { photoId: string; uploadUrl: string };
-
-      // Upload via blob fetch (React Native supports this)
-      const blobResponse = await fetch(asset.uri);
-      const blob = await blobResponse.blob();
-      await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": mimeType },
-        body: blob,
-      });
-
-      // Confirm server-side
-      await apiPost(`/accidents/${id}/photos/${photoId}/confirm`, { deviceId });
+      const outcome = await runUpload(category, asset.uri, mimeType);
+      if (outcome === "confirm_failed") {
+        // File never landed in storage — keep the local URI so the driver can retry.
+        setFailedUploads((prev) => ({
+          ...prev,
+          [category]: [...(prev[category] ?? []), { uri: asset.uri, mimeType }],
+        }));
+        return;
+      }
 
       await loadRecord();
     } catch {
@@ -292,7 +320,39 @@ export default function CrashAssistantScreen() {
     } finally {
       setUploadingCategory(null);
     }
-  }, [deviceId, id, loadRecord]);
+  }, [deviceId, id, runUpload, loadRecord]);
+
+  const retryFailedUpload = useCallback(async (category: string, uri: string, mimeType: string) => {
+    // Optimistically remove from failed list before retrying.
+    setFailedUploads((prev) => {
+      const next = { ...prev };
+      next[category] = (next[category] ?? []).filter((f) => f.uri !== uri);
+      if (next[category]!.length === 0) delete next[category];
+      return next;
+    });
+
+    setUploadingCategory(category);
+    try {
+      const outcome = await runUpload(category, uri, mimeType);
+      if (outcome === "confirm_failed") {
+        setFailedUploads((prev) => ({
+          ...prev,
+          [category]: [...(prev[category] ?? []), { uri, mimeType }],
+        }));
+        return;
+      }
+      await loadRecord();
+    } catch {
+      // Restore to failed list so the driver sees the retry chip again.
+      setFailedUploads((prev) => ({
+        ...prev,
+        [category]: [...(prev[category] ?? []), { uri, mimeType }],
+      }));
+      Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
+    } finally {
+      setUploadingCategory(null);
+    }
+  }, [runUpload, loadRecord]);
 
   const showPhotoOptions = useCallback((category: string) => {
     Alert.alert("Add Photo", "Choose source", [
@@ -454,8 +514,10 @@ export default function CrashAssistantScreen() {
             <PhotosStep
               record={record}
               uploadingCategory={uploadingCategory}
+              failedUploads={failedUploads}
               onAdd={showPhotoOptions}
               onDelete={deletePhoto}
+              onRetry={retryFailedUpload}
               colors={colors}
               styles={styles}
             />
@@ -612,12 +674,14 @@ function EvidenceStep({ record, colors, styles }: { record: AccidentRecord; colo
 }
 
 function PhotosStep({
-  record, uploadingCategory, onAdd, onDelete, colors, styles,
+  record, uploadingCategory, failedUploads, onAdd, onDelete, onRetry, colors, styles,
 }: {
   record: AccidentRecord;
   uploadingCategory: string | null;
+  failedUploads: Record<string, Array<{ uri: string; mimeType: string }>>;
   onAdd: (cat: string) => void;
   onDelete: (id: string) => void;
+  onRetry: (category: string, uri: string, mimeType: string) => void;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
@@ -634,17 +698,23 @@ function PhotosStep({
       </Text>
       {PHOTO_CATEGORIES.map((cat) => {
         const photos = photosByCategory[cat.id] ?? [];
+        const failed = failedUploads[cat.id] ?? [];
         const uploading = uploadingCategory === cat.id;
+        const hasAny = photos.length > 0 || failed.length > 0;
         return (
-          <View key={cat.id} style={[styles.photoCatCard, { backgroundColor: colors.card, borderColor: photos.length > 0 ? colors.primary + "60" : colors.border }]}>
+          <View key={cat.id} style={[styles.photoCatCard, { backgroundColor: colors.card, borderColor: hasAny ? (failed.length > 0 ? "#FF3B3060" : colors.primary + "60") : colors.border }]}>
             <View style={styles.photoCatHeader}>
-              <View style={[styles.photoCatIcon, { backgroundColor: photos.length > 0 ? colors.primary + "18" : colors.muted + "15" }]}>
-                <Ionicons name={cat.icon as any} size={20} color={photos.length > 0 ? colors.primary : colors.mutedForeground} />
+              <View style={[styles.photoCatIcon, { backgroundColor: hasAny ? (failed.length > 0 ? "#FF3B3018" : colors.primary + "18") : colors.muted + "15" }]}>
+                <Ionicons name={cat.icon as any} size={20} color={hasAny ? (failed.length > 0 ? "#FF3B30" : colors.primary) : colors.mutedForeground} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.photoCatLabel, { color: colors.text }]}>{cat.label}</Text>
-                <Text style={[styles.photoCatCount, { color: colors.mutedForeground }]}>
-                  {photos.length === 0 ? "No photos" : `${photos.length} photo${photos.length > 1 ? "s" : ""}`}
+                <Text style={[styles.photoCatCount, { color: failed.length > 0 ? "#FF3B30" : colors.mutedForeground }]}>
+                  {photos.length === 0 && failed.length === 0
+                    ? "No photos"
+                    : photos.length === 0 && failed.length > 0
+                      ? `${failed.length} failed`
+                      : `${photos.length} photo${photos.length > 1 ? "s" : ""}${failed.length > 0 ? ` · ${failed.length} failed` : ""}`}
                 </Text>
               </View>
               {uploading ? (
@@ -656,7 +726,7 @@ function PhotosStep({
                 </TouchableOpacity>
               )}
             </View>
-            {photos.length > 0 && (
+            {(photos.length > 0 || failed.length > 0) && (
               <View style={styles.photoList}>
                 {photos.map((p) => (
                   <View key={p.id} style={[styles.photoChip, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
@@ -668,6 +738,16 @@ function PhotosStep({
                       <Ionicons name="close" size={14} color={colors.mutedForeground} />
                     </TouchableOpacity>
                   </View>
+                ))}
+                {failed.map((f, idx) => (
+                  <TouchableOpacity
+                    key={`failed-${idx}`}
+                    style={[styles.photoChip, { backgroundColor: "#FF3B3012", borderColor: "#FF3B3040" }]}
+                    onPress={() => onRetry(cat.id, f.uri, f.mimeType)}
+                  >
+                    <Ionicons name="warning-outline" size={13} color="#FF3B30" />
+                    <Text style={[styles.photoChipText, { color: "#FF3B30" }]}>Upload failed — tap to retry</Text>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}

@@ -588,9 +588,12 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
     if (r2.isR2Configured() && photo.fileKey) {
       const exists = await r2.headObject(photo.fileKey);
       if (!exists) {
+        // Object never landed in storage (PUT failed or was purged). Delete the
+        // orphan DB row so it cannot be mistakenly shown as present, then tell
+        // the client with 410 Gone so it can surface a retry prompt.
         await db.delete(accidentPhotosTable)
           .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
-        return res.status(400).json({ error: "Upload not found — the file was not uploaded to storage. Please retry." });
+        return res.status(410).json({ error: "Photo upload did not reach storage. Please retry." });
       }
     }
 
