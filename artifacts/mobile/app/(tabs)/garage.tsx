@@ -10,6 +10,7 @@ import { DriveSession, listDriveSessions, scoreColor, scoreLabel, formatDuration
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { useDriveScore } from "@/hooks/useDriveScore";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
+import { API_BASE } from "@/utils/apiClient";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const QUICK_LINKS = [
@@ -55,30 +56,54 @@ function tripDateLabel(iso: string): string {
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
 }
 
-/** Car image in the My Vehicle card — transparent PNG from R2, falls back to emoji.
- *  Rendered large; the parent positions it to pop out of the card's boundaries. */
-function VehicleImage({ makeId, modelId, vehicleType }: { makeId: string | null; modelId: string | null; vehicleType: string }) {
+/** Car image in the My Vehicle card — transparent PNG from R2, falls back to
+ *  the generic "other" car image, then to the vehicle emoji.
+ *  For custom/unknown vehicles the two-step fallback gives a pleasant default. */
+function VehicleImage({ makeId, modelId, vehicleType }: {
+  makeId: string | null; modelId: string | null; vehicleType: string;
+}) {
+  const [tryDefault, setTryDefault] = useState(false);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const c = useColors();
 
+  const isCustom = !makeId || makeId.startsWith("custom-") ||
+                   !modelId || modelId.startsWith("custom-");
+
   if (!makeId || !modelId || failed) {
     return (
-      <Text style={{ fontSize: 90, fontFamily: EMOJI_FONT_FAMILY, textShadowColor: "rgba(0,0,0,0.18)", textShadowOffset: { width: 0, height: 6 }, textShadowRadius: 10 }}>
+      <Text style={{
+        fontSize: 90, fontFamily: EMOJI_FONT_FAMILY,
+        textShadowColor: "rgba(0,0,0,0.18)",
+        textShadowOffset: { width: 0, height: 6 }, textShadowRadius: 10,
+      }}>
         {getVehicleEmoji(vehicleType)}
       </Text>
     );
   }
 
+  const uri = tryDefault
+    ? `${API_BASE}/car-images/other/default`
+    : getCarImageUrl(makeId, modelId);
+
   return (
     <View style={styles.vehicleImgWrap}>
-      {loading && <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />}
+      {loading && (
+        <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />
+      )}
       <Image
-        source={{ uri: getCarImageUrl(makeId, modelId) }}
+        source={{ uri }}
         style={styles.vehicleImg}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
-        onError={() => { setFailed(true); setLoading(false); }}
+        onError={() => {
+          setLoading(false);
+          if (!tryDefault && isCustom) {
+            setTryDefault(true);
+          } else {
+            setFailed(true);
+          }
+        }}
       />
     </View>
   );
@@ -88,7 +113,10 @@ export default function GarageScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const tabBarH = Platform.OS === "web" ? 84 : 96;
-  const { vehicleType, deviceId, vehicleMakeId, vehicleModelId } = useApp();
+  const {
+    vehicleType, deviceId, vehicleMakeId, vehicleModelId,
+    vehicleCustomMakeName, vehicleCustomModelName,
+  } = useApp();
 
 
   // Load drive sessions
@@ -123,9 +151,12 @@ export default function GarageScreen() {
   // Resolve selected make/model display names
   const selectedMake = vehicleMakeId ? getMakeById(vehicleMakeId) : null;
   const selectedModel = (vehicleMakeId && vehicleModelId) ? getModelById(vehicleMakeId, vehicleModelId) : null;
-  const vehicleDisplayName = selectedMake && selectedModel
-    ? `${selectedMake.name} ${selectedModel.name}`
-    : getVehicleLabel(vehicleType);
+  const vehicleDisplayName =
+    selectedMake && selectedModel
+      ? `${selectedMake.name} ${selectedModel.name}`
+      : vehicleCustomMakeName && vehicleCustomModelName
+        ? `${vehicleCustomMakeName} ${vehicleCustomModelName}`
+        : getVehicleLabel(vehicleType);
 
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>

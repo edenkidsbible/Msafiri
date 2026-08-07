@@ -188,6 +188,24 @@ export async function migrateSchema(): Promise<void> {
         ON live_trips (device_id, started_at DESC)
     `);
 
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS custom_vehicles (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        make_name        TEXT NOT NULL,
+        model_name       TEXT NOT NULL,
+        make_slug        TEXT NOT NULL,
+        model_slug       TEXT NOT NULL,
+        known_make_id    TEXT,
+        image_status     TEXT NOT NULL DEFAULT 'pending',
+        submitted_count  INTEGER NOT NULL DEFAULT 1,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS custom_vehicles_slug_idx
+        ON custom_vehicles (make_slug, model_slug)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

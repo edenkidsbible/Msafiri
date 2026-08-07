@@ -236,12 +236,18 @@ interface AppContextValue {
   isOffline: boolean;
   vehicleType: VehicleTypeId;
   setVehicleType: (v: VehicleTypeId) => void;
-  /** Selected car make id (e.g. "toyota"). Null when not yet chosen. */
+  /** Selected car make id (e.g. "toyota", or "custom-haima" for custom). Null when not yet chosen. */
   vehicleMakeId: string | null;
-  /** Selected car model id (e.g. "hilux"). Null when not yet chosen. */
+  /** Selected car model id (e.g. "hilux", or "custom-s5" for custom). Null when not yet chosen. */
   vehicleModelId: string | null;
-  /** Save make + model together; always set both at once. */
+  /** Save a standard make + model. */
   setVehicleModel: (makeId: string, modelId: string) => void;
+  /** User-typed display name for a custom make (null when using a known make). */
+  vehicleCustomMakeName: string | null;
+  /** User-typed display name for a custom model (null when using a known model). */
+  vehicleCustomModelName: string | null;
+  /** Save a custom/unknown make+model; stores all four values together. */
+  setCustomVehicle: (makeId: string, modelId: string, makeName: string, modelName: string) => void;
   // Navigation
   navDestination: NavDestination | null;
   setNavDestination: (d: NavDestination | null) => void;
@@ -366,6 +372,8 @@ const KEYS = {
   VEHICLE_TYPE: "sdk_vehicle_type",
   VEHICLE_MAKE_ID: "sdk_vehicle_make_id",
   VEHICLE_MODEL_ID: "sdk_vehicle_model_id",
+  VEHICLE_CUSTOM_MAKE_NAME: "sdk_vehicle_custom_make_name",
+  VEHICLE_CUSTOM_MODEL_NAME: "sdk_vehicle_custom_model_name",
   SHARE: "sdk_share",  // active sharing session — persisted so it survives backgrounding
   DRIVER_NAME: "sdk_driver_name",  // display name shown to live-share recipients
   CRASH_SENSITIVITY: "sdk_crash_sensitivity",
@@ -950,6 +958,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const vehicleTypeRef = useRef<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   const [vehicleMakeId, setVehicleMakeIdState] = useState<string | null>(null);
   const [vehicleModelId, setVehicleModelIdState] = useState<string | null>(null);
+  const [vehicleCustomMakeName, setVehicleCustomMakeNameState] = useState<string | null>(null);
+  const [vehicleCustomModelName, setVehicleCustomModelNameState] = useState<string | null>(null);
   const currentLatRef = useRef<number | null>(null);
   const currentLngRef = useRef<number | null>(null);
   // Extra navigation refs used by the share-trip ping interval so it can read
@@ -1162,7 +1172,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto, storedMakeId, storedModelId] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto, storedMakeId, storedModelId, storedCustomMakeName, storedCustomModelName] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -1177,6 +1187,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem("profile_photo_uri"),
         AsyncStorage.getItem(KEYS.VEHICLE_MAKE_ID),
         AsyncStorage.getItem(KEYS.VEHICLE_MODEL_ID),
+        AsyncStorage.getItem(KEYS.VEHICLE_CUSTOM_MAKE_NAME),
+        AsyncStorage.getItem(KEYS.VEHICLE_CUSTOM_MODEL_NAME),
       ]);
       if (storedVehicleType) {
         const v = storedVehicleType as VehicleTypeId;
@@ -1233,6 +1245,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedProfilePhoto) setProfilePhotoUriState(storedProfilePhoto);
       if (storedMakeId) setVehicleMakeIdState(storedMakeId);
       if (storedModelId) setVehicleModelIdState(storedModelId);
+      if (storedCustomMakeName) setVehicleCustomMakeNameState(storedCustomMakeName);
+      if (storedCustomModelName) setVehicleCustomModelNameState(storedCustomModelName);
       setOnboardingComplete(onboarded === "true");
       // Restore any sharing session that survived backgrounding or an app restart
       if (savedShare) {
@@ -3076,9 +3090,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setVehicleModel = useCallback((makeId: string, modelId: string) => {
     setVehicleMakeIdState(makeId);
     setVehicleModelIdState(modelId);
+    setVehicleCustomMakeNameState(null);
+    setVehicleCustomModelNameState(null);
     AsyncStorage.setItem(KEYS.VEHICLE_MAKE_ID, makeId).catch(() => {});
     AsyncStorage.setItem(KEYS.VEHICLE_MODEL_ID, modelId).catch(() => {});
+    AsyncStorage.removeItem(KEYS.VEHICLE_CUSTOM_MAKE_NAME).catch(() => {});
+    AsyncStorage.removeItem(KEYS.VEHICLE_CUSTOM_MODEL_NAME).catch(() => {});
   }, []);
+
+  const setCustomVehicle = useCallback(
+    (makeId: string, modelId: string, makeName: string, modelName: string) => {
+      setVehicleMakeIdState(makeId);
+      setVehicleModelIdState(modelId);
+      setVehicleCustomMakeNameState(makeName);
+      setVehicleCustomModelNameState(modelName);
+      AsyncStorage.setItem(KEYS.VEHICLE_MAKE_ID, makeId).catch(() => {});
+      AsyncStorage.setItem(KEYS.VEHICLE_MODEL_ID, modelId).catch(() => {});
+      AsyncStorage.setItem(KEYS.VEHICLE_CUSTOM_MAKE_NAME, makeName).catch(() => {});
+      AsyncStorage.setItem(KEYS.VEHICLE_CUSTOM_MODEL_NAME, modelName).catch(() => {});
+    },
+    [],
+  );
 
   // ── Crash sensitivity persisted setting ─────────────────────────────────
   const setCrashSensitivity = useCallback((v: "low" | "medium" | "high") => {
@@ -3927,6 +3959,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isOffline,
       vehicleType, setVehicleType,
       vehicleMakeId, vehicleModelId, setVehicleModel,
+      vehicleCustomMakeName, vehicleCustomModelName, setCustomVehicle,
       navDestination, setNavDestination,
       activeRoute, altRoutes, selectRoute,
       isSharingTrip: shareToken !== null,

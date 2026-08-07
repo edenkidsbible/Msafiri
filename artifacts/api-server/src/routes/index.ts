@@ -25,6 +25,7 @@ import accidentsRouter from "./accidents.js";
 import liveTripsRouter from "./liveTrips.js";
 import weatherRouter from "./weather.js";
 import carImagesRouter from "./carImages.js";
+import customVehiclesRouter from "./customVehicles.js";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(accidentsRouter);
 router.use(liveTripsRouter);
 router.use(weatherRouter);
 router.use(carImagesRouter);
+router.use(customVehiclesRouter);
 
 export default router;
