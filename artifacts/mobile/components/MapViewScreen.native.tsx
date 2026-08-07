@@ -28,6 +28,14 @@ import { useWeather, weatherIcon } from "@/hooks/useWeather";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 
+// All incident types available in the filter checklist, in display order.
+// "zone" = general speed-zone pins from the zones API (distinct from community reports).
+const FILTER_TYPES = [
+  "camera", "police", "zone", "alcoblow", "accident", "traffic",
+  "roadblock", "roadworks", "hazard", "pothole", "debris",
+  "breakdown", "weather", "closure", "clear",
+] as const;
+
 // ── Camera helpers (mirrored from DriveMapView) ───────────────────────────────
 
 // Fixed zoom delta used during active navigation on this screen.
@@ -286,15 +294,21 @@ export default function MapViewScreen() {
   const [placeFocused, setPlaceFocused]   = useState(false);
   const placeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── Incident filter (search-bar filter button) ──────────────────────────────
-  // Client-side display filter for community report markers only.
-  // "all" = everything, "alcoblow" = alcoblow reports only, "other" = all non-alcoblow.
-  const [incidentFilter, setIncidentFilter] = useState<"all" | "alcoblow" | "other">("all");
+  // Multi-select checklist. Empty set = show all; non-empty = show only those types.
+  // Applies to both community-report markers and speed-zone markers.
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
+
   const filteredReports = useMemo(() => {
-    if (incidentFilter === "alcoblow") return communityReports.filter((r) => r.type === "alcoblow");
-    if (incidentFilter === "other")    return communityReports.filter((r) => r.type !== "alcoblow");
-    return communityReports;
-  }, [communityReports, incidentFilter]);
+    if (selectedTypes.size === 0) return communityReports;
+    return communityReports.filter((r) => selectedTypes.has(r.type));
+  }, [communityReports, selectedTypes]);
+
+  const filteredZones = useMemo(() => {
+    if (selectedTypes.size === 0) return allZones;
+    return allZones.filter((z) => selectedTypes.has(z.type));
+  }, [allZones, selectedTypes]);
+
   const clusters = useMemo(() => clusterReports(filteredReports), [filteredReports]);
   const mapRef = useRef<MapView>(null);
 
@@ -735,25 +749,27 @@ export default function MapViewScreen() {
           hitSlop={8}
           style={[
             styles.filterBtn,
-            { backgroundColor: incidentFilter !== "all" ? c.primary + "18" : "transparent" },
+            { backgroundColor: selectedTypes.size > 0 ? c.primary + "18" : "transparent" },
           ]}
         >
           <Ionicons
-            name={incidentFilter !== "all" ? "funnel" : "funnel-outline"}
+            name={selectedTypes.size > 0 ? "funnel" : "funnel-outline"}
             size={18}
-            color={incidentFilter !== "all" ? c.primary : c.mutedForeground}
+            color={selectedTypes.size > 0 ? c.primary : c.mutedForeground}
           />
-          {incidentFilter !== "all" && (
-            <View style={[styles.filterDot, { backgroundColor: c.primary, borderColor: c.card }]} />
+          {selectedTypes.size > 0 && (
+            <View style={[styles.filterBadge, { backgroundColor: c.primary, borderColor: c.card }]}>
+              <Text style={styles.filterBadgeTxt}>{selectedTypes.size}</Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* ── Incident filter picker ─────────────────────────────────────────── */}
+      {/* ── Incident filter picker — full multi-select checklist ──────────── */}
       <Modal
         visible={filterPickerOpen}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setFilterPickerOpen(false)}
       >
         <TouchableOpacity
@@ -761,30 +777,134 @@ export default function MapViewScreen() {
           activeOpacity={1}
           onPress={() => setFilterPickerOpen(false)}
         >
-          <View style={[styles.filterSheet, { top: insets.top + 60, backgroundColor: c.card }]}>
-            <Text style={[styles.filterTitle, { color: c.mutedForeground }]}>Show on map</Text>
-            {([
-              { key: "all",      label: "All reports",     icon: "layers-outline" as const },
-              { key: "alcoblow", label: "Alcoblow only",   icon: "beer-outline" as const },
-              { key: "other",    label: "Other incidents", icon: "warning-outline" as const },
-            ] as const).map((opt) => {
-              const active = incidentFilter === opt.key;
-              return (
+          {/* Inner Pressable prevents backdrop tap from closing when tapping inside */}
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.filterSheet, { backgroundColor: c.card }]}
+            onPress={() => {}}
+          >
+            {/* Handle */}
+            <View style={[styles.filterHandle, { backgroundColor: c.tileBorder }]} />
+
+            {/* Header */}
+            <View style={styles.filterHeader}>
+              <View>
+                <Text style={[styles.filterTitle, { color: c.foreground }]}>Filter incidents</Text>
+                <Text style={[styles.filterSubtitle, { color: c.mutedForeground }]}>
+                  {selectedTypes.size === 0
+                    ? "Showing all incident types"
+                    : `${selectedTypes.size} type${selectedTypes.size > 1 ? "s" : ""} selected`}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setFilterPickerOpen(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={22} color={c.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.filterScroll}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {/* "All" row */}
+              <TouchableOpacity
+                style={[
+                  styles.filterRow,
+                  selectedTypes.size === 0 && { backgroundColor: c.primary + "12" },
+                ]}
+                activeOpacity={0.7}
+                onPress={() => setSelectedTypes(new Set())}
+              >
+                <View style={[styles.filterIconBox, { backgroundColor: c.primary + "18" }]}>
+                  <Ionicons name="layers-outline" size={18} color={c.primary} />
+                </View>
+                <Text style={[styles.filterRowTxt, { color: selectedTypes.size === 0 ? c.primary : c.foreground }]}>
+                  All incidents
+                </Text>
+                <View style={[
+                  styles.filterCheckbox,
+                  {
+                    borderColor: selectedTypes.size === 0 ? c.primary : c.tileBorder,
+                    backgroundColor: selectedTypes.size === 0 ? c.primary : "transparent",
+                  },
+                ]}>
+                  {selectedTypes.size === 0 && (
+                    <Ionicons name="checkmark" size={13} color="#fff" />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Divider */}
+              <View style={[styles.filterDivider, { backgroundColor: c.tileBorder }]} />
+
+              {/* Individual type rows */}
+              {FILTER_TYPES.map((typeKey) => {
+                const def = INCIDENT_TYPES[typeKey];
+                if (!def) return null;
+                const checked = selectedTypes.has(typeKey);
+                return (
+                  <TouchableOpacity
+                    key={typeKey}
+                    style={[
+                      styles.filterRow,
+                      checked && { backgroundColor: def.color + "10" },
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setSelectedTypes((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(typeKey)) next.delete(typeKey);
+                        else next.add(typeKey);
+                        return next;
+                      });
+                    }}
+                  >
+                    <View style={[styles.filterIconBox, { backgroundColor: def.color + "20" }]}>
+                      <Text style={{ fontSize: 17, fontFamily: EMOJI_FONT_FAMILY }}>{def.emoji}</Text>
+                    </View>
+                    <Text
+                      style={[styles.filterRowTxt, { color: checked ? def.color : c.foreground }]}
+                      numberOfLines={1}
+                    >
+                      {def.label}
+                    </Text>
+                    <View style={[
+                      styles.filterCheckbox,
+                      {
+                        borderColor: checked ? def.color : c.tileBorder,
+                        backgroundColor: checked ? def.color : "transparent",
+                      },
+                    ]}>
+                      {checked && <Ionicons name="checkmark" size={13} color="#fff" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={[styles.filterFooter, { borderTopColor: c.tileBorder, paddingBottom: insets.bottom + 8 }]}>
+              {selectedTypes.size > 0 && (
                 <TouchableOpacity
-                  key={opt.key}
-                  style={[styles.filterRow, active && { backgroundColor: c.primary + "12" }]}
-                  activeOpacity={0.7}
-                  onPress={() => { setIncidentFilter(opt.key); setFilterPickerOpen(false); }}
+                  style={[styles.filterClearBtn, { borderColor: c.tileBorder }]}
+                  onPress={() => setSelectedTypes(new Set())}
                 >
-                  <Ionicons name={opt.icon} size={18} color={active ? c.primary : c.mutedForeground} />
-                  <Text style={[styles.filterRowTxt, { color: active ? c.primary : c.foreground }]}>
-                    {opt.label}
-                  </Text>
-                  {active && <Ionicons name="checkmark" size={18} color={c.primary} />}
+                  <Text style={[styles.filterClearTxt, { color: c.mutedForeground }]}>Clear</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+              )}
+              <TouchableOpacity
+                style={[styles.filterDoneBtn, { backgroundColor: c.primary, flex: selectedTypes.size > 0 ? 1 : undefined }]}
+                onPress={() => setFilterPickerOpen(false)}
+              >
+                <Text style={styles.filterDoneTxt}>
+                  {selectedTypes.size === 0 ? "Show all" : `Apply (${selectedTypes.size})`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
@@ -961,7 +1081,7 @@ export default function MapViewScreen() {
         {/* Speed zone markers — null-guard coordinates to prevent the iOS
             NSInvalidArgumentException crash when lat/lng is null/undefined.
             Road-stretch endpoints show a speed-limit badge at each end. */}
-        {allZones.map((z) => {
+        {filteredZones.map((z) => {
           // ── Crash guard ── skip any zone with a missing coordinate ──────────
           if (z.lat == null || z.lng == null || isNaN(z.lat) || isNaN(z.lng)) return null;
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;
@@ -1625,27 +1745,65 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 15,
     alignItems: "center", justifyContent: "center",
   },
-  filterDot: {
-    position: "absolute", top: 2, right: 2,
-    width: 8, height: 8, borderRadius: 4, borderWidth: 1.5,
+  filterBadge: {
+    position: "absolute", top: 0, right: 0,
+    minWidth: 16, height: 16, borderRadius: 8, borderWidth: 1.5,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 2,
   },
-  filterBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)" },
+  filterBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
+  filterBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
   filterSheet: {
-    position: "absolute", right: 12, width: 220,
-    borderRadius: 14, paddingVertical: 6,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2, shadowRadius: 10, elevation: 12,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 10, maxHeight: "80%",
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15, shadowRadius: 16, elevation: 20,
   },
-  filterTitle: {
-    fontSize: 11, fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase", letterSpacing: 0.6,
-    paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4,
+  filterHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    alignSelf: "center", marginBottom: 16,
   },
+  filterHeader: {
+    flexDirection: "row", alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 20, marginBottom: 12,
+  },
+  filterTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  filterSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  filterScroll: { maxHeight: 400 },
   filterRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 14, paddingVertical: 11,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 20, paddingVertical: 13,
+  },
+  filterIconBox: {
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
   filterRowTxt: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
+  filterCheckbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  filterDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 20, marginVertical: 4 },
+  filterFooter: {
+    flexDirection: "row", gap: 10,
+    paddingHorizontal: 20, paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  filterClearBtn: {
+    borderWidth: 1, borderRadius: 14,
+    paddingVertical: 13, paddingHorizontal: 20,
+    alignItems: "center", justifyContent: "center",
+  },
+  filterClearTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  filterDoneBtn: {
+    flex: 1, borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center", justifyContent: "center",
+  },
+  filterDoneTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   dropdownRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,
