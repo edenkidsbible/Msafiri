@@ -699,6 +699,22 @@ export default function MapViewScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── 5 km radius notice ───────────────────────────────────────────────── */}
+      {currentLat != null && (
+        <View
+          style={[
+            styles.radiusBadge,
+            { backgroundColor: c.card + "F0", borderColor: c.tileBorder },
+          ]}
+          pointerEvents="none"
+        >
+          <Ionicons name="locate-outline" size={13} color={c.mutedForeground} />
+          <Text style={[styles.radiusBadgeTxt, { color: c.mutedForeground }]}>
+            Showing incidents within 5 km of your location
+          </Text>
+        </View>
+      )}
+
       {/* ── Incident filter picker — full multi-select checklist ──────────── */}
       <Modal
         visible={filterPickerOpen}
@@ -1684,6 +1700,16 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", paddingHorizontal: 2,
   },
   filterBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
+  // ── 5 km radius notice ────────────────────────────────────────────────────
+  radiusBadge: {
+    flexDirection: "row" as const, alignItems: "center" as const, gap: 5,
+    position: "absolute" as const, bottom: 12, alignSelf: "center" as const,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1,
+    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
+  },
+  radiusBadgeTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
   filterBackdrop: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",

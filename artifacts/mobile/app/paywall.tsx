@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSubscription, REVENUECAT_ENTITLEMENT_IDENTIFIER } from "@/lib/revenuecat";
+import { loadVehicles } from "@/utils/savedVehicles";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { AdminPinModal } from "@/components/AdminPinModal";
@@ -387,6 +388,15 @@ export default function PaywallScreen() {
 
   async function handleEnterApp() {
     await requestLocationPermission();
+    // Route new users to vehicle setup before the main app — existing users
+    // who already have vehicles saved go straight to the home tab.
+    try {
+      const vehicles = await loadVehicles();
+      if (vehicles.length === 0) {
+        router.replace("/vehicle-setup" as any);
+        return;
+      }
+    } catch { /* proceed to tabs on error */ }
     router.replace("/(tabs)");
   }
 

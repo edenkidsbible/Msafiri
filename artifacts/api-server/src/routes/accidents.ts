@@ -832,6 +832,27 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /accidents/:id/report/view ────────────────────────────────────────────
+// Public redirect to the crash report PDF — no auth required because the UUID
+// is effectively a secret token (128-bit entropy). Intended for sharing with
+// insurers, police, or lawyers via a short branded URL.
+router.get("/accidents/:id/report/view", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const [record] = await db.select({ pdfFileKey: accidentRecordsTable.pdfFileKey })
+      .from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, id), ne(accidentRecordsTable.status, "abandoned")));
+
+    if (!record?.pdfFileKey) return res.status(404).json({ error: "Report not found or not yet generated" });
+
+    const url = await signedDownloadUrl(record.pdfFileKey, 3600 * 6);
+    return res.redirect(302, url);
+  } catch (err) {
+    console.error("GET /accidents/:id/report/view error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── GET /accidents/:id/report/url ─────────────────────────────────────────────
 // Returns a fresh signed URL for an already-generated PDF.
 router.get("/accidents/:id/report/url", async (req: Request, res: Response) => {

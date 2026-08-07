@@ -357,6 +357,12 @@ interface AppContextValue {
    *  consumers read from here instead of polling AsyncStorage independently. */
   profilePhotoUri: string | null;
   setProfilePhotoUri: (uri: string | null) => void;
+  /** Whether the driver currently has an active trip running in the drive tab. */
+  navTripActive: boolean;
+  /** Whether the active trip is currently paused. */
+  navTripPaused: boolean;
+  setNavTripActive: (v: boolean) => void;
+  setNavTripPaused: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1021,6 +1027,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const suppressedStaticIdsRef = useRef<string[]>([]);
 
   const [profilePhotoUri, setProfilePhotoUriState] = useState<string | null>(null);
+  // ── Drive tab trip state (surfaced so Home tab can show dynamic button) ───
+  const [navTripActive, setNavTripActive] = useState(false);
+  const [navTripPaused, setNavTripPaused] = useState(false);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [driverName, setDriverNameState] = useState<string>("");
   const driverNameRef = useRef<string>("");
@@ -2421,12 +2430,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshReports = useCallback(async () => {
     if (isOfflineRef.current || !deviceIdRef.current) return;
     try {
+      // Anti-scraping: pass the driver's current location so the server only
+      // returns incidents within a 5 km radius. Falls back to no filter (all
+      // active reports) when GPS is not yet available.
+      const lat = currentLatRef.current;
+      const lng = currentLngRef.current;
+      const url = (lat != null && lng != null)
+        ? `/reports?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radius=5000`
+        : `/reports`;
       const data = await apiGet<{ reports: Array<{
         id: string; type: string; lat: number; lng: number;
         status: string; confirmCount: number; denyCount: number;
         createdAt: number; expiresAt: number | null;
         speedLimit: number | null; roadName: string | null; adminVerified: boolean;
-      }> }>(`/reports`);
+      }> }>(url);
       const remote: CommunityReport[] = data.reports.map((r) => ({
         id: r.id,
         type: r.type as CommunityReport["type"],
@@ -3994,6 +4011,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       crashSensitivity, setCrashSensitivity,
       setDashcamActive,
       profilePhotoUri, setProfilePhotoUri,
+      navTripActive, navTripPaused, setNavTripActive, setNavTripPaused,
     }}>
       {children}
     </AppContext.Provider>

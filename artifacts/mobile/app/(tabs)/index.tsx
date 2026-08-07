@@ -98,6 +98,8 @@ export default function HomeScreen() {
     currentLng,
     themeOverride,
     setThemeOverride,
+    navTripActive,
+    navTripPaused,
   } = useApp();
   const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
@@ -355,10 +357,16 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── Start Driving hero card ────────────────────────────────────── */}
+        {/* ── Start / Resume / View Driving hero card (state-aware) ──────── */}
         <Pressable onPress={startDriving} style={({ pressed }) => [pressed && { transform: [{ scale: 0.985 }] }]}>
           <LinearGradient
-            colors={[c.heroGradientStart, c.heroGradientEnd]}
+            colors={
+              navTripPaused
+                ? ["#7C5C00", "#4A3800"]   // amber — paused
+                : navTripActive
+                ? ["#0A4A28", "#072B18"]   // deep green — active
+                : [c.heroGradientStart, c.heroGradientEnd]
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
@@ -372,11 +380,35 @@ export default function HomeScreen() {
               />
             </View>
             <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
-              <Text style={styles.heroTitle}>Start Driving</Text>
-              <Text style={styles.heroSub}>Navigate, get alerts{"\n"}and stay protected</Text>
+              {navTripPaused ? (
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#FFB300" }} />
+                    <Text style={[styles.heroTitle, { color: "#FFB300" }]}>Trip Paused</Text>
+                  </View>
+                  <Text style={styles.heroSub}>Tap to resume driving</Text>
+                </>
+              ) : navTripActive ? (
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#34D399" }} />
+                    <Text style={[styles.heroTitle, { color: "#34D399" }]}>Drive Active</Text>
+                  </View>
+                  <Text style={styles.heroSub}>Tap to view drive screen</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.heroTitle}>Start Driving</Text>
+                  <Text style={styles.heroSub}>Navigate, get alerts{"\n"}and stay protected</Text>
+                </>
+              )}
             </View>
             <View style={styles.heroChevron}>
-              <Ionicons name="chevron-forward" size={22} color="#0A7C3A" />
+              <Ionicons
+                name={navTripPaused ? "play-circle-outline" : navTripActive ? "radio-outline" : "chevron-forward"}
+                size={22}
+                color={navTripPaused ? "#FFB300" : navTripActive ? "#34D399" : "#0A7C3A"}
+              />
             </View>
           </LinearGradient>
         </Pressable>

@@ -172,6 +172,7 @@ export default function DriveScreen() {
     crashDetected, clearCrash, crashAssistantId,
     crashSensitivity,
     setDashcamActive,
+    setNavTripActive, setNavTripPaused,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -273,6 +274,10 @@ export default function DriveScreen() {
   const alertFocusModeRef = useRef(false);
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
+  const [tripPaused, setTripPaused] = useState(false);
+  // Refs for accurate elapsed-time accounting across pauses
+  const pausedAtMsRef = useRef<number | null>(null);
+  const totalPausedMsRef = useRef(0);
   // Elapsed seconds during the trip — drives the Drive Safely "Duration" tile.
   const [tripElapsedS, setTripElapsedS] = useState(0);
   // Audio Alerts master toggle (Drive Mode panel) — persisted, gates both the
@@ -280,6 +285,8 @@ export default function DriveScreen() {
   const [audioAlertsOn, setAudioAlertsOn] = useState(true);
   // Guards the one-shot auto-start effect (Start Driving → instant trip).
   const autoStartedRef = useRef(false);
+  // Promise for the vehicle load so useFocusEffect can await it if needed
+  const vehicleLoadPromiseRef = useRef<Promise<SavedVehicle[]> | null>(null);
 
   // 3-second pre-trip countdown (null = no countdown, 3/2/1 = counting down)
   const [countdownValue, setCountdownValue] = useState<number | null>(null);
@@ -447,9 +454,14 @@ export default function DriveScreen() {
     setTimeout(() => {
       setCountdownValue(null);
       countdownActiveRef.current = false;
+      totalPausedMsRef.current = 0;
+      pausedAtMsRef.current = null;
       const now = new Date();
       tripStartTimeRef.current = now;
       setTripActive(true);
+      setTripPaused(false);
+      setNavTripActive(true);
+      setNavTripPaused(false);
       setTripStartTime(now);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       // Create server-side session (fire-and-forget — trip works offline too)
@@ -467,14 +479,19 @@ export default function DriveScreen() {
   }, [tripActive, deviceId, currentLat, currentLng]);
 
   // ── Load vehicles once on mount so the picker has data ───────────────────
+  // We store the Promise so useFocusEffect can await it when the tab opens
+  // before the async load completes — fixes the race where the auto-start
+  // fires before the list is ready and always skips the multi-vehicle picker.
   useEffect(() => {
-    loadVehicles().then(list => {
+    const p = loadVehicles().then(list => {
       driveVehiclesRef.current = list;
       setDriveVehicles(list);
       // Pre-select default vehicle so single-vehicle users never see the picker
       const def = list.find(v => v.isDefault) ?? list[0];
       if (def) driveVehicleRef.current = def;
-    }).catch(() => {});
+      return list;
+    }).catch(() => [] as SavedVehicle[]);
+    vehicleLoadPromiseRef.current = p;
   }, []);
 
   // ── Drive Mode auto-start ─────────────────────────────────────────────────
@@ -497,11 +514,19 @@ export default function DriveScreen() {
     if (autoStartedRef.current) return;
     autoStartedRef.current = true;
     if (!navDestination && noAutoStart !== "1") {
-      if (driveVehiclesRef.current.length > 1) {
-        // Multiple vehicles — show picker before starting
-        setShowVehiclePicker(true);
+      // Await the vehicle load to avoid the race where this fires before
+      // the async load completes and the picker is wrongly skipped.
+      const proceed = (list: SavedVehicle[]) => {
+        if (list.length > 1) {
+          setShowVehiclePicker(true);
+        } else {
+          startTrip();
+        }
+      };
+      if (vehicleLoadPromiseRef.current) {
+        vehicleLoadPromiseRef.current.then(proceed);
       } else {
-        startTrip();
+        proceed(driveVehiclesRef.current);
       }
     }
   // navDestination and noAutoStart are intentionally included so a fresh
@@ -523,12 +548,16 @@ export default function DriveScreen() {
   // Tick the trip duration once per second while active.
   useEffect(() => {
     if (!tripActive) { setTripElapsedS(0); return; }
+    if (tripPaused) return; // paused — don't tick, keep displayed value frozen
     const id = setInterval(() => {
       const start = tripStartTimeRef.current;
-      if (start) setTripElapsedS(Math.max(0, Math.round((Date.now() - start.getTime()) / 1000)));
+      if (start) {
+        const raw = Date.now() - start.getTime() - totalPausedMsRef.current;
+        setTripElapsedS(Math.max(0, Math.round(raw / 1000)));
+      }
     }, 1000);
     return () => clearInterval(id);
-  }, [tripActive]);
+  }, [tripActive, tripPaused]);
 
   // Restore the persisted Audio Alerts preference on mount.
   useEffect(() => {
@@ -539,6 +568,26 @@ export default function DriveScreen() {
       setSoundsMuted(!on);
     }).catch(() => {});
   }, []);
+
+  // ── Trip Pause / Resume ───────────────────────────────────────────────────
+  const pauseTrip = useCallback(() => {
+    if (!tripActive || tripPaused) return;
+    pausedAtMsRef.current = Date.now();
+    setTripPaused(true);
+    setNavTripPaused(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }, [tripActive, tripPaused, setNavTripPaused]);
+
+  const resumeTrip = useCallback(() => {
+    if (!tripActive || !tripPaused) return;
+    if (pausedAtMsRef.current != null) {
+      totalPausedMsRef.current += Date.now() - pausedAtMsRef.current;
+      pausedAtMsRef.current = null;
+    }
+    setTripPaused(false);
+    setNavTripPaused(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+  }, [tripActive, tripPaused, setNavTripPaused]);
 
   const toggleAudioAlerts = useCallback(() => {
     setAudioAlertsOn((prev) => {
@@ -553,6 +602,11 @@ export default function DriveScreen() {
 
   const stopTrip = useCallback(() => {
     setTripActive(false);
+    setTripPaused(false);
+    setNavTripActive(false);
+    setNavTripPaused(false);
+    pausedAtMsRef.current = null;
+    totalPausedMsRef.current = 0;
     setTripStartTime(null);
     setNavDestination(null);
     setSearchText("");
@@ -560,7 +614,7 @@ export default function DriveScreen() {
     // Stop dashcam and save the current clip when driving ends
     if (dashcamRecording) stopAndSaveDashcam();
     // Finalisation is handled by the prevTripActiveRef effect below.
-  }, [setNavDestination, dashcamRecording, stopAndSaveDashcam]);
+  }, [setNavDestination, dashcamRecording, stopAndSaveDashcam, setNavTripActive, setNavTripPaused]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───
   useEffect(() => {
@@ -2019,7 +2073,14 @@ export default function DriveScreen() {
             <SOSButton compact small={isSmall} />
             <TouchableOpacity
               style={[styles.startBtn, { backgroundColor: c.primary }]}
-              onPress={() => { startTrip(); }}
+              onPress={() => {
+                // Multi-vehicle: pick which vehicle to use for this trip
+                if (driveVehiclesRef.current.length > 1) {
+                  setShowVehiclePicker(true);
+                } else {
+                  startTrip();
+                }
+              }}
             >
               <Ionicons name="navigate" size={17} color="#FFF" />
               <Text style={styles.startBtnTxt}>Start</Text>
@@ -2206,8 +2267,28 @@ export default function DriveScreen() {
               </TouchableOpacity>
             ) : <View style={{ flex: 1 }} />}
 
-            {/* Stop Drive — red round button */}
-            <View style={{ alignItems: "center", gap: 4 }}>
+            {/* Centre column: Pause (small) + Stop Drive (large red) */}
+            <View style={{ alignItems: "center", gap: 6 }}>
+              {/* Pause / Resume button */}
+              <TouchableOpacity
+                style={[
+                  styles.pauseBtn,
+                  { backgroundColor: tripPaused ? c.primary + "22" : (isDark ? "#2A2A2A" : "#E8E8E8") },
+                ]}
+                onPress={tripPaused ? resumeTrip : pauseTrip}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={tripPaused ? "play" : "pause"}
+                  size={14}
+                  color={tripPaused ? c.primary : c.mutedForeground}
+                />
+                <Text style={[styles.pauseBtnTxt, { color: tripPaused ? c.primary : c.mutedForeground }]}>
+                  {tripPaused ? "Resume" : "Pause"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Stop Drive */}
               <TouchableOpacity
                 style={styles.dmStopBtn}
                 onPress={() => {
@@ -3434,6 +3515,14 @@ const styles = StyleSheet.create({
   liveTripScoreLbl: {
     fontSize: 11, fontFamily: "Inter_400Regular",
   },
+
+  // ── Pause / Resume button ─────────────────────────────────────────────────
+  pauseBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(128,128,128,0.2)",
+  },
+  pauseBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
   liveTripActionRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
   liveTripReportBtn:    {

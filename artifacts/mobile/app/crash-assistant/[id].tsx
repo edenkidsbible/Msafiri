@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   Share,
@@ -37,8 +38,10 @@ import {
   useAudioRecorderState,
 } from "expo-audio";
 import { useApp } from "@/context/AppContext";
-import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "@/utils/apiClient";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, API_BASE } from "@/utils/apiClient";
 import { useColors } from "@/hooks/useColors";
+import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
+import { CAR_MAKES, getMakeById, getModelById } from "@/data/carModels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -204,6 +207,18 @@ export default function CrashAssistantScreen() {
   // Report step
   const [generating, setGenerating] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  // My vehicle — pre-populated from saved vehicles, auto-fills report details
+  const [myVehicle, setMyVehicle] = useState<SavedVehicle | null>(null);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [savedVehicles, setSavedVehicles] = useState<SavedVehicle[]>([]);
+  useEffect(() => {
+    loadVehicles().then((list) => {
+      setSavedVehicles(list);
+      const def = list.find((v) => v.isDefault) ?? list[0] ?? null;
+      setMyVehicle(def);
+    }).catch(() => {});
+  }, []);
 
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -432,19 +447,17 @@ export default function CrashAssistantScreen() {
   }, [deviceId, id, statement, otherParty, loadRecord]);
 
   const shareReport = useCallback(async () => {
-    if (!pdfUrl || pdfUrl === "report-ready") {
-      // Fetch a fresh signed URL
-      if (!deviceId || !id) return;
-      try {
-        const { url } = await apiGet(`/accidents/${id}/report/url?deviceId=${deviceId}`) as { url: string };
-        await Share.share({ url, message: `Crash Report — ${record ? format(new Date(record.detectedAt), "d MMM yyyy") : ""}` });
-      } catch {
-        Alert.alert("Error", "Could not share report.");
-      }
-      return;
+    if (!id) return;
+    // Use the short branded URL that redirects server-side to the signed PDF.
+    // This avoids sharing long presigned R2 URLs with insurers / authorities.
+    const dateStr = record ? format(new Date(record.detectedAt), "d MMM yyyy") : "";
+    const shortUrl = `${API_BASE}/accidents/${id}/report/view`;
+    try {
+      await Share.share({ url: shortUrl, message: `Crash Report — ${dateStr}` });
+    } catch {
+      Alert.alert("Error", "Could not share report.");
     }
-    await Share.share({ url: pdfUrl, message: `Crash Report — ${record ? format(new Date(record.detectedAt), "d MMM yyyy") : ""}` });
-  }, [pdfUrl, deviceId, id, record]);
+  }, [id, record]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -545,7 +558,33 @@ export default function CrashAssistantScreen() {
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
           {currentStep === "evidence" && (
-            <EvidenceStep record={record} colors={colors} styles={styles} />
+            <>
+              {/* ── My Vehicle selector ─────────────────────────────────── */}
+              <TouchableOpacity
+                style={[
+                  styles.vehicleCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+                onPress={() => setShowVehicleModal(true)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.vehicleCardIcon, { backgroundColor: colors.primary + "18" }]}>
+                  <Ionicons name="car-outline" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.vehicleCardLabel, { color: colors.mutedForeground }]}>My Vehicle</Text>
+                  <Text style={[styles.vehicleCardValue, { color: colors.text }]} numberOfLines={1}>
+                    {myVehicle
+                      ? [myVehicle.customMakeName ?? getMakeById(myVehicle.makeId ?? "")?.name ?? myVehicle.makeId ?? "—",
+                          myVehicle.customModelName ?? getModelById(myVehicle.makeId ?? "", myVehicle.modelId ?? "")?.name ?? myVehicle.modelId ?? ""].filter(Boolean).join(" ")
+                      : "Not selected — tap to add"}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+
+              <EvidenceStep record={record} colors={colors} styles={styles} />
+            </>
           )}
 
           {currentStep === "photos" && (
@@ -649,6 +688,80 @@ export default function CrashAssistantScreen() {
           </TouchableOpacity>
         )}
       </SafeAreaView>
+      {/* ── My Vehicle picker modal ─────────────────────────────────────── */}
+      <Modal
+        visible={showVehicleModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowVehicleModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowVehicleModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.vehicleModalSheet, { backgroundColor: colors.card }]}
+            onPress={() => {}}
+          >
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 8 }} />
+            <Text style={[styles.vehicleModalTitle, { color: colors.text }]}>Select Your Vehicle</Text>
+            <Text style={[styles.vehicleModalSub, { color: colors.mutedForeground }]}>
+              The selected vehicle will appear in your crash report.
+            </Text>
+
+            {savedVehicles.length === 0 ? (
+              <View style={{ alignItems: "center", padding: 24, gap: 8 }}>
+                <Ionicons name="car-outline" size={36} color={colors.mutedForeground} />
+                <Text style={{ color: colors.mutedForeground, textAlign: "center", fontSize: 14 }}>
+                  No saved vehicles yet.{"\n"}Add one in the Garage section.
+                </Text>
+              </View>
+            ) : (
+              savedVehicles.map((v) => {
+                const makeName = v.customMakeName ?? getMakeById(v.makeId ?? "")?.name ?? v.makeId ?? "—";
+                const modelName = v.customModelName ?? getModelById(v.makeId ?? "", v.modelId ?? "")?.name ?? v.modelId ?? "";
+                const selected = myVehicle?.id === v.id;
+                return (
+                  <TouchableOpacity
+                    key={v.id}
+                    style={[
+                      styles.vehiclePickRow,
+                      { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + "10" : "transparent" },
+                    ]}
+                    onPress={() => { setMyVehicle(v); setShowVehicleModal(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.vehiclePickIcon, { backgroundColor: selected ? colors.primary + "18" : colors.muted }]}>
+                      <Ionicons name="car-outline" size={20} color={selected ? colors.primary : colors.mutedForeground} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ color: colors.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }} numberOfLines={1}>
+                        {[makeName, modelName].filter(Boolean).join(" ") || "Unknown Vehicle"}
+                      </Text>
+                      {v.vehicleType && (
+                        <Text style={{ color: colors.mutedForeground, fontSize: 12, textTransform: "capitalize" }}>
+                          {v.vehicleType}
+                        </Text>
+                      )}
+                    </View>
+                    {selected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            <TouchableOpacity
+              style={[styles.vehicleModalDone, { backgroundColor: colors.primary }]}
+              onPress={() => setShowVehicleModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Done</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1116,9 +1229,13 @@ function StatementStep({
       Alert.alert("Microphone Access Required", "Please allow microphone access in your device settings to record an audio statement.");
       return;
     }
+    // Set audio mode so recording works on iOS even in silent mode.
+    // Wrapped in its own try-catch: a failure here must not block recording.
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await setAudioModeAsync({ playsInSilentMode: true } as any);
+      await setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: true } as any);
+    } catch { /* non-fatal — proceed anyway */ }
+    try {
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch {
@@ -1635,6 +1752,33 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       flexDirection: "row", borderRadius: 16, overflow: "hidden",
       backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
       padding: 16, gap: 8,
+    },
+
+    // ── My Vehicle card (Evidence step) ──────────────────────────────────
+    vehicleCard: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12,
+    },
+    vehicleCardIcon: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    vehicleCardLabel: { fontSize: 11, fontFamily: "Inter_500Medium", marginBottom: 2 },
+    vehicleCardValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+    // ── Vehicle picker modal ──────────────────────────────────────────────
+    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+    vehicleModalSheet: {
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      padding: 20, paddingTop: 12, maxHeight: "80%", gap: 0,
+    },
+    vehicleModalTitle: { fontSize: 17, fontFamily: "Inter_700Bold", marginTop: 8, marginBottom: 4 },
+    vehicleModalSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 16, lineHeight: 19 },
+    vehiclePickRow: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8,
+    },
+    vehiclePickIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    vehicleModalDone: {
+      marginTop: 8, borderRadius: 16, paddingVertical: 14,
+      alignItems: "center", justifyContent: "center",
     },
 
     // ── Incident type selector ────────────────────────────────────────────
