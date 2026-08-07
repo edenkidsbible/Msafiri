@@ -2016,23 +2016,23 @@ const ms = StyleSheet.create({
 
   // ── Cluster marker ──────────────────────────────────────────────────────────
   clusterWrap: {
-    width: 52, height: 52,
+    width: 62, height: 62,
     backgroundColor: "#FFF",
-    borderRadius: 15, borderWidth: 2, borderColor: "#E0E0E0",
+    borderRadius: 17, borderWidth: 2, borderColor: "#E0E0E0",
     alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.28, shadowRadius: 6, elevation: 7,
   },
   clusterGrid: {
     flexDirection: "row", flexWrap: "wrap",
-    gap: 2, width: 32, height: 32,
+    gap: 2, width: 42, height: 42,
     alignItems: "center", justifyContent: "center",
   },
   clusterCell: {
-    width: 14, height: 14, borderRadius: 4,
+    width: 19, height: 19, borderRadius: 5,
     alignItems: "center", justifyContent: "center",
   },
-  clusterEmoji: { fontSize: 9, fontFamily: EMOJI_FONT_FAMILY },
+  clusterEmoji: { fontSize: 12, fontFamily: EMOJI_FONT_FAMILY },
   clusterBadge: {
     position: "absolute", top: -7, right: -7,
     minWidth: 20, height: 20, borderRadius: 10,
