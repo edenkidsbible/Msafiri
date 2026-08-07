@@ -34,6 +34,7 @@ import {
   loadVehicleCareData,
   computeVehicleCareStats,
   getCareStorageKey,
+  swapCareDataForDefaultChange,
   VehicleCareStats,
   estimatedOdometerKm,
 } from "@/utils/vehicleCare";
@@ -543,9 +544,35 @@ export default function GarageScreen() {
   }
 
   async function handleSetDefault(id: string) {
+    // ── 1. Migrate vehicle care data BEFORE flipping isDefault flags ───────────
+    // getCareStorageKey returns the legacy STORAGE_KEY for the default vehicle
+    // and a vehicle-specific key for non-default vehicles. Changing which
+    // vehicle is default would swap the keys, causing the newly-defaulted
+    // vehicle to read the OLD default's care records. We swap the stored data
+    // first so every vehicle's care history follows it through the key change.
+    const oldDefault = vehicles.find(v => v.isDefault);
+    if (oldDefault && oldDefault.id !== id) {
+      await swapCareDataForDefaultChange(oldDefault.id, id);
+    }
+
+    // ── 2. Persist the new default and update local vehicle list ───────────────
     const updated = await setDefaultVehicle(id);
     setVehicles(updated);
-    // ── Sync AppContext to the newly-default vehicle ──────────────────────────
+
+    // ── 3. Scroll the carousel to the newly-defaulted vehicle ─────────────────
+    // Care stats and trip sessions are both driven by vehicles[slideIndex].
+    // Without this, the data panels would still show the previously-active
+    // slide's vehicle rather than the one the user just made default.
+    const newIdx = updated.findIndex(v => v.id === id);
+    if (newIdx !== -1 && newIdx !== slideIndex) {
+      setSlideIndex(newIdx);
+      // Let the state update propagate before asking FlatList to scroll.
+      setTimeout(() => {
+        flatRef.current?.scrollToIndex({ index: newIdx, animated: true });
+      }, 50);
+    }
+
+    // ── 4. Sync AppContext to the newly-default vehicle ───────────────────────
     // Without this, AppContext still holds the OLD default's make/model.
     // Consequences if left unsynced:
     //   • Every screen that reads vehicleMakeId/vehicleModelId shows the wrong car

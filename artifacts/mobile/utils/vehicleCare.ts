@@ -137,6 +137,47 @@ export async function saveVehicleCareData(
   await AsyncStorage.setItem(storageKey, JSON.stringify(data));
 }
 
+/**
+ * Migrate care data when the default vehicle changes.
+ *
+ * getCareStorageKey returns STORAGE_KEY for the default vehicle and a
+ * vehicle-specific key for non-default vehicles. Swapping the default means
+ * the storage keys swap too — without this migration, the newly-defaulted
+ * vehicle reads from STORAGE_KEY and sees the OLD default's care records.
+ *
+ * Call this BEFORE persisting the new isDefault flags so you know which
+ * vehicle is currently the old default (using STORAGE_KEY) and which is the
+ * new default (using its own key).
+ *
+ * @param oldDefaultId  ID of the vehicle that WAS the default (used STORAGE_KEY).
+ * @param newDefaultId  ID of the vehicle becoming the new default (used its own key).
+ */
+export async function swapCareDataForDefaultChange(
+  oldDefaultId: string,
+  newDefaultId: string,
+): Promise<void> {
+  if (oldDefaultId === newDefaultId) return;
+
+  // Current keys (before any isDefault flag change):
+  //   old default  → STORAGE_KEY
+  //   new default  → msafiri_vehicle_care_v1_${newDefaultId}
+  const legacyKey    = STORAGE_KEY;
+  const newDefaultCurrentKey = `msafiri_vehicle_care_v1_${newDefaultId}`;
+  const oldDefaultNewKey     = `msafiri_vehicle_care_v1_${oldDefaultId}`;
+
+  const [oldData, newData] = await Promise.all([
+    loadVehicleCareData(legacyKey),          // old default's records
+    loadVehicleCareData(newDefaultCurrentKey), // new default's records
+  ]);
+
+  // Swap: old default's data → its new non-default key
+  //       new default's data → STORAGE_KEY (so it becomes the "default" key)
+  await Promise.all([
+    saveVehicleCareData(oldData, oldDefaultNewKey),
+    saveVehicleCareData(newData, legacyKey),
+  ]);
+}
+
 export async function addServiceRecord(
   record: ServiceRecord,
   storageKey = STORAGE_KEY,

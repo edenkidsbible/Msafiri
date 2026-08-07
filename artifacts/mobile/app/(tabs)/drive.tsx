@@ -654,7 +654,9 @@ export default function DriveScreen() {
       distanceM:         snap.distanceM,
       avgSpeedKmh:       avgSpeedDisplay,
       maxSpeedKmh:       snap.maxSpeedKmh,
-      score:             snap.score,
+      // Score is only meaningful once the driver has covered at least 1 km —
+      // shorter trips don't provide enough data for a fair assessment.
+      score:             snap.distanceM >= 1000 ? snap.score : null,
       harshBrakes:       snap.harshBrakes,
       harshAccels:       snap.harshAccels,
       sharpTurns:        snap.sharpTurns,
@@ -1089,11 +1091,44 @@ export default function DriveScreen() {
           propagating to the tab boundary and killing the navigation session.
           Navigation audio and step-tracking in AppContext are unaffected because
           they live outside this subtree. */}
-      <View style={StyleSheet.absoluteFillObject}>
-        <ErrorBoundary FallbackComponent={MapErrorFallback}>
-          <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
-        </ErrorBoundary>
-      </View>
+      {/* Map only mounts when a trip (or pre-trip countdown) is active.
+          In the idle pre-trip state we show a clean solid screen instead. */}
+      {(tripActive || countdownValue !== null) && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <ErrorBoundary FallbackComponent={MapErrorFallback}>
+            <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
+          </ErrorBoundary>
+        </View>
+      )}
+
+      {/* ── Pre-trip idle screen — replaces the old map-based idle state ───── */}
+      {!tripActive && countdownValue === null && (
+        <View style={[StyleSheet.absoluteFillObject, {
+          backgroundColor: isDark ? "#0D120E" : "#F4F7F5",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1,
+        }]}>
+          <View style={{ alignItems: "center", gap: 18 }}>
+            <View style={{
+              width: 96, height: 96, borderRadius: 48,
+              backgroundColor: c.primary + "15",
+              alignItems: "center", justifyContent: "center",
+              borderWidth: 2, borderColor: c.primary + "35",
+            }}>
+              <Ionicons name="shield-checkmark-outline" size={48} color={c.primary} />
+            </View>
+            <View style={{ alignItems: "center", gap: 6 }}>
+              <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: c.foreground }}>
+                Drive Mode
+              </Text>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: c.mutedForeground, textAlign: "center" }}>
+                Msafiri is watching
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Dismiss suggestions on outside tap — sits above the map but below
           all HUD layers; only rendered (and therefore only intercepts touches)
@@ -1201,9 +1236,10 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          TOP: Search bar + results (when not in Live Trip mode)
+          TOP: Search bar + results — hidden in pre-trip idle state;
+          the clean pre-trip screen replaces the old map-based idle UI.
       ══════════════════════════════════════════════════════════════════ */}
-      {!tripActive && (
+      {false && !tripActive && (
         <View
           style={[styles.searchArea, { top: topInset + 4 }]}
           pointerEvents="box-none"
@@ -1469,10 +1505,9 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          RIGHT: Utility FABs — Recenter & Traffic (hidden during trip/search)
-                 Theme toggle is always shown (not gated by tripActive).
+          RIGHT: Utility FABs — Recenter & Traffic (trip only; no map in idle)
       ══════════════════════════════════════════════════════════════════ */}
-      {!showResults && !tripActive && (
+      {false && !showResults && !tripActive && (
         <View style={[styles.fabCol, { top: topInset + 72, right: 12 }]}>
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: fabBg }]}
@@ -1490,8 +1525,8 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* Theme toggle — always visible when not searching */}
-      {!showResults && (
+      {/* Theme toggle — only during active driving (no map in idle pre-trip state) */}
+      {!showResults && tripActive && (
         <TouchableOpacity
           style={[
             styles.fab,
@@ -1594,11 +1629,10 @@ export default function DriveScreen() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM: Normal-mode speed card.
-          Left block: speed + LIMIT stacked (like the nav bar).
-          Right panel: NEARBY ALERT badge + type + "X km ahead".
+          BOTTOM: Normal-mode speed card — hidden in pre-trip idle state
+          (the pre-trip screen replaces the old map-based idle UI).
       ══════════════════════════════════════════════════════════════════ */}
-      {!isMapMode && !showResults && !tripActive && (
+      {false && !isMapMode && !showResults && !tripActive && (
         <View
           style={[styles.speedStrip, {
             bottom: bottomBase + 8,
@@ -1895,8 +1929,8 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ── Idle-mode controls: Report Incident pill + small action pills ─────── */}
-      {!isMapMode && !showResults && !tripActive && (
+      {/* ── Idle-mode controls: hidden — pre-trip screen replaces old idle UI ─── */}
+      {false && !isMapMode && !showResults && !tripActive && (
         <View style={{
           position: "absolute", left: 12, right: 12, zIndex: 14,
           flexDirection: "column", gap: 8,

@@ -34,7 +34,8 @@ export interface TripSummaryData {
   distanceM:         number;
   avgSpeedKmh:       number;
   maxSpeedKmh:       number;
-  score:             number;
+  /** null when the trip was too short (< 1 km) to produce a meaningful score */
+  score:             number | null;
   harshBrakes:       number;
   harshAccels:       number;
   sharpTurns:        number;
@@ -180,8 +181,10 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
   }, [dismiss]);
 
   const goClips = useCallback(() => {
+    // Navigate first so the new screen covers the drive tab instantly —
+    // no 180 ms gap that would briefly expose the drive screen behind the modal.
+    router.push("/dashcam-videos" as any);
     dismiss();
-    setTimeout(() => router.push("/dashcam-videos" as any), 180);
   }, [dismiss]);
 
   const goHistory = useCallback(() => {
@@ -196,7 +199,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
 
   if (!data) return null;
 
-  const sc        = scoreColor(data.score);
+  const sc        = data.score != null ? scoreColor(data.score) : "#9CA3AF";
   const isDark    = c.background === "#0D120E" || c.background?.startsWith("#0") ||
                     c.background?.startsWith("#1");
   const cardBg    = isDark ? "#161B17" : "#F4F7F5";
@@ -262,20 +265,28 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
           {/* ── Drive Score ──────────────────────────────────────────────── */}
           <View style={styles.scoreRow}>
             <View style={[styles.scoreRing, { borderColor: sc + "55", backgroundColor: sc + "12" }]}>
-              <Text style={[styles.scoreNum, { color: sc }]}>{Math.round(data.score)}</Text>
-              <Text style={[styles.scoreOf, { color: sc + "AA" }]}>/100</Text>
+              {data.score != null ? (
+                <>
+                  <Text style={[styles.scoreNum, { color: sc }]}>{Math.round(data.score)}</Text>
+                  <Text style={[styles.scoreOf, { color: sc + "AA" }]}>/100</Text>
+                </>
+              ) : (
+                <Text style={[styles.scoreOf, { color: sc, fontSize: 22, textAlign: "center" }]}>—</Text>
+              )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.scoreLbl, { color: sc }]}>{scoreLabel(data.score)}</Text>
-              <Text style={[styles.scoreSub, { color: c.mutedForeground }]}>
-                Drive score
+              <Text style={[styles.scoreLbl, { color: sc }]}>
+                {data.score != null ? scoreLabel(data.score) : "Trip too short"}
               </Text>
-              {data.smoothMinutes > 0 && (
+              <Text style={[styles.scoreSub, { color: c.mutedForeground }]}>
+                {data.score != null ? "Drive score" : "Score needs at least 1 km"}
+              </Text>
+              {data.score != null && data.smoothMinutes > 0 && (
                 <Text style={[styles.scoreSub, { color: "#22C55E", marginTop: 2 }]}>
                   {data.smoothMinutes}m smooth driving ✓
                 </Text>
               )}
-              {data.speedingMinutes > 0 && (
+              {data.score != null && data.speedingMinutes > 0 && (
                 <Text style={[styles.scoreSub, { color: "#F97316", marginTop: 2 }]}>
                   {data.speedingMinutes}m above speed limit
                 </Text>

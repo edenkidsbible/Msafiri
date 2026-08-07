@@ -268,6 +268,13 @@ export default function DashcamOverlay() {
       const MAX_FAILURES = 6;
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+      // Camera warm-up: onCameraReady fires slightly before the hardware is
+      // actually ready to record. Starting recordAsync immediately often yields
+      // a null result on the first segment, eating one of our failure slots.
+      // A short pause here lets the camera fully initialise.
+      await sleep(900);
+      if (loopCancelRef.current) return;
+
       while (!loopCancelRef.current) {
         if (!localCameraRef.current) {
           // Camera ref not attached yet — wait instead of aborting.
@@ -306,7 +313,16 @@ export default function DashcamOverlay() {
       }
     }
 
-    loop();
+    loop().then(() => {
+      // If the loop exited because MAX_FAILURES was hit (not because stop was
+      // requested), loopCancelRef is still false — the REC indicator would stay
+      // on forever because stopAndSaveDashcam defers setIsRecording(false) to
+      // onSegmentComplete, which never fires when every recordAsync fails.
+      // Call stopDashcam() here to reset isRecording immediately.
+      if (!loopCancelRef.current) {
+        stopDashcam();
+      }
+    });
     return () => {
       loopCancelRef.current = true;
       localCameraRef.current?.stopRecording();

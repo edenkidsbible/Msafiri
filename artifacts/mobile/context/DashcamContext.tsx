@@ -34,7 +34,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import * as Notifications from "expo-notifications";
-import { AppState, Platform } from "react-native";
+import { Alert, AppState, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
 
@@ -725,6 +725,20 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
     // Request camera permission if not yet granted.
     if (!cameraPermission?.granted) {
+      // Show a plain-language explanation before the system dialog so drivers
+      // understand WHY the permission is needed. Only shown on first ask
+      // ("undetermined"); denied users go straight to the system dialog which
+      // will inform them to visit Settings.
+      if ((cameraPermission as any)?.status === "undetermined") {
+        await new Promise<void>((resolve) =>
+          Alert.alert(
+            "Dashcam Access",
+            "Msafiri records continuous video while you drive — clips stay private on your device and are never uploaded without your permission. A microphone will also be requested so clips include audio.\n\nTap Continue to grant camera access.",
+            [{ text: "Continue", onPress: () => resolve() }],
+            { cancelable: false },
+          )
+        );
+      }
       const result = await requestCameraPermissionRef.current();
       if (!result?.granted) return false; // denied — don't start
     }
@@ -766,14 +780,26 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
    * the final segment as a locked/uploadable clip rather than discarding it
    * as an unlocked local-only segment. Called by the drive screen's dashcam
    * toggle so every driver-initiated stop produces a saved clip.
+   *
+   * IMPORTANT — race-condition fix: we intentionally do NOT call
+   * setIsRecording(false) here. Doing so causes React to re-render
+   * DashcamOverlay, which returns null (all three guard flags become false)
+   * and unmounts the CameraView BEFORE the pending recordAsync call can
+   * resolve and the final clip can be written to disk. On Android especially,
+   * an unmounted CameraView causes recordAsync to reject rather than resolve
+   * with a URI, silently dropping the clip.
+   *
+   * Instead: isRecordingRef is set to false immediately (prevents re-entry),
+   * and onSegmentComplete detects this ref/state mismatch after the clip is
+   * safely on disk, then applies setIsRecording(false) there.
    */
   const stopAndSaveDashcam = useCallback(() => {
     if (!isRecordingRef.current) return;
-    lockNextRef.current = "manual"; // mark the final segment for upload
-    isRecordingRef.current = false;
-    setIsRecording(false);
-    setBackgroundRecordPending(false);
-    cameraRef.current?.stopRecording();
+    lockNextRef.current = "manual";   // mark the final segment for upload
+    isRecordingRef.current = false;   // prevent re-entry; onSegmentComplete reads this
+    setBackgroundRecordPending(false); // hide "Starting…" pill immediately
+    cameraRef.current?.stopRecording(); // resolve the pending recordAsync
+    // setIsRecording(false) is deferred to onSegmentComplete — see comment above
   }, []);
 
   /**
@@ -835,6 +861,14 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         if (lockReason) {
           uploadQueueRef.current.push(id);
           processUploadQueue();
+        }
+
+        // Deferred stop: stopAndSaveDashcam() sets isRecordingRef.current = false
+        // WITHOUT calling setIsRecording(false), to keep CameraView mounted until
+        // this point. Now that the clip is safely on disk, apply the state update
+        // so DashcamOverlay can unmount cleanly.
+        if (!isRecordingRef.current) {
+          setIsRecording(false);
         }
       } catch (err) {
         // Log with enough detail to diagnose future failures.

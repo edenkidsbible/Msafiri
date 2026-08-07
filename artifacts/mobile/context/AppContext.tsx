@@ -2991,6 +2991,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // foreground interval still works; the background task just won't start
       // when they switch away (the AppState watcher re-checks the permission
       // at that point and skips the task gracefully).
+      //
+      // Show a plain-language explanation before the system dialog when the
+      // background location permission hasn't been decided yet — matching the
+      // same pre-permission Alert pattern used for foreground location and
+      // notifications.
+      try {
+        const bgPerm = await Location.getBackgroundPermissionsAsync();
+        if (bgPerm.status === "undetermined") {
+          await new Promise<void>((resolve) =>
+            Alert.alert(
+              "Background Location for Live Sharing",
+              "To keep sharing your location when the screen is off or you switch apps, Msafiri needs \"Always\" location access.\n\nYour location is only shared with people who have your link — never stored on our servers beyond the active session.",
+              [{ text: "Continue", onPress: () => resolve() }],
+              { cancelable: false },
+            )
+          );
+        }
+      } catch { /* non-blocking — proceed regardless */ }
       requestBackgroundLocationPermission().catch(() => {});
       return `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/live/${code}`;
     } catch (e) {
