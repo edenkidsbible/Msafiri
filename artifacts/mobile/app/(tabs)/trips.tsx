@@ -90,6 +90,24 @@ export default function TripsScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
+  // ── Keyboard height tracking (Android) ─────────────────────────────────────
+  // KeyboardAvoidingView behavior is undefined on Android, and inside a
+  // transparent <Modal> the window doesn't resize, so the on-screen keyboard
+  // covers the Save button. We track the keyboard height ourselves and add it
+  // as bottom padding to the modal ScrollViews so content stays reachable.
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const show = Keyboard.addListener("keyboardDidShow", (e) =>
+      setKbHeight(e.endCoordinates?.height ?? 0)
+    );
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  // Extra scroll padding while the keyboard is open (Android only; iOS is
+  // handled by KeyboardAvoidingView's "padding" behavior).
+  const kbPad = Platform.OS === "android" ? kbHeight : 0;
+
   // Deep-link support: router.push("/(tabs)/trips?initialTab=planned") jumps
   // straight to the Saved Places section without going through the Share tab.
   const { initialTab } = useLocalSearchParams<{ initialTab?: string }>();
@@ -876,7 +894,7 @@ export default function TripsScreen() {
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: bottomInset + 20 }}
+              contentContainerStyle={{ paddingBottom: bottomInset + 20 + kbPad }}
               showsVerticalScrollIndicator={false}
             >
               <Text style={[styles.fieldLabel, { color: c.mutedForeground }]}>Name</Text>
@@ -1059,7 +1077,7 @@ export default function TripsScreen() {
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: bottomInset + 20 }}
+              contentContainerStyle={{ paddingBottom: bottomInset + 20 + kbPad }}
               showsVerticalScrollIndicator={false}
             >
               <Text style={[styles.fieldLabel, { color: c.mutedForeground }]}>Destination</Text>
