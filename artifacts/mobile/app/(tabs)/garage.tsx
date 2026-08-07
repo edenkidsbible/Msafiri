@@ -32,6 +32,7 @@ import { API_BASE } from "@/utils/apiClient";
 import {
   loadVehicleCareData,
   computeVehicleCareStats,
+  getCareStorageKey,
   VehicleCareStats,
   estimatedOdometerKm,
 } from "@/utils/vehicleCare";
@@ -310,7 +311,7 @@ function VehicleSlide({
             {/* Health ring */}
             <TouchableOpacity
               style={styles.vehicleHealthWrap}
-              onPress={() => router.push("/vehicle-care" as any)}
+              onPress={() => router.push({ pathname: "/vehicle-care" as any, params: { vehicleId: v.id, isDefault: v.isDefault ? "true" : "false", vehicleName: vehicleDisplayName(v) } })}
               activeOpacity={0.8}
             >
               <View style={{ position: "relative", alignItems: "center", justifyContent: "center" }}>
@@ -400,11 +401,16 @@ export default function GarageScreen() {
   const [odometerKm, setOdometerKm] = useState(0);
   const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
   const [slideIndex, setSlideIndex] = useState(0);
+  // Bumped each time the screen is focused; triggers the care stats reload effect.
+  const [focusTick, setFocusTick] = useState(0);
   const flatRef = useRef<FlatList>(null);
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+
+      // Bump tick so the care-stats effect re-runs on every focus
+      setFocusTick(t => t + 1);
 
       // Load drive sessions
       if (deviceId) {
@@ -412,13 +418,6 @@ export default function GarageScreen() {
           .then(({ sessions: s }) => { if (alive) setSessions(s); })
           .catch(() => {});
       }
-
-      // Load vehicle care stats
-      loadVehicleCareData().then(data => {
-        if (!alive) return;
-        setCareStats(computeVehicleCareStats(data));
-        setOdometerKm(estimatedOdometerKm(data));
-      });
 
       // Vehicles list — handle pending slot update from car-picker
       (async () => {
@@ -477,6 +476,19 @@ export default function GarageScreen() {
       .then(filtered => setFilteredSessions(filtered))
       .catch(() => setFilteredSessions(sessions));
   }, [sessions, vehicles, slideIndex]);
+
+  // ── Per-vehicle care stats ───────────────────────────────────────────────────
+  // Reload Vehicle Care stats whenever the active slide or focus changes so the
+  // Upcoming / Overdue / Completed / Spent row reflects the correct vehicle.
+  useEffect(() => {
+    if (vehicles.length === 0) return;
+    const activeVehicle = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
+    const storageKey = getCareStorageKey(activeVehicle.id, activeVehicle.isDefault);
+    loadVehicleCareData(storageKey).then(data => {
+      setCareStats(computeVehicleCareStats(data));
+      setOdometerKm(estimatedOdometerKm(data));
+    }).catch(() => {});
+  }, [vehicles, slideIndex, focusTick]);
 
   // ── Computed stats ──────────────────────────────────────────────────────────
 
@@ -782,7 +794,10 @@ export default function GarageScreen() {
             <View style={{ alignItems: "flex-end", gap: 6 }}>
               <TouchableOpacity
                 style={[styles.openCareBtn, { backgroundColor: c.primary }]}
-                onPress={() => router.push("/vehicle-care" as any)}
+                onPress={() => {
+                  const av = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
+                  router.push({ pathname: "/vehicle-care" as any, params: { vehicleId: av?.id, isDefault: av?.isDefault ? "true" : "false", vehicleName: av ? vehicleDisplayName(av) : undefined } });
+                }}
                 activeOpacity={0.85}
               >
                 <Text style={styles.openCareBtnTxt}>Open Vehicle Care</Text>

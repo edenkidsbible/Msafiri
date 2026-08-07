@@ -7,7 +7,7 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -34,6 +34,7 @@ import {
   addServiceRecord,
   updateServiceRecord,
   deleteServiceRecord,
+  getCareStorageKey,
   computeItemStatuses,
   computeVehicleCareStats,
   estimatedOdometerKm,
@@ -102,11 +103,12 @@ interface LogServiceModalProps {
   item: ReminderConfig | null;
   currentOdometerKm: number;
   editRecord?: ServiceRecord | null;   // when provided → edit mode
+  storageKey: string;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function LogServiceModal({ visible, item, currentOdometerKm, editRecord, onClose, onSaved }: LogServiceModalProps) {
+function LogServiceModal({ visible, item, currentOdometerKm, editRecord, storageKey, onClose, onSaved }: LogServiceModalProps) {
   const c = useColors();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [mileage, setMileage] = useState(String(Math.round(currentOdometerKm)));
@@ -149,7 +151,7 @@ function LogServiceModal({ visible, item, currentOdometerKm, editRecord, onClose
           costKSh: cost ? parseFloat(cost) : undefined,
           garage: garage || undefined,
           notes: notes || undefined,
-        });
+        }, storageKey);
       } else {
         const record: ServiceRecord = {
           id: Date.now().toString(),
@@ -162,7 +164,7 @@ function LogServiceModal({ visible, item, currentOdometerKm, editRecord, onClose
           garage: garage || undefined,
           notes: notes || undefined,
         };
-        await addServiceRecord(record);
+        await addServiceRecord(record, storageKey);
       }
       onSaved();
       onClose();
@@ -252,11 +254,13 @@ function LogServiceModal({ visible, item, currentOdometerKm, editRecord, onClose
 interface UpdateOdometerModalProps {
   visible: boolean;
   currentKm: number;
+  storageKey: string;
+  vehicleId?: string;          // used to update the correct SavedVehicle record
   onClose: () => void;
   onSaved: () => void;
 }
 
-function UpdateOdometerModal({ visible, currentKm, onClose, onSaved }: UpdateOdometerModalProps) {
+function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClose, onSaved }: UpdateOdometerModalProps) {
   const c = useColors();
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -277,15 +281,19 @@ function UpdateOdometerModal({ visible, currentKm, onClose, onSaved }: UpdateOdo
     setSaving(true);
     try {
       // Update vehicle care data — new reading resets trip accumulation
-      const data = await loadVehicleCareData();
+      const data = await loadVehicleCareData(storageKey);
       data.initialOdometerKm  = km;
       data.tripAccumulatedKm  = 0;
-      await saveVehicleCareData(data);
+      await saveVehicleCareData(data, storageKey);
 
-      // Also update the default saved vehicle so the garage slide reflects it
+      // Also update the matching saved vehicle so the garage slide reflects it
       const vehicles = await loadVehicles();
       if (vehicles.length > 0) {
-        const updated = vehicles.map((v, i) => i === 0 ? { ...v, odometerKm: km } : v);
+        const updated = vehicles.map(v =>
+          (vehicleId ? v.id === vehicleId : v.isDefault)
+            ? { ...v, odometerKm: km }
+            : v
+        );
         await saveVehicles(updated);
       }
 
@@ -367,6 +375,13 @@ export default function VehicleCareScreen() {
   const insets = useSafeAreaInsets();
   const { vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType } = useApp();
 
+  // Route params passed from the garage when navigating to a specific vehicle's care screen
+  const params = useLocalSearchParams<{ vehicleId?: string; isDefault?: string; vehicleName?: string }>();
+  const paramVehicleId = params.vehicleId;
+  const paramIsDefault = params.isDefault === "true";
+  // Resolved storage key: default vehicle → legacy key; secondary vehicles → per-vehicle key
+  const careStorageKey = getCareStorageKey(paramVehicleId, paramIsDefault);
+
   const [data, setData] = useState<VehicleCareData | null>(null);
   const [tab, setTab] = useState<"overview" | "history" | "costs">("overview");
   const [logItem, setLogItem] = useState<ReminderConfig | null>(null);
@@ -379,24 +394,26 @@ export default function VehicleCareScreen() {
     useCallback(() => {
       let alive = true;
       (async () => {
-        let d = await loadVehicleCareData();
-        // Seed initialOdometerKm from the saved vehicle if not yet set
+        let d = await loadVehicleCareData(careStorageKey);
+        // Seed initialOdometerKm from the matching saved vehicle if not yet set
         if (d.initialOdometerKm === 0) {
           const vehicles = await loadVehicles();
-          const def = vehicles.find(v => v.isDefault) ?? vehicles[0];
-          if (def?.odometerKm && def.odometerKm > 0) {
-            d = { ...d, initialOdometerKm: def.odometerKm };
-            await saveVehicleCareData(d);
+          const match = paramVehicleId
+            ? (vehicles.find(v => v.id === paramVehicleId) ?? vehicles.find(v => v.isDefault) ?? vehicles[0])
+            : (vehicles.find(v => v.isDefault) ?? vehicles[0]);
+          if (match?.odometerKm && match.odometerKm > 0) {
+            d = { ...d, initialOdometerKm: match.odometerKm };
+            await saveVehicleCareData(d, careStorageKey);
           }
         }
         if (alive) setData(d);
       })();
       return () => { alive = false; };
-    }, [])
+    }, [careStorageKey, paramVehicleId])
   );
 
   function reload() {
-    loadVehicleCareData().then(setData);
+    loadVehicleCareData(careStorageKey).then(setData);
   }
 
   function openLog(item: ReminderConfig) {
@@ -424,7 +441,7 @@ export default function VehicleCareScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            await deleteServiceRecord(id);
+            await deleteServiceRecord(id, careStorageKey);
             setEditRecord(null);
             reload();
           },
@@ -433,10 +450,12 @@ export default function VehicleCareScreen() {
     );
   }
 
+  // vehicleDisplayName — prefer route param if passed, fall back to AppContext (default vehicle)
   const selectedMake  = vehicleMakeId ? getMakeById(vehicleMakeId) : null;
   const selectedModel = (vehicleMakeId && vehicleModelId) ? getModelById(vehicleMakeId, vehicleModelId) : null;
   const vehicleDisplayName =
-    selectedMake && selectedModel ? `${selectedMake.name} ${selectedModel.name}`
+    params.vehicleName ? params.vehicleName
+    : selectedMake && selectedModel ? `${selectedMake.name} ${selectedModel.name}`
     : vehicleCustomMakeName && vehicleCustomModelName ? `${vehicleCustomMakeName} ${vehicleCustomModelName}`
     : "My Vehicle";
 
@@ -918,6 +937,7 @@ export default function VehicleCareScreen() {
         item={logItem}
         currentOdometerKm={odometer}
         editRecord={editRecord}
+        storageKey={careStorageKey}
         onClose={() => { setShowLog(false); setEditRecord(null); }}
         onSaved={reload}
       />
@@ -926,6 +946,8 @@ export default function VehicleCareScreen() {
       <UpdateOdometerModal
         visible={showOdoModal}
         currentKm={odometer}
+        storageKey={careStorageKey}
+        vehicleId={paramVehicleId}
         onClose={() => setShowOdoModal(false)}
         onSaved={reload}
       />

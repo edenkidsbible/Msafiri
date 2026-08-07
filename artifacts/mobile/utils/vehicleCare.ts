@@ -85,7 +85,25 @@ export const CATEGORIES = [
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
+/** The legacy (device-wide) key — used by the default vehicle for backward compat. */
 const STORAGE_KEY = "msafiri_vehicle_care_v1";
+
+/**
+ * Returns the AsyncStorage key for a given vehicle.
+ *
+ * The default vehicle always uses the legacy key so existing data is preserved.
+ * Secondary (non-default) vehicles get their own isolated key.
+ *
+ * @param vehicleId  The saved-vehicle ID, or undefined/null.
+ * @param isDefault  True when this vehicle is the default (isDefault: true).
+ */
+export function getCareStorageKey(
+  vehicleId?: string | null,
+  isDefault?: boolean,
+): string {
+  if (!vehicleId || isDefault) return STORAGE_KEY;
+  return `msafiri_vehicle_care_v1_${vehicleId}`;
+}
 
 const DEFAULT_DATA: VehicleCareData = {
   records: [],
@@ -94,10 +112,12 @@ const DEFAULT_DATA: VehicleCareData = {
   tripAccumulatedKm: 0,
 };
 
-export async function loadVehicleCareData(): Promise<VehicleCareData> {
+export async function loadVehicleCareData(
+  storageKey = STORAGE_KEY,
+): Promise<VehicleCareData> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_DATA };
+    const raw = await AsyncStorage.getItem(storageKey);
+    if (!raw) return { ...DEFAULT_DATA, reminders: MAINTENANCE_CATALOGUE.map(c => ({ ...c })) };
     const parsed = JSON.parse(raw) as Partial<VehicleCareData>;
     return {
       records: parsed.records ?? [],
@@ -110,32 +130,47 @@ export async function loadVehicleCareData(): Promise<VehicleCareData> {
   }
 }
 
-export async function saveVehicleCareData(data: VehicleCareData): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+export async function saveVehicleCareData(
+  data: VehicleCareData,
+  storageKey = STORAGE_KEY,
+): Promise<void> {
+  await AsyncStorage.setItem(storageKey, JSON.stringify(data));
 }
 
-export async function addServiceRecord(record: ServiceRecord): Promise<void> {
-  const data = await loadVehicleCareData();
+export async function addServiceRecord(
+  record: ServiceRecord,
+  storageKey = STORAGE_KEY,
+): Promise<void> {
+  const data = await loadVehicleCareData(storageKey);
   data.records = [record, ...data.records];
-  await saveVehicleCareData(data);
+  await saveVehicleCareData(data, storageKey);
 }
 
-export async function updateServiceRecord(record: ServiceRecord): Promise<void> {
-  const data = await loadVehicleCareData();
+export async function updateServiceRecord(
+  record: ServiceRecord,
+  storageKey = STORAGE_KEY,
+): Promise<void> {
+  const data = await loadVehicleCareData(storageKey);
   data.records = data.records.map(r => r.id === record.id ? record : r);
-  await saveVehicleCareData(data);
+  await saveVehicleCareData(data, storageKey);
 }
 
-export async function deleteServiceRecord(id: string): Promise<void> {
-  const data = await loadVehicleCareData();
+export async function deleteServiceRecord(
+  id: string,
+  storageKey = STORAGE_KEY,
+): Promise<void> {
+  const data = await loadVehicleCareData(storageKey);
   data.records = data.records.filter(r => r.id !== id);
-  await saveVehicleCareData(data);
+  await saveVehicleCareData(data, storageKey);
 }
 
-export async function updateTripOdometer(additionalKm: number): Promise<void> {
-  const data = await loadVehicleCareData();
+export async function updateTripOdometer(
+  additionalKm: number,
+  storageKey = STORAGE_KEY,
+): Promise<void> {
+  const data = await loadVehicleCareData(storageKey);
   data.tripAccumulatedKm = (data.tripAccumulatedKm ?? 0) + additionalKm;
-  await saveVehicleCareData(data);
+  await saveVehicleCareData(data, storageKey);
 }
 
 // ── Computed values ───────────────────────────────────────────────────────────
