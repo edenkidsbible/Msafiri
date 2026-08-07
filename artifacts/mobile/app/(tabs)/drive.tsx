@@ -33,6 +33,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useApp } from "@/context/AppContext";
 import { useDashcam } from "@/context/DashcamContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
+import TripSummaryModal, { type TripSummaryData } from "@/components/TripSummaryModal";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
 import CrashDetectedModal from "@/components/CrashDetectedModal";
@@ -288,6 +289,9 @@ export default function DriveScreen() {
   const alertFocusModeRef = useRef(false);
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
+  // Post-trip summary — populated at the moment a trip is stopped so we can
+  // display stats even after tripActive clears and state resets.
+  const [tripSummaryData, setTripSummaryData] = useState<TripSummaryData | null>(null);
   const [tripPaused, setTripPaused] = useState(false);
   // Refs for accurate elapsed-time accounting across pauses
   const pausedAtMsRef = useRef<number | null>(null);
@@ -629,6 +633,47 @@ export default function DriveScreen() {
     if (dashcamRecording) stopAndSaveDashcam();
     // Finalisation is handled by the prevTripActiveRef effect below.
   }, [setNavDestination, dashcamRecording, stopAndSaveDashcam, setNavTripActive, setNavTripPaused]);
+
+  /**
+   * captureAndStop — captures a snapshot of all trip stats at the exact moment
+   * the driver taps stop, BEFORE state resets clear the values, then calls
+   * stopTrip(). The captured data is shown in TripSummaryModal so the driver
+   * sees their stats without navigating away.
+   */
+  const captureAndStop = useCallback(() => {
+    const snap      = driveScore.getSnapshot();
+    const startTime = tripStartTimeRef.current;
+    // Compute net elapsed (total wall-clock minus any paused durations)
+    const elapsedMs = startTime
+      ? Date.now() - startTime.getTime() - totalPausedMsRef.current
+      : tripElapsedS * 1000;
+    const durationS = Math.max(0, Math.round(elapsedMs / 1000));
+
+    setTripSummaryData({
+      durationS,
+      distanceM:         snap.distanceM,
+      avgSpeedKmh:       avgSpeedDisplay,
+      maxSpeedKmh:       snap.maxSpeedKmh,
+      score:             snap.score,
+      harshBrakes:       snap.harshBrakes,
+      harshAccels:       snap.harshAccels,
+      sharpTurns:        snap.sharpTurns,
+      speedingMinutes:   snap.speedingMinutes,
+      smoothMinutes:     snap.smoothMinutes,
+      speedCameraAlerts: tripSpeedCamRef.current,
+      policeAlerts:      tripPoliceRef.current,
+      hadDashcam:        dashcamRecording,
+      isSharing:         isSharingTrip,
+    });
+
+    stopTrip();
+    // Navigation is intentionally omitted here — the TripSummaryModal handles
+    // where the driver goes next (home, clips, history, etc.).
+  }, [
+    driveScore, tripElapsedS, avgSpeedDisplay,
+    dashcamRecording, isSharingTrip,
+    stopTrip,
+  ]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───
   useEffect(() => {
@@ -2302,10 +2347,10 @@ export default function DriveScreen() {
                 }]}
                 onPress={tripPaused ? resumeTrip : pauseTrip}
                 onLongPress={() => {
-                  stopTrip();
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-                  if (router.canGoBack()) router.back();
-                  else router.replace("/(tabs)");
+                  captureAndStop();
+                  // Navigation is intentionally removed — TripSummaryModal
+                  // handles where the driver goes after reviewing their stats.
                 }}
                 delayLongPress={600}
                 activeOpacity={0.85}
@@ -2589,6 +2634,22 @@ export default function DriveScreen() {
         onCallEmergency={() => { Linking.openURL("tel:112").catch(() => {}); clearCrash(); }}
         onCountdownExpired={handleCrashExpired}
         onStartCrashReport={handleStartCrashReport}
+      />
+
+      {/* Post-trip summary — slides up after the driver ends a trip */}
+      <TripSummaryModal
+        data={tripSummaryData}
+        onDismiss={() => {
+          setTripSummaryData(null);
+          // Navigate home after the modal is dismissed via backdrop or close btn
+          if (router.canGoBack()) router.back();
+          else router.replace("/(tabs)");
+        }}
+        onStopSharing={() => {
+          stopSharingTrip();
+          // Update the summary data so the "Stop Sharing" button disappears
+          setTripSummaryData(prev => prev ? { ...prev, isSharing: false } : null);
+        }}
       />
 
       {/* ── Vehicle picker — shown before auto-start when user has 2+ vehicles ── */}

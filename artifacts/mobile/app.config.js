@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "Msafiri",
     slug: "msafiri-kenya",
-    owner: "edenkids-organization",
+    owner: "alfrex-labs",
     version: "2.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
@@ -16,7 +16,9 @@ module.exports = {
     },
     ios: {
       bundleIdentifier: "com.msafirikenya.app",
-      buildNumber: "93",
+      // 92 is the seed value. EAS autoIncrement (production profile) bumps
+      // this to 93 before the next build artifact is produced.
+      buildNumber: "92",
       supportsTablet: false,
       config: {
         googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
@@ -58,7 +60,8 @@ module.exports = {
     },
     android: {
       package: "com.msafirikenya.app",
-      versionCode: 93,
+      // 92 is the seed value. EAS autoIncrement bumps this to 93 on next build.
+      versionCode: 92,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       permissions: [
         "ACCESS_FINE_LOCATION",
@@ -173,7 +176,7 @@ module.exports = {
       "./plugins/withGeoIntentFilter.js",
     ],
     updates: {
-      url: "https://u.expo.dev/465586c3-648b-459e-b3c9-1983e1a62ffb",
+      url: "https://u.expo.dev/35b79893-fc03-4518-bfcd-31ac65c262f4",
     },
     runtimeVersion: {
       policy: "appVersion",
@@ -184,7 +187,7 @@ module.exports = {
     },
     extra: {
       eas: {
-        projectId: "465586c3-648b-459e-b3c9-1983e1a62ffb",
+        projectId: "35b79893-fc03-4518-bfcd-31ac65c262f4",
       },
     },
   },
