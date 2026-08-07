@@ -1,0 +1,284 @@
+Vehicle Care
+
+Purpose
+
+Help drivers maintain their vehicles, avoid expensive repairs, and never miss routine maintenance through smart reminders and digital service records.
+
+Navigation
+
+Garage
+
+├── My Vehicles
+
+└── Vehicle Care
+
+1. My Vehicles
+
+Every user must have at least one vehicle before using Vehicle Care.
+
+Vehicle Details
+Make
+Model
+Year
+Engine
+Fuel Type
+Transmission
+Current Odometer
+Vehicle Photo (optional)
+Support
+Multiple vehicles
+Set default vehicle
+Switch between vehicles
+2. Vehicle Care Dashboard
+
+Main overview screen.
+
+Example
+
+Toyota Prado TX
+
+Estimated Odometer
+
+91,240 km
+
+Updated Today
+
+──────────────────────
+
+Vehicle Health
+
+92%
+
+Excellent
+
+──────────────────────
+
+Upcoming
+
+Oil Change
+
+620 km remaining
+
+Brake Inspection
+
+15 days remaining
+
+Wheel Alignment
+
+1,800 km remaining
+
+──────────────────────
+
+Completed Recently
+
+✔ Engine Oil
+
+✔ Air Filter
+
+✔ Tyre Rotation
+3. Maintenance Categories
+Engine
+Engine Oil
+Oil Filter
+Air Filter
+Fuel Filter
+Spark Plugs
+Timing Belt
+Serpentine Belt
+Coolant
+Radiator Flush
+Transmission
+Transmission Oil
+Differential Oil
+Transfer Case Oil
+Brakes
+Brake Pads
+Brake Discs
+Brake Shoes
+Brake Fluid
+Tyres
+Tyre Rotation
+Wheel Alignment
+Wheel Balancing
+New Tyres
+Suspension
+Shock Absorbers
+Bushings
+Battery
+Battery Replacement
+Air Conditioning
+AC Service
+Cabin Air Filter
+Miscellaneous
+Wiper Blades
+Windscreen Washer Fluid
+4. Service Record
+
+Each maintenance item stores:
+
+Last service date
+Mileage
+Garage
+Cost
+Receipt (optional)
+Notes
+
+Button:
+
+Update Service
+
+5. Update Service
+
+Simple form
+
+Completed
+Date
+Mileage
+Cost
+Garage
+Notes
+Upload Receipt
+
+Save
+
+6. Smart Reminder System
+
+Each service supports:
+
+Time interval
+Mileage interval
+
+Whichever comes first.
+
+Example
+
+Oil Change
+
+Every
+
+5,000 km
+or
+6 months
+
+Brake Fluid
+
+Every
+
+24 months
+7. Estimated Odometer
+
+Workflow
+
+User enters initial odometer.
+
+Msafiri estimates mileage using recorded trips.
+
+Example
+
+Initial:
+
+87,000 km
+
+Trips
+
+18 km
+
+26 km
+
+44 km
+
+Estimated
+
+87,088 km
+
+Displayed as:
+
+Estimated Odometer
+
+87,088 km
+
+Last updated today.
+
+If confidence becomes low, prompt the user to update their odometer.
+
+8. Reminder Engine
+
+Examples
+
+🔧 Oil change due in 520 km
+⚠ Brake pads may require inspection
+🛞 Wheel alignment overdue
+🔋 Battery has been installed for 38 months
+❄ Coolant replacement due next week
+9. Vehicle Health Score
+
+Calculated from:
+
+Overdue services
+Estimated mileage
+Time overdue
+Recent maintenance
+
+Examples
+
+97%
+
+Excellent
+82%
+
+Good
+
+Oil change overdue
+55%
+
+Needs Attention
+10. Service Timeline
+
+Chronological maintenance history.
+
+Example
+
+2026
+
+✔ Oil Change
+✔ Air Filter
+✔ Tyre Rotation
+✔ Battery
+
+2025
+
+✔ Brake Pads
+✔ Wheel Alignment
+
+Useful when reviewing ownership history or preparing to sell the vehicle.
+
+11. Maintenance Cost Tracker
+
+Current Year
+
+Oil — KSh 15,000
+Tyres — KSh 32,000
+Brakes — KSh 18,000
+Battery — KSh 12,000
+
+Total
+
+KSh 77,000
+
+12. Vehicle Replacement History
+
+Track components that are replaced multiple times.
+
+Example
+
+Battery
+
+15 Jan 2024 — Exide 70Ah — KSh 11,800
+02 Aug 2026 — Amaron 70Ah — KSh 13,200
+
+Engine Oil
+
+10 Mar 2026 — Shell Helix Ultra 5W-30
+05 Jun 2026 — Castrol Magnatec 5W-30
+
+This provides a complete maintenance history rather than only the latest service.
