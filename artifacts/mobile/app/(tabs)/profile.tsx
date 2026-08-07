@@ -12,6 +12,7 @@ import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import Constants from "expo-constants";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
+
 function SettingsRow({
   icon,
   iconColor,
@@ -57,7 +58,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const tabBarH = Platform.OS === "web" ? 84 : 96;
   
-  const { driverName, clearAllData, deviceId } = useApp();
+  const { driverName, clearAllData, deviceId, profilePhotoUri } = useApp();
   const { isSubscribed, customerInfo } = useSubscription();
   const version = Constants.expoConfig?.version ?? "2.1.0";
 
@@ -65,7 +66,6 @@ export default function ProfileScreen() {
   // Personal Information screen show up immediately when returning here.
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [emergencyContactCount, setEmergencyContactCount] = useState<number | null>(null);
 
   useFocusEffect(
@@ -74,12 +74,10 @@ export default function ProfileScreen() {
       Promise.all([
         AsyncStorage.getItem("profile_email"),
         AsyncStorage.getItem("profile_phone"),
-        AsyncStorage.getItem("profile_photo_uri"),
-      ]).then(([email, phone, photo]) => {
+      ]).then(([email, phone]) => {
         if (!active) return;
         setProfileEmail(email ?? "");
         setProfilePhone(phone ?? "");
-        setPhotoUri(photo);
       }).catch(() => {});
 
       // Fetch real emergency contact count
@@ -167,8 +165,8 @@ export default function ProfileScreen() {
           onPress={() => router.push("/personal-information" as any)}
         >
           <View style={[styles.avatarWrap, { backgroundColor: c.primary + "1E" }]}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+            {profilePhotoUri ? (
+              <Image source={{ uri: profilePhotoUri }} style={styles.avatarImage} />
             ) : (
               <Text style={[styles.avatarTxt, { color: c.primary }]}>{initials}</Text>
             )}

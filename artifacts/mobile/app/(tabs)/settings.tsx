@@ -21,8 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
@@ -50,6 +49,7 @@ export default function SettingsScreen() {
     driverName, setDriverName,
     deviceId,
     crashSensitivity, setCrashSensitivity,
+    profilePhotoUri,
   } = useApp();
 
   const { isSubscribed } = useSubscription();
@@ -62,19 +62,6 @@ export default function SettingsScreen() {
     clearUnlocked: clearDashcamLoop,
   } = useDashcam();
   const [showPaywall, setShowPaywall] = useState(false);
-
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-
-  // Reload the profile photo whenever the user returns to this screen
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      AsyncStorage.getItem("profile_photo_uri").then((val) => {
-        if (active) setPhotoUri(val);
-      }).catch(() => {});
-      return () => { active = false; };
-    }, [])
-  );
 
   const [name, setName] = useState(sosContact?.name ?? "");
   const [phone, setPhone] = useState(sosContact?.phone ?? "");
@@ -302,8 +289,8 @@ export default function SettingsScreen() {
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <View style={[styles.headerAvatar, { backgroundColor: c.primary + "1E" }]}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.headerAvatarImage} />
+            {profilePhotoUri ? (
+              <Image source={{ uri: profilePhotoUri }} style={styles.headerAvatarImage} />
             ) : (
               <Text style={[styles.headerAvatarTxt, { color: c.primary }]}>
                 {driverName ? driverName.substring(0, 2).toUpperCase() : "DR"}

@@ -382,6 +382,11 @@ interface AppContextValue {
    *  currently recording, so the accelerometer subscription can be enabled
    *  even when navigation is inactive. */
   setDashcamActive: (v: boolean) => void;
+  /** URI of the driver's profile photo, or null when no photo has been set.
+   *  Single source of truth — updated by PersonalInformation; all avatar
+   *  consumers read from here instead of polling AsyncStorage independently. */
+  profilePhotoUri: string | null;
+  setProfilePhotoUri: (uri: string | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1076,6 +1081,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const dbZonesRef = useRef<SpeedZone[]>([]);
   const suppressedStaticIdsRef = useRef<string[]>([]);
 
+  const [profilePhotoUri, setProfilePhotoUriState] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [driverName, setDriverNameState] = useState<string>("");
   const driverNameRef = useRef<string>("");
@@ -1275,7 +1281,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity] = await Promise.all([
+      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
         AsyncStorage.getItem(KEYS.HUD),
@@ -1287,6 +1293,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(KEYS.SHARE),
         AsyncStorage.getItem(KEYS.DRIVER_NAME),
         AsyncStorage.getItem(KEYS.CRASH_SENSITIVITY),
+        AsyncStorage.getItem("profile_photo_uri"),
       ]);
       if (storedVehicleType) {
         const v = storedVehicleType as VehicleTypeId;
@@ -1340,6 +1347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setCrashSensitivityState(storedCrashSensitivity);
         crashSensitivityRef.current = storedCrashSensitivity;
       }
+      if (storedProfilePhoto) setProfilePhotoUriState(storedProfilePhoto);
       setOnboardingComplete(onboarded === "true");
       // Restore any sharing session that survived backgrounding or an app restart
       if (savedShare) {
@@ -3901,6 +3909,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveAlert(null);
     setActiveAlertExtras([]);
   }, []);
+  const setProfilePhotoUri = useCallback((uri: string | null) => {
+    setProfilePhotoUriState(uri);
+    if (uri) {
+      AsyncStorage.setItem("profile_photo_uri", uri).catch(() => {});
+    } else {
+      AsyncStorage.removeItem("profile_photo_uri").catch(() => {});
+    }
+  }, []);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setThemeOverride = useCallback((v: "system" | "light" | "dark") => {
     setThemeOverrideState(v);
@@ -4803,6 +4819,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       crashDetected, clearCrash, crashAssistantId,
       crashSensitivity, setCrashSensitivity,
       setDashcamActive,
+      profilePhotoUri, setProfilePhotoUri,
     }}>
       {children}
     </AppContext.Provider>

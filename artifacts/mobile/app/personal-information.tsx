@@ -13,7 +13,7 @@ import { getVehicleTypeDef } from "@/data/vehicleTypes";
 export default function PersonalInformationScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { driverName, setDriverName, vehicleType } = useApp();
+  const { driverName, setDriverName, vehicleType, setProfilePhotoUri } = useApp();
 
   const [name, setName] = useState(driverName);
   const [email, setEmail] = useState("");
@@ -59,6 +59,7 @@ export default function PersonalInformationScreen() {
       }
       await AsyncStorage.setItem("profile_photo_uri", storedUri);
       setPhotoUri(storedUri);
+      setProfilePhotoUri(storedUri);
     } catch (e) {
       console.warn("Change photo error:", e);
       Alert.alert("Error", "Could not update your photo. Please try again.");
