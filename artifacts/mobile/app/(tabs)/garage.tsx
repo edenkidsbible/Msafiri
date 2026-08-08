@@ -41,13 +41,11 @@ import {
 } from "@/utils/vehicleCare";
 import {
   SavedVehicle,
-  loadVehicles,
   ensureVehicles,
   applyPendingSlot,
   setPendingSlot,
   setDefaultVehicle,
   removeVehicle,
-  PENDING_SLOT_KEY,
 } from "@/utils/savedVehicles";
 // vehicleSessionMap removed — sessions are now filtered server-side via vehicleId param
 import {
@@ -410,17 +408,35 @@ export default function GarageScreen() {
   const [locationCache,    setLocationCache]    = useState<TripLocationMap>({});
   const [careStats,  setCareStats]  = useState<VehicleCareStats | null>(null);
   const [odometerKm, setOdometerKm] = useState(0);
-  const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
   const [slideIndex, setSlideIndex] = useState(0);
   // Bumped each time the screen is focused; triggers the care stats reload effect.
   const [focusTick, setFocusTick] = useState(0);
   const flatRef = useRef<FlatList>(null);
 
-  // ── VehicleContext — app-wide active vehicle ─────────────────────────────
-  // The garage drives the active vehicle for the whole app. Every swipe or
-  // explicit vehicle action here calls setActiveVehicle so other screens
-  // (dashcam, trip history, accident reports) automatically show that car's data.
-  const { setActiveVehicle, refreshVehicles } = useVehicle();
+  // ── VehicleContext — single source of truth for the vehicle list ─────────
+  // Reading vehicles directly from context eliminates the local duplicate and
+  // prevents the local list and context list from drifting apart after any
+  // mutation (add / remove / set-default). The garage writes to VehicleContext
+  // via setActiveVehicle / refreshVehicles; all other screens read from it.
+  const { vehicles, setActiveVehicle, refreshVehicles } = useVehicle();
+
+  // Clamp slideIndex to the live vehicle count so removing a vehicle can never
+  // leave the carousel pointing at a now-missing slot. Used for all data
+  // lookups and rendering; slideIndex state is also healed asynchronously by
+  // the effect below so subsequent swipe math starts from the right position.
+  const clampedSlideIndex = vehicles.length > 0
+    ? Math.min(slideIndex, vehicles.length - 1)
+    : 0;
+
+  // Heal slideIndex state whenever vehicles shrinks (e.g. after a removal).
+  useEffect(() => {
+    if (vehicles.length === 0) return;
+    const maxIdx = vehicles.length - 1;
+    if (slideIndex > maxIdx) {
+      setSlideIndex(maxIdx);
+      flatRef.current?.scrollToIndex({ index: maxIdx, animated: false });
+    }
+  }, [vehicles.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -478,8 +494,9 @@ export default function GarageScreen() {
           }
         }
         if (alive) {
-          setVehicles(list);
-          // Notify VehicleContext so all consumers (dashcam, trips, etc.) see fresh list
+          // Refresh VehicleContext — it reads from AsyncStorage (where the mutations
+          // above already persisted the list) and pushes fresh data to all consumers.
+          // No separate local setVehicles needed — vehicles comes from context now.
           refreshVehicles().catch(() => {});
         }
       })();
@@ -502,7 +519,7 @@ export default function GarageScreen() {
   const sessionsFetchGen = useRef(0);
   useEffect(() => {
     if (!deviceId || vehicles.length === 0) return;
-    const slideVehicle = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
+    const slideVehicle = vehicles[clampedSlideIndex] ?? vehicles[0];
     // Clear immediately so stale data from the previous vehicle never lingers
     setFilteredSessions([]);
     const gen = ++sessionsFetchGen.current;
@@ -518,20 +535,20 @@ export default function GarageScreen() {
         setFilteredSessions(sessions);
       })
       .catch(() => {});
-  }, [deviceId, vehicles, slideIndex, focusTick]);
+  }, [deviceId, vehicles, clampedSlideIndex, focusTick]);
 
   // ── Per-vehicle care stats ───────────────────────────────────────────────────
   // Reload Vehicle Care stats whenever the active slide or focus changes so the
   // Upcoming / Overdue / Completed / Spent row reflects the correct vehicle.
   useEffect(() => {
     if (vehicles.length === 0) return;
-    const activeVehicle = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
+    const activeVehicle = vehicles[clampedSlideIndex] ?? vehicles[0];
     const storageKey = getCareStorageKey(activeVehicle.id, activeVehicle.isDefault);
     loadVehicleCareData(storageKey).then(data => {
       setCareStats(computeVehicleCareStats(data));
       setOdometerKm(estimatedOdometerKm(data));
     }).catch(() => {});
-  }, [vehicles, slideIndex, focusTick]);
+  }, [vehicles, clampedSlideIndex, focusTick]);
 
   // ── Computed stats ──────────────────────────────────────────────────────────
 
@@ -577,32 +594,25 @@ export default function GarageScreen() {
       await swapCareDataForDefaultChange(oldDefault.id, id);
     }
 
-    // ── 2. Persist the new default and update local vehicle list ───────────────
-    const updated = await setDefaultVehicle(id);
-    setVehicles(updated);
+    // ── 2. Persist the new default — vehicle order is unchanged, only isDefault
+    // flag flips. We look up position and identity from the current context list.
+    await setDefaultVehicle(id);
 
     // ── 3. Scroll the carousel to the newly-defaulted vehicle ─────────────────
-    // Care stats and trip sessions are both driven by vehicles[slideIndex].
-    // Without this, the data panels would still show the previously-active
-    // slide's vehicle rather than the one the user just made default.
-    const newIdx = updated.findIndex(v => v.id === id);
+    const newIdx = vehicles.findIndex(v => v.id === id);
     if (newIdx !== -1 && newIdx !== slideIndex) {
       setSlideIndex(newIdx);
       setTimeout(() => {
         flatRef.current?.scrollToIndex({ index: newIdx, animated: true });
       }, 50);
     }
-    // Sync VehicleContext — this vehicle is now both default and active
+    // Sync VehicleContext — refreshVehicles reloads from AsyncStorage so the
+    // updated isDefault flags are visible everywhere.
     setActiveVehicle(id);
     refreshVehicles().catch(() => {});
 
     // ── 4. Sync AppContext to the newly-default vehicle ───────────────────────
-    // Without this, AppContext still holds the OLD default's make/model.
-    // Consequences if left unsynced:
-    //   • Every screen that reads vehicleMakeId/vehicleModelId shows the wrong car
-    //   • If the old default is later deleted, the single-vehicle focus sync
-    //     overwrites the new default with the old default's identity (data swap)
-    const newDefault = updated.find(v => v.id === id);
+    const newDefault = vehicles.find(v => v.id === id);
     if (newDefault) {
       if (newDefault.customMakeName || newDefault.customModelName) {
         setCustomVehicle(
@@ -670,9 +680,10 @@ export default function GarageScreen() {
             style: "destructive",
             onPress: async () => {
               const updated = await removeVehicle(id);
-              setVehicles(updated);
               syncAppContextAfterRemove(updated);
-              refreshVehicles().catch(() => {});
+              await refreshVehicles();
+              // VehicleContext.refreshVehicles() already falls back to default
+              // when the active vehicle was removed — no manual setActiveVehicle needed.
             },
           },
         ],
@@ -689,14 +700,14 @@ export default function GarageScreen() {
             style: "destructive",
             onPress: async () => {
               const updated = await removeVehicle(id);
-              setVehicles(updated);
               syncAppContextAfterRemove(updated);
-              // Snap back and update active vehicle in context
+              // Snap slideIndex back before refreshVehicles so the clamp and
+              // healing effect in the render path see a consistent position.
               const newSlide = Math.max(0, Math.min(slideIndex, updated.length - 1));
               setSlideIndex(newSlide);
               const newActive = updated[newSlide];
               if (newActive) setActiveVehicle(newActive.id);
-              refreshVehicles().catch(() => {});
+              await refreshVehicles();
             },
           },
         ],
@@ -821,7 +832,7 @@ export default function GarageScreen() {
               >
                 <View style={[
                   styles.dot,
-                  i === slideIndex
+                  i === clampedSlideIndex
                     ? [styles.dotActive, { backgroundColor: c.primary }]
                     : { backgroundColor: c.isDark ? "#2A3530" : "#D0D8D4" },
                 ]} />
@@ -838,13 +849,13 @@ export default function GarageScreen() {
               <Text style={[styles.sectionTitle, { color: c.foreground }]}>
                 Garage Overview
               </Text>
-              {vehicles.length > 1 && vehicles[slideIndex] && (
+              {vehicles.length > 1 && vehicles[clampedSlideIndex] && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4,
                   backgroundColor: c.primary + "18", borderRadius: 12,
                   paddingHorizontal: 8, paddingVertical: 3 }}>
                   <Ionicons name="car-outline" size={11} color={c.primary} />
                   <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: c.primary }} numberOfLines={1}>
-                    {vehicleDisplayName(vehicles[slideIndex])}
+                    {vehicleDisplayName(vehicles[clampedSlideIndex])}
                   </Text>
                 </View>
               )}
