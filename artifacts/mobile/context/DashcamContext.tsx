@@ -113,6 +113,18 @@ interface DashcamContextValue {
    * enrollment, upload, and gallery auth resolve to the correct push_tokens row.
    */
   pushDeviceId: string | null;
+  /**
+   * True when the server has returned a quota-full response. Cleared when the
+   * driver successfully deletes a cloud clip (or the app is restarted). Used
+   * to surface a persistent banner in the dashcam UI so the driver knows they
+   * must delete old cloud clips before new ones will back up.
+   */
+  cloudQuotaFull: boolean;
+  /**
+   * Call after a successful cloud-clip deletion to clear the quota-full banner
+   * and trigger a fresh upload attempt for any remaining pending segments.
+   */
+  clearCloudQuotaFull: () => void;
   openDashcam: () => void;
   closeDashcam: () => void;
   startDashcam: () => void;
@@ -250,6 +262,13 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated]             = useState(false);
   /** The push-notification device ID — same key as usePushNotifications. */
   const [pushDeviceId, setPushDeviceId]     = useState<string | null>(null);
+  /**
+   * Set to true when the server returns a quota-full 429 on upload-url.
+   * Cleared on a successful upload or when the driver deletes a cloud clip.
+   */
+  const [cloudQuotaFull, setCloudQuotaFull] = useState(false);
+  // Ref counterpart — read from effects and callbacks without triggering re-renders
+  const cloudQuotaFullRef = useRef(false);
 
   // ── Segment-start snapshot refs ───────────────────────────────────────────
   // Captured by onSegmentStart() immediately before each recordAsync() call.
@@ -297,6 +316,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { segmentsRef.current = segments; }, [segments]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { cloudQuotaFullRef.current = cloudQuotaFull; }, [cloudQuotaFull]);
 
   // ── Hydrate from AsyncStorage ──────────────────────────────────────────────
   // IMPORTANT: setHydrated(true) is called only after the upload queue is
@@ -606,7 +626,49 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           headers,
           body: JSON.stringify({ lockReason: seg.lockReason ?? "manual" }),
         });
-        if (!urlRes.ok) throw new Error(`Upload URL: ${urlRes.status}`);
+        if (!urlRes.ok) {
+          if (urlRes.status === 429) {
+            const body = await urlRes.json().catch(() => ({})) as { error?: string; code?: string };
+            // Distinguish quota-full from serialization-failure 429s.
+            // Serialization failures are transient and should retry normally.
+            // Quota-full means every subsequent upload will also fail — bail out.
+            if (body?.code === "QUOTA_FULL" || body?.error?.toLowerCase().includes("quota")) {
+              cloudQuotaFullRef.current = true;
+              setCloudQuotaFull(true);
+              // Notify the driver so they know to open the gallery and delete old clips
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: "Cloud storage full",
+                  body: "Delete old clips in the dashcam gallery to continue backing up.",
+                  data: { type: "dashcam_quota_full" },
+                },
+                trigger: null,
+              }).catch(() => {});
+              // Permanently mark ALL pending/retryable segments as terminal
+              // (retryCount = MAX_UPLOAD_RETRIES) so they are never re-queued by
+              // the connectivity-restore listener or app relaunch — uploads will
+              // keep failing until the driver frees space.
+              setSegments((prev) => {
+                const next = prev.map((s) => {
+                  if (
+                    s.uploadStatus === "pending" ||
+                    s.uploadStatus === "uploading" ||
+                    (s.uploadStatus === "failed" && (s.retryCount ?? 0) < MAX_UPLOAD_RETRIES)
+                  ) {
+                    return { ...s, uploadStatus: "failed" as const, retryCount: MAX_UPLOAD_RETRIES };
+                  }
+                  return s;
+                });
+                segmentsRef.current = next;
+                return next;
+              });
+              // Drain the entire queue — no point attempting the remaining items
+              uploadQueueRef.current = [];
+              break;
+            }
+          }
+          throw new Error(`Upload URL: ${urlRes.status}`);
+        }
         const { uploadUrl, fileKey, clipId } = (await urlRes.json()) as {
           uploadUrl: string; fileKey: string; clipId: string;
         };
@@ -646,6 +708,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
               : s
           )
         );
+        // A successful upload means the server has room — clear the quota banner
+        // (server may have auto-evicted an old clip to make space)
+        setCloudQuotaFull(false);
         uploadQueueRef.current.shift();
       } catch (err) {
         console.warn("[Dashcam] upload failed for", segId, err);
@@ -1048,9 +1113,28 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       uploadQueueRef.current = uploadQueueRef.current.filter((qId) => qId !== id);
+
+      // If the deleted clip was a cloud clip, a slot just opened — clear the
+      // quota banner so the driver knows uploads will work again.
+      if (seg.serverId) {
+        cloudQuotaFullRef.current = false;
+        setCloudQuotaFull(false);
+      }
     },
     [pushDeviceId]
   );
+
+  /**
+   * Called from the gallery after a successful cloud-clip deletion to clear
+   * the quota-full banner. Only needed for server-only clips that are deleted
+   * directly via the API (not through deleteSegment). This does not
+   * automatically re-queue failed uploads — the driver must record new clips
+   * or the queue will retry on the next connectivity restore.
+   */
+  const clearCloudQuotaFull = useCallback(() => {
+    cloudQuotaFullRef.current = false;
+    setCloudQuotaFull(false);
+  }, []);
 
   const clearUnlocked = useCallback(async () => {
     const unlocked = segmentsRef.current.filter((s) => !s.locked);
@@ -1079,19 +1163,21 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     () => ({
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
-      pushDeviceId, recordingEpoch,
+      pushDeviceId, recordingEpoch, cloudQuotaFull,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
+      clearCloudQuotaFull,
       setCameraRef, onSegmentStart, onSegmentComplete,
     }),
     [
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
-      pushDeviceId, recordingEpoch,
+      pushDeviceId, recordingEpoch, cloudQuotaFull,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
+      clearCloudQuotaFull,
       setCameraRef, onSegmentStart, onSegmentComplete,
     ]
   );

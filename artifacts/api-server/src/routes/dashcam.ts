@@ -295,7 +295,7 @@ router.post("/dashcam/upload-url", async (req: Request, res: Response) => {
 
         if (total >= MAX_CLIPS_PER_DEVICE) {
           quotaExceeded = true;
-          return; // abort transaction cleanly
+          return; // abort transaction cleanly — no intent inserted
         }
 
         await tx.insert(dashcamUploadIntentsTable).values({
@@ -320,7 +320,8 @@ router.post("/dashcam/upload-url", async (req: Request, res: Response) => {
 
   if (quotaExceeded) {
     return res.status(429).json({
-      error: `Device clip quota reached (${MAX_CLIPS_PER_DEVICE}). Delete old clips before uploading more.`,
+      error: `Cloud storage full (${MAX_CLIPS_PER_DEVICE} clips). Delete old clips in the dashcam gallery to free up space.`,
+      code:  "QUOTA_FULL",
     });
   }
 

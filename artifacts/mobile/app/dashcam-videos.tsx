@@ -332,7 +332,7 @@ export default function DashcamVideosScreen() {
   const {
     segments, deleteSegment, storageUsedBytes,
     isRecording, openDashcam, pushDeviceId, settings,
-    lockCurrentClip,
+    lockCurrentClip, cloudQuotaFull, clearCloudQuotaFull,
   } = useDashcam();
 
   const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
@@ -556,6 +556,7 @@ export default function DashcamVideosScreen() {
               });
               if (res.ok) {
                 setServerClips((prev) => prev.filter((c) => c.id !== clip.id));
+                clearCloudQuotaFull(); // a slot just opened — clear the quota banner
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               } else Alert.alert("Error", "Could not delete clip.");
             } catch { Alert.alert("Error", "Network error."); }
@@ -742,6 +743,25 @@ export default function DashcamVideosScreen() {
                 <Ionicons name={isRecording ? "open-outline" : "car-sport-outline"} size={13} color={c.primary} />
               </TouchableOpacity>
             </View>
+
+            {/* ── Quota-full banner ──────────────────────────────────────── */}
+            {cloudQuotaFull && (
+              <View style={[vs.quotaBanner, { backgroundColor: "#EF444414", borderColor: "#EF444440" }]}>
+                <Ionicons name="cloud-offline-outline" size={20} color="#EF4444" />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[vs.quotaTitle, { color: "#EF4444" }]}>Cloud storage full</Text>
+                  <Text style={[vs.quotaSub, { color: "#EF4444CC" }]}>
+                    New clips can't back up until you delete old cloud clips. Open the Locked tab to remove old footage.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => { setTab("locked"); setDateFilter("all"); }}
+                  style={vs.quotaBtn}
+                >
+                  <Text style={vs.quotaBtnText}>Manage</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* ── Quick actions ──────────────────────────────────────────── */}
             <View style={vs.actionsGrid}>
@@ -1063,4 +1083,10 @@ const vs = StyleSheet.create({
 
   menuOpt:     { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   menuOptText: { fontSize: 15, fontFamily: "Inter_500Medium" },
+
+  quotaBanner:  { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 14, borderWidth: 1, padding: 14 },
+  quotaTitle:   { fontSize: 13, fontFamily: "Inter_700Bold" },
+  quotaSub:     { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  quotaBtn:     { backgroundColor: "#EF444422", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: "flex-start", marginTop: 2 },
+  quotaBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#EF4444" },
 });
