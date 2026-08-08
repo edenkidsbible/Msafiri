@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
+import { useDashcam } from "@/context/DashcamContext";
 
 // ── Public data type ──────────────────────────────────────────────────────────
 
@@ -43,8 +44,12 @@ export interface TripSummaryData {
   smoothMinutes:     number;
   speedCameraAlerts: number;
   policeAlerts:      number;
-  /** true when dashcam was recording at the moment the trip was stopped */
-  hadDashcam:        boolean;
+  /**
+   * Number of dashcam segments that existed at the moment the trip started.
+   * The modal shows "View Dashcam Clips" reactively when the live segment
+   * count exceeds this baseline — covering the async final-clip save case.
+   */
+  segmentBaselineCount: number;
   /** true when live link sharing was active at the moment the trip stopped */
   isSharing:         boolean;
   /** server session ID — used by trip-history to poll until this session commits */
@@ -149,6 +154,9 @@ const badge = StyleSheet.create({
 export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Props) {
   const c      = useColors();
   const insets = useSafeAreaInsets();
+  // Subscribe to live segments so the button appears reactively even when
+  // the final clip is saved asynchronously after the trip snapshot is taken.
+  const { segments: dashcamSegments } = useDashcam();
   const slideY = useRef(new Animated.Value(600)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
 
@@ -194,7 +202,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
   const goClips = useCallback(() => {
     // Navigate first so the new screen covers the drive tab instantly —
     // no 180 ms gap that would briefly expose the drive screen behind the modal.
-    router.push("/dashcam-videos" as any);
+    router.push("/dashcam-videos?fromSummary=1" as any);
     dismiss();
   }, [dismiss]);
 
@@ -416,7 +424,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
             </TouchableOpacity>
           )}
 
-          {data.hadDashcam && (
+          {dashcamSegments.length > data.segmentBaselineCount && (
             <TouchableOpacity
               style={[styles.secondaryBtn, { borderColor: c.primary, backgroundColor: c.primary + "10" }]}
               onPress={goClips}

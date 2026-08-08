@@ -188,6 +188,7 @@ export default function DriveScreen() {
     lockCurrentClip,
     startBackgroundRecording,
     requestDashcamPermissions,
+    segments: dashcamSegments,
   } = useDashcam();
 
   // Proactively request camera + microphone permissions each time the drive
@@ -338,6 +339,11 @@ export default function DriveScreen() {
   // Alert counters incremented during the trip — sent to the server on end
   const tripSpeedCamRef  = useRef(0);
   const tripPoliceRef    = useRef(0);
+  // Dashcam segment baseline — captures how many segments exist at trip start
+  // so TripSummaryModal can reactively show the clips button when the count
+  // grows beyond this value (covers the async final-clip save case).
+  const segmentBaselineRef      = useRef(0);
+  const dashcamSegmentsCountRef = useRef(dashcamSegments.length);
 
   // ── Driving score — sensor hook ───────────────────────────────────────────
   // Subscribes to the accelerometer only during a Live Trip and classifies
@@ -371,6 +377,12 @@ export default function DriveScreen() {
     listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInputFocused]);
+
+  // Keep a ref in sync with the live segment count so startTrip can snapshot
+  // the baseline without needing dashcamSegments in its dependency array.
+  useEffect(() => {
+    dashcamSegmentsCountRef.current = dashcamSegments.length;
+  }, [dashcamSegments]);
 
 
   // overviewMode removed — the map is always freely pannable during navigation.
@@ -483,6 +495,10 @@ export default function DriveScreen() {
       pausedAtMsRef.current = null;
       const now = new Date();
       tripStartTimeRef.current = now;
+      // Snapshot how many dashcam clips exist right now — TripSummaryModal
+      // compares the live count against this baseline to reactively show the
+      // clips button without showing it for segments from previous trips.
+      segmentBaselineRef.current = dashcamSegmentsCountRef.current;
       setTripActive(true);
       setTripPaused(false);
       setNavTripActive(true);
@@ -679,7 +695,7 @@ export default function DriveScreen() {
       smoothMinutes:     snap.smoothMinutes,
       speedCameraAlerts: tripSpeedCamRef.current,
       policeAlerts:      tripPoliceRef.current,
-      hadDashcam:        dashcamRecording,
+      segmentBaselineCount: segmentBaselineRef.current,
       isSharing:         isSharingTrip,
       // Capture now while the ref still holds the ID — it is cleared once
       // the end-session effect fires a few ms later.
@@ -691,8 +707,7 @@ export default function DriveScreen() {
     // where the driver goes next (home, clips, history, etc.).
   }, [
     driveScore, tripElapsedS, avgSpeedDisplay,
-    dashcamRecording, isSharingTrip,
-    stopTrip,
+    isSharingTrip, stopTrip,
   ]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───

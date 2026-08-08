@@ -12,14 +12,14 @@ import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Alert, Animated, FlatList, Modal, Platform,
+  ActivityIndicator, Alert, Animated, BackHandler, FlatList, Modal, Platform,
   Pressable, ScrollView, Share as RNShare, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
@@ -335,6 +335,25 @@ export default function DashcamVideosScreen() {
     lockCurrentClip,
   } = useDashcam();
 
+  const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
+  const goBack = useCallback(() => {
+    if (fromSummary === "1") {
+      router.replace("/(tabs)");
+    } else {
+      router.back();
+    }
+  }, [fromSummary]);
+
+  // Android hardware back button — mirror the same rule when launched from summary
+  useEffect(() => {
+    if (fromSummary !== "1") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      router.replace("/(tabs)");
+      return true;
+    });
+    return () => sub.remove();
+  }, [fromSummary]);
+
   const topInset    = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -634,7 +653,7 @@ export default function DashcamVideosScreen() {
           <View style={{ gap: 12, marginBottom: 12 }}>
             {/* ── Header ─────────────────────────────────────────────────── */}
             <View style={vs.headerRow}>
-              <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={goBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="chevron-back" size={26} color={c.foreground} />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
