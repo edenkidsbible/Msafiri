@@ -280,6 +280,11 @@ export default function DriveScreen() {
   const [showNearbySheet, setShowNearbySheet] = useState(false);
   // Destination picker modal — opened from the pre-trip idle screen
   const [showDestPicker, setShowDestPicker] = useState(false);
+  // When true: hide pre-trip screen, show map + route preview sheet so the
+  // driver can inspect alt routes / incidents before confirming the trip.
+  // Set when the driver taps "Start" on the pre-trip screen with a destination,
+  // OR when the screen gains focus with a destination already set (Map tab flow).
+  const [showRoutePreviewMode, setShowRoutePreviewMode] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
@@ -531,9 +536,17 @@ export default function DriveScreen() {
   // active. The ref is reset in the effect below when tripActive goes false.
   const { noAutoStart } = useLocalSearchParams<{ noAutoStart?: string }>();
   useFocusEffect(useCallback(() => {
-    if (autoStartedRef.current) return;
-    autoStartedRef.current = true;
-    if (!navDestination && noAutoStart !== "1") {
+    if (navDestination) {
+      // Destination already set (e.g. from the Map tab) — enter route preview
+      // mode so the driver can inspect the route before confirming the trip.
+      // NOT guarded by autoStartedRef: this must fire every time focus arrives
+      // with a destination, even after a prior no-destination auto-start cycle
+      // has already consumed the guard.
+      setShowRoutePreviewMode(true);
+    } else if (!autoStartedRef.current && noAutoStart !== "1") {
+      // No destination — auto-start once per session (guarded so it doesn't
+      // re-fire while a trip is still active or when focus bounces).
+      autoStartedRef.current = true;
       // Await the vehicle load to avoid the race where this fires before
       // the async load completes and the picker is wrongly skipped.
       const proceed = (list: SavedVehicle[]) => {
@@ -1080,6 +1093,10 @@ export default function DriveScreen() {
     setGeoResults([]);
     setShowResults(false);
     setSearchError(false);
+    setShowRoutePreviewMode(false);
+    // Do NOT reset autoStartedRef here — cancel should return the driver to the
+    // pre-trip idle screen, not silently fire a no-destination auto-start.
+    // autoStartedRef is only reset when tripActive goes false (trip-end effect).
   };
 
   const bottomBase = bottomInset + tabBarH + 10;
@@ -1095,9 +1112,10 @@ export default function DriveScreen() {
           propagating to the tab boundary and killing the navigation session.
           Navigation audio and step-tracking in AppContext are unaffected because
           they live outside this subtree. */}
-      {/* Map only mounts when a trip (or pre-trip countdown) is active.
-          In the idle pre-trip state we show a clean solid screen instead. */}
-      {(tripActive || countdownValue !== null) && (
+      {/* Map only mounts when a trip (or pre-trip countdown) is active, OR when
+          the driver has entered route-preview mode (destination set, reviewing
+          the route before confirming). In plain idle state a clean screen shows. */}
+      {(tripActive || countdownValue !== null || showRoutePreviewMode) && (
         <View style={StyleSheet.absoluteFillObject}>
           <ErrorBoundary FallbackComponent={MapErrorFallback}>
             <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
@@ -1105,8 +1123,10 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* ── Pre-trip idle screen — replaces the old map-based idle state ───── */}
-      {!tripActive && countdownValue === null && (
+      {/* ── Pre-trip idle screen — replaces the old map-based idle state ─────
+          Hidden when the driver enters route-preview mode (showRoutePreviewMode),
+          at which point the map + route preview sheet take over.              */}
+      {!tripActive && countdownValue === null && !showRoutePreviewMode && (
         <View style={[StyleSheet.absoluteFillObject, {
           backgroundColor: isDark ? "#0D120E" : "#F4F7F5",
           alignItems: "center",
@@ -1159,14 +1179,16 @@ export default function DriveScreen() {
                     </Text>
                   </View>
                   <TouchableOpacity
-                    onPress={() => { setNavDestination(null); setSearchText(""); }}
+                    onPress={() => { setNavDestination(null); setSearchText(""); setShowRoutePreviewMode(false); }}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <Ionicons name="close-circle" size={22} color={c.mutedForeground} />
                   </TouchableOpacity>
                 </View>
 
-                {/* Start button — shows vehicle picker when multiple vehicles */}
+                {/* Start button — enters route-preview mode so the driver can
+                    inspect alt routes and incidents before confirming the trip.
+                    The route preview sheet's own Start button calls startTrip(). */}
                 <TouchableOpacity
                   disabled={routeLoading}
                   style={{
@@ -1175,13 +1197,7 @@ export default function DriveScreen() {
                     backgroundColor: routeLoading ? (isDark ? "#1A2A1A" : "#C8E6C9") : c.primary,
                     borderRadius: 18, paddingVertical: 16,
                   }}
-                  onPress={() => {
-                    if (driveVehiclesRef.current.length > 1) {
-                      setShowVehiclePicker(true);
-                    } else {
-                      startTrip();
-                    }
-                  }}
+                  onPress={() => { setShowRoutePreviewMode(true); }}
                   activeOpacity={0.85}
                 >
                   {routeLoading ? (
@@ -1244,6 +1260,41 @@ export default function DriveScreen() {
                 <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
               </TouchableOpacity>
             )}
+          </View>
+        </View>
+      )}
+
+      {/* ── Route-preview loading card ───────────────────────────────────────
+          Shown while the driver has entered route-preview mode but the route
+          hasn't resolved yet. Sits above the map so the driver knows something
+          is happening, and provides a Cancel escape hatch in case they change
+          their mind. Disappears as soon as activeRoute is available and the
+          full route preview sheet takes over.                                  */}
+      {showRoutePreviewMode && !tripActive && countdownValue === null && (!activeRoute || routeLoading) && (
+        <View
+          style={{
+            position: "absolute", left: 0, right: 0,
+            bottom: bottomBase,
+            zIndex: 20,
+            marginHorizontal: 16,
+          }}
+        >
+          <View style={{
+            backgroundColor: isDark ? "#111614F0" : "#FFFFFFF0",
+            borderRadius: 20, paddingHorizontal: 20, paddingVertical: 18,
+            borderWidth: 1, borderColor: isDark ? "#2A3B2E" : "#D4E4D8",
+            flexDirection: "row", alignItems: "center", gap: 14,
+          }}>
+            <ActivityIndicator size="small" color={c.primary} />
+            <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: c.foreground }}>
+              Calculating route…
+            </Text>
+            <TouchableOpacity
+              onPress={clearDestination}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={22} color={c.mutedForeground} />
+            </TouchableOpacity>
           </View>
         </View>
       )}
