@@ -132,6 +132,14 @@ interface DashcamContextValue {
   updateSettings: (partial: Partial<DashcamSettings>) => Promise<void>;
   // Internal — called by DashcamOverlay
   setCameraRef: (ref: CameraView | null) => void;
+  /**
+   * Must be called by DashcamOverlay immediately before each recordAsync() call.
+   * Snapshots the active vehicle's storage paths so that onSegmentComplete always
+   * writes to the vehicle that was active when recording STARTED — not the vehicle
+   * that happens to be active when the clip finishes (which may differ if the
+   * driver switched vehicles mid-segment).
+   */
+  onSegmentStart: () => void;
   onSegmentComplete: (tempUri: string, durationS?: number, coords?: { lat: number; lng: number }) => Promise<void>;
 }
 
@@ -227,6 +235,14 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated]             = useState(false);
   /** The push-notification device ID — same key as usePushNotifications. */
   const [pushDeviceId, setPushDeviceId]     = useState<string | null>(null);
+
+  // ── Segment-start snapshot refs ───────────────────────────────────────────
+  // Captured by onSegmentStart() immediately before each recordAsync() call.
+  // onSegmentComplete reads THESE refs instead of segmentsFsDirRef so that a
+  // vehicle switch that happens while a clip is in-flight doesn't redirect the
+  // completed clip to the new vehicle's folder/store.
+  const recordingSegmentDirRef      = useRef(vehicleSegmentsDir(vehicleKey));
+  const recordingSegmentAsyncKeyRef = useRef(vehicleSegmentsKey(vehicleKey));
 
   // Refs — avoid re-renders on GPS/interval ticks
   // Camera permission — requested before the first background recording attempt.
@@ -841,6 +857,17 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     cameraRef.current = ref;
   }, []);
 
+  /**
+   * Snapshot the active vehicle's storage paths at segment-start time.
+   * Must be called by DashcamOverlay immediately before each recordAsync() so
+   * that onSegmentComplete always writes to the vehicle that was active when
+   * the clip STARTED, not the one active when it FINISHES.
+   */
+  const onSegmentStart = useCallback(() => {
+    recordingSegmentDirRef.current      = segmentsFsDirRef.current;
+    recordingSegmentAsyncKeyRef.current = segmentsAsyncKeyRef.current;
+  }, []);
+
   const onSegmentComplete = useCallback(
     async (tempUri: string, durationS?: number, coords?: { lat: number; lng: number }) => {
       const lockReason = lockNextRef.current;
@@ -849,10 +876,17 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       segmentStartRef.current = Date.now();
       setCurrentSegmentDuration(0);
 
-      const id      = `seg_${Date.now()}`;
-      // Use ref so this always writes to the active vehicle's directory even if
-      // the vehicle was switched while a segment was in-flight (extremely rare).
-      const destUri = `${segmentsFsDirRef.current}${id}.mp4`;
+      const id = `seg_${Date.now()}`;
+
+      // Use the paths captured at segment-START time (by onSegmentStart), not the
+      // current refs. This prevents a vehicle switch that happens mid-segment from
+      // redirecting the completed clip to the new vehicle's folder/store.
+      const capturedDir      = recordingSegmentDirRef.current;
+      const capturedAsyncKey = recordingSegmentAsyncKeyRef.current;
+      const destUri          = `${capturedDir}${id}.mp4`;
+
+      // Detect whether the vehicle changed while this segment was in-flight.
+      const vehicleSwitchedMidSegment = capturedAsyncKey !== segmentsAsyncKeyRef.current;
 
       try {
         // Ensure the destination directory exists before every save — not just
@@ -860,7 +894,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         // first install before hydration completed, etc.) a missing directory
         // causes moveAsync to throw, and the clip is silently lost. This call
         // is idempotent: it no-ops if the directory already exists.
-        await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true });
+        await FileSystem.makeDirectoryAsync(capturedDir, { intermediates: true });
 
         await FileSystem.moveAsync({ from: tempUri, to: destUri });
         const info      = await FileSystem.getInfoAsync(destUri);
@@ -879,15 +913,35 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           lng:          coords?.lng,
         };
 
-        setSegments((prev) => {
-          const next = evictIfNeeded([...prev, segment]);
-          segmentsRef.current = next;
-          return next;
-        });
+        if (vehicleSwitchedMidSegment) {
+          // The driver switched vehicles while this segment was recording.
+          // React state + segmentsAsyncKeyRef now belong to the NEW vehicle, so
+          // we must NOT call setSegments (that would add this clip to the wrong
+          // vehicle's list). Instead write directly to the OLD vehicle's
+          // AsyncStorage key so the clip appears there the next time the driver
+          // selects that vehicle from the garage.
+          try {
+            const existing = await AsyncStorage.getItem(capturedAsyncKey);
+            const prev: DashcamSegment[] = existing ? JSON.parse(existing) : [];
+            await AsyncStorage.setItem(capturedAsyncKey, JSON.stringify([...prev, segment]));
+          } catch (storageErr) {
+            console.warn("[Dashcam] failed to persist mid-switch segment to old vehicle store:", storageErr);
+          }
+          // Locked clips will be picked up for upload the next time the user
+          // switches back to that vehicle (the vehicle-switch effect re-queues
+          // pending/failed segments on load).
+        } else {
+          // Normal path — vehicle has not changed.
+          setSegments((prev) => {
+            const next = evictIfNeeded([...prev, segment]);
+            segmentsRef.current = next;
+            return next;
+          });
 
-        if (lockReason) {
-          uploadQueueRef.current.push(id);
-          processUploadQueue();
+          if (lockReason) {
+            uploadQueueRef.current.push(id);
+            processUploadQueue();
+          }
         }
 
         // Deferred stop: stopAndSaveDashcam() sets isRecordingRef.current = false
@@ -973,7 +1027,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
-      setCameraRef, onSegmentComplete,
+      setCameraRef, onSegmentStart, onSegmentComplete,
     }),
     [
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
@@ -982,7 +1036,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
       lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
-      setCameraRef, onSegmentComplete,
+      setCameraRef, onSegmentStart, onSegmentComplete,
     ]
   );
 

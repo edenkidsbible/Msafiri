@@ -94,7 +94,8 @@ export default function DashcamOverlay() {
     isRecording, isDashcamOpen, backgroundRecordPending, recordingEpoch,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked,
-    closeDashcam, clearBackgroundRecordPending, setCameraRef, onSegmentComplete,
+    closeDashcam, clearBackgroundRecordPending, setCameraRef,
+    onSegmentStart, onSegmentComplete,
   } = useDashcam();
 
   const { currentLat, currentLng } = useApp();
@@ -333,6 +334,10 @@ export default function DashcamOverlay() {
         }
         try {
           segmentStartRef.current = Date.now();
+          // Snapshot the active vehicle's storage paths BEFORE recordAsync so
+          // onSegmentComplete writes to the vehicle that was active when this
+          // segment STARTED, even if the driver switches vehicles mid-clip.
+          onSegmentStart();
           const result = await localCameraRef.current.recordAsync({
             maxDuration: 120,
             muted: recordMutedRef.current,
