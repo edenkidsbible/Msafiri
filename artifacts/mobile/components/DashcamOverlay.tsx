@@ -122,6 +122,54 @@ export default function DashcamOverlay() {
   const [alertTitle, setAlertTitle]         = useState("Impact Detected");
   const prevLockedRef = useRef(0);
 
+  // ── Camera-angle preview ────────────────────────────────────────────────────
+  // When the driver starts the dashcam silently from the drive screen we briefly
+  // show the live camera feed (4 s countdown, or tap "Looks good →") so they can
+  // verify the mounting angle before the preview is covered.
+  //
+  // This also fixes the core recording bug: opacity:0 on the parent View tells
+  // the OS compositor to skip rendering the entire subtree, so the CameraView
+  // never gets a real native surface and recordAsync() returns null on every
+  // attempt.  Instead we always keep the CameraView at opacity:1 and place an
+  // opaque cover View on top of it when it should be invisible.
+  const [showAnglePreview, setShowAnglePreview] = useState(false);
+  const [angleCountdown, setAngleCountdown]     = useState(4);
+  const angleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const angleTickRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const dismissAnglePreview = useCallback(() => {
+    setShowAnglePreview(false);
+    if (angleTimerRef.current)  { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
+    if (angleTickRef.current)   { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
+  }, []);
+
+  // Trigger angle preview when background recording starts
+  useEffect(() => {
+    if (!backgroundRecordPending) return;
+    setAngleCountdown(4);
+    setShowAnglePreview(true);
+    // Tick down the counter each second
+    angleTickRef.current = setInterval(() => {
+      setAngleCountdown((n) => {
+        if (n <= 1) {
+          // Timer expired — let the interval cleanup handle itself
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    // Auto-dismiss after 4 s
+    angleTimerRef.current = setTimeout(() => {
+      setShowAnglePreview(false);
+      if (angleTickRef.current) { clearInterval(angleTickRef.current); angleTickRef.current = null; }
+      angleTimerRef.current = null;
+    }, 4000);
+    return () => {
+      if (angleTimerRef.current) { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
+      if (angleTickRef.current)  { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
+    };
+  }, [backgroundRecordPending]);
+
   // First-time guide modal
   const [guideVisible, setGuideVisible]     = useState(false);
   const GUIDE_KEY = "dashcam_guide_seen_v1";
@@ -405,15 +453,24 @@ export default function DashcamOverlay() {
   const isHD         = settings.quality === "1080p";
   const storageUsedPct = Math.min(1, storageUsedBytes / settings.storageCap);
 
+  // zIndex tiers:
+  //   showUI          → 9999  full dashcam UI above everything
+  //   showAnglePreview→  500  angle-check preview above the drive screen
+  //   recording only  →    2  camera surface alive but fully covered
+  const overlayZIndex = showUI ? 9999 : showAnglePreview ? 500 : 2;
+
   return (
     <View
-      style={[
-        StyleSheet.absoluteFill,
-        { zIndex: showUI ? 9999 : 1, opacity: showUI ? 1 : 0 },
-      ]}
-      pointerEvents={showUI ? "auto" : "none"}
+      style={[StyleSheet.absoluteFill, { zIndex: overlayZIndex }]}
+      pointerEvents={showUI || showAnglePreview ? "auto" : "none"}
     >
-      {/* Camera feed */}
+      {/* ── Camera feed ──────────────────────────────────────────────────────
+          IMPORTANT: the CameraView must ALWAYS render at opacity:1 so the OS
+          compositor allocates a real native surface (AVPreviewLayer / Surface-
+          Texture). Setting opacity:0 on the parent skips compositing the whole
+          subtree — the camera gets no render target and recordAsync() returns
+          null on every attempt. Visibility is controlled by the opaque cover
+          View below, not by opacity. */}
       {CameraView && (
         <CameraView
           ref={cameraCallbackRef}
@@ -423,12 +480,59 @@ export default function DashcamOverlay() {
           videoQuality={settings.quality === "720p" ? "720p" : "1080p"}
           onCameraReady={() => {
             // Auto-start recording silently when the camera has warmed up for
-            // a background recording request. The overlay stays invisible.
+            // a background recording request.
             if (backgroundRecordPending) {
               startDashcam();
               clearBackgroundRecordPending();
             }
           }}
+        />
+      )}
+
+      {/* ── Camera-angle preview ─────────────────────────────────────────────
+          Shown for 4 s when the driver starts the dashcam from the drive
+          screen. The camera feed is visible so they can check the mounting
+          angle, then a tap or the auto-timer slides in the opaque cover. */}
+      {showAnglePreview && !showUI && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Dark gradient at the bottom so the card text is legible */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.75)"]}
+            style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 220 }}
+            pointerEvents="none"
+          />
+          {/* Countdown badge — top-right */}
+          <View style={[styles.angleBadge, { top: insets.top + 12 }]}>
+            <View style={styles.angleBadgeDot} />
+            <Text style={styles.angleBadgeTxt}>Starting in {angleCountdown}s</Text>
+          </View>
+          {/* Bottom card */}
+          <View style={[styles.angleCard, { bottom: insets.bottom + 24 }]}>
+            <Ionicons name="camera-outline" size={22} color="#fff" style={{ marginBottom: 6 }} />
+            <Text style={styles.angleCardTitle}>Check camera angle</Text>
+            <Text style={styles.angleCardSub}>
+              Make sure the road ahead is centred in view. Recording starts automatically.
+            </Text>
+            <TouchableOpacity
+              style={styles.angleCardBtn}
+              onPress={dismissAnglePreview}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+              <Text style={styles.angleCardBtnTxt}>Looks good — start recording</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ── Opaque cover ─────────────────────────────────────────────────────
+          Hides the live camera preview when it shouldn't be visible. Using a
+          cover View (rather than opacity:0 on the parent) keeps the camera's
+          native surface composited so recording continues uninterrupted. */}
+      {!showUI && !showAnglePreview && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]}
+          pointerEvents="none"
         />
       )}
 
@@ -1100,4 +1204,30 @@ const styles = StyleSheet.create({
   },
   actionBtnDanger: { backgroundColor: "rgba(255,59,48,0.08)", borderColor: "rgba(255,59,48,0.2)" },
   actionBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+
+  // Camera-angle preview
+  angleBadge: {
+    position: "absolute", right: 14, flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  angleBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
+  angleBadgeTxt: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  angleCard: {
+    position: "absolute", left: 16, right: 16,
+    backgroundColor: "rgba(0,0,0,0.60)", borderRadius: 20,
+    paddingHorizontal: 20, paddingVertical: 20, alignItems: "center", gap: 4,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.15)",
+  },
+  angleCardTitle: { color: "#fff", fontSize: 17, fontWeight: "700", letterSpacing: -0.3 },
+  angleCardSub: {
+    color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 18,
+    textAlign: "center", marginTop: 2, marginBottom: 10,
+  },
+  angleCardBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#00A845", borderRadius: 14,
+    paddingHorizontal: 22, paddingVertical: 13,
+  },
+  angleCardBtnTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });
