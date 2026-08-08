@@ -60,7 +60,12 @@ export interface DashcamSegment {
   sizeBytes: number;
   locked: boolean;
   lockReason?: string;
-  uploadStatus: "none" | "pending" | "uploading" | "uploaded" | "failed";
+  /**
+   * "lost" — the local file was purged by the OS before the upload could
+   * complete. The clip is unrecoverable; it stays in the list so the driver
+   * can see that footage was lost rather than disappearing silently.
+   */
+  uploadStatus: "none" | "pending" | "uploading" | "uploaded" | "failed" | "lost";
   fileKey?: string;     // R2 key once uploaded
   serverId?: string;    // DB id once saved on server
   retryCount?: number;  // upload attempts so far (for bounded backoff)
@@ -341,12 +346,18 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           const loaded: DashcamSegment[] = JSON.parse(rawSegsStr);
           const verified = await Promise.all(
             loaded.map(async (s) => {
-              // Uploaded segments no longer need a local file
-              if (s.uploadStatus === "uploaded") return s;
+              // Uploaded/lost segments no longer need a local file
+              if (s.uploadStatus === "uploaded" || s.uploadStatus === "lost") return s;
               try {
                 const info = await FileSystem.getInfoAsync(s.uri);
-                return info.exists ? s : null;
+                if (info.exists) return s;
+                // Locked clips whose file was purged by the OS are surfaced as
+                // "lost" so the driver can see that footage was lost rather than
+                // it disappearing silently. Unlocked clips are simply dropped.
+                if (s.locked) return { ...s, uploadStatus: "lost" as const };
+                return null;
               } catch {
+                if (s.locked) return { ...s, uploadStatus: "lost" as const };
                 return null;
               }
             })
@@ -405,9 +416,16 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       const loaded: DashcamSegment[] = raw ? JSON.parse(raw) : [];
       const verified = await Promise.all(
         loaded.map(async (s) => {
-          if (s.uploadStatus === "uploaded") return s;
-          try { const info = await FileSystem.getInfoAsync(s.uri); return info.exists ? s : null; }
-          catch { return null; }
+          if (s.uploadStatus === "uploaded" || s.uploadStatus === "lost") return s;
+          try {
+            const info = await FileSystem.getInfoAsync(s.uri);
+            if (info.exists) return s;
+            if (s.locked) return { ...s, uploadStatus: "lost" as const };
+            return null;
+          } catch {
+            if (s.locked) return { ...s, uploadStatus: "lost" as const };
+            return null;
+          }
         })
       );
       const live = verified.filter(Boolean) as DashcamSegment[];
@@ -532,6 +550,38 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       const seg   = segmentsRef.current.find((s) => s.id === segId);
 
       if (!seg) { uploadQueueRef.current.shift(); continue; }
+
+      // ── Pre-upload file-existence check ─────────────────────────────────────
+      // The OS may have purged the segment file (low-storage eviction of the
+      // tmp/cache directory, or an unexpected restart) even though the clip is
+      // still listed as "pending" in AsyncStorage. Detect this before making any
+      // network calls so we never retry indefinitely for a missing file.
+      if (seg.uploadStatus !== "uploaded") {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(seg.uri);
+          if (!fileInfo.exists) {
+            uploadQueueRef.current.shift();
+            setSegments((prev) =>
+              prev.map((s) =>
+                s.id === segId ? { ...s, uploadStatus: "lost" as const } : s
+              )
+            );
+            console.warn("[Dashcam] clip file missing before upload — marked lost:", segId, seg.uri);
+            continue;
+          }
+        } catch {
+          // If we can't even stat the file, treat it as lost to avoid an
+          // upload attempt that will fail with an unreadable error anyway.
+          uploadQueueRef.current.shift();
+          setSegments((prev) =>
+            prev.map((s) =>
+              s.id === segId ? { ...s, uploadStatus: "lost" as const } : s
+            )
+          );
+          console.warn("[Dashcam] could not stat clip file — marked lost:", segId, seg.uri);
+          continue;
+        }
+      }
 
       try {
         setSegments((prev) =>
