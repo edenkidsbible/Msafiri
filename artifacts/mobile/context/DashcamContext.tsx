@@ -588,48 +588,18 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // ── Two-phase push-OTP enrollment ─────────────────────────────────────────
+  // ── Auto-enrollment ────────────────────────────────────────────────────────
   //
-  // Phase 1 (called on hydration): POST /dashcam/register with no otp body.
-  //   If already enrolled → { ok: true, registered: false } → proceed to upload.
-  //   If new device → { pending: true } → server sends visible push notification
-  //   with OTP in the data payload. The push is visible so it can be:
-  //     a) received in-app  via addNotificationReceivedListener (foreground)
-  //     b) tapped by user   via addNotificationResponseReceivedListener (background)
-  //     c) retrieved at cold start via getLastNotificationResponseAsync()
+  // POST /dashcam/register on hydration. The server auto-enrolls any device
+  // that presents a valid deviceId+secret pair, subject to an IP rate limit.
+  // No push-token registration is required, so enrollment succeeds immediately
+  // on first launch without racing against usePushNotifications.
   //
-  // Phase 2: extract OTP from notification data, POST /dashcam/register with { otp }.
-
-  /** Execute Phase 2 OTP verification from any notification delivery path. */
-  const verifyEnrollmentOtp = useCallback(
-    (data: Record<string, unknown>) => {
-      if (data.type !== "dashcam_enrollment_otp") return;
-      // Ensure the OTP notification is for this specific device
-      if (data.deviceId !== pushDeviceIdRef.current) return;
-      const otp    = data.otp as string | undefined;
-      const secret = secretRef.current;
-      const did    = pushDeviceIdRef.current;
-      if (!otp || !secret || !did || !API_BASE) return;
-
-      fetch(`${API_BASE}/dashcam/register`, {
-        method:  "POST",
-        headers: { ...authHeaders(did, secret), "Content-Type": "application/json" },
-        body:    JSON.stringify({ otp }),
-      })
-        .then(async (res) => {
-          if (res.ok) {
-            console.log("[Dashcam] enrolled via push-OTP");
-            processUploadQueueRef.current();
-          } else {
-            console.warn("[Dashcam] enrollment Phase 2 error:", res.status);
-          }
-        })
-        .catch((err) => console.warn("[Dashcam] enrollment Phase 2 failed:", err));
-    },
-    [pushDeviceId]   // re-create if pushDeviceId changes (first load)
-  );
-
-  // Phase 1: request OTP on hydration (idempotent if already enrolled).
+  //   Already enrolled  → { ok: true, registered: false } → start uploading
+  //   Newly enrolled    → { ok: true, registered: true  } → start uploading
+  //   Rate limited (429) → retry with backoff (defensive; unlikely on first try)
+  //   Network error      → retry with backoff
+  //
   // Depends on pushDeviceId (not AppContext.deviceId) because push_tokens
   // stores the @msafiri/deviceId key, not sdk_device_id.
   useEffect(() => {
@@ -637,51 +607,42 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     const secret = secretRef.current;
     if (!secret) return;
 
-    fetch(`${API_BASE}/dashcam/register`, {
-      method: "POST",
-      headers: authHeaders(pushDeviceId, secret),
-    })
-      .then(async (res) => {
-        if (!res.ok) { console.warn("[Dashcam] enrollment Phase 1 error:", res.status); return; }
-        const data = await res.json();
-        if (!data.pending) processUploadQueueRef.current(); // already enrolled
-      })
-      .catch((err) => console.warn("[Dashcam] enrollment Phase 1 failed:", err));
+    let cancelled = false;
+    // Backoff delays for transient failures (rate limit, network error): 5s, 15s, 30s, 60s
+    const ENROLL_BACKOFF = [5_000, 15_000, 30_000, 60_000];
+
+    const attempt = async (tryIndex: number) => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`${API_BASE}/dashcam/register`, {
+          method: "POST",
+          headers: authHeaders(pushDeviceId, secret),
+        });
+        if (res.ok) {
+          // Both "registered: true" (new) and "registered: false" (existing) mean
+          // the device is enrolled — kick off any pending uploads.
+          processUploadQueueRef.current();
+          return;
+        }
+        if (res.status === 409) {
+          // Conflicting secret — permanent failure, do not retry
+          console.warn("[Dashcam] enrollment conflict: device registered with a different secret");
+          return;
+        }
+        // 429 (rate limit) or other transient error — retry with backoff
+        const delay = ENROLL_BACKOFF[tryIndex] ?? ENROLL_BACKOFF.at(-1)!;
+        console.warn(`[Dashcam] enrollment error ${res.status}, retrying in ${delay / 1000}s`);
+        setTimeout(() => attempt(tryIndex + 1), delay);
+      } catch (err) {
+        const delay = ENROLL_BACKOFF[tryIndex] ?? ENROLL_BACKOFF.at(-1)!;
+        console.warn(`[Dashcam] enrollment failed, retrying in ${delay / 1000}s`, err);
+        setTimeout(() => attempt(tryIndex + 1), delay);
+      }
+    };
+
+    attempt(0);
+    return () => { cancelled = true; };
   }, [hydrated, pushDeviceId]);
-
-  // Phase 2a: foreground — OTP notification received while app is in foreground
-  useEffect(() => {
-    if (!pushDeviceId) return;
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
-      const data = notification.request.content.data as Record<string, unknown> | undefined;
-      if (data) verifyEnrollmentOtp(data);
-    });
-    return () => sub.remove();
-  }, [pushDeviceId, verifyEnrollmentOtp]);
-
-  // Phase 2b: background — user tapped the OTP notification while app was backgrounded
-  useEffect(() => {
-    if (!pushDeviceId) return;
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
-      if (data) verifyEnrollmentOtp(data);
-    });
-    return () => sub.remove();
-  }, [pushDeviceId, verifyEnrollmentOtp]);
-
-  // Phase 2c: cold start — retrieve last notification response on mount.
-  // Handles the case where the user tapped the OTP notification while the
-  // app was fully closed; the response is available on next launch.
-  useEffect(() => {
-    if (!pushDeviceId) return;
-    Notifications.getLastNotificationResponseAsync()
-      .then((response) => {
-        if (!response) return;
-        const data = response.notification.request.content.data as Record<string, unknown> | undefined;
-        if (data) verifyEnrollmentOtp(data);
-      })
-      .catch(() => {}); // not critical — Phase 1 on next launch re-sends OTP
-  }, [pushDeviceId, verifyEnrollmentOtp]);
 
   // ─── Public API ─────────────────────────────────────────────────────────────
 

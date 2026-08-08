@@ -1,25 +1,26 @@
 /**
  * dashcam.ts — API routes for the Msafiri dashcam feature.
  *
- * Device enrollment model (push-OTP):
+ * Device enrollment model:
  * ──────────────────────────────────────────────────────────
- * POST /dashcam/register is a two-phase protocol:
+ * POST /dashcam/register auto-enrolls any device that presents a valid
+ * X-Device-Id + X-Dashcam-Secret pair, subject to an IP-backed rate limit.
  *
- * Phase 1 (no `otp` body): server looks up the device's Expo push token,
- * generates a random 6-character OTP, stores its SHA-256 hash in
- * dashcam_enrollment_requests (5-minute TTL), and sends the OTP to the device
- * as a *data-only* push notification (no visible body). The OTP is NEVER
- * included in the HTTP response. Returns { pending: true }.
+ * Authentication is device-level: the dashcamSecret is a random UUID (128 bits
+ * of entropy) generated on first launch and stored only in the device's
+ * AsyncStorage. The server stores SHA-256(deviceId+":"+secret) and verifies it
+ * on every subsequent API call. An attacker who does not possess the device's
+ * secret cannot impersonate it, regardless of whether they know the deviceId.
  *
- * Phase 2 (with `otp` body): server verifies the OTP against the stored hash.
- * If it matches (and hasn't expired or been used), the device row is created in
- * dashcam_devices and the enrollment request is marked fulfilled.
+ * The IP rate limit (3 new enrollments per IP per hour) is the primary
+ * anti-abuse control for the open enrollment endpoint. Storage abuse beyond that
+ * is bounded by the per-device clip quota (MAX_CLIPS_PER_DEVICE).
  *
- * Security property: only the physical device that receives push notifications
- * at the registered Expo push token can read the OTP and complete enrollment.
- * An attacker who registers a fabricated push token on the open /push/register
- * endpoint will never receive the OTP because Expo delivers only to valid tokens
- * on real devices.
+ * The previous two-phase push-OTP flow was removed: it required the user to tap
+ * a push notification to complete enrollment, causing persistent 403s when the
+ * notification was dismissed. An intermediate attempt gated enrollment on a
+ * push_tokens row, but /push/register is unauthenticated and that row is not a
+ * reliable proof of identity — it was removed in favour of the secret-hash gate.
  *
  * Atomic upload quota:
  * ──────────────────────────────────────────────────────────
@@ -33,13 +34,13 @@
  * intent and that the intent is unexpired and unfulfilled.
  *
  * Additional controls:
- *   - DB-backed IP rate limit on Phase 1 (3 new devices/IP/hr, survives restarts)
+ *   - DB-backed IP rate limit on new enrollments (3/IP/hr, survives restarts)
  *   - req.ip via Express trust proxy (not raw X-Forwarded-For)
  *   - Per-clip ownership: SHA-256(deviceId+":"+secret) stored on each clip row
  *   - Stale intents (expired, unfulfilled) cleaned up every 5 minutes
  *
  * Routes:
- *   POST /api/dashcam/register         → Phase 1 (OTP push) or Phase 2 (verify OTP)
+ *   POST /api/dashcam/register         → auto-enroll device (IP rate limit + secret-hash auth)
  *   POST /api/dashcam/upload-url       → presigned R2 PUT URL + serializable intent reservation
  *   POST /api/dashcam/clip             → finalize upload (validates intent)
  *   GET  /api/dashcam/clips            → list clips for a device
@@ -48,15 +49,13 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { createHash, randomBytes } from "crypto";
+import { createHash } from "crypto";
 import { db } from "@workspace/db";
 import {
   dashcamClipsTable,
   dashcamDevicesTable,
-  dashcamEnrollmentRequestsTable,
   dashcamRegRatelimitTable,
   dashcamUploadIntentsTable,
-  pushTokensTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, count, gt, isNull } from "drizzle-orm";
 import {
@@ -66,7 +65,6 @@ import {
   deleteObject,
   clipKey,
 } from "../lib/r2Storage.js";
-import { sendPushNotifications } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 import { randomUUID } from "crypto";
 
@@ -77,7 +75,6 @@ const router = Router();
 const MAX_REG_PER_IP_PER_HOUR = 3;
 const MAX_CLIPS_PER_DEVICE    = 100;
 const INTENT_TTL_MS           = 30 * 60 * 1_000; // 30 minutes
-const OTP_TTL_MS              = 5 * 60 * 1_000;  // 5 minutes
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -171,10 +168,6 @@ async function expireStaleRows() {
       DELETE FROM dashcam_upload_intents
       WHERE expires_at < NOW() AND fulfilled_at IS NULL
     `);
-    await db.execute(sql`
-      DELETE FROM dashcam_enrollment_requests
-      WHERE expires_at < NOW() AND fulfilled_at IS NULL
-    `);
   } catch (err) {
     logger.warn({ err }, "dashcam: stale row cleanup failed");
   }
@@ -187,19 +180,17 @@ setInterval(expireStaleRows, 5 * 60_000);
 /**
  * POST /api/dashcam/register
  *
- * Two-phase push-OTP enrollment:
+ * Auto-enrollment via device secret:
+ *   - Already enrolled, matching secret → { ok: true, registered: false }
+ *   - Already enrolled, different secret → 409
+ *   - New device, within IP rate limit → enroll → { ok: true, registered: true }
+ *   - New device, IP rate limit exceeded → 429
  *
- * Phase 1 (body has no `otp`):
- *   - Checks push_tokens for the deviceId
- *   - IP-rate-limits new devices (3/IP/hr)
- *   - Generates a random 6-char OTP
- *   - Sends it as a data-only push notification (OTP not in HTTP response)
- *   - Returns { pending: true }
- *
- * Phase 2 (body has `otp`):
- *   - Verifies OTP against stored hash
- *   - Creates dashcam_devices row on success
- *   - Returns { ok: true, registered: true }
+ * The enrollment gate is the IP rate limit (3 new devices/IP/hr) plus the
+ * per-device secret hash stored in dashcam_devices. No push_tokens check is
+ * performed: that row is not a reliable proof of identity because /push/register
+ * is unauthenticated. The real credential is the dashcamSecret UUID known only
+ * to the device.
  */
 router.post("/dashcam/register", async (req: Request, res: Response) => {
   const auth = extractAuth(req);
@@ -225,88 +216,20 @@ router.post("/dashcam/register", async (req: Request, res: Response) => {
       return res.json({ ok: true, registered: false });
     }
 
-    const { otp } = req.body ?? {};
-
-    if (!otp) {
-      // ── Phase 1: send OTP via push notification ──────────────────────────
-      const [pushRow] = await db
-        .select()
-        .from(pushTokensTable)
-        .where(eq(pushTokensTable.deviceId, deviceId))
-        .limit(1);
-
-      if (!pushRow) {
-        return res.status(403).json({
-          error: "Device not registered — launch the Msafiri app and allow notifications first",
-        });
-      }
-
-      // Rate-limit Phase 1 per IP to prevent OTP spam
-      const ip      = req.ip ?? "unknown";
-      const allowed = await checkDbRateLimit(ip);
-      if (!allowed) {
-        return res.status(429).json({
-          error: "Too many enrollment attempts from this network — try again in an hour",
-        });
-      }
-
-      // Generate 6-char alphanumeric OTP (not in HTTP response)
-      const otpCode = randomBytes(3).toString("hex").toUpperCase(); // 6 hex chars
-      const otpHash = createHash("sha256").update(otpCode).digest("hex");
-      const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-
-      await db.insert(dashcamEnrollmentRequestsTable).values({ deviceId, otpHash, expiresAt });
-
-      // Send a visible push notification containing the OTP in the data
-      // payload only — it is NOT in the notification title/body. Making the
-      // notification visible (not silent) allows it to be received in the
-      // background via the notification-response tap handler and retrieved on
-      // cold start via getLastNotificationResponseAsync(), not just by the
-      // foreground-only addNotificationReceivedListener.
-      await sendPushNotifications([{
-        to:       pushRow.token,
-        title:    "Activate cloud backup",
-        body:     "Tap to finish setting up dashcam cloud backup.",
-        sound:    "default",
-        channelId: "msafiri_general",
-        data:     { type: "dashcam_enrollment_otp", otp: otpCode, deviceId, expiresAt: expiresAt.toISOString() },
-      }]);
-
-      logger.info({ deviceId }, "dashcam: enrollment OTP sent via push");
-      return res.json({ ok: true, pending: true });
-    } else {
-      // ── Phase 2: verify OTP ──────────────────────────────────────────────
-      const otpHash = createHash("sha256").update(String(otp)).digest("hex");
-      const now     = new Date();
-
-      const [request] = await db
-        .select()
-        .from(dashcamEnrollmentRequestsTable)
-        .where(
-          and(
-            eq(dashcamEnrollmentRequestsTable.deviceId, deviceId),
-            eq(dashcamEnrollmentRequestsTable.otpHash, otpHash),
-            gt(dashcamEnrollmentRequestsTable.expiresAt, now),
-            isNull(dashcamEnrollmentRequestsTable.fulfilledAt)
-          )
-        )
-        .limit(1);
-
-      if (!request) {
-        return res.status(403).json({
-          error: "Invalid or expired enrollment OTP — request a new one by calling register without otp",
-        });
-      }
-
-      await db.insert(dashcamDevicesTable).values({ deviceId, secretHash });
-      await db
-        .update(dashcamEnrollmentRequestsTable)
-        .set({ fulfilledAt: new Date() })
-        .where(eq(dashcamEnrollmentRequestsTable.id, request.id));
-
-      logger.info({ deviceId }, "dashcam: device enrolled via push-OTP");
-      return res.json({ ok: true, registered: true });
+    // New device — apply IP rate limit, then enroll.
+    // The secret hash is the real authentication credential; the rate limit
+    // is the anti-abuse control for the open enrollment endpoint.
+    const ip      = req.ip ?? "unknown";
+    const allowed = await checkDbRateLimit(ip);
+    if (!allowed) {
+      return res.status(429).json({
+        error: "Too many enrollment attempts from this network — try again in an hour",
+      });
     }
+
+    await db.insert(dashcamDevicesTable).values({ deviceId, secretHash });
+    logger.info({ deviceId }, "dashcam: device enrolled");
+    return res.json({ ok: true, registered: true });
   } catch (err) {
     logger.error({ err }, "dashcam: registration failed");
     return res.status(500).json({ error: "Registration failed" });

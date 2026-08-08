@@ -2,9 +2,13 @@
  * Integration tests for dashcam API routes.
  *
  * Security properties verified:
- *   1. Enrollment requires push_tokens row (Phase 1 gate).
- *   2. The OTP is sent via push notification ONLY — never in the HTTP response.
- *   3. Phase 2 verifies OTP hash; expired/invalid OTPs are rejected.
+ *   1. Enrollment is open (no push_tokens gate) — any caller with a valid
+ *      X-Device-Id + X-Dashcam-Secret pair can enroll, subject to IP rate limit.
+ *      The dashcamSecret UUID (128-bit random, stored only on the device) is the
+ *      real authentication credential; the hash in dashcam_devices is verified on
+ *      every subsequent API call.
+ *   2. A conflicting secret on an already-enrolled device is rejected (409).
+ *   3. New enrollment is rate-limited per IP (DB-backed, 3/hr).
  *   4. Upload intent created atomically within a SERIALIZABLE transaction;
  *      serialization failures (code 40001) convert to HTTP 429.
  *   5. Concurrent upload-url requests that both observe quota capacity
@@ -12,10 +16,6 @@
  *   6. POST /dashcam/clip validates clipId against an outstanding intent.
  *   7. fileKey must match the intent exactly.
  *   8. Clip ownership (wrong secretHash → 404 on read/delete).
- *   9. Registration IP rate limiting (DB-backed).
- *  10. Device ID alignment: push_tokens lookup uses the exact X-Device-Id header
- *      value, proving that callers must send the @msafiri/deviceId (push key),
- *      not the sdk_device_id (AppContext key), for enrollment to succeed.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -39,8 +39,6 @@ vi.mock("@workspace/db", async () => {
     dashcamClipsTable:             { id: "id", deviceId: "device_id", deviceSecretHash: "dsh" },
     dashcamRegRatelimitTable:      { ipHash: "ip_hash", count: "count" },
     dashcamUploadIntentsTable:     { id: "id", deviceId: "device_id", clipId: "clip_id", fileKey: "file_key", expiresAt: "expires_at", fulfilledAt: "fulfilled_at" },
-    dashcamEnrollmentRequestsTable: { id: "id", deviceId: "device_id", otpHash: "otp_hash", expiresAt: "expires_at", fulfilledAt: "fulfilled_at" },
-    pushTokensTable:               { deviceId: "device_id", welcomeSentAt: "welcome_sent_at", token: "token" },
     count:   vi.fn().mockReturnValue("count()"),
     gt:      vi.fn().mockImplementation((a: any, b: any) => ({ gt: [a, b] })),
     isNull:  vi.fn().mockImplementation((a: any) => ({ isNull: a })),
@@ -62,11 +60,6 @@ vi.mock("../src/lib/r2Storage.js", () => ({
   deleteObject:            vi.fn().mockResolvedValue(undefined),
   clipKey:                 (deviceId: string, clipId: string) =>
     `dashcam/${deviceId}/${clipId}.mp4`,
-}));
-
-// ── Mock expoPush ──────────────────────────────────────────────────────────────
-vi.mock("../src/lib/expoPush.js", () => ({
-  sendPushNotifications: vi.fn().mockResolvedValue({ ok: 1, failed: 0 }),
 }));
 
 // ── DB mock control ────────────────────────────────────────────────────────────
@@ -102,9 +95,9 @@ function authHeaders(id = DEVICE_ID, secret = SECRET) {
 
 const request = supertest(app);
 
-// ── Phase 1 / Phase 2 enrollment ─────────────────────────────────────────────
+// ── Enrollment ───────────────────────────────────────────────────────────────
 
-describe("POST /api/dashcam/register — push-OTP enrollment", () => {
+describe("POST /api/dashcam/register — auto-enrollment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDb.execute_.mockResolvedValue({ rows: [] });
@@ -120,145 +113,55 @@ describe("POST /api/dashcam/register — push-OTP enrollment", () => {
     expect(res.status).toBe(401);
   });
 
-  it("403 Phase 1: device has no push_tokens row (app never launched)", async () => {
-    let call = 0;
-    mockDb.select.mockImplementation(() => {
-      call++;
-      return makeSelectBuilder(call === 1 ? [] : []); // dashcam_devices: absent, push_tokens: absent
-    });
-
-    const res = await request.post("/api/dashcam/register").set(authHeaders()).send({});
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/not registered/i);
-  });
-
-  it("device ID alignment: Phase 1 succeeds only when X-Device-Id matches the push_tokens row, not a different device ID", async () => {
-    // DashcamContext must use AsyncStorage key "@msafiri/deviceId" (the push device ID,
-    // same key as usePushNotifications.ts) for all dashcam API calls. This is because
-    // push_tokens stores rows keyed by @msafiri/deviceId, NOT by sdk_device_id (the
-    // AppContext.deviceId key). This test proves the lookup is by exact header value:
-    //
-    //   Scenario A — correct key (@msafiri/deviceId format): push_tokens row found → 200
-    //   Scenario B — wrong key (sdk_device_id format):       push_tokens row not found → 403
-    //
-    // Any mismatch between the device ID used for enrollment and the one stored in
-    // push_tokens would permanently block OTP delivery (no push notification sent).
-
-    const pushDeviceId  = "ios-1753462800000-abc123";         // @msafiri/deviceId format
-    const sdkDeviceId   = "sdk-device-id-format-from-app-ctx"; // sdk_device_id format
-
-    // ── Scenario A: correct push device ID → push_tokens row found → 200 ──
-    let callA = 0;
-    mockDb.select.mockImplementation(() => {
-      callA++;
-      if (callA === 1) return makeSelectBuilder([]);  // dashcam_devices: not enrolled
-      if (callA === 2) return makeSelectBuilder([{ deviceId: pushDeviceId, token: "ExponentPushToken[xyz]" }]);
-      return makeSelectBuilder([{ ipHash: "x", count: 0, windowStart: new Date() }]);
-    });
-    const resA = await request
-      .post("/api/dashcam/register")
-      .set({ "x-device-id": pushDeviceId, "x-dashcam-secret": SECRET })
-      .send({});
-    expect(resA.status).toBe(200);
-    expect(resA.body.pending).toBe(true);
-
-    // ── Scenario B: wrong device ID (AppContext format) → no push_tokens row → 403 ──
-    vi.clearAllMocks();
-    mockDb.execute_.mockResolvedValue({ rows: [] });
-    mockDb.insert.mockReturnValue({ values: vi.fn().mockResolvedValue([]) });
-    mockDb.update_.mockReturnValue({ set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue(undefined) });
-
-    let callB = 0;
-    mockDb.select.mockImplementation(() => {
-      callB++;
-      if (callB === 1) return makeSelectBuilder([]); // dashcam_devices: not enrolled
-      return makeSelectBuilder([]);                   // push_tokens: no row for this ID
-    });
-    const resB = await request
-      .post("/api/dashcam/register")
-      .set({ "x-device-id": sdkDeviceId, "x-dashcam-secret": SECRET })
-      .send({});
-    expect(resB.status).toBe(403);
-    expect(resB.body.error).toMatch(/not registered/i);
-  });
-
-  it("200 Phase 1: sends OTP via push, returns { pending: true } (OTP NOT in response)", async () => {
+  it("200 new device: auto-enrolled immediately, returns { registered: true }", async () => {
+    // No push_tokens check — enrollment succeeds on first call regardless of
+    // whether usePushNotifications has registered a token yet. This eliminates
+    // the race between DashcamContext hydration and push token registration.
     let call = 0;
     mockDb.select.mockImplementation(() => {
       call++;
       if (call === 1) return makeSelectBuilder([]); // dashcam_devices: not enrolled
-      if (call === 2) return makeSelectBuilder([{ deviceId: DEVICE_ID, token: "ExponentPushToken[abc]" }]); // push_tokens: exists
-      // ratelimit: under limit
-      return makeSelectBuilder([{ ipHash: "x", count: 1, windowStart: new Date() }]);
+      return makeSelectBuilder([{ ipHash: "x", count: 1, windowStart: new Date() }]); // ratelimit: under limit
     });
 
     const res = await request.post("/api/dashcam/register").set(authHeaders()).send({});
     expect(res.status).toBe(200);
-    expect(res.body.pending).toBe(true);
-    // Critical: OTP must NOT be in the HTTP response
+    expect(res.body.registered).toBe(true);
+    // Response must not expose any secret material
     expect(res.body.otp).toBeUndefined();
-    expect(res.body.otpCode).toBeUndefined();
-    expect(res.body.code).toBeUndefined();
+    expect(res.body.pending).toBeUndefined();
   });
 
-  it("429 Phase 1: IP rate limit exceeded", async () => {
+  it("200 new device: enrollment works even without push_tokens row (no notifications gate)", async () => {
+    // Proves enrollment no longer depends on push token registration timing.
+    // Any device presenting a valid deviceId+secret can enroll immediately.
+    let call = 0;
+    mockDb.select.mockImplementation(() => {
+      call++;
+      if (call === 1) return makeSelectBuilder([]); // dashcam_devices: not enrolled
+      return makeSelectBuilder([{ ipHash: "x", count: 0, windowStart: new Date() }]); // ratelimit: under limit
+    });
+    const res = await request
+      .post("/api/dashcam/register")
+      .set({ "x-device-id": "ios-1753462800000-abc123", "x-dashcam-secret": SECRET })
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.registered).toBe(true);
+  });
+
+  it("429 IP rate limit exceeded on new enrollment", async () => {
     let call = 0;
     mockDb.select.mockImplementation(() => {
       call++;
       if (call === 1) return makeSelectBuilder([]); // not enrolled
-      if (call === 2) return makeSelectBuilder([{ deviceId: DEVICE_ID, token: "token" }]); // push_tokens
-      // ratelimit: over limit
-      return makeSelectBuilder([{ ipHash: "x", count: 99, windowStart: new Date() }]);
+      return makeSelectBuilder([{ ipHash: "x", count: 99, windowStart: new Date() }]); // ratelimit: over limit
     });
 
     const res = await request.post("/api/dashcam/register").set(authHeaders()).send({});
     expect(res.status).toBe(429);
   });
 
-  it("403 Phase 2: invalid OTP is rejected", async () => {
-    let call = 0;
-    mockDb.select.mockImplementation(() => {
-      call++;
-      if (call === 1) return makeSelectBuilder([]); // not in dashcam_devices
-      // enrollment_requests: no matching hash
-      return makeSelectBuilder([]);
-    });
-
-    const res = await request
-      .post("/api/dashcam/register")
-      .set(authHeaders())
-      .send({ otp: "WRONG1" });
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/invalid or expired/i);
-  });
-
-  it("200 Phase 2: valid OTP enrolls device", async () => {
-    const otp = "ABCDEF";
-    const hash = createHash("sha256").update(otp).digest("hex");
-
-    let call = 0;
-    mockDb.select.mockImplementation(() => {
-      call++;
-      if (call === 1) return makeSelectBuilder([]); // not enrolled
-      // enrollment_requests: matching hash, not expired, not fulfilled
-      return makeSelectBuilder([{
-        id: "req-1",
-        deviceId: DEVICE_ID,
-        otpHash: hash,
-        expiresAt: new Date(Date.now() + 60_000),
-        fulfilledAt: null,
-      }]);
-    });
-
-    const res = await request
-      .post("/api/dashcam/register")
-      .set(authHeaders())
-      .send({ otp });
-    expect(res.status).toBe(200);
-    expect(res.body.registered).toBe(true);
-  });
-
-  it("200 Phase 1 (already enrolled): returns { registered: false } fast path", async () => {
+  it("200 already enrolled with matching secret: returns { registered: false } fast path", async () => {
     mockDb.select.mockImplementation(() =>
       makeSelectBuilder([{ deviceId: DEVICE_ID, secretHash: secretHash() }])
     );
@@ -267,7 +170,7 @@ describe("POST /api/dashcam/register — push-OTP enrollment", () => {
     expect(res.body.registered).toBe(false);
   });
 
-  it("409 conflicting secret: device enrolled with different secret", async () => {
+  it("409 conflicting secret: device enrolled with different secret is rejected", async () => {
     mockDb.select.mockImplementation(() =>
       makeSelectBuilder([{ deviceId: DEVICE_ID, secretHash: "different-hash" }])
     );
