@@ -491,12 +491,12 @@ export default function DriveScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       // Create server-side session (fire-and-forget — trip works offline too)
       if (deviceId) {
-        startDriveSession(deviceId, currentLat, currentLng)
+        const drivingVehicleId = driveVehicleRef.current?.id ?? null;
+        startDriveSession(deviceId, currentLat, currentLng, drivingVehicleId)
           .then((id) => {
             sessionIdRef.current = id;
             // Record which vehicle drove this session for per-vehicle garage stats
-            const vid = driveVehicleRef.current?.id;
-            if (vid) recordSession(vid, id).catch(() => {});
+            if (drivingVehicleId) recordSession(drivingVehicleId, id).catch(() => {});
           })
           .catch(() => {}); // gracefully degraded — end call will no-op when null
       }

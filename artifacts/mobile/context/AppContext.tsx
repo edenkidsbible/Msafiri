@@ -1,3 +1,4 @@
+import { useVehicle } from "@/context/VehicleContext";
 import React, {
   createContext,
   useCallback,
@@ -980,6 +981,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [vehicleModelId, setVehicleModelIdState] = useState<string | null>(null);
   const [vehicleCustomMakeName, setVehicleCustomMakeNameState] = useState<string | null>(null);
   const [vehicleCustomModelName, setVehicleCustomModelNameState] = useState<string | null>(null);
+
+  // ── Active vehicle — kept in a ref so crash detection callbacks read a fresh
+  // value without stale closure captures. VehicleProvider is an ancestor of
+  // AppProvider in _layout.tsx so this hook is safe to call here.
+  const { activeVehicleId: _activeVehicleId } = useVehicle();
+  const activeVehicleIdRef = useRef<string | null>(null);
+  useEffect(() => { activeVehicleIdRef.current = _activeVehicleId; }, [_activeVehicleId]);
+
   const currentLatRef = useRef<number | null>(null);
   const currentLngRef = useRef<number | null>(null);
   // Extra navigation refs used by the share-trip ping interval so it can read
@@ -3309,6 +3318,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (did) {
                 apiPost("/accidents", {
                   deviceId:         did,
+                  vehicleId:        activeVehicleIdRef.current ?? null,
                   lat,
                   lng,
                   speedBeforeKmh:   maxSpeed,

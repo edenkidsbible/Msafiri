@@ -206,6 +206,22 @@ export async function migrateSchema(): Promise<void> {
         ON custom_vehicles (make_slug, model_slug)
     `);
 
+    // ── Incremental column additions (idempotent) ─────────────────────────────
+    // vehicle_id on live_trips — added for per-vehicle session scoping.
+    // Nullable so all existing sessions (which have no vehicleId) are preserved.
+    await db.execute(sql`
+      ALTER TABLE live_trips ADD COLUMN IF NOT EXISTS vehicle_id TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS live_trips_vehicle_id_idx
+        ON live_trips (device_id, vehicle_id, started_at DESC)
+    `);
+
+    // vehicle_id on accident_records — added for per-vehicle accident scoping.
+    await db.execute(sql`
+      ALTER TABLE accident_records ADD COLUMN IF NOT EXISTS vehicle_id TEXT
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

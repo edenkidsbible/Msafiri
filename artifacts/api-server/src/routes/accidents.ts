@@ -28,7 +28,7 @@ import {
   accidentWitnessesTable,
   accidentTimelineEventsTable,
 } from "@workspace/db";
-import { eq, and, desc, ne } from "drizzle-orm";
+import { eq, and, desc, ne, or, isNull } from "drizzle-orm";
 import * as r2 from "../lib/r2Storage.js";
 
 const router = Router();
@@ -310,12 +310,13 @@ async function generatePdf(
 router.post("/accidents", async (req: Request, res: Response) => {
   try {
     const {
-      deviceId, lat, lng, roadName, county, nearbyLandmark,
+      deviceId, vehicleId, lat, lng, roadName, county, nearbyLandmark,
       speedBeforeKmh, speedAtImpactKmh, headingDeg, directionLabel,
       tripStartAt, destinationName, distanceM, durationS,
       dashcamClipId, isManual = false, detectedAt,
     } = req.body as {
-      deviceId: string; lat?: number | null; lng?: number | null;
+      deviceId: string; vehicleId?: string | null;
+      lat?: number | null; lng?: number | null;
       roadName?: string | null; county?: string | null; nearbyLandmark?: string | null;
       speedBeforeKmh?: number | null; speedAtImpactKmh?: number | null;
       headingDeg?: number | null; directionLabel?: string | null;
@@ -334,6 +335,7 @@ router.post("/accidents", async (req: Request, res: Response) => {
 
     const [record] = await db.insert(accidentRecordsTable).values({
       deviceId,
+      vehicleId:     vehicleId?.trim() || null,
       isManual: isManual ?? false,
       detectedAt: now,
       lat:               lat != null ? String(lat) : null,
@@ -370,13 +372,24 @@ router.post("/accidents", async (req: Request, res: Response) => {
 // ── GET /accidents ────────────────────────────────────────────────────────────
 router.get("/accidents", async (req: Request, res: Response) => {
   try {
-    const deviceId = req.query.deviceId as string;
+    const deviceId           = req.query.deviceId           as string;
+    const vehicleId          = req.query.vehicleId          as string | undefined;
+    // When true, also include legacy records that predate per-vehicle tracking.
+    // Pass this for the default vehicle so its accident history isn't hidden.
+    const includeUnattributed = req.query.includeUnattributed === "true";
     if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
 
     const records = await db.select().from(accidentRecordsTable)
       .where(and(
         eq(accidentRecordsTable.deviceId, deviceId),
         ne(accidentRecordsTable.status, "abandoned"),
+        // Vehicle filter: exact match + optional legacy rows (vehicle_id IS NULL)
+        vehicleId
+          ? or(
+              eq(accidentRecordsTable.vehicleId, vehicleId),
+              includeUnattributed ? isNull(accidentRecordsTable.vehicleId) : undefined,
+            )
+          : undefined,
       ))
       .orderBy(desc(accidentRecordsTable.detectedAt));
 

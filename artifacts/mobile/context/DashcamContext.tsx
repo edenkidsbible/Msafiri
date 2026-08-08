@@ -30,6 +30,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useVehicle } from "@/context/VehicleContext";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
@@ -136,10 +137,16 @@ interface DashcamContextValue {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SEGMENTS_KEY = "dashcam_segments_v1";
 const SETTINGS_KEY = "dashcam_settings_v1";
 const SECRET_KEY   = "dashcam_secret_v1";
-const SEGMENTS_DIR = `${FileSystem.documentDirectory ?? ""}dashcam/segments/`;
+
+// ── Vehicle-scoped storage helpers ────────────────────────────────────────────
+// Clips are stored separately for each vehicle so switching cars shows only
+// that vehicle's footage. Settings (quality, wifi-only, etc.) stay global.
+const LEGACY_SEGMENTS_KEY = "dashcam_segments_v1"; // pre-multi-vehicle key — migrated once
+const vehicleSegmentsKey  = (vKey: string) => `dashcam_segments_${vKey}`;
+const vehicleSegmentsDir  = (vKey: string) =>
+  `${FileSystem.documentDirectory ?? ""}dashcam/segments/${vKey}/`;
 
 // Must match the AsyncStorage key in hooks/usePushNotifications.ts so that
 // the device ID used for dashcam enrollment resolves to the same row in
@@ -193,6 +200,16 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   // Dashcam enrollment requires the PUSH device ID because that is what
   // push_tokens stores. We load it ourselves from AsyncStorage during hydration
   // and expose it via pushDeviceIdRef; AppContext.deviceId is NOT used here.
+
+  // ── Active vehicle — determines which segment store to read/write ───────────
+  const { activeVehicleId } = useVehicle();
+  const vehicleKey = activeVehicleId ?? "default";
+
+  // Refs for the current vehicle's storage paths. Updated when vehicleKey
+  // changes so onSegmentComplete always writes to the right directory without
+  // needing to restart the recording loop.
+  const segmentsAsyncKeyRef = useRef(vehicleSegmentsKey(vehicleKey));
+  const segmentsFsDirRef    = useRef(vehicleSegmentsDir(vehicleKey));
 
   const [isRecording, setIsRecording]             = useState(false);
   const [isDashcamOpen, setIsDashcamOpen]         = useState(false);
@@ -291,10 +308,21 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           settingsRef.current = s;
         }
 
-        // 4. Load + verify segments
-        const rawSegs = await AsyncStorage.getItem(SEGMENTS_KEY);
-        if (rawSegs) {
-          const loaded: DashcamSegment[] = JSON.parse(rawSegs);
+        // 4. Load + verify segments (vehicle-scoped; migrate from legacy key on first run)
+        let rawSegsStr = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
+        if (!rawSegsStr) {
+          // One-time migration: move segments from the pre-multi-vehicle key to
+          // this vehicle's key, then clear the legacy entry so it doesn't get
+          // re-applied when a second vehicle is added.
+          const legacy = await AsyncStorage.getItem(LEGACY_SEGMENTS_KEY);
+          if (legacy) {
+            rawSegsStr = legacy;
+            AsyncStorage.setItem(segmentsAsyncKeyRef.current, legacy).catch(() => {});
+            AsyncStorage.removeItem(LEGACY_SEGMENTS_KEY).catch(() => {});
+          }
+        }
+        if (rawSegsStr) {
+          const loaded: DashcamSegment[] = JSON.parse(rawSegsStr);
           const verified = await Promise.all(
             loaded.map(async (s) => {
               // Uploaded segments no longer need a local file
@@ -326,8 +354,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           uploadQueueRef.current = toUpload;
         }
 
-        // 4. Ensure segments directory exists
-        await FileSystem.makeDirectoryAsync(SEGMENTS_DIR, { intermediates: true });
+        // 5. Ensure segments directory exists for the active vehicle
+        await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true });
       } catch (err) {
         console.warn("[Dashcam] hydration error:", err);
       } finally {
@@ -338,10 +366,46 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // ── Persist segments on change ─────────────────────────────────────────────
+  // ── Persist segments on change (vehicle-scoped key) ───────────────────────
   useEffect(() => {
-    AsyncStorage.setItem(SEGMENTS_KEY, JSON.stringify(segments)).catch(() => {});
+    AsyncStorage.setItem(segmentsAsyncKeyRef.current, JSON.stringify(segments)).catch(() => {});
   }, [segments]);
+
+  // ── Reload segments when the active vehicle changes ────────────────────────
+  // Skip the first render — initial hydration already loaded the right data.
+  const isFirstVehicleMount = useRef(true);
+  useEffect(() => {
+    if (isFirstVehicleMount.current) {
+      isFirstVehicleMount.current = false;
+      return;
+    }
+    // Update storage refs for the newly-active vehicle
+    segmentsAsyncKeyRef.current = vehicleSegmentsKey(vehicleKey);
+    segmentsFsDirRef.current    = vehicleSegmentsDir(vehicleKey);
+
+    (async () => {
+      await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true }).catch(() => {});
+      const raw = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
+      const loaded: DashcamSegment[] = raw ? JSON.parse(raw) : [];
+      const verified = await Promise.all(
+        loaded.map(async (s) => {
+          if (s.uploadStatus === "uploaded") return s;
+          try { const info = await FileSystem.getInfoAsync(s.uri); return info.exists ? s : null; }
+          catch { return null; }
+        })
+      );
+      const live = verified.filter(Boolean) as DashcamSegment[];
+      setSegments(live);
+      segmentsRef.current = live;
+      const toUpload = live
+        .filter((s) => s.uploadStatus === "pending" || (s.uploadStatus === "failed" && (s.retryCount ?? 0) < MAX_UPLOAD_RETRIES))
+        .sort((a, b) => a.startedAt - b.startedAt)
+        .map((s) => s.id);
+      uploadQueueRef.current = toUpload;
+      if (toUpload.length > 0) processUploadQueue();
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleKey]);
 
   // ── Elapsed-time counter ───────────────────────────────────────────────────
   useEffect(() => {
@@ -786,7 +850,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       setCurrentSegmentDuration(0);
 
       const id      = `seg_${Date.now()}`;
-      const destUri = `${SEGMENTS_DIR}${id}.mp4`;
+      // Use ref so this always writes to the active vehicle's directory even if
+      // the vehicle was switched while a segment was in-flight (extremely rare).
+      const destUri = `${segmentsFsDirRef.current}${id}.mp4`;
 
       try {
         // Ensure the destination directory exists before every save — not just
@@ -794,7 +860,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         // first install before hydration completed, etc.) a missing directory
         // causes moveAsync to throw, and the clip is silently lost. This call
         // is idempotent: it no-ops if the directory already exists.
-        await FileSystem.makeDirectoryAsync(SEGMENTS_DIR, { intermediates: true });
+        await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true });
 
         await FileSystem.moveAsync({ from: tempUri, to: destUri });
         const info      = await FileSystem.getInfoAsync(destUri);

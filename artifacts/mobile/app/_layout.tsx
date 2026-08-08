@@ -70,6 +70,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { DashcamProvider } from "@/context/DashcamContext";
+import { VehicleProvider } from "@/context/VehicleContext";
 import DashcamOverlay from "@/components/DashcamOverlay";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -490,12 +491,14 @@ function RootLayout() {
           <SubscriptionProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
-                <AppProvider>
-                  <DashcamProvider>
-                    <RootLayoutNav />
-                    <DashcamOverlay />
-                  </DashcamProvider>
-                </AppProvider>
+                <VehicleProvider>
+                  <AppProvider>
+                    <DashcamProvider>
+                      <RootLayoutNav />
+                      <DashcamOverlay />
+                    </DashcamProvider>
+                  </AppProvider>
+                </VehicleProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SubscriptionProvider>

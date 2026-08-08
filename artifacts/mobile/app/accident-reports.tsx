@@ -38,6 +38,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 import { useApp } from "@/context/AppContext";
+import { useVehicle } from "@/context/VehicleContext";
 import { useColors } from "@/hooks/useColors";
 import {
   apiDelete,
@@ -144,6 +145,7 @@ export default function AccidentReportsScreen() {
     vehicleType, vehicleMakeId, vehicleModelId,
     vehicleCustomMakeName, vehicleCustomModelName,
   } = useApp();
+  const { activeVehicle: ctxActiveVehicle } = useVehicle();
 
   // ── Vehicle selection ───────────────────────────────────────────────────────
   const [vehicles, setVehicles]           = useState<SavedVehicle[]>([]);
@@ -172,20 +174,26 @@ export default function AccidentReportsScreen() {
         vehicleType,
       });
       setVehicles(list);
-      if (!selectedVehicle) {
-        setSelectedVehicle(list.find(v => v.isDefault) ?? list[0] ?? null);
-      }
+      // Prefer VehicleContext's active vehicle (garage swipe drives this), then
+      // fall back to default/first vehicle in the list.
+      const ctxMatch = ctxActiveVehicle
+        ? list.find(v => v.id === ctxActiveVehicle.id) ?? null
+        : null;
+      setSelectedVehicle(ctxMatch ?? list.find(v => v.isDefault) ?? list[0] ?? null);
     })();
-  }, [vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType]));
+  }, [vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType, ctxActiveVehicle]));
 
   // ── Load records ─────────────────────────────────────────────────────────────
   const load = useCallback(async (showSpinner = true) => {
     if (!deviceId) return;
     if (showSpinner) setLoading(true);
     try {
-      const data = await apiGet<{ records: AccidentRecord[] }>(
-        `/accidents?deviceId=${deviceId}`
-      );
+      const vid = selectedVehicle?.id;
+      // For the default vehicle, also include legacy records that predate per-vehicle tracking
+      const url = vid
+        ? `/accidents?deviceId=${deviceId}&vehicleId=${encodeURIComponent(vid)}${selectedVehicle?.isDefault ? "&includeUnattributed=true" : ""}`
+        : `/accidents?deviceId=${deviceId}`;
+      const data = await apiGet<{ records: AccidentRecord[] }>(url);
       setRecords(data.records ?? []);
     } catch {
       // silently degrade
@@ -193,7 +201,7 @@ export default function AccidentReportsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [deviceId]);
+  }, [deviceId, selectedVehicle?.id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -230,6 +238,7 @@ export default function AccidentReportsScreen() {
     try {
       const data = await apiPost<{ id: string }>("/accidents", {
         deviceId,
+        vehicleId: selectedVehicle?.id ?? null,
         isManual: true,
       });
       router.push(`/crash-assistant/${data.id}` as any);

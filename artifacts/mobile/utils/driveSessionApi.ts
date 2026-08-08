@@ -74,11 +74,13 @@ export async function startDriveSession(
   deviceId:  string,
   startLat?: number | null,
   startLng?: number | null,
+  vehicleId?: string | null,
 ): Promise<string> {
   const { id } = await apiPost<{ id: string }>("/drive-sessions", {
     deviceId,
-    startLat: startLat ?? null,
-    startLng: startLng ?? null,
+    startLat:  startLat  ?? null,
+    startLng:  startLng  ?? null,
+    vehicleId: vehicleId ?? null,
   });
   return id;
 }

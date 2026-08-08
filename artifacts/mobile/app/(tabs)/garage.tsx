@@ -20,6 +20,7 @@ import Svg, { Circle, Polyline, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useVehicle } from "@/context/VehicleContext";
 import {
   DriveSession,
   listDriveSessions,
@@ -416,6 +417,12 @@ export default function GarageScreen() {
   const [focusTick, setFocusTick] = useState(0);
   const flatRef = useRef<FlatList>(null);
 
+  // ── VehicleContext — app-wide active vehicle ─────────────────────────────
+  // The garage drives the active vehicle for the whole app. Every swipe or
+  // explicit vehicle action here calls setActiveVehicle so other screens
+  // (dashcam, trip history, accident reports) automatically show that car's data.
+  const { setActiveVehicle, refreshVehicles } = useVehicle();
+
   useFocusEffect(
     useCallback(() => {
       let alive = true;
@@ -476,7 +483,11 @@ export default function GarageScreen() {
             await saveVehicles(list);
           }
         }
-        if (alive) setVehicles(list);
+        if (alive) {
+          setVehicles(list);
+          // Notify VehicleContext so all consumers (dashcam, trips, etc.) see fresh list
+          refreshVehicles().catch(() => {});
+        }
       })();
 
       return () => { alive = false; };
@@ -566,11 +577,13 @@ export default function GarageScreen() {
     const newIdx = updated.findIndex(v => v.id === id);
     if (newIdx !== -1 && newIdx !== slideIndex) {
       setSlideIndex(newIdx);
-      // Let the state update propagate before asking FlatList to scroll.
       setTimeout(() => {
         flatRef.current?.scrollToIndex({ index: newIdx, animated: true });
       }, 50);
     }
+    // Sync VehicleContext — this vehicle is now both default and active
+    setActiveVehicle(id);
+    refreshVehicles().catch(() => {});
 
     // ── 4. Sync AppContext to the newly-default vehicle ───────────────────────
     // Without this, AppContext still holds the OLD default's make/model.
@@ -648,6 +661,7 @@ export default function GarageScreen() {
               const updated = await removeVehicle(id);
               setVehicles(updated);
               syncAppContextAfterRemove(updated);
+              refreshVehicles().catch(() => {});
             },
           },
         ],
@@ -666,8 +680,12 @@ export default function GarageScreen() {
               const updated = await removeVehicle(id);
               setVehicles(updated);
               syncAppContextAfterRemove(updated);
-              // If we removed the slide that was being viewed, snap back
-              setSlideIndex(prev => Math.max(0, Math.min(prev, updated.length - 1)));
+              // Snap back and update active vehicle in context
+              const newSlide = Math.max(0, Math.min(slideIndex, updated.length - 1));
+              setSlideIndex(newSlide);
+              const newActive = updated[newSlide];
+              if (newActive) setActiveVehicle(newActive.id);
+              refreshVehicles().catch(() => {});
             },
           },
         ],
@@ -772,6 +790,9 @@ export default function GarageScreen() {
             onMomentumScrollEnd={e => {
               const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_W + 12));
               setSlideIndex(idx);
+              // Tell VehicleContext which car is now active so all other screens update
+              const item = slideData[idx];
+              if (item && item !== "add") setActiveVehicle((item as SavedVehicle).id);
             }}
           />
 
@@ -783,6 +804,8 @@ export default function GarageScreen() {
                 onPress={() => {
                   flatRef.current?.scrollToIndex({ index: i, animated: true });
                   setSlideIndex(i);
+                  const item = slideData[i];
+                  if (item && item !== "add") setActiveVehicle((item as SavedVehicle).id);
                 }}
               >
                 <View style={[

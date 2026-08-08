@@ -8,6 +8,8 @@ function genId() {
 export const accidentRecordsTable = pgTable("accident_records", {
   id:               text("id").primaryKey().$defaultFn(genId),
   deviceId:         text("device_id").notNull(),
+  /** The local SavedVehicle id this accident is attributed to. Null for pre-multi-vehicle records. */
+  vehicleId:        text("vehicle_id"),
   status:           text("status").notNull().default("draft"),  // 'draft' | 'complete'
   isManual:         boolean("is_manual").notNull().default(false),
   detectedAt:       timestamp("detected_at").notNull().defaultNow(),

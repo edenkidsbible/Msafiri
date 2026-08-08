@@ -39,10 +39,11 @@ function computeScore(stats: {
 
 router.post("/drive-sessions", async (req: Request, res: Response) => {
   try {
-    const { deviceId, startLat, startLng } = req.body as {
+    const { deviceId, startLat, startLng, vehicleId } = req.body as {
       deviceId?: string;
       startLat?: number | null;
       startLng?: number | null;
+      vehicleId?: string | null;
     };
 
     if (!deviceId?.trim()) {
@@ -50,9 +51,10 @@ router.post("/drive-sessions", async (req: Request, res: Response) => {
     }
 
     const result = await db.execute<{ id: string; started_at: string }>(sql`
-      INSERT INTO live_trips (device_id, start_lat, start_lng, started_at)
+      INSERT INTO live_trips (device_id, vehicle_id, start_lat, start_lng, started_at)
       VALUES (
         ${deviceId.trim()},
+        ${vehicleId?.trim() || null},
         ${typeof startLat === "number" ? startLat : null},
         ${typeof startLng === "number" ? startLng : null},
         NOW()
