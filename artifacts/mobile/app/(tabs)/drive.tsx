@@ -278,6 +278,8 @@ export default function DriveScreen() {
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const [showNearbySheet, setShowNearbySheet] = useState(false);
+  // Destination picker modal — opened from the pre-trip idle screen
+  const [showDestPicker, setShowDestPicker] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
@@ -1050,6 +1052,7 @@ export default function DriveScreen() {
     setGeoResults([]);
     setShowResults(false);
     setSearchInputFocused(false);
+    setShowDestPicker(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setNavDestination({ name: r.display, lat: r.lat, lng: r.lng });
     // Persist to recents (newest-first, deduped)
@@ -1064,6 +1067,7 @@ export default function DriveScreen() {
     setGeoResults([]);
     setShowResults(false);
     setSearchInputFocused(false);
+    setShowDestPicker(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setNavDestination({ name: place.label, lat: place.lat, lng: place.lng });
   }, [setNavDestination]);
@@ -1108,8 +1112,9 @@ export default function DriveScreen() {
           alignItems: "center",
           justifyContent: "center",
           zIndex: 1,
+          paddingHorizontal: 28,
         }]}>
-          <View style={{ alignItems: "center", gap: 18 }}>
+          <View style={{ alignItems: "center", gap: 24, width: "100%" }}>
             <View style={{
               width: 96, height: 96, borderRadius: 48,
               backgroundColor: c.primary + "15",
@@ -1126,6 +1131,119 @@ export default function DriveScreen() {
                 Msafiri is watching
               </Text>
             </View>
+
+            {/* ── Destination picker / chip ─────────────────────────────── */}
+            {navDestination ? (
+              /* Destination already set — show chip + Start button */
+              <View style={{ width: "100%", gap: 12 }}>
+                {/* Destination chip */}
+                <View style={{
+                  flexDirection: "row", alignItems: "center", gap: 10,
+                  width: "100%", backgroundColor: isDark ? "#0F2010" : "#E8F5E9",
+                  borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14,
+                  borderWidth: 1.5, borderColor: c.primary + "55",
+                }}>
+                  <View style={{
+                    width: 34, height: 34, borderRadius: 17,
+                    backgroundColor: c.primary + "20",
+                    alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Ionicons name="navigate" size={17} color={c.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: c.primary, marginBottom: 1 }}>
+                      Destination set
+                    </Text>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: c.foreground }} numberOfLines={1}>
+                      {navDestination.name.split(",")[0]}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => { setNavDestination(null); setSearchText(""); }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Ionicons name="close-circle" size={22} color={c.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Start button — shows vehicle picker when multiple vehicles */}
+                <TouchableOpacity
+                  disabled={routeLoading}
+                  style={{
+                    flexDirection: "row", alignItems: "center", justifyContent: "center",
+                    gap: 8, width: "100%",
+                    backgroundColor: routeLoading ? (isDark ? "#1A2A1A" : "#C8E6C9") : c.primary,
+                    borderRadius: 18, paddingVertical: 16,
+                  }}
+                  onPress={() => {
+                    if (driveVehiclesRef.current.length > 1) {
+                      setShowVehiclePicker(true);
+                    } else {
+                      startTrip();
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  {routeLoading ? (
+                    <>
+                      <ActivityIndicator size="small" color={c.primary} />
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: c.primary }}>
+                        Calculating route…
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="navigate" size={19} color="#FFF" />
+                      <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" }}>
+                        Start
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Change destination link */}
+                <TouchableOpacity
+                  style={{ alignSelf: "center" }}
+                  onPress={() => {
+                    setSearchText("");
+                    setGeoResults([]);
+                    setShowResults(false);
+                    setShowDestPicker(true);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+                >
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.primary }}>
+                    Change destination
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* No destination — show "Where to?" button */
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 10,
+                  width: "100%", backgroundColor: isDark ? "#1A1A1AEE" : "#FFFFFFEE",
+                  borderRadius: 18, paddingHorizontal: 16, paddingVertical: 16,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: isDark ? "#333" : "#DDD",
+                  shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.10, shadowRadius: 8, elevation: 5,
+                }}
+                onPress={() => {
+                  setSearchText("");
+                  setGeoResults([]);
+                  setShowResults(false);
+                  setShowDestPicker(true);
+                }}
+                activeOpacity={0.82}
+              >
+                <Ionicons name="search-outline" size={19} color={c.mutedForeground} />
+                <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>
+                  Where to?
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}
@@ -1390,7 +1508,7 @@ export default function DriveScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.resultName, { color: fgMain }]}>Home</Text>
                       <Text style={[styles.resultSub, { color: home ? fgMuted : c.primary }]} numberOfLines={1}>
-                        {home ? (home.address ?? home.label) : "Tap to set home location"}
+                        {home ? (home?.address ?? home?.label) : "Tap to set home location"}
                       </Text>
                     </View>
                     {!home && <Ionicons name="add-circle-outline" size={16} color={c.primary} />}
@@ -1417,7 +1535,7 @@ export default function DriveScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.resultName, { color: fgMain }]}>Work</Text>
                       <Text style={[styles.resultSub, { color: work ? fgMuted : c.primary }]} numberOfLines={1}>
-                        {work ? (work.address ?? work.label) : "Tap to set work location"}
+                        {work ? (work?.address ?? work?.label) : "Tap to set work location"}
                       </Text>
                     </View>
                     {!work && <Ionicons name="add-circle-outline" size={16} color={c.primary} />}
@@ -2800,6 +2918,263 @@ export default function DriveScreen() {
         </View>
       </Modal>
 
+      {/* ── Destination picker modal (pre-trip) ──────────────────────────────
+          Opened from the "Where to?" button on the idle pre-trip screen.
+          Lives at the root so it is never nested inside another Modal. */}
+      <Modal
+        visible={showDestPicker}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowDestPicker(false);
+          dismissSearch();
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: isDark ? "#0D120E" : "#F4F7F5" }}>
+          {/* Header */}
+          <View style={{
+            flexDirection: "row", alignItems: "center", gap: 12,
+            paddingTop: insets.top + 12, paddingBottom: 12,
+            paddingHorizontal: 16,
+            backgroundColor: isDark ? "#0D120E" : "#F4F7F5",
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: isDark ? "#222" : "#E0E0E0",
+          }}>
+            <TouchableOpacity
+              onPress={() => { setShowDestPicker(false); dismissSearch(); }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ padding: 4 }}
+            >
+              <Ionicons name="arrow-back" size={22} color={c.foreground} />
+            </TouchableOpacity>
+            <Text style={{ flex: 1, fontSize: 17, fontFamily: "Inter_700Bold", color: c.foreground }}>
+              Set destination
+            </Text>
+          </View>
+
+          {/* Search pill */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
+            <View style={[styles.searchPill, {
+              backgroundColor: isDark ? "#1A1A1AEE" : "#FFFFFF",
+              borderWidth: searchInputFocused ? 1.5 : StyleSheet.hairlineWidth,
+              borderColor: searchInputFocused ? c.primary : (isDark ? "#333" : "#DDD"),
+            }]}>
+              <View style={styles.searchIconSlot}>
+                <Ionicons name="search-outline" size={18} color={c.mutedForeground} />
+              </View>
+              <TextInput
+                style={[styles.searchInput, { color: fgMain }]}
+                placeholder="Search for a place…"
+                placeholderTextColor={fgMuted}
+                value={searchText}
+                onChangeText={handleSearchChange}
+                returnKeyType="search"
+                onSubmitEditing={() => searchText.length > 1 && runSearch(searchText)}
+                onFocus={() => setSearchInputFocused(true)}
+                onBlur={() => setSearchInputFocused(false)}
+                autoCorrect={false}
+                autoCapitalize="none"
+                autoFocus
+              />
+              {searchLoading && (
+                <ActivityIndicator size="small" color={c.primary} style={{ marginRight: 14 }} />
+              )}
+              {!searchLoading && searchText.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => { setSearchText(""); setGeoResults([]); setShowResults(false); }}
+                  style={{ marginRight: 14 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Ionicons name="close-circle" size={19} color={fgMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Results / recents / saved places */}
+          <ScrollView
+            {...SCROLL_PROPS}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          >
+            {/* ── Geocode results ────────────────────────────── */}
+            {showResults && (
+              <View style={{ marginHorizontal: 16, marginTop: 4 }}>
+                {searchError && (
+                  <View style={styles.resultHint}>
+                    <Ionicons name="cloud-offline-outline" size={15} color="#F57C00" />
+                    <Text style={[styles.resultHintTxt, { color: fgMuted }]}>
+                      Search unavailable — check your connection
+                    </Text>
+                  </View>
+                )}
+                {!searchError && geoResults.length === 0 && !searchLoading && searchText.length > 1 && (
+                  <View style={styles.resultHint}>
+                    <Ionicons name="location-outline" size={15} color={fgMuted} />
+                    <Text style={[styles.resultHintTxt, { color: fgMuted }]}>
+                      No places found in Kenya for "{searchText}"
+                    </Text>
+                  </View>
+                )}
+                {geoResults.map((item, index) => (
+                  <TouchableOpacity
+                    key={String(index)}
+                    style={[
+                      styles.resultRow,
+                      { borderBottomColor: divBg, backgroundColor: isDark ? "#111" : "#FFF" },
+                      index === 0 && { borderTopColor: divBg, borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
+                      index === geoResults.length - 1 && { borderBottomLeftRadius: 14, borderBottomRightRadius: 14, borderBottomWidth: 0 },
+                    ]}
+                    onPress={() => pickDestination(item)}
+                    activeOpacity={0.72}
+                  >
+                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}>
+                      <Ionicons name="location-outline" size={15} color={c.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>{item.short}</Text>
+                      <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>
+                        {item.display.split(",").slice(2).join(",").trim()}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={13} color={fgMuted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* ── Saved places + recents (shown when not searching) ──── */}
+            {!showResults && (
+              <View style={{ marginHorizontal: 16, marginTop: 4 }}>
+
+                {/* Home */}
+                {(() => {
+                  const home = savedPlaces.find(p => p.kind === "home");
+                  return (
+                    <TouchableOpacity
+                      style={[styles.resultRow, { borderBottomColor: divBg, backgroundColor: isDark ? "#111" : "#FFF", borderTopLeftRadius: 14, borderTopRightRadius: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: divBg }]}
+                      onPress={() =>
+                        home
+                          ? navigateToSavedPlace(home)
+                          : router.push("/(tabs)/trips?initialTab=planned")
+                      }
+                      activeOpacity={0.72}
+                    >
+                      <View style={[styles.resultIcon, { backgroundColor: isDark ? "#1A2A1A" : "#E8F5E9" }]}>
+                        <Ionicons name="home" size={15} color="#2E7D32" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.resultName, { color: fgMain }]}>Home</Text>
+                        <Text style={[styles.resultSub, { color: home ? fgMuted : c.primary }]} numberOfLines={1}>
+                          {home ? (home?.address ?? home?.label) : "Tap to set home location"}
+                        </Text>
+                      </View>
+                      {!home && <Ionicons name="add-circle-outline" size={16} color={c.primary} />}
+                    </TouchableOpacity>
+                  );
+                })()}
+
+                {/* Work */}
+                {(() => {
+                  const work = savedPlaces.find(p => p.kind === "work");
+                  return (
+                    <TouchableOpacity
+                      style={[styles.resultRow, { borderBottomColor: divBg, backgroundColor: isDark ? "#111" : "#FFF" }]}
+                      onPress={() =>
+                        work
+                          ? navigateToSavedPlace(work)
+                          : router.push("/(tabs)/trips?initialTab=planned")
+                      }
+                      activeOpacity={0.72}
+                    >
+                      <View style={[styles.resultIcon, { backgroundColor: isDark ? "#1A1F2E" : "#E3F2FD" }]}>
+                        <Ionicons name="briefcase" size={15} color="#1565C0" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.resultName, { color: fgMain }]}>Work</Text>
+                        <Text style={[styles.resultSub, { color: work ? fgMuted : c.primary }]} numberOfLines={1}>
+                          {work ? (work?.address ?? work?.label) : "Tap to set work location"}
+                        </Text>
+                      </View>
+                      {!work && <Ionicons name="add-circle-outline" size={16} color={c.primary} />}
+                    </TouchableOpacity>
+                  );
+                })()}
+
+                {/* Custom saved places */}
+                {savedPlaces.filter(p => p.kind === "custom").map((place, idx, arr) => (
+                  <TouchableOpacity
+                    key={place.id}
+                    style={[
+                      styles.resultRow,
+                      { borderBottomColor: divBg, backgroundColor: isDark ? "#111" : "#FFF" },
+                      idx === arr.length - 1 && recentSearches.length === 0 && { borderBottomLeftRadius: 14, borderBottomRightRadius: 14, borderBottomWidth: 0 },
+                    ]}
+                    onPress={() => navigateToSavedPlace(place)}
+                    activeOpacity={0.72}
+                  >
+                    <View style={[styles.resultIcon, { backgroundColor: isDark ? "#2A1A2A" : "#F3E5F5" }]}>
+                      <Ionicons name="star" size={15} color="#7B1FA2" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>{place.label}</Text>
+                      {!!place.address && (
+                        <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>{place.address}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+
+                {/* Recents */}
+                {recentSearches.length > 0 && (
+                  <>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 20, marginBottom: 6 }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: fgMuted, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                        Recent
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => { clearRecentSearches(); setRecentSearches([]); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.primary }}>Clear all</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {recentSearches.map((item, index) => (
+                      <TouchableOpacity
+                        key={item.display}
+                        style={[
+                          styles.resultRow,
+                          { borderBottomColor: divBg, backgroundColor: isDark ? "#111" : "#FFF" },
+                          index === 0 && { borderTopLeftRadius: 14, borderTopRightRadius: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: divBg },
+                          index === recentSearches.length - 1 && { borderBottomLeftRadius: 14, borderBottomRightRadius: 14, borderBottomWidth: 0 },
+                        ]}
+                        onPress={() => pickDestination(item)}
+                        activeOpacity={0.72}
+                      >
+                        <View style={[styles.resultIcon, { backgroundColor: isDark ? "#222" : "#F2F2F2" }]}>
+                          <Ionicons name="time-outline" size={15} color={fgMuted} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.resultName, { color: fgMain }]} numberOfLines={1}>{item.short}</Text>
+                          <Text style={[styles.resultSub, { color: fgMuted }]} numberOfLines={1}>
+                            {item.display.split(",").slice(2).join(",").trim()}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => { removeRecentSearch(item).then(setRecentSearches); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="close-circle" size={17} color={fgMuted} />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* ── 3-second pre-trip countdown overlay ────────────────────────────── */}
       {countdownValue !== null && (
         <View
@@ -3093,6 +3468,7 @@ const styles = StyleSheet.create({
   // ── Route preview sheet ───────────────────────────────────────────────────
   routeSheet: {
     position: "absolute", left: 0, right: 0, bottom: 0,
+    zIndex: 10,
     borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingTop: 10, paddingHorizontal: 16, gap: 10,
     shadowColor: "#000", shadowOffset: { width: 0, height: -5 },
