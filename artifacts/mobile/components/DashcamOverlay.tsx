@@ -453,24 +453,37 @@ export default function DashcamOverlay() {
   const isHD         = settings.quality === "1080p";
   const storageUsedPct = Math.min(1, storageUsedBytes / settings.storageCap);
 
-  // zIndex tiers:
-  //   showUI          → 9999  full dashcam UI above everything
-  //   showAnglePreview→  500  angle-check preview above the drive screen
-  //   recording only  →    2  camera surface alive but fully covered
-  const overlayZIndex = showUI ? 9999 : showAnglePreview ? 500 : 2;
+  // When the dashcam is recording silently in the background (not showUI,
+  // not showAnglePreview) we need the CameraView alive for recordAsync() but
+  // we must NOT cover the drive screen with anything visible.
+  //
+  // opacity:0 on the parent causes the OS compositor to skip the entire
+  // subtree — the camera gets no native surface and recordAsync() returns null.
+  //
+  // An opaque black cover View inside an absoluteFill container (our previous
+  // approach) hid the camera but ALSO covered the drive screen, producing a
+  // black screen after the angle preview was dismissed.
+  //
+  // Solution: translate the whole overlay 5 000 px above the viewport when it
+  // is background-only. The CameraView is rendered at full size with normal
+  // opacity (compositor allocates a real surface), recording continues, and
+  // nothing is visible to the driver. translateY does NOT affect compositing.
+  const isBackgroundOnly = !showUI && !showAnglePreview;
+  const overlayZIndex    = showUI ? 9999 : showAnglePreview ? 500 : 2;
 
   return (
     <View
-      style={[StyleSheet.absoluteFill, { zIndex: overlayZIndex }]}
+      style={[
+        StyleSheet.absoluteFill,
+        { zIndex: overlayZIndex },
+        isBackgroundOnly && { transform: [{ translateY: -6000 }] },
+      ]}
       pointerEvents={showUI || showAnglePreview ? "auto" : "none"}
     >
       {/* ── Camera feed ──────────────────────────────────────────────────────
-          IMPORTANT: the CameraView must ALWAYS render at opacity:1 so the OS
-          compositor allocates a real native surface (AVPreviewLayer / Surface-
-          Texture). Setting opacity:0 on the parent skips compositing the whole
-          subtree — the camera gets no render target and recordAsync() returns
-          null on every attempt. Visibility is controlled by the opaque cover
-          View below, not by opacity. */}
+          Always rendered at opacity:1 so the OS compositor allocates a real
+          native surface (AVPreviewLayer / SurfaceTexture). Visibility to the
+          driver is controlled by the translateY trick above, NOT by opacity. */}
       {CameraView && (
         <CameraView
           ref={cameraCallbackRef}
@@ -491,8 +504,12 @@ export default function DashcamOverlay() {
 
       {/* ── Camera-angle preview ─────────────────────────────────────────────
           Shown for 4 s when the driver starts the dashcam from the drive
-          screen. The camera feed is visible so they can check the mounting
-          angle, then a tap or the auto-timer slides in the opaque cover. */}
+          screen. The live camera feed is visible (overlay is on-screen, no
+          black cover) so they can verify the mounting angle before recording
+          begins. Tapping the button or letting the countdown expire calls
+          dismissAnglePreview(), which sets showAnglePreview=false and
+          isBackgroundOnly=true, translating the overlay off-screen while
+          recording continues invisibly in the background. */}
       {showAnglePreview && !showUI && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           {/* Dark gradient at the bottom so the card text is legible */}
@@ -523,17 +540,6 @@ export default function DashcamOverlay() {
             </TouchableOpacity>
           </View>
         </View>
-      )}
-
-      {/* ── Opaque cover ─────────────────────────────────────────────────────
-          Hides the live camera preview when it shouldn't be visible. Using a
-          cover View (rather than opacity:0 on the parent) keeps the camera's
-          native surface composited so recording continues uninterrupted. */}
-      {!showUI && !showAnglePreview && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]}
-          pointerEvents="none"
-        />
       )}
 
       {/* Screenshot flash */}

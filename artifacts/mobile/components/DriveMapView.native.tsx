@@ -772,7 +772,10 @@ const DriveMapView = forwardRef(function DriveMapView(
         const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
         if (moved < STATIONARY_MOVE_M) {
           if (driverHeading != null && driverHeading >= 0) {
-            const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, 0.10);
+            const rawDiffStat = camHeadingRef.current != null
+              ? Math.abs((() => { let d = driverHeading - camHeadingRef.current!; if (d > 180) d -= 360; if (d < -180) d += 360; return d; })())
+              : 180;
+            const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, rawDiffStat > 120 ? 0.75 : 0.10);
             camHeadingRef.current = smoothedHdg;
             if (Platform.OS !== "ios") {
               const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
@@ -789,7 +792,13 @@ const DriveMapView = forwardRef(function DriveMapView(
       camLngRef.current = currentLng;
 
       if (driverHeading != null && driverHeading >= 0) {
-        camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.25);
+        // Boost alpha when the raw heading change is large (U-turn / sharp reversal)
+        // so the map rotates promptly instead of crawling for 8+ GPS fixes.
+        const rawDiff = camHeadingRef.current != null
+          ? Math.abs((() => { let d = driverHeading - camHeadingRef.current!; if (d > 180) d -= 360; if (d < -180) d += 360; return d; })())
+          : 180;
+        const headingAlpha = rawDiff > 120 ? 0.75 : 0.25;
+        camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, headingAlpha);
       }
 
       const targetDelta = speedToLatDelta(currentSpeed ?? 0);
@@ -1046,7 +1055,10 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     const WINDOW = 40;
     const prior  = navProjIdxRef.current;
-    const wStart = Math.max(0, prior - 5);
+    // Backward reach expanded to 40 (was 5) so a U-turn — where the driver is
+    // heading back toward lower-index coords — doesn't leave the cursor stuck
+    // at `prior` because all backward coords fall outside the window.
+    const wStart = Math.max(0, prior - 40);
     const wEnd   = Math.min(coords.length - 1, prior + WINDOW);
 
     let bestIdx  = prior;
@@ -1083,7 +1095,10 @@ const DriveMapView = forwardRef(function DriveMapView(
     const coords = activeRoute.coords;
     if (!Array.isArray(coords) || coords.length < 2) return 0;
     const prior  = tripProjIdxRef.current;
-    const wStart = Math.max(0, prior - 3);
+    // Backward reach expanded to 30 (was 3) so a U-turn correctly walks the
+    // green/blue split cursor back toward lower-index coords rather than
+    // staying stuck at `prior` while the driver reverses.
+    const wStart = Math.max(0, prior - 30);
     const wEnd   = Math.min(coords.length - 1, prior + 20);
     let bestIdx  = prior, bestDist = Infinity;
     for (let i = wStart; i <= wEnd; i++) {
