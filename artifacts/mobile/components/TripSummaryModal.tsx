@@ -279,7 +279,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
                 {data.score != null ? scoreLabel(data.score) : "Trip too short"}
               </Text>
               <Text style={[styles.scoreSub, { color: c.mutedForeground }]}>
-                {data.score != null ? "Drive score" : "Score needs at least 1 km"}
+                {data.score != null ? "Drive score" : "Score needs at least 250 m"}
               </Text>
               {data.score != null && data.smoothMinutes > 0 && (
                 <Text style={[styles.scoreSub, { color: "#22C55E", marginTop: 2 }]}>

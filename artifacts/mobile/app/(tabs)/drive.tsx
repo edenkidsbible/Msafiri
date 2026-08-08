@@ -654,9 +654,9 @@ export default function DriveScreen() {
       distanceM:         snap.distanceM,
       avgSpeedKmh:       avgSpeedDisplay,
       maxSpeedKmh:       snap.maxSpeedKmh,
-      // Score is only meaningful once the driver has covered at least 1 km —
+      // Score is only meaningful once the driver has covered at least 250 m —
       // shorter trips don't provide enough data for a fair assessment.
-      score:             snap.distanceM >= 1000 ? snap.score : null,
+      score:             snap.distanceM >= 250 ? snap.score : null,
       harshBrakes:       snap.harshBrakes,
       harshAccels:       snap.harshAccels,
       sharpTurns:        snap.sharpTurns,
