@@ -2843,10 +2843,11 @@ export default function DriveScreen() {
       <TripSummaryModal
         data={tripSummaryData}
         onDismiss={() => {
+          // Only clear the data — the modal's own action buttons (goHome,
+          // goHistory, goClips) each handle navigation themselves. Adding a
+          // router.back()/replace here fires ~20 ms after those navigations
+          // complete and undoes them (e.g. pops trip-history immediately).
           setTripSummaryData(null);
-          // Navigate home after the modal is dismissed via backdrop or close btn
-          if (router.canGoBack()) router.back();
-          else router.replace("/(tabs)");
         }}
         onStopSharing={() => {
           stopSharingTrip();
