@@ -47,6 +47,8 @@ export interface TripSummaryData {
   hadDashcam:        boolean;
   /** true when live link sharing was active at the moment the trip stopped */
   isSharing:         boolean;
+  /** server session ID — used by trip-history to poll until this session commits */
+  sessionId:         string | null;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -197,9 +199,15 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
   }, [dismiss]);
 
   const goHistory = useCallback(() => {
+    const sid = data?.sessionId;
     dismiss();
-    setTimeout(() => router.push("/trip-history" as any), 180);
-  }, [dismiss]);
+    setTimeout(() => {
+      const url = sid
+        ? `/trip-history?fromSummary=1&sessionId=${encodeURIComponent(sid)}`
+        : "/trip-history?fromSummary=1";
+      router.push(url as any);
+    }, 180);
+  }, [dismiss, data?.sessionId]);
 
   const handleStopSharing = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

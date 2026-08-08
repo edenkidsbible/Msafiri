@@ -26,6 +26,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Modal,
   Platform,
@@ -434,7 +435,9 @@ export default function TripHistoryScreen() {
   const c       = useColors();
   const insets  = useSafeAreaInsets();
   const { deviceId } = useApp();
-  const params = useLocalSearchParams<{ tab?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; fromSummary?: string; sessionId?: string }>();
+  const fromSummary      = params.fromSummary === "1";
+  const pendingSessionId = params.sessionId ?? null;
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
@@ -472,7 +475,32 @@ export default function TripHistoryScreen() {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      let retryTimer: ReturnType<typeof setTimeout> | null = null;
       setLoading(true);
+
+      // When arriving from the trip summary, poll just the sessions endpoint
+      // until the just-ended session appears in the committed list (up to ~3 s).
+      // The API only returns rows where ended_at IS NOT NULL, so the session is
+      // absent — not present with endedAt null — until it commits.
+      const MAX_SESSION_RETRIES = 5;
+      const SESSION_RETRY_MS   = 600;
+
+      const pollUntilCommitted = (attempt: number) => {
+        if (!alive || !deviceId || attempt > MAX_SESSION_RETRIES) return;
+        retryTimer = setTimeout(async () => {
+          if (!alive || !deviceId) return;
+          try {
+            const { sessions: fresh } = await listDriveSessions(deviceId, 100);
+            if (!alive) return;
+            setSessions(fresh);
+            // If we know the session ID, keep polling until it appears in the list.
+            // Without an ID, stop after the first successful fetch (best-effort).
+            if (pendingSessionId && !fresh.some(s => s.id === pendingSessionId)) {
+              pollUntilCommitted(attempt + 1);
+            }
+          } catch (_) {}
+        }, SESSION_RETRY_MS);
+      };
 
       Promise.all([
         loadVehicles(),
@@ -499,6 +527,14 @@ export default function TripHistoryScreen() {
         setLocationCache(locCache);
         setSharedSessions(shared.sessions ?? []);
 
+        // If we arrived from the trip summary and know the session ID, poll
+        // until that specific session appears in the committed list.
+        // (The API only returns ended_at IS NOT NULL rows, so the session is
+        // simply absent — not null — until finalization completes.)
+        if (fromSummary && pendingSessionId && !ss.some(s => s.id === pendingSessionId)) {
+          pollUntilCommitted(1);
+        }
+
         // Background: geocode sessions missing from cache (up to 15 most recent)
         const uncached = ss
           .filter(s => s.startLat != null && s.startLng != null && !locCache[s.id])
@@ -522,9 +558,22 @@ export default function TripHistoryScreen() {
         }
       }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
 
-      return () => { alive = false; };
-    }, [deviceId])
+      return () => {
+        alive = false;
+        if (retryTimer != null) clearTimeout(retryTimer);
+      };
+    }, [deviceId, fromSummary, pendingSessionId])
   );
+
+  // ── Android hardware back: go to tabs when arriving from summary ──────────
+  useEffect(() => {
+    if (!fromSummary) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      router.replace("/(tabs)");
+      return true;
+    });
+    return () => sub.remove();
+  }, [fromSummary]);
 
   // ── Per-vehicle session filtering ─────────────────────────────────────────
   useEffect(() => {
@@ -725,7 +774,7 @@ export default function TripHistoryScreen() {
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => fromSummary ? router.replace("/(tabs)") : router.back()}
             style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.isDark ? "#1A2820" : "#fff", alignItems: "center", justifyContent: "center" }}
           >
             <Ionicons name="arrow-back" size={20} color={c.foreground} />

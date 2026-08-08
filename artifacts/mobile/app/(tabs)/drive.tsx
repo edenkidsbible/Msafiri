@@ -681,6 +681,9 @@ export default function DriveScreen() {
       policeAlerts:      tripPoliceRef.current,
       hadDashcam:        dashcamRecording,
       isSharing:         isSharingTrip,
+      // Capture now while the ref still holds the ID — it is cleared once
+      // the end-session effect fires a few ms later.
+      sessionId:         sessionIdRef.current,
     });
 
     stopTrip();
