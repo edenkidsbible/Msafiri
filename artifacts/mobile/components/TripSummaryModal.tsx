@@ -97,11 +97,12 @@ function scoreLabel(score: number): string {
 function StatTile({
   label, value, icon, color, bg,
 }: { label: string; value: string; icon: string; color: string; bg: string }) {
+  const c = useColors();
   return (
     <View style={[statTileStyle.tile, { backgroundColor: bg }]}>
       <Ionicons name={icon as any} size={15} color={color} style={{ marginBottom: 4 }} />
       <Text style={[statTileStyle.value, { color }]}>{value}</Text>
-      <Text style={statTileStyle.label}>{label}</Text>
+      <Text style={[statTileStyle.label, { color: c.mutedForeground }]}>{label}</Text>
     </View>
   );
 }
@@ -109,14 +110,22 @@ function StatTile({
 const statTileStyle = StyleSheet.create({
   tile:  { flex: 1, borderRadius: 12, padding: 12, alignItems: "center", gap: 2 },
   value: { fontSize: 18, fontWeight: "700", letterSpacing: -0.5 },
-  label: { fontSize: 11, color: "#888", textAlign: "center", marginTop: 1 },
+  label: { fontSize: 11, textAlign: "center", marginTop: 1 },
 });
 
 function EventBadge({
   icon, count, label, warn,
 }: { icon: string; count: number; label: string; warn: boolean }) {
-  const dimColor  = count === 0 ? "#555" : warn ? "#EF4444" : "#F59E0B";
-  const badgeBg   = count === 0 ? "#2A2A2A" : warn ? "#EF444420" : "#F59E0B20";
+  const { isDark } = useColors();
+  // Semantic warn/alert colors are fine as-is; only the zero/neutral state
+  // needs to adapt — dark mode uses a near-black chip, light mode uses a
+  // light-gray chip so it reads against a white/near-white sheet.
+  const dimColor = count === 0
+    ? (isDark ? "#777" : "#9CA3AF")
+    : warn ? "#EF4444" : "#F59E0B";
+  const badgeBg  = count === 0
+    ? (isDark ? "#2A2A2A" : "#EBEBEB")
+    : warn ? "#EF444420" : "#F59E0B20";
   return (
     <View style={[badge.wrap, { backgroundColor: badgeBg }]}>
       <Ionicons name={icon as any} size={13} color={dimColor} />
@@ -200,8 +209,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
   if (!data) return null;
 
   const sc        = data.score != null ? scoreColor(data.score) : "#9CA3AF";
-  const isDark    = c.background === "#0D120E" || c.background?.startsWith("#0") ||
-                    c.background?.startsWith("#1");
+  const isDark    = c.isDark;
   const cardBg    = isDark ? "#161B17" : "#F4F7F5";
   const tileBg    = isDark ? "#1F2B23" : "#E8F0EA";
   const sepColor  = isDark ? "#2A3B2E" : "#D4E4D8";
