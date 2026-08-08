@@ -26,6 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useVehicle } from "@/context/VehicleContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { loadRecentSearches, saveRecentSearch, removeRecentSearch } from "@/utils/recentSearches";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -86,6 +87,7 @@ export default function TripsScreen() {
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, currentLat, currentLng,
   } = useApp();
+  const { activeVehicle, activeVehicleId } = useVehicle();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -129,6 +131,9 @@ export default function TripsScreen() {
   const [driveHistory, setDriveHistory]         = useState<DriveSession[]>([]);
   const [driveHistoryLoading, setDriveHistLoading] = useState(false);
   const [driveHistoryLoaded,  setDriveHistLoaded]  = useState(false);
+  // Generation counter for session fetches. Incremented on vehicle change so
+  // stale in-flight responses for a previous vehicle are always discarded.
+  const driveHistFetchGenRef = useRef(0);
 
   // Saved-place add/edit modal
   const [placeModal, setPlaceModal] = useState(false);
@@ -167,20 +172,56 @@ export default function TripsScreen() {
   const [showBgDisclosure, setShowBgDisclosure] = useState(false);
 
   // ── Drive History fetch ───────────────────────────────────────────────────
+
+  // Reset loaded state whenever the active vehicle changes so the next render
+  // of the "past" tab fetches fresh data scoped to the newly selected vehicle.
+  // Also increment the generation counter to invalidate any in-flight request
+  // for the previous vehicle — its response will be discarded when it arrives.
+  useEffect(() => {
+    ++driveHistFetchGenRef.current;
+    setDriveHistLoaded(false);
+    setDriveHistory([]);
+  }, [activeVehicleId]);
+
   useEffect(() => {
     if (tab !== "past" || driveHistoryLoaded || driveHistoryLoading || !deviceId) return;
     setDriveHistLoading(true);
-    listDriveSessions(deviceId, 30)
-      .then(({ sessions }) => { setDriveHistory(sessions); setDriveHistLoaded(true); })
+    // Capture the current generation so we can detect stale responses.
+    const gen = driveHistFetchGenRef.current;
+    listDriveSessions(
+      deviceId,
+      30,
+      0,
+      activeVehicleId ?? undefined,
+      // Default vehicle shows legacy sessions (vehicle_id IS NULL) too
+      activeVehicle?.isDefault ?? true,
+    )
+      .then(({ sessions }) => {
+        if (gen !== driveHistFetchGenRef.current) return; // stale — vehicle changed mid-flight
+        setDriveHistory(sessions);
+        setDriveHistLoaded(true);
+      })
       .catch(() => {})
-      .finally(() => setDriveHistLoading(false));
-  }, [tab, deviceId, driveHistoryLoaded, driveHistoryLoading]);
+      .finally(() => {
+        if (gen === driveHistFetchGenRef.current) setDriveHistLoading(false);
+      });
+  }, [tab, deviceId, driveHistoryLoaded, driveHistoryLoading, activeVehicleId, activeVehicle]);
 
   // Refresh on re-enter so new sessions appear
   useEffect(() => {
     if (tab === "past" && driveHistoryLoaded && deviceId) {
-      listDriveSessions(deviceId, 30)
-        .then(({ sessions }) => setDriveHistory(sessions))
+      const gen = driveHistFetchGenRef.current;
+      listDriveSessions(
+        deviceId,
+        30,
+        0,
+        activeVehicleId ?? undefined,
+        activeVehicle?.isDefault ?? true,
+      )
+        .then(({ sessions }) => {
+          if (gen !== driveHistFetchGenRef.current) return; // stale
+          setDriveHistory(sessions);
+        })
         .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

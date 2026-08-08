@@ -151,13 +151,24 @@ export async function getDriveSession(
 
 /**
  * Fetch the completed drive sessions for a device (newest first).
+ *
+ * @param vehicleId          - Filter to a specific vehicle. Omit to return all.
+ * @param includeNullVehicle - When true, also include legacy rows that have no
+ *                             vehicle_id (pre-tracking sessions). Pass true when
+ *                             the default vehicle is selected so those old trips
+ *                             still appear in its history.
  */
 export async function listDriveSessions(
   deviceId: string,
   limit  = 20,
   offset = 0,
+  vehicleId?: string | null,
+  includeNullVehicle?: boolean,
 ): Promise<{ sessions: DriveSession[]; total: number }> {
-  return apiGet<{ sessions: DriveSession[]; total: number }>(
-    `/drive-sessions?deviceId=${encodeURIComponent(deviceId)}&limit=${limit}&offset=${offset}`,
-  );
+  let url = `/drive-sessions?deviceId=${encodeURIComponent(deviceId)}&limit=${limit}&offset=${offset}`;
+  if (vehicleId) {
+    url += `&vehicleId=${encodeURIComponent(vehicleId)}`;
+    if (includeNullVehicle) url += `&includeNullVehicle=true`;
+  }
+  return apiGet<{ sessions: DriveSession[]; total: number }>(url);
 }

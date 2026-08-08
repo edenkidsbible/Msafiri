@@ -42,6 +42,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useVehicle } from "@/context/VehicleContext";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 import { loadVehicles, SavedVehicle } from "@/utils/savedVehicles";
 import {
@@ -60,7 +61,6 @@ import {
   SavedPlace,
   updatePlannedTrip,
 } from "@/utils/tripsApi";
-import { getSessionsForVehicle } from "@/utils/vehicleSessionMap";
 import {
   TripLocationMap,
   loadTripLocationCache,
@@ -435,16 +435,30 @@ export default function TripHistoryScreen() {
   const c       = useColors();
   const insets  = useSafeAreaInsets();
   const { deviceId } = useApp();
+  // Global active vehicle — used to initialise this screen's local selection
+  // and to react when the user swipes to a different car in the garage.
+  const { activeVehicle: ctxActiveVehicle } = useVehicle();
   const params = useLocalSearchParams<{ tab?: string; fromSummary?: string; sessionId?: string }>();
   const fromSummary      = params.fromSummary === "1";
   const pendingSessionId = params.sessionId ?? null;
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [vehicles,   setVehicles]   = useState<SavedVehicle[]>([]);
+  // Local selected vehicle — defaults to the global active vehicle on load and
+  // can be overridden via the on-screen vehicle picker.
   const [activeVehicle, setActiveVehicle] = useState<SavedVehicle | null>(null);
+  // Ref mirror so async callbacks in useFocusEffect can read the current local
+  // selection without closure staleness. Always kept in sync with the state.
+  const activeVehicleRef = useRef<SavedVehicle | null>(null);
+  useEffect(() => { activeVehicleRef.current = activeVehicle; }, [activeVehicle]);
+
   const [showVehiclePicker, setShowVehiclePicker] = useState(false);
 
-  const [sessions,         setSessions]         = useState<DriveSession[]>([]);
+  // Shared generation counter for all session fetches on this screen.
+  // Any fetch that completes with a lower gen than the current counter is stale
+  // (a newer vehicle was selected) and its result is discarded.
+  const sessionFetchGenRef = useRef(0);
+
   const [filteredSessions, setFilteredSessions] = useState<DriveSession[]>([]);
   const [hiddenIds,        setHiddenIds]        = useState<Set<string>>(new Set());
   const [locationCache,    setLocationCache]    = useState<TripLocationMap>({});
@@ -485,18 +499,26 @@ export default function TripHistoryScreen() {
       const MAX_SESSION_RETRIES = 5;
       const SESSION_RETRY_MS   = 600;
 
-      const pollUntilCommitted = (attempt: number) => {
+      // Capture the poll generation at the start of this focus session so poll
+      // callbacks started here don't write state after a vehicle change fires
+      // a new fetch with a higher generation counter.
+      const pollGen = sessionFetchGenRef.current;
+
+      const pollUntilCommitted = (v: SavedVehicle | null, hidden: Set<string>, attempt: number) => {
         if (!alive || !deviceId || attempt > MAX_SESSION_RETRIES) return;
         retryTimer = setTimeout(async () => {
           if (!alive || !deviceId) return;
           try {
-            const { sessions: fresh } = await listDriveSessions(deviceId, 100);
-            if (!alive) return;
-            setSessions(fresh);
+            const { sessions: fresh } = await listDriveSessions(
+              deviceId, 100, 0, v?.id ?? undefined, v?.isDefault ?? true,
+            );
+            // Discard if the user switched vehicle while the poll was running
+            if (!alive || pollGen !== sessionFetchGenRef.current) return;
+            setFilteredSessions(fresh.filter(s => s.endedAt != null && !hidden.has(s.id)));
             // If we know the session ID, keep polling until it appears in the list.
             // Without an ID, stop after the first successful fetch (best-effort).
             if (pendingSessionId && !fresh.some(s => s.id === pendingSessionId)) {
-              pollUntilCommitted(attempt + 1);
+              pollUntilCommitted(v, hidden, attempt + 1);
             }
           } catch (_) {}
         }, SESSION_RETRY_MS);
@@ -504,7 +526,6 @@ export default function TripHistoryScreen() {
 
       Promise.all([
         loadVehicles(),
-        deviceId ? listDriveSessions(deviceId, 100) : Promise.resolve({ sessions: [], total: 0 }),
         deviceId ? listPlannedTrips(deviceId)       : Promise.resolve([] as PlannedTrip[]),
         deviceId ? listSavedPlaces(deviceId)        : Promise.resolve([] as SavedPlace[]),
         AsyncStorage.getItem(HIDDEN_SESSIONS_KEY),
@@ -512,14 +533,29 @@ export default function TripHistoryScreen() {
         deviceId
           ? apiGet<{ sessions: SharedSession[] }>(`/share/sessions/${deviceId}`).catch(() => ({ sessions: [] as SharedSession[] }))
           : Promise.resolve({ sessions: [] as SharedSession[] }),
-      ]).then(([vs, { sessions: ss }, trips, places, hiddenRaw, locCache, shared]) => {
+      ]).then(async ([vs, trips, places, hiddenRaw, locCache, shared]) => {
         if (!alive) return;
-        setVehicles(vs);
-        setActiveVehicle(prev => {
-          if (prev && vs.find(v => v.id === prev.id)) return prev;
+
+        // Resolve which vehicle to show, in priority order:
+        // 1. The user's existing local picker selection (read synchronously via ref
+        //    to avoid closure staleness from the async .then() callback) — on
+        //    refocus, we must preserve what the user picked on this screen.
+        // 2. VehicleContext active vehicle (garage swipe) — used only on first open.
+        // 3. Default / first vehicle as final fallback.
+        const localSelection = activeVehicleRef.current;
+        const effectiveVehicle = (() => {
+          // Prefer an existing valid local selection (user already picked one)
+          if (localSelection && vs.find(v => v.id === localSelection.id)) return localSelection;
+          // Fall back to the global context vehicle
+          const ctxId = ctxActiveVehicle?.id;
+          if (ctxId && vs.find(v => v.id === ctxId)) return vs.find(v => v.id === ctxId)!;
+          // Last resort: default / first
           return vs.find(v => v.isDefault) ?? vs[0] ?? null;
-        });
-        setSessions(ss);
+        })();
+
+        setVehicles(vs);
+        setActiveVehicle(effectiveVehicle);
+
         const hidden = new Set<string>(hiddenRaw ? JSON.parse(hiddenRaw) : []);
         setHiddenIds(hidden);
         setPlannedTrips(trips);
@@ -527,12 +563,28 @@ export default function TripHistoryScreen() {
         setLocationCache(locCache);
         setSharedSessions(shared.sessions ?? []);
 
+        // Fetch sessions server-side, scoped to the effective vehicle.
+        // Increment the shared generation counter so any concurrent vehicle-change
+        // re-fetch started later can detect that its result supersedes this one.
+        const gen = ++sessionFetchGenRef.current;
+        let ss: DriveSession[] = [];
+        try {
+          const result = deviceId
+            ? await listDriveSessions(
+                deviceId, 100, 0,
+                effectiveVehicle?.id ?? undefined,
+                effectiveVehicle?.isDefault ?? true,
+              )
+            : { sessions: [] as DriveSession[], total: 0 };
+          if (!alive || gen !== sessionFetchGenRef.current) return;
+          ss = result.sessions;
+          setFilteredSessions(ss.filter(s => s.endedAt != null && !hidden.has(s.id)));
+        } catch {}
+
         // If we arrived from the trip summary and know the session ID, poll
         // until that specific session appears in the committed list.
-        // (The API only returns ended_at IS NOT NULL rows, so the session is
-        // simply absent — not null — until finalization completes.)
         if (fromSummary && pendingSessionId && !ss.some(s => s.id === pendingSessionId)) {
-          pollUntilCommitted(1);
+          pollUntilCommitted(effectiveVehicle, hidden, 1);
         }
 
         // Background: geocode sessions missing from cache (up to 15 most recent)
@@ -563,6 +615,8 @@ export default function TripHistoryScreen() {
         if (retryTimer != null) clearTimeout(retryTimer);
       };
     }, [deviceId, fromSummary, pendingSessionId])
+    // NOTE: ctxActiveVehicle intentionally excluded — it only seeds the
+    // initial value; subsequent changes are handled by the effect below.
   );
 
   // ── Android hardware back: go to tabs when arriving from summary ──────────
@@ -575,14 +629,43 @@ export default function TripHistoryScreen() {
     return () => sub.remove();
   }, [fromSummary]);
 
-  // ── Per-vehicle session filtering ─────────────────────────────────────────
+  // ── Re-fetch when vehicle selection changes ───────────────────────────────
+  // Covers two scenarios:
+  //  1. User picks a different vehicle via the on-screen vehicle picker
+  //  2. Global active vehicle changes (garage swipe) while this screen is mounted
+  //
+  // Uses the shared sessionFetchGenRef to guard against races: if useFocusEffect
+  // is still running when the vehicle changes, this effect increments the counter
+  // so the focus-effect's response is treated as stale and discarded.
+  const prevActiveVehicleId = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeVehicle) { setFilteredSessions(sessions); return; }
-    const defaultV = vehicles.find(v => v.isDefault) ?? vehicles[0];
-    getSessionsForVehicle(activeVehicle.id, defaultV?.id ?? activeVehicle.id, sessions)
-      .then(fs => setFilteredSessions(fs.filter(s => s.endedAt != null && !hiddenIds.has(s.id))))
-      .catch(() => setFilteredSessions(sessions.filter(s => s.endedAt != null && !hiddenIds.has(s.id))));
-  }, [sessions, vehicles, activeVehicle, hiddenIds]);
+    const newId = activeVehicle?.id ?? null;
+    // Only re-fetch when the selected vehicle actually changes.
+    if (newId === prevActiveVehicleId.current) return;
+    prevActiveVehicleId.current = newId;
+    if (!deviceId) return;
+    // Clear immediately so the UI never shows another vehicle's trips
+    setFilteredSessions([]);
+    const gen = ++sessionFetchGenRef.current;
+    listDriveSessions(deviceId, 100, 0, activeVehicle?.id ?? undefined, activeVehicle?.isDefault ?? true)
+      .then(({ sessions }) => {
+        if (gen !== sessionFetchGenRef.current) return; // superseded by a later vehicle switch
+        setFilteredSessions(sessions.filter(s => s.endedAt != null && !hiddenIds.has(s.id)));
+      })
+      .catch(() => {});
+  }, [activeVehicle, deviceId, hiddenIds]);
+
+  // When the global active vehicle changes (garage swipe), update our local selection
+  useEffect(() => {
+    if (!ctxActiveVehicle) return;
+    setActiveVehicle(prev => {
+      // Only update if the vehicle actually exists in our loaded list
+      // and we haven't already set a local override
+      if (!prev || prev.id === ctxActiveVehicle.id) return ctxActiveVehicle;
+      // If the user has manually picked a different vehicle, respect their choice
+      return prev;
+    });
+  }, [ctxActiveVehicle]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const totalDistKm = filteredSessions.reduce((a, s) => a + s.distanceM, 0) / 1000;

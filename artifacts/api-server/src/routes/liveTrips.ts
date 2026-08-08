@@ -244,9 +244,25 @@ router.get("/drive-sessions", async (req: Request, res: Response) => {
     const limit  = Math.min(50, Math.max(1, parseInt(q.limit  ?? "20") || 20));
     const offset = Math.max(0,              parseInt(q.offset ?? "0")  || 0);
 
+    // Optional per-vehicle filtering.
+    // vehicleId       — the active vehicle's id (omit to return all vehicles' sessions)
+    // includeNullVehicle — when "true", also include legacy rows where vehicle_id IS NULL
+    //                      (used when the default vehicle is selected, so pre-tracking
+    //                       sessions still appear in its history)
+    const vehicleId         = q.vehicleId?.trim() || null;
+    const includeNullVehicle = q.includeNullVehicle === "true";
+
+    // Build the vehicle clause once so both queries stay consistent.
+    // If no vehicleId is given we skip vehicle filtering entirely (backward compat).
+    const vehicleClause = vehicleId
+      ? includeNullVehicle
+        ? sql`AND (vehicle_id = ${vehicleId} OR vehicle_id IS NULL)`
+        : sql`AND vehicle_id = ${vehicleId}`
+      : sql``;
+
     const [rows, countResult] = await Promise.all([
       db.execute<Record<string, unknown>>(sql`
-        SELECT id, device_id, started_at, ended_at,
+        SELECT id, device_id, vehicle_id, started_at, ended_at,
                start_lat, start_lng, end_lat, end_lng,
                distance_m, duration_s, avg_speed_kmh, max_speed_kmh,
                score, harsh_brakes, harsh_accels, sharp_turns,
@@ -256,6 +272,7 @@ router.get("/drive-sessions", async (req: Request, res: Response) => {
         FROM live_trips
         WHERE device_id = ${deviceId.trim()}
           AND ended_at IS NOT NULL
+          ${vehicleClause}
         ORDER BY started_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
@@ -264,12 +281,14 @@ router.get("/drive-sessions", async (req: Request, res: Response) => {
         FROM live_trips
         WHERE device_id = ${deviceId.trim()}
           AND ended_at IS NOT NULL
+          ${vehicleClause}
       `),
     ]);
 
     const sessions = rows.rows.map((r) => ({
       id:                 r.id,
       deviceId:           r.device_id,
+      vehicleId:          r.vehicle_id ?? null,
       startedAt:          r.started_at,
       endedAt:            r.ended_at,
       startLat:           r.start_lat,

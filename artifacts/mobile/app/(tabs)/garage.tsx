@@ -49,7 +49,7 @@ import {
   removeVehicle,
   PENDING_SLOT_KEY,
 } from "@/utils/savedVehicles";
-import { getSessionsForVehicle } from "@/utils/vehicleSessionMap";
+// vehicleSessionMap removed — sessions are now filtered server-side via vehicleId param
 import {
   TripLocationMap,
   loadTripLocationCache,
@@ -406,7 +406,6 @@ export default function GarageScreen() {
     setVehicleModel, setCustomVehicle, setVehicleType,
   } = useApp();
 
-  const [sessions,         setSessions]         = useState<DriveSession[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<DriveSession[]>([]);
   const [locationCache,    setLocationCache]    = useState<TripLocationMap>({});
   const [careStats,  setCareStats]  = useState<VehicleCareStats | null>(null);
@@ -430,15 +429,10 @@ export default function GarageScreen() {
       // Bump tick so the care-stats effect re-runs on every focus
       setFocusTick(t => t + 1);
 
-      // Load drive sessions + location cache
+      // Load location cache (sessions are fetched per-vehicle via the effect below)
       if (deviceId) {
-        Promise.all([
-          listDriveSessions(deviceId, 50),
-          loadTripLocationCache(),
-        ])
-          .then(([{ sessions: s }, locCache]) => {
-            if (alive) { setSessions(s); setLocationCache(locCache); }
-          })
+        loadTripLocationCache()
+          .then((locCache) => { if (alive) setLocationCache(locCache); })
           .catch(() => {});
       }
 
@@ -494,20 +488,37 @@ export default function GarageScreen() {
     }, [deviceId, vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType])
   );
 
-  // ── Per-vehicle session filtering ───────────────────────────────────────────
-  // When the user swipes to a different vehicle slide, filter the full session
-  // list down to only those recorded for that vehicle via the session map.
+  // ── Per-vehicle session fetch ────────────────────────────────────────────────
+  // Fetch sessions from the server scoped to the vehicle currently shown on the
+  // garage slide. focusTick re-triggers on every screen focus so new sessions
+  // recorded during a drive appear immediately without a manual pull-to-refresh.
+  // The default vehicle also includes legacy rows where vehicle_id IS NULL so
+  // pre-tracking trips still appear in its history.
+  //
+  // Generation counter: each effect invocation increments `sessionsFetchGen`.
+  // The response handler checks that its generation is still the latest before
+  // writing state, so rapid swipes can never let an older (slower) response
+  // overwrite data for the most recently selected vehicle.
+  const sessionsFetchGen = useRef(0);
   useEffect(() => {
-    if (sessions.length === 0 || vehicles.length === 0) {
-      setFilteredSessions(sessions);
-      return;
-    }
-    const activeVehicle  = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
-    const defaultVehicle = vehicles.find(v => v.isDefault) ?? vehicles[0];
-    getSessionsForVehicle(activeVehicle.id, defaultVehicle.id, sessions)
-      .then(filtered => setFilteredSessions(filtered))
-      .catch(() => setFilteredSessions(sessions));
-  }, [sessions, vehicles, slideIndex]);
+    if (!deviceId || vehicles.length === 0) return;
+    const slideVehicle = vehicles[Math.min(slideIndex, vehicles.length - 1)] ?? vehicles[0];
+    // Clear immediately so stale data from the previous vehicle never lingers
+    setFilteredSessions([]);
+    const gen = ++sessionsFetchGen.current;
+    listDriveSessions(
+      deviceId,
+      100,
+      0,
+      slideVehicle.id,
+      slideVehicle.isDefault,
+    )
+      .then(({ sessions }) => {
+        if (gen !== sessionsFetchGen.current) return; // stale — a newer request is in flight
+        setFilteredSessions(sessions);
+      })
+      .catch(() => {});
+  }, [deviceId, vehicles, slideIndex, focusTick]);
 
   // ── Per-vehicle care stats ───────────────────────────────────────────────────
   // Reload Vehicle Care stats whenever the active slide or focus changes so the

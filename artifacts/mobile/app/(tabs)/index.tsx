@@ -45,6 +45,7 @@ import {
   scoreLabel,
   formatDuration,
 } from "@/utils/driveSessionApi";
+import { useVehicle } from "@/context/VehicleContext";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ export default function HomeScreen() {
     navTripPaused,
     profilePhotoUri,
   } = useApp();
+  const { activeVehicle, activeVehicleId } = useVehicle();
 
   // Increments each time the Home tab gains focus so DefaultVehicleImage
   // re-reads loadVehicles() and shows any vehicle the user just changed.
@@ -114,12 +116,19 @@ export default function HomeScreen() {
   const tabBarH = Platform.OS === "web" ? 84 : 96;
 
   // ── Last trip + latest score from the persisted drive-session system ──────
+  // Scoped to the active vehicle so the card changes when the user switches cars.
   const [lastSession, setLastSession] = useState<DriveSession | null>(null);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       if (deviceId) {
-        listDriveSessions(deviceId, 5)
+        listDriveSessions(
+          deviceId,
+          5,
+          0,
+          activeVehicleId ?? undefined,
+          activeVehicle?.isDefault ?? true,
+        )
           .then(({ sessions }) => {
             if (!alive) return;
             const done = sessions.find((s) => s.endedAt != null) ?? sessions[0] ?? null;
@@ -128,7 +137,7 @@ export default function HomeScreen() {
           .catch(() => {});
       }
       return () => { alive = false; };
-    }, [deviceId]),
+    }, [deviceId, activeVehicleId, activeVehicle]),
   );
 
   // ── Nearby alerts within 3 km, closest first ───────────────────────────────
