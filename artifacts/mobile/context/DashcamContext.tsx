@@ -38,6 +38,13 @@ import * as Notifications from "expo-notifications";
 import { Alert, AppState, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
+import {
+  vehicleSegmentsKey,
+  vehicleSegmentsDir as _vehicleSegmentsDir,
+  computeSegmentDestUri,
+  detectVehicleSwitch,
+  buildDashcamSegment,
+} from "@/utils/dashcamSegmentRouting";
 
 // Dynamically load useCameraPermissions so this context stays web-safe.
 // On web the fallback is "always granted" (no camera access needed).
@@ -156,10 +163,13 @@ const SECRET_KEY   = "dashcam_secret_v1";
 // ── Vehicle-scoped storage helpers ────────────────────────────────────────────
 // Clips are stored separately for each vehicle so switching cars shows only
 // that vehicle's footage. Settings (quality, wifi-only, etc.) stay global.
+// vehicleSegmentsKey and vehicleSegmentsDir are imported from
+// utils/dashcamSegmentRouting.js — change the logic there, not here.
 const LEGACY_SEGMENTS_KEY = "dashcam_segments_v1"; // pre-multi-vehicle key — migrated once
-const vehicleSegmentsKey  = (vKey: string) => `dashcam_segments_${vKey}`;
+
+// Thin wrapper: injects FileSystem.documentDirectory so call-sites stay concise.
 const vehicleSegmentsDir  = (vKey: string) =>
-  `${FileSystem.documentDirectory ?? ""}dashcam/segments/${vKey}/`;
+  _vehicleSegmentsDir(vKey, FileSystem.documentDirectory ?? "");
 
 // Must match the AsyncStorage key in hooks/usePushNotifications.ts so that
 // the device ID used for dashcam enrollment resolves to the same row in
@@ -931,12 +941,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       // Use the paths captured at segment-START time (by onSegmentStart), not the
       // current refs. This prevents a vehicle switch that happens mid-segment from
       // redirecting the completed clip to the new vehicle's folder/store.
+      // computeSegmentDestUri and detectVehicleSwitch are imported from
+      // utils/dashcamSegmentRouting.js — the unit tests exercise those functions
+      // directly against this same import.
       const capturedDir      = recordingSegmentDirRef.current;
       const capturedAsyncKey = recordingSegmentAsyncKeyRef.current;
-      const destUri          = `${capturedDir}${id}.mp4`;
+      const destUri          = computeSegmentDestUri(capturedDir, id);
 
       // Detect whether the vehicle changed while this segment was in-flight.
-      const vehicleSwitchedMidSegment = capturedAsyncKey !== segmentsAsyncKeyRef.current;
+      const vehicleSwitchedMidSegment = detectVehicleSwitch(capturedAsyncKey, segmentsAsyncKeyRef.current);
 
       try {
         // Ensure the destination directory exists before every save — not just
@@ -950,18 +963,11 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         const info      = await FileSystem.getInfoAsync(destUri);
         const sizeBytes = (info as any).size ?? 0;
 
-        const segment: DashcamSegment = {
-          id,
-          uri:          destUri,
-          startedAt:    Date.now() - (durationS ?? 120) * 1000,
-          durationS:    durationS ?? 120,
-          sizeBytes,
-          locked:       !!lockReason,
-          lockReason:   lockReason ?? undefined,
-          uploadStatus: lockReason ? "pending" : "none",
-          lat:          coords?.lat,
-          lng:          coords?.lng,
-        };
+        // buildDashcamSegment is imported from utils/dashcamSegmentRouting.js.
+        const segment: DashcamSegment = buildDashcamSegment({
+          id, destUri, durationS: durationS ?? 120, sizeBytes,
+          lockReason: lockReason ?? null, coords,
+        }) as DashcamSegment;
 
         if (vehicleSwitchedMidSegment) {
           // The driver switched vehicles while this segment was recording.
