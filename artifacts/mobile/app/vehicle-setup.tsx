@@ -22,6 +22,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { saveVehicles, loadVehicles } from "@/utils/savedVehicles";
+import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import CarLogoImage from "@/components/CarLogoImage";
@@ -68,6 +69,7 @@ function ChipRow<T extends string>({
 export default function VehicleSetup() {
   const c = useColors();
   const { setVehicleModel, setVehicleType: setCtxVehicleType, setCustomVehicle } = useApp();
+  const { refreshVehicles } = useVehicle();
 
   // Step 0 = type, 1 = make, 2 = model, 3 = details
   const [step, setStep] = useState(0);
@@ -132,6 +134,8 @@ export default function VehicleSetup() {
         );
         await saveVehicles(updated);
       }
+      // Sync VehicleContext so all consumers see the updated list immediately
+      refreshVehicles().catch(() => {});
     } catch {
       // Best-effort — proceed to app even on failure
     } finally {

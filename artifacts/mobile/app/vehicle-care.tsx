@@ -45,6 +45,7 @@ import {
   ReminderConfig,
 } from "@/utils/vehicleCare";
 import { loadVehicles, saveVehicles } from "@/utils/savedVehicles";
+import { useVehicle } from "@/context/VehicleContext";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // ── Circular health ring ──────────────────────────────────────────────────────
@@ -262,6 +263,7 @@ interface UpdateOdometerModalProps {
 
 function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClose, onSaved }: UpdateOdometerModalProps) {
   const c = useColors();
+  const { refreshVehicles } = useVehicle();
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -295,6 +297,7 @@ function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClos
             : v
         );
         await saveVehicles(updated);
+        refreshVehicles().catch(() => {});
       }
 
       onSaved();
