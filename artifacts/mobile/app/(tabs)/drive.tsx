@@ -1694,34 +1694,7 @@ export default function DriveScreen() {
         </View>
       )}
 
-      {/* Theme toggle — only during active driving (no map in idle pre-trip state) */}
-      {!showResults && tripActive && (
-        <TouchableOpacity
-          style={[
-            styles.fab,
-            {
-              backgroundColor: fabBg,
-              position: "absolute",
-              right: 12,
-              zIndex: 12,
-              // When browsing: sit below recenter + traffic (2×43 + 2×9 gap = 104 px).
-              // When tripActive those FABs are hidden, so snap to the top slot.
-              top: topInset + 72 + (tripActive ? 0 : 104),
-            },
-          ]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            manualThemeRef.current = true; // suppress auto-switch for this session
-            setThemeOverride(isDark ? "light" : "dark");
-          }}
-        >
-          <Ionicons
-            name={isDark ? "sunny" : "moon"}
-            size={19}
-            color={isDark ? "#FFC107" : "#3949AB"}
-          />
-        </TouchableOpacity>
-      )}
+      {/* Theme toggle — folded into dmSideCol when tripActive (see below) */}
 
       {/* ══════════════════════════════════════════════════════════════════
           DRIVE MODE overlays (mockup-faithful):
@@ -1772,6 +1745,25 @@ export default function DriveScreen() {
             >
               <Ionicons name="locate-outline" size={20} color={mapDrifted ? c.primary : c.foreground} />
               <Text style={[styles.dmSideBtnTxt, { color: mapDrifted ? c.primary : c.foreground }]}>Center</Text>
+            </TouchableOpacity>
+            {/* Theme toggle — third item in the column, moves with the alert offset */}
+            <TouchableOpacity
+              style={[styles.dmSideBtn, { backgroundColor: isDark ? "#161B18F0" : "#FFFFFFF0", borderColor: c.tileBorder }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                manualThemeRef.current = true; // suppress auto-switch for this session
+                setThemeOverride(isDark ? "light" : "dark");
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={isDark ? "sunny" : "moon"}
+                size={20}
+                color={isDark ? "#FFC107" : "#3949AB"}
+              />
+              <Text style={[styles.dmSideBtnTxt, { color: c.foreground }]}>
+                {isDark ? "Light" : "Dark"}
+              </Text>
             </TouchableOpacity>
           </View>
 
