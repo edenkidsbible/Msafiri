@@ -318,8 +318,8 @@ function speedToLatDelta(kmh: number): number {
 
 // Low-pass filter for compass heading, handling the 360°/0° wraparound so
 // the camera never spins the long way round when crossing north.
-// alpha = 0.25 → heading tracks changes in ~4–6 GPS fixes (~4–6 s).
-function smoothHeading(current: number | null, target: number, alpha = 0.25): number {
+// alpha = 0.20 → heading tracks changes smoothly across ~5–8 GPS fixes.
+function smoothHeading(current: number | null, target: number, alpha = 0.20): number {
   if (current == null) return target;
   let diff = target - current;
   if (diff >  180) diff -= 360;
@@ -516,10 +516,12 @@ const DriveMapView = forwardRef(function DriveMapView(
       const delta = prev == null
         ? 360
         : Math.abs(((hdg - prev) + 540) % 360 - 180);
-      if (delta < 2) return;
+      if (delta < 1.5) return;
       lastAnimatedHeadingRef.current = hdg;
-      mapRef.current?.animateCamera({ heading: hdg }, { duration: 800 });
-    }, 1500);
+      // 950 ms duration vs 1000 ms interval — animations overlap so the
+      // compass rotates continuously rather than ticking in 1-second steps.
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: 950 });
+    }, 1000);
 
     return () => {
       if (headingIntervalRef.current) {
@@ -754,14 +756,15 @@ const DriveMapView = forwardRef(function DriveMapView(
   //   • Zoom hysteresis    — the target zoom band must be sustained for
   //     ZOOM_SUSTAIN_MS before the camera zooms, so a single noisy speed spike
   //     never pulses the camera.
-  // ── Browsing follow ────────────────────────────────────────────────────────
-  // Keep the driver's dot in the centre of the screen — pan + speed-adaptive
-  // zoom, north-up. Pauses automatically when they manually pan/zoom (drift
-  // flag), resuming on Recenter tap.
+  // ── GPS camera follow (browsing + navigation) ──────────────────────────────
+  // Keeps the driver's position centered on screen in heading-up orientation.
+  // Active in both plain drive mode and planned-route navigation — the initial
+  // fitToCoordinates (route preview) fires once on route-set, after which this
+  // effect takes over and follows every GPS fix smoothly.
+  // Pauses when the driver manually pans/zooms (drift flag); resumes on Recenter.
   useEffect(() => {
     if (
       !mapDriftedRef.current &&
-      !activeRoute &&           // route preview overrides follow — don't fight fitToCoordinates
       currentLat != null &&
       currentLng != null &&
       hasCenteredRef.current    // initial center already done — safe to animate
@@ -775,7 +778,7 @@ const DriveMapView = forwardRef(function DriveMapView(
             const rawDiffStat = camHeadingRef.current != null
               ? Math.abs((() => { let d = driverHeading - camHeadingRef.current!; if (d > 180) d -= 360; if (d < -180) d += 360; return d; })())
               : 180;
-            const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, rawDiffStat > 120 ? 0.75 : 0.10);
+            const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, rawDiffStat > 120 ? 0.75 : 0.08);
             camHeadingRef.current = smoothedHdg;
             if (Platform.OS !== "ios") {
               const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
@@ -797,7 +800,7 @@ const DriveMapView = forwardRef(function DriveMapView(
         const rawDiff = camHeadingRef.current != null
           ? Math.abs((() => { let d = driverHeading - camHeadingRef.current!; if (d > 180) d -= 360; if (d < -180) d += 360; return d; })())
           : 180;
-        const headingAlpha = rawDiff > 120 ? 0.75 : 0.25;
+        const headingAlpha = rawDiff > 120 ? 0.75 : 0.20;
         camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, headingAlpha);
       }
 
@@ -832,9 +835,10 @@ const DriveMapView = forwardRef(function DriveMapView(
       if (Platform.OS !== "ios" && camHeadingRef.current != null) {
         driveCameraUpdate.heading = camHeadingRef.current;
       }
-      // Duration ~= GPS tick interval so each animation blends into the next,
-      // creating smooth continuous motion rather than 300 ms jerks with gaps.
-      mapRef.current?.animateCamera(driveCameraUpdate, { duration: 900 });
+      // 1200 ms duration slightly exceeds the ~1 s GPS tick rate so consecutive
+      // animations always overlap — the camera glides continuously rather than
+      // stopping between fixes and snapping to the next position.
+      mapRef.current?.animateCamera(driveCameraUpdate, { duration: 1200 });
     }
   }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
