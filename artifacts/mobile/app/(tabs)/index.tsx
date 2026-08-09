@@ -15,8 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -46,6 +47,7 @@ import {
   formatDuration,
 } from "@/utils/driveSessionApi";
 import { useVehicle } from "@/context/VehicleContext";
+import { QUICK_START_KEY } from "@/app/pretrip-check";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -209,10 +211,64 @@ export default function HomeScreen() {
   // ── Score info popup ──────────────────────────────────────────────────────
   const [showScoreInfo, setShowScoreInfo] = useState(false);
 
-  const startDriving = () => {
+  // ── Quick-start: skip checklist when setting is on + permissions OK ────────
+  const [quickStartReady, setQuickStartReady] = useState(false);
+  const quickStartReadyRef = useRef(false);
+  // Tracks whether the long-press gesture just fired so onPress can be suppressed.
+  const longPressedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Synchronously invalidate the ref so any tap during the async check
+      // opens the checklist rather than bypassing it with stale state.
+      quickStartReadyRef.current = false;
+      setQuickStartReady(false);
+
+      let alive = true;
+      (async () => {
+        try {
+          const stored = await AsyncStorage.getItem(QUICK_START_KEY);
+          if (!alive || stored !== "1") return;
+
+          // Check essential permissions without requesting them
+          const fg = await Location.getForegroundPermissionsAsync();
+          if (!alive || !fg.granted) return;
+
+          // Default true only on web (notifications not applicable).
+          // On native, fail closed: only set true after a confirmed grant.
+          let notifGranted = Platform.OS === "web";
+          if (Platform.OS !== "web") {
+            try {
+              const Notifications = require("expo-notifications");
+              const n = await Notifications.getPermissionsAsync();
+              notifGranted = n.granted === true;
+            } catch { /* permission check failed — leave notifGranted false */ }
+          }
+          if (!alive || !notifGranted) return;
+
+          // All checks passed — enable quick-start
+          quickStartReadyRef.current = true;
+          setQuickStartReady(true);
+        } catch { /* permissions unavailable — leave ref false */ }
+      })();
+      return () => { alive = false; };
+    }, []),
+  );
+
+  const startDriving = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    if (quickStartReadyRef.current) {
+      // All permissions are confirmed — go straight to drive
+      router.replace("/(tabs)/drive");
+    } else {
+      router.push("/pretrip-check");
+    }
+  }, []);
+
+  const openChecklist = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     router.push("/pretrip-check");
-  };
+  }, []);
 
   const [hour, setHour] = useState(() => new Date().getHours());
   useFocusEffect(useCallback(() => { setHour(new Date().getHours()); }, []));
@@ -395,7 +451,17 @@ export default function HomeScreen() {
         </View>
 
         {/* ── Start / Resume / View Driving hero card (state-aware) ──────── */}
-        <Pressable onPress={startDriving} style={({ pressed }) => [pressed && { transform: [{ scale: 0.985 }] }]}>
+        <Pressable
+          onPress={() => {
+            // If a long-press just fired, consume the flag and do nothing.
+            // This prevents the normal press from also running after a hold.
+            if (longPressedRef.current) { longPressedRef.current = false; return; }
+            startDriving();
+          }}
+          onLongPress={() => { longPressedRef.current = true; openChecklist(); }}
+          delayLongPress={600}
+          style={({ pressed }) => [pressed && { transform: [{ scale: 0.985 }] }]}
+        >
           <LinearGradient
             colors={
               navTripPaused
@@ -441,6 +507,9 @@ export default function HomeScreen() {
                 <>
                   <Text style={styles.heroTitle}>Start Driving</Text>
                   <Text style={styles.heroSub}>Navigate, get alerts{"\n"}and stay protected</Text>
+                  {quickStartReady && (
+                    <Text style={styles.heroLongPressHint}>Hold to open checklist</Text>
+                  )}
                 </>
               )}
 

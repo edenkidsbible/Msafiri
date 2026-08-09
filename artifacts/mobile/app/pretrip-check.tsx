@@ -5,6 +5,7 @@
  * Handles all permission requests upfront and lets the driver verify their
  * dashcam angle + mic preference before the countdown begins.
  */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
@@ -26,6 +27,8 @@ import { useDashcam } from "@/context/DashcamContext";
 import { useVehicle } from "@/context/VehicleContext";
 import { getMakeById, getModelById } from "@/data/carModels";
 import type { SavedVehicle } from "@/utils/savedVehicles";
+
+export const QUICK_START_KEY = "quickstart_pretrip_v1";
 
 // ── Dynamically load native-only modules ─────────────────────────────────────
 // expo-camera and expo-notifications are unavailable on web.
@@ -251,6 +254,28 @@ export default function PretripCheckScreen() {
     Haptics.selectionAsync().catch(() => {});
     await updateSettings({ quality: q });
   }, [updateSettings]);
+
+  // ── Quick-start preference ─────────────────────────────────────────────────
+  const [quickStartEnabled, setQuickStartEnabled] = useState(false);
+
+  // Load saved preference on mount
+  useEffect(() => {
+    AsyncStorage.getItem(QUICK_START_KEY)
+      .then((v) => { if (v === "1") setQuickStartEnabled(true); })
+      .catch(() => {});
+  }, []);
+
+  const toggleQuickStart = useCallback(async (value: boolean) => {
+    Haptics.selectionAsync().catch(() => {});
+    setQuickStartEnabled(value);
+    try {
+      if (value) {
+        await AsyncStorage.setItem(QUICK_START_KEY, "1");
+      } else {
+        await AsyncStorage.removeItem(QUICK_START_KEY);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // ── Start driving ──────────────────────────────────────────────────────────
   const handleStart = useCallback(() => {
@@ -570,6 +595,27 @@ export default function PretripCheckScreen() {
           },
         ]}
       >
+        {/* Quick-start toggle — only offered once all essential permissions are on */}
+        {allEssentialGranted && (
+          <View style={[styles.quickStartRow, { borderColor: c.border }]}>
+            <View style={styles.quickStartText}>
+              <Ionicons name="flash" size={15} color={quickStartEnabled ? c.primary : c.mutedForeground} />
+              <Text style={[styles.quickStartLabel, { color: c.foreground }]}>
+                Quick start
+              </Text>
+              <Text style={[styles.quickStartDesc, { color: c.mutedForeground }]}>
+                Skip checklist next time
+              </Text>
+            </View>
+            <Switch
+              value={quickStartEnabled}
+              onValueChange={toggleQuickStart}
+              trackColor={{ false: c.muted, true: c.primary + "88" }}
+              thumbColor={quickStartEnabled ? c.primary : c.mutedForeground}
+            />
+          </View>
+        )}
+
         {!allEssentialGranted && (
           <Text style={[styles.ctaWarning, { color: c.mutedForeground }]}>
             Some permissions are missing — alerts may not work correctly
@@ -732,4 +778,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   ctaBtnTxt: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
+
+  // Quick-start toggle
+  quickStartRow: {
+    flexDirection: "row", alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    marginBottom: 10, gap: 10,
+  },
+  quickStartText: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  quickStartLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  quickStartDesc:  { fontSize: 12, fontFamily: "Inter_400Regular" },
 });
