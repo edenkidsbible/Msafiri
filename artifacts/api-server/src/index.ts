@@ -13,7 +13,7 @@ import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
 import { seedPois } from "./startup/seedPois";
-import { retryPendingCarImages } from "./routes/customVehicles.js";
+import { retryPendingCarImages, retryPendingLogos } from "./routes/customVehicles.js";
 import { startHereTrafficJob } from "./jobs/hereTraffic";
 import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
 import { startClusterHazardsJob } from "./jobs/clusterHazards";
@@ -111,5 +111,10 @@ app.listen(port, async (err) => {
   // previous server run before the Wikipedia-based lookup was in place).
   retryPendingCarImages().catch((err) =>
     logger.error({ err }, "retryPendingCarImages crashed"),
+  );
+
+  // Retry any custom make logos left in "pending" state.
+  retryPendingLogos().catch((err) =>
+    logger.error({ err }, "retryPendingLogos crashed"),
   );
 });

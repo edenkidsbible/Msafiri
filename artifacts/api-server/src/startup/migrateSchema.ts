@@ -263,6 +263,12 @@ export async function migrateSchema(): Promise<void> {
         WHERE share_token IS NOT NULL
     `);
 
+    // logo_status on custom_vehicles — tracks Wikipedia make-logo fetch lifecycle.
+    // "pending" → queued; "done" → R2 has car-logos/{makeSlug}.png; "not_found" → no logo.
+    await db.execute(sql`
+      ALTER TABLE custom_vehicles ADD COLUMN IF NOT EXISTS logo_status TEXT NOT NULL DEFAULT 'pending'
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

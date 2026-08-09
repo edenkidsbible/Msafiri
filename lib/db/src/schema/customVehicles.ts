@@ -26,6 +26,13 @@ export const customVehiclesTable = pgTable("custom_vehicles", {
   knownMakeId:   text("known_make_id"),
   /** "pending" while the image generation job is running; "done" when available. */
   imageStatus:   text("image_status").notNull().default("pending"),
+  /**
+   * Lifecycle for the make logo (stored at car-logos/{makeSlug}.png in R2).
+   * "pending" → lookup queued; "done" → logo in R2; "not_found" → no logo found.
+   * Known makes (knownMakeId set) are immediately "done" — their logos are
+   * pre-seeded; only fully custom makes need the Wikipedia lookup.
+   */
+  logoStatus:    text("logo_status").notNull().default("pending"),
   /** How many distinct users have submitted this same make+model pair. */
   submittedCount: integer("submitted_count").notNull().default(1),
   createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
