@@ -1399,7 +1399,7 @@ export default function DriveScreen() {
             <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>
               {primaryAlert.typeName} ahead
             </MarqueeText>
-            <MarqueeText style={[styles.dmAlertSub, { color: c.mutedForeground }]}>
+            <Text style={[styles.dmAlertSub, { color: c.mutedForeground }]} numberOfLines={1}>
               <Text style={{ color: c.primary, fontFamily: "Inter_700Bold" }}>
                 {distStr(primaryAlert.distanceM)}
               </Text>
