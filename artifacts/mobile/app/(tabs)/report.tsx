@@ -26,9 +26,54 @@ import { playSound } from "@/utils/sound";
 import { snapToRoad, getRoadName } from "@/utils/snapToRoad";
 import type { CommunityReport } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-import { formatTimeAgo } from "@/lib/timeAgo";
+import { freshnessLabel, reportTier, freshnessChipColors } from "@/lib/freshnessLabel";
 
 type ReportType = CommunityReport["type"];
+
+// ── Freshness chip ────────────────────────────────────────────────────────────
+
+function FreshnessChip({
+  report,
+  mutedColor,
+}: {
+  report: CommunityReport & { distance: number | null };
+  mutedColor: string;
+}) {
+  const tier  = reportTier(report.confirmCount);
+  const label = freshnessLabel(report.confirmCount, report.timestamp, report.observationContext);
+  const isCommunityTip = report.observationContext === "community_tip";
+  const hasChip = isCommunityTip || tier !== "new";
+
+  if (!hasChip) {
+    return (
+      <Text style={[chipStyles.plainMeta, { color: mutedColor }]} numberOfLines={1}>
+        {label}
+      </Text>
+    );
+  }
+
+  const cols = freshnessChipColors(report.observationContext, tier);
+  return (
+    <View style={[chipStyles.chip, { backgroundColor: cols.bg, borderColor: cols.border }]}>
+      <Text style={[chipStyles.chipTxt, { color: cols.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  plainMeta: { fontSize: 11.5, fontFamily: "Inter_400Regular", marginTop: 2 },
+  chip: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  chipTxt: { fontSize: 11, fontFamily: "Inter_500Medium" },
+});
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6_371_000;
@@ -69,7 +114,6 @@ export default function ReportScreen() {
     lat: number; lng: number; onConfirm: (lat: number, lng: number) => void;
   } | null>(null);
 
-  const now = Date.now();
   const TAB_H = Platform.OS === "web" ? 84 : 96;
 
   const nearbyReports = useMemo(() => {
@@ -212,9 +256,7 @@ export default function ReportScreen() {
                     {r.roadName ? (
                       <Text style={[styles.reportRoad, { color: c.mutedForeground }]} numberOfLines={1}>{r.roadName}</Text>
                     ) : null}
-                    <Text style={[styles.reportMeta, { color: c.mutedForeground }]}>
-                      Reported {formatTimeAgo(r.timestamp, now)}
-                    </Text>
+                    <FreshnessChip report={r} mutedColor={c.mutedForeground} />
                   </View>
                   <View style={styles.reportDist}>
                     {r.distance != null && (

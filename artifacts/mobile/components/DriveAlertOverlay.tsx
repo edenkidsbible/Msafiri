@@ -77,46 +77,7 @@ const IN_ZONE_DIST = 250; // metres — must match AppContext constant
 
 // ── Confidence tier helpers ───────────────────────────────────────────────────
 
-function reportTier(confirmCount: number | undefined): "new" | "confirmed" | "reliable" {
-  const c = confirmCount ?? 0;
-  if (c >= 5) return "reliable";
-  if (c >= 2) return "confirmed";
-  return "new";
-}
-
-/** Human-readable age string for a report timestamp. */
-function ageLabel(createdAt: number | undefined): string {
-  if (!createdAt) return "";
-  const diffMs = Date.now() - createdAt;
-  const mins   = Math.floor(diffMs / 60_000);
-  const hours  = Math.floor(diffMs / 3_600_000);
-  if (mins < 2)   return "Just now";
-  if (mins < 60)  return `${mins} min ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return "Earlier today";
-}
-
-/**
- * Single-line freshness + confidence label shown in the alert overlay.
- * Combines observation context, confirm count, and report age.
- */
-function freshnessLabel(
-  confirmCount: number | undefined,
-  createdAt: number | undefined,
-  observationContext: "on_location" | "recent_nearby" | "community_tip" | undefined,
-): string {
-  const c   = confirmCount ?? 0;
-  const age = ageLabel(createdAt);
-
-  // Community tips surface the context first so the driver knows reliability
-  if (observationContext === "community_tip") {
-    return age ? `Community tip · ${age}` : "Community tip";
-  }
-
-  if (c === 0) return age ? `Reported ${age}` : "Reported by a driver";
-  if (c < 5)   return age ? `${c > 1 ? `${c}× ` : ""}Confirmed · ${age}` : `Confirmed by ${c} driver${c === 1 ? "" : "s"}`;
-  return age ? `Highly reliable · ${age}` : `Highly reliable · ${c} drivers`;
-}
+import { reportTier, freshnessLabel } from "@/lib/freshnessLabel";
 
 function tierBg(baseBg: string, tier: "new" | "confirmed" | "reliable"): string {
   if (tier === "new") return "#8D6E63";

@@ -14,7 +14,7 @@ import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Alert, Animated, BackHandler, FlatList, Image, Modal, Platform,
+  ActivityIndicator, Alert, Animated, BackHandler, FlatList, Image, Linking, Modal, Platform,
   Pressable, ScrollView, Share as RNShare, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
@@ -885,6 +885,7 @@ export default function DashcamVideosScreen() {
       // Save to the device's photo/video library
       if (Platform.OS !== "web") {
         const { status } = await MediaLibrary.requestPermissionsAsync();
+
         if (status === "granted") {
           try {
             await MediaLibrary.saveToLibraryAsync(dest);
@@ -894,16 +895,39 @@ export default function DashcamVideosScreen() {
             Alert.alert("Saved to Gallery ✓", "The clip has been saved to your Photos/Videos.");
             return;
           } catch {
-            // Fall through — file still downloaded to app storage
+            // saveToLibraryAsync failed for a non-permission reason (e.g. codec issue).
+            // The file is still in app storage — tell the driver clearly.
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            Alert.alert(
+              "Couldn't save to gallery",
+              "The clip was downloaded to the app but couldn't be added to your Photos. Try sharing it instead.",
+            );
+            return;
           }
         }
+
+        // Permission was denied or still undetermined after the dialog — give
+        // the driver a clear explanation and a direct path to fix it.
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+          "Photos access needed",
+          "Msafiri needs permission to save videos to your gallery. Tap Open Settings, then enable Photos access.",
+          [
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => Linking.openSettings(),
+            },
+          ],
+        );
+        return;
       }
 
-      // Fallback: permission denied or web — clip stays in app document storage
+      // Web — no MediaLibrary available, clip stays in app document storage
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "Downloaded ✓",
-        "Clip saved to the app. To save to your phone's gallery, grant Photos access in Settings.",
+        "Clip saved to the app.",
       );
     } catch {
       Alert.alert("Error", "Download failed. Check your connection.");

@@ -412,9 +412,35 @@ function EditVehicleModal({
 
   async function handleSave() {
     if (!vehicle) return;
+
+    const odo = odoText.trim() ? parseFloat(odoText.replace(/,/g, "")) : undefined;
+    const currentOdo = vehicle.odometerKm;
+
+    // Warn when the new reading is lower than the stored one — silent typos
+    // (e.g. 5 000 instead of 50 000) would corrupt service-interval reminders.
+    if (
+      odo != null && !isNaN(odo) && odo >= 0 &&
+      currentOdo != null && currentOdo > 0 &&
+      odo < currentOdo
+    ) {
+      Alert.alert(
+        "Lower than current reading",
+        `Your saved odometer is ${currentOdo.toLocaleString(undefined, { maximumFractionDigits: 0 })} km. Entering ${odo.toLocaleString(undefined, { maximumFractionDigits: 0 })} km will set it lower — this may affect service reminders.\n\nAre you sure?`,
+        [
+          { text: "Go back", style: "cancel" },
+          { text: "Yes, save anyway", style: "destructive", onPress: () => commitSave(odo) },
+        ],
+      );
+      return;
+    }
+
+    await commitSave(odo);
+  }
+
+  async function commitSave(odo: number | undefined) {
+    if (!vehicle) return;
     setSaving(true);
     try {
-      const odo = odoText.trim() ? parseFloat(odoText.replace(/,/g, "")) : undefined;
       const details: VehicleDetails = {};
       if (fuelType     !== undefined) details.fuelType     = fuelType;
       if (transmission !== undefined) details.transmission = transmission;
