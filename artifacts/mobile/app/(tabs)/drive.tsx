@@ -2410,16 +2410,16 @@ export default function DriveScreen() {
           }]}
           onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
-          {/* Title row: "Drive Safely" · ETA · SOS · End Trip (far right) */}
+          {/* Title row: "Drive Safely" · ETA (flex spacer) · SOS · End Trip
+               The ETA Text always renders (flex:1) so SOS+End Trip stay pinned
+               to the far right even when no route is active.               */}
           <View style={styles.dmPanelTitleRow}>
             <Text style={[styles.dmPanelTitle, { color: c.foreground }]}>Drive Safely</Text>
-            {activeRoute != null && (
-              <Text style={[styles.dmPanelEta, { color: c.mutedForeground }]} numberOfLines={1}>
-                {durationStr(activeRoute.durationS)}
-                {" · "}
-                {distStr(activeRoute.distanceM)} left
-              </Text>
-            )}
+            <Text style={[styles.dmPanelEta, { color: c.mutedForeground }]} numberOfLines={1}>
+              {activeRoute != null
+                ? `${durationStr(activeRoute.durationS)} · ${distStr(activeRoute.distanceM)} left`
+                : ""}
+            </Text>
             <SOSButton compact small />
             <TouchableOpacity
               style={styles.endTripBtn}
