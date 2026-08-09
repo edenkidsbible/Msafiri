@@ -57,6 +57,10 @@ module.exports = {
         // Two distinct in-app uses must be declared to pass App Store review.
         NSPhotoLibraryUsageDescription:
           "Msafiri accesses your photo library for two purposes: (1) Profile photo — lets you add a personal photo to your driver profile. (2) Crash Assistant — lets you attach photos from your library as evidence when documenting an accident.",
+        // Required when saving (not just reading) to the photo library.
+        // expo-media-library's saveToLibraryAsync triggers this dialog on iOS.
+        NSPhotoLibraryAddUsageDescription:
+          "Save dashcam clips to your phone's video library so you can keep important footage after a trip ends.",
 
         UIBackgroundModes: ["location", "audio"],
         ITSAppUsesNonExemptEncryption: false,
