@@ -474,12 +474,14 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
           >
-            {/* Vehicle image — same source + fallback chain as Garage tab */}
+            {/* Vehicle image — shows default vehicle normally; switches to the
+                last selected drive vehicle after the driver picks a car in
+                the pre-trip checklist (activeVehicle is persisted across launches). */}
             <View style={styles.heroImgWrap}>
               <DefaultVehicleImage
                 width={185}
                 height={148}
-                refreshKey={heroRefreshKey}
+                vehicle={activeVehicle}
               />
             </View>
 

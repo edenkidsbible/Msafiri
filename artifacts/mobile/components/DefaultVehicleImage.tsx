@@ -47,23 +47,33 @@ function customModelSlug(modelId: string): string {
 interface Props {
   width: number;
   height: number;
-  /** Increment to force a re-load (e.g. after the user changes their vehicle). */
+  /**
+   * When provided the component renders this vehicle directly, skipping the
+   * internal loadVehicles() call. Pass `activeVehicle` from VehicleContext so
+   * the hero card always reflects whichever car the driver last selected.
+   * Falls back to the default vehicle when null/undefined.
+   */
+  vehicle?: SavedVehicle | null;
+  /** Increment to force a re-load when `vehicle` is not provided. */
   refreshKey?: number | string;
   style?: StyleProp<ImageStyle>;
 }
 
-export function DefaultVehicleImage({ width, height, refreshKey, style }: Props) {
-  const [vehicle, setVehicle] = useState<SavedVehicle | null>(null);
-  const [loaded, setLoaded]   = useState(false);
+export function DefaultVehicleImage({ width, height, vehicle: vehicleProp, refreshKey, style }: Props) {
+  const [loadedVehicle, setLoadedVehicle] = useState<SavedVehicle | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  // Load the default vehicle from the real source of truth on mount / refresh
+  // Only hit storage when no vehicle was passed in directly
   useEffect(() => {
+    if (vehicleProp !== undefined) return; // caller controls the vehicle
     setLoaded(false);
     loadVehicles().then((list) => {
       const def = list.find((v) => v.isDefault) ?? list[0] ?? null;
-      setVehicle(def);
-    }).catch(() => setVehicle(null));
-  }, [refreshKey]);
+      setLoadedVehicle(def);
+    }).catch(() => setLoadedVehicle(null));
+  }, [vehicleProp, refreshKey]);
+
+  const vehicle = vehicleProp !== undefined ? vehicleProp : loadedVehicle;
 
   // ── No vehicle or custom make → local PNG fallback ────────────────────────
   const noMake = !vehicle?.makeId || vehicle.makeId.startsWith("custom-");
