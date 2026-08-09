@@ -260,9 +260,9 @@ interface VehicleSlideProps {
   onEdit: (v: SavedVehicle) => void;
 }
 
-// Image fills the card width minus 2×card-padding (16px each side)
+// Image fills the card width minus horizontal padding
 const IMG_W = CARD_W - 32;
-const IMG_H = Math.round(IMG_W * 0.54); // ~16:9-ish ratio, typically ~196px on 402w
+const IMG_H = 140; // Compact, intentional — leaves room for info below
 
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
@@ -284,91 +284,90 @@ function VehicleSlide({
     <View style={{ width: CARD_W }}>
       <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol, width: "100%", padding: 0, overflow: "hidden" }]}>
 
-        {/* ── Car image — full card width, prominent ── */}
-        <View style={[styles.vehicleImgWrap, { backgroundColor: cardBg, width: IMG_W + 32, height: IMG_H + 16 }]}>
-          <VehicleImage v={v} width={IMG_W} height={IMG_H} />
-          {/* Default badge floats over image */}
+        {/* ── Hero image strip — tinted, compact ── */}
+        <View style={{ height: IMG_H + 24, backgroundColor: primary + "0D", alignItems: "center", justifyContent: "center" }}>
+          <VehicleImage v={v} width={IMG_W - 16} height={IMG_H} />
+          {/* Default star badge — top-left */}
           {v.isDefault && (
-            <View style={[styles.defaultBadge, { backgroundColor: primary + "DD", position: "absolute", top: 10, left: 10 }]}>
+            <View style={[styles.defaultBadge, { backgroundColor: primary, position: "absolute", top: 10, left: 12 }]}>
               <Ionicons name="star" size={10} color="#fff" />
               <Text style={[styles.defaultBadgeTxt, { color: "#fff" }]}>Default</Text>
             </View>
           )}
+          {/* Health ring — top-right floating */}
+          <TouchableOpacity
+            style={{ position: "absolute", top: 8, right: 12, alignItems: "center" }}
+            onPress={() => router.push({ pathname: "/vehicle-care" as any, params: { vehicleId: v.id, isDefault: v.isDefault ? "true" : "false", vehicleName: vehicleDisplayName(v) } })}
+            activeOpacity={0.8}
+          >
+            <View style={{ position: "relative", alignItems: "center", justifyContent: "center" }}>
+              <HealthRing pct={healthScore} size={52} strokeColor={healthColor} trackColor={trackColor} />
+              <View style={{ position: "absolute", alignItems: "center" }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold" as const, color: foreground }}>{healthScore}%</Text>
+              </View>
+            </View>
+            <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold" as const, color: healthColor, marginTop: 2 }}>{healthLabel}</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* ── Text content ── */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
-          {/* Name + primary badge */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+        {/* ── Identity row ── */}
+        <View style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 0 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
             {v.makeId && !v.makeId.startsWith("custom-") && (
-              <CarLogoImage makeId={v.makeId} width={44} height={22} emoji={getVehicleEmoji(v.vehicleType)} />
+              <CarLogoImage makeId={v.makeId} width={28} height={20} emoji={getVehicleEmoji(v.vehicleType)} />
             )}
             <Text style={[styles.vehicleName, { color: foreground, flex: 1 }]} numberOfLines={1}>
               {vehicleDisplayName(v)}
             </Text>
-            {v.isDefault && (
-              <View style={styles.primaryBadge}>
-                <Text style={styles.primaryBadgeTxt}>Primary</Text>
-              </View>
-            )}
           </View>
-          <Text style={[styles.vehicleSub, { color: subText }]}>{fuelLabel} • {trLabel}</Text>
 
-          {/* Odo + Health ring side-by-side */}
-          <View style={styles.vehicleInfoRow}>
-            {/* Odometer */}
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text style={[styles.vehicleOdoLabel, { color: subText }]}>Estimated Odometer</Text>
-              <Text style={[styles.vehicleOdoValue, { color: foreground }]}>{odoDisplay}</Text>
-              <Text style={[styles.vehicleOdoSub, { color: subText }]}>Updated from your trips</Text>
+          {/* Spec chips row */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+            <View style={[styles.specChip, { backgroundColor: primary + "15", borderColor: primary + "35" }]}>
+              <Ionicons name="water-outline" size={11} color={primary} />
+              <Text style={[styles.specChipTxt, { color: primary }]}>{fuelLabel}</Text>
             </View>
-
-            {/* Health ring */}
-            <TouchableOpacity
-              style={styles.vehicleHealthWrap}
-              onPress={() => router.push({ pathname: "/vehicle-care" as any, params: { vehicleId: v.id, isDefault: v.isDefault ? "true" : "false", vehicleName: vehicleDisplayName(v) } })}
-              activeOpacity={0.8}
-            >
-              <View style={{ position: "relative", alignItems: "center", justifyContent: "center" }}>
-                <HealthRing pct={healthScore} size={68} strokeColor={healthColor} trackColor={trackColor} />
-                <View style={{ position: "absolute", alignItems: "center" }}>
-                  <Text style={[styles.healthPct, { color: foreground }]}>{healthScore}%</Text>
-                </View>
+            <View style={[styles.specChip, { backgroundColor: subText + "15", borderColor: subText + "25" }]}>
+              <Ionicons name="options-outline" size={11} color={subText} />
+              <Text style={[styles.specChipTxt, { color: subText }]}>{trLabel}</Text>
+            </View>
+            {v.plateNumber ? (
+              <View style={[styles.specChip, { backgroundColor: subText + "10", borderColor: subText + "20" }]}>
+                <Ionicons name="card-outline" size={11} color={subText} />
+                <Text style={[styles.specChipTxt, { color: subText }]}>{v.plateNumber}</Text>
               </View>
-              <Text style={[styles.healthTitle, { color: subText }]}>Health</Text>
-              <Text style={[styles.healthLabel, { color: healthColor }]}>{healthLabel}</Text>
-            </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Odometer */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
+            <Ionicons name="speedometer-outline" size={14} color={subText} />
+            <View>
+              <Text style={[styles.vehicleOdoValue, { color: foreground, fontSize: 16 }]}>{odoDisplay}</Text>
+              <Text style={[styles.vehicleOdoSub, { color: subText }]}>Estimated odometer · updated from trips</Text>
+            </View>
           </View>
         </View>
 
-        {/* ── Action buttons ── */}
-        <View style={[styles.vehicleActionRow, { borderTopColor: borderCol, marginHorizontal: 16, marginBottom: 14 }]}>
+        {/* ── Action strip ── */}
+        <View style={[styles.vehicleActionRow, { borderTopColor: borderCol, marginHorizontal: 14, marginBottom: 12 }]}>
           {!v.isDefault && (
             <TouchableOpacity
-              style={[styles.vehicleActionBtn, { backgroundColor: "#3B82F618", borderColor: "#3B82F640" }]}
+              style={[styles.vehicleActionBtn, { backgroundColor: "#3B82F614", borderColor: "#3B82F635" }]}
               onPress={() => onSetDefault(v.id)}
               activeOpacity={0.8}
             >
-              <Ionicons name="star-outline" size={15} color="#3B82F6" />
-              <Text style={[styles.vehicleActionTxt, { color: "#3B82F6" }]}>Set as Default</Text>
+              <Ionicons name="star-outline" size={14} color="#3B82F6" />
+              <Text style={[styles.vehicleActionTxt, { color: "#3B82F6" }]}>Set Default</Text>
             </TouchableOpacity>
           )}
-          {/* Edit details — always shown */}
           <TouchableOpacity
-            style={[styles.vehicleActionBtn, { backgroundColor: "#22C55E18", borderColor: "#22C55E40" }]}
+            style={[styles.vehicleActionBtn, { backgroundColor: "#22C55E14", borderColor: "#22C55E35" }]}
             onPress={() => onEdit(v)}
             activeOpacity={0.8}
           >
-            <Ionicons name="pencil-outline" size={15} color="#22C55E" />
+            <Ionicons name="pencil-outline" size={14} color="#22C55E" />
             <Text style={[styles.vehicleActionTxt, { color: "#22C55E" }]}>Edit Details</Text>
-          </TouchableOpacity>
-          {/* Remove vehicle — always shown */}
-          <TouchableOpacity
-            style={[styles.vehicleActionBtn, { backgroundColor: "#EF444418", borderColor: "#EF444440", flex: 0, paddingHorizontal: 12 }]}
-            onPress={() => onRemove(v.id)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="trash-outline" size={15} color="#EF4444" />
           </TouchableOpacity>
         </View>
       </View>
@@ -987,8 +986,8 @@ export default function GarageScreen() {
           {/* Section header */}
           <View style={[styles.sectionHeaderRow, { paddingHorizontal: 16, marginBottom: 10 }]}>
             <Text style={[styles.sectionTitle, { color: c.foreground }]}>My Vehicles</Text>
-            <TouchableOpacity onPress={() => router.push("/car-picker" as any)}>
-              <Text style={[styles.viewAllLink, { color: c.primary }]}>View all</Text>
+            <TouchableOpacity onPress={() => router.push("/manage-vehicles" as any)}>
+              <Text style={[styles.viewAllLink, { color: c.primary }]}>Manage Vehicles</Text>
             </TouchableOpacity>
           </View>
 
@@ -1332,6 +1331,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   viewAllLink:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  // Spec chips on vehicle card
+  specChip: {
+    flexDirection: "row" as const, alignItems: "center" as const, gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 20, borderWidth: 1,
+  },
+  specChipTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" as const },
 
   // My Vehicles — stacked layout (image on top, info below)
   defaultBadge: {
