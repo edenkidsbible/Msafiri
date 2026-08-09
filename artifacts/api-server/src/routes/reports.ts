@@ -221,6 +221,9 @@ router.get("/reports", async (req: Request, res: Response) => {
       // throws an uncaught TypeError.
       createdAt: r.createdAt instanceof Date ? r.createdAt.getTime() : Date.now(),
       expiresAt: r.expiresAt instanceof Date ? r.expiresAt.getTime() : null,
+      // Observation confidence metadata (new fields — null-safe for legacy rows)
+      observationContext: r.observationContext ?? "on_location",
+      observedAt: r.observedAt instanceof Date ? r.observedAt.getTime() : null,
     });
 
     // When no coordinates are supplied return all active reports so the
@@ -266,9 +269,11 @@ router.get("/reports", async (req: Request, res: Response) => {
 // ── POST /reports — submit a new report ───────────────────────────────────────
 router.post("/reports", async (req: Request, res: Response) => {
   try {
-    const { type, lat, lng, deviceId, speedLimit, roadName } = req.body as {
+    const { type, lat, lng, deviceId, speedLimit, roadName,
+            observationContext, observedAt, reporterProximityM } = req.body as {
       type: string; lat: number; lng: number;
       deviceId: string; speedLimit?: number; roadName?: string;
+      observationContext?: string; observedAt?: number; reporterProximityM?: number;
     };
 
     if (!type || lat == null || lng == null || !deviceId) {
@@ -343,11 +348,22 @@ router.post("/reports", async (req: Request, res: Response) => {
     // Camera/checkpoint reports hold for moderator review before they reach
     // drivers; every other type keeps going live immediately as before.
     const needsModeration = MODERATED_TYPES.has(type);
+    // Derive observation timestamp — use client-provided observedAt if given,
+    // otherwise default to now (submission time = observation time for "Here" reports).
+    const observedAtDate = observedAt ? new Date(observedAt) : new Date();
+    // Clamp observation context to known values; default on_location for current-GPS reports.
+    const safeContext = ["on_location", "recent_nearby", "community_tip"].includes(observationContext ?? "")
+      ? (observationContext as string)
+      : "on_location";
+
     const [inserted] = await db
       .insert(communityReportsTable)
       .values({
         type, lat, lng, deviceId, speedLimit, roadName, expiresAt,
         status: needsModeration ? "pending_review" : "active",
+        observationContext: safeContext,
+        observedAt: observedAtDate,
+        ...(reporterProximityM != null ? { reporterProximityM } : {}),
       })
       .returning();
 

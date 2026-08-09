@@ -84,11 +84,38 @@ function reportTier(confirmCount: number | undefined): "new" | "confirmed" | "re
   return "new";
 }
 
-function tierLabel(count: number | undefined): string {
-  const c = count ?? 0;
-  if (c === 0) return "Reported by a driver";
-  if (c < 5)  return `Confirmed by ${c} driver${c === 1 ? "" : "s"}`;
-  return `Highly reliable · ${c} drivers`;
+/** Human-readable age string for a report timestamp. */
+function ageLabel(createdAt: number | undefined): string {
+  if (!createdAt) return "";
+  const diffMs = Date.now() - createdAt;
+  const mins   = Math.floor(diffMs / 60_000);
+  const hours  = Math.floor(diffMs / 3_600_000);
+  if (mins < 2)   return "Just now";
+  if (mins < 60)  return `${mins} min ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return "Earlier today";
+}
+
+/**
+ * Single-line freshness + confidence label shown in the alert overlay.
+ * Combines observation context, confirm count, and report age.
+ */
+function freshnessLabel(
+  confirmCount: number | undefined,
+  createdAt: number | undefined,
+  observationContext: "on_location" | "recent_nearby" | "community_tip" | undefined,
+): string {
+  const c   = confirmCount ?? 0;
+  const age = ageLabel(createdAt);
+
+  // Community tips surface the context first so the driver knows reliability
+  if (observationContext === "community_tip") {
+    return age ? `Community tip · ${age}` : "Community tip";
+  }
+
+  if (c === 0) return age ? `Reported ${age}` : "Reported by a driver";
+  if (c < 5)   return age ? `${c > 1 ? `${c}× ` : ""}Confirmed · ${age}` : `Confirmed by ${c} driver${c === 1 ? "" : "s"}`;
+  return age ? `Highly reliable · ${age}` : `Highly reliable · ${c} drivers`;
 }
 
 function tierBg(baseBg: string, tier: "new" | "confirmed" | "reliable"): string {
@@ -421,14 +448,18 @@ export default function DriveAlertOverlay({
                 {alert.road}
               </MarqueeText>
             ) : null}
-            {tier === "new" && (
-              <Text style={[styles.zoneRoad, { color: colors.mutedForeground, fontStyle: "italic" }]}>
-                Reported by a driver · unconfirmed
-              </Text>
-            )}
-            {tier === "confirmed" && (
-              <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]}>
-                {tierLabel(alert.confirmCount)}
+            {/* Freshness + confidence label for community reports */}
+            {alert.source === "report" && (
+              <Text style={[
+                styles.zoneRoad,
+                {
+                  color: alert.observationContext === "community_tip"
+                    ? "#FF9800"
+                    : tier === "reliable" ? "#22C55E" : colors.mutedForeground,
+                  fontStyle: tier === "new" && alert.observationContext !== "community_tip" ? "italic" : "normal",
+                },
+              ]}>
+                {freshnessLabel(alert.confirmCount, alert.createdAt, alert.observationContext)}
               </Text>
             )}
           </View>

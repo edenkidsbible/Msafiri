@@ -50,6 +50,13 @@ export interface CommunityReport {
   speedLimit?: number;
   roadName?: string;
   adminVerified?: boolean;
+  /** How directly the reporter witnessed this incident:
+   *  - on_location   — GPS was near the pin at submission (eyewitness)
+   *  - recent_nearby — reporter was in the area within the last hour
+   *  - community_tip — remote/search submission; reporter wasn't there recently */
+  observationContext?: "on_location" | "recent_nearby" | "community_tip";
+  /** Epoch ms when the reporter says they saw the incident (may differ from timestamp). */
+  observedAt?: number;
 }
 
 // HERE Live Traffic incident — sourced from the HERE Traffic API, not community-reported.
@@ -185,6 +192,10 @@ export interface DriveAlert {
   lng: number;
   /** Community-report confirm count — used for confidence tier display. */
   confirmCount?: number;
+  /** Report creation time (epoch ms) — used to show "Reported X min ago". */
+  createdAt?: number;
+  /** How directly the reporter witnessed this (on_location / recent_nearby / community_tip). */
+  observationContext?: "on_location" | "recent_nearby" | "community_tip";
   /**
    * Signed along-track distance to the alert pin (metres).
    * Positive = alert is ahead of the driver; negative = driver has passed it.
@@ -221,7 +232,7 @@ interface AppContextValue {
    *  cycle. Called by usePushNotifications when a silent "reports_refresh" push
    *  arrives so new pins appear within ~2 s of the original submission. */
   refreshReports: () => Promise<void>;
-  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string) => string;
+  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }) => string;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<{ ok: boolean; message?: string }>;
   deleteReport: (id: string) => Promise<void>;
@@ -1816,6 +1827,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 lat: reportCandidate!.report.lat,
                 lng: reportCandidate!.report.lng,
                 confirmCount: reportCandidate!.report.confirmCount,
+                createdAt: reportCandidate!.report.timestamp,
+                observationContext: reportCandidate!.report.observationContext,
               }
             : {
                 id: hereCandidate!.incident.id,
@@ -2495,6 +2508,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         roadName: r.roadName ?? undefined,
         adminVerified: r.adminVerified,
         isOwn: false,
+        observationContext: (r as any).observationContext as CommunityReport["observationContext"] ?? "on_location",
+        observedAt: (r as any).observedAt ?? undefined,
       }));
       
 
@@ -3407,9 +3422,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
   // Posts a locally-created (not-yet-synced) report to the API. Shared by
   // addReport's initial attempt and the reconnect-triggered retry sweep below.
-  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string) => {
+  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }) => {
     apiPost<{ id: string; status: string; confirmCount: number; action: string; clearedCount?: number; roadName?: string | null }>(
-      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit, roadName }
+      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit, roadName, ...meta }
     ).then((result) => {
       setCommunityReports((prev) => {
         let u: CommunityReport[];
@@ -3462,7 +3477,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
   useEffect(() => { syncReportToServerRef.current = syncReportToServer; }, [syncReportToServer]);
 
-  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string) => {
+  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }) => {
     // ── Duplicate-prevention pre-check ───────────────────────────────────────
     // Before creating an optimistic local report, scan the in-memory cache for
     // an existing active/confirmed report of the same type within 50 m.
@@ -3504,13 +3519,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       status: "active", confirmCount: 1, denyCount: 0, isOwn: true,
       speedLimit,
       ...(roadName ? { roadName } : {}),
+      ...(meta?.observationContext ? { observationContext: meta.observationContext } : {}),
+      ...(meta?.observedAt ? { observedAt: meta.observedAt } : {}),
     };
     setCommunityReports((prev) => { const u = [r, ...prev]; AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u)); return u; });
     if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Submit to API; keep local copy as offline fallback (retried on reconnect)
     if (!isOfflineRef.current && deviceIdRef.current) {
-      syncReportToServer(localId, type, lat, lng, speedLimit, roadName);
+      syncReportToServer(localId, type, lat, lng, speedLimit, roadName, meta);
     }
     return localId;
   }, [syncReportToServer]);

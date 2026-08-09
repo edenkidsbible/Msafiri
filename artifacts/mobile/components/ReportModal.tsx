@@ -32,9 +32,21 @@ type ReportType = CommunityReport["type"];
 // same 10 km/h steps NTSA limits use) — replaces free-form numeric entry.
 const SPEED_LIMIT_OPTIONS = [30, 40, 50, 60, 70, 80, 90, 100, 110];
 
-// Map-pin location validation constants
-const MAP_PIN_RADIUS_M = 300;   // 300 m proximity gate
-const THREE_HOURS_MS   = 3 * 60 * 60 * 1000;
+/** Observation metadata collected alongside the report. */
+export interface ObservationMeta {
+  observationContext: "on_location" | "recent_nearby" | "community_tip";
+  observedAt: number;              // epoch ms when reporter says they saw it
+  reporterProximityM?: number;     // straight-line metres from reporter's GPS to pin
+}
+
+type WhenSeen = "now" | "hour" | "today" | "earlier";
+
+const WHEN_SEEN_OPTIONS: Array<{ value: WhenSeen; label: string; icon: string }> = [
+  { value: "now",    label: "Just now",           icon: "🔴" },
+  { value: "hour",   label: "Within the last hour", icon: "🟡" },
+  { value: "today",  label: "Earlier today",      icon: "🟠" },
+  { value: "earlier",label: "A while ago",        icon: "⚪" },
+];
 
 /** Haversine distance in metres between two coordinates. */
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -56,7 +68,7 @@ export interface ReportLocation {
 interface ReportModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation) => void;
+  onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation, meta?: ObservationMeta) => void;
   currentLat?: number | null;
   currentLng?: number | null;
   initialType?: ReportType | null; // NEW — pre-selects this type when modal opens
@@ -102,6 +114,7 @@ export default function ReportModal({
   const { tripHistory, isAdmin } = useApp();
   const [sel, setSel] = useState<ReportType | null>(null);
   const [speedLimit, setSpeedLimit] = useState("");
+  const [whenSeen, setWhenSeen] = useState<WhenSeen | null>(null);
 
   const hasCurrentLocation = currentLat != null && currentLng != null;
   const [locationMode, setLocationMode] = useState<"current" | "search" | "map">("current");
@@ -153,6 +166,7 @@ export default function ReportModal({
     setPickedLocation(null);
     setPickedMapLocation(null);
     setEditingSearch(true);
+    setWhenSeen(null);
   };
 
   const runSearch = async (text: string) => {
@@ -201,6 +215,7 @@ export default function ReportModal({
   const selectMode = (mode: "current" | "search" | "map") => {
     bumpIdleTimer();
     setLocationMode(mode);
+    setWhenSeen(null); // reset observation time when switching location mode
     if (mode === "current") {
       Keyboard.dismiss();
       setSearchText("");
@@ -226,38 +241,47 @@ export default function ReportModal({
     }
   };
 
-  /** True when the pinned map location is within 5 km of the user's current position
-   *  or any trip point from the last 3 hours. Prevents pinning unfamiliar locations. */
-  const mapPinValid = useMemo(() => {
-    if (!pickedMapLocation) return false;
-    // Admins can pin anywhere — no proximity restriction
-    if (isAdmin) return true;
-    const { lat, lng } = pickedMapLocation;
-    // Current GPS position check
-    if (currentLat != null && currentLng != null) {
-      if (haversineM(currentLat, currentLng, lat, lng) <= MAP_PIN_RADIUS_M) return true;
-    }
-    // Recent trip history check (last 3 hours)
-    const cutoff = Date.now() - THREE_HOURS_MS;
-    for (const trip of tripHistory) {
-      if (trip.endTime < cutoff) continue;
-      for (const point of trip.positions) {
-        if (point.time < cutoff) continue;
-        if (haversineM(point.lat, point.lng, lat, lng) <= MAP_PIN_RADIUS_M) return true;
-      }
-    }
-    return false;
-  }, [pickedMapLocation, currentLat, currentLng, tripHistory, isAdmin]);
+  // ── Observation context ─────────────────────────────────────────────────────
+  // "current" GPS location → always eyewitness (on_location).
+  // Search / map-pin → derived from the "When did you see it?" answer.
+  const observationContext: ObservationMeta["observationContext"] =
+    locationMode === "current"
+      ? "on_location"
+      : whenSeen === "now" || whenSeen === "hour"
+        ? "recent_nearby"
+        : "community_tip";
 
-  const canSubmit = !!sel && (
+  const observedAtMs: number =
+    locationMode === "current" || whenSeen === "now"
+      ? Date.now()
+      : whenSeen === "hour"
+        ? Date.now() - 45 * 60 * 1000
+        : whenSeen === "today"
+          ? (() => { const d = new Date(); d.setHours(8, 0, 0, 0); return d.getTime(); })()
+          : Date.now() - 4 * 3600 * 1000; // "earlier" — roughly 4 h ago
+
+  // Location is "ready" when enough info exists to resolve it
+  const locationReady =
     locationMode === "current" ? hasCurrentLocation :
-    locationMode === "search" ? !!pickedLocation :
-    locationMode === "map" ? (!!pickedMapLocation && mapPinValid) : false
-  );
+    locationMode === "search"  ? !!pickedLocation :
+    locationMode === "map"     ? !!pickedMapLocation : false;
+
+  // For non-current modes we need to know when the reporter observed this
+  const needsWhenSeen = locationMode !== "current";
+  const canSubmit = !!sel && locationReady && (!needsWhenSeen || !!whenSeen);
 
   const doSubmit = (type: ReportType, limit?: number, location?: ReportLocation) => {
     clearIdleTimer();
-    onSubmit(type, limit, location);
+    const proximityM =
+      locationMode !== "current" && currentLat != null && currentLng != null && location
+        ? Math.round(haversineM(currentLat, currentLng, location.lat, location.lng))
+        : undefined;
+    const meta: ObservationMeta = {
+      observationContext,
+      observedAt: observedAtMs,
+      ...(proximityM != null ? { reporterProximityM: proximityM } : {}),
+    };
+    onSubmit(type, limit, location, meta);
     reset();
   };
 
@@ -504,21 +528,7 @@ export default function ReportModal({
                   <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
                     <Ionicons name="information-circle-outline" size={14} color={c.mutedForeground} style={{ marginTop: 1 }} />
                     <Text style={{ fontSize: 12, color: c.mutedForeground, flex: 1, lineHeight: 18 }}>
-                      Pan the map to place the pin on the exact spot. You need to be near this location or have recently traveled this route.
-                    </Text>
-                  </View>
-                )}
-                {pickedMapLocation && mapPinValid && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
-                    <Ionicons name="checkmark-circle" size={14} color="#2E7D32" />
-                    <Text style={{ fontSize: 12, color: "#2E7D32", flex: 1 }}>Location verified — within your area</Text>
-                  </View>
-                )}
-                {pickedMapLocation && !mapPinValid && (
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, paddingHorizontal: 2 }}>
-                    <Ionicons name="warning-outline" size={14} color="#F57C00" style={{ marginTop: 1 }} />
-                    <Text style={{ fontSize: 12, color: "#F57C00", flex: 1, lineHeight: 18 }}>
-                      This pin is too far from your location. Move closer or use a spot you've traveled through in the last 3 hours.
+                      Pan the map to place the pin on the exact spot you observed the incident.
                     </Text>
                   </View>
                 )}
@@ -530,13 +540,63 @@ export default function ReportModal({
               <View style={[styles.pinPrompt, { backgroundColor: c.muted }]}>
                 <Ionicons name="pin-outline" size={18} color={c.mutedForeground} />
                 <Text style={[styles.pinPromptTxt, { color: c.mutedForeground }]}>
-                  Open the map picker above and place the pin on your spot
+                  Open the map picker above and place the pin on the exact spot
                 </Text>
               </View>
             )}
 
-            {/* Incident type grid — shown for non-map modes, or once a map pin is placed */}
-            {(locationMode !== "map" || !!pickedMapLocation) && (
+            {/* ── When did you see this? ─────────────────────────────────────
+                Shown for Search and Drop Pin modes after a location is chosen.
+                Drivers can report from anywhere — we just need to know how
+                fresh the observation is so we can display the right confidence
+                label to other drivers. */}
+            {needsWhenSeen && locationReady && (
+              <View style={{ marginTop: 20 }}>
+                <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>
+                  WHEN DID YOU SEE THIS?
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {WHEN_SEEN_OPTIONS.map((opt) => {
+                    const active = whenSeen === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[
+                          styles.whenSeenRow,
+                          {
+                            backgroundColor: active ? c.primary + "14" : c.muted,
+                            borderColor: active ? c.primary : c.border,
+                          },
+                        ]}
+                        onPress={() => { bumpIdleTimer(); setWhenSeen(opt.value); Haptics.selectionAsync(); }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.whenSeenEmoji}>{opt.icon}</Text>
+                        <Text style={[styles.whenSeenLabel, { color: active ? c.primary : c.foreground }]}>
+                          {opt.label}
+                        </Text>
+                        {active && <Ionicons name="checkmark-circle" size={18} color={c.primary} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {/* Community-tip notice — shown when observation context is not fresh */}
+                {(whenSeen === "today" || whenSeen === "earlier") && (
+                  <View style={[styles.communityTipNotice, { backgroundColor: "#FF980012", borderColor: "#FF980040" }]}>
+                    <Ionicons name="information-circle-outline" size={14} color="#FF9800" style={{ marginTop: 1 }} />
+                    <Text style={{ fontSize: 12, color: "#FF9800", flex: 1, lineHeight: 18, fontFamily: "Inter_400Regular" }}>
+                      Your report will be labelled{" "}
+                      <Text style={{ fontFamily: "Inter_600SemiBold" }}>Community tip</Text>
+                      {" "}so other drivers know it's not a live observation. It's still valuable — especially for potholes, roadworks, and cameras.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Incident type grid — shown for non-map modes (or once a map pin is placed)
+                AND after the "when did you see it?" question is answered for remote modes */}
+            {(locationMode !== "map" || !!pickedMapLocation) && (!needsWhenSeen || !!whenSeen) && (
               sel === "camera" ? (
                 /* ── Camera focused view ──────────────────────────────────────
                    When Speed Camera is selected, collapse the full grid and
@@ -771,6 +831,26 @@ const styles = StyleSheet.create({
   },
   speedChipTxt: { fontSize: 14, fontFamily: "Inter_700Bold" },
 
+  whenSeenRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  whenSeenEmoji: { fontSize: 16 },
+  whenSeenLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", lineHeight: 20 },
+  communityTipNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
   pinPrompt: {
     flexDirection: "row", alignItems: "center", gap: 10,
     borderRadius: 14, paddingVertical: 20, paddingHorizontal: 16,

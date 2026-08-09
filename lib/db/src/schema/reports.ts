@@ -48,6 +48,22 @@ export const communityReportsTable = pgTable("community_reports", {
   // Origin of the report: "manual" = submitted by a driver; "auto" = created
   // by the background hazard clustering job from silent accelerometer events.
   source:         text("source").notNull().default("manual"),
+
+  // ── Report Confidence fields ───────────────────────────────────────────────
+  // observationContext describes how fresh/direct the reporter's observation
+  // was:
+  //   on_location   — reporter's GPS was within ~300 m of the incident at
+  //                   submission time (eyewitness, high confidence)
+  //   recent_nearby — reporter was near the area within the last hour
+  //   community_tip — reporter chose a remote map/search location and
+  //                   acknowledged they weren't recently there
+  observationContext: text("observation_context").notNull().default("on_location"),
+  // When the reporter says they witnessed the incident (epoch ms). Defaults
+  // to the submission time (createdAt) so existing queries remain correct.
+  observedAt:         timestamp("observed_at"),
+  // Straight-line distance in metres between the reporter's GPS at submission
+  // time and the incident pin. Null when reporter had no GPS fix.
+  reporterProximityM: integer("reporter_proximity_m"),
 });
 
 export const insertReportSchema = createInsertSchema(communityReportsTable).omit({

@@ -1,18 +1,20 @@
 /**
- * dashcam-videos.tsx — Redesigned dashcam video gallery.
+ * dashcam-videos.tsx — Dashcam video gallery.
  *
  * Features:
- *  • Vehicle selector (multi-vehicle support)
- *  • Connection status + quick-action buttons
- *  • All Videos / Locked / Downloads tabs with date-range filter chips
- *  • Date-grouped clip list with Photon reverse-geocoded location names
- *  • Full play / share / lock / download / delete per clip
+ *  • Video thumbnails generated from local clips
+ *  • Download sheet with per-clip progress bars
+ *  • Share as link (instant) or share file
+ *  • Full player controls: play/pause, ±15 s, seek, speed, buffering indicator
+ *  • Metadata watermark overlay in player (time, location, speed, vehicle)
+ *  • Start Driving → pre-trip checklist
+ *  • Vehicle selector, date-range filter chips, date-grouped clip list
  */
 import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Alert, Animated, BackHandler, FlatList, Modal, Platform,
+  ActivityIndicator, Alert, Animated, BackHandler, FlatList, Image, Modal, Platform,
   Pressable, ScrollView, Share as RNShare, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
@@ -24,6 +26,7 @@ import { useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { useVideoPlayer, VideoView } from "expo-video";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -32,8 +35,7 @@ import { useDashcam, type DashcamSegment } from "@/context/DashcamContext";
 import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import { API_BASE } from "@/utils/apiClient";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
-import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
-import { fetchWithTimeout } from "@/utils/fetchTimeout";
+import { getMakeById, getModelById } from "@/data/carModels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,7 @@ interface ServerClip {
   uploadedAt: string | null;
   lat: number | null;
   lng: number | null;
+  speedKmh: number | null;
 }
 
 interface UnifiedClip {
@@ -62,6 +65,23 @@ interface UnifiedClip {
   serverId?: string;
   lat?: number;
   lng?: number;
+  speedKmh?: number;
+}
+
+/** Metadata shown as an overlay inside the video player. */
+interface PlayerMeta {
+  startedAt: number;
+  locationName: string;
+  vehicleName: string;
+  plate?: string;
+  speedKmh?: number;
+}
+
+interface PlayerConfig {
+  uri: string;
+  title: string;
+  meta?: PlayerMeta;
+  onShare?: () => void;
 }
 
 type Tab        = "all" | "locked" | "downloads";
@@ -74,112 +94,121 @@ type ListItem =
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SECRET_KEY      = "dashcam_secret_v1";
-const LOC_CACHE_KEY   = (id: string) => `dc_loc_v1_${id}`;
-const SPEEDS          = [0.5, 1, 1.5, 2];
+const SECRET_KEY    = "dashcam_secret_v1";
+const LOC_CACHE_KEY = (id: string) => `dc_loc_v1_${id}`;
+const SPEEDS        = [0.5, 1, 1.5, 2];
+
+/** Module-level thumbnail URI cache — survives re-renders in the same session. */
+const thumbCache = new Map<string, string>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtTime(ms: number): string {
-  const d    = new Date(ms);
-  const h    = d.getHours();
-  const m    = d.getMinutes().toString().padStart(2, "0");
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hr   = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hr}:${m} ${ampm}`;
-}
-
 function fmtDuration(s: number): string {
-  if (!s || s < 0) return "0:00";
-  const m   = Math.floor(s / 60);
-  const sec = Math.floor(s % 60).toString().padStart(2, "0");
-  return `${m}:${sec}`;
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
 }
-
-function fmtSize(b: number | null | undefined): string {
-  if (!b) return "—";
-  if (b >= 1_048_576) return `${(b / 1_048_576).toFixed(1)} MB`;
-  return `${Math.round(b / 1024)} KB`;
+function fmtSize(b: number): string {
+  if (b >= 1_073_741_824) return `${(b / 1_073_741_824).toFixed(1)} GB`;
+  if (b >= 1_048_576)     return `${(b / 1_048_576).toFixed(0)} MB`;
+  return `${(b / 1024).toFixed(0)} KB`;
 }
-
-function dayLabel(ms: number): string {
-  const d       = new Date(ms);
-  const now     = new Date();
-  const today   = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const clipDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff    = Math.round((today.getTime() - clipDay.getTime()) / 86_400_000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Yesterday";
-  return d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" });
+function fmtTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
+}
+function fmtDateTime(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) return `Today, ${fmtTime(ms)}`;
+  return d.toLocaleDateString("en-KE", { day: "numeric", month: "short" }) + ", " + fmtTime(ms);
 }
 
 function timeOfDayName(ms: number): string {
   const h = new Date(ms).getHours();
-  if (h >= 5  && h < 12) return "Morning Recording";
-  if (h >= 12 && h < 17) return "Afternoon Recording";
-  if (h >= 17 && h < 21) return "Evening Recording";
-  return "Night Recording";
+  if (h < 6)  return "Pre-dawn drive";
+  if (h < 12) return "Morning drive";
+  if (h < 17) return "Afternoon drive";
+  if (h < 20) return "Evening drive";
+  return "Night drive";
+}
+
+function dayLabel(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Today";
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long" });
 }
 
 function inRange(ms: number, filter: DateFilter): boolean {
   if (filter === "all") return true;
-  const now   = Date.now();
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const t0    = today.getTime();
-  if (filter === "today")     return ms >= t0;
-  if (filter === "yesterday") return ms >= t0 - 86_400_000 && ms < t0;
-  if (filter === "week")      return ms >= now - 7 * 86_400_000;
-  return true;
-}
-
-async function photonReverse(lat: number, lng: number): Promise<string | null> {
-  try {
-    const res  = await fetchWithTimeout(
-      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`, {}, 8000
-    );
-    const data = await res.json() as { features?: any[] };
-    if (!data.features?.length) return null;
-    const p    = data.features[0]?.properties ?? {};
-    const name = (p.name ?? p.street) as string | undefined;
-    const area = (p.city ?? p.district ?? p.county) as string | undefined;
-    const raw  = [name, area].filter(Boolean).join(", ");
-    return raw.substring(0, 60) || null;
-  } catch {
-    return null;
+  const now = new Date();
+  const d   = new Date(ms);
+  if (filter === "today") {
+    return d.toDateString() === now.toDateString();
   }
+  if (filter === "yesterday") {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    return d.toDateString() === y.toDateString();
+  }
+  if (filter === "week") {
+    const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+    return ms >= weekAgo.getTime();
+  }
+  return true;
 }
 
 function syncLabel(d: Date | null): string {
   if (!d) return "Not synced yet";
-  const now   = new Date();
+  const now = new Date();
   const today = now.getDate() === d.getDate() && now.getMonth() === d.getMonth();
   const time  = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
   return `Last synced: ${today ? "Today, " : ""}${time}`;
 }
 
-// ─── Video Player Modal ───────────────────────────────────────────────────────
+async function photonReverse(lat: number, lng: number): Promise<string | null> {
+  try {
+    const r = await fetch(
+      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`,
+      { signal: AbortSignal.timeout(4000) }
+    );
+    if (!r.ok) return null;
+    const j = await r.json() as any;
+    const p = j?.features?.[0]?.properties;
+    if (!p) return null;
+    const parts = [p.name, p.street, p.city || p.county].filter(Boolean);
+    return parts.slice(0, 2).join(", ") || null;
+  } catch { return null; }
+}
 
-interface PlayerConfig { uri: string; title: string; onShare?: () => void }
+// ─── Video Player Modal ───────────────────────────────────────────────────────
 
 function VideoPlayerModal({ config, onClose }: { config: PlayerConfig; onClose: () => void }) {
   const insets  = useSafeAreaInsets();
   const player  = useVideoPlayer(config.uri, (p) => { p.loop = false; p.play(); });
   const [playing,   setPlaying]   = useState(true);
+  const [buffering, setBuffering] = useState(true);
   const [ct,        setCt]        = useState(0);
   const [dur,       setDur]       = useState(0);
   const [ctrlVis,   setCtrlVis]   = useState(true);
   const [speedIdx,  setSpeedIdx]  = useState(1);
   const [barW,      setBarW]      = useState(1);
+  const [metaVis,   setMetaVis]   = useState(true);
   const anim      = useRef(new Animated.Value(1)).current;
   const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
       try {
-        const c = player.currentTime, d = player.duration;
+        const c = player.currentTime;
+        const d = player.duration;
+        const s = (player as any).status as string | undefined;
         setCt(isNaN(c) ? 0 : c);
         if (d && !isNaN(d) && d > 0) setDur(d);
         setPlaying(player.playing);
+        // buffering when status is "loading" or video not yet started
+        setBuffering(s === "loading" || (!player.playing && c === 0 && d === 0));
       } catch { /* not ready */ }
     }, 250);
     return () => clearInterval(id);
@@ -198,28 +227,94 @@ function VideoPlayerModal({ config, onClose }: { config: PlayerConfig; onClose: 
 
   const progress = dur > 0 ? Math.min(1, ct / dur) : 0;
   const fT = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+  const { meta } = config;
 
   return (
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <VideoView player={player as any} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
+        {/* Video surface */}
+        <VideoView
+          player={player as any}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          nativeControls={false}
+        />
+
+        {/* Buffering spinner */}
+        {buffering && (
+          <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]} pointerEvents="none">
+            <View style={{ backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 16, padding: 18 }}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 8, fontFamily: "Inter_500Medium" }}>
+                Loading…
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Tap area to show/hide controls */}
         <Pressable style={StyleSheet.absoluteFill} onPress={() => {
-          if (ctrlVis) { Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setCtrlVis(false)); if (timerRef.current) clearTimeout(timerRef.current); }
-          else showCtrl();
+          if (ctrlVis) {
+            Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setCtrlVis(false));
+            if (timerRef.current) clearTimeout(timerRef.current);
+          } else {
+            showCtrl();
+          }
         }} />
-        <Animated.View style={[{ position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", paddingTop: insets.top + 8, paddingHorizontal: 12, paddingBottom: 12 }, { opacity: anim }]} pointerEvents={ctrlVis ? "box-none" : "none"}>
-          <TouchableOpacity onPress={onClose} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
+
+        {/* Top bar — title + share */}
+        <Animated.View
+          style={[{
+            position: "absolute", top: 0, left: 0, right: 0,
+            flexDirection: "row", alignItems: "center",
+            paddingTop: insets.top + 8, paddingHorizontal: 12, paddingBottom: 12,
+          }, { opacity: anim }]}
+          pointerEvents={ctrlVis ? "box-none" : "none"}
+        >
+          <TouchableOpacity onPress={onClose} style={pls.topBtn}>
             <Ionicons name="chevron-down" size={26} color="#fff" />
           </TouchableOpacity>
-          <Text style={{ flex: 1, color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" }} numberOfLines={1}>{config.title}</Text>
+          <Text style={pls.topTitle} numberOfLines={1}>{config.title}</Text>
           {config.onShare
-            ? <TouchableOpacity onPress={config.onShare} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}><Ionicons name="share-outline" size={22} color="#fff" /></TouchableOpacity>
+            ? <TouchableOpacity onPress={config.onShare} style={pls.topBtn}>
+                <Ionicons name="share-outline" size={22} color="#fff" />
+              </TouchableOpacity>
             : <View style={{ width: 44 }} />}
         </Animated.View>
+
+        {/* Metadata overlay — always visible, toggled by tapping the badge */}
+        {meta && (
+          <TouchableOpacity
+            style={pls.metaBadge}
+            onPress={() => setMetaVis((v) => !v)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="information-circle" size={14} color={metaVis ? "#22c55e" : "rgba(255,255,255,0.5)"} />
+          </TouchableOpacity>
+        )}
+        {meta && metaVis && (
+          <View style={pls.metaPanel} pointerEvents="none">
+            <Text style={pls.metaLine}>📍 {meta.locationName}</Text>
+            <Text style={pls.metaLine}>🗓 {fmtDateTime(meta.startedAt)}</Text>
+            <Text style={pls.metaLine}>🚗 {meta.vehicleName}{meta.plate ? ` · ${meta.plate}` : ""}</Text>
+            {meta.speedKmh != null && (
+              <Text style={pls.metaLine}>💨 {Math.round(meta.speedKmh)} km/h at start</Text>
+            )}
+          </View>
+        )}
+
+        {/* Bottom controls */}
         <Animated.View style={{ opacity: anim }} pointerEvents={ctrlVis ? "box-none" : "none"}>
-          <LinearGradient colors={["transparent", "rgba(0,0,0,0.92)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingTop: 60, paddingHorizontal: 20, paddingBottom: insets.bottom + 20 }}>
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.92)"]}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingTop: 60, paddingHorizontal: 20, paddingBottom: insets.bottom + 20 }}
+          >
+            {/* Seek bar */}
             <View style={{ marginBottom: 16 }} onLayout={(e) => setBarW(Math.max(1, e.nativeEvent.layout.width))}>
-              <Pressable style={{ height: 20, justifyContent: "center" }} onPress={(e) => { player.currentTime = (e.nativeEvent.locationX / barW) * dur; }}>
+              <Pressable
+                style={{ height: 20, justifyContent: "center" }}
+                onPress={(e) => { player.currentTime = (e.nativeEvent.locationX / barW) * dur; }}
+              >
                 <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 1.5, overflow: "hidden" }}>
                   <View style={{ position: "absolute", top: 0, left: 0, height: "100%" as any, width: `${progress * 100}%` as any, backgroundColor: "#22c55e", borderRadius: 1.5 }} />
                 </View>
@@ -230,19 +325,40 @@ function VideoPlayerModal({ config, onClose }: { config: PlayerConfig; onClose: 
                 <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular" }}>{fT(dur)}</Text>
               </View>
             </View>
+
+            {/* Transport controls */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <TouchableOpacity onPress={() => { const n = (speedIdx + 1) % SPEEDS.length; setSpeedIdx(n); player.playbackRate = SPEEDS[n]; }} style={{ width: 52, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "rgba(255,255,255,0.12)" }}>
+              {/* Speed toggle */}
+              <TouchableOpacity
+                onPress={() => { const n = (speedIdx + 1) % SPEEDS.length; setSpeedIdx(n); player.playbackRate = SPEEDS[n]; }}
+                style={pls.speedBtn}
+              >
                 <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>{SPEEDS[speedIdx]}×</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { player.currentTime = Math.max(0, ct - 15); }} style={{ width: 60, height: 60, alignItems: "center", justifyContent: "center" }}>
+
+              {/* −15 s */}
+              <TouchableOpacity onPress={() => { player.currentTime = Math.max(0, ct - 15); }} style={pls.skipBtn}>
                 <Ionicons name="play-back-outline" size={28} color="#fff" />
+                <Text style={pls.skipLabel}>15</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { if (player.playing) player.pause(); else player.play(); }} style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name={playing ? "pause" : "play"} size={28} color="#000" />
+
+              {/* Play / Pause */}
+              <TouchableOpacity
+                onPress={() => { if (player.playing) player.pause(); else player.play(); }}
+                style={pls.playBtn}
+              >
+                {buffering
+                  ? <ActivityIndicator size="small" color="#000" />
+                  : <Ionicons name={playing ? "pause" : "play"} size={28} color="#000" />
+                }
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { player.currentTime = Math.min(dur, ct + 15); }} style={{ width: 60, height: 60, alignItems: "center", justifyContent: "center" }}>
+
+              {/* +15 s */}
+              <TouchableOpacity onPress={() => { player.currentTime = Math.min(dur, ct + 15); }} style={pls.skipBtn}>
                 <Ionicons name="play-forward-outline" size={28} color="#fff" />
+                <Text style={pls.skipLabel}>15</Text>
               </TouchableOpacity>
+
               <View style={{ width: 52 }} />
             </View>
           </LinearGradient>
@@ -252,12 +368,37 @@ function VideoPlayerModal({ config, onClose }: { config: PlayerConfig; onClose: 
   );
 }
 
+// Player-local styles
+const pls = StyleSheet.create({
+  topBtn:    { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  topTitle:  { flex: 1, color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  speedBtn:  { width: 52, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "rgba(255,255,255,0.12)" },
+  skipBtn:   { width: 60, height: 60, alignItems: "center", justifyContent: "center" },
+  skipLabel: { color: "rgba(255,255,255,0.6)", fontSize: 9, fontFamily: "Inter_600SemiBold", marginTop: -6 },
+  playBtn:   { width: 64, height: 64, borderRadius: 32, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  metaBadge: {
+    position: "absolute", top: 100, right: 14,
+    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 12,
+    padding: 6,
+  },
+  metaPanel: {
+    position: "absolute", top: 124, right: 14,
+    backgroundColor: "rgba(0,0,0,0.68)", borderRadius: 10,
+    padding: 10, gap: 3, maxWidth: 220,
+  },
+  metaLine: { color: "#fff", fontSize: 11, fontFamily: "Inter_500Medium", lineHeight: 17 },
+});
+
 // ─── Clip Row ─────────────────────────────────────────────────────────────────
 
-function ClipRow({ clip, locationName, loading, onPlay, onMenu }: {
+function ClipRow({
+  clip, locationName, loading, thumbnailUri, downloadProgress, onPlay, onMenu,
+}: {
   clip: UnifiedClip;
   locationName: string;
   loading: boolean;
+  thumbnailUri?: string;
+  downloadProgress?: number;   // 0–1 when downloading, undefined otherwise
   onPlay: (c: UnifiedClip) => void;
   onMenu: (c: UnifiedClip) => void;
 }) {
@@ -275,18 +416,35 @@ function ClipRow({ clip, locationName, loading, onPlay, onMenu }: {
     >
       {/* Thumbnail */}
       <View style={vs.thumb}>
-        <View style={[vs.thumbBg, {
-          backgroundColor: isEvent ? "#FF3B3018" : clip.locked ? "#1976D218" : "#1E282099",
-        }]}>
-          {loading
-            ? <ActivityIndicator size="small" color="#fff" />
-            : isEvent
-              ? <Ionicons name="shield" size={22} color="#EF4444" />
-              : clip.locked
-                ? <Ionicons name="lock-closed" size={20} color="#3B82F6" />
-                : <Ionicons name="play" size={22} color="rgba(255,255,255,0.7)" />
-          }
-        </View>
+        {thumbnailUri
+          ? (
+            <Image
+              source={{ uri: thumbnailUri }}
+              style={[StyleSheet.absoluteFill, { borderRadius: 10 }]}
+              resizeMode="cover"
+            />
+          )
+          : (
+            <View style={[vs.thumbBg, {
+              backgroundColor: isEvent ? "#FF3B3018" : clip.locked ? "#1976D218" : "#1E282099",
+            }]}>
+              {loading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : isEvent
+                  ? <Ionicons name="shield" size={22} color="#EF4444" />
+                  : clip.locked
+                    ? <Ionicons name="lock-closed" size={20} color="#3B82F6" />
+                    : <Ionicons name="play" size={22} color="rgba(255,255,255,0.7)" />
+              }
+            </View>
+          )
+        }
+        {/* Play overlay on thumbnail */}
+        {thumbnailUri && !loading && (
+          <View style={vs.thumbPlay}>
+            <Ionicons name="play" size={16} color="#fff" />
+          </View>
+        )}
         {/* Duration badge */}
         <View style={vs.durBadge}>
           <Text style={vs.durText}>{fmtDuration(clip.durationS)}</Text>
@@ -305,10 +463,24 @@ function ClipRow({ clip, locationName, loading, onPlay, onMenu }: {
         <Text style={[vs.clipMeta, { color: c.mutedForeground }]}>
           {fmtTime(clip.startedAt)}  ·  {fmtSize(clip.sizeBytes)}
         </Text>
-        <View style={[vs.typeBadge, { backgroundColor: typeColor + "22" }]}>
-          <View style={[vs.typeDot, { backgroundColor: typeColor }]} />
-          <Text style={[vs.typeText, { color: typeColor }]}>{typeLabel}</Text>
-        </View>
+        {downloadProgress != null
+          ? (
+            <View style={{ gap: 3 }}>
+              <View style={{ height: 4, backgroundColor: c.muted, borderRadius: 2, overflow: "hidden" }}>
+                <View style={{ height: "100%", width: `${Math.round(downloadProgress * 100)}%` as any, backgroundColor: "#3B82F6", borderRadius: 2 }} />
+              </View>
+              <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#3B82F6" }}>
+                Downloading {Math.round(downloadProgress * 100)}%
+              </Text>
+            </View>
+          )
+          : (
+            <View style={[vs.typeBadge, { backgroundColor: typeColor + "22" }]}>
+              <View style={[vs.typeDot, { backgroundColor: typeColor }]} />
+              <Text style={[vs.typeText, { color: typeColor }]}>{typeLabel}</Text>
+            </View>
+          )
+        }
       </View>
 
       {/* Menu */}
@@ -337,14 +509,10 @@ export default function DashcamVideosScreen() {
 
   const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
   const goBack = useCallback(() => {
-    if (fromSummary === "1") {
-      router.replace("/(tabs)");
-    } else {
-      router.back();
-    }
+    if (fromSummary === "1") router.replace("/(tabs)");
+    else router.back();
   }, [fromSummary]);
 
-  // Android hardware back button — mirror the same rule when launched from summary
   useEffect(() => {
     if (fromSummary !== "1") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -357,28 +525,31 @@ export default function DashcamVideosScreen() {
   const topInset    = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  // ── State ─────────────────────────────────────────────────────────────────────
-  const [vehicles,         setVehicles]         = useState<SavedVehicle[]>([]);
-  const [activeIdx,        setActiveIdx]        = useState(0);
-  const [serverClips,      setServerClips]      = useState<ServerClip[]>([]);
-  const [serverLoading,    setServerLoading]    = useState(false);
-  const [locationNames,    setLocationNames]    = useState<Record<string, string>>({});
-  const [tab,              setTab]              = useState<Tab>("all");
-  const [dateFilter,       setDateFilter]       = useState<DateFilter>("all");
-  const [showPicker,       setShowPicker]       = useState(false);
-  const [menuClip,         setMenuClip]         = useState<UnifiedClip | null>(null);
-  const [playerConfig,     setPlayerConfig]     = useState<PlayerConfig | null>(null);
-  const [loadingId,        setLoadingId]        = useState<string | null>(null);
-  const [downloadingId,    setDownloadingId]    = useState<string | null>(null);
-  const [lastSync,         setLastSync]         = useState<Date | null>(null);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [vehicles,        setVehicles]        = useState<SavedVehicle[]>([]);
+  const [activeIdx,       setActiveIdx]       = useState(0);
+  const [serverClips,     setServerClips]     = useState<ServerClip[]>([]);
+  const [serverLoading,   setServerLoading]   = useState(false);
+  const [locationNames,   setLocationNames]   = useState<Record<string, string>>({});
+  const [tab,             setTab]             = useState<Tab>("all");
+  const [dateFilter,      setDateFilter]      = useState<DateFilter>("all");
+  const [showPicker,      setShowPicker]      = useState(false);
+  const [menuClip,        setMenuClip]        = useState<UnifiedClip | null>(null);
+  const [playerConfig,    setPlayerConfig]    = useState<PlayerConfig | null>(null);
+  const [loadingId,       setLoadingId]       = useState<string | null>(null);
+  const [sharingId,       setSharingId]       = useState<string | null>(null);
+  const [downloadProgress,setDownloadProgress]= useState<Record<string, number>>({});
+  const [lastSync,        setLastSync]        = useState<Date | null>(null);
+  const [thumbnails,      setThumbnails]      = useState<Record<string, string>>({});
+  const [showDownloadSheet, setShowDownloadSheet] = useState(false);
   const locCacheRef = useRef<Record<string, string>>({});
 
-  // ── Load vehicles ─────────────────────────────────────────────────────────────
+  // ── Load vehicles ──────────────────────────────────────────────────────────
   useFocusEffect(useCallback(() => {
     loadVehicles().then(setVehicles).catch(() => {});
   }, []));
 
-  // ── Fetch server clips ─────────────────────────────────────────────────────────
+  // ── Fetch server clips ─────────────────────────────────────────────────────
   const fetchServerClips = useCallback(async () => {
     if (!pushDeviceId || !API_BASE) return;
     try {
@@ -401,21 +572,22 @@ export default function DashcamVideosScreen() {
 
   useFocusEffect(useCallback(() => { fetchServerClips(); }, [fetchServerClips]));
 
-  // ── Unified clips ─────────────────────────────────────────────────────────────
+  // ── Unified clips ──────────────────────────────────────────────────────────
   const unifiedClips = useMemo<UnifiedClip[]>(() => {
     const localServerIds = new Set(segments.map((s) => s.serverId).filter(Boolean));
     const serverOnly = serverClips
       .filter((c) => !localServerIds.has(c.id))
       .map((sc): UnifiedClip => ({
-        id:        sc.id,
-        startedAt: new Date(sc.startedAt).getTime(),
-        durationS: sc.durationS ?? 0,
-        sizeBytes: sc.sizeBytes ?? 0,
-        locked:    true,
+        id:         sc.id,
+        startedAt:  new Date(sc.startedAt).getTime(),
+        durationS:  sc.durationS ?? 0,
+        sizeBytes:  sc.sizeBytes ?? 0,
+        locked:     true,
         lockReason: sc.lockReason ?? "manual",
-        source:    "server",
-        lat:       sc.lat ?? undefined,
-        lng:       sc.lng ?? undefined,
+        source:     "server",
+        lat:        sc.lat ?? undefined,
+        lng:        sc.lng ?? undefined,
+        speedKmh:   sc.speedKmh ?? undefined,
       }));
     const local = segments.map((s): UnifiedClip => ({
       id:           s.id,
@@ -434,19 +606,45 @@ export default function DashcamVideosScreen() {
     return [...local, ...serverOnly].sort((a, b) => b.startedAt - a.startedAt);
   }, [segments, serverClips]);
 
-  // ── Resolve location names via Photon reverse geocode ─────────────────────────
+  // ── Generate thumbnails for local clips ───────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      for (const clip of unifiedClips) {
+        if (cancelled) return;
+        if (!clip.uri || thumbnails[clip.id] || thumbCache.has(clip.id)) {
+          // Use cached value
+          if (thumbCache.has(clip.id) && !thumbnails[clip.id]) {
+            setThumbnails((prev) => ({ ...prev, [clip.id]: thumbCache.get(clip.id)! }));
+          }
+          continue;
+        }
+        try {
+          const result = await VideoThumbnails.getThumbnailAsync(clip.uri, { time: 1500 });
+          if (!cancelled && result?.uri) {
+            thumbCache.set(clip.id, result.uri);
+            setThumbnails((prev) => ({ ...prev, [clip.id]: result.uri }));
+          }
+        } catch {
+          // Thumbnail gen failed — keep fallback icon
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unifiedClips]);
+
+  // ── Resolve location names via Photon reverse geocode ─────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const cache = { ...locCacheRef.current };
-      // Load cached from AsyncStorage
       for (const clip of unifiedClips) {
         if (cache[clip.id]) continue;
         const stored = await AsyncStorage.getItem(LOC_CACHE_KEY(clip.id)).catch(() => null);
         if (stored) cache[clip.id] = stored;
       }
       if (!cancelled) { locCacheRef.current = cache; setLocationNames({ ...cache }); }
-      // Fetch uncached clips that have coordinates
       for (const clip of unifiedClips) {
         if (cancelled || cache[clip.id]) continue;
         if (clip.lat == null || clip.lng == null) continue;
@@ -462,7 +660,7 @@ export default function DashcamVideosScreen() {
     return () => { cancelled = true; };
   }, [unifiedClips]);
 
-  // ── Filter + group ────────────────────────────────────────────────────────────
+  // ── Filter + group ─────────────────────────────────────────────────────────
   const listItems = useMemo<ListItem[]>(() => {
     let clips = unifiedClips;
     if (tab === "locked")    clips = clips.filter((c) => c.locked);
@@ -488,49 +686,164 @@ export default function DashcamVideosScreen() {
     const items: ListItem[] = [];
     for (const [label, gClips] of groups) {
       items.push({ type: "section", label, count: gClips.length, key: `sec_${label}` });
-      for (const clip of gClips) {
-        items.push({ type: "clip", clip, key: clip.id });
-      }
+      for (const clip of gClips) items.push({ type: "clip", clip, key: clip.id });
     }
     return items;
   }, [unifiedClips, tab, dateFilter]);
 
-  // ── Play ──────────────────────────────────────────────────────────────────────
+  // ── Vehicle helpers ────────────────────────────────────────────────────────
+  const activeVehicle = vehicles[activeIdx] ?? null;
+  const vehicleName   = activeVehicle
+    ? [
+        getMakeById(activeVehicle.makeId ?? "")?.name  ?? activeVehicle.customMakeName,
+        getModelById(activeVehicle.makeId ?? "", activeVehicle.modelId ?? "")?.name ?? activeVehicle.customModelName,
+      ].filter(Boolean).join(" ") || "My Vehicle"
+    : "My Vehicle";
+
+  /** Build the meta block passed to the video player. */
+  const buildPlayerMeta = useCallback((clip: UnifiedClip): PlayerMeta => ({
+    startedAt:    clip.startedAt,
+    locationName: locationNames[clip.id] ?? timeOfDayName(clip.startedAt),
+    vehicleName,
+    plate:        activeVehicle?.plateNumber,
+    speedKmh:     clip.speedKmh,
+  }), [locationNames, vehicleName, activeVehicle]);
+
+  // ── Shared helper: get a signed URL for a server clip ─────────────────────
+  const getSignedUrl = useCallback(async (clipId: string): Promise<string | null> => {
+    const secret = await AsyncStorage.getItem(SECRET_KEY);
+    if (!secret || !pushDeviceId) return null;
+    const res = await fetch(`${API_BASE}/dashcam/clip/${clipId}/url`, {
+      headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
+    });
+    if (!res.ok) return null;
+    const { downloadUrl } = await res.json() as { downloadUrl: string };
+    return downloadUrl;
+  }, [pushDeviceId]);
+
+  // ── Play ───────────────────────────────────────────────────────────────────
   const handlePlay = useCallback(async (clip: UnifiedClip) => {
     Haptics.selectionAsync();
     const title = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
+    const meta  = buildPlayerMeta(clip);
+
     if (clip.source === "local" && clip.uri) {
-      setPlayerConfig({ uri: clip.uri, title });
+      setPlayerConfig({ uri: clip.uri, title, meta });
       return;
     }
     if (loadingId) return;
     try {
-      const secret = await AsyncStorage.getItem(SECRET_KEY);
-      if (!secret || !pushDeviceId) return;
       setLoadingId(clip.id);
-      const res = await fetch(`${API_BASE}/dashcam/clip/${clip.id}/url`, {
-        headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
-      });
-      if (!res.ok) { Alert.alert("Error", "Could not load video."); return; }
-      const { downloadUrl } = await res.json() as { downloadUrl: string };
+      const url = await getSignedUrl(clip.id);
+      if (!url) { Alert.alert("Error", "Could not load video."); return; }
       setPlayerConfig({
-        uri: downloadUrl, title,
-        onShare: async () => {
-          const canShare = await Sharing.isAvailableAsync();
-          if (canShare) {
-            const tmp = `${FileSystem.cacheDirectory}share_player_${clip.id}.mp4`;
-            await FileSystem.downloadAsync(downloadUrl, tmp).catch(() => {});
-            Sharing.shareAsync(tmp, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
-          } else {
-            RNShare.share({ message: "Msafiri dashcam clip", url: downloadUrl }).catch(() => {});
-          }
-        },
+        uri: url, title, meta,
+        onShare: async () => handleShareUrl(url, clip),
       });
     } catch { Alert.alert("Error", "Network error."); }
     finally { setLoadingId(null); }
-  }, [locationNames, loadingId, pushDeviceId]);
+  }, [locationNames, loadingId, buildPlayerMeta, getSignedUrl]);
 
-  // ── Delete ────────────────────────────────────────────────────────────────────
+  // ── Download to device ─────────────────────────────────────────────────────
+  const handleDownload = useCallback(async (clip: UnifiedClip) => {
+    setMenuClip(null);
+    if (clip.source === "local") {
+      Alert.alert("Already on device", "This clip is already saved to your device.");
+      return;
+    }
+    if (downloadProgress[clip.id] != null) return; // already in progress
+    try {
+      const url = await getSignedUrl(clip.id);
+      if (!url) { Alert.alert("Error", "Could not get download URL."); return; }
+
+      const dest = `${FileSystem.documentDirectory}dashcam_${clip.id}.mp4`;
+      const task = FileSystem.createDownloadResumable(
+        url,
+        dest,
+        {},
+        (prog) => {
+          const ratio = prog.totalBytesExpectedToWrite > 0
+            ? prog.totalBytesWritten / prog.totalBytesExpectedToWrite
+            : 0;
+          setDownloadProgress((prev) => ({ ...prev, [clip.id]: ratio }));
+        }
+      );
+      setDownloadProgress((prev) => ({ ...prev, [clip.id]: 0 }));
+      await task.downloadAsync();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Downloaded ✓", "Clip saved to your device.");
+    } catch {
+      Alert.alert("Error", "Download failed. Check your connection.");
+    } finally {
+      setDownloadProgress((prev) => { const n = { ...prev }; delete n[clip.id]; return n; });
+    }
+  }, [downloadProgress, getSignedUrl]);
+
+  // ── Share URL (from player or menu — no download needed) ──────────────────
+  const handleShareUrl = useCallback(async (url: string, clip: UnifiedClip) => {
+    const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
+    const msg  = `Msafiri dashcam clip — ${name}, ${fmtDateTime(clip.startedAt)}`;
+    try {
+      await RNShare.share({ message: msg, url });
+    } catch { /* user cancelled */ }
+  }, [locationNames]);
+
+  // ── Share (from menu) ──────────────────────────────────────────────────────
+  const handleShare = useCallback(async (clip: UnifiedClip) => {
+    setMenuClip(null);
+
+    // Local clip — share file directly
+    if (clip.source === "local" && clip.uri) {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(clip.uri, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
+      } else {
+        const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
+        RNShare.share({ message: `Msafiri dashcam clip — ${fmtDateTime(clip.startedAt)}`, url: clip.uri }).catch(() => {});
+      }
+      return;
+    }
+
+    // Server clip — share the signed link instantly; no download required.
+    // Recipients can stream/download from the link (valid 1 hour).
+    try {
+      setSharingId(clip.id);
+      const url = await getSignedUrl(clip.id);
+      if (!url) { Alert.alert("Error", "Could not get share link."); return; }
+
+      Alert.alert(
+        "Share clip",
+        "How would you like to share this clip?",
+        [
+          {
+            text: "Share Link (instant)",
+            onPress: () => handleShareUrl(url, clip),
+          },
+          {
+            text: "Share Video File",
+            onPress: async () => {
+              const canShare = await Sharing.isAvailableAsync();
+              if (canShare) {
+                const tmp = `${FileSystem.cacheDirectory}share_${clip.id}.mp4`;
+                setSharingId(clip.id);
+                try {
+                  await FileSystem.downloadAsync(url, tmp);
+                  await Sharing.shareAsync(tmp, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
+                } catch { Alert.alert("Error", "Could not download video for sharing."); }
+                finally { setSharingId(null); }
+              } else {
+                handleShareUrl(url, clip);
+              }
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    } catch { Alert.alert("Error", "Could not prepare share link."); }
+    finally { setSharingId(null); }
+  }, [locationNames, getSignedUrl, handleShareUrl]);
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
   const handleDelete = useCallback((clip: UnifiedClip) => {
     setMenuClip(null);
     Alert.alert(
@@ -556,7 +869,7 @@ export default function DashcamVideosScreen() {
               });
               if (res.ok) {
                 setServerClips((prev) => prev.filter((c) => c.id !== clip.id));
-                clearCloudQuotaFull(); // a slot just opened — clear the quota banner
+                clearCloudQuotaFull();
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               } else Alert.alert("Error", "Could not delete clip.");
             } catch { Alert.alert("Error", "Network error."); }
@@ -564,80 +877,31 @@ export default function DashcamVideosScreen() {
         }},
       ]
     );
-  }, [deleteSegment, pushDeviceId]);
+  }, [deleteSegment, pushDeviceId, clearCloudQuotaFull]);
 
-  // ── Share ─────────────────────────────────────────────────────────────────────
-  const handleShare = useCallback(async (clip: UnifiedClip) => {
-    setMenuClip(null);
-    const canShare = await Sharing.isAvailableAsync();
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const totalClips  = unifiedClips.length;
+  const lockedCount = unifiedClips.filter((c) => c.locked).length;
+  const usedMB      = (storageUsedBytes / 1_048_576).toFixed(0);
 
-    // Local clip — share the file directly
-    if (clip.source === "local" && clip.uri) {
-      if (canShare) {
-        await Sharing.shareAsync(clip.uri, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
-      } else {
-        RNShare.share({ message: `Msafiri dashcam clip — ${fmtTime(clip.startedAt)}` }).catch(() => {});
-      }
-      return;
-    }
+  // Cloud clips available for download
+  const downloadableClips = useMemo(
+    () => serverClips.map((sc): UnifiedClip => ({
+      id:         sc.id,
+      startedAt:  new Date(sc.startedAt).getTime(),
+      durationS:  sc.durationS ?? 0,
+      sizeBytes:  sc.sizeBytes ?? 0,
+      locked:     true,
+      lockReason: sc.lockReason ?? "manual",
+      source:     "server",
+      lat:        sc.lat ?? undefined,
+      lng:        sc.lng ?? undefined,
+      speedKmh:   sc.speedKmh ?? undefined,
+    })),
+    [serverClips]
+  );
 
-    // Server clip — get signed URL, download to a temp file, then share
-    try {
-      const secret = await AsyncStorage.getItem(SECRET_KEY);
-      if (!secret || !pushDeviceId) { Alert.alert("Error", "Dashcam not connected."); return; }
-      const res = await fetch(`${API_BASE}/dashcam/clip/${clip.id}/url`, {
-        headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
-      });
-      if (!res.ok) { Alert.alert("Error", "Could not get share link."); return; }
-      const { downloadUrl } = await res.json() as { downloadUrl: string };
-
-      if (canShare) {
-        // Download to cache dir then share so the sheet shows the actual file
-        const tmp = `${FileSystem.cacheDirectory}share_${clip.id}.mp4`;
-        await FileSystem.downloadAsync(downloadUrl, tmp);
-        await Sharing.shareAsync(tmp, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
-      } else {
-        // Fallback: share the signed URL as text
-        RNShare.share({ message: "Msafiri dashcam clip", url: downloadUrl }).catch(() => {});
-      }
-    } catch { Alert.alert("Error", "Could not share clip. Check your connection."); }
-  }, [pushDeviceId]);
-
-  // ── Download to device ────────────────────────────────────────────────────────
-  const handleDownload = useCallback(async (clip: UnifiedClip) => {
-    setMenuClip(null);
-    if (clip.source === "local") { Alert.alert("Already on device", "This clip is already saved locally."); return; }
-    try {
-      const secret = await AsyncStorage.getItem(SECRET_KEY);
-      if (!secret || !pushDeviceId) return;
-      setDownloadingId(clip.id);
-      const res = await fetch(`${API_BASE}/dashcam/clip/${clip.id}/url`, {
-        headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
-      });
-      if (!res.ok) { Alert.alert("Error", "Could not get download URL."); return; }
-      const { downloadUrl } = await res.json() as { downloadUrl: string };
-      const dest = `${FileSystem.documentDirectory}dashcam_${clip.id}.mp4`;
-      await FileSystem.downloadAsync(downloadUrl, dest);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Downloaded", "Clip saved to your device.");
-    } catch { Alert.alert("Error", "Download failed. Check your connection."); }
-    finally { setDownloadingId(null); }
-  }, [pushDeviceId]);
-
-  // ── Derived display values ────────────────────────────────────────────────────
-  const activeVehicle = vehicles[activeIdx] ?? null;
-  const vehicleName   = activeVehicle
-    ? [
-        getMakeById(activeVehicle.makeId ?? "")?.name  ?? activeVehicle.customMakeName,
-        getModelById(activeVehicle.makeId ?? "", activeVehicle.modelId ?? "")?.name ?? activeVehicle.customModelName,
-      ].filter(Boolean).join(" ") || "My Vehicle"
-    : "My Vehicle";
-
-  const totalClips   = unifiedClips.length;
-  const lockedCount  = unifiedClips.filter((c) => c.locked).length;
-  const usedMB       = (storageUsedBytes / 1_048_576).toFixed(0);
-
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
       <FlatList
@@ -645,14 +909,11 @@ export default function DashcamVideosScreen() {
         data={listItems}
         keyExtractor={(item) => item.key}
         style={{ backgroundColor: c.background }}
-        contentContainerStyle={{
-          paddingTop: topInset + 8,
-          paddingBottom: bottomInset + 40,
-          paddingHorizontal: 16,
-        }}
+        contentContainerStyle={{ paddingTop: topInset + 8, paddingBottom: bottomInset + 40, paddingHorizontal: 16 }}
         ListHeaderComponent={
           <View style={{ gap: 12, marginBottom: 12 }}>
-            {/* ── Header ─────────────────────────────────────────────────── */}
+
+            {/* ── Header ──────────────────────────────────────────────── */}
             <View style={vs.headerRow}>
               <TouchableOpacity onPress={goBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="chevron-back" size={26} color={c.foreground} />
@@ -674,7 +935,7 @@ export default function DashcamVideosScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* ── Vehicle selector ───────────────────────────────────────── */}
+            {/* ── Vehicle selector ────────────────────────────────────── */}
             {vehicles.length > 0 && (
               <>
                 <Text style={[vs.sectionMini, { color: c.mutedForeground }]}>Select Vehicle</Text>
@@ -688,9 +949,7 @@ export default function DashcamVideosScreen() {
                       <View style={vs.vehicleNameRow}>
                         <Text style={[vs.vehicleName, { color: c.foreground }]}>{vehicleName}</Text>
                         {activeVehicle?.isDefault && (
-                          <View style={vs.primaryBadge}>
-                            <Text style={vs.primaryText}>Primary</Text>
-                          </View>
+                          <View style={vs.primaryBadge}><Text style={vs.primaryText}>Primary</Text></View>
                         )}
                       </View>
                       {activeVehicle?.odometerKm ? (
@@ -698,16 +957,19 @@ export default function DashcamVideosScreen() {
                           {activeVehicle.odometerKm.toLocaleString()} km
                         </Text>
                       ) : null}
+                      {activeVehicle?.plateNumber ? (
+                        <Text style={[vs.vehicleMeta, { color: c.mutedForeground }]}>
+                          {activeVehicle.plateNumber}
+                        </Text>
+                      ) : null}
                     </View>
-                    {vehicles.length > 1 && (
-                      <Ionicons name="chevron-down" size={20} color={c.mutedForeground} />
-                    )}
+                    {vehicles.length > 1 && <Ionicons name="chevron-down" size={20} color={c.mutedForeground} />}
                   </View>
                 </TouchableOpacity>
               </>
             )}
 
-            {/* ── Connection status ──────────────────────────────────────── */}
+            {/* ── Connection status ────────────────────────────────────── */}
             <View style={[vs.connBar, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={vs.connLeft}>
                 <View style={[vs.connIcon, { backgroundColor: "#22c55e1a" }]}>
@@ -728,13 +990,8 @@ export default function DashcamVideosScreen() {
               <TouchableOpacity
                 style={[vs.openBtn, { borderColor: c.primary }]}
                 onPress={() => {
-                  if (isRecording) {
-                    // Already recording — just show the overlay
-                    openDashcam();
-                  } else {
-                    // Must be driving to use dashcam — redirect to Drive tab
-                    router.push("/(tabs)/drive" as any);
-                  }
+                  if (isRecording) openDashcam();
+                  else router.push("/pretrip-check" as any);
                 }}
               >
                 <Text style={[vs.openBtnText, { color: c.primary }]}>
@@ -744,7 +1001,7 @@ export default function DashcamVideosScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* ── Quota-full banner ──────────────────────────────────────── */}
+            {/* ── Cloud quota banner ──────────────────────────────────── */}
             {cloudQuotaFull && (
               <View style={[vs.quotaBanner, { backgroundColor: "#EF444414", borderColor: "#EF444440" }]}>
                 <Ionicons name="cloud-offline-outline" size={20} color="#EF4444" />
@@ -754,43 +1011,44 @@ export default function DashcamVideosScreen() {
                     New clips can't back up until you delete old cloud clips. Open the Locked tab to remove old footage.
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => { setTab("locked"); setDateFilter("all"); }}
-                  style={vs.quotaBtn}
-                >
+                <TouchableOpacity onPress={() => { setTab("locked"); setDateFilter("all"); }} style={vs.quotaBtn}>
                   <Text style={vs.quotaBtnText}>Manage</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* ── Quick actions ──────────────────────────────────────────── */}
+            {/* ── Quick actions ────────────────────────────────────────── */}
             <View style={vs.actionsGrid}>
+              {/* Start Drive / Live View */}
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#22c55e14", borderColor: "#22c55e30" }]}
-                onPress={() => {
-                  if (isRecording) {
-                    openDashcam();
-                  } else {
-                    router.push("/(tabs)/drive" as any);
-                  }
-                }}
+                onPress={() => { if (isRecording) openDashcam(); else router.push("/pretrip-check" as any); }}
               >
                 <Ionicons name={isRecording ? "videocam" : "car-sport-outline"} size={24} color="#22c55e" />
                 <Text style={[vs.actionLabel, { color: c.foreground }]}>
                   {isRecording ? "Live View" : "Start Drive"}
                 </Text>
                 <Text style={[vs.actionSub, { color: c.mutedForeground }]}>
-                  {isRecording ? "Real-time feed" : "Required to record"}
+                  {isRecording ? "Real-time feed" : "Pre-trip checklist"}
                 </Text>
               </TouchableOpacity>
+
+              {/* Download cloud clips */}
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#3B82F614", borderColor: "#3B82F630" }]}
-                onPress={fetchServerClips}
+                onPress={() => { fetchServerClips(); setShowDownloadSheet(true); }}
               >
-                <Ionicons name="cloud-download-outline" size={24} color="#3B82F6" />
+                {serverLoading
+                  ? <ActivityIndicator size="small" color="#3B82F6" />
+                  : <Ionicons name="cloud-download-outline" size={24} color="#3B82F6" />
+                }
                 <Text style={[vs.actionLabel, { color: c.foreground }]}>Download</Text>
-                <Text style={[vs.actionSub, { color: c.mutedForeground }]}>Get recent videos</Text>
+                <Text style={[vs.actionSub, { color: c.mutedForeground }]}>
+                  {serverClips.length > 0 ? `${serverClips.length} cloud clip${serverClips.length !== 1 ? "s" : ""}` : "Get recent videos"}
+                </Text>
               </TouchableOpacity>
+
+              {/* Emergency / Locked */}
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#EF444414", borderColor: "#EF444430" }]}
                 onPress={() => { setTab("locked"); setDateFilter("all"); }}
@@ -799,6 +1057,8 @@ export default function DashcamVideosScreen() {
                 <Text style={[vs.actionLabel, { color: c.foreground }]}>Emergency</Text>
                 <Text style={[vs.actionSub, { color: c.mutedForeground }]}>Locked videos</Text>
               </TouchableOpacity>
+
+              {/* Settings */}
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#8B5CF614", borderColor: "#8B5CF630" }]}
                 onPress={() => router.push("/(tabs)/settings" as any)}
@@ -809,7 +1069,7 @@ export default function DashcamVideosScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* ── Stats strip ────────────────────────────────────────────── */}
+            {/* ── Stats strip ──────────────────────────────────────────── */}
             <View style={[vs.statsRow, { backgroundColor: c.card, borderColor: c.border }]}>
               {[
                 { n: totalClips,  l: "Total" },
@@ -826,7 +1086,7 @@ export default function DashcamVideosScreen() {
               ))}
             </View>
 
-            {/* ── Tabs ───────────────────────────────────────────────────── */}
+            {/* ── Tabs ─────────────────────────────────────────────────── */}
             <View style={[vs.tabStrip, { backgroundColor: c.card, borderColor: c.border }]}>
               {(["all", "locked", "downloads"] as Tab[]).map((t) => {
                 const active = tab === t;
@@ -846,17 +1106,14 @@ export default function DashcamVideosScreen() {
               })}
             </View>
 
-            {/* ── Date chips ─────────────────────────────────────────────── */}
+            {/* ── Date chips ───────────────────────────────────────────── */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 4 }}>
               {(["all", "today", "yesterday", "week"] as DateFilter[]).map((f) => {
                 const active = dateFilter === f;
                 return (
                   <TouchableOpacity
                     key={f}
-                    style={[vs.chip, {
-                      backgroundColor: active ? c.primary : c.card,
-                      borderColor:     active ? c.primary : c.border,
-                    }]}
+                    style={[vs.chip, { backgroundColor: active ? c.primary : c.card, borderColor: active ? c.primary : c.border }]}
                     onPress={() => setDateFilter(f)}
                   >
                     <Text style={[vs.chipText, { color: active ? "#fff" : c.mutedForeground }]}>
@@ -865,9 +1122,7 @@ export default function DashcamVideosScreen() {
                   </TouchableOpacity>
                 );
               })}
-              {serverLoading && (
-                <ActivityIndicator size="small" color={c.primary} style={{ marginLeft: 6 }} />
-              )}
+              {serverLoading && <ActivityIndicator size="small" color={c.primary} style={{ marginLeft: 6 }} />}
             </ScrollView>
           </View>
         }
@@ -892,13 +1147,16 @@ export default function DashcamVideosScreen() {
             );
           }
           const { clip } = item;
-          const isLoading = loadingId === clip.id || downloadingId === clip.id;
+          const isLoading = loadingId === clip.id || sharingId === clip.id;
+          const progress  = downloadProgress[clip.id];
           return (
             <View style={{ marginBottom: 8 }}>
               <ClipRow
                 clip={clip}
                 locationName={locationNames[clip.id] ?? timeOfDayName(clip.startedAt)}
                 loading={isLoading}
+                thumbnailUri={thumbnails[clip.id]}
+                downloadProgress={progress}
                 onPlay={handlePlay}
                 onMenu={setMenuClip}
               />
@@ -907,7 +1165,7 @@ export default function DashcamVideosScreen() {
         }}
       />
 
-      {/* ── Vehicle picker ────────────────────────────────────────────────── */}
+      {/* ── Vehicle picker ─────────────────────────────────────────────────── */}
       {showPicker && (
         <Modal transparent animationType="slide" onRequestClose={() => setShowPicker(false)}>
           <Pressable style={vs.overlay} onPress={() => setShowPicker(false)} />
@@ -938,7 +1196,88 @@ export default function DashcamVideosScreen() {
         </Modal>
       )}
 
-      {/* ── Clip context menu ─────────────────────────────────────────────── */}
+      {/* ── Download sheet ─────────────────────────────────────────────────── */}
+      {showDownloadSheet && (
+        <Modal transparent animationType="slide" onRequestClose={() => setShowDownloadSheet(false)}>
+          <Pressable style={vs.overlay} onPress={() => setShowDownloadSheet(false)} />
+          <View style={[vs.sheet, { backgroundColor: c.card, paddingBottom: bottomInset + 20, maxHeight: "80%" as any }]}>
+            <View style={[vs.handle, { backgroundColor: c.border }]} />
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              <Text style={[vs.sheetTitle, { color: c.foreground, flex: 1 }]}>Cloud Clips</Text>
+              <TouchableOpacity
+                onPress={() => { fetchServerClips(); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ padding: 4 }}
+              >
+                {serverLoading
+                  ? <ActivityIndicator size="small" color={c.primary} />
+                  : <Ionicons name="refresh" size={18} color={c.primary} />
+                }
+              </TouchableOpacity>
+            </View>
+            <Text style={[vs.sheetSub, { color: c.mutedForeground }]}>
+              {downloadableClips.length === 0 ? "No cloud clips found." : `${downloadableClips.length} clip${downloadableClips.length !== 1 ? "s" : ""} backed up to the cloud.`}
+            </Text>
+
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              {downloadableClips.length === 0 && !serverLoading && (
+                <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
+                  <Ionicons name="cloud-outline" size={40} color={c.mutedForeground} />
+                  <Text style={{ color: c.mutedForeground, fontSize: 14, fontFamily: "Inter_400Regular" }}>
+                    Lock a clip while driving to back it up.
+                  </Text>
+                </View>
+              )}
+              {downloadableClips.map((clip) => {
+                const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
+                const prog = downloadProgress[clip.id];
+                const isDownloading = prog != null;
+                return (
+                  <View
+                    key={clip.id}
+                    style={[vs.dlRow, { borderColor: c.border }]}
+                  >
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={[vs.dlName, { color: c.foreground }]} numberOfLines={1}>{name}</Text>
+                      <Text style={[vs.dlMeta, { color: c.mutedForeground }]}>
+                        {fmtDateTime(clip.startedAt)}  ·  {fmtDuration(clip.durationS)}  ·  {fmtSize(clip.sizeBytes)}
+                      </Text>
+                      {isDownloading && (
+                        <View style={{ marginTop: 4, gap: 3 }}>
+                          <View style={{ height: 4, backgroundColor: c.muted, borderRadius: 2, overflow: "hidden" }}>
+                            <View style={{ height: "100%", width: `${Math.round(prog * 100)}%` as any, backgroundColor: "#3B82F6", borderRadius: 2 }} />
+                          </View>
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#3B82F6" }}>
+                            {Math.round(prog * 100)}% downloaded
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={[vs.dlBtn, {
+                        backgroundColor: isDownloading ? "#3B82F620" : "#3B82F614",
+                        borderColor: "#3B82F640",
+                      }]}
+                      onPress={() => handleDownload(clip)}
+                      disabled={isDownloading}
+                    >
+                      {isDownloading
+                        ? <ActivityIndicator size="small" color="#3B82F6" />
+                        : <Ionicons name="download-outline" size={16} color="#3B82F6" />
+                      }
+                      <Text style={[vs.dlBtnText, { color: "#3B82F6" }]}>
+                        {isDownloading ? "Saving…" : "Download"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Clip context menu ──────────────────────────────────────────────── */}
       {menuClip && (
         <Modal transparent animationType="slide" onRequestClose={() => setMenuClip(null)}>
           <Pressable style={vs.overlay} onPress={() => setMenuClip(null)} />
@@ -958,14 +1297,18 @@ export default function DashcamVideosScreen() {
                 onPress: () => { const cl = menuClip; setMenuClip(null); handlePlay(cl); },
               },
               {
-                icon: "share-outline" as const,
-                label: "Share",
+                icon: sharingId === menuClip.id ? "hourglass-outline" as const : "share-outline" as const,
+                label: sharingId === menuClip.id ? "Preparing…" : "Share",
                 onPress: () => handleShare(menuClip),
+                disabled: sharingId === menuClip.id,
               },
               menuClip.source === "server" ? {
                 icon: "download-outline" as const,
-                label: "Download to Device",
+                label: downloadProgress[menuClip.id] != null
+                  ? `Downloading ${Math.round(downloadProgress[menuClip.id] * 100)}%…`
+                  : "Download to Device",
                 onPress: () => handleDownload(menuClip),
+                disabled: downloadProgress[menuClip.id] != null,
               } : null,
               menuClip.source === "local" && !menuClip.locked ? {
                 icon: "lock-closed-outline" as const,
@@ -985,8 +1328,9 @@ export default function DashcamVideosScreen() {
             ] as const).filter(Boolean).map((opt: any, i) => (
               <TouchableOpacity
                 key={i}
-                style={[vs.menuOpt, { borderColor: c.border }]}
+                style={[vs.menuOpt, { borderColor: c.border, opacity: opt.disabled ? 0.5 : 1 }]}
                 onPress={opt.onPress}
+                disabled={opt.disabled}
               >
                 <Ionicons name={opt.icon} size={20} color={opt.danger ? "#EF4444" : c.foreground} />
                 <Text style={[vs.menuOptText, { color: opt.danger ? "#EF4444" : c.foreground }]}>{opt.label}</Text>
@@ -996,7 +1340,7 @@ export default function DashcamVideosScreen() {
         </Modal>
       )}
 
-      {/* ── Video player ──────────────────────────────────────────────────── */}
+      {/* ── Video player ───────────────────────────────────────────────────── */}
       {playerConfig && (
         <VideoPlayerModal config={playerConfig} onClose={() => setPlayerConfig(null)} />
       )}
@@ -1053,11 +1397,12 @@ const vs = StyleSheet.create({
   dayLabel:  { fontSize: 15, fontFamily: "Inter_700Bold" },
   dayCount:  { fontSize: 12, fontFamily: "Inter_400Regular" },
 
-  clipRow:  { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, padding: 10 },
-  thumb:    { width: 110, height: 72, borderRadius: 10, overflow: "hidden", position: "relative" },
-  thumbBg:  { flex: 1, alignItems: "center", justifyContent: "center" },
-  durBadge: { position: "absolute", bottom: 5, left: 6, backgroundColor: "rgba(0,0,0,0.7)", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
-  durText:  { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
+  clipRow:   { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, padding: 10 },
+  thumb:     { width: 110, height: 72, borderRadius: 10, overflow: "hidden", position: "relative" },
+  thumbBg:   { flex: 1, alignItems: "center", justifyContent: "center" },
+  thumbPlay: { position: "absolute", top: "50%" as any, left: "50%" as any, marginTop: -14, marginLeft: -14, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
+  durBadge:  { position: "absolute", bottom: 5, left: 6, backgroundColor: "rgba(0,0,0,0.7)", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  durText:   { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
   cloudBadge: { position: "absolute", top: 5, right: 5, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
 
   clipTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
@@ -1077,7 +1422,7 @@ const vs = StyleSheet.create({
   sheetTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   sheetSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3, marginBottom: 10 },
 
-  vehicleOpt:    { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, marginTop: 8 },
+  vehicleOpt:     { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, marginTop: 8 },
   vehicleOptName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   vehicleOptSub:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 
@@ -1089,4 +1434,11 @@ const vs = StyleSheet.create({
   quotaSub:     { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   quotaBtn:     { backgroundColor: "#EF444422", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: "flex-start", marginTop: 2 },
   quotaBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#EF4444" },
+
+  // Download sheet
+  dlRow:    { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  dlName:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  dlMeta:   { fontSize: 11, fontFamily: "Inter_400Regular" },
+  dlBtn:    { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
+  dlBtnText:{ fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });
