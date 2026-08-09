@@ -51,6 +51,8 @@ interface ServerClip {
   lat: number | null;
   lng: number | null;
   speedKmh: number | null;
+  pinned: boolean;
+  expiresAt: string | null;
 }
 
 interface UnifiedClip {
@@ -67,6 +69,8 @@ interface UnifiedClip {
   lat?: number;
   lng?: number;
   speedKmh?: number;
+  pinned?: boolean;
+  expiresAt?: string | null;
 }
 
 /** Metadata shown as an overlay inside the video player. */
@@ -158,6 +162,22 @@ function inRange(ms: number, filter: DateFilter): boolean {
     return ms >= weekAgo.getTime();
   }
   return true;
+}
+
+/**
+ * Returns a human-readable expiry string for a cloud clip.
+ * - Pinned clips: "Pinned · 60 days"
+ * - Regular clips: "Deletes in X days" or "< 1 day"
+ * - No expiry set: null
+ */
+function fmtExpiry(expiresAt: string | null | undefined, pinned: boolean | undefined): string | null {
+  if (pinned) return "Pinned · 60 days";
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Expires soon";
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  if (days < 1) return "< 1 day";
+  return `Deletes in ${days} day${days !== 1 ? "s" : ""}`;
 }
 
 function syncLabel(d: Date | null): string {
@@ -393,7 +413,7 @@ const pls = StyleSheet.create({
 // ─── Clip Row ─────────────────────────────────────────────────────────────────
 
 function ClipRow({
-  clip, locationName, loading, thumbnailUri, downloadProgress, onPlay, onMenu,
+  clip, locationName, loading, thumbnailUri, downloadProgress, onPlay, onMenu, onPin,
 }: {
   clip: UnifiedClip;
   locationName: string;
@@ -402,11 +422,17 @@ function ClipRow({
   downloadProgress?: number;   // 0–1 when downloading, undefined otherwise
   onPlay: (c: UnifiedClip) => void;
   onMenu: (c: UnifiedClip) => void;
+  onPin?: (c: UnifiedClip) => void;
 }) {
   const c       = useColors();
   const isEvent = !!clip.lockReason && clip.lockReason !== "manual";
   const typeLabel = isEvent ? "Event" : clip.locked ? "Locked" : "Normal";
   const typeColor = isEvent ? "#FF6B35" : clip.locked ? "#3B82F6" : "#22c55e";
+
+  // Show cloud metadata for server-only clips AND local clips that have been uploaded
+  const isCloudClip = clip.source === "server" || !!clip.serverId;
+  const expiryLabel = isCloudClip ? fmtExpiry(clip.expiresAt, clip.pinned) : null;
+  const isPinned    = !!clip.pinned;
 
   return (
     <TouchableOpacity
@@ -450,10 +476,10 @@ function ClipRow({
         <View style={vs.durBadge}>
           <Text style={vs.durText}>{fmtDuration(clip.durationS)}</Text>
         </View>
-        {/* Cloud indicator */}
-        {clip.source === "server" && (
-          <View style={[vs.cloudBadge, { backgroundColor: "#1976D2" }]}>
-            <Ionicons name="cloud" size={8} color="#fff" />
+        {/* Cloud indicator — shown for server-only clips and local clips that have been uploaded */}
+        {isCloudClip && (
+          <View style={[vs.cloudBadge, { backgroundColor: isPinned ? "#F59E0B" : "#1976D2" }]}>
+            <Ionicons name={isPinned ? "pin" : "cloud"} size={8} color="#fff" />
           </View>
         )}
       </View>
@@ -476,13 +502,38 @@ function ClipRow({
             </View>
           )
           : (
-            <View style={[vs.typeBadge, { backgroundColor: typeColor + "22" }]}>
-              <View style={[vs.typeDot, { backgroundColor: typeColor }]} />
-              <Text style={[vs.typeText, { color: typeColor }]}>{typeLabel}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <View style={[vs.typeBadge, { backgroundColor: typeColor + "22" }]}>
+                <View style={[vs.typeDot, { backgroundColor: typeColor }]} />
+                <Text style={[vs.typeText, { color: typeColor }]}>{typeLabel}</Text>
+              </View>
+              {expiryLabel && (
+                <View style={[vs.typeBadge, { backgroundColor: isPinned ? "#F59E0B22" : "#6B728022" }]}>
+                  <Text style={[vs.typeText, { color: isPinned ? "#F59E0B" : c.mutedForeground }]}>
+                    {expiryLabel}
+                  </Text>
+                </View>
+              )}
             </View>
           )
         }
       </View>
+
+      {/* Pin button — shown for server-only clips and uploaded local clips */}
+      {isCloudClip && onPin && (
+        <TouchableOpacity
+          style={vs.pinBtn}
+          onPress={(e) => { e.stopPropagation?.(); onPin(clip); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          disabled={loading}
+        >
+          <Ionicons
+            name={isPinned ? "pin" : "pin-outline"}
+            size={18}
+            color={isPinned ? "#F59E0B" : c.mutedForeground}
+          />
+        </TouchableOpacity>
+      )}
 
       {/* Menu */}
       <TouchableOpacity
@@ -507,6 +558,51 @@ export default function DashcamVideosScreen() {
     isRecording, openDashcam, pushDeviceId, settings,
     lockCurrentClip, cloudQuotaFull, clearCloudQuotaFull,
   } = useDashcam();
+
+  // Pin/unpin callbacks (exposed separately from context since server-only
+  // clips don't live in segments[] — we call the API directly and update
+  // serverClips state locally).
+  const handlePin = useCallback(async (clip: UnifiedClip) => {
+    if (!pushDeviceId || !API_BASE) return;
+    const isPinned = !!clip.pinned;
+    try {
+      const secret = await AsyncStorage.getItem(SECRET_KEY);
+      if (!secret) return;
+      const clipId = clip.serverId ?? clip.id;
+      const res = await fetch(`${API_BASE}/dashcam/clip/${clipId}/pin`, {
+        method: isPinned ? "DELETE" : "POST",
+        headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { code?: string };
+        if (body.code === "PIN_LIMIT") {
+          Alert.alert("Pin Limit Reached", "You can only pin 5 clips at a time. Unpin a clip first.");
+          return;
+        }
+        Alert.alert("Error", isPinned ? "Could not unpin this clip." : "Could not pin this clip.");
+        return;
+      }
+      // Update serverClips state — expiresAt is now extended to 60 days on pin,
+      // restored on unpin (the server returns the updated row but we compute it locally).
+      setServerClips((prev) => prev.map((sc) => {
+        if (sc.id !== clip.id) return sc;
+        const newPinned = !isPinned;
+        // Compute new expiresAt locally to match server logic
+        const startMs = new Date(sc.startedAt).getTime();
+        const retainMs = newPinned
+          ? 60 * 24 * 60 * 60 * 1000
+          : (sc.lockReason === "manual" ? 30 : 1) * 24 * 60 * 60 * 1000;
+        return {
+          ...sc,
+          pinned: newPinned,
+          expiresAt: new Date(startMs + retainMs).toISOString(),
+        };
+      }));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", "Network error.");
+    }
+  }, [pushDeviceId]);
 
   const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
   const goBack = useCallback(() => {
@@ -575,6 +671,10 @@ export default function DashcamVideosScreen() {
 
   // ── Unified clips ──────────────────────────────────────────────────────────
   const unifiedClips = useMemo<UnifiedClip[]>(() => {
+    // Build a fast lookup so local segments with a serverId can inherit cloud
+    // metadata (pinned, expiresAt) returned by the server.
+    const serverClipById = new Map(serverClips.map((sc) => [sc.id, sc]));
+
     const localServerIds = new Set(segments.map((s) => s.serverId).filter(Boolean));
     const serverOnly = serverClips
       .filter((c) => !localServerIds.has(c.id))
@@ -589,21 +689,30 @@ export default function DashcamVideosScreen() {
         lat:        sc.lat ?? undefined,
         lng:        sc.lng ?? undefined,
         speedKmh:   sc.speedKmh ?? undefined,
+        pinned:     sc.pinned,
+        expiresAt:  sc.expiresAt,
       }));
-    const local = segments.map((s): UnifiedClip => ({
-      id:           s.id,
-      uri:          s.uri,
-      startedAt:    s.startedAt,
-      durationS:    s.durationS,
-      sizeBytes:    s.sizeBytes,
-      locked:       s.locked,
-      lockReason:   s.lockReason,
-      uploadStatus: s.uploadStatus,
-      source:       "local",
-      serverId:     s.serverId,
-      lat:          s.lat,
-      lng:          s.lng,
-    }));
+    const local = segments.map((s): UnifiedClip => {
+      // For uploaded local segments, pull pinned + expiresAt from the server
+      // response so the clip card shows the correct expiry label and pin state.
+      const sc = s.serverId ? serverClipById.get(s.serverId) : undefined;
+      return {
+        id:           s.id,
+        uri:          s.uri,
+        startedAt:    s.startedAt,
+        durationS:    s.durationS,
+        sizeBytes:    s.sizeBytes,
+        locked:       s.locked,
+        lockReason:   s.lockReason,
+        uploadStatus: s.uploadStatus,
+        source:       "local",
+        serverId:     s.serverId,
+        lat:          s.lat,
+        lng:          s.lng,
+        pinned:       sc?.pinned,
+        expiresAt:    sc?.expiresAt,
+      };
+    });
     return [...local, ...serverOnly].sort((a, b) => b.startedAt - a.startedAt);
   }, [segments, serverClips]);
 
@@ -1154,6 +1263,7 @@ export default function DashcamVideosScreen() {
                 downloadProgress={progress}
                 onPlay={handlePlay}
                 onMenu={setMenuClip}
+                onPin={handlePin}
               />
             </View>
           );
@@ -1314,6 +1424,11 @@ export default function DashcamVideosScreen() {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 },
               } : null,
+              (menuClip.source === "server" || !!menuClip.serverId) ? {
+                icon: menuClip.pinned ? ("pin" as const) : ("pin-outline" as const),
+                label: menuClip.pinned ? "Unpin Clip" : "Pin Clip (60 days)",
+                onPress: () => { const cl = menuClip; setMenuClip(null); handlePin(cl); },
+              } : null,
               {
                 icon: "trash-outline" as const,
                 label: "Delete",
@@ -1405,6 +1520,7 @@ const vs = StyleSheet.create({
   typeBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignSelf: "flex-start" },
   typeDot:   { width: 5, height: 5, borderRadius: 2.5 },
   typeText:  { fontSize: 11, fontFamily: "Inter_500Medium" },
+  pinBtn:    { padding: 6 },
   menuBtn:   { padding: 6 },
 
   empty:      { alignItems: "center", gap: 12, paddingVertical: 60, paddingHorizontal: 24 },
