@@ -88,8 +88,9 @@ type ListItem =
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SECRET_KEY    = "dashcam_secret_v1";
-const LOC_CACHE_KEY = (id: string) => `dc_loc_v1_${id}`;
+const SECRET_KEY       = "dashcam_secret_v1";
+const LOC_CACHE_KEY    = (id: string) => `dc_loc_v1_${id}`;
+const MAX_PINS_PER_DEVICE = 5;
 
 /** Module-level thumbnail URI cache — survives re-renders in the same session. */
 const thumbCache = new Map<string, string>();
@@ -195,13 +196,15 @@ async function photonReverse(lat: number, lng: number): Promise<string | null> {
 // ─── Clip Row ─────────────────────────────────────────────────────────────────
 
 function ClipRow({
-  clip, locationName, loading, pinLoading, thumbnailUri, downloadProgress, onPlay, onMenu, onPin,
+  clip, locationName, loading, pinLoading, pinLimitReached, thumbnailUri, downloadProgress, onPlay, onMenu, onPin,
 }: {
   clip: UnifiedClip;
   locationName: string;
   loading: boolean;
   /** True while a pin/unpin request is in-flight for this clip. */
   pinLoading?: boolean;
+  /** True when the device has already used all MAX_PINS_PER_DEVICE slots. */
+  pinLimitReached?: boolean;
   thumbnailUri?: string;
   downloadProgress?: number;   // 0–1 when downloading, undefined otherwise
   onPlay: (c: UnifiedClip) => void;
@@ -313,11 +316,18 @@ function ClipRow({
         >
           {pinLoading
             ? <ActivityIndicator size="small" color="#F59E0B" />
-            : <Ionicons
-                name={isPinned ? "pin" : "pin-outline"}
-                size={18}
-                color={isPinned ? "#F59E0B" : c.mutedForeground}
-              />
+            : (() => {
+                // Limit reached and this clip isn't pinned — show a muted pin to
+                // signal the slot is unavailable without hiding the button entirely.
+                const atLimitUnpinned = !isPinned && pinLimitReached;
+                return (
+                  <Ionicons
+                    name={isPinned ? "pin" : "pin-outline"}
+                    size={18}
+                    color={isPinned ? "#F59E0B" : atLimitUnpinned ? c.border : c.mutedForeground}
+                  />
+                );
+              })()
           }
         </TouchableOpacity>
       )}
@@ -415,6 +425,11 @@ export default function DashcamVideosScreen() {
   // Stored as state (not a ref) so ClipRow re-renders to show/hide the spinner.
   const [pinPending, setPinPending] = useState<Set<string>>(new Set());
 
+  // ── Pin slot counters — derived early so handlePin can read a fresh value ───
+  // pinnedCount is the authoritative count from the latest server fetch.
+  const pinnedCount     = serverClips.filter((sc) => sc.pinned).length;
+  const pinLimitReached = pinnedCount >= MAX_PINS_PER_DEVICE;
+
   // Pin/unpin handler — exposed separately from context since server-only clips
   // don't live in segments[]. Calls the API directly, then re-fetches the full
   // clip list so expiresAt shows the server's authoritative value.
@@ -426,6 +441,17 @@ export default function DashcamVideosScreen() {
     if (pinPending.has(clipId)) return;
 
     const isPinned = !!clip.pinned;
+
+    // If the limit is already reached and the driver taps an unpinned clip,
+    // explain the situation upfront instead of letting the server reject it.
+    if (!isPinned && pinLimitReached) {
+      Alert.alert(
+        "Pin Limit Reached",
+        `You already have ${MAX_PINS_PER_DEVICE} clips pinned. Unpin one to free up a slot.`,
+      );
+      return;
+    }
+
     setPinPending((prev) => new Set(prev).add(clipId));
     try {
       const secret = await AsyncStorage.getItem(SECRET_KEY);
@@ -452,7 +478,7 @@ export default function DashcamVideosScreen() {
     } finally {
       setPinPending((prev) => { const next = new Set(prev); next.delete(clipId); return next; });
     }
-  }, [pushDeviceId, pinPending, fetchServerClips]);
+  }, [pushDeviceId, pinPending, pinLimitReached, fetchServerClips]);
 
   // ── Unified clips ──────────────────────────────────────────────────────────
   const unifiedClips = useMemo<UnifiedClip[]>(() => {
@@ -990,6 +1016,40 @@ export default function DashcamVideosScreen() {
               ))}
             </View>
 
+            {/* ── Pin slots indicator — shown only when ≥1 pin is in use ── */}
+            {pinnedCount > 0 && (
+              <View style={[vs.pinSlotBar, {
+                backgroundColor: pinLimitReached ? "#F59E0B14" : c.card,
+                borderColor:     pinLimitReached ? "#F59E0B40" : c.border,
+              }]}>
+                <Ionicons
+                  name="pin"
+                  size={14}
+                  color={pinLimitReached ? "#F59E0B" : c.mutedForeground}
+                />
+                <Text style={[vs.pinSlotText, { color: pinLimitReached ? "#F59E0B" : c.mutedForeground }]}>
+                  {pinnedCount} of {MAX_PINS_PER_DEVICE} pins used
+                  {pinLimitReached ? " — unpin a clip to save another" : ""}
+                </Text>
+                {/* Mini progress dots */}
+                <View style={vs.pinDots}>
+                  {Array.from({ length: MAX_PINS_PER_DEVICE }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        vs.pinDot,
+                        {
+                          backgroundColor: i < pinnedCount
+                            ? (pinLimitReached ? "#F59E0B" : "#3B82F6")
+                            : c.border,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* ── Tabs ─────────────────────────────────────────────────── */}
             <View style={[vs.tabStrip, { backgroundColor: c.card, borderColor: c.border }]}>
               {(["all", "locked", "downloads"] as Tab[]).map((t) => {
@@ -1060,6 +1120,7 @@ export default function DashcamVideosScreen() {
                 locationName={locationNames[clip.id] ?? timeOfDayName(clip.startedAt)}
                 loading={isLoading}
                 pinLoading={pinPending.has(clip.serverId ?? clip.id)}
+                pinLimitReached={pinLimitReached}
                 thumbnailUri={thumbnails[clip.id]}
                 downloadProgress={progress}
                 onPlay={handlePlay}
@@ -1346,6 +1407,11 @@ const vs = StyleSheet.create({
   quotaSub:     { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   quotaBtn:     { backgroundColor: "#EF444422", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: "flex-start", marginTop: 2 },
   quotaBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#EF4444" },
+
+  pinSlotBar:  { flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9 },
+  pinSlotText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
+  pinDots:     { flexDirection: "row", gap: 4 },
+  pinDot:      { width: 8, height: 8, borderRadius: 4 },
 
   // Download sheet
   dlRow:    { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
