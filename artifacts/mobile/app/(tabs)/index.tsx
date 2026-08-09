@@ -257,13 +257,19 @@ export default function HomeScreen() {
 
   const startDriving = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // Drive is already running (active or paused) — return to the drive screen
+    // immediately. No pre-trip check, no permission prompts: the session is live.
+    if (navTripActive || navTripPaused) {
+      router.replace("/(tabs)/drive");
+      return;
+    }
     if (quickStartReadyRef.current) {
       // All permissions are confirmed — go straight to drive
       router.replace("/(tabs)/drive");
     } else {
       router.push("/pretrip-check");
     }
-  }, []);
+  }, [navTripActive, navTripPaused]);
 
   const openChecklist = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

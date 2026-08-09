@@ -173,14 +173,22 @@ async function photonReverse(lat: number, lng: number): Promise<string | null> {
   try {
     const r = await fetch(
       `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`,
-      { signal: AbortSignal.timeout(4000) }
+      { signal: AbortSignal.timeout(5000) }
     );
     if (!r.ok) return null;
     const j = await r.json() as any;
     const p = j?.features?.[0]?.properties;
     if (!p) return null;
-    const parts = [p.name, p.street, p.city || p.county].filter(Boolean);
-    return parts.slice(0, 2).join(", ") || null;
+    // Prefer the specific road/street name.  p.name is a named road when it
+    // differs from the city/county; otherwise it's just a repeated area name.
+    const city   = p.city || p.town || p.village;
+    const county = p.county;
+    const road   = p.street || (p.name && p.name !== city && p.name !== county ? p.name : null);
+    const area   = p.district || city || county;
+    // Build up to two parts and strip duplicates (e.g. "Nairobi, Nairobi").
+    const parts  = [road, area].filter(Boolean);
+    const unique = parts.filter((v, i) => i === 0 || v !== parts[i - 1]);
+    return unique.slice(0, 2).join(", ") || area || null;
   } catch { return null; }
 }
 
@@ -716,7 +724,11 @@ export default function DashcamVideosScreen() {
   // ── Share URL (from player or menu — no download needed) ──────────────────
   const handleShareUrl = useCallback(async (url: string, clip: UnifiedClip) => {
     const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
-    const msg  = `Msafiri dashcam clip — ${name}, ${fmtDateTime(clip.startedAt)}`;
+    // Include the URL inside the message text so Android (which ignores the
+    // `url` field in Share.share) still shares a clickable link.  iOS uses
+    // the `url` field to show a native preview; the in-message URL is a safe
+    // fallback on both platforms.
+    const msg  = `Msafiri dashcam clip — ${name}, ${fmtDateTime(clip.startedAt)}\n${url}`;
     try {
       await RNShare.share({ message: msg, url });
     } catch { /* user cancelled */ }
@@ -738,8 +750,8 @@ export default function DashcamVideosScreen() {
       return;
     }
 
-    // Server clip — share the signed link instantly; no download required.
-    // Recipients can stream/download from the link (valid 1 hour).
+    // Server clip — show two options: share the link (instant, no download)
+    // or save the video file directly to the device's photo/video library.
     try {
       setSharingId(clip.id);
       const url = await getSignedUrl(clip.id);
@@ -750,25 +762,12 @@ export default function DashcamVideosScreen() {
         "How would you like to share this clip?",
         [
           {
-            text: "Share Link (instant)",
+            text: "Share Link",
             onPress: () => handleShareUrl(url, clip),
           },
           {
-            text: "Share Video File",
-            onPress: async () => {
-              const canShare = await Sharing.isAvailableAsync();
-              if (canShare) {
-                const tmp = `${FileSystem.cacheDirectory}share_${clip.id}.mp4`;
-                setSharingId(clip.id);
-                try {
-                  await FileSystem.downloadAsync(url, tmp);
-                  await Sharing.shareAsync(tmp, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
-                } catch { Alert.alert("Error", "Could not download video for sharing."); }
-                finally { setSharingId(null); }
-              } else {
-                handleShareUrl(url, clip);
-              }
-            },
+            text: "Save to Phone",
+            onPress: () => handleDownload(clip),
           },
           { text: "Cancel", style: "cancel" },
         ]

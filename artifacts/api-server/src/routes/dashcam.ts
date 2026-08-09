@@ -58,7 +58,7 @@ const MAX_PINS_PER_DEVICE     = 5;
 const INTENT_TTL_MS           = 30 * 60 * 1_000; // 30 minutes
 
 // Cloud retention windows (ms from recording date)
-const RETAIN_MANUAL_MS = 30 * 24 * 60 * 60 * 1_000; // 30 days
+const RETAIN_MANUAL_MS =  7 * 24 * 60 * 60 * 1_000; //  7 days
 const RETAIN_AUTO_MS   =      24 * 60 * 60 * 1_000; // 24 hours
 const RETAIN_PINNED_MS = 60 * 24 * 60 * 60 * 1_000; // 60 days
 
@@ -81,7 +81,7 @@ function ipHash(ip: string): string {
 
 /**
  * Compute the cloud expiry timestamp for a clip.
- * - "manual" lockReason → 30 days from recording start
+ * - "manual" lockReason →  7 days from recording start
  * - anything else       → 24 hours from recording start
  */
 function computeExpiresAt(lockReason: string | null, startedAt: Date): Date {
@@ -357,7 +357,7 @@ router.post("/dashcam/upload-url", async (req: Request, res: Response) => {
  * POST /api/dashcam/clip
  *
  * Finalises an upload. Sets expires_at based on lockReason.
- *   manual → startedAt + 30 days
+ *   manual →  startedAt + 7 days
  *   auto   → startedAt + 24 hours
  */
 router.post("/dashcam/clip", async (req: Request, res: Response) => {
