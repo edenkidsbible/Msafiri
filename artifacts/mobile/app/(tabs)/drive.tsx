@@ -2626,7 +2626,7 @@ export default function DriveScreen() {
                   color="#FFF"
                 />
               </TouchableOpacity>
-              <Text style={[styles.dmStopLbl, { color: c.mutedForeground }]}>
+              <Text style={[styles.dmStopLbl, { color: c.mutedForeground, marginTop: -4 }]}>
                 {tripPaused ? "Resume" : "Hold to stop"}
               </Text>
             </View>
