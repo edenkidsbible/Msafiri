@@ -34,6 +34,8 @@ import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { telemetryEnabled, sendTelemetryTestError } from "@/utils/telemetry";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
+import { getLocalRecoveryCode, syncBackup } from "@/utils/backupSync";
+import * as Clipboard from "expo-clipboard";
 
 interface EmergencyContact { id: string; name: string; phone: string }
 
@@ -72,6 +74,8 @@ export default function SettingsScreen() {
   const [editSpeed, setEditSpeed] = useState("");
   const [flaggingReportId, setFlaggingReportId] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [codeCopied,   setCodeCopied]   = useState(false);
 
   // ── Emergency contacts state ─────────────────────────────────────────────
   const [ecContacts, setEcContacts] = useState<EmergencyContact[]>([]);
@@ -99,6 +103,27 @@ export default function SettingsScreen() {
   }, [deviceId]);
 
   useEffect(() => { loadEmergencyContacts(); }, [loadEmergencyContacts]);
+
+  // Load recovery code from local cache (set by initBackup on app start)
+  useEffect(() => {
+    getLocalRecoveryCode().then(setRecoveryCode).catch(() => {});
+  }, []);
+
+  const copyRecoveryCode = async () => {
+    if (!recoveryCode) return;
+    try {
+      await Clipboard.setStringAsync(recoveryCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2200);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch { /* ignore */ }
+  };
+
+  const syncNow = async () => {
+    if (!deviceId) return;
+    await syncBackup(deviceId, { driverName, vehicleType, themeOverride: themeOverride ?? undefined }, true);
+    Alert.alert("Backed up", "Your vehicle list and settings have been backed up to the server.");
+  };
 
   const addEmergencyContact = async () => {
     if (!ecName.trim() || !ecPhone.trim()) {
@@ -942,6 +967,75 @@ export default function SettingsScreen() {
             onPress={clearHistory}
             danger
           />
+        </View>
+      </View>
+
+      {/* Data & Recovery */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DATA &amp; RECOVERY</Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+
+          {/* Recovery code display */}
+          <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
+            Your recovery code lets you restore your vehicles and settings on a new device. Keep it safe — it's useless without a matching plate number.
+          </Text>
+
+          {recoveryCode ? (
+            <TouchableOpacity
+              onPress={copyRecoveryCode}
+              activeOpacity={0.75}
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                backgroundColor: c.primary + "14", borderRadius: 14, borderWidth: 1,
+                borderColor: c.primary + "44", paddingHorizontal: 16, paddingVertical: 14,
+              }}
+            >
+              <View style={{ gap: 2 }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: c.mutedForeground, letterSpacing: 1 }}>
+                  RECOVERY CODE
+                </Text>
+                <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: c.primary, letterSpacing: 5 }}>
+                  {recoveryCode}
+                </Text>
+              </View>
+              <View style={{ alignItems: "center", gap: 3 }}>
+                <Ionicons
+                  name={codeCopied ? "checkmark-circle" : "copy-outline"}
+                  size={22}
+                  color={codeCopied ? "#22C55E" : c.primary}
+                />
+                <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: codeCopied ? "#22C55E" : c.mutedForeground }}>
+                  {codeCopied ? "Copied!" : "Copy"}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ paddingVertical: 8, alignItems: "center" }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>
+                Recovery code loading…
+              </Text>
+            </View>
+          )}
+
+          {/* Backup now */}
+          <TouchableOpacity
+            style={[styles.deleteDataBtn, { borderColor: c.primary + "50", backgroundColor: c.primary + "0D" }]}
+            activeOpacity={0.75}
+            onPress={syncNow}
+          >
+            <Ionicons name="cloud-upload-outline" size={16} color={c.primary} />
+            <Text style={[styles.deleteDataBtnText, { color: c.primary }]}>Back Up Now</Text>
+          </TouchableOpacity>
+
+          {/* Restore / Recover */}
+          <TouchableOpacity
+            style={[styles.deleteDataBtn, { borderColor: c.border, backgroundColor: "transparent" }]}
+            activeOpacity={0.75}
+            onPress={() => router.push("/restore-data" as any)}
+          >
+            <Ionicons name="refresh-circle-outline" size={16} color={c.foreground} />
+            <Text style={[styles.deleteDataBtnText, { color: c.foreground }]}>Restore / Recover Data</Text>
+          </TouchableOpacity>
         </View>
       </View>
 

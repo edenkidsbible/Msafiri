@@ -28,6 +28,7 @@ import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
+import { initBackup, syncBackup } from "@/utils/backupSync";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { Accelerometer } from "expo-sensors";
 
@@ -1325,6 +1326,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
       deviceIdRef.current = did;
       setDeviceId(did);
+      // Ensure this device has a server-side backup record and recovery code.
+      // Fire-and-forget — never block the UI startup for a backup call.
+      initBackup(did).catch(() => {});
       // Only auto-request on launch for returning users who already saw the
       // in-app rationale during onboarding. First-time users get this
       // requested explicitly at the end of onboarding, right after the
@@ -1342,6 +1346,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { communityReportsRef.current = communityReports; }, [communityReports]);
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
+
+  // ── Auto-sync backup when vehicles change ─────────────────────────────────
+  // Debounced by syncBackup internally (5-minute cooldown unless force=true).
+  const { vehicles } = useVehicle();
+  useEffect(() => {
+    const did = deviceIdRef.current;
+    if (!did || vehicles.length === 0) return;
+    syncBackup(did, { driverName: driverNameRef.current, vehicleType: vehicleTypeRef.current }).catch(() => {});
+  }, [vehicles]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { currentLatRef.current = currentLat; }, [currentLat]);
   useEffect(() => { currentLngRef.current = currentLng; }, [currentLng]);
   useEffect(() => { currentSpeedRef.current = currentSpeed; }, [currentSpeed]);

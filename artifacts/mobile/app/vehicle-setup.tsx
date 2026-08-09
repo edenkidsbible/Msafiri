@@ -85,6 +85,7 @@ export default function VehicleSetup() {
   const [transmission, setTransmission] = useState<Transmission | null>(null);
   const [fuelType, setFuelType] = useState<FuelType | null>(null);
   const [odometer, setOdometer] = useState("");
+  const [plateNumber, setPlateNumber] = useState("");
   const [saving, setSaving] = useState(false);
 
   const selectedMake = useMemo(() => CAR_MAKES.find((m) => m.id === makeId), [makeId]);
@@ -123,6 +124,7 @@ export default function VehicleSetup() {
         fuelType: fuelType ?? undefined,
         transmission: transmission ?? undefined,
         odometerKm: isNaN(odo) ? undefined : odo,
+        plateNumber: plateNumber.trim().toUpperCase() || undefined,
       };
 
       if (existing.length === 0) {
@@ -351,6 +353,20 @@ export default function VehicleSetup() {
 
               <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Fuel type</Text>
               <ChipRow options={FUEL_TYPES} value={fuelType} onSelect={setFuelType} color="#00A845" />
+
+              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Number plate</Text>
+              <Text style={cs.fieldHint}>
+                Required to restore your data on a new device. Also shows on your vehicle card in Garage.
+              </Text>
+              <TextInput
+                style={cs.odometerInput}
+                value={plateNumber}
+                onChangeText={(t) => setPlateNumber(t.toUpperCase())}
+                placeholder="e.g. KCB 123A"
+                placeholderTextColor="#555"
+                autoCapitalize="characters"
+                returnKeyType="next"
+              />
 
               <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Current odometer (km)</Text>
               <Text style={cs.fieldHint}>
