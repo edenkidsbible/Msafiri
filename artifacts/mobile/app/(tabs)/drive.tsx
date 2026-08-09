@@ -36,6 +36,7 @@ import { useDashcam } from "@/context/DashcamContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import TripSummaryModal, { type TripSummaryData } from "@/components/TripSummaryModal";
 import TripReviewCard from "@/components/TripReviewCard";
+import { VideoPlayerModal, type PlayerConfig } from "@/components/VideoPlayerModal";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
 import CrashDetectedModal from "@/components/CrashDetectedModal";
@@ -373,6 +374,9 @@ export default function DriveScreen() {
   // Brief toast shown after a cluster dismiss — tells the driver how long alerts
   // are paused near this area so they know what to expect if they pass again.
   const [pauseNote, setPauseNote] = useState<string | null>(null);
+  // Clip preview — rendered at the screen level so it is never nested inside
+  // another RN Modal (which silently fails to present on iOS).
+  const [previewConfig, setPreviewConfig] = useState<PlayerConfig | null>(null);
   const pauseNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load recent searches from AsyncStorage on mount
@@ -1349,7 +1353,7 @@ export default function DriveScreen() {
             // Let the inner card flex to fill available height when capped
             flexShrink: 1,
           }]}>
-            <TripReviewCard />
+            <TripReviewCard onPreview={setPreviewConfig} />
           </View>
         </View>
       )}
@@ -3035,6 +3039,8 @@ export default function DriveScreen() {
       {/* Post-trip summary — slides up after the driver ends a trip */}
       <TripSummaryModal
         data={tripSummaryData}
+        hidden={!!previewConfig}
+        onPreview={setPreviewConfig}
         onDismiss={() => {
           // Only clear the data — the modal's own action buttons (goHome,
           // goHistory, goClips) each handle navigation themselves. Adding a
@@ -3048,6 +3054,16 @@ export default function DriveScreen() {
           setTripSummaryData(prev => prev ? { ...prev, isSharing: false } : null);
         }}
       />
+
+      {/* Clip preview player — rendered here (never inside another Modal) so
+          iOS can present it correctly whether triggered from the pre-trip
+          banner or from inside TripSummaryModal. */}
+      {previewConfig && (
+        <VideoPlayerModal
+          config={previewConfig}
+          onClose={() => setPreviewConfig(null)}
+        />
+      )}
 
       {/* ── Vehicle picker — shown before auto-start when user has 2+ vehicles ── */}
       <Modal

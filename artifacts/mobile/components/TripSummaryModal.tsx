@@ -28,6 +28,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam } from "@/context/DashcamContext";
 import TripReviewCard from "@/components/TripReviewCard";
+import { type PlayerConfig } from "@/components/VideoPlayerModal";
 
 // ── Public data type ──────────────────────────────────────────────────────────
 
@@ -64,6 +65,15 @@ interface Props {
   data:           TripSummaryData | null;
   onDismiss:      () => void;
   onStopSharing:  () => void;
+  /**
+   * When true the underlying RN Modal is hidden (visible=false) so that a
+   * VideoPlayerModal can be presented at a non-nested level on top.
+   * The summary data is retained and re-appears when this turns false.
+   */
+  hidden?:        boolean;
+  /** Forwarded to TripReviewCard so the caller can render VideoPlayerModal
+   *  outside any Modal nesting. */
+  onPreview?:     (config: PlayerConfig) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -153,7 +163,7 @@ const badge = StyleSheet.create({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Props) {
+export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidden = false, onPreview }: Props) {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   // Subscribe to live segments so the button appears reactively even when
@@ -234,7 +244,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
 
   return (
     <Modal
-      visible={!!data}
+      visible={!!data && !hidden}
       transparent
       animationType="none"
       statusBarTranslucent
@@ -411,7 +421,7 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
           )}
 
           {/* ── Dashcam clip review — only shown when saved-for-review clips exist */}
-          <TripReviewCard showSeparator />
+          <TripReviewCard showSeparator onPreview={onPreview} />
 
           <View style={[styles.sectionSep, { backgroundColor: sepColor }]} />
 

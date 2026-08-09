@@ -27,6 +27,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam, type DashcamSegment } from "@/context/DashcamContext";
+import { type PlayerConfig } from "@/components/VideoPlayerModal";
 
 // Lazy-load VideoThumbnails — not available on web
 let VideoThumbnails: typeof import("expo-video-thumbnails") | null = null;
@@ -61,10 +62,12 @@ function ClipReviewRow({
   seg,
   onLock,
   onDelete,
+  onPreview,
 }: {
   seg: DashcamSegment;
   onLock: () => void;
   onDelete: () => void;
+  onPreview: (config: PlayerConfig) => void;
 }) {
   const c = useColors();
   const [thumbUri, setThumbUri] = useState<string | null>(null);
@@ -129,8 +132,17 @@ function ClipReviewRow({
       rowStyles.container,
       { backgroundColor: isDark ? "#1A2A1F" : "#F0F7F2", borderColor: isDark ? "#2A3B2E" : "#C8DDD0" },
     ]}>
-      {/* Thumbnail */}
-      <View style={rowStyles.thumbWrap}>
+      {/* Thumbnail — tap to preview */}
+      <TouchableOpacity
+        style={rowStyles.thumbWrap}
+        onPress={() => {
+          if (!seg.uri) return;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          onPreview({ uri: seg.uri, title: fmtTime(seg.startedAt) });
+        }}
+        activeOpacity={seg.uri ? 0.75 : 1}
+        disabled={!seg.uri}
+      >
         {thumbLoading ? (
           <View style={[rowStyles.thumbPlaceholder, { backgroundColor: isDark ? "#1E2D24" : "#D8ECDE" }]}>
             <ActivityIndicator size="small" color={isDark ? "#4CAF50" : "#2E7D32"} />
@@ -142,11 +154,17 @@ function ClipReviewRow({
             <Ionicons name="videocam-outline" size={22} color={isDark ? "#4CAF50" : "#2E7D32"} />
           </View>
         )}
+        {/* Play button overlay (only when clip is available) */}
+        {seg.uri && !thumbLoading && (
+          <View style={rowStyles.playOverlay}>
+            <Ionicons name="play" size={14} color="#fff" />
+          </View>
+        )}
         {/* Duration badge */}
         <View style={rowStyles.durBadge}>
           <Text style={rowStyles.durText}>{fmtDuration(seg.durationS)}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Info */}
       <View style={{ flex: 1, gap: 2 }}>
@@ -214,6 +232,19 @@ const rowStyles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 8,
   },
+  playOverlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginTop: -12,
+    marginLeft: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   durBadge: {
     position: "absolute",
     bottom: 3,
@@ -274,9 +305,15 @@ const rowStyles = StyleSheet.create({
 interface TripReviewCardProps {
   /** When true, show a top separator line (used inside TripSummaryModal). */
   showSeparator?: boolean;
+  /**
+   * Called when the driver taps a clip thumbnail. The caller is responsible
+   * for rendering VideoPlayerModal at a non-nested level so it is never
+   * stacked inside another RN Modal (which silently fails on iOS).
+   */
+  onPreview?: (config: PlayerConfig) => void;
 }
 
-export default function TripReviewCard({ showSeparator = false }: TripReviewCardProps) {
+export default function TripReviewCard({ showSeparator = false, onPreview }: TripReviewCardProps) {
   const c = useColors();
   const { segments, pendingTripReview, lockSavedClip, deleteSegment, dismissTripReview } =
     useDashcam();
@@ -362,6 +399,7 @@ export default function TripReviewCard({ showSeparator = false }: TripReviewCard
             seg={seg}
             onLock={() => lockSavedClip(seg.id)}
             onDelete={() => deleteSegment(seg.id)}
+            onPreview={onPreview ?? (() => {})}
           />
         ))}
       </ScrollView>
