@@ -1019,35 +1019,6 @@ export default function DashcamVideosScreen() {
 
             {/* ── Quick actions ────────────────────────────────────────── */}
             <View style={vs.actionsGrid}>
-              {/* Start Drive / Live View */}
-              <TouchableOpacity
-                style={[vs.actionCell, { backgroundColor: "#22c55e14", borderColor: "#22c55e30" }]}
-                onPress={() => { if (isRecording) openDashcam(); else router.push("/pretrip-check" as any); }}
-              >
-                <Ionicons name={isRecording ? "videocam" : "car-sport-outline"} size={24} color="#22c55e" />
-                <Text style={[vs.actionLabel, { color: c.foreground }]}>
-                  {isRecording ? "Live View" : "Start Drive"}
-                </Text>
-                <Text style={[vs.actionSub, { color: c.mutedForeground }]}>
-                  {isRecording ? "Real-time feed" : "Pre-trip checklist"}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Download cloud clips */}
-              <TouchableOpacity
-                style={[vs.actionCell, { backgroundColor: "#3B82F614", borderColor: "#3B82F630" }]}
-                onPress={() => { fetchServerClips(); setShowDownloadSheet(true); }}
-              >
-                {serverLoading
-                  ? <ActivityIndicator size="small" color="#3B82F6" />
-                  : <Ionicons name="cloud-download-outline" size={24} color="#3B82F6" />
-                }
-                <Text style={[vs.actionLabel, { color: c.foreground }]}>Download</Text>
-                <Text style={[vs.actionSub, { color: c.mutedForeground }]}>
-                  {serverClips.length > 0 ? `${serverClips.length} cloud clip${serverClips.length !== 1 ? "s" : ""}` : "Get recent videos"}
-                </Text>
-              </TouchableOpacity>
-
               {/* Emergency / Locked */}
               <TouchableOpacity
                 style={[vs.actionCell, { backgroundColor: "#EF444414", borderColor: "#EF444430" }]}
