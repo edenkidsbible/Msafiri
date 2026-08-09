@@ -174,6 +174,8 @@ const MAX_UPLOAD_RETRIES   = UPLOAD_RETRY_BACKOFF.length;
 
 /** Max unlocked clips kept in the live rolling window during a trip. */
 const UNLOCKED_ROLLING_WINDOW = 5;
+/** Max saved-for-review clips kept across all trips (5 per trip × 2 trips). */
+const MAX_REVIEW_CLIPS        = 10;
 /** Max manually locked clips allowed on-device at once. */
 const MAX_MANUAL_LOCKS_LOCAL  = 5;
 /** Max auto-locked clips allowed on-device at once (silently dropped when full). */
@@ -447,7 +449,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         if (!isRecordingRef.current) return;
         backgroundedWhileRecordingRef.current = true;
 
-        // Mark last 5 unlocked clips as savedForReview before stopping
+        // Mark last 5 unlocked clips as savedForReview before stopping, then
+        // cap total review clips to MAX_REVIEW_CLIPS (10 = 2 trips × 5).
         setSegments((prev) => {
           const rolling = prev
             .filter((s) => !s.locked && !s.savedForReview)
@@ -455,11 +458,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             .slice(0, UNLOCKED_ROLLING_WINDOW);
           if (rolling.length === 0) return prev;
           const reviewIds = new Set(rolling.map((s) => s.id));
-          const next = prev.map((s) =>
+          const withReview = prev.map((s) =>
             reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
           );
-          segmentsRef.current = next;
-          return next;
+          const capped = applyReviewCap(withReview);
+          segmentsRef.current = capped;
+          return capped;
         });
         // Persist immediately — the app may be killed before the async
         // setSegments effect runs, losing the savedForReview flags.
@@ -511,6 +515,25 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
     const sorted   = [...rolling].sort((a, b) => a.startedAt - b.startedAt);
     const toDelete = sorted.slice(0, rolling.length - UNLOCKED_ROLLING_WINDOW);
+    const deleteIds = new Set(toDelete.map((s) => s.id));
+
+    for (const s of toDelete) {
+      FileSystem.deleteAsync(s.uri, { idempotent: true }).catch(() => {});
+    }
+
+    return segs.filter((s) => !deleteIds.has(s.id));
+  }, []);
+
+  // ── Review-clip cap ────────────────────────────────────────────────────────
+  // Keeps at most MAX_REVIEW_CLIPS (10 = 5 per trip × 2 trips) savedForReview
+  // clips. Called after every trip-end savedForReview pass so old trips' review
+  // clips are evicted automatically, giving a rolling 2-trip buffer.
+  const applyReviewCap = useCallback((segs: DashcamSegment[]): DashcamSegment[] => {
+    const review = segs.filter((s) => s.savedForReview);
+    if (review.length <= MAX_REVIEW_CLIPS) return segs;
+
+    const sorted   = [...review].sort((a, b) => a.startedAt - b.startedAt);
+    const toDelete = sorted.slice(0, review.length - MAX_REVIEW_CLIPS);
     const deleteIds = new Set(toDelete.map((s) => s.id));
 
     for (const s of toDelete) {
@@ -1033,6 +1056,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             const withNew = applyRollingWindow([...prev, segment]);
 
             // If the trip just ended, mark last 5 unlocked clips as savedForReview
+            // then cap the total review pool to MAX_REVIEW_CLIPS (10 = 2 trips).
             if (tripEnded) {
               const rolling = withNew
                 .filter((s) => !s.locked && !s.savedForReview)
@@ -1042,8 +1066,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
               const withReview = withNew.map((s) =>
                 reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
               );
-              segmentsRef.current = withReview;
-              return withReview;
+              const capped = applyReviewCap(withReview);
+              segmentsRef.current = capped;
+              return capped;
             }
 
             segmentsRef.current = withNew;

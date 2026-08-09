@@ -89,6 +89,13 @@ export default function CarPickerScreen() {
   const [selectedMake, setSelectedMake] = useState<CarMake | null>(null);
   const [query, setQuery] = useState("");
 
+  // Scroll the shared make/model FlatList back to the top whenever the step
+  // changes so the model list always opens from row 0, not the previous scroll position.
+  const flatListRef = useRef<FlatList<CarMake | CarModel>>(null);
+  useEffect(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [step]);
+
   // Custom vehicle text inputs
   const [customMakeName, setCustomMakeName] = useState("");
   const [customModelName, setCustomModelName] = useState("");
@@ -387,6 +394,7 @@ export default function CarPickerScreen() {
           )}
 
           <FlatList<CarMake | CarModel>
+            ref={flatListRef}
             data={step === "make" ? filteredMakes : filteredModels}
             keyExtractor={(item) => item.id}
             renderItem={(info) =>

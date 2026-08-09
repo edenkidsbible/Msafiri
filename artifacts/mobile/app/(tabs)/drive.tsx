@@ -48,6 +48,7 @@ import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import IncidentConfirmationPrompt from "@/components/IncidentConfirmationPrompt";
 import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPrompt";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
+import { DASHCAM_AUTOSTART_KEY } from "@/app/pretrip-check";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
@@ -612,6 +613,23 @@ export default function DriveScreen() {
         ?? driveVehiclesRef.current[0]
         ?? null;
     }
+  }, [tripActive]);
+
+  // Auto-start dashcam when a trip begins if the driver enabled that preference
+  // in the pre-trip checklist (default ON on first install).
+  useEffect(() => {
+    if (!tripActive || dashcamRecordingRef.current || Platform.OS === "web") return;
+    AsyncStorage.getItem(DASHCAM_AUTOSTART_KEY)
+      .then((v) => {
+        // Absence (first install) or "1" both mean auto-start; "0" means off.
+        if (v === "0") return;
+        requestDashcamPermissions().then(({ cameraGranted }) => {
+          if (cameraGranted) startBackgroundRecording().catch(() => {});
+        }).catch(() => {});
+      })
+      .catch(() => {});
+  // dashcamRecordingRef is a ref — intentionally omitted from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripActive]);
 
   // Tick the trip duration once per second while active.

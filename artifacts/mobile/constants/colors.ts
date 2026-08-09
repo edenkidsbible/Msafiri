@@ -23,15 +23,15 @@ const colors = {
     destructiveForeground: "#FFFFFF",
     warning: "#F29900",
     warningForeground: "#FFFFFF",
-    border: "#E1E7E1",
-    input: "#E1E7E1",
+    border: "#C2D2C4",
+    input: "#D6E2D7",
     speedSafe: "#00A845",
     speedCaution: "#F29900",
     speedDanger: "#D93025",
     // Overhaul additions
     surface: "#FAFBFA",        // slightly raised card-on-card surface
     chip: "#EDF1ED",           // small chips / toggles background
-    tileBorder: "#E4EAE4",     // subtle tile outline
+    tileBorder: "#C2D2C4",     // tile outline
     success: "#00A845",
     heroGradientStart: "#00B44C",
     heroGradientEnd: "#036B31",
@@ -55,15 +55,15 @@ const colors = {
     destructiveForeground: "#FFFFFF",
     warning: "#FFB300",
     warningForeground: "#0B0D0C",
-    border: "#232926",
-    input: "#232926",
+    border: "#2E3D33",
+    input: "#252E28",
     speedSafe: "#22DD66",
     speedCaution: "#FFB300",
     speedDanger: "#E5484D",
     // Overhaul additions
     surface: "#1A1F1C",        // slightly raised card-on-card surface
     chip: "#202622",           // small chips / toggles background
-    tileBorder: "#242B27",     // subtle tile outline
+    tileBorder: "#2E3D33",     // tile outline
     success: "#22DD66",
     heroGradientStart: "#16A34A",
     heroGradientEnd: "#065F2E",

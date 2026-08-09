@@ -275,7 +275,7 @@ function ClipRow({
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={[vs.clipTitle, { color: c.foreground }]} numberOfLines={1}>{locationName}</Text>
         <Text style={[vs.clipMeta, { color: c.mutedForeground }]}>
-          {fmtTime(clip.startedAt)}  ·  {fmtSize(clip.sizeBytes)}
+          {fmtDateTime(clip.startedAt)}  ·  {fmtSize(clip.sizeBytes)}
         </Text>
         {downloadProgress != null
           ? (
@@ -1254,7 +1254,7 @@ export default function DashcamVideosScreen() {
               {locationNames[menuClip.id] ?? timeOfDayName(menuClip.startedAt)}
             </Text>
             <Text style={[vs.sheetSub, { color: c.mutedForeground }]}>
-              {fmtTime(menuClip.startedAt)}  ·  {fmtSize(menuClip.sizeBytes)}
+              {fmtDateTime(menuClip.startedAt)}  ·  {fmtSize(menuClip.sizeBytes)}
             </Text>
 
             {([

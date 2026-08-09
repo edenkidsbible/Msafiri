@@ -33,7 +33,8 @@ import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { SavedVehicle } from "@/utils/savedVehicles";
 import { API_BASE } from "@/utils/apiClient";
 
-export const QUICK_START_KEY = "quickstart_pretrip_v1";
+export const QUICK_START_KEY        = "quickstart_pretrip_v1";
+export const DASHCAM_AUTOSTART_KEY  = "dashcam_autostart_v1";
 
 // ── Dynamically load native-only modules ─────────────────────────────────────
 // expo-camera and expo-notifications are unavailable on web.
@@ -397,6 +398,24 @@ export default function PretripCheckScreen() {
     } catch { /* ignore */ }
   }, []);
 
+  // ── Dashcam auto-start preference ──────────────────────────────────────────
+  // Default ON: absence of the key (first install) also means enabled.
+  const [dashcamAutoStart, setDashcamAutoStart] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(DASHCAM_AUTOSTART_KEY)
+      .then((v) => { if (v === "0") setDashcamAutoStart(false); })
+      .catch(() => {});
+  }, []);
+
+  const toggleDashcamAutoStart = useCallback(async (value: boolean) => {
+    Haptics.selectionAsync().catch(() => {});
+    setDashcamAutoStart(value);
+    try {
+      await AsyncStorage.setItem(DASHCAM_AUTOSTART_KEY, value ? "1" : "0");
+    } catch { /* ignore */ }
+  }, []);
+
   // ── Start driving ──────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -698,6 +717,35 @@ export default function PretripCheckScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
+
+              {/* Auto-start Dashcam toggle */}
+              <View style={styles.settingRow}>
+                <View style={styles.settingRowLeft}>
+                  <Ionicons
+                    name="videocam-outline"
+                    size={20}
+                    color={dashcamAutoStart ? c.primary : c.mutedForeground}
+                  />
+                  <View style={styles.settingRowText}>
+                    <Text style={[styles.settingRowLabel, { color: c.foreground }]}>
+                      Auto-start Recording
+                    </Text>
+                    <Text style={[styles.settingRowDesc, { color: c.mutedForeground }]}>
+                      {dashcamAutoStart
+                        ? "Dashcam starts recording automatically when your trip begins"
+                        : "You'll need to start the dashcam manually from the drive screen"}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={dashcamAutoStart}
+                  onValueChange={toggleDashcamAutoStart}
+                  trackColor={{ false: c.muted, true: c.primary + "88" }}
+                  thumbColor={dashcamAutoStart ? c.primary : c.mutedForeground}
+                />
               </View>
             </View>
           </>
