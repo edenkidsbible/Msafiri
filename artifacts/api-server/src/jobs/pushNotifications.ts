@@ -6,74 +6,74 @@ import { logger } from "../lib/logger.js";
 // ─── Rotating daily messages ─────────────────────────────────────────────────
 
 const MORNING_MESSAGES = [
-  { title: "🌅 Good morning, Msafiri!", body: "Check live road hazards before heading out. Stay one step ahead on Kenyan roads." },
-  { title: "🚗 Morning road check!", body: "Traffic reports just updated. See what's ahead on your route today." },
-  { title: "☀️ Start your day safely", body: "Speed cameras and roadblocks refreshed. Tap to see today's road conditions." },
-  { title: "🛡️ Drive smart today", body: "New incidents reported overnight. Check conditions on your route before you go." },
-  { title: "🌄 Ready to drive?", body: "Msafiri has live alerts for your area. Stay informed, stay safe." },
-  { title: "🚦 Morning commute?", body: "See live hazards, speed cameras, and police checkpoints near you right now." },
-  { title: "📍 Know before you go", body: "Potholes, road works, and accidents flagged near you. Open Msafiri now." },
+  { title: "🚨 Roads are already changing", body: "Incidents reported overnight near you. Other drivers know what's on your route — do you?" },
+  { title: "📸 Speed cameras don't warn you. We do.", body: "Live camera and checkpoint alerts updated for your morning commute. Tap before you drive." },
+  { title: "⚠️ Don't leave without checking this", body: "Fresh hazards, potholes, and roadblocks flagged near you since last night. Open Msafiri." },
+  { title: "🚔 Police out early today?", body: "Drivers near you are already reporting checkpoints. See exactly where before you hit the road." },
+  { title: "🗺️ Your route has new reports", body: "Things move fast on Kenyan roads. Check live alerts before your morning drive — takes 5 seconds." },
+  { title: "📍 Other drivers are ahead of you", body: "Hazards, cameras, and roadblocks already reported this morning. Don't drive blind — check now." },
+  { title: "🚧 Road conditions updated", body: "New overnight incidents near you. The drivers who check Msafiri first don't get surprised." },
 ];
 
 // Weekend mornings skew toward errands/road-trip framing instead of "commute".
 const MORNING_MESSAGES_WEEKEND = [
-  { title: "🌤️ Weekend plans?", body: "Check live road conditions before you head out for the day." },
-  { title: "🚙 Saturday road check", body: "Heading out today? See hazards, cameras, and checkpoints on your route first." },
-  { title: "☕ Good morning!", body: "Whatever's on today's plan, check the roads first. Msafiri has the latest reports." },
-  { title: "🧭 Weekend road trip?", body: "See live conditions before a longer drive. Stay safe out there." },
-  { title: "🏡 Errands today?", body: "Quick check of live hazards near you before you get going." },
+  { title: "🛣️ Roads are busy already", body: "Incidents and checkpoints reported near you this morning. Check before you head out — your weekend depends on it." },
+  { title: "📸 Cameras and cops are out on weekends too", body: "Live speed camera and checkpoint alerts for your area. See what's waiting on your route." },
+  { title: "🚨 Don't start your weekend blind", body: "Potholes, roadblocks, and hazards flagged near you. Takes 10 seconds to check — could save your whole day." },
+  { title: "🧭 Know what's on your route today", body: "Community reports just updated. See exactly what other drivers are seeing right now on your roads." },
+  { title: "⚠️ Fresh hazards near you this morning", body: "Weekend traffic brings weekend surprises. See what's been reported near you before you leave." },
 ];
 
 const EVENING_MESSAGES = [
-  { title: "🌆 Evening rush!", body: "Traffic building up? Check live hazards and cameras near you before heading home." },
-  { title: "🚦 Rush hour alert", body: "Accidents and congestion reported. Plan your route home with live Msafiri data." },
-  { title: "🌙 Heading home?", body: "Check the latest road conditions and beat the evening traffic." },
-  { title: "⚠️ Evening road updates", body: "New reports near you. Tap to see what's happening on the roads right now." },
-  { title: "🛣️ Know your route home", body: "Live speed zones and hazards updated for your evening drive." },
-  { title: "🏘️ Almost home!", body: "See police checkpoints and roadblocks near you before the last stretch home." },
-  { title: "🌛 Evening safety check", body: "Visibility dropping. Check for unlit hazards and road works near you." },
+  { title: "🚔 Checkpoints going up now", body: "Police setting up for the evening rush. Drivers near you are already reporting locations — check before you leave." },
+  { title: "⚠️ Evening reports spiking near you", body: "Accidents and congestion being logged right now. Plan your route home before you're stuck in it." },
+  { title: "📸 Speed cameras active on your route?", body: "Evening enforcement is real. Live camera and checkpoint alerts updated — don't get caught off-guard." },
+  { title: "🚧 Roads have changed since this morning", body: "Fresh incidents, roadblocks, and hazards reported near you. Check before your drive home." },
+  { title: "🌆 Rush hour casualties are happening now", body: "Accidents and breakdowns already reported on your routes. See what's blocking the way home." },
+  { title: "🛑 Don't guess your route home", body: "Live hazard and checkpoint reports from drivers already on the road. See what's waiting for you." },
+  { title: "🚨 Evening danger is real", body: "Visibility dropping, police out, incidents rising. Drivers who check Msafiri now get home faster — and safer." },
 ];
 
 // Weekend evenings skew toward "heading out" rather than "rush hour home".
 const EVENING_MESSAGES_WEEKEND = [
-  { title: "🌇 Heading out tonight?", body: "Check live road conditions before your evening plans." },
-  { title: "🎉 Evening plans?", body: "See hazards and checkpoints near you before you leave for the night." },
-  { title: "🍽️ Dinner plans?", body: "Live traffic and hazard reports updated. Check your route before you go." },
-  { title: "🌆 Weekend evening check", body: "Roads getting busy for the weekend rush. See what's ahead before you leave." },
-];
-
-// New midday slot — the third daily notification.
-const MIDDAY_MESSAGES = [
-  { title: "🕐 Midday road check", body: "Quick look before you're back on the road — see new hazards reported near you." },
-  { title: "🍱 Lunch break?", body: "Check for fresh road works or accidents before you head back out." },
-  { title: "📡 Midday update", body: "New reports have come in this morning. Tap to see what's changed on your route." },
-  { title: "🚧 Afternoon ahead", body: "Road conditions can shift fast. Check live hazards before your next drive." },
-];
-
-const MIDDAY_MESSAGES_WEEKEND = [
-  { title: "🛍️ Out and about?", body: "Check live hazards and speed cameras before your next stop today." },
-  { title: "🚙 Midday check-in", body: "Roads busy today? See the latest reports before you continue your weekend plans." },
-  { title: "☀️ Halfway through your day", body: "Quick check of live road conditions before you head to your next spot." },
+  { title: "🚔 Checkpoints up for the weekend night", body: "Police are out in force. Live alcoblow and roadblock locations reported near you right now." },
+  { title: "⚠️ Heading out? Check this first.", body: "Hazards and checkpoints already reported on your routes tonight. Know before you go." },
+  { title: "📍 Other drivers are already reporting near you", body: "Weekend evenings are when incidents spike. See live reports before your evening plans take you out." },
+  { title: "🌆 The roads look different tonight", body: "Fresh evening reports near you. Check what's out there before you leave — takes seconds." },
 ];
 
 // Friday & Saturday night — the two big Kenyan going-out nights. Focused on
 // alcoblow checkpoints, hazards, and debris, which are far more common and
 // harder to spot after dark.
 const WEEKEND_NIGHT_MESSAGES = [
-  { title: "🚨 Heading out tonight?", body: "Alcohol checkpoints, hazards, and debris are more common late at night. Check live alerts before you drive." },
-  { title: "🍻 Driving after a night out?", body: "Police alcoblow checks are common tonight. See live checkpoint reports near you on Msafiri." },
-  { title: "🌃 Late-night safety check", body: "Debris and unlit hazards are harder to spot at night. Check your route before you go." },
-  { title: "🚔 Weekend night alert", body: "Checkpoints and hazards reported near you tonight. Stay safe — check Msafiri before hitting the road." },
-  { title: "🛑 Before you drive tonight", body: "Live alcoblow and roadblock reports just updated. Know what's ahead before you leave." },
+  { title: "🚨 Alcoblow checkpoints active near you", body: "Police are set up tonight. Live community reports show exactly where — check before you drive." },
+  { title: "🔦 Night driving is the most dangerous time", body: "Unlit debris, hidden potholes, surprise roadblocks — all reported live by Msafiri drivers near you. Check now." },
+  { title: "🚔 Police out in force tonight", body: "Checkpoint reports coming in near you. Every Msafiri driver near you knows where they are. Do you?" },
+  { title: "⚠️ Don't drive tonight without checking this", body: "Late-night incidents are harder to avoid when you don't know where they are. Live reports near you now." },
+  { title: "🛑 Alcoblow and roadblocks — both active tonight", body: "Drivers near you have already reported locations. See the live map before you leave." },
+];
+
+// New midday slot — the third daily notification.
+const MIDDAY_MESSAGES = [
+  { title: "🕐 Roads have changed since this morning", body: "New hazards and incidents reported near you. Quick check before your next drive." },
+  { title: "📸 Fresh camera and checkpoint reports", body: "Drivers near you have been logging alerts all morning. See what's on your afternoon route." },
+  { title: "⚠️ Afternoon conditions are different", body: "Incidents, potholes, and roadblocks updated since morning. Don't drive on stale information." },
+  { title: "🚧 Midday surprises near you", body: "Road works and breakdowns flagged near you in the last few hours. Check the live map now." },
+];
+
+const MIDDAY_MESSAGES_WEEKEND = [
+  { title: "📍 Weekend roads are busiest right now", body: "Live incidents and checkpoints being reported near you. Check before your next trip out." },
+  { title: "🚔 Afternoon checkpoints in your area?", body: "Community reports updated near you. See what other drivers are seeing on the road right now." },
+  { title: "⚠️ Don't head out without checking this", body: "Fresh hazards reported near you this afternoon. Takes 5 seconds to stay ahead of the road." },
 ];
 
 // ─── Weekly engagement nudge (active users only) ─────────────────────────────
 
 const ENGAGEMENT_MESSAGES = [
-  { title: "📍 Seen anything on the road?", body: "Report a hazard, camera, or pothole and help fellow drivers. Takes just 10 seconds!" },
-  { title: "🤝 Be the city's eyes", body: "Every report you add keeps Kenyan roads safer. Share what you see today!" },
-  { title: "🏆 Your reports matter", body: "Spot a pothole or roadblock? Add a quick report and earn community trust." },
-  { title: "📡 Help drivers near you", body: "Drivers are relying on live reports right now. See something? Say something." },
+  { title: "👀 Thousands of drivers rely on reports like yours", body: "Spot a camera, pothole, or checkpoint? Report it in 10 seconds and keep the community sharp." },
+  { title: "📍 You drive these roads. You know what's on them.", body: "Add a report and give drivers behind you an edge. Takes less time than a traffic light." },
+  { title: "🚨 The map is only as good as what we report", body: "Fresh eyes on the road right now. See something? Say something — your report could save someone's fine or their life." },
+  { title: "🏆 You've seen things other drivers haven't yet", body: "Pothole? Checkpoint? Camera? Report it. Your community is counting on people like you." },
 ];
 
 // ─── Feature marketing catalog ────────────────────────────────────────────────
