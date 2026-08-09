@@ -211,7 +211,7 @@ export default function HomeScreen() {
 
   const startDriving = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    router.push("/(tabs)/drive");
+    router.push("/pretrip-check");
   };
 
   const [hour, setHour] = useState(() => new Date().getHours());
