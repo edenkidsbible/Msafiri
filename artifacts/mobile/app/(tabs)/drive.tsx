@@ -193,6 +193,11 @@ export default function DriveScreen() {
     segments: dashcamSegments,
   } = useDashcam();
 
+  // Ref mirror so the empty-deps useFocusEffect can read the live recording
+  // state without being re-registered on every dashcamRecording change.
+  const dashcamRecordingRef = useRef(false);
+  useEffect(() => { dashcamRecordingRef.current = dashcamRecording; }, [dashcamRecording]);
+
   // Proactively request camera + microphone permissions each time the drive
   // screen comes into focus — before the user taps the dashcam button.
   // This ensures first-time users see both system dialogs in the correct order
@@ -644,10 +649,30 @@ export default function DriveScreen() {
           // Dynamic require keeps web bundle free of the native module.
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const SO = require("expo-screen-orientation");
+
+          // ── Dashcam safety: stop recording before rotating ──────────────
+          // Android camera2's MediaRecorder session crashes when the display
+          // rotation changes while it is actively encoding. Stop the session
+          // first, wait for the encoder to flush, then lock the orientation,
+          // and finally restart recording in the background.
+          const wasRecording = dashcamRecordingRef.current;
+          if (wasRecording) {
+            stopDashcam();
+            // Give the encoder ≈600 ms to finish the current segment before
+            // the Activity rotation fires. Too short → still crashes; too long
+            // → noticeable pause. 600 ms is empirically safe.
+            await new Promise<void>((r) => setTimeout(r, 600));
+          }
+          if (cancelled) return;
+
           await SO.lockAsync(SO.OrientationLock.LANDSCAPE_LEFT);
           if (!cancelled) {
             orientationLockedRef.current = true;
             setMountLandscape(true);
+            // Restart dashcam silently if it was recording before the rotation.
+            if (wasRecording) {
+              startBackgroundRecording().catch(() => {});
+            }
           }
         } catch { /* ignore — orientation lock fails gracefully on simulators */ }
       } else {
@@ -676,11 +701,28 @@ export default function DriveScreen() {
       orientationReadyRef.current = false;
       pendingStartRef.current = null;
       if (orientationLockedRef.current) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const SO = require("expo-screen-orientation");
-          SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-        } catch { /* ignore */ }
+        // Stop any active dashcam recording before rotating back to portrait
+        // for the same camera2 encoder reason as the landscape lock above.
+        if (dashcamRecordingRef.current) {
+          stopDashcam();
+          // Fire-and-forget: we're in a cleanup callback and cannot await here.
+          // 600 ms matches the landscape lock delay; the encoder will flush
+          // before the system rotation completes. Recording is not restarted
+          // because the user is leaving drive mode.
+          setTimeout(() => {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              const SO = require("expo-screen-orientation");
+              SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+            } catch { /* ignore */ }
+          }, 600);
+        } else {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const SO = require("expo-screen-orientation");
+            SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+          } catch { /* ignore */ }
+        }
         orientationLockedRef.current = false;
         setMountLandscape(false);
       }
@@ -700,15 +742,28 @@ export default function DriveScreen() {
     // Restore portrait orientation when the trip ends — the driver may want to
     // use other parts of the app normally before starting another trip.
     if (!tripActive && orientationLockedRef.current && Platform.OS !== "web") {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const SO = require("expo-screen-orientation");
-        SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-      } catch { /* ignore */ }
+      // Stop any active dashcam recording before rotating back to portrait
+      // to prevent the Android camera2 encoder crash on display-rotation change.
+      if (dashcamRecordingRef.current) {
+        stopDashcam();
+        setTimeout(() => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const SO = require("expo-screen-orientation");
+            SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+          } catch { /* ignore */ }
+        }, 600);
+      } else {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const SO = require("expo-screen-orientation");
+          SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+        } catch { /* ignore */ }
+      }
       orientationLockedRef.current = false;
       setMountLandscape(false);
     }
-  }, [tripActive]);
+  }, [tripActive, stopDashcam]);
 
   // Tick the trip duration once per second while active.
   useEffect(() => {

@@ -16,6 +16,9 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Image,
+  AppState,
+  Linking,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,8 +28,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam } from "@/context/DashcamContext";
 import { useVehicle } from "@/context/VehicleContext";
-import { getMakeById, getModelById } from "@/data/carModels";
+import { getCarImageUrl, getMakeById, getModelById, CAR_MAKES } from "@/data/carModels";
+import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { SavedVehicle } from "@/utils/savedVehicles";
+import { API_BASE } from "@/utils/apiClient";
 
 export const QUICK_START_KEY = "quickstart_pretrip_v1";
 
@@ -69,6 +74,80 @@ function vehicleEmoji(type: string): string {
   }
 }
 
+function firstStandardModel(makeId: string): string | null {
+  const make = CAR_MAKES.find(m => m.id === makeId);
+  return make?.models?.[0]?.id ?? null;
+}
+
+function customModelSlug(modelId: string): string {
+  return modelId.startsWith("custom-") ? modelId.slice(7) : modelId;
+}
+
+// ── Vehicle image (mirrors garage.tsx VehicleImage) ──────────────────────────
+function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; height: number }) {
+  const c = useColors();
+
+  const isMakeCustom  = !v.makeId  || v.makeId.startsWith("custom-");
+  const isModelCustom = !v.modelId || v.modelId.startsWith("custom-");
+
+  // Phase 0 = model-specific image; Phase 1 = first-model silhouette; Phase 2 = emoji
+  const [phase,   setPhase]   = useState(0);
+  const [loading, setLoading] = useState(true);
+  const retryCount = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
+  }, []);
+
+  // No usable make → show emoji
+  if (isMakeCustom || phase >= 2) {
+    return (
+      <Text style={{ fontSize: height * 0.55, fontFamily: EMOJI_FONT_FAMILY, textAlign: "center" }}>
+        {vehicleEmoji(v.vehicleType)}
+      </Text>
+    );
+  }
+
+  const makeId = v.makeId!;
+  let uri: string;
+  if (phase === 0) {
+    const modelSlug = isModelCustom ? customModelSlug(v.modelId!) : v.modelId!;
+    uri = getCarImageUrl(makeId, modelSlug);
+  } else {
+    const fallback = firstStandardModel(makeId);
+    if (!fallback) { setPhase(2); return null; }
+    uri = getCarImageUrl(makeId, fallback);
+  }
+
+  function handleError() {
+    setLoading(false);
+    if (phase === 0 && isModelCustom && retryCount.current < 4) {
+      retryCount.current += 1;
+      retryTimer.current = setTimeout(() => setLoading(true), 15_000);
+    } else {
+      setPhase(p => p + 1);
+      setLoading(true);
+    }
+  }
+
+  return (
+    <View style={{ width, height, alignItems: "center", justifyContent: "center" }}>
+      {loading && (
+        <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />
+      )}
+      <Image
+        key={`${uri}-${retryCount.current}`}
+        source={{ uri }}
+        style={{ width, height }}
+        resizeMode="contain"
+        onLoad={() => setLoading(false)}
+        onError={handleError}
+      />
+    </View>
+  );
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 type PermStatus = "granted" | "denied" | "undetermined";
 
@@ -78,57 +157,93 @@ function toStatus(granted?: boolean, canAsk?: boolean): PermStatus {
   return "undetermined";
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-interface PermRowProps {
+// ── 2-column permission card ──────────────────────────────────────────────────
+interface PermCardProps {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
-  description: string;
   status: PermStatus;
+  canAskAgain?: boolean;
   loading?: boolean;
-  onRequest: () => void;
+  onEnable: () => void;
+  onDisable: () => void;
   colors: ReturnType<typeof useColors>;
 }
 
-function PermRow({ icon, label, description, status, loading, onRequest, colors: c }: PermRowProps) {
-  const isGranted = status === "granted";
-  const isDenied  = status === "denied";
+function PermCard({
+  icon, label, status, canAskAgain = true,
+  loading, onEnable, onDisable, colors: c,
+}: PermCardProps) {
+  const isGranted      = status === "granted";
+  const isDenied       = status === "denied";
+  const accentColor    = isGranted ? "#22C55E" : isDenied ? "#EF4444" : c.mutedForeground;
+  const bgColor        = isGranted ? "#22C55E18" : isDenied ? "#EF444418" : c.muted + "55";
+  const statusLabel    = isGranted ? "Enabled" : isDenied ? "Blocked" : "Not set";
 
   return (
-    <TouchableOpacity
-      style={[styles.permRow, { borderBottomColor: c.border }]}
-      onPress={isGranted ? undefined : onRequest}
-      activeOpacity={isGranted ? 1 : 0.7}
-      disabled={isGranted}
-    >
-      <View style={[styles.permIconWrap, { backgroundColor: isGranted ? "#22C55E22" : c.muted }]}>
-        <Ionicons
-          name={icon}
-          size={18}
-          color={isGranted ? "#22C55E" : isDenied ? "#EF4444" : c.primary}
-        />
-      </View>
-
-      <View style={styles.permText}>
-        <Text style={[styles.permLabel, { color: c.foreground }]}>{label}</Text>
-        <Text style={[styles.permDesc, { color: c.mutedForeground }]} numberOfLines={2}>
-          {isDenied
-            ? "Denied — open Settings to enable"
-            : description}
+    <View style={[styles.permCard, { backgroundColor: bgColor, borderColor: accentColor + "44" }]}>
+      {/* Icon + label */}
+      <View style={styles.permCardTop}>
+        <View style={[styles.permCardIcon, { backgroundColor: accentColor + "22" }]}>
+          <Ionicons name={icon} size={18} color={accentColor} />
+        </View>
+        <Text style={[styles.permCardLabel, { color: c.foreground }]} numberOfLines={1}>
+          {label}
         </Text>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="small" color={c.primary} />
-      ) : isGranted ? (
-        <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
-      ) : isDenied ? (
-        <Ionicons name="close-circle" size={22} color="#EF4444" />
-      ) : (
-        <View style={[styles.grantPill, { backgroundColor: c.primary + "22" }]}>
-          <Text style={[styles.grantPillTxt, { color: c.primary }]}>Allow</Text>
-        </View>
-      )}
-    </TouchableOpacity>
+      {/* Status badge */}
+      <View style={[styles.permStatusBadge, { backgroundColor: accentColor + "22" }]}>
+        {loading ? (
+          <ActivityIndicator size={10} color={accentColor} />
+        ) : (
+          <Ionicons
+            name={isGranted ? "checkmark-circle" : isDenied ? "close-circle" : "ellipse-outline"}
+            size={11}
+            color={accentColor}
+          />
+        )}
+        <Text style={[styles.permStatusTxt, { color: accentColor }]}>
+          {loading ? "Checking…" : statusLabel}
+        </Text>
+      </View>
+
+      {/* Action buttons */}
+      <View style={styles.permCardBtns}>
+        <TouchableOpacity
+          style={[
+            styles.permBtn,
+            {
+              backgroundColor: isGranted ? c.muted + "88" : "#22C55E",
+              opacity: isGranted ? 0.5 : 1,
+            },
+          ]}
+          onPress={onEnable}
+          disabled={isGranted || !!loading}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.permBtnTxt, { color: isGranted ? c.mutedForeground : "#FFF" }]}>
+            {(!canAskAgain && !isGranted) ? "Open Settings" : "Enable"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.permBtn,
+            {
+              backgroundColor: !isGranted ? c.muted + "88" : "#EF444422",
+              opacity: !isGranted ? 0.45 : 1,
+            },
+          ]}
+          onPress={onDisable}
+          disabled={!isGranted || !!loading}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.permBtnTxt, { color: !isGranted ? c.mutedForeground : "#EF4444" }]}>
+            Disable
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -158,6 +273,8 @@ export default function PretripCheckScreen() {
   const [locationStatus,  setLocationStatus]  = useState<PermStatus>("undetermined");
   const [bgLocStatus,     setBgLocStatus]     = useState<PermStatus>("undetermined");
   const [notifStatus,     setNotifStatus]     = useState<PermStatus>("undetermined");
+  const [locCanAsk,       setLocCanAsk]       = useState(true);
+  const [notifCanAsk,     setNotifCanAsk]     = useState(true);
 
   const [camPermission,   requestCamPerm]     = useCameraPermissions
     ? useCameraPermissions()
@@ -171,69 +288,101 @@ export default function PretripCheckScreen() {
 
   const [loadingPerm, setLoadingPerm] = useState<string | null>(null);
 
-  // Check existing permission statuses on mount
-  useEffect(() => {
-    (async () => {
-      // Foreground location
-      try {
-        const fg = await Location.getForegroundPermissionsAsync();
-        setLocationStatus(toStatus(fg.granted, fg.canAskAgain));
-      } catch { /* ignore */ }
+  // Check existing permission statuses
+  const refreshPermissions = useCallback(async () => {
+    try {
+      const fg = await Location.getForegroundPermissionsAsync();
+      setLocationStatus(toStatus(fg.granted, fg.canAskAgain));
+      setLocCanAsk(fg.canAskAgain !== false);
+    } catch { /* ignore */ }
 
-      // Background location
-      try {
-        const bg = await Location.getBackgroundPermissionsAsync();
-        setBgLocStatus(toStatus(bg.granted, bg.canAskAgain));
-      } catch { /* ignore */ }
+    try {
+      const bg = await Location.getBackgroundPermissionsAsync();
+      setBgLocStatus(toStatus(bg.granted, bg.canAskAgain));
+    } catch { /* ignore */ }
 
-      // Notifications
-      if (Notifications) {
-        try {
-          const n = await Notifications.getPermissionsAsync();
-          setNotifStatus(toStatus(n.granted, n.canAskAgain));
-        } catch { /* ignore */ }
-      } else {
-        setNotifStatus("granted"); // web / unsupported
-      }
-    })();
+    if (Notifications) {
+      try {
+        const n = await Notifications.getPermissionsAsync();
+        setNotifStatus(toStatus(n.granted, n.canAskAgain));
+        setNotifCanAsk(n.canAskAgain !== false);
+      } catch { /* ignore */ }
+    } else {
+      setNotifStatus("granted");
+    }
   }, []);
+
+  useEffect(() => {
+    refreshPermissions();
+  }, [refreshPermissions]);
+
+  // Re-check when app returns from Settings
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshPermissions();
+    });
+    return () => sub.remove();
+  }, [refreshPermissions]);
 
   const requestLocation = useCallback(async () => {
     setLoadingPerm("location");
     try {
-      const fg = await Location.requestForegroundPermissionsAsync();
-      setLocationStatus(toStatus(fg.granted, fg.canAskAgain));
-      if (fg.granted) {
-        // Also ask for background while we're here
-        await new Promise(r => setTimeout(r, 600));
-        const bg = await Location.requestBackgroundPermissionsAsync();
-        setBgLocStatus(toStatus(bg.granted, bg.canAskAgain));
+      if (!locCanAsk) {
+        Linking.openSettings();
+      } else {
+        const fg = await Location.requestForegroundPermissionsAsync();
+        setLocationStatus(toStatus(fg.granted, fg.canAskAgain));
+        setLocCanAsk(fg.canAskAgain !== false);
+        if (fg.granted) {
+          await new Promise(r => setTimeout(r, 600));
+          const bg = await Location.requestBackgroundPermissionsAsync();
+          setBgLocStatus(toStatus(bg.granted, bg.canAskAgain));
+        }
       }
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, []);
+  }, [locCanAsk]);
 
   const requestNotifs = useCallback(async () => {
     if (!Notifications) return;
     setLoadingPerm("notif");
     try {
-      const n = await Notifications.requestPermissionsAsync();
-      setNotifStatus(toStatus(n.granted, n.canAskAgain));
+      if (!notifCanAsk) {
+        Linking.openSettings();
+      } else {
+        const n = await Notifications.requestPermissionsAsync();
+        setNotifStatus(toStatus(n.granted, n.canAskAgain));
+        setNotifCanAsk(n.canAskAgain !== false);
+      }
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, []);
+  }, [notifCanAsk]);
 
   const requestCamera = useCallback(async () => {
     setLoadingPerm("camera");
+    if (!camPermission?.canAskAgain && !camPermission?.granted) {
+      Linking.openSettings();
+      setLoadingPerm(null);
+      return;
+    }
     await requestDashcamPermissions();
     setLoadingPerm(null);
-  }, [requestDashcamPermissions]);
+  }, [requestDashcamPermissions, camPermission]);
 
   const requestMic = useCallback(async () => {
     setLoadingPerm("mic");
+    if (!micPermission?.canAskAgain && !micPermission?.granted) {
+      Linking.openSettings();
+      setLoadingPerm(null);
+      return;
+    }
     try { await requestMicPerm(); } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestMicPerm]);
+  }, [requestMicPerm, micPermission]);
+
+  const openSettings = useCallback(() => {
+    Linking.openSettings();
+  }, []);
 
   // ── Camera preview ─────────────────────────────────────────────────────────
   const [cameraReady, setCameraReady] = useState(false);
@@ -243,7 +392,6 @@ export default function PretripCheckScreen() {
   const toggleMic = useCallback(async (value: boolean) => {
     Haptics.selectionAsync().catch(() => {});
     await updateSettings({ audioEnabled: value });
-    // Proactively request mic permission when driver enables audio
     if (value && micPermission && !micPermission.granted) {
       try { await requestMicPerm(); } catch { /* muted fallback */ }
     }
@@ -258,7 +406,6 @@ export default function PretripCheckScreen() {
   // ── Quick-start preference ─────────────────────────────────────────────────
   const [quickStartEnabled, setQuickStartEnabled] = useState(false);
 
-  // Load saved preference on mount
   useEffect(() => {
     AsyncStorage.getItem(QUICK_START_KEY)
       .then((v) => { if (v === "1") setQuickStartEnabled(true); })
@@ -269,11 +416,8 @@ export default function PretripCheckScreen() {
     Haptics.selectionAsync().catch(() => {});
     setQuickStartEnabled(value);
     try {
-      if (value) {
-        await AsyncStorage.setItem(QUICK_START_KEY, "1");
-      } else {
-        await AsyncStorage.removeItem(QUICK_START_KEY);
-      }
+      if (value) await AsyncStorage.setItem(QUICK_START_KEY, "1");
+      else await AsyncStorage.removeItem(QUICK_START_KEY);
     } catch { /* ignore */ }
   }, []);
 
@@ -283,11 +427,7 @@ export default function PretripCheckScreen() {
   // ── Start driving ──────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    // Commit the vehicle selection — drive screen and all downstream consumers
-    // read from VehicleContext, so this is the canonical handoff point.
     if (selectedVehicleId) setActiveVehicle(selectedVehicleId);
-    // Persist mount orientation BEFORE navigating so the drive screen's
-    // useFocusEffect reliably reads the new value (not the previous session's).
     await AsyncStorage.setItem("msafiri:mountOrientation", mountOrientation);
     router.replace("/(tabs)/drive");
   }, [selectedVehicleId, setActiveVehicle, mountOrientation]);
@@ -312,7 +452,6 @@ export default function PretripCheckScreen() {
             Set up before your trip starts
           </Text>
         </View>
-        {/* Spacer to balance back button */}
         <View style={{ width: 40 }} />
       </View>
 
@@ -321,43 +460,47 @@ export default function PretripCheckScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Permissions card ─────────────────────────────────────────── */}
+        {/* ── Permissions 2-column grid ────────────────────────────────── */}
         <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>PERMISSIONS</Text>
-        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <PermRow
+        <View style={styles.permGrid}>
+          <PermCard
             icon="location"
             label="Location"
-            description="Needed for speed alerts, route guidance and live sharing"
             status={locationStatus}
+            canAskAgain={locCanAsk}
             loading={loadingPerm === "location"}
-            onRequest={requestLocation}
+            onEnable={requestLocation}
+            onDisable={openSettings}
             colors={c}
           />
-          <PermRow
+          <PermCard
             icon="notifications"
             label="Notifications"
-            description="Get hazard alerts and safety warnings while driving"
             status={notifStatus}
+            canAskAgain={notifCanAsk}
             loading={loadingPerm === "notif"}
-            onRequest={requestNotifs}
+            onEnable={requestNotifs}
+            onDisable={openSettings}
             colors={c}
           />
-          <PermRow
+          <PermCard
             icon="videocam"
             label="Camera"
-            description="Required for Dashcam recording"
             status={cameraStatus}
+            canAskAgain={camPermission?.canAskAgain ?? true}
             loading={loadingPerm === "camera"}
-            onRequest={requestCamera}
+            onEnable={requestCamera}
+            onDisable={openSettings}
             colors={c}
           />
-          <PermRow
+          <PermCard
             icon="mic"
             label="Microphone"
-            description="Optional — records audio alongside dashcam video"
             status={micStatus}
+            canAskAgain={micPermission?.canAskAgain ?? true}
             loading={loadingPerm === "mic"}
-            onRequest={requestMic}
+            onEnable={requestMic}
+            onDisable={openSettings}
             colors={c}
           />
         </View>
@@ -369,16 +512,20 @@ export default function PretripCheckScreen() {
               YOUR VEHICLE
             </Text>
             <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-              {/* Single-vehicle: just show it, no toggle needed */}
               {vehicles.length === 1 ? (
-                <View style={[styles.vehicleRow, { borderBottomWidth: 0 }]}>
-                  <Text style={[styles.vehicleEmoji]}>{vehicleEmoji(vehicles[0].vehicleType)}</Text>
-                  <View style={styles.vehicleRowText}>
+                /* Single vehicle — show with image */
+                <View style={styles.vehicleCardRow}>
+                  <View style={styles.vehicleImgWrap}>
+                    <VehicleImage v={vehicles[0]} width={90} height={58} />
+                  </View>
+                  <View style={styles.vehicleCardText}>
                     <Text style={[styles.vehicleRowName, { color: c.foreground }]}>
                       {vehicleDisplayName(vehicles[0])}
                     </Text>
                     <Text style={[styles.vehicleRowSub, { color: c.mutedForeground }]}>
-                      {vehicles[0].isDefault ? "Default vehicle" : "Your vehicle"}
+                      {vehicles[0].plateNumber
+                        ? vehicles[0].plateNumber
+                        : vehicles[0].isDefault ? "Default vehicle" : "Your vehicle"}
                     </Text>
                   </View>
                   <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
@@ -387,14 +534,23 @@ export default function PretripCheckScreen() {
                 /* Multiple vehicles: collapsed summary + expandable picker */
                 <>
                   <TouchableOpacity
-                    style={[styles.vehicleRow, { borderBottomWidth: vehiclePickerOpen ? StyleSheet.hairlineWidth : 0, borderBottomColor: c.border }]}
+                    style={[
+                      styles.vehicleCardRow,
+                      {
+                        borderBottomWidth: vehiclePickerOpen ? StyleSheet.hairlineWidth : 0,
+                        borderBottomColor: c.border,
+                      },
+                    ]}
                     onPress={() => setVehiclePickerOpen(o => !o)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.vehicleEmoji}>
-                      {vehicleEmoji(selectedVehicle?.vehicleType ?? "car")}
-                    </Text>
-                    <View style={styles.vehicleRowText}>
+                    <View style={styles.vehicleImgWrap}>
+                      {selectedVehicle
+                        ? <VehicleImage v={selectedVehicle} width={90} height={58} />
+                        : <Text style={{ fontSize: 30 }}>{vehicleEmoji("car")}</Text>
+                      }
+                    </View>
+                    <View style={styles.vehicleCardText}>
                       <Text style={[styles.vehicleRowName, { color: c.foreground }]}>
                         {selectedVehicle ? vehicleDisplayName(selectedVehicle) : "Select a vehicle"}
                       </Text>
@@ -427,8 +583,10 @@ export default function PretripCheckScreen() {
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.vehicleEmoji}>{vehicleEmoji(v.vehicleType)}</Text>
-                      <View style={styles.vehicleRowText}>
+                      <View style={[styles.vehicleImgWrap, { width: 70, height: 44 }]}>
+                        <VehicleImage v={v} width={70} height={44} />
+                      </View>
+                      <View style={styles.vehicleCardText}>
                         <Text style={[styles.vehicleRowName, { color: c.foreground }]}>
                           {vehicleDisplayName(v)}
                         </Text>
@@ -488,7 +646,6 @@ export default function PretripCheckScreen() {
                   </View>
                 )}
 
-                {/* Badge */}
                 {cameraGranted && (
                   <View style={styles.previewBadge}>
                     <Ionicons name="videocam" size={11} color="#FFF" />
@@ -501,7 +658,6 @@ export default function PretripCheckScreen() {
                 Adjust your phone mount so the road ahead fills this view
               </Text>
 
-              {/* Divider */}
               <View style={[styles.divider, { backgroundColor: c.border }]} />
 
               {/* Mic toggle */}
@@ -531,7 +687,6 @@ export default function PretripCheckScreen() {
                 />
               </View>
 
-              {/* Divider */}
               <View style={[styles.divider, { backgroundColor: c.border }]} />
 
               {/* Quality selector */}
@@ -585,13 +740,10 @@ export default function PretripCheckScreen() {
           PHONE MOUNT
         </Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          {/* Portrait option */}
           <TouchableOpacity
             style={[
               styles.mountOption,
-              mountOrientation === "portrait" && {
-                backgroundColor: c.primary + "11",
-              },
+              mountOrientation === "portrait" && { backgroundColor: c.primary + "11" },
             ]}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
@@ -623,13 +775,10 @@ export default function PretripCheckScreen() {
 
           <View style={[styles.divider, { backgroundColor: c.border }]} />
 
-          {/* Landscape option */}
           <TouchableOpacity
             style={[
               styles.mountOption,
-              mountOrientation === "landscape" && {
-                backgroundColor: c.primary + "11",
-              },
+              mountOrientation === "landscape" && { backgroundColor: c.primary + "11" },
             ]}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
@@ -681,14 +830,11 @@ export default function PretripCheckScreen() {
           },
         ]}
       >
-        {/* Quick-start toggle — only offered once all essential permissions are on */}
         {allEssentialGranted && (
           <View style={[styles.quickStartRow, { borderColor: c.border }]}>
             <View style={styles.quickStartText}>
               <Ionicons name="flash" size={15} color={quickStartEnabled ? c.primary : c.mutedForeground} />
-              <Text style={[styles.quickStartLabel, { color: c.foreground }]}>
-                Quick start
-              </Text>
+              <Text style={[styles.quickStartLabel, { color: c.foreground }]}>Quick start</Text>
               <Text style={[styles.quickStartDesc, { color: c.mutedForeground }]}>
                 Skip checklist next time
               </Text>
@@ -751,25 +897,53 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
-  // Permission rows
-  permRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 14, paddingVertical: 13,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  // ── 2-column permissions grid ─────────────────────────────────────────────
+  permGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 4,
   },
-  permIconWrap: {
-    width: 36, height: 36, borderRadius: 10,
+  permCard: {
+    width: "47.5%",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    gap: 8,
+  },
+  permCardTop: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+  },
+  permCardIcon: {
+    width: 32, height: 32, borderRadius: 9,
     alignItems: "center", justifyContent: "center",
   },
-  permText:  { flex: 1 },
-  permLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  permDesc:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  grantPill: {
-    paddingHorizontal: 12, paddingVertical: 5,
+  permCardLabel: {
+    flex: 1,
+    fontSize: 13, fontFamily: "Inter_600SemiBold",
+  },
+  permStatusBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 20,
   },
-  grantPillTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  permStatusTxt: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
+  },
+  permCardBtns: {
+    flexDirection: "row", gap: 6, marginTop: 2,
+  },
+  permBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  permBtnTxt: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
+  },
 
   // Phone mount option
   mountOption: {
@@ -837,21 +1011,24 @@ const styles = StyleSheet.create({
   qualityChipTxt: { fontSize: 12, fontFamily: "Inter_700Bold" },
   qualityChipSub: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
 
-  // Vehicle selector
-  vehicleRow: {
+  // Vehicle card
+  vehicleCardRow: {
     flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 14, paddingVertical: 14,
+    paddingHorizontal: 14, paddingVertical: 12,
     gap: 12,
   },
-  vehiclePickerRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 14, paddingVertical: 13,
-    gap: 12,
+  vehicleImgWrap: {
+    width: 90, height: 58,
+    alignItems: "center", justifyContent: "center",
   },
-  vehicleEmoji: { fontSize: 26, width: 34, textAlign: "center" },
-  vehicleRowText:  { flex: 1 },
+  vehicleCardText: { flex: 1 },
   vehicleRowName:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   vehicleRowSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  vehiclePickerRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 11,
+    gap: 12,
+  },
 
   // Tips
   tipsCard: {
