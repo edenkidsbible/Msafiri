@@ -252,6 +252,17 @@ export async function migrateSchema(): Promise<void> {
         ON dashcam_clips (device_id, vehicle_id, started_at DESC)
     `);
 
+    // share_token on dashcam_clips — compact URL-safe code for branded share links.
+    // Generated lazily on first share request; unique across all clips.
+    await db.execute(sql`
+      ALTER TABLE dashcam_clips ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS dashcam_clips_share_token_idx
+        ON dashcam_clips (share_token)
+        WHERE share_token IS NOT NULL
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

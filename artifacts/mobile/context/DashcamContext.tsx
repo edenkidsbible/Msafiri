@@ -419,7 +419,11 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       setSegments(live);
       segmentsRef.current = live;
 
-      if (live.some((s) => s.savedForReview)) setPendingTripReview(true);
+      if (live.some((s) => s.savedForReview)) {
+        setPendingTripReview(true);
+      } else {
+        setPendingTripReview(false);
+      }
 
       const toUpload = live
         .filter((s) => s.uploadStatus === "pending" || (s.uploadStatus === "failed" && (s.retryCount ?? 0) < MAX_UPLOAD_RETRIES))

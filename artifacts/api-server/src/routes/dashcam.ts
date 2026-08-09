@@ -37,7 +37,7 @@ import {
   dashcamRegRatelimitTable,
   dashcamUploadIntentsTable,
 } from "@workspace/db";
-import { eq, and, or, desc, sql, gt, isNull, lt, count } from "drizzle-orm";
+import { eq, and, or, desc, sql, gt, isNull, lt, count, ne } from "drizzle-orm";
 import {
   isR2Configured,
   getPresignedUploadUrl,
@@ -46,7 +46,7 @@ import {
   clipKey,
 } from "../lib/r2Storage.js";
 import { logger } from "../lib/logger.js";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 
 const router = Router();
 
@@ -61,6 +61,14 @@ const INTENT_TTL_MS           = 30 * 60 * 1_000; // 30 minutes
 const RETAIN_MANUAL_MS =  7 * 24 * 60 * 60 * 1_000; //  7 days
 const RETAIN_AUTO_MS   =      24 * 60 * 60 * 1_000; // 24 hours
 const RETAIN_PINNED_MS = 60 * 24 * 60 * 60 * 1_000; // 60 days
+
+/** 8 URL-safe chars — enough entropy for a public short-link. */
+function generateShareToken(): string {
+  return randomBytes(6).toString("base64url");
+}
+
+/** Base URL for all branded short-links (no trailing slash). */
+const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://msafirikenya.com";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -522,6 +530,62 @@ router.get("/dashcam/clip/:id/url", async (req: Request, res: Response) => {
   } catch (err) {
     logger.error({ err }, "dashcam: failed to generate download URL");
     return res.status(500).json({ error: "Failed to generate download URL" });
+  }
+});
+
+/**
+ * GET /api/dashcam/clip/:id/share-link
+ *
+ * Returns a branded short URL for sharing a cloud clip externally.
+ * The token is created lazily on the first call and then reused for the
+ * lifetime of the clip — so the link is stable across multiple shares.
+ *
+ * Returns: { shortUrl: string }
+ */
+router.get("/dashcam/clip/:id/share-link", async (req: Request, res: Response) => {
+  if (!isR2Configured()) {
+    return res.status(503).json({ error: "Cloud storage not configured" });
+  }
+
+  const auth = extractAuth(req);
+  if (!auth) {
+    return res.status(401).json({ error: "X-Device-Id and X-Dashcam-Secret headers are required" });
+  }
+
+  const { deviceId, secret } = auth;
+  const secretHash = computeSecretHash(deviceId, secret);
+  const { id }     = req.params as { id: string };
+
+  try {
+    let clip = await findOwnedClip(id, deviceId, secretHash);
+    if (!clip) return res.status(404).json({ error: "Clip not found or access denied" });
+
+    // Create a share token if this clip doesn't already have one.
+    if (!clip.shareToken) {
+      // Retry once on the rare token collision (UNIQUE constraint violation).
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const token = generateShareToken();
+        try {
+          const updated: { shareToken: string | null }[] = await db
+            .update(dashcamClipsTable)
+            .set({ shareToken: token })
+            .where(eq(dashcamClipsTable.id, clip.id))
+            .returning({ shareToken: dashcamClipsTable.shareToken });
+          clip = { ...clip, shareToken: updated[0]?.shareToken ?? token };
+          break;
+        } catch (updateErr: any) {
+          // 23505 = unique_violation — try a new token
+          if (attempt === 0 && updateErr?.code === "23505") continue;
+          throw updateErr;
+        }
+      }
+    }
+
+    const shortUrl = `${APP_BASE_URL}/c/${clip.shareToken!}`;
+    return res.json({ shortUrl });
+  } catch (err) {
+    logger.error({ err }, "dashcam: failed to generate share link");
+    return res.status(500).json({ error: "Failed to generate share link" });
   }
 });
 

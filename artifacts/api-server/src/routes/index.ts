@@ -28,6 +28,7 @@ import weatherRouter from "./weather.js";
 import carImagesRouter from "./carImages.js";
 import carLogosRouter from "./carLogos.js";
 import customVehiclesRouter from "./customVehicles.js";
+import geocodeRouter from "./geocode.js";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(weatherRouter);
 router.use(carImagesRouter);
 router.use(carLogosRouter);
 router.use(customVehiclesRouter);
+router.use(geocodeRouter);
 
 export default router;

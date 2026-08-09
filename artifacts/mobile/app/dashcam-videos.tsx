@@ -42,6 +42,7 @@ import {
   PLAYER_SPEEDS,
   fmtDateTime,
 } from "@/components/VideoPlayerModal";
+import { watermarkedPath } from "@/utils/videoWatermark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -170,27 +171,28 @@ function syncLabel(d: Date | null): string {
   return `Last synced: ${today ? "Today, " : ""}${time}`;
 }
 
-async function photonReverse(lat: number, lng: number): Promise<string | null> {
+/**
+ * Reverse geocode a coordinate via the API server (HERE Maps backend).
+ * Avoids exposing a secret key in client code and gives much better coverage
+ * for Kenya than the public Photon service.
+ * Uses a manual AbortController + setTimeout instead of AbortSignal.timeout()
+ * for maximum compatibility across Hermes versions.
+ */
+async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  if (!API_BASE) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const r = await fetch(
-      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`,
-      { signal: AbortSignal.timeout(5000) }
+      `${API_BASE}/geocode/reverse?lat=${lat}&lng=${lng}`,
+      { signal: controller.signal },
     );
+    clearTimeout(timer);
     if (!r.ok) return null;
-    const j = await r.json() as any;
-    const p = j?.features?.[0]?.properties;
-    if (!p) return null;
-    // Prefer the specific road/street name.  p.name is a named road when it
-    // differs from the city/county; otherwise it's just a repeated area name.
-    const city   = p.city || p.town || p.village;
-    const county = p.county;
-    const road   = p.street || (p.name && p.name !== city && p.name !== county ? p.name : null);
-    const area   = p.district || city || county;
-    // Build up to two parts and strip duplicates (e.g. "Nairobi, Nairobi").
-    const parts  = [road, area].filter(Boolean);
-    const unique = parts.filter((v, i) => i === 0 || v !== parts[i - 1]);
-    return unique.slice(0, 2).join(", ") || area || null;
+    const j = await r.json() as { name?: string | null };
+    return j.name ?? null;
   } catch { return null; }
+  finally { clearTimeout(timer); }
 }
 
 // ─── Clip Row ─────────────────────────────────────────────────────────────────
@@ -559,21 +561,35 @@ export default function DashcamVideosScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unifiedClips]);
 
-  // ── Resolve location names via Photon reverse geocode ─────────────────────
+  // ── Resolve location names via API-proxied HERE reverse geocode ────────────
+  //
+  // Key the effect on a stable hash of clip ID + coords only.  Metadata
+  // changes (pin status, expiry, upload progress) should NOT cancel an
+  // in-progress geocoding pass — they don't affect which clips need geocoding.
+  const coordsKey = useMemo(
+    () => unifiedClips.map((c) => `${c.id}:${c.lat ?? ""}:${c.lng ?? ""}`).join("|"),
+    [unifiedClips],
+  );
   useEffect(() => {
     let cancelled = false;
+    // Snapshot the clips that actually need geocoding at the time this effect
+    // runs.  The closure captures `unifiedClips` from the enclosing render.
+    const clipsToProcess = unifiedClips;
     (async () => {
+      // 1. Warm the in-memory cache from AsyncStorage for all current clips.
       const cache = { ...locCacheRef.current };
-      for (const clip of unifiedClips) {
+      for (const clip of clipsToProcess) {
         if (cache[clip.id]) continue;
         const stored = await AsyncStorage.getItem(LOC_CACHE_KEY(clip.id)).catch(() => null);
         if (stored) cache[clip.id] = stored;
       }
       if (!cancelled) { locCacheRef.current = cache; setLocationNames({ ...cache }); }
-      for (const clip of unifiedClips) {
+
+      // 2. Geocode clips that still have no name but do have coordinates.
+      for (const clip of clipsToProcess) {
         if (cancelled || cache[clip.id]) continue;
         if (clip.lat == null || clip.lng == null) continue;
-        const name = await photonReverse(clip.lat, clip.lng);
+        const name = await reverseGeocode(clip.lat, clip.lng);
         if (name && !cancelled) {
           cache[clip.id] = name;
           locCacheRef.current = { ...cache };
@@ -583,7 +599,8 @@ export default function DashcamVideosScreen() {
       }
     })();
     return () => { cancelled = true; };
-  }, [unifiedClips]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordsKey]);
 
   // ── Filter + group ─────────────────────────────────────────────────────────
   const listItems = useMemo<ListItem[]>(() => {
@@ -591,6 +608,18 @@ export default function DashcamVideosScreen() {
     if (tab === "locked")    clips = clips.filter((c) => c.locked);
     if (tab === "downloads") clips = clips.filter((c) => c.uploadStatus === "uploaded" || c.source === "server");
     clips = clips.filter((c) => inRange(c.startedAt, dateFilter));
+
+    // Cap normal (unlocked) clips at 10 most recent in the "All" tab.
+    // Locked clips are always shown in full — only the rolling normal clips
+    // are capped since they have limited retention value after 10 anyway.
+    if (tab === "all") {
+      let normalSeen = 0;
+      clips = clips.filter((c) => {
+        if (c.locked) return true;
+        normalSeen++;
+        return normalSeen <= 10;
+      });
+    }
 
     if (clips.length === 0) {
       const msg = tab === "locked"
@@ -634,7 +663,7 @@ export default function DashcamVideosScreen() {
     speedKmh:     clip.speedKmh,
   }), [locationNames, vehicleName, activeVehicle]);
 
-  // ── Shared helper: get a signed URL for a server clip ─────────────────────
+  // ── Shared helper: get a signed URL for a server clip (playback only) ───────
   const getSignedUrl = useCallback(async (clipId: string): Promise<string | null> => {
     const secret = await AsyncStorage.getItem(SECRET_KEY);
     if (!secret || !pushDeviceId) return null;
@@ -645,6 +674,33 @@ export default function DashcamVideosScreen() {
     const { downloadUrl } = await res.json() as { downloadUrl: string };
     return downloadUrl;
   }, [pushDeviceId]);
+
+  // ── Shared helper: get a branded short link for external sharing ───────────
+  // Returns a stable msafirikenya.com/c/{token} URL that redirects to R2.
+  // The token is created server-side on first call and reused thereafter.
+  const getShareLink = useCallback(async (clipId: string): Promise<string | null> => {
+    const secret = await AsyncStorage.getItem(SECRET_KEY);
+    if (!secret || !pushDeviceId) return null;
+    const res = await fetch(`${API_BASE}/dashcam/clip/${clipId}/share-link`, {
+      headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
+    });
+    if (!res.ok) return null;
+    const { shortUrl } = await res.json() as { shortUrl: string };
+    return shortUrl ?? null;
+  }, [pushDeviceId]);
+
+  // ── Share URL (used by player and handlePlay's onShare closure) ───────────
+  const handleShareUrl = useCallback(async (url: string, clip: UnifiedClip) => {
+    const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
+    // Include the URL inside the message text so Android (which ignores the
+    // `url` field in Share.share) still shares a clickable link.  iOS uses
+    // the `url` field to show a native preview; the in-message URL is a safe
+    // fallback on both platforms.
+    const msg  = `Msafiri dashcam clip — ${name}, ${fmtDateTime(clip.startedAt)}\n${url}`;
+    try {
+      await RNShare.share({ message: msg, url });
+    } catch { /* user cancelled */ }
+  }, [locationNames]);
 
   // ── Play ───────────────────────────────────────────────────────────────────
   const handlePlay = useCallback(async (clip: UnifiedClip) => {
@@ -661,15 +717,23 @@ export default function DashcamVideosScreen() {
       setLoadingId(clip.id);
       const url = await getSignedUrl(clip.id);
       if (!url) { Alert.alert("Error", "Could not load video."); return; }
-      setPlayerConfig({
-        uri: url, title, meta,
-        onShare: async () => handleShareUrl(url, clip),
-      });
+      // onShare — use the branded short link, not the raw presigned URL.
+      // getShareLink is called lazily so it doesn't delay playback start.
+      const onShare = async () => {
+        const shortUrl = await getShareLink(clip.id);
+        if (shortUrl) {
+          handleShareUrl(shortUrl, clip);
+        } else {
+          // Fall back to the presigned URL if short-link generation fails.
+          handleShareUrl(url, clip);
+        }
+      };
+      setPlayerConfig({ uri: url, title, meta, onShare });
     } catch { Alert.alert("Error", "Network error."); }
     finally { setLoadingId(null); }
-  }, [locationNames, loadingId, buildPlayerMeta, getSignedUrl]);
+  }, [locationNames, loadingId, buildPlayerMeta, getSignedUrl, getShareLink, handleShareUrl]);
 
-  // ── Download to device & save to photo library ────────────────────────────
+  // ── Download to device, burn watermark, & save to photo library ─────────────
   const handleDownload = useCallback(async (clip: UnifiedClip) => {
     setMenuClip(null);
     if (clip.source === "local") {
@@ -691,7 +755,8 @@ export default function DashcamVideosScreen() {
           const ratio = prog.totalBytesExpectedToWrite > 0
             ? prog.totalBytesWritten / prog.totalBytesExpectedToWrite
             : 0;
-          setDownloadProgress((prev) => ({ ...prev, [clip.id]: ratio }));
+          // Reserve 0–0.85 for download, 0.85–1.0 for watermark processing
+          setDownloadProgress((prev) => ({ ...prev, [clip.id]: ratio * 0.85 }));
         }
       );
       setDownloadProgress((prev) => ({ ...prev, [clip.id]: 0 }));
@@ -703,11 +768,29 @@ export default function DashcamVideosScreen() {
 
         if (status === "granted") {
           try {
-            await MediaLibrary.saveToLibraryAsync(dest);
-            // Clean up the temp file — it's now in the library
-            FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
+            // ── Burn metadata watermark into the video ──────────────────────
+            // watermarkedPath() tries FFmpegKit; if unavailable (Expo Go) it
+            // returns `dest` unchanged so the save still works.
+            setDownloadProgress((prev) => ({ ...prev, [clip.id]: 0.87 }));
+            const meta = buildPlayerMeta(clip);
+            const fileToSave = await watermarkedPath(dest, {
+              locationName: meta.locationName,
+              startedAt:    meta.startedAt,
+              vehicleName:  meta.vehicleName,
+              plate:        meta.plate,
+              speedKmh:     meta.speedKmh,
+            });
+            setDownloadProgress((prev) => ({ ...prev, [clip.id]: 0.97 }));
+
+            await MediaLibrary.saveToLibraryAsync(fileToSave);
+
+            // Clean up both the raw download and the watermarked copy.
+            FileSystem.deleteAsync(dest,       { idempotent: true }).catch(() => {});
+            if (fileToSave !== dest) {
+              FileSystem.deleteAsync(fileToSave, { idempotent: true }).catch(() => {});
+            }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("Saved to Gallery ✓", "The clip has been saved to your Photos/Videos.");
+            Alert.alert("Saved to Gallery ✓", "The clip has been saved to your Photos/Videos with a watermark.");
             return;
           } catch {
             // saveToLibraryAsync failed for a non-permission reason (e.g. codec issue).
@@ -749,62 +832,94 @@ export default function DashcamVideosScreen() {
     } finally {
       setDownloadProgress((prev) => { const n = { ...prev }; delete n[clip.id]; return n; });
     }
-  }, [downloadProgress, getSignedUrl]);
+  }, [downloadProgress, getSignedUrl, buildPlayerMeta]);
 
-  // ── Share URL (from player or menu — no download needed) ──────────────────
-  const handleShareUrl = useCallback(async (url: string, clip: UnifiedClip) => {
-    const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
-    // Include the URL inside the message text so Android (which ignores the
-    // `url` field in Share.share) still shares a clickable link.  iOS uses
-    // the `url` field to show a native preview; the in-message URL is a safe
-    // fallback on both platforms.
-    const msg  = `Msafiri dashcam clip — ${name}, ${fmtDateTime(clip.startedAt)}\n${url}`;
+
+  // ── Share local file helper (extracted so it's reusable) ──────────────────
+  const shareLocalFile = useCallback(async (clip: UnifiedClip) => {
     try {
-      await RNShare.share({ message: msg, url });
-    } catch { /* user cancelled */ }
-  }, [locationNames]);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(clip.uri!, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" });
+      } else {
+        await RNShare.share({
+          message: `Msafiri dashcam clip — ${fmtDateTime(clip.startedAt)}`,
+          url: clip.uri!,
+        });
+      }
+    } catch (err: any) {
+      const msg: string = err?.message ?? "";
+      if (!msg.toLowerCase().includes("cancel")) {
+        Alert.alert("Share Failed", "Could not share this clip.");
+      }
+    }
+  }, []);
 
   // ── Share (from menu) ──────────────────────────────────────────────────────
   const handleShare = useCallback(async (clip: UnifiedClip) => {
     setMenuClip(null);
 
-    // Local clip — share file directly
-    if (clip.source === "local" && clip.uri) {
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(clip.uri, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" }).catch(() => {});
-      } else {
-        const name = locationNames[clip.id] ?? timeOfDayName(clip.startedAt);
-        RNShare.share({ message: `Msafiri dashcam clip — ${fmtDateTime(clip.startedAt)}`, url: clip.uri }).catch(() => {});
+    // Determine what sharing paths are available for this clip:
+    //  • hasLocalFile  — clip lives on-device (can share the file directly)
+    //  • serverClipId  — server UUID to use for short-link / signed-URL lookup
+    //    - source=server  → clip.id IS the server UUID
+    //    - source=local with serverId → clip.serverId is the server UUID
+    const hasLocalFile = clip.source === "local" && !!clip.uri;
+    const serverClipId = clip.source === "server" ? clip.id : (clip.serverId ?? null);
+    const hasServerCopy = !!serverClipId;
+
+    if (hasLocalFile && !hasServerCopy) {
+      // Local-only — clip hasn't been uploaded yet.  Give helpful context
+      // instead of silently proceeding to a file share or failing.
+      const isUploading = clip.uploadStatus === "pending";
+      const uploadFailed = clip.uploadStatus === "failed";
+
+      if (isUploading || uploadFailed) {
+        Alert.alert(
+          isUploading ? "Still Uploading" : "Upload Failed",
+          isUploading
+            ? "This clip is backing up to the cloud. You can share the video file now, or wait a moment and share the link instead."
+            : "This clip couldn't be backed up. You can still share the video file directly.",
+          [
+            { text: "Share File", onPress: () => shareLocalFile(clip) },
+            { text: "Cancel", style: "cancel" as const },
+          ],
+        );
+        return;
       }
+
+      // Not locked / no upload intended — share file directly.
+      await shareLocalFile(clip);
       return;
     }
 
-    // Server clip — show two options: share the link (instant, no download)
-    // or save the video file directly to the device's photo/video library.
+    // Clip has a server copy — offer a branded short link plus either
+    // "Share File" (still on device) or "Save to Phone" (server-only).
     try {
       setSharingId(clip.id);
-      const url = await getSignedUrl(clip.id);
-      if (!url) { Alert.alert("Error", "Could not get share link."); return; }
+      const shortUrl = await getShareLink(serverClipId!);
+      if (!shortUrl) {
+        Alert.alert("Share Error", "Could not generate a share link. Check your connection and try again.");
+        return;
+      }
 
       Alert.alert(
         "Share clip",
         "How would you like to share this clip?",
         [
-          {
-            text: "Share Link",
-            onPress: () => handleShareUrl(url, clip),
-          },
-          {
-            text: "Save to Phone",
-            onPress: () => handleDownload(clip),
-          },
-          { text: "Cancel", style: "cancel" },
-        ]
+          { text: "Share Link", onPress: () => handleShareUrl(shortUrl, clip) },
+          hasLocalFile
+            ? {
+                text: "Share File",
+                onPress: () => shareLocalFile(clip),
+              }
+            : { text: "Save to Phone", onPress: () => handleDownload(clip) },
+          { text: "Cancel", style: "cancel" as const },
+        ],
       );
-    } catch { Alert.alert("Error", "Could not prepare share link."); }
+    } catch { Alert.alert("Share Error", "Could not prepare share link."); }
     finally { setSharingId(null); }
-  }, [locationNames, getSignedUrl, handleShareUrl]);
+  }, [getShareLink, handleShareUrl, handleDownload, shareLocalFile]);
 
   // ── Delete ─────────────────────────────────────────────────────────────────
   const handleDelete = useCallback((clip: UnifiedClip) => {

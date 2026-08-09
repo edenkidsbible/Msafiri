@@ -87,10 +87,15 @@ export default function DashcamOverlay() {
   } = useDashcam();
 
   const { currentLat, currentLng } = useApp();
-  const latRef = useRef(currentLat);
-  const lngRef = useRef(currentLng);
-  useEffect(() => { latRef.current = currentLat; }, [currentLat]);
-  useEffect(() => { lngRef.current = currentLng; }, [currentLng]);
+  // Track the most recent VALID GPS fix so a brief signal gap at the moment a
+  // 2-minute segment completes doesn't cause that clip to be saved with no
+  // location.  Updated only when both components are non-null.
+  const lastValidCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (currentLat != null && currentLng != null) {
+      lastValidCoordsRef.current = { lat: currentLat, lng: currentLng };
+    }
+  }, [currentLat, currentLng]);
 
   const insets = useSafeAreaInsets();
 
@@ -336,11 +341,11 @@ export default function DashcamOverlay() {
           if (result?.uri) {
             consecutiveFailures = 0;
             const durationS = Math.round((Date.now() - segmentStartRef.current) / 1000);
-            const lat = latRef.current, lng = lngRef.current;
-            await onSegmentComplete(
-              result.uri, durationS,
-              lat != null && lng != null ? { lat, lng } : undefined,
-            );
+            // Use the most recent valid GPS fix — persisted across momentary
+            // signal gaps so a brief dropout at the 120 s mark doesn't strip
+            // location from the clip.
+            const coords = lastValidCoordsRef.current ?? undefined;
+            await onSegmentComplete(result.uri, durationS, coords);
           } else if (!loopCancelRef.current) {
             // Resolved with no file (camera interrupted / not ready) — retry.
             consecutiveFailures++;

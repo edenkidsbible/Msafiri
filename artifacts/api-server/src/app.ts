@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes";
+import clipRedirectRouter from "./routes/clipRedirect.js";
 import { logger } from "./lib/logger";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,6 +48,10 @@ app.use(
     immutable: true,
   })
 );
+
+// Branded clip short-links: msafirikenya.com/c/{token} → presigned R2 URL.
+// Mounted BEFORE the /api router so it doesn't require the /api prefix.
+app.use(clipRedirectRouter);
 
 app.use("/api", router);
 

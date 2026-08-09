@@ -714,14 +714,9 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              /* ── 3+ alerts: horizontal scroll with narrow cards ── */
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-                style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
-              >
-                {nearbyAlerts.map((a) => (
+              /* ── 3+ alerts: 3-column grid, same edge alignment as other tiles ── */
+              <View style={styles.alertTrioRow}>
+                {nearbyAlerts.slice(0, 3).map((a) => (
                   <TouchableOpacity
                     key={a.id}
                     activeOpacity={0.8}
@@ -734,9 +729,9 @@ export default function HomeScreen() {
                     style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
                   >
                     <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
-                      <Text style={{ fontSize: 18, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
+                      <Text style={{ fontSize: 16, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
                     </View>
-                    <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={1}>
+                    <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={2}>
                       {a.label}
                     </Text>
                     <Text style={[styles.alertDist, { color: a.color }]} numberOfLines={1}>
@@ -749,7 +744,7 @@ export default function HomeScreen() {
                     ) : null}
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
             )}
             {/* Course promo banner — shown below scroll when there are 2 alerts */}
             {nearbyAlerts.length === 2 && (
@@ -1058,14 +1053,19 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
   sectionLink: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  // ── Narrow scroll cards (1 alert or 3+) ─────────────────────────────────
-  alertCard: {
-    width: 140, borderRadius: 16, borderWidth: 1, padding: 12, gap: 6,
+  // ── 3-column grid (3+ alerts) ────────────────────────────────────────────
+  alertTrioRow: {
+    flexDirection: "row", gap: 10,
   },
-  alertIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  alertType: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 2 },
-  alertDist: { fontSize: 12.5, fontFamily: "Inter_700Bold" },
-  alertRoad: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  // Each card stretches equally; edges align with the surrounding tile grid.
+  alertCard: {
+    flex: 1, borderRadius: 16, borderWidth: 1,
+    paddingVertical: 12, paddingHorizontal: 10, gap: 5,
+  },
+  alertIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  alertType: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 1 },
+  alertDist: { fontSize: 11.5, fontFamily: "Inter_700Bold" },
+  alertRoad: { fontSize: 10.5, fontFamily: "Inter_400Regular" },
 
   // ── 2-column full-width grid cards (exactly 2 alerts) ────────────────────
   alertDuoRow: {

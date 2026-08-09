@@ -242,17 +242,19 @@ export default function ReportModal({
   };
 
   // ── Observation context ─────────────────────────────────────────────────────
-  // "current" GPS location → always eyewitness (on_location).
-  // Search / map-pin → derived from the "When did you see it?" answer.
+  // "When did you see this?" is always asked regardless of location mode so
+  // every report carries accurate freshness metadata.
+  // "Just now" → on_location (eyewitness), "last hour" → recent_nearby,
+  // "today" / "earlier" → community_tip.
   const observationContext: ObservationMeta["observationContext"] =
-    locationMode === "current"
+    whenSeen === "now"
       ? "on_location"
-      : whenSeen === "now" || whenSeen === "hour"
+      : whenSeen === "hour"
         ? "recent_nearby"
         : "community_tip";
 
   const observedAtMs: number =
-    locationMode === "current" || whenSeen === "now"
+    !whenSeen || whenSeen === "now"
       ? Date.now()
       : whenSeen === "hour"
         ? Date.now() - 45 * 60 * 1000
@@ -266,9 +268,9 @@ export default function ReportModal({
     locationMode === "search"  ? !!pickedLocation :
     locationMode === "map"     ? !!pickedMapLocation : false;
 
-  // For non-current modes we need to know when the reporter observed this
-  const needsWhenSeen = locationMode !== "current";
-  const canSubmit = !!sel && locationReady && (!needsWhenSeen || !!whenSeen);
+  // Always ask when the reporter observed this — applies to all location modes.
+  const needsWhenSeen = true;
+  const canSubmit = !!sel && locationReady && !!whenSeen;
 
   const doSubmit = (type: ReportType, limit?: number, location?: ReportLocation) => {
     clearIdleTimer();
@@ -297,14 +299,9 @@ export default function ReportModal({
     doSubmit(sel, isNaN(limit as number) ? undefined : limit, location);
   };
 
-  // Most report types need nothing beyond "which one" and "where" — and
-  // "where" defaults to GPS. So when using current location and the type
-  // isn't the one case with an extra optional field (camera's speed limit),
-  // tapping the chip submits immediately instead of requiring a second tap
-  // on a footer button. Camera and "search a location" still need the extra
-  // step, so they fall back to select-then-submit.
-  const canOneTapSubmit = (type: ReportType) =>
-    type !== "camera" && locationMode === "current" && hasCurrentLocation;
+  // Every report goes through the full flow: location → when seen → type →
+  // submit. One-tap chip submission is intentionally removed so the
+  // "When did you see this?" step is never bypassed.
 
   const handleClose = () => {
     reset();
@@ -683,10 +680,6 @@ export default function ReportModal({
                           onPress={() => {
                             Haptics.selectionAsync();
                             bumpIdleTimer();
-                            if (canOneTapSubmit(t.type)) {
-                              doSubmit(t.type);
-                              return;
-                            }
                             setSel(t.type);
                             setSpeedLimit("");
                           }}
@@ -723,11 +716,15 @@ export default function ReportModal({
             >
               {selItem && <Text style={styles.submitEmoji}>{selItem.emoji}</Text>}
               <Text style={[styles.submitTxt, { color: canSubmit ? "#FFF" : c.mutedForeground }]}>
-                {!sel
-                  ? "Select an incident type above"
-                  : locationMode === "search" && !pickedLocation
-                    ? "Pick a location above"
-                    : `Report ${selItem?.label}`}
+                {locationMode === "search" && !pickedLocation
+                  ? "Pick a location above"
+                  : locationMode === "map" && !pickedMapLocation
+                    ? "Place a pin on the map above"
+                    : !whenSeen
+                      ? "Tell us when you saw this"
+                      : !sel
+                        ? "Select an incident type above"
+                        : `Report ${selItem?.label}`}
               </Text>
             </TouchableOpacity>
           </View>

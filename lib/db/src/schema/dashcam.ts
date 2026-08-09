@@ -88,6 +88,13 @@ export const dashcamClipsTable = pgTable("dashcam_clips", {
    * Overridden to startedAt + 60 days when the driver pins the clip.
    */
   expiresAt:        timestamp("expires_at"),
+  /**
+   * Short share token — a compact, URL-safe code used to generate a branded
+   * short-link (e.g. msafirikenya.com/api/c/{token}) that redirects to a
+   * fresh presigned download URL without exposing R2 credentials.  Created
+   * lazily on first share request.
+   */
+  shareToken:       text("share_token").unique(),
   createdAt:        timestamp("created_at").notNull().defaultNow(),
 });
 
