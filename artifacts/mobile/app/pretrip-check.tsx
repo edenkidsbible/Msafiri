@@ -23,6 +23,9 @@ import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam } from "@/context/DashcamContext";
+import { useVehicle } from "@/context/VehicleContext";
+import { getMakeById, getModelById } from "@/data/carModels";
+import type { SavedVehicle } from "@/utils/savedVehicles";
 
 // ── Dynamically load native-only modules ─────────────────────────────────────
 // expo-camera and expo-notifications are unavailable on web.
@@ -41,6 +44,26 @@ if (Platform.OS !== "web") {
   try {
     Notifications = require("expo-notifications");
   } catch { /* muted on web */ }
+}
+
+// ── Vehicle helpers ───────────────────────────────────────────────────────────
+function vehicleDisplayName(v: SavedVehicle): string {
+  const make  = v.makeId  ? getMakeById(v.makeId)  : null;
+  const model = (v.makeId && v.modelId) ? getModelById(v.makeId, v.modelId) : null;
+  if (make && model) return `${make.name} ${model.name}`;
+  if (v.customMakeName && v.customModelName) return `${v.customMakeName} ${v.customModelName}`;
+  return "My Vehicle";
+}
+
+function vehicleEmoji(type: string): string {
+  switch (type) {
+    case "psv":        return "🚐";
+    case "bus":        return "🚌";
+    case "truck":      return "🚛";
+    case "motorcycle": return "🏍️";
+    case "tractor":    return "🚜";
+    default:           return "🚗";
+  }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -111,6 +134,22 @@ export default function PretripCheckScreen() {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   const { settings, updateSettings, requestDashcamPermissions } = useDashcam();
+  const { vehicles, activeVehicleId, setActiveVehicle } = useVehicle();
+
+  // Trip vehicle — defaults to the current active vehicle; driver can change before starting.
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
+    () => activeVehicleId
+  );
+  const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
+
+  // Keep selection in sync if context loads vehicles after mount
+  useEffect(() => {
+    if (!selectedVehicleId && activeVehicleId) {
+      setSelectedVehicleId(activeVehicleId);
+    }
+  }, [activeVehicleId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId) ?? vehicles[0] ?? null;
 
   // ── Permission state ───────────────────────────────────────────────────────
   const [locationStatus,  setLocationStatus]  = useState<PermStatus>("undetermined");
@@ -216,8 +255,11 @@ export default function PretripCheckScreen() {
   // ── Start driving ──────────────────────────────────────────────────────────
   const handleStart = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // Commit the vehicle selection — drive screen and all downstream consumers
+    // read from VehicleContext, so this is the canonical handoff point.
+    if (selectedVehicleId) setActiveVehicle(selectedVehicleId);
     router.replace("/(tabs)/drive");
-  }, []);
+  }, [selectedVehicleId, setActiveVehicle]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const allEssentialGranted = locationStatus === "granted" && notifStatus === "granted";
@@ -288,6 +330,94 @@ export default function PretripCheckScreen() {
             colors={c}
           />
         </View>
+
+        {/* ── Vehicle selector ─────────────────────────────────────────── */}
+        {vehicles.length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 20 }]}>
+              YOUR VEHICLE
+            </Text>
+            <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+              {/* Single-vehicle: just show it, no toggle needed */}
+              {vehicles.length === 1 ? (
+                <View style={[styles.vehicleRow, { borderBottomWidth: 0 }]}>
+                  <Text style={[styles.vehicleEmoji]}>{vehicleEmoji(vehicles[0].vehicleType)}</Text>
+                  <View style={styles.vehicleRowText}>
+                    <Text style={[styles.vehicleRowName, { color: c.foreground }]}>
+                      {vehicleDisplayName(vehicles[0])}
+                    </Text>
+                    <Text style={[styles.vehicleRowSub, { color: c.mutedForeground }]}>
+                      {vehicles[0].isDefault ? "Default vehicle" : "Your vehicle"}
+                    </Text>
+                  </View>
+                  <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
+                </View>
+              ) : (
+                /* Multiple vehicles: collapsed summary + expandable picker */
+                <>
+                  <TouchableOpacity
+                    style={[styles.vehicleRow, { borderBottomWidth: vehiclePickerOpen ? StyleSheet.hairlineWidth : 0, borderBottomColor: c.border }]}
+                    onPress={() => setVehiclePickerOpen(o => !o)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.vehicleEmoji}>
+                      {vehicleEmoji(selectedVehicle?.vehicleType ?? "car")}
+                    </Text>
+                    <View style={styles.vehicleRowText}>
+                      <Text style={[styles.vehicleRowName, { color: c.foreground }]}>
+                        {selectedVehicle ? vehicleDisplayName(selectedVehicle) : "Select a vehicle"}
+                      </Text>
+                      <Text style={[styles.vehicleRowSub, { color: c.mutedForeground }]}>
+                        {vehiclePickerOpen ? "Tap a vehicle below" : "Tap to change for this trip"}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={vehiclePickerOpen ? "chevron-up" : "chevron-down"}
+                      size={18}
+                      color={c.mutedForeground}
+                    />
+                  </TouchableOpacity>
+
+                  {vehiclePickerOpen && vehicles.map((v, i) => (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[
+                        styles.vehiclePickerRow,
+                        {
+                          backgroundColor: v.id === selectedVehicleId ? c.primary + "11" : "transparent",
+                          borderBottomWidth: i < vehicles.length - 1 ? StyleSheet.hairlineWidth : 0,
+                          borderBottomColor: c.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync().catch(() => {});
+                        setSelectedVehicleId(v.id);
+                        setVehiclePickerOpen(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.vehicleEmoji}>{vehicleEmoji(v.vehicleType)}</Text>
+                      <View style={styles.vehicleRowText}>
+                        <Text style={[styles.vehicleRowName, { color: c.foreground }]}>
+                          {vehicleDisplayName(v)}
+                        </Text>
+                        {v.isDefault && (
+                          <Text style={[styles.vehicleRowSub, { color: c.mutedForeground }]}>
+                            Default
+                          </Text>
+                        )}
+                      </View>
+                      {v.id === selectedVehicleId
+                        ? <Ionicons name="radio-button-on" size={20} color={c.primary} />
+                        : <Ionicons name="radio-button-off" size={20} color={c.mutedForeground} />
+                      }
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </View>
+          </>
+        )}
 
         {/* ── Dashcam setup card ───────────────────────────────────────── */}
         {Platform.OS !== "web" && (
@@ -561,6 +691,22 @@ const styles = StyleSheet.create({
   },
   qualityChipTxt: { fontSize: 12, fontFamily: "Inter_700Bold" },
   qualityChipSub: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
+
+  // Vehicle selector
+  vehicleRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 14,
+    gap: 12,
+  },
+  vehiclePickerRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 13,
+    gap: 12,
+  },
+  vehicleEmoji: { fontSize: 26, width: 34, textAlign: "center" },
+  vehicleRowText:  { flex: 1 },
+  vehicleRowName:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  vehicleRowSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 
   // Tips
   tipsCard: {

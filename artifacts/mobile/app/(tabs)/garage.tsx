@@ -250,7 +250,6 @@ interface VehicleSlideProps {
   primary: string;
   foreground: string;
   totalVehicles: number;
-  onChangeVehicle: (index: number) => void;
   onSetDefault: (id: string) => void;
   onRemove: (id: string) => void;
 }
@@ -262,7 +261,7 @@ const IMG_H = Math.round(IMG_W * 0.54); // ~16:9-ish ratio, typically ~196px on 
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
   odometerKm, cardBg, borderCol, subText, primary, foreground,
-  totalVehicles, onChangeVehicle, onSetDefault, onRemove,
+  totalVehicles, onSetDefault, onRemove,
 }: VehicleSlideProps) {
   const trackColor = cardBg === "#151917" || cardBg.startsWith("#0") ? "#2A3530" : "#DDE6DA";
   const fuelLabel = v.fuelType ?? "Petrol";
@@ -338,14 +337,6 @@ function VehicleSlide({
 
         {/* ── Action buttons ── */}
         <View style={[styles.vehicleActionRow, { borderTopColor: borderCol, marginHorizontal: 16, marginBottom: 14 }]}>
-          <TouchableOpacity
-            style={[styles.vehicleActionBtn, { backgroundColor: primary + "18", borderColor: primary + "40" }]}
-            onPress={() => onChangeVehicle(index)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="swap-horizontal-outline" size={15} color={primary} />
-            <Text style={[styles.vehicleActionTxt, { color: primary }]}>Change Vehicle</Text>
-          </TouchableOpacity>
           {!v.isDefault && (
             <TouchableOpacity
               style={[styles.vehicleActionBtn, { backgroundColor: "#3B82F618", borderColor: "#3B82F640" }]}
@@ -574,11 +565,6 @@ export default function GarageScreen() {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  async function handleChangeVehicle(slotIndex: number) {
-    await setPendingSlot(slotIndex);
-    router.push("/car-picker" as any);
-  }
-
   async function handleAddVehicle() {
     await setPendingSlot(-1); // -1 = new slot
     router.push("/car-picker" as any);
@@ -737,7 +723,6 @@ export default function GarageScreen() {
         cardBg={cardBg} borderCol={borderCol} subText={subText} primary={c.primary}
         foreground={c.foreground}
         totalVehicles={vehicles.length}
-        onChangeVehicle={handleChangeVehicle}
         onSetDefault={handleSetDefault}
         onRemove={handleRemoveVehicle}
       />
