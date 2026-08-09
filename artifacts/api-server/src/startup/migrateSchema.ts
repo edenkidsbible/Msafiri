@@ -243,6 +243,15 @@ export async function migrateSchema(): Promise<void> {
       ALTER TABLE accident_records ADD COLUMN IF NOT EXISTS vehicle_id TEXT
     `);
 
+    // vehicle_id on dashcam_clips — added for per-vehicle dashcam clip scoping.
+    await db.execute(sql`
+      ALTER TABLE dashcam_clips ADD COLUMN IF NOT EXISTS vehicle_id TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS dashcam_clips_vehicle_id_idx
+        ON dashcam_clips (device_id, vehicle_id, started_at DESC)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

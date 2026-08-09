@@ -31,9 +31,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { useDashcam, type DashcamSegment } from "@/context/DashcamContext";
+import { useVehicle } from "@/context/VehicleContext";
 import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import { API_BASE } from "@/utils/apiClient";
-import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { getMakeById, getModelById } from "@/data/carModels";
 import {
   VideoPlayerModal,
@@ -374,9 +374,10 @@ export default function DashcamVideosScreen() {
   const topInset    = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
+  // ── Vehicle context ────────────────────────────────────────────────────────
+  const { vehicles, activeVehicleId, setActiveVehicle } = useVehicle();
+
   // ── State ──────────────────────────────────────────────────────────────────
-  const [vehicles,        setVehicles]        = useState<SavedVehicle[]>([]);
-  const [activeIdx,       setActiveIdx]       = useState(0);
   const [serverClips,     setServerClips]     = useState<ServerClip[]>([]);
   const [serverLoading,   setServerLoading]   = useState(false);
   const [locationNames,   setLocationNames]   = useState<Record<string, string>>({});
@@ -393,11 +394,6 @@ export default function DashcamVideosScreen() {
   const [showDownloadSheet, setShowDownloadSheet] = useState(false);
   const locCacheRef = useRef<Record<string, string>>({});
 
-  // ── Load vehicles ──────────────────────────────────────────────────────────
-  useFocusEffect(useCallback(() => {
-    loadVehicles().then(setVehicles).catch(() => {});
-  }, []));
-
   // ── Fetch server clips ─────────────────────────────────────────────────────
   const fetchServerClips = useCallback(async () => {
     if (!pushDeviceId || !API_BASE) return;
@@ -405,7 +401,15 @@ export default function DashcamVideosScreen() {
       const secret = await AsyncStorage.getItem(SECRET_KEY);
       if (!secret) return;
       setServerLoading(true);
-      const res = await fetch(`${API_BASE}/dashcam/clips`, {
+      // Filter by active vehicle so cloud clips for other cars don't show here.
+      // For the primary/default vehicle also include unattributed rows (vehicle_id
+      // IS NULL) so clips uploaded before per-vehicle scoping was added still appear.
+      const url = new URL(`${API_BASE}/dashcam/clips`);
+      if (activeVehicleId) {
+        url.searchParams.set("vehicleId", activeVehicleId);
+        if (activeVehicle?.isDefault) url.searchParams.set("includeUnattributed", "true");
+      }
+      const res = await fetch(url.toString(), {
         headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
       });
       if (!res.ok) return;
@@ -417,7 +421,7 @@ export default function DashcamVideosScreen() {
     } finally {
       setServerLoading(false);
     }
-  }, [pushDeviceId]);
+  }, [pushDeviceId, activeVehicleId]);
 
   useFocusEffect(useCallback(() => { fetchServerClips(); }, [fetchServerClips]));
 
@@ -613,7 +617,7 @@ export default function DashcamVideosScreen() {
   }, [unifiedClips, tab, dateFilter]);
 
   // ── Vehicle helpers ────────────────────────────────────────────────────────
-  const activeVehicle = vehicles[activeIdx] ?? null;
+  const activeVehicle = vehicles.find((v) => v.id === activeVehicleId) ?? vehicles[0] ?? null;
   const vehicleName   = activeVehicle
     ? [
         getMakeById(activeVehicle.makeId ?? "")?.name  ?? activeVehicle.customMakeName,
@@ -1139,17 +1143,17 @@ export default function DashcamVideosScreen() {
           <View style={[vs.sheet, { backgroundColor: c.card, paddingBottom: bottomInset + 20 }]}>
             <View style={[vs.handle, { backgroundColor: c.border }]} />
             <Text style={[vs.sheetTitle, { color: c.foreground }]}>Select Vehicle</Text>
-            {vehicles.map((v, idx) => {
+            {vehicles.map((v) => {
               const nm = [
                 getMakeById(v.makeId ?? "")?.name  ?? v.customMakeName,
                 getModelById(v.makeId ?? "", v.modelId ?? "")?.name ?? v.customModelName,
               ].filter(Boolean).join(" ") || "Vehicle";
-              const active = idx === activeIdx;
+              const active = v.id === activeVehicleId;
               return (
                 <TouchableOpacity
                   key={v.id}
                   style={[vs.vehicleOpt, { borderColor: active ? c.primary : c.border, backgroundColor: active ? c.primary + "10" : "transparent" }]}
-                  onPress={() => { setActiveIdx(idx); setShowPicker(false); Haptics.selectionAsync(); }}
+                  onPress={() => { setActiveVehicle(v.id); setShowPicker(false); Haptics.selectionAsync(); }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[vs.vehicleOptName, { color: c.foreground }]}>{nm}</Text>

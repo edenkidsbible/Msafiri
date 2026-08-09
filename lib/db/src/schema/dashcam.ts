@@ -73,6 +73,8 @@ export const dashcamClipsTable = pgTable("dashcam_clips", {
   speedKmh:         integer("speed_kmh"),
   /** SHA-256(deviceId + ":" + dashcamSecret) — used to authenticate ownership of clips. */
   deviceSecretHash: text("device_secret_hash"),
+  /** Vehicle this clip belongs to. Matches the mobile app's local vehicleId (e.g. "v0"). */
+  vehicleId:        text("vehicle_id"),
   /**
    * True when the driver has pinned this clip. Pinned clips are exempt from
    * the standard 30-day (manual) / 24-hour (auto) cloud retention; they are

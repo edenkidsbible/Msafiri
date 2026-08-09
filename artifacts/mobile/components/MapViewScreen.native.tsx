@@ -24,6 +24,7 @@ import { speakAlert } from "@/utils/alertTts";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
 import { formatTimeAgo } from "@/lib/timeAgo";
+import { freshnessLabel, reportTier, freshnessChipColors } from "@/lib/freshnessLabel";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { MarqueeText } from "@/components/MarqueeText";
 
@@ -1479,6 +1480,13 @@ export default function MapViewScreen() {
                   const def = resolveIncidentType(r.type);
                   const ageStr = formatTimeAgo(r.timestamp, now);
                   const confirmed = r.status === "confirmed";
+                  const frTier  = reportTier(r.confirmCount);
+                  const frLabel = r.type !== "camera"
+                    ? freshnessLabel(r.confirmCount, r.timestamp, r.observationContext)
+                    : null;
+                  const frChip  = frLabel && (frTier !== "new" || r.observationContext === "community_tip")
+                    ? freshnessChipColors(r.observationContext, frTier)
+                    : null;
                   return (
                     <View key={r.id} style={[ms.incidentRow, i > 0 && ms.incidentDivider]}>
                       <View style={[ms.incidentIcon, { backgroundColor: def.color + "22" }]}>
@@ -1512,6 +1520,13 @@ export default function MapViewScreen() {
                           {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}
                         </Text>
+                        {frLabel && (
+                          frChip
+                            ? <View style={[ms.freshnessChip, { backgroundColor: frChip.bg, borderColor: frChip.border }]}>
+                                <Text style={[ms.freshnessChipTxt, { color: frChip.text }]}>{frLabel}</Text>
+                              </View>
+                            : <Text style={[ms.incidentMeta, { fontStyle: "italic", marginTop: 2 }]}>{frLabel}</Text>
+                        )}
                         {r.type === "camera" ? (
                           r.status === "admin_review" ? (
                             <View style={ms.pendingReviewBanner}>
@@ -1930,6 +1945,17 @@ const ms = StyleSheet.create({
   ownTxt: { fontSize: 10, fontWeight: "700", color: "#1565C0" },
   incidentRoad: { fontSize: 12, fontWeight: "600", color: "#1565C0", marginTop: 1 },
   incidentMeta: { fontSize: 12, color: "#888" },
+  freshnessChip: {
+    alignSelf: "flex-start" as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  freshnessChipTxt: { fontSize: 11, fontWeight: "600" as const },
   voteRow: { flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" },
   voteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,

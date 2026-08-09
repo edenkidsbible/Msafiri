@@ -221,6 +221,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const { activeVehicleId } = useVehicle();
   const vehicleKey = activeVehicleId ?? "default";
 
+  // Kept as a ref so processUploadQueue can read the latest vehicleId without
+  // needing it in the useCallback dep array (avoids restarting an in-flight
+  // upload when the driver switches vehicles mid-drive).
+  const activeVehicleIdRef = useRef(activeVehicleId);
+  useEffect(() => { activeVehicleIdRef.current = activeVehicleId; }, [activeVehicleId]);
+
   const segmentsAsyncKeyRef = useRef(vehicleSegmentsKey(vehicleKey));
   const segmentsFsDirRef    = useRef(vehicleSegmentsDir(vehicleKey));
 
@@ -660,6 +666,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             startedAt:  new Date(seg.startedAt).toISOString(),
             lat:        seg.lat ?? null,
             lng:        seg.lng ?? null,
+            vehicleId:  activeVehicleIdRef.current ?? null,
           }),
         });
         if (!metaRes.ok) throw new Error(`Metadata: ${metaRes.status}`);

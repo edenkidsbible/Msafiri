@@ -37,7 +37,7 @@ import {
   dashcamRegRatelimitTable,
   dashcamUploadIntentsTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, gt, isNull, lt, count } from "drizzle-orm";
+import { eq, and, or, desc, sql, gt, isNull, lt, count } from "drizzle-orm";
 import {
   isR2Configured,
   getPresignedUploadUrl,
@@ -375,7 +375,7 @@ router.post("/dashcam/clip", async (req: Request, res: Response) => {
 
   const {
     clipId, fileKey, durationS, sizeBytes, lockReason,
-    startedAt, lat, lng, speedKmh,
+    startedAt, lat, lng, speedKmh, vehicleId,
   } = req.body ?? {};
 
   if (!clipId) return res.status(400).json({ error: "clipId is required" });
@@ -428,6 +428,7 @@ router.post("/dashcam/clip", async (req: Request, res: Response) => {
         lat:              lat ?? null,
         lng:              lng ?? null,
         speedKmh:         speedKmh ?? null,
+        vehicleId:        vehicleId ?? null,
         deviceSecretHash: secretHash,
         pinned:           false,
         expiresAt:        clipExpiresAt,
@@ -462,16 +463,29 @@ router.get("/dashcam/clips", async (req: Request, res: Response) => {
   const { deviceId, secret } = auth;
   const secretHash = computeSecretHash(deviceId, secret);
 
+  const vehicleId           = typeof req.query.vehicleId === "string" ? req.query.vehicleId : undefined;
+  const includeUnattributed = req.query.includeUnattributed === "true";
+
   try {
+    const ownerConditions = and(
+      eq(dashcamClipsTable.deviceId, deviceId),
+      eq(dashcamClipsTable.deviceSecretHash, secretHash),
+    );
+
+    // When a vehicleId is provided the caller wants only that vehicle's clips.
+    // If includeUnattributed is also true (primary/default vehicle) we include
+    // rows with vehicle_id = NULL so clips uploaded before this field existed
+    // still appear — consistent with the accident_records / live_trips pattern.
+    const vehicleCondition =
+      !vehicleId      ? undefined
+      : includeUnattributed
+        ? or(eq(dashcamClipsTable.vehicleId, vehicleId), isNull(dashcamClipsTable.vehicleId))
+        : eq(dashcamClipsTable.vehicleId, vehicleId);
+
     const rows = await db
       .select()
       .from(dashcamClipsTable)
-      .where(
-        and(
-          eq(dashcamClipsTable.deviceId, deviceId),
-          eq(dashcamClipsTable.deviceSecretHash, secretHash)
-        )
-      )
+      .where(vehicleCondition ? and(ownerConditions, vehicleCondition) : ownerConditions)
       .orderBy(desc(dashcamClipsTable.startedAt))
       .limit(50);
 
