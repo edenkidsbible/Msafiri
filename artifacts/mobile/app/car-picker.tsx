@@ -117,21 +117,28 @@ export default function CarPickerScreen() {
   }, []);
 
   // ── Merge custom vehicles into the static list ──────────────────────────────
+  // Only promote vehicles whose image was found ("done") — that confirms the
+  // model is real and the image is ready to display.  Pending/not_found records
+  // are intentionally excluded so the list stays clean.
   const allMakes = useMemo<CarMake[]>(() => {
+    const promoted = customVehicles.filter((cv) => cv.imageStatus === "done");
+
     // Group fully-custom makes (no knownMakeId)
     const customMakeMap: Record<string, CarMake> = {};
-    for (const cv of customVehicles) {
+    for (const cv of promoted) {
       if (cv.knownMakeId) continue;
       const id = `custom-${cv.makeSlug}`;
       if (!customMakeMap[id]) {
         customMakeMap[id] = { id, name: cv.makeName, emoji: "🚗", models: [] };
       }
-      customMakeMap[id].models.push({ id: cv.modelSlug, name: cv.modelName });
+      // Model ID keeps "custom-" prefix so VehicleThumb knows to resolve the
+      // image via slugify(customModelName) rather than a static registry lookup.
+      customMakeMap[id].models.push({ id: `custom-${cv.modelSlug}`, name: cv.modelName });
     }
 
-    // Inject custom models into known makes
+    // Inject promoted models into known makes
     const enrichedKnown = SORTED_MAKES.map((make) => {
-      const extras = customVehicles
+      const extras = promoted
         .filter((cv) => cv.knownMakeId === make.id)
         .map((cv) => ({ id: `custom-${cv.modelSlug}`, name: cv.modelName }));
       return extras.length ? { ...make, models: [...make.models, ...extras] } : make;
@@ -174,13 +181,29 @@ export default function CarPickerScreen() {
       setQuery("");
       return;
     }
-    // Go to vehicle-details before committing; store pending selection
     const isCustom = selectedMake.id.startsWith("custom-") || model.id.startsWith("custom-");
+
+    // When the user picks a promoted model directly from the list (custom ID,
+    // but already in our DB), commit it to AppContext immediately so
+    // handleVehicleDetailsConfirm can rely on setCustomVehicle having been
+    // called.  For genuinely-new custom models this is done by
+    // handleCustomModelConfirm instead — these paths are mutually exclusive.
+    if (isCustom) {
+      const isKnownMake = !selectedMake.id.startsWith("custom-");
+      setCustomVehicle(selectedMake.id, model.id, selectedMake.name, model.name);
+      // Increment the submittedCount (dedup logic prevents re-generating the image).
+      apiPost("/custom-vehicles", {
+        makeName: selectedMake.name,
+        modelName: model.name,
+        knownMakeId: isKnownMake ? selectedMake.id : null,
+      }).catch(() => {});
+    }
+
     setPendingMakeForDetails(selectedMake);
     setPendingModelForDetails(model);
     setPendingIsCustom(isCustom);
     setStep("vehicle-details");
-  }, [selectedMake]);
+  }, [selectedMake, setCustomVehicle]);
 
   const handleBack = useCallback(() => {
     if (step === "model") { setStep("make"); setQuery(""); }

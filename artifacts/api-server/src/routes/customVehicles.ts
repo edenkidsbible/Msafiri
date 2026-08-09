@@ -20,13 +20,59 @@
 
 import { Router, type Request, type Response } from "express";
 import { eq, and } from "drizzle-orm";
+import { execFile } from "node:child_process";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { db, customVehiclesTable } from "@workspace/db";
 import * as r2 from "../lib/r2Storage.js";
 import sharp from "sharp";
 
+const execFileAsync = promisify(execFile);
+
 const router = Router();
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Remove the background from a car press photo using ImageMagick's flood-fill.
+ *
+ * Wikipedia manufacturer press photos use uniform white or light-grey
+ * backgrounds which flood-fill handles perfectly.  Seeds from all 4 corners
+ * with 20% fuzz (captures near-white anti-aliased edges without eating into
+ * the car body).
+ *
+ * Returns a PNG32 buffer with a transparency channel — matches the format
+ * of our other car assets.
+ */
+async function removeBackground(input: Buffer): Promise<Buffer> {
+  const id = `car-bg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tmpIn  = path.join(os.tmpdir(), `${id}-in.png`);
+  const tmpOut = path.join(os.tmpdir(), `${id}-out.png`);
+  try {
+    await fs.writeFile(tmpIn, input);
+    await execFileAsync("magick", [
+      tmpIn,
+      "-fuzz", "20%",
+      "-fill", "none",
+      // Flood-fill transparent starting from all four corners so the
+      // entire surrounding background is erased even when it isn't
+      // perfectly uniform (e.g. slight gradient from studio lighting).
+      "-draw", "color 0,0 floodfill",
+      "-draw", "color 0,%[fx:h-1] floodfill",
+      "-draw", "color %[fx:w-1],0 floodfill",
+      "-draw", "color %[fx:w-1],%[fx:h-1] floodfill",
+      `PNG32:${tmpOut}`,
+    ]);
+    return await fs.readFile(tmpOut);
+  } finally {
+    await Promise.all([
+      fs.unlink(tmpIn).catch(() => {}),
+      fs.unlink(tmpOut).catch(() => {}),
+    ]);
+  }
+}
 
 function slugify(name: string): string {
   return name
@@ -175,15 +221,26 @@ async function fetchAndStoreCarImage(
       return;
     }
 
+    // Remove the white/grey background so the image matches our existing
+    // transparent-background car assets.  Falls back to the raw PNG if
+    // ImageMagick is unavailable or the process errors.
+    let finalPng = png;
+    try {
+      finalPng = await removeBackground(png);
+      console.log(`[custom-vehicles] Background removed (${(finalPng.length / 1024).toFixed(0)} KB)`);
+    } catch (bgErr) {
+      console.warn("[custom-vehicles] Background removal failed — storing original PNG:", bgErr);
+    }
+
     const key = `car-images/${makeSlug}/${modelSlug}.png`;
-    await r2.uploadBuffer(key, png, "image/png");
+    await r2.uploadBuffer(key, finalPng, "image/png");
 
     await db
       .update(customVehiclesTable)
       .set({ imageStatus: "done" })
       .where(eq(customVehiclesTable.id, recordId));
 
-    console.log(`[custom-vehicles] Real photo stored: ${key} (${(png.length / 1024).toFixed(0)} KB)`);
+    console.log(`[custom-vehicles] Real photo stored: ${key} (${(finalPng.length / 1024).toFixed(0)} KB)`);
   } catch (err) {
     console.error("[custom-vehicles] fetchAndStoreCarImage error:", err);
   }
