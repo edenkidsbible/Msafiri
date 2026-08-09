@@ -260,7 +260,7 @@ export default function DriveScreen() {
 
   // Responsive scaling — iPhone SE / 13 mini / older Pros are 375-390pt wide.
   // At that width the speed strip becomes too cramped at full size.
-  const { width: screenW } = useWindowDimensions();
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const isSmall = screenW <= 390;
 
   // Measured pixel width of the emoji row — updated by onLayout.
@@ -1329,6 +1329,10 @@ export default function DriveScreen() {
             bottom: bottomBase + 8,
             zIndex: 5,
             paddingHorizontal: 16,
+            // Cap height so the card never extends into the Drive Mode content
+            // area on small phones (iPhone SE: 667pt). 0.62 × 667 ≈ 413pt —
+            // comfortably fits the header + ~3 clip rows before scrolling.
+            maxHeight: screenH * 0.62,
           }}
         >
           <View style={[{
@@ -1342,6 +1346,8 @@ export default function DriveScreen() {
             shadowOpacity: 0.12,
             shadowRadius: 12,
             elevation: 10,
+            // Let the inner card flex to fill available height when capped
+            flexShrink: 1,
           }]}>
             <TripReviewCard />
           </View>

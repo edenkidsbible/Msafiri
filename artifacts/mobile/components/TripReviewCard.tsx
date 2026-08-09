@@ -17,6 +17,7 @@ import {
   Alert,
   Image,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -348,7 +349,13 @@ export default function TripReviewCard({ showSeparator = false }: TripReviewCard
         </TouchableOpacity>
       </View>
 
-      <View style={{ marginTop: 2 }}>
+      {/* No flex:1 on ScrollView — the banner's maxHeight caps overall height;
+          ScrollView expands to its content then becomes scrollable. */}
+      <ScrollView
+        style={{ marginTop: 2 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {reviewClips.map((seg) => (
           <ClipReviewRow
             key={seg.id}
@@ -357,7 +364,7 @@ export default function TripReviewCard({ showSeparator = false }: TripReviewCard
             onDelete={() => deleteSegment(seg.id)}
           />
         ))}
-      </View>
+      </ScrollView>
     </>
   );
 }
