@@ -60,7 +60,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -456,31 +456,6 @@ function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web") return;
-    // Lock to portrait on startup. The app.config.js sets orientation:"default"
-    // so native builds support all orientations (needed for the landscape drive
-    // screen), but all screens should default to portrait. The drive screen
-    // temporarily unlocks to LANDSCAPE_LEFT when the driver picks that mount
-    // option, then restores portrait on trip end or tab blur.
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const SO = require("expo-screen-orientation");
-      SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-    } catch { /* ignore — orientation lock fails gracefully on simulators */ }
-
-    // Re-acquire the portrait lock whenever the app returns from background.
-    // In Expo Go the OS can drop the orientation lock when the app is backgrounded,
-    // allowing physical rotation to take effect on any screen. Re-locking on
-    // foreground restores the correct orientation. The drive screen's own
-    // AppState listener fires after this and overrides back to landscape if needed.
-    const appStateSub = AppState.addEventListener("change", (state) => {
-      if (state !== "active" || Platform.OS === "web") return;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const SO = require("expo-screen-orientation");
-        SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-      } catch { /* ignore */ }
-    });
-
     // Run font loading and OTA update check in parallel behind the splash screen.
     // If an OTA update is available, checkForOTAUpdate() calls Updates.reloadAsync()
     // and returns true — in that case the app restarts and we must NOT hide the
@@ -501,8 +476,6 @@ function RootLayout() {
     Promise.all([fontPromise, updatePromise]).then(([, didReload]) => {
       if (!didReload) setReady(true);
     });
-
-    return () => { appStateSub.remove(); };
   }, []);
 
   useEffect(() => {

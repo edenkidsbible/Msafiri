@@ -2,23 +2,34 @@
  * DashcamContext.tsx
  *
  * Manages dashcam recording state, local segment storage, and cloud upload
- * queue. The CameraView lives in DashcamOverlay; this context is the
- * coordination layer.
+ * queue.
  *
- * Device enrollment & authentication:
- *   Each device generates a persistent `dashcamSecret` UUID on first launch
- *   (AsyncStorage key SECRET_KEY). Before uploading anything, the device:
- *     1. Calls GET /dashcam/enrollment-token (returns a server HMAC token)
- *     2. Calls POST /dashcam/register with the token + X-Dashcam-Secret header
- *   Subsequent API calls authenticate with X-Device-Id + X-Dashcam-Secret.
- *   The server verifies ownership via SHA-256(deviceId+":"+secret) stored in
- *   the dashcam_devices table; per-clip hash columns guard read/delete.
+ * Storage model (revised):
+ * ──────────────────────────────────────────────────────────
+ * UNLOCKED clips  — live rolling window, max 5 on device at any time.
+ *   The oldest is automatically deleted when the 6th clip is saved.
+ *   These are NEVER uploaded to the cloud.
  *
- * Upload queue persistence:
- *   Pending/failed uploads are stored in AsyncStorage and re-enqueued on app
- *   launch. The `hydrated` flag is set only AFTER segments are loaded and the
- *   queue is rebuilt, so the registration+upload effect never races with hydration.
- *   A NetInfo listener also retriggers uploads on Wi-Fi reconnect.
+ * SAVED-FOR-REVIEW clips  — the last 5 unlocked clips preserved when a trip
+ *   ends, the app backgrounds, or the app closes mid-trip.  Shown to the
+ *   driver as "Review last trip" so they can lock clips they care about.
+ *   Not uploaded until the driver explicitly locks them.  Cleared when the
+ *   driver dismisses the review banner.
+ *
+ * MANUALLY LOCKED clips  — driver tapped the lock button or locked a
+ *   saved-for-review clip.  Max 5 on device.  Uploaded to cloud (30-day
+ *   cloud retention, extendable to 60 days by pinning).
+ *
+ * AUTO-LOCKED clips  — system-detected events (crash, hazard, etc.).
+ *   Max 20 on device.  Uploaded to cloud (24-hour cloud retention by default).
+ *
+ * Cloud retention:
+ *   manual → 30 days from recording date
+ *   auto   → 24 hours from recording date
+ *   pinned → 60 days (max 5 pins per device, server-enforced)
+ *
+ * Device enrollment & auth — same as before (SHA-256 device secret).
+ * Upload queue — same bounded-retry/backoff logic as before.
  */
 
 import React, {
@@ -46,8 +57,6 @@ import {
   buildDashcamSegment,
 } from "@/utils/dashcamSegmentRouting";
 
-// Dynamically load useCameraPermissions so this context stays web-safe.
-// On web the fallback is "always granted" (no camera access needed).
 let useCameraPermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
 let useMicrophonePermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
 if (Platform.OS !== "web") {
@@ -66,137 +75,113 @@ export interface DashcamSegment {
   durationS: number;
   sizeBytes: number;
   locked: boolean;
+  /** "manual" = driver-locked; "auto" = system-locked (crash, background, etc.) */
+  lockType?: "manual" | "auto";
   lockReason?: string;
   /**
-   * "lost" — the local file was purged by the OS before the upload could
-   * complete. The clip is unrecoverable; it stays in the list so the driver
-   * can see that footage was lost rather than disappearing silently.
+   * True for the last-5 clips preserved at trip end / app background.
+   * These sit on device waiting for driver review — not yet uploaded.
+   * Cleared when the driver locks or dismisses them.
+   */
+  savedForReview?: boolean;
+  /** True when the driver has pinned this cloud clip (extends retention to 60 days). */
+  pinned?: boolean;
+  /**
+   * "lost" — the local file was purged by the OS before upload could complete.
+   * Retained in UI so the driver can see footage was lost rather than it
+   * disappearing silently.
    */
   uploadStatus: "none" | "pending" | "uploading" | "uploaded" | "failed" | "lost";
   fileKey?: string;     // R2 key once uploaded
   serverId?: string;    // DB id once saved on server
-  retryCount?: number;  // upload attempts so far (for bounded backoff)
-  lat?: number;         // GPS coords at recording start
+  retryCount?: number;
+  lat?: number;
   lng?: number;
 }
 
 export interface DashcamSettings {
   quality: "720p" | "1080p";
   audioEnabled: boolean;
-  storageCap: number;       // bytes — oldest unlocked evicted when exceeded
-  wifiOnlyUpload: boolean;  // default true
+  wifiOnlyUpload: boolean;
 }
 
 interface DashcamContextValue {
   isRecording: boolean;
   isDashcamOpen: boolean;
-  /** True while the camera is warming up for a silent background recording.
-   *  The overlay mounts at opacity 0; DashcamOverlay auto-calls startDashcam()
-   *  in onCameraReady and then clears this flag. */
   backgroundRecordPending: boolean;
   segments: DashcamSegment[];
   storageUsedBytes: number;
-  currentSegmentDuration: number;  // seconds elapsed in current 2-min segment
+  currentSegmentDuration: number;
   uploadPending: number;
   settings: DashcamSettings;
-  /**
-   * Incremented each time we need the recording loop in DashcamOverlay to
-   * restart — specifically when returning to foreground after an iOS background
-   * interruption. The loop effect depends on this so it fires again without
-   * isRecording having toggled.
-   */
   recordingEpoch: number;
-  /**
-   * The push-notification device ID loaded from AsyncStorage key
-   * "@msafiri/deviceId" — the same key used by usePushNotifications.ts and
-   * stored in push_tokens. Must be used for ALL dashcam API requests so that
-   * enrollment, upload, and gallery auth resolve to the correct push_tokens row.
-   */
   pushDeviceId: string | null;
-  /**
-   * True when the server has returned a quota-full response. Cleared when the
-   * driver successfully deletes a cloud clip (or the app is restarted). Used
-   * to surface a persistent banner in the dashcam UI so the driver knows they
-   * must delete old cloud clips before new ones will back up.
-   */
   cloudQuotaFull: boolean;
   /**
-   * Call after a successful cloud-clip deletion to clear the quota-full banner
-   * and trigger a fresh upload attempt for any remaining pending segments.
+   * True when there are saved-for-review clips waiting for the driver to
+   * review after a trip. Show a "Review last trip" prompt when this is true.
    */
+  pendingTripReview: boolean;
   clearCloudQuotaFull: () => void;
   openDashcam: () => void;
   closeDashcam: () => void;
   startDashcam: () => void;
   stopDashcam: () => void;
-  /**
-   * Lock the current clip then stop recording. Call this from the drive screen
-   * so the final segment is always saved and uploaded instead of discarded as
-   * an unlocked local-only clip.
-   */
+  /** Stop recording without auto-locking; last 5 clips are saved for review. */
   stopAndSaveDashcam: () => void;
-  /** Start recording silently without showing the dashcam overlay UI.
-   *  Requests camera permission if not yet granted — shows the system dialog.
-   *  Resolves to false if permission was denied (nothing starts). */
   startBackgroundRecording: () => Promise<boolean>;
-  /**
-   * Proactively request both camera AND microphone permissions before the user
-   * taps the dashcam button. Should be called from the drive screen's
-   * useFocusEffect so first-time users see both prompts in the right sequence
-   * (iOS will not reliably show two system dialogs back-to-back without a gap).
-   * Safe to call repeatedly — skips any already-determined permission.
-   * Returns { cameraGranted, micGranted }.
-   */
   requestDashcamPermissions: () => Promise<{ cameraGranted: boolean; micGranted: boolean }>;
-  /** Called by DashcamOverlay once the camera is ready and recording starts. */
   clearBackgroundRecordPending: () => void;
+  /** Lock the currently recording clip (stops the clip, queues it for upload). */
   lockCurrentClip: (reason?: string) => void;
+  /**
+   * Lock a saved-for-review clip and queue it for cloud upload.
+   * Enforces the 5-clip manual-lock limit.
+   */
+  lockSavedClip: (id: string) => void;
+  /**
+   * Delete all saved-for-review clips and clear the review banner.
+   * Called when the driver dismisses the review without locking anything.
+   */
+  dismissTripReview: () => Promise<void>;
   deleteSegment: (id: string) => Promise<void>;
   clearUnlocked: () => Promise<void>;
   updateSettings: (partial: Partial<DashcamSettings>) => Promise<void>;
+  /** Pin a cloud clip (extends retention to 60 days). Max 5 pins. */
+  pinSegment: (id: string) => Promise<void>;
+  /** Unpin a cloud clip (restores standard 30-day / 24-hour retention). */
+  unpinSegment: (id: string) => Promise<void>;
   // Internal — called by DashcamOverlay
   setCameraRef: (ref: CameraView | null) => void;
-  /**
-   * Must be called by DashcamOverlay immediately before each recordAsync() call.
-   * Snapshots the active vehicle's storage paths so that onSegmentComplete always
-   * writes to the vehicle that was active when recording STARTED — not the vehicle
-   * that happens to be active when the clip finishes (which may differ if the
-   * driver switched vehicles mid-segment).
-   */
   onSegmentStart: () => void;
   onSegmentComplete: (tempUri: string, durationS?: number, coords?: { lat: number; lng: number }) => Promise<void>;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SETTINGS_KEY = "dashcam_settings_v1";
-const SECRET_KEY   = "dashcam_secret_v1";
+const SETTINGS_KEY       = "dashcam_settings_v1";
+const SECRET_KEY         = "dashcam_secret_v1";
+const LEGACY_SEGMENTS_KEY = "dashcam_segments_v1";
 
-// ── Vehicle-scoped storage helpers ────────────────────────────────────────────
-// Clips are stored separately for each vehicle so switching cars shows only
-// that vehicle's footage. Settings (quality, wifi-only, etc.) stay global.
-// vehicleSegmentsKey and vehicleSegmentsDir are imported from
-// utils/dashcamSegmentRouting.js — change the logic there, not here.
-const LEGACY_SEGMENTS_KEY = "dashcam_segments_v1"; // pre-multi-vehicle key — migrated once
-
-// Thin wrapper: injects FileSystem.documentDirectory so call-sites stay concise.
-const vehicleSegmentsDir  = (vKey: string) =>
+const vehicleSegmentsDir = (vKey: string) =>
   _vehicleSegmentsDir(vKey, FileSystem.documentDirectory ?? "");
 
-// Must match the AsyncStorage key in hooks/usePushNotifications.ts so that
-// the device ID used for dashcam enrollment resolves to the same row in
-// push_tokens that usePushNotifications registered. AppContext.deviceId
-// (key: "sdk_device_id") is a different key and a different device ID.
 const PUSH_DEVICE_ID_KEY = "@msafiri/deviceId";
 
 // Exponential backoff delays for failed uploads (ms): 15s, 60s, 5min, 15min
 const UPLOAD_RETRY_BACKOFF = [15_000, 60_000, 5 * 60_000, 15 * 60_000];
 const MAX_UPLOAD_RETRIES   = UPLOAD_RETRY_BACKOFF.length;
 
+/** Max unlocked clips kept in the live rolling window during a trip. */
+const UNLOCKED_ROLLING_WINDOW = 5;
+/** Max manually locked clips allowed on-device at once. */
+const MAX_MANUAL_LOCKS_LOCAL  = 5;
+/** Max auto-locked clips allowed on-device at once (silently dropped when full). */
+const MAX_AUTO_LOCKS_LOCAL    = 20;
+
 const DEFAULT_SETTINGS: DashcamSettings = {
   quality: "1080p",
-  audioEnabled: false,         // mic off by default — driver can enable anytime
-  storageCap: 1_073_741_824,  // 1 GB
+  audioEnabled: false,
   wifiOnlyUpload: true,
 };
 
@@ -230,71 +215,46 @@ export function useDashcam(): DashcamContextValue {
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function DashcamProvider({ children }: { children: React.ReactNode }) {
-  // NOTE: AppContext.deviceId uses AsyncStorage key "sdk_device_id" — a
-  // different key from the push-notification device ID ("@msafiri/deviceId").
-  // Dashcam enrollment requires the PUSH device ID because that is what
-  // push_tokens stores. We load it ourselves from AsyncStorage during hydration
-  // and expose it via pushDeviceIdRef; AppContext.deviceId is NOT used here.
-
-  // ── Active vehicle — determines which segment store to read/write ───────────
+  // ── Active vehicle ─────────────────────────────────────────────────────────
   const { activeVehicleId } = useVehicle();
   const vehicleKey = activeVehicleId ?? "default";
 
-  // Refs for the current vehicle's storage paths. Updated when vehicleKey
-  // changes so onSegmentComplete always writes to the right directory without
-  // needing to restart the recording loop.
   const segmentsAsyncKeyRef = useRef(vehicleSegmentsKey(vehicleKey));
   const segmentsFsDirRef    = useRef(vehicleSegmentsDir(vehicleKey));
 
   const [isRecording, setIsRecording]             = useState(false);
   const [isDashcamOpen, setIsDashcamOpen]         = useState(false);
   const [backgroundRecordPending, setBackgroundRecordPending] = useState(false);
-  const [segments, setSegments]             = useState<DashcamSegment[]>([]);
-  const [settings, setSettings]             = useState<DashcamSettings>(DEFAULT_SETTINGS);
+  const [segments, setSegments]                   = useState<DashcamSegment[]>([]);
+  const [settings, setSettings]                   = useState<DashcamSettings>(DEFAULT_SETTINGS);
   const [currentSegmentDuration, setCurrentSegmentDuration] = useState(0);
-  /** Bumped each time we need the recording loop in DashcamOverlay to restart
-   *  after an iOS background interruption. */
-  const [recordingEpoch, setRecordingEpoch] = useState(0);
-  /**
-   * `hydrated` becomes true only AFTER AsyncStorage is loaded AND the upload
-   * queue is rebuilt. Enrollment/upload effects gate on this flag.
-   */
-  const [hydrated, setHydrated]             = useState(false);
-  /** The push-notification device ID — same key as usePushNotifications. */
-  const [pushDeviceId, setPushDeviceId]     = useState<string | null>(null);
-  /**
-   * Set to true when the server returns a quota-full 429 on upload-url.
-   * Cleared on a successful upload or when the driver deletes a cloud clip.
-   */
-  const [cloudQuotaFull, setCloudQuotaFull] = useState(false);
-  // Ref counterpart — read from effects and callbacks without triggering re-renders
+  const [recordingEpoch, setRecordingEpoch]       = useState(0);
+  const [hydrated, setHydrated]                   = useState(false);
+  const [pushDeviceId, setPushDeviceId]           = useState<string | null>(null);
+  const [cloudQuotaFull, setCloudQuotaFull]       = useState(false);
+  /** True when there are saved-for-review clips waiting for the driver. */
+  const [pendingTripReview, setPendingTripReview] = useState(false);
+
   const cloudQuotaFullRef = useRef(false);
 
   // ── Segment-start snapshot refs ───────────────────────────────────────────
-  // Captured by onSegmentStart() immediately before each recordAsync() call.
-  // onSegmentComplete reads THESE refs instead of segmentsFsDirRef so that a
-  // vehicle switch that happens while a clip is in-flight doesn't redirect the
-  // completed clip to the new vehicle's folder/store.
   const recordingSegmentDirRef      = useRef(vehicleSegmentsDir(vehicleKey));
   const recordingSegmentAsyncKeyRef = useRef(vehicleSegmentsKey(vehicleKey));
 
-  // Refs — avoid re-renders on GPS/interval ticks
-  // Camera permission — requested before the first background recording attempt.
-  // Falls back to "always granted" on web (useCameraPermissions is null there).
+  // ── Permission refs ───────────────────────────────────────────────────────
   const [cameraPermission, requestCameraPermission] = useCameraPermissions
     ? useCameraPermissions()
     : [{ granted: true } as { granted: boolean }, async () => ({ granted: true })];
   const requestCameraPermissionRef = useRef(requestCameraPermission);
   useEffect(() => { requestCameraPermissionRef.current = requestCameraPermission; }, [requestCameraPermission]);
 
-  // Microphone permission — needed by recordAsync when audio is enabled.
-  // Denial is non-fatal: the overlay records muted instead of failing silently.
   const [micPermission, requestMicPermission] = useMicrophonePermissions
     ? useMicrophonePermissions()
     : [{ granted: true } as { granted: boolean }, async () => ({ granted: true })];
   const requestMicPermissionRef = useRef(requestMicPermission);
   useEffect(() => { requestMicPermissionRef.current = requestMicPermission; }, [requestMicPermission]);
 
+  // ── Core refs ─────────────────────────────────────────────────────────────
   const cameraRef              = useRef<CameraView | null>(null);
   const lockNextRef            = useRef<string | null>(null);
   const isRecordingRef         = useRef(false);
@@ -304,14 +264,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const uploadQueueRef         = useRef<string[]>([]);
   const uploadActiveRef        = useRef(false);
   const secretRef              = useRef<string>("");
-  const hydratedRef            = useRef(false);  // for use inside closure callbacks
+  const hydratedRef            = useRef(false);
   const pushDeviceIdRef        = useRef<string | null>(null);
-  /** True when the app went to background while recording was active.
-   *  Used to auto-restart the recording loop when the app returns to foreground. */
   const backgroundedWhileRecordingRef = useRef(false);
-  // Stable ref to processUploadQueue so setTimeout callbacks always call the
-  // latest version without adding it to dependency arrays (which would create
-  // circular deps since processUploadQueue's setTimeout calls itself).
   const processUploadQueueRef  = useRef<() => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => { segmentsRef.current = segments; }, [segments]);
@@ -319,8 +274,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { cloudQuotaFullRef.current = cloudQuotaFull; }, [cloudQuotaFull]);
 
   // ── Hydrate from AsyncStorage ──────────────────────────────────────────────
-  // IMPORTANT: setHydrated(true) is called only after the upload queue is
-  // fully rebuilt, preventing a race between hydration and the upload effect.
   useEffect(() => {
     (async () => {
       try {
@@ -332,17 +285,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         }
         secretRef.current = secret;
 
-        // 2. Get-or-create the push-notification device ID.
-        // Uses the SAME key AND the same ID format as usePushNotifications.ts so
-        // both contexts always share the same stable identifier.
-        //
-        // WHY "get or create" instead of just read:
-        //   DashcamProvider mounts before RootLayoutNav (where usePushNotifications
-        //   runs). On a first install (or cleared storage), a plain read would return
-        //   null and all enrollment/upload behavior would be gated off for the
-        //   entire session. Since both callers use an atomic "read → create if absent
-        //   → write" pattern against the same key, the first caller generates the
-        //   ID and the second caller reads it — order independent.
+        // 2. Push device ID (shared key with usePushNotifications)
         let pid = await AsyncStorage.getItem(PUSH_DEVICE_ID_KEY);
         if (!pid) {
           pid = `${Platform.OS}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -359,12 +302,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           settingsRef.current = s;
         }
 
-        // 4. Load + verify segments (vehicle-scoped; migrate from legacy key on first run)
+        // 4. Load + verify segments
         let rawSegsStr = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
         if (!rawSegsStr) {
-          // One-time migration: move segments from the pre-multi-vehicle key to
-          // this vehicle's key, then clear the legacy entry so it doesn't get
-          // re-applied when a second vehicle is added.
           const legacy = await AsyncStorage.getItem(LEGACY_SEGMENTS_KEY);
           if (legacy) {
             rawSegsStr = legacy;
@@ -372,35 +312,45 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.removeItem(LEGACY_SEGMENTS_KEY).catch(() => {});
           }
         }
+
         if (rawSegsStr) {
           const loaded: DashcamSegment[] = JSON.parse(rawSegsStr);
           const verified = await Promise.all(
             loaded.map(async (s) => {
-              // Uploaded/lost segments no longer need a local file
               if (s.uploadStatus === "uploaded" || s.uploadStatus === "lost") return s;
               try {
                 const info = await FileSystem.getInfoAsync(s.uri);
                 if (info.exists) return s;
-                // Locked clips whose file was purged by the OS are surfaced as
-                // "lost" so the driver can see that footage was lost rather than
-                // it disappearing silently. Unlocked clips are simply dropped.
-                if (s.locked) return { ...s, uploadStatus: "lost" as const };
+                if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
                 return null;
               } catch {
-                if (s.locked) return { ...s, uploadStatus: "lost" as const };
+                if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
                 return null;
               }
             })
           );
-          const live = verified.filter(Boolean) as DashcamSegment[];
+          let live = verified.filter(Boolean) as DashcamSegment[];
+
+          // Any unlocked clips that survived from a previous session (not already
+          // marked savedForReview) are leftovers from an interrupted trip.
+          // Mark them as savedForReview so the driver can review them on return.
+          let hadLegacyUnlocked = false;
+          live = live.map((s) => {
+            if (!s.locked && !s.savedForReview) {
+              hadLegacyUnlocked = true;
+              return { ...s, savedForReview: true };
+            }
+            return s;
+          });
+
           setSegments(live);
           segmentsRef.current = live;
 
-          // Rebuild upload queue from pending/failed segments (sorted oldest-first).
-          // Failed segments that have already exhausted MAX_UPLOAD_RETRIES are
-          // terminal and must NOT be re-enqueued — same guard applied in the
-          // NetInfo reconnect listener so the boundary is enforced across both
-          // paths (relaunch and connectivity restore).
+          if (hadLegacyUnlocked || live.some((s) => s.savedForReview)) {
+            setPendingTripReview(true);
+          }
+
+          // Rebuild upload queue
           const toUpload = live
             .filter((s) =>
               s.uploadStatus === "pending" ||
@@ -411,32 +361,29 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           uploadQueueRef.current = toUpload;
         }
 
-        // 5. Ensure segments directory exists for the active vehicle
+        // 5. Ensure segments directory exists
         await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true });
       } catch (err) {
         console.warn("[Dashcam] hydration error:", err);
       } finally {
-        // Signal readiness AFTER queue is rebuilt — the upload effect gates on this
         hydratedRef.current = true;
         setHydrated(true);
       }
     })();
   }, []);
 
-  // ── Persist segments on change (vehicle-scoped key) ───────────────────────
+  // ── Persist segments on change ─────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.setItem(segmentsAsyncKeyRef.current, JSON.stringify(segments)).catch(() => {});
   }, [segments]);
 
-  // ── Reload segments when the active vehicle changes ────────────────────────
-  // Skip the first render — initial hydration already loaded the right data.
+  // ── Reload segments on vehicle change ─────────────────────────────────────
   const isFirstVehicleMount = useRef(true);
   useEffect(() => {
     if (isFirstVehicleMount.current) {
       isFirstVehicleMount.current = false;
       return;
     }
-    // Update storage refs for the newly-active vehicle
     segmentsAsyncKeyRef.current = vehicleSegmentsKey(vehicleKey);
     segmentsFsDirRef.current    = vehicleSegmentsDir(vehicleKey);
 
@@ -450,10 +397,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           try {
             const info = await FileSystem.getInfoAsync(s.uri);
             if (info.exists) return s;
-            if (s.locked) return { ...s, uploadStatus: "lost" as const };
+            if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
             return null;
           } catch {
-            if (s.locked) return { ...s, uploadStatus: "lost" as const };
+            if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
             return null;
           }
         })
@@ -461,6 +408,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       const live = verified.filter(Boolean) as DashcamSegment[];
       setSegments(live);
       segmentsRef.current = live;
+
+      if (live.some((s) => s.savedForReview)) setPendingTripReview(true);
+
       const toUpload = live
         .filter((s) => s.uploadStatus === "pending" || (s.uploadStatus === "failed" && (s.retryCount ?? 0) < MAX_UPLOAD_RETRIES))
         .sort((a, b) => a.startedAt - b.startedAt)
@@ -482,35 +432,42 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, [isRecording]);
 
   // ── iOS background handling ────────────────────────────────────────────────
-  // On iOS, CameraView.recordAsync is interrupted when the app is backgrounded.
-  // Strategy: detect AppState → background while recording, immediately stop the
-  // current segment cleanly (so it's locked + queued for upload), then bump
-  // recordingEpoch when the app returns to foreground so DashcamOverlay's
-  // recording loop restarts without isRecording ever toggling to false.
-  // isRecording remains true throughout — the pill stays "● REC".
-  //
-  // On Android background recording is allowed (FOREGROUND_SERVICE permission
-  // is declared), so we only apply this on iOS.
+  // When the app backgrounds while recording, we:
+  //  1. Mark the last 5 unlocked clips as savedForReview (so they survive).
+  //  2. Stop the current clip cleanly (no lock — the clip saves as unlocked).
+  //  3. Bump recordingEpoch on foreground so the loop restarts.
+  // isRecording stays true throughout — the REC pill stays on.
   useEffect(() => {
     if (Platform.OS !== "ios") return;
 
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "background" || nextState === "inactive") {
-        // Only act if the dashcam is actively recording
         if (!isRecordingRef.current) return;
         backgroundedWhileRecordingRef.current = true;
 
-        // Lock the current segment: sets lockNextRef then calls stopRecording().
-        // DashcamOverlay's recordAsync resolves, onSegmentComplete fires with
-        // lockReason="background", the clip is saved and queued for upload.
-        lockNextRef.current = "background";
+        // Mark last 5 unlocked clips as savedForReview before stopping
+        setSegments((prev) => {
+          const rolling = prev
+            .filter((s) => !s.locked && !s.savedForReview)
+            .sort((a, b) => b.startedAt - a.startedAt)
+            .slice(0, UNLOCKED_ROLLING_WINDOW);
+          if (rolling.length === 0) return prev;
+          const reviewIds = new Set(rolling.map((s) => s.id));
+          const next = prev.map((s) =>
+            reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
+          );
+          segmentsRef.current = next;
+          return next;
+        });
+        setPendingTripReview(true);
+
+        // Stop the in-flight clip cleanly (no lock — becomes unlocked)
         cameraRef.current?.stopRecording();
 
-        // Post an immediate local notification so the driver knows a clip was saved.
         Notifications.scheduleNotificationAsync({
           content: {
-            title: "Dashcam clip saved",
-            body: "A clip was saved automatically because the app moved to the background. Tap to review.",
+            title: "Dashcam clips saved",
+            body: "Your last 5 clips are saved for review. Tap to lock the ones you want to keep.",
             data: { type: "dashcam_background_save" },
           },
           trigger: null,
@@ -518,15 +475,11 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       } else if (nextState === "active") {
         if (!backgroundedWhileRecordingRef.current) return;
         backgroundedWhileRecordingRef.current = false;
-        // Bump epoch to restart the recording loop in DashcamOverlay.
-        // The CameraView is still mounted (isRecording never went false), so
-        // the new recordAsync call will start a fresh segment immediately.
         setRecordingEpoch((e) => e + 1);
       }
     });
 
     return () => subscription.remove();
-    // refs only — no state deps needed; the effect must remain stable
   }, []);
 
   const storageUsedBytes = useMemo(
@@ -539,27 +492,26 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     [segments]
   );
 
-  // ── Evict oldest unlocked segments when over storage cap ───────────────────
-  const evictIfNeeded = useCallback((segs: DashcamSegment[]): DashcamSegment[] => {
-    let total = segs.reduce((sum, s) => sum + s.sizeBytes, 0);
-    if (total <= settingsRef.current.storageCap) return segs;
-    const result = [...segs];
-    while (total > settingsRef.current.storageCap) {
-      const idx = result.findIndex((s) => !s.locked);
-      if (idx === -1) break;
-      const [evicted] = result.splice(idx, 1);
-      total -= evicted.sizeBytes;
-      FileSystem.deleteAsync(evicted.uri, { idempotent: true }).catch(() => {});
+  // ── Rolling window for unlocked clips ──────────────────────────────────────
+  // Keeps at most UNLOCKED_ROLLING_WINDOW (5) truly unlocked clips — those that
+  // are neither locked nor savedForReview. The oldest is deleted when a 6th is
+  // added, giving a ~10-minute rolling buffer during any trip.
+  const applyRollingWindow = useCallback((segs: DashcamSegment[]): DashcamSegment[] => {
+    const rolling = segs.filter((s) => !s.locked && !s.savedForReview);
+    if (rolling.length <= UNLOCKED_ROLLING_WINDOW) return segs;
+
+    const sorted   = [...rolling].sort((a, b) => a.startedAt - b.startedAt);
+    const toDelete = sorted.slice(0, rolling.length - UNLOCKED_ROLLING_WINDOW);
+    const deleteIds = new Set(toDelete.map((s) => s.id));
+
+    for (const s of toDelete) {
+      FileSystem.deleteAsync(s.uri, { idempotent: true }).catch(() => {});
     }
-    return result;
+
+    return segs.filter((s) => !deleteIds.has(s.id));
   }, []);
 
   // ── Upload queue processor ─────────────────────────────────────────────────
-  // On any upload failure the segment is kept as "failed" and a bounded
-  // exponential-backoff retry is scheduled (15 s, 60 s, 5 min, 15 min).
-  // After MAX_UPLOAD_RETRIES the item is removed from the queue permanently.
-  // This means transient API or R2 failures recover automatically without
-  // requiring a NetInfo connectivity transition or app relaunch.
   const processUploadQueue = useCallback(async () => {
     if (uploadActiveRef.current) return;
     if (uploadQueueRef.current.length === 0) return;
@@ -581,34 +533,23 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
       if (!seg) { uploadQueueRef.current.shift(); continue; }
 
-      // ── Pre-upload file-existence check ─────────────────────────────────────
-      // The OS may have purged the segment file (low-storage eviction of the
-      // tmp/cache directory, or an unexpected restart) even though the clip is
-      // still listed as "pending" in AsyncStorage. Detect this before making any
-      // network calls so we never retry indefinitely for a missing file.
       if (seg.uploadStatus !== "uploaded") {
         try {
           const fileInfo = await FileSystem.getInfoAsync(seg.uri);
           if (!fileInfo.exists) {
             uploadQueueRef.current.shift();
             setSegments((prev) =>
-              prev.map((s) =>
-                s.id === segId ? { ...s, uploadStatus: "lost" as const } : s
-              )
+              prev.map((s) => s.id === segId ? { ...s, uploadStatus: "lost" as const } : s)
             );
-            console.warn("[Dashcam] clip file missing before upload — marked lost:", segId, seg.uri);
+            console.warn("[Dashcam] clip missing before upload — marked lost:", segId);
             continue;
           }
         } catch {
-          // If we can't even stat the file, treat it as lost to avoid an
-          // upload attempt that will fail with an unreadable error anyway.
           uploadQueueRef.current.shift();
           setSegments((prev) =>
-            prev.map((s) =>
-              s.id === segId ? { ...s, uploadStatus: "lost" as const } : s
-            )
+            prev.map((s) => s.id === segId ? { ...s, uploadStatus: "lost" as const } : s)
           );
-          console.warn("[Dashcam] could not stat clip file — marked lost:", segId, seg.uri);
+          console.warn("[Dashcam] could not stat clip — marked lost:", segId);
           continue;
         }
       }
@@ -620,7 +561,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
         const headers = authHeaders(pushDeviceIdRef.current!, secretRef.current);
 
-        // 1. Get presigned upload URL + intent reservation
+        // 1. Get presigned upload URL
         const urlRes = await fetch(`${API_BASE}/dashcam/upload-url`, {
           method: "POST",
           headers,
@@ -629,13 +570,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         if (!urlRes.ok) {
           if (urlRes.status === 429) {
             const body = await urlRes.json().catch(() => ({})) as { error?: string; code?: string };
-            // Distinguish quota-full from serialization-failure 429s.
-            // Serialization failures are transient and should retry normally.
-            // Quota-full means every subsequent upload will also fail — bail out.
             if (body?.code === "QUOTA_FULL" || body?.error?.toLowerCase().includes("quota")) {
               cloudQuotaFullRef.current = true;
               setCloudQuotaFull(true);
-              // Notify the driver so they know to open the gallery and delete old clips
               Notifications.scheduleNotificationAsync({
                 content: {
                   title: "Cloud storage full",
@@ -644,10 +581,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
                 },
                 trigger: null,
               }).catch(() => {});
-              // Permanently mark ALL pending/retryable segments as terminal
-              // (retryCount = MAX_UPLOAD_RETRIES) so they are never re-queued by
-              // the connectivity-restore listener or app relaunch — uploads will
-              // keep failing until the driver frees space.
               setSegments((prev) => {
                 const next = prev.map((s) => {
                   if (
@@ -662,7 +595,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
                 segmentsRef.current = next;
                 return next;
               });
-              // Drain the entire queue — no point attempting the remaining items
               uploadQueueRef.current = [];
               break;
             }
@@ -673,7 +605,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           uploadUrl: string; fileKey: string; clipId: string;
         };
 
-        // 2. Upload video to R2
+        // 2. Upload to R2
         const fileRes = await fetch(seg.uri);
         const blob    = await fileRes.blob();
         const putRes  = await fetch(uploadUrl, {
@@ -683,7 +615,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         });
         if (!putRes.ok) throw new Error(`R2 PUT: ${putRes.status}`);
 
-        // 3. Save clip metadata (validates intent)
+        // 3. Save clip metadata
         const metaRes = await fetch(`${API_BASE}/dashcam/clip`, {
           method: "POST",
           headers,
@@ -708,19 +640,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
               : s
           )
         );
-        // A successful upload means the server has room — clear the quota banner
-        // (server may have auto-evicted an old clip to make space)
         setCloudQuotaFull(false);
         uploadQueueRef.current.shift();
       } catch (err) {
         console.warn("[Dashcam] upload failed for", segId, err);
-        uploadQueueRef.current.shift(); // remove from front
+        uploadQueueRef.current.shift();
 
-        // Determine how many retries this segment has had
         const nextRetryCount = (seg.retryCount ?? 0) + 1;
 
         if (nextRetryCount > MAX_UPLOAD_RETRIES) {
-          // Give up — segment stays as "failed" but won't be retried again
           setSegments((prev) =>
             prev.map((s) =>
               s.id === segId
@@ -729,8 +657,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             )
           );
         } else {
-          // Bounded exponential backoff: mark as failed, schedule retry.
-          // Uses processUploadQueueRef to avoid circular useCallback deps.
           setSegments((prev) =>
             prev.map((s) =>
               s.id === segId
@@ -740,7 +666,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           );
           const delay = UPLOAD_RETRY_BACKOFF[nextRetryCount - 1] ?? UPLOAD_RETRY_BACKOFF.at(-1)!;
           setTimeout(() => {
-            // Only retry if the segment is still in the failed state
             const current = segmentsRef.current.find((s) => s.id === segId);
             if (current?.uploadStatus === "failed") {
               uploadQueueRef.current.push(segId);
@@ -754,16 +679,11 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     uploadActiveRef.current = false;
   }, [pushDeviceId]);
 
-  // Keep the ref pointing at the latest processUploadQueue so setTimeout
-  // callbacks (inside processUploadQueue itself) can call the latest version
-  // without creating circular useCallback dependency chains.
   useEffect(() => {
     processUploadQueueRef.current = processUploadQueue;
   }, [processUploadQueue]);
 
-  // ── Retry uploads on connectivity change (only after hydration is complete) ─
-  // On reconnect: re-add failed segments to uploadQueueRef BEFORE calling the
-  // processor so they are included in the retry pass, not just on next launch.
+  // ── Retry on connectivity restore ──────────────────────────────────────────
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       if (!hydratedRef.current) return;
@@ -772,9 +692,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       const isConnected = !!state.isConnected;
 
       if (isConnected && (!wifiOnly || isWifi)) {
-        // Re-enqueue failed segments not already queued — skip terminal failures
-        // (retryCount >= MAX_UPLOAD_RETRIES) to enforce the bounded-retry guarantee
-        // across connectivity restores as well as within the backoff timeout path.
         const inQueue = new Set(uploadQueueRef.current);
         const failedIds = segmentsRef.current
           .filter((s) =>
@@ -794,26 +711,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Auto-enrollment ────────────────────────────────────────────────────────
-  //
-  // POST /dashcam/register on hydration. The server auto-enrolls any device
-  // that presents a valid deviceId+secret pair, subject to an IP rate limit.
-  // No push-token registration is required, so enrollment succeeds immediately
-  // on first launch without racing against usePushNotifications.
-  //
-  //   Already enrolled  → { ok: true, registered: false } → start uploading
-  //   Newly enrolled    → { ok: true, registered: true  } → start uploading
-  //   Rate limited (429) → retry with backoff (defensive; unlikely on first try)
-  //   Network error      → retry with backoff
-  //
-  // Depends on pushDeviceId (not AppContext.deviceId) because push_tokens
-  // stores the @msafiri/deviceId key, not sdk_device_id.
   useEffect(() => {
     if (!hydrated || !pushDeviceId || !API_BASE) return;
     const secret = secretRef.current;
     if (!secret) return;
 
     let cancelled = false;
-    // Backoff delays for transient failures (rate limit, network error): 5s, 15s, 30s, 60s
     const ENROLL_BACKOFF = [5_000, 15_000, 30_000, 60_000];
 
     const attempt = async (tryIndex: number) => {
@@ -824,23 +727,17 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           headers: authHeaders(pushDeviceId, secret),
         });
         if (res.ok) {
-          // Both "registered: true" (new) and "registered: false" (existing) mean
-          // the device is enrolled — kick off any pending uploads.
           processUploadQueueRef.current();
           return;
         }
         if (res.status === 409) {
-          // Conflicting secret — permanent failure, do not retry
           console.warn("[Dashcam] enrollment conflict: device registered with a different secret");
           return;
         }
-        // 429 (rate limit) or other transient error — retry with backoff
         const delay = ENROLL_BACKOFF[tryIndex] ?? ENROLL_BACKOFF.at(-1)!;
-        console.warn(`[Dashcam] enrollment error ${res.status}, retrying in ${delay / 1000}s`);
         setTimeout(() => attempt(tryIndex + 1), delay);
       } catch (err) {
         const delay = ENROLL_BACKOFF[tryIndex] ?? ENROLL_BACKOFF.at(-1)!;
-        console.warn(`[Dashcam] enrollment failed, retrying in ${delay / 1000}s`, err);
         setTimeout(() => attempt(tryIndex + 1), delay);
       }
     };
@@ -854,11 +751,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const openDashcam  = useCallback(() => setIsDashcamOpen(true), []);
   const closeDashcam = useCallback(() => setIsDashcamOpen(false), []);
 
-  /**
-   * Request camera then microphone permissions with a gap between them so iOS
-   * has time to dismiss one system dialog before showing the next.
-   * Safe to call when permissions are already granted — skips those.
-   */
   const requestDashcamPermissions = useCallback(async (): Promise<{ cameraGranted: boolean; micGranted: boolean }> => {
     let cameraGranted = cameraPermission?.granted ?? false;
     let micGranted    = micPermission?.granted    ?? false;
@@ -871,8 +763,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!micGranted) {
-      // iOS will not reliably show a second system dialog immediately after
-      // the first — give it 500 ms to fully dismiss the camera prompt first.
       await new Promise<void>((resolve) => setTimeout(resolve, 500));
       try {
         const res = await requestMicPermissionRef.current();
@@ -883,18 +773,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     return { cameraGranted, micGranted };
   }, [cameraPermission?.granted, micPermission?.granted]);
 
-  /** Start recording silently — requests camera permission if needed (system
-   *  dialog), then mounts overlay at opacity 0 so onCameraReady auto-starts.
-   *  Returns false if the user denied the permission request. */
   const startBackgroundRecording = useCallback(async (): Promise<boolean> => {
-    if (isRecordingRef.current) return true; // already recording
+    if (isRecordingRef.current) return true;
 
-    // Request camera permission if not yet granted.
     if (!cameraPermission?.granted) {
-      // Show a plain-language explanation before the system dialog so drivers
-      // understand WHY the permission is needed. Only shown on first ask
-      // ("undetermined"); denied users go straight to the system dialog which
-      // will inform them to visit Settings.
       if ((cameraPermission as any)?.status === "undetermined") {
         await new Promise<void>((resolve) =>
           Alert.alert(
@@ -906,12 +788,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         );
       }
       const result = await requestCameraPermissionRef.current();
-      if (!result?.granted) return false; // denied — don't start
+      if (!result?.granted) return false;
     }
 
-    // Always request microphone (not just when audioEnabled) — on iOS both
-    // must be determined before CameraView mounts, and the system dialogs
-    // need a short gap between them to display reliably.
     if (!micPermission?.granted) {
       await new Promise<void>((resolve) => setTimeout(resolve, 500));
       try { await requestMicPermissionRef.current(); } catch { /* muted fallback */ }
@@ -921,8 +800,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [cameraPermission?.granted, micPermission?.granted]);
 
-  /** Called by DashcamOverlay once onCameraReady fires and startDashcam() has
-   *  been called, so we clear the pending flag and the overlay stays invisible. */
   const clearBackgroundRecordPending = useCallback(() => {
     setBackgroundRecordPending(false);
   }, []);
@@ -936,58 +813,123 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const stopDashcam = useCallback(() => {
     isRecordingRef.current = false;
     setIsRecording(false);
-    setBackgroundRecordPending(false); // clear any warm-up that never completed
+    setBackgroundRecordPending(false);
     cameraRef.current?.stopRecording();
   }, []);
 
   /**
-   * Lock the current in-progress segment AND stop recording in one action.
-   * Sets lockNextRef BEFORE calling stopRecording so the recording loop saves
-   * the final segment as a locked/uploadable clip rather than discarding it
-   * as an unlocked local-only segment. Called by the drive screen's dashcam
-   * toggle so every driver-initiated stop produces a saved clip.
+   * Stop recording without auto-locking the final clip.
+   * The last 5 unlocked clips are marked savedForReview in onSegmentComplete
+   * so the driver can review them and lock what they care about.
    *
-   * IMPORTANT — race-condition fix: we intentionally do NOT call
-   * setIsRecording(false) here. Doing so causes React to re-render
-   * DashcamOverlay, which returns null (all three guard flags become false)
-   * and unmounts the CameraView BEFORE the pending recordAsync call can
-   * resolve and the final clip can be written to disk. On Android especially,
-   * an unmounted CameraView causes recordAsync to reject rather than resolve
-   * with a URI, silently dropping the clip.
-   *
-   * Instead: isRecordingRef is set to false immediately (prevents re-entry),
-   * and onSegmentComplete detects this ref/state mismatch after the clip is
-   * safely on disk, then applies setIsRecording(false) there.
+   * IMPORTANT — race-condition fix: setIsRecording(false) is NOT called here.
+   * It is deferred to onSegmentComplete (same pattern as before) to keep
+   * CameraView mounted until the final clip is safely on disk.
    */
   const stopAndSaveDashcam = useCallback(() => {
     if (!isRecordingRef.current) return;
-    lockNextRef.current = "manual";   // mark the final segment for upload
-    isRecordingRef.current = false;   // prevent re-entry; onSegmentComplete reads this
-    setBackgroundRecordPending(false); // hide "Starting…" pill immediately
-    cameraRef.current?.stopRecording(); // resolve the pending recordAsync
-    // setIsRecording(false) is deferred to onSegmentComplete — see comment above
+    isRecordingRef.current = false;   // prevent re-entry; signals trip-end to onSegmentComplete
+    setBackgroundRecordPending(false);
+    cameraRef.current?.stopRecording();
   }, []);
 
   /**
-   * Lock the current in-progress segment. Calls stopRecording() so the current
-   * recordAsync resolves; the DashcamOverlay loop processes the result and
-   * calls onSegmentComplete with the lockReason from lockNextRef.
+   * Lock the currently recording clip.
+   * Enforces local limits:
+   *  • manual → max 5 on device (alerts user if full)
+   *  • auto   → max 20 on device (silently dropped if full)
    */
   const lockCurrentClip = useCallback((reason = "manual") => {
+    const isManual = reason === "manual";
+
+    if (isManual) {
+      const manualCount = segmentsRef.current.filter(
+        (s) => s.locked && s.lockType === "manual"
+      ).length;
+      if (manualCount >= MAX_MANUAL_LOCKS_LOCAL) {
+        Alert.alert(
+          "Manual Lock Limit",
+          "You already have 5 manually locked clips. Delete an older one to save a new clip.",
+        );
+        return;
+      }
+    } else {
+      const autoCount = segmentsRef.current.filter(
+        (s) => s.locked && s.lockType === "auto"
+      ).length;
+      if (autoCount >= MAX_AUTO_LOCKS_LOCAL) {
+        // Auto-lock silently dropped — don't interrupt the driver with a dialog
+        console.warn("[Dashcam] auto-lock limit (20) reached, clip not locked");
+        return;
+      }
+    }
+
     lockNextRef.current = reason;
     cameraRef.current?.stopRecording();
+  }, []);
+
+  /**
+   * Lock a saved-for-review clip and queue it for cloud upload.
+   * Converts savedForReview → locked/manual and enforces the 5-clip limit.
+   */
+  const lockSavedClip = useCallback((id: string) => {
+    const seg = segmentsRef.current.find((s) => s.id === id && s.savedForReview);
+    if (!seg) return;
+
+    const manualCount = segmentsRef.current.filter(
+      (s) => s.locked && s.lockType === "manual"
+    ).length;
+    if (manualCount >= MAX_MANUAL_LOCKS_LOCAL) {
+      Alert.alert(
+        "Manual Lock Limit",
+        "You already have 5 manually locked clips. Delete an older one to save a new clip.",
+      );
+      return;
+    }
+
+    setSegments((prev) => {
+      const next = prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              locked: true,
+              lockType: "manual" as const,
+              lockReason: "manual",
+              savedForReview: false,
+              uploadStatus: "pending" as const,
+            }
+          : s
+      );
+      segmentsRef.current = next;
+      return next;
+    });
+
+    uploadQueueRef.current.push(id);
+    processUploadQueueRef.current();
+  }, []);
+
+  /**
+   * Delete all saved-for-review clips and clear the review banner.
+   * Called when the driver dismisses the review without locking anything.
+   */
+  const dismissTripReview = useCallback(async () => {
+    const toDelete = segmentsRef.current.filter((s) => s.savedForReview && !s.locked);
+    await Promise.all(
+      toDelete.map((s) => FileSystem.deleteAsync(s.uri, { idempotent: true }))
+    );
+    const deleteIds = new Set(toDelete.map((s) => s.id));
+    setSegments((prev) => {
+      const next = prev.filter((s) => !deleteIds.has(s.id));
+      segmentsRef.current = next;
+      return next;
+    });
+    setPendingTripReview(false);
   }, []);
 
   const setCameraRef = useCallback((ref: CameraView | null) => {
     cameraRef.current = ref;
   }, []);
 
-  /**
-   * Snapshot the active vehicle's storage paths at segment-start time.
-   * Must be called by DashcamOverlay immediately before each recordAsync() so
-   * that onSegmentComplete always writes to the vehicle that was active when
-   * the clip STARTED, not the one active when it FINISHES.
-   */
   const onSegmentStart = useCallback(() => {
     recordingSegmentDirRef.current      = segmentsFsDirRef.current;
     recordingSegmentAsyncKeyRef.current = segmentsAsyncKeyRef.current;
@@ -1003,91 +945,93 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
       const id = `seg_${Date.now()}`;
 
-      // Use the paths captured at segment-START time (by onSegmentStart), not the
-      // current refs. This prevents a vehicle switch that happens mid-segment from
-      // redirecting the completed clip to the new vehicle's folder/store.
-      // computeSegmentDestUri and detectVehicleSwitch are imported from
-      // utils/dashcamSegmentRouting.js — the unit tests exercise those functions
-      // directly against this same import.
       const capturedDir      = recordingSegmentDirRef.current;
       const capturedAsyncKey = recordingSegmentAsyncKeyRef.current;
       const destUri          = computeSegmentDestUri(capturedDir, id);
 
-      // Detect whether the vehicle changed while this segment was in-flight.
       const vehicleSwitchedMidSegment = detectVehicleSwitch(capturedAsyncKey, segmentsAsyncKeyRef.current);
 
       try {
-        // Ensure the destination directory exists before every save — not just
-        // at hydration. If the OS cleared the directory (low-storage purge,
-        // first install before hydration completed, etc.) a missing directory
-        // causes moveAsync to throw, and the clip is silently lost. This call
-        // is idempotent: it no-ops if the directory already exists.
         await FileSystem.makeDirectoryAsync(capturedDir, { intermediates: true });
-
         await FileSystem.moveAsync({ from: tempUri, to: destUri });
         const info      = await FileSystem.getInfoAsync(destUri);
         const sizeBytes = (info as any).size ?? 0;
 
-        // buildDashcamSegment is imported from utils/dashcamSegmentRouting.js.
-        const segment: DashcamSegment = buildDashcamSegment({
+        const base = buildDashcamSegment({
           id, destUri, durationS: durationS ?? 120, sizeBytes,
           lockReason: lockReason ?? null, coords,
-        }) as DashcamSegment;
+        });
+        const segment: DashcamSegment = {
+          ...base,
+          lockType: lockReason
+            ? (lockReason === "manual" ? "manual" : "auto")
+            : undefined,
+        } as DashcamSegment;
 
         if (vehicleSwitchedMidSegment) {
-          // The driver switched vehicles while this segment was recording.
-          // React state + segmentsAsyncKeyRef now belong to the NEW vehicle, so
-          // we must NOT call setSegments (that would add this clip to the wrong
-          // vehicle's list). Instead write directly to the OLD vehicle's
-          // AsyncStorage key so the clip appears there the next time the driver
-          // selects that vehicle from the garage.
           try {
             const existing = await AsyncStorage.getItem(capturedAsyncKey);
             const prev: DashcamSegment[] = existing ? JSON.parse(existing) : [];
             await AsyncStorage.setItem(capturedAsyncKey, JSON.stringify([...prev, segment]));
           } catch (storageErr) {
-            console.warn("[Dashcam] failed to persist mid-switch segment to old vehicle store:", storageErr);
+            console.warn("[Dashcam] failed to persist mid-switch segment:", storageErr);
           }
-          // Locked clips will be picked up for upload the next time the user
-          // switches back to that vehicle (the vehicle-switch effect re-queues
-          // pending/failed segments on load).
         } else {
-          // Normal path — vehicle has not changed.
+          // Determine whether recording was stopped (trip end)
+          const tripEnded = !isRecordingRef.current;
+
           setSegments((prev) => {
-            const next = evictIfNeeded([...prev, segment]);
-            segmentsRef.current = next;
-            return next;
+            // Apply the rolling window (max 5 unlocked, not savedForReview, not locked)
+            const withNew = applyRollingWindow([...prev, segment]);
+
+            // If the trip just ended, mark last 5 unlocked clips as savedForReview
+            if (tripEnded) {
+              const rolling = withNew
+                .filter((s) => !s.locked && !s.savedForReview)
+                .sort((a, b) => b.startedAt - a.startedAt)
+                .slice(0, UNLOCKED_ROLLING_WINDOW);
+              const reviewIds = new Set(rolling.map((s) => s.id));
+              const withReview = withNew.map((s) =>
+                reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
+              );
+              segmentsRef.current = withReview;
+              return withReview;
+            }
+
+            segmentsRef.current = withNew;
+            return withNew;
           });
 
+          // Queue locked clips for upload
           if (lockReason) {
             uploadQueueRef.current.push(id);
             processUploadQueue();
           }
+
+          // Trip ended → show review banner and complete the deferred isRecording=false
+          if (tripEnded) {
+            setPendingTripReview(true);
+            setIsRecording(false);
+          }
         }
 
-        // Deferred stop: stopAndSaveDashcam() sets isRecordingRef.current = false
-        // WITHOUT calling setIsRecording(false), to keep CameraView mounted until
-        // this point. Now that the clip is safely on disk, apply the state update
-        // so DashcamOverlay can unmount cleanly.
-        if (!isRecordingRef.current) {
-          setIsRecording(false);
-        }
       } catch (err) {
-        // Log with enough detail to diagnose future failures.
         console.warn("[Dashcam] onSegmentComplete error — clip NOT saved:", err);
-        // Surface to the user only for manually-locked clips where they
-        // explicitly intended to keep the footage.
         if (lockReason === "manual") {
-          const { Alert } = require("react-native");
-          Alert.alert(
+          const { Alert: RNAlert } = require("react-native");
+          RNAlert.alert(
             "Clip Could Not Be Saved",
-            "There was a problem saving this dashcam clip to your device. " +
-            "Check that you have enough storage space and try again.",
+            "There was a problem saving this dashcam clip. Check that you have enough storage space.",
           );
+        }
+        // Still complete the deferred stop if trip ended
+        if (!isRecordingRef.current) {
+          setPendingTripReview(true);
+          setIsRecording(false);
         }
       }
     },
-    [evictIfNeeded, processUploadQueue]
+    [applyRollingWindow, processUploadQueue]
   );
 
   const deleteSegment = useCallback(
@@ -1114,8 +1058,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       });
       uploadQueueRef.current = uploadQueueRef.current.filter((qId) => qId !== id);
 
-      // If the deleted clip was a cloud clip, a slot just opened — clear the
-      // quota banner so the driver knows uploads will work again.
       if (seg.serverId) {
         cloudQuotaFullRef.current = false;
         setCloudQuotaFull(false);
@@ -1124,26 +1066,22 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     [pushDeviceId]
   );
 
-  /**
-   * Called from the gallery after a successful cloud-clip deletion to clear
-   * the quota-full banner. Only needed for server-only clips that are deleted
-   * directly via the API (not through deleteSegment). This does not
-   * automatically re-queue failed uploads — the driver must record new clips
-   * or the queue will retry on the next connectivity restore.
-   */
   const clearCloudQuotaFull = useCallback(() => {
     cloudQuotaFullRef.current = false;
     setCloudQuotaFull(false);
   }, []);
 
+  /**
+   * Delete all live unlocked clips (does NOT touch savedForReview or locked clips).
+   */
   const clearUnlocked = useCallback(async () => {
-    const unlocked = segmentsRef.current.filter((s) => !s.locked);
+    const unlocked = segmentsRef.current.filter((s) => !s.locked && !s.savedForReview);
     await Promise.all(
       unlocked.map((s) => FileSystem.deleteAsync(s.uri, { idempotent: true }))
     );
     const unlockedIds = new Set(unlocked.map((s) => s.id));
     setSegments((prev) => {
-      const next = prev.filter((s) => s.locked);
+      const next = prev.filter((s) => !unlockedIds.has(s.id));
       segmentsRef.current = next;
       return next;
     });
@@ -1159,25 +1097,83 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
   }, []);
 
+  /**
+   * Pin a cloud clip — extends its cloud retention to 60 days.
+   * Enforced server-side (max 5 pins per device).
+   */
+  const pinSegment = useCallback(async (id: string) => {
+    const seg = segmentsRef.current.find((s) => s.id === id);
+    if (!seg?.serverId || !pushDeviceIdRef.current || !secretRef.current || !API_BASE) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/dashcam/clip/${seg.serverId}/pin`, {
+        method: "POST",
+        headers: authHeaders(pushDeviceIdRef.current, secretRef.current),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { code?: string; error?: string };
+        if (body.code === "PIN_LIMIT") {
+          Alert.alert("Pin Limit Reached", "You can only pin 5 clips. Unpin a clip to pin this one.");
+          return;
+        }
+        throw new Error(`Pin failed: ${res.status}`);
+      }
+      setSegments((prev) => {
+        const next = prev.map((s) => s.id === id ? { ...s, pinned: true } : s);
+        segmentsRef.current = next;
+        return next;
+      });
+    } catch (err) {
+      console.warn("[Dashcam] pin failed:", err);
+      Alert.alert("Error", "Could not pin this clip. Try again.");
+    }
+  }, [pushDeviceId]);
+
+  /**
+   * Unpin a cloud clip — restores the standard 30-day / 24-hour retention.
+   */
+  const unpinSegment = useCallback(async (id: string) => {
+    const seg = segmentsRef.current.find((s) => s.id === id);
+    if (!seg?.serverId || !pushDeviceIdRef.current || !secretRef.current || !API_BASE) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/dashcam/clip/${seg.serverId}/pin`, {
+        method: "DELETE",
+        headers: authHeaders(pushDeviceIdRef.current, secretRef.current),
+      });
+      if (!res.ok) throw new Error(`Unpin failed: ${res.status}`);
+      setSegments((prev) => {
+        const next = prev.map((s) => s.id === id ? { ...s, pinned: false } : s);
+        segmentsRef.current = next;
+        return next;
+      });
+    } catch (err) {
+      console.warn("[Dashcam] unpin failed:", err);
+      Alert.alert("Error", "Could not unpin this clip.");
+    }
+  }, [pushDeviceId]);
+
   const value = useMemo<DashcamContextValue>(
     () => ({
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
-      pushDeviceId, recordingEpoch, cloudQuotaFull,
+      pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
-      lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
-      clearCloudQuotaFull,
+      lockCurrentClip, lockSavedClip, dismissTripReview,
+      deleteSegment, clearUnlocked, updateSettings,
+      clearCloudQuotaFull, pinSegment, unpinSegment,
       setCameraRef, onSegmentStart, onSegmentComplete,
     }),
     [
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
-      pushDeviceId, recordingEpoch, cloudQuotaFull,
+      pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
-      lockCurrentClip, deleteSegment, clearUnlocked, updateSettings,
-      clearCloudQuotaFull,
+      lockCurrentClip, lockSavedClip, dismissTripReview,
+      deleteSegment, clearUnlocked, updateSettings,
+      clearCloudQuotaFull, pinSegment, unpinSegment,
       setCameraRef, onSegmentStart, onSegmentComplete,
     ]
   );

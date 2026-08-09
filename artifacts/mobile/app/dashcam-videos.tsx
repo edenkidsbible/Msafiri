@@ -25,6 +25,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -744,7 +745,7 @@ export default function DashcamVideosScreen() {
     finally { setLoadingId(null); }
   }, [locationNames, loadingId, buildPlayerMeta, getSignedUrl]);
 
-  // ── Download to device ─────────────────────────────────────────────────────
+  // ── Download to device & save to photo library ────────────────────────────
   const handleDownload = useCallback(async (clip: UnifiedClip) => {
     setMenuClip(null);
     if (clip.source === "local") {
@@ -756,6 +757,7 @@ export default function DashcamVideosScreen() {
       const url = await getSignedUrl(clip.id);
       if (!url) { Alert.alert("Error", "Could not get download URL."); return; }
 
+      // Download to a temporary location first
       const dest = `${FileSystem.documentDirectory}dashcam_${clip.id}.mp4`;
       const task = FileSystem.createDownloadResumable(
         url,
@@ -770,8 +772,30 @@ export default function DashcamVideosScreen() {
       );
       setDownloadProgress((prev) => ({ ...prev, [clip.id]: 0 }));
       await task.downloadAsync();
+
+      // Save to the device's photo/video library
+      if (Platform.OS !== "web") {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === "granted") {
+          try {
+            await MediaLibrary.saveToLibraryAsync(dest);
+            // Clean up the temp file — it's now in the library
+            FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("Saved to Gallery ✓", "The clip has been saved to your Photos/Videos.");
+            return;
+          } catch {
+            // Fall through — file still downloaded to app storage
+          }
+        }
+      }
+
+      // Fallback: permission denied or web — clip stays in app document storage
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Downloaded ✓", "Clip saved to your device.");
+      Alert.alert(
+        "Downloaded ✓",
+        "Clip saved to the app. To save to your phone's gallery, grant Photos access in Settings.",
+      );
     } catch {
       Alert.alert("Error", "Download failed. Check your connection.");
     } finally {

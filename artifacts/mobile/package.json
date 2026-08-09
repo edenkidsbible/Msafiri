@@ -73,6 +73,7 @@
     "expo-dev-client": "~6.0.21",
     "expo-file-system": "~19.0.23",
     "expo-keep-awake": "^15.0.8",
+    "expo-media-library": "~18.2.1",
     "expo-modules-core": "^3.0.30",
     "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.17",

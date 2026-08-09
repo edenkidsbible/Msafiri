@@ -397,16 +397,12 @@ export default function PretripCheckScreen() {
     } catch { /* ignore */ }
   }, []);
 
-  // ── Phone mount orientation ────────────────────────────────────────────────
-  const [mountOrientation, setMountOrientation] = useState<"portrait" | "landscape">("portrait");
-
   // ── Start driving ──────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     if (selectedVehicleId) setActiveVehicle(selectedVehicleId);
-    await AsyncStorage.setItem("msafiri:mountOrientation", mountOrientation);
     router.replace("/(tabs)/drive");
-  }, [selectedVehicleId, setActiveVehicle, mountOrientation]);
+  }, [selectedVehicleId, setActiveVehicle]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const allEssentialGranted = locationStatus === "granted" && notifStatus === "granted";
@@ -706,80 +702,6 @@ export default function PretripCheckScreen() {
             </View>
           </>
         )}
-
-        {/* ── Phone mount orientation ────────────────────────────────── */}
-        <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 20 }]}>
-          PHONE MOUNT
-        </Text>
-        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <TouchableOpacity
-            style={[
-              styles.mountOption,
-              mountOrientation === "portrait" && { backgroundColor: c.primary + "11" },
-            ]}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              setMountOrientation("portrait");
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={[
-              styles.mountIconWrap,
-              { backgroundColor: mountOrientation === "portrait" ? c.primary + "22" : c.muted },
-            ]}>
-              <Ionicons
-                name="phone-portrait-outline"
-                size={22}
-                color={mountOrientation === "portrait" ? c.primary : c.mutedForeground}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.mountOptionTitle, { color: c.foreground }]}>Portrait</Text>
-              <Text style={[styles.mountOptionDesc, { color: c.mutedForeground }]}>
-                Phone upright — standard layout
-              </Text>
-            </View>
-            {mountOrientation === "portrait"
-              ? <Ionicons name="radio-button-on" size={20} color={c.primary} />
-              : <Ionicons name="radio-button-off" size={20} color={c.mutedForeground} />
-            }
-          </TouchableOpacity>
-
-          <View style={[styles.divider, { backgroundColor: c.border }]} />
-
-          <TouchableOpacity
-            style={[
-              styles.mountOption,
-              mountOrientation === "landscape" && { backgroundColor: c.primary + "11" },
-            ]}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              setMountOrientation("landscape");
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={[
-              styles.mountIconWrap,
-              { backgroundColor: mountOrientation === "landscape" ? c.primary + "22" : c.muted },
-            ]}>
-              <Ionicons
-                name="phone-landscape-outline"
-                size={22}
-                color={mountOrientation === "landscape" ? c.primary : c.mutedForeground}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.mountOptionTitle, { color: c.foreground }]}>Landscape</Text>
-              <Text style={[styles.mountOptionDesc, { color: c.mutedForeground }]}>
-                Phone sideways — map left, controls right
-              </Text>
-            </View>
-            {mountOrientation === "landscape"
-              ? <Ionicons name="radio-button-on" size={20} color={c.primary} />
-              : <Ionicons name="radio-button-off" size={20} color={c.mutedForeground} />
-            }
-          </TouchableOpacity>
-        </View>
 
         {/* ── Tips card ────────────────────────────────────────────────── */}
         <View style={[styles.tipsCard, { backgroundColor: c.primary + "11", borderColor: c.primary + "33" }]}>

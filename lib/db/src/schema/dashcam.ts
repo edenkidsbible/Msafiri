@@ -65,7 +65,7 @@ export const dashcamClipsTable = pgTable("dashcam_clips", {
   durationS:        integer("duration_s"),
   sizeBytes:        integer("size_bytes"),
   locked:           boolean("locked").notNull().default(true),
-  lockReason:       text("lock_reason"),                 // 'manual' | 'crash' | 'test'
+  lockReason:       text("lock_reason"),                 // 'manual' | 'crash' | 'background' | 'auto'
   startedAt:        timestamp("started_at").notNull(),
   uploadedAt:       timestamp("uploaded_at"),
   lat:              doublePrecision("lat"),
@@ -73,6 +73,19 @@ export const dashcamClipsTable = pgTable("dashcam_clips", {
   speedKmh:         integer("speed_kmh"),
   /** SHA-256(deviceId + ":" + dashcamSecret) — used to authenticate ownership of clips. */
   deviceSecretHash: text("device_secret_hash"),
+  /**
+   * True when the driver has pinned this clip. Pinned clips are exempt from
+   * the standard 30-day (manual) / 24-hour (auto) cloud retention; they are
+   * deleted after 60 days from the recording date instead.
+   */
+  pinned:           boolean("pinned").notNull().default(false),
+  /**
+   * When this cloud clip expires and should be auto-deleted.
+   * Set on upload: manual locks → startedAt + 30 days;
+   *                auto locks  → startedAt + 24 hours.
+   * Overridden to startedAt + 60 days when the driver pins the clip.
+   */
+  expiresAt:        timestamp("expires_at"),
   createdAt:        timestamp("created_at").notNull().defaultNow(),
 });
 

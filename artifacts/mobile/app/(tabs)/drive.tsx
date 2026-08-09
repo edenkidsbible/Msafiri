@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  AppState,
+
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -176,7 +176,6 @@ export default function DriveScreen() {
     crashSensitivity,
     setDashcamActive,
     setNavTripActive, setNavTripPaused,
-    setLandscapeDriveActive,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -259,15 +258,8 @@ export default function DriveScreen() {
 
   // Responsive scaling — iPhone SE / 13 mini / older Pros are 375-390pt wide.
   // At that width the speed strip becomes too cramped at full size.
-  const { width: screenW, height: screenH } = useWindowDimensions();
+  const { width: screenW } = useWindowDimensions();
   const isSmall = screenW <= 390;
-
-  // In landscape-trip mode the map lives in a portrait-proportioned left column
-  // so the map viewport stays taller-than-wide rather than stretching to fill
-  // the full landscape screen. 40 % of the landscape width gives a ratio of
-  // roughly 0.9 : 1 on typical phones — noticeably narrower than landscape but
-  // wide enough to show useful road context.
-  const mapColW = Math.round(screenW * 0.40);
 
   // Measured pixel width of the emoji row — updated by onLayout.
   // Used to derive how many emojis fit without hardcoding a count.
@@ -310,46 +302,10 @@ export default function DriveScreen() {
   // effect to use a shorter 8 s window (peek) instead of the 30 s manual-pan
   // window, so the driver is snapped back quickly without waiting.
   const alertFocusModeRef = useRef(false);
-  // ── Landscape mount orientation ───────────────────────────────────────────
-  const [mountLandscape, setMountLandscape] = useState(false);
-  const orientationLockedRef = useRef(false);
-  // Tracks whether orientation preference has been read and the lock (if any)
-  // applied. Auto-start is deferred until this is true so the trip never
-  // starts before the screen orientation is established.
-  // Initialised true on web (no native orientation API) so the gate is a no-op.
-  const orientationReadyRef = useRef(Platform.OS === "web");
-  // Stores a deferred startTrip call that was queued before orientation resolved.
-  const pendingStartRef = useRef<(() => void) | null>(null);
-
-  /**
-   * Orientation-aware trip start — the single entry point that every
-   * start-trip path (auto-start, route-preview Start button, vehicle picker)
-   * MUST use instead of calling `startTrip()` directly.
-   *
-   * If the orientation lock has already resolved (orientationReadyRef.current
-   * is true) the trip starts immediately. Otherwise the call is parked in
-   * pendingStartRef and fired by the orientation useFocusEffect once the lock
-   * completes, guaranteeing that LANDSCAPE_LEFT is active before the countdown
-   * ever begins.
-   */
-  const startTripWhenReady = useCallback(() => {
-    if (orientationReadyRef.current) {
-      startTrip();
-    } else {
-      pendingStartRef.current = startTrip;
-    }
-  // startTrip is stable (useCallback with empty-or-fixed deps); refs are always current.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
 
-  // Keep AppContext in sync so MsafiriTabBar can hide itself during landscape drive.
-  // Must be declared AFTER tripActive to avoid "used before declaration" TS error.
-  useEffect(() => {
-    setLandscapeDriveActive(mountLandscape && tripActive);
-  }, [mountLandscape, tripActive, setLandscapeDriveActive]);
   // Post-trip summary — populated at the moment a trip is stopped so we can
   // display stats even after tripActive clears and state resets.
   const [tripSummaryData, setTripSummaryData] = useState<TripSummaryData | null>(null);
@@ -627,7 +583,7 @@ export default function DriveScreen() {
         if (list.length > 1) {
           setShowVehiclePicker(true);
         } else {
-          startTripWhenReady();
+          startTrip();
         }
       };
       if (vehicleLoadPromiseRef.current) {
@@ -641,103 +597,6 @@ export default function DriveScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination, noAutoStart]));
 
-  // ── Landscape orientation management ────────────────────────────────────
-  // Read the mount preference whenever the drive tab gains focus.
-  // If the driver chose "landscape" in the pre-trip checklist, lock the
-  // display rotation. The cleanup restores portrait when focus is lost.
-  useFocusEffect(useCallback(() => {
-    if (Platform.OS === "web") return;
-    orientationReadyRef.current = false;
-    pendingStartRef.current = null;
-    let cancelled = false;
-    AsyncStorage.getItem("msafiri:mountOrientation").then(async (val) => {
-      if (cancelled) return;
-      if (val === "landscape") {
-        try {
-          // Dynamic require keeps web bundle free of the native module.
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const SO = require("expo-screen-orientation");
-
-          // ── Dashcam safety: stop recording before rotating ──────────────
-          // Android camera2's MediaRecorder session crashes when the display
-          // rotation changes while it is actively encoding. Stop the session
-          // first, wait for the encoder to flush, then lock the orientation,
-          // and finally restart recording in the background.
-          const wasRecording = dashcamRecordingRef.current;
-          if (wasRecording) {
-            stopDashcam();
-            // Give the encoder ≈600 ms to finish the current segment before
-            // the Activity rotation fires. Too short → still crashes; too long
-            // → noticeable pause. 600 ms is empirically safe.
-            await new Promise<void>((r) => setTimeout(r, 600));
-          }
-          if (cancelled) return;
-
-          await SO.lockAsync(SO.OrientationLock.LANDSCAPE_LEFT);
-          if (!cancelled) {
-            orientationLockedRef.current = true;
-            setMountLandscape(true);
-            // Restart dashcam silently if it was recording before the rotation.
-            if (wasRecording) {
-              startBackgroundRecording().catch(() => {});
-            }
-          }
-        } catch { /* ignore — orientation lock fails gracefully on simulators */ }
-      } else {
-        if (!cancelled) setMountLandscape(false);
-      }
-      // Signal that orientation is settled. Any auto-start that arrived before
-      // this resolves is stored in pendingStartRef and fired now.
-      if (!cancelled) {
-        orientationReadyRef.current = true;
-        const deferred = pendingStartRef.current;
-        pendingStartRef.current = null;
-        deferred?.();
-      }
-    }).catch(() => {
-      // On storage error fall through to portrait and unblock auto-start.
-      if (!cancelled) {
-        orientationReadyRef.current = true;
-        const deferred = pendingStartRef.current;
-        pendingStartRef.current = null;
-        deferred?.();
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      orientationReadyRef.current = false;
-      pendingStartRef.current = null;
-      if (orientationLockedRef.current) {
-        // Stop any active dashcam recording before rotating back to portrait
-        // for the same camera2 encoder reason as the landscape lock above.
-        if (dashcamRecordingRef.current) {
-          stopDashcam();
-          // Fire-and-forget: we're in a cleanup callback and cannot await here.
-          // 600 ms matches the landscape lock delay; the encoder will flush
-          // before the system rotation completes. Recording is not restarted
-          // because the user is leaving drive mode.
-          setTimeout(() => {
-            try {
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              const SO = require("expo-screen-orientation");
-              SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-            } catch { /* ignore */ }
-          }, 600);
-        } else {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const SO = require("expo-screen-orientation");
-            SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-          } catch { /* ignore */ }
-        }
-        orientationLockedRef.current = false;
-        setMountLandscape(false);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []));
-
   // Reset the auto-start guard and vehicle picker state when the trip ends.
   useEffect(() => {
     if (!tripActive) {
@@ -747,56 +606,7 @@ export default function DriveScreen() {
         ?? driveVehiclesRef.current[0]
         ?? null;
     }
-    // Restore portrait orientation when the trip ends — the driver may want to
-    // use other parts of the app normally before starting another trip.
-    if (!tripActive && orientationLockedRef.current && Platform.OS !== "web") {
-      // Stop any active dashcam recording before rotating back to portrait
-      // to prevent the Android camera2 encoder crash on display-rotation change.
-      if (dashcamRecordingRef.current) {
-        stopDashcam();
-        setTimeout(() => {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const SO = require("expo-screen-orientation");
-            SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-          } catch { /* ignore */ }
-        }, 600);
-      } else {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const SO = require("expo-screen-orientation");
-          SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
-        } catch { /* ignore */ }
-      }
-      orientationLockedRef.current = false;
-      setMountLandscape(false);
-    }
-  }, [tripActive, stopDashcam]);
-
-  // Re-acquire the landscape lock when the app returns from background.
-  // _layout.tsx re-locks to PORTRAIT_UP on every foreground event to guard
-  // non-drive screens. This effect fires after that and overrides back to
-  // LANDSCAPE_LEFT whenever the drive screen holds an active landscape lock,
-  // so the driver's landscape session survives app-switch / notification-tray
-  // interactions without snapping back to portrait.
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state !== "active") return;
-      if (!orientationLockedRef.current) return;
-      // Small delay so the _layout portrait lock fires first; we override after.
-      setTimeout(() => {
-        if (!orientationLockedRef.current) return;
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const SO = require("expo-screen-orientation");
-          SO.lockAsync(SO.OrientationLock.LANDSCAPE_LEFT).catch(() => {});
-        } catch { /* ignore */ }
-      }, 150);
-    });
-    return () => sub.remove();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tripActive]);
 
   // Tick the trip duration once per second while active.
   useEffect(() => {
@@ -1357,22 +1167,7 @@ export default function DriveScreen() {
           the driver has entered route-preview mode (destination set, reviewing
           the route before confirming). In plain idle state a clean screen shows. */}
       {(tripActive || countdownValue !== null || showRoutePreviewMode) && (
-        <View style={
-          // In landscape-trip mode the map is clipped to a portrait-proportioned
-          // left column. overflow:hidden stops the map tile layer from bleeding
-          // into the HUD panel. In all other states (portrait, route-preview,
-          // countdown) the map fills the full screen as normal.
-          mountLandscape && tripActive
-            ? {
-                position:  "absolute",
-                top:       0,
-                bottom:    0,
-                left:      0,
-                width:     mapColW,
-                overflow:  "hidden",
-              }
-            : StyleSheet.absoluteFillObject
-        }>
+        <View style={StyleSheet.absoluteFillObject}>
           <ErrorBoundary FallbackComponent={MapErrorFallback}>
             <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
           </ErrorBoundary>
@@ -1570,7 +1365,7 @@ export default function DriveScreen() {
       {/* Auto-hide once the driver has clearly passed the alert (>30 m behind
           on the route). AppContext will eventually clear it, but this filter
           gives an immediate visual response instead of showing "Behind you". */}
-      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && !mountLandscape && (
+      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && (
         <DriveAlertOverlay
           alert={activeAlert}
           extraAlerts={activeAlertExtras}
@@ -1599,7 +1394,7 @@ export default function DriveScreen() {
       {/* ── Cluster-dismiss re-arm hint ─────────────────────────────────────
           Appears for 4 s after "Got it — dismiss all" so the driver knows
           alerts near this spot are paused and when they will re-arm. */}
-      {pauseNote && !mountLandscape && (
+      {pauseNote && (
         <View
           pointerEvents="none"
           style={[
@@ -1619,7 +1414,7 @@ export default function DriveScreen() {
       {/* Drive Mode header removed — share moved to stats row, audio moved to bottom panel */}
 
       {/* ── Drive Mode top alert banner — e.g. "Speed camera ahead · 200 m" ──── */}
-      {tripActive && primaryAlert && !mountLandscape && (
+      {tripActive && primaryAlert && (
         <AnimatedTouchable
           activeOpacity={0.85}
           onPress={() => { if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true); }}
@@ -1654,7 +1449,7 @@ export default function DriveScreen() {
 
       {/* ── Compact LIVE pill — replaces the bulky trip info card so the top
           stays clear for nearby-alert overlays. Styled like the red REC pill. ── */}
-      {tripActive && navDestination != null && !mountLandscape && (
+      {tripActive && navDestination != null && (
         <View style={[styles.livePill, { top: topInset + (primaryAlert ? 90 : 16) }]}>
           <View style={styles.livePillDot} />
           <Text style={styles.livePillTxt}>LIVE</Text>
@@ -1959,7 +1754,7 @@ export default function DriveScreen() {
           · Report / Center round buttons — right edge
           · Weather + GPS chips — just above the Drive Safely panel
       ══════════════════════════════════════════════════════════════════ */}
-      {tripActive && !mountLandscape && (
+      {tripActive && (
         <>
           {/* Speed dial — green ring, big digit, km/h, limit badge below */}
           <View
@@ -2614,7 +2409,7 @@ export default function DriveScreen() {
                 if (driveVehiclesRef.current.length > 1) {
                   setShowVehiclePicker(true);
                 } else {
-                  startTripWhenReady();
+                  startTrip();
                 }
               }}
             >
@@ -2628,7 +2423,7 @@ export default function DriveScreen() {
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Live Trip sheet
       ══════════════════════════════════════════════════════════════════ */}
-      {tripActive && !mountLandscape && (
+      {tripActive && (
         <View
           style={[styles.liveTripSheet, {
             backgroundColor: isDark ? "#111514FA" : "#FFFFFFFA",
@@ -3276,7 +3071,7 @@ export default function DriveScreen() {
                   onPress={() => {
                     driveVehicleRef.current = v;
                     setShowVehiclePicker(false);
-                    startTripWhenReady();
+                    startTrip();
                   }}
                   style={{
                     flexDirection: "row", alignItems: "center", gap: 14,
@@ -3586,438 +3381,6 @@ export default function DriveScreen() {
         </View>
       </Modal>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          LANDSCAPE DRIVE PANEL
-          Overlays the right 45 % of the screen when the driver mounted their
-          phone sideways. The map still fills the full screen; this panel sits
-          on top of the right portion so the left 55 % stays visible as the map.
-          Portrait mode is fully unaffected — this block is never rendered when
-          !mountLandscape.
-      ══════════════════════════════════════════════════════════════════ */}
-      {mountLandscape && tripActive && (
-        <View style={{
-          position: "absolute", top: 0, left: mapColW, right: 0, bottom: 0,
-          zIndex: 20,
-          backgroundColor: isDark ? "#111514F8" : "#FFFFFFF8",
-          borderLeftWidth: 1, borderLeftColor: c.tileBorder,
-        }}>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              paddingHorizontal: 10,
-              paddingTop: insets.top + 8,
-              paddingBottom: insets.bottom + 8,
-              gap: 8,
-            }}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* ── Title row ─────────────────────────────────────────── */}
-            <View style={[styles.dmPanelTitleRow, { paddingTop: 0, paddingBottom: 6 }]}>
-              <Text style={[styles.dmPanelTitle, { color: c.foreground, fontSize: 14 }]}>
-                Drive Safely
-              </Text>
-              <Text style={[styles.dmPanelEta, { color: c.mutedForeground, fontSize: 11 }]} numberOfLines={1}>
-                {activeRoute != null ? `${durationStr(activeRoute.durationS)} left` : ""}
-              </Text>
-              <SOSButton compact small />
-              <TouchableOpacity
-                style={styles.endTripBtn}
-                onPress={() => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-                  captureAndStop();
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="stop-circle" size={11} color="#FFF" />
-                <Text style={[styles.endTripBtnTxt, { fontSize: 11 }]}>End</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* ── Speed gauge ───────────────────────────────────────── */}
-            <View style={{
-              alignItems: "center", paddingVertical: 10, paddingHorizontal: 12,
-              backgroundColor: isDark ? "#0F1411E8" : "#F0F4F2",
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: overLimit ? c.speedDanger + "88" : c.primary + "44",
-            }}>
-              <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: overLimit ? c.speedDanger : c.mutedForeground, letterSpacing: 0.8 }}>
-                SPEED
-              </Text>
-              <Text style={{
-                fontSize: 52, fontFamily: "Inter_700Bold",
-                color: overLimit ? c.speedDanger : c.primary,
-                lineHeight: 60, includeFontPadding: false,
-              }}>
-                {Math.round(currentSpeed)}
-              </Text>
-              <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: -2 }}>
-                km/h
-              </Text>
-              {currentSpeedLimit != null && (
-                <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 5 }}>
-                  <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: c.mutedForeground }}>LIMIT</Text>
-                  <View style={{
-                    width: 32, height: 32, borderRadius: 16,
-                    borderWidth: 2.5,
-                    borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A"),
-                    alignItems: "center", justifyContent: "center",
-                  }}>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: overLimit ? "#E53935" : fgMain }}>
-                      {currentSpeedLimit}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {/* Status pills: LIVE + REC + GPS */}
-              <View style={{ flexDirection: "row", gap: 5, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                {navDestination != null && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#B71C1C", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
-                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#FF5252" }} />
-                    <Text style={{ color: "#FFF", fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 }}>LIVE</Text>
-                  </View>
-                )}
-                {dashcamRecording && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.speedDanger + "22", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: c.speedDanger + "55" }}>
-                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: c.speedDanger }} />
-                    <Text style={{ color: c.speedDanger, fontSize: 9, fontFamily: "Inter_700Bold" }}>REC</Text>
-                  </View>
-                )}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: isDark ? "#12171440" : "#00000010", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
-                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: locationGranted ? c.primary : c.speedDanger }} />
-                  <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: c.foreground }}>
-                    GPS {locationGranted ? "OK" : "Off"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* ── Alert section ─────────────────────────────────────── */}
-            {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && currentSpeed > 0 ? (
-              <TouchableOpacity
-                style={{
-                  backgroundColor: isDark ? "#0F1411F0" : "#FFFFFFF0",
-                  borderRadius: 12, padding: 10,
-                  borderWidth: 2, borderColor: overlayBorderColor,
-                }}
-                onPress={dismissAlert}
-                activeOpacity={0.85}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: activeAlert.speedLimit != null ? 6 : 0 }}>
-                  <Text style={{ fontSize: 22, fontFamily: EMOJI_FONT_FAMILY }}>
-                    {resolveIncidentType(activeAlert.type).emoji}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: resolveIncidentType(activeAlert.type).color }} numberOfLines={1}>
-                      {resolveIncidentType(activeAlert.type).label}
-                    </Text>
-                    <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>Tap to dismiss</Text>
-                  </View>
-                </View>
-                {activeAlert.speedLimit != null && (
-                  <View style={{ flexDirection: "row", gap: 5 }}>
-                    <View style={{ flex: 1, borderRadius: 10, padding: 6, backgroundColor: resolveIncidentType(activeAlert.type).color + "18", alignItems: "center" }}>
-                      <Text style={{ fontSize: 8, fontFamily: "Inter_600SemiBold", color: c.mutedForeground }}>ZONE</Text>
-                      <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: resolveIncidentType(activeAlert.type).color, lineHeight: 28 }}>{activeAlert.speedLimit}</Text>
-                      <Text style={{ fontSize: 8, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>km/h</Text>
-                    </View>
-                    <View style={{ flex: 1, borderRadius: 10, padding: 6, backgroundColor: overLimit ? "#E5393518" : (isDark ? "#FFFFFF0A" : "#00000008"), alignItems: "center" }}>
-                      <Text style={{ fontSize: 8, fontFamily: "Inter_600SemiBold", color: c.mutedForeground }}>YOUR</Text>
-                      <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: speedClr, lineHeight: 28 }}>{Math.round(currentSpeed)}</Text>
-                      <Text style={{ fontSize: 8, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>km/h</Text>
-                    </View>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ) : primaryAlert ? (
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row", alignItems: "center", gap: 8,
-                  backgroundColor: isDark ? "#0F1411E8" : "#F0F4F2",
-                  borderRadius: 12, padding: 10,
-                  borderWidth: 1, borderColor: primaryAlert.color + "55",
-                }}
-                onPress={() => nearbyAlertCandidates.length > 1 && setShowNearbySheet(true)}
-                activeOpacity={0.85}
-              >
-                <Text style={{ fontSize: 20, fontFamily: EMOJI_FONT_FAMILY }}>
-                  {resolveIncidentType(primaryAlert.type).emoji}
-                </Text>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.foreground }} numberOfLines={1}>
-                    {primaryAlert.typeName} ahead
-                  </Text>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: primaryAlert.color }}>
-                    {distStr(primaryAlert.distanceM)}
-                  </Text>
-                </View>
-                {primaryAlert.speedLimit != null && (
-                  <View style={[styles.dmDialLimit, { position: "relative", bottom: 0, alignSelf: "center" }]}>
-                    <Text style={styles.dmDialLimitTxt}>{primaryAlert.speedLimit}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <View style={{
-                flexDirection: "row", alignItems: "center", gap: 6,
-                backgroundColor: isDark ? "#0F2010E8" : "#E8F5E9",
-                borderRadius: 12, padding: 10,
-                borderWidth: 1, borderColor: c.primary + "33",
-              }}>
-                <Ionicons name="checkmark-circle" size={16} color={c.primary} />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: c.primary }}>Clear ahead</Text>
-              </View>
-            )}
-
-            {/* ── Controls: Dashcam · Pause/Stop · Audio ────────────── */}
-            <View style={[styles.dmBottomRow, { marginTop: 0 }]}>
-              {Platform.OS !== "web" ? (
-                <TouchableOpacity
-                  style={[styles.dmToggleCard, {
-                    backgroundColor: isDark ? "#191E1B" : c.muted,
-                    borderColor: dashcamRecording
-                      ? c.speedDanger + "66"
-                      : dashcamPending ? c.primary + "66"
-                      : c.tileBorder,
-                  }]}
-                  onPress={async () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    if (dashcamRecording || dashcamPending) stopAndSaveDashcam();
-                    else {
-                      const { cameraGranted } = await requestDashcamPermissions();
-                      if (!cameraGranted) { openDashcam(); return; }
-                      const ok = await startBackgroundRecording();
-                      if (!ok) openDashcam();
-                    }
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <View style={{ position: "relative" }}>
-                    <View style={[styles.dmToggleIcon, {
-                      backgroundColor: dashcamRecording
-                        ? c.speedDanger + "22"
-                        : dashcamPending ? c.primary + "22"
-                        : (isDark ? "#232926" : "#FFFFFF"),
-                    }]}>
-                      {dashcamPending && !dashcamRecording
-                        ? <ActivityIndicator size="small" color={c.primary} />
-                        : <Ionicons name="videocam-outline" size={16} color={dashcamRecording ? c.speedDanger : c.foreground} />
-                      }
-                    </View>
-                    {dashcamRecording && (
-                      <TouchableOpacity
-                        style={[styles.dmLockBadge, { backgroundColor: c.primary, borderColor: c.card }]}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                          lockCurrentClip("manual");
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons name="lock-closed" size={8} color="#FFF" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.dmToggleTitle, { color: c.foreground, fontSize: 12 }]} numberOfLines={1}>Dashcam</Text>
-                    <Text style={[styles.dmToggleSub, { color: dashcamRecording ? c.speedDanger : dashcamPending ? c.primary : c.mutedForeground, fontSize: 10 }]} numberOfLines={1}>
-                      {dashcamRecording ? "Recording" : dashcamPending ? "Starting…" : "Off"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ) : <View style={{ flex: 1 }} />}
-
-              {/* Pause / Resume / Stop */}
-              <View style={{ alignItems: "center", gap: 4 }}>
-                <TouchableOpacity
-                  style={[styles.dmStopBtn, {
-                    backgroundColor: tripPaused ? "#E5A20D" : "#E5484D",
-                    shadowColor:     tripPaused ? "#E5A20D" : "#E5484D",
-                    width: 48, height: 48, borderRadius: 24,
-                  }]}
-                  onPress={tripPaused ? resumeTrip : pauseTrip}
-                  onLongPress={() => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-                    captureAndStop();
-                  }}
-                  delayLongPress={600}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name={tripPaused ? "play" : "pause"} size={20} color="#FFF" />
-                </TouchableOpacity>
-                <Text style={[styles.dmStopLbl, { color: c.mutedForeground, fontSize: 10 }]}>
-                  {tripPaused ? "Resume" : "Hold stop"}
-                </Text>
-              </View>
-
-              {/* Audio Alerts */}
-              <TouchableOpacity
-                style={[styles.dmToggleCard, {
-                  backgroundColor: isDark ? "#191E1B" : c.muted,
-                  borderColor: audioAlertsOn ? c.primary + "44" : c.tileBorder,
-                }]}
-                onPress={toggleAudioAlerts}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.dmToggleIcon, {
-                  backgroundColor: audioAlertsOn ? c.primary + "22" : (isDark ? "#232926" : "#FFFFFF"),
-                }]}>
-                  <Ionicons
-                    name={audioAlertsOn ? "volume-high-outline" : "volume-mute-outline"}
-                    size={16}
-                    color={audioAlertsOn ? c.primary : c.mutedForeground}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.dmToggleTitle, { color: c.foreground, fontSize: 12 }]} numberOfLines={1}>Audio</Text>
-                  <Text style={[styles.dmToggleSub, { color: audioAlertsOn ? c.primary : c.mutedForeground, fontSize: 10 }]} numberOfLines={1}>
-                    {audioAlertsOn ? "On" : "Off"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* ── Stat tiles ────────────────────────────────────────── */}
-            {(() => {
-              const sc  = driveScore.score;
-              const clr = getScoreColor(sc);
-              const durTxt = (() => {
-                const h = Math.floor(tripElapsedS / 3600);
-                const m = Math.floor((tripElapsedS % 3600) / 60);
-                const s = tripElapsedS % 60;
-                return h > 0
-                  ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-                  : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-              })();
-              const distTxt = driveScore.distanceM >= 1000
-                ? `${(driveScore.distanceM / 1000).toFixed(1)}`
-                : `${Math.round(driveScore.distanceM)}`;
-              const distUnit = driveScore.distanceM >= 1000 ? "km" : "m";
-              const statTiles: { icon: keyof typeof Ionicons.glyphMap; color: string; value: string; unit?: string; label: string }[] = [
-                { icon: "shield-outline",   color: clr,       value: `${sc}`,  label: "Score" },
-                { icon: "time-outline",     color: "#FFB300", value: durTxt,   label: "Time" },
-                { icon: "navigate-outline", color: "#8B7CF6", value: distTxt, unit: distUnit, label: "Dist" },
-              ];
-              return (
-                <View style={styles.dmTileRow}>
-                  <TouchableOpacity
-                    style={[styles.dmTile, {
-                      backgroundColor: isSharingTrip ? c.primary + "18" : (isDark ? "#191E1B" : c.muted),
-                      borderColor: isSharingTrip ? c.primary + "55" : c.tileBorder,
-                    }]}
-                    onPress={handleSharePress}
-                    disabled={sharingLoading}
-                    activeOpacity={0.8}
-                  >
-                    {sharingLoading
-                      ? <ActivityIndicator size="small" color={isSharingTrip ? c.primary : c.mutedForeground} />
-                      : <Ionicons name={isSharingTrip ? "radio" : "share-social-outline"} size={15} color={isSharingTrip ? c.primary : c.foreground} />
-                    }
-                    <Text style={[styles.dmTileVal, { color: isSharingTrip ? c.primary : c.foreground, fontSize: 12 }]} numberOfLines={1}>
-                      {isSharingTrip ? "● Live" : "Off"}
-                    </Text>
-                    <Text style={[styles.dmTileLbl, { color: isSharingTrip ? c.primary : c.mutedForeground }]} numberOfLines={1}>Share</Text>
-                  </TouchableOpacity>
-                  {statTiles.map((t) => (
-                    <View
-                      key={t.label}
-                      style={[styles.dmTile, { backgroundColor: isDark ? "#191E1B" : c.muted, borderColor: c.tileBorder }]}
-                    >
-                      <Ionicons name={t.icon} size={15} color={t.color} />
-                      <Text style={[styles.dmTileVal, { color: c.foreground, fontSize: 12 }]} numberOfLines={1}>
-                        {t.value}
-                        {t.unit ? <Text style={[styles.dmTileUnit, { color: c.mutedForeground }]}> {t.unit}</Text> : null}
-                      </Text>
-                      <Text style={[styles.dmTileLbl, { color: c.mutedForeground }]} numberOfLines={1}>{t.label}</Text>
-                    </View>
-                  ))}
-                </View>
-              );
-            })()}
-
-            {/* ── Report + Nearby shortcuts ─────────────────────────── */}
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1, flexDirection: "row", alignItems: "center",
-                  justifyContent: "center", gap: 5,
-                  backgroundColor: isDark ? "#1B1210" : "#FFF3E0",
-                  borderRadius: 12, paddingVertical: 9,
-                  borderWidth: 1, borderColor: "#E6510033",
-                }}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="warning-outline" size={15} color="#E65100" />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#E65100" }}>Report</Text>
-              </TouchableOpacity>
-              {nearbyAlertCandidates.length > 0 && (
-                <TouchableOpacity
-                  style={{
-                    flex: 1, flexDirection: "row", alignItems: "center",
-                    justifyContent: "center", gap: 5,
-                    backgroundColor: isDark ? "#0F1714" : "#E8F5E9",
-                    borderRadius: 12, paddingVertical: 9,
-                    borderWidth: 1, borderColor: c.primary + "33",
-                  }}
-                  onPress={() => setShowNearbySheet(true)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="alert-circle-outline" size={15} color={c.primary} />
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: c.primary }}>
-                    Nearby ({nearbyAlertCandidates.length})
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* ── Side buttons: Recenter + Theme ────────────────────── */}
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1, flexDirection: "row", alignItems: "center",
-                  justifyContent: "center", gap: 5,
-                  backgroundColor: isDark ? "#191E1B" : c.muted,
-                  borderRadius: 12, paddingVertical: 9,
-                  borderWidth: 1, borderColor: c.tileBorder,
-                }}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  driveMapRef.current?.recenter();
-                  setMapDrifted(false);
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="locate-outline" size={15} color={mapDrifted ? c.primary : c.foreground} />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: mapDrifted ? c.primary : c.foreground }}>
-                  Center
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{
-                  flex: 1, flexDirection: "row", alignItems: "center",
-                  justifyContent: "center", gap: 5,
-                  backgroundColor: isDark ? "#191E1B" : c.muted,
-                  borderRadius: 12, paddingVertical: 9,
-                  borderWidth: 1, borderColor: c.tileBorder,
-                }}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  manualThemeRef.current = true;
-                  setThemeOverride(isDark ? "light" : "dark");
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name={isDark ? "sunny" : "moon"} size={15} color={isDark ? "#FFC107" : "#3949AB"} />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.foreground }}>
-                  {isDark ? "Light" : "Dark"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      )}
 
       {/* ── 3-second pre-trip countdown overlay ────────────────────────────── */}
       {countdownValue !== null && (

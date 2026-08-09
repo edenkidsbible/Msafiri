@@ -70,22 +70,10 @@ function fmtStorage(bytes: number): string {
   return `${Math.round(bytes / 1_048_576)} MB`;
 }
 
-function storageRemaining(used: number, cap: number): string {
-  const freeBytes = Math.max(0, cap - used);
-  const freeMins  = freeBytes / (4 * 1_048_576);
-  if (freeMins >= 60) return `~${Math.floor(freeMins / 60)}h left`;
-  return `~${Math.round(freeMins)}m left`;
-}
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const KEEP_AWAKE_TAG   = "msafiri-dashcam";
-const PANEL_HEIGHT     = 340; // px — settings sheet height
-const STORAGE_CAP_OPTIONS = [
-  { label: "500 MB", bytes: 500 * 1_048_576 },
-  { label: "1 GB",   bytes: 1_073_741_824   },
-  { label: "2 GB",   bytes: 2 * 1_073_741_824 },
-];
+const KEEP_AWAKE_TAG = "msafiri-dashcam";
+const PANEL_HEIGHT   = 340; // px — settings sheet height
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -459,7 +447,9 @@ export default function DashcamOverlay() {
   const showUI = isDashcamOpen && !backgroundRecordPending;
   const qualityLabel = settings.quality === "1080p" ? "1080P" : "720P";
   const isHD         = settings.quality === "1080p";
-  const storageUsedPct = Math.min(1, storageUsedBytes / settings.storageCap);
+  // The rolling window keeps at most 5 unlocked clips at a time (~10 min max).
+  // Show how many unlocked clips are currently on device as a simple counter.
+  const unlockedCount = segments.filter((s) => !s.locked && !s.savedForReview).length;
 
   // When the dashcam is recording silently in the background (not showUI,
   // not showAnglePreview) we need the CameraView alive for recordAsync() but
@@ -678,7 +668,7 @@ export default function DashcamOverlay() {
 
             {isRecording && (
               <Text style={styles.storageHint}>
-                {storageRemaining(storageUsedBytes, settings.storageCap)}
+                {unlockedCount}/5 clips · {fmtStorage(storageUsedBytes)} used
               </Text>
             )}
           </LinearGradient>
@@ -870,31 +860,19 @@ export default function DashcamOverlay() {
                     ))}
                   </View>
 
-                  {/* ── Storage Cap ──────────────────────────────── */}
-                  <Text style={[styles.sectionLabel, { marginTop: 18 }]}>STORAGE LIMIT</Text>
-                  <View style={styles.chipRow}>
-                    {STORAGE_CAP_OPTIONS.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.bytes}
-                        style={[styles.chip, settings.storageCap === opt.bytes && styles.chipActive]}
-                        onPress={() => { Haptics.selectionAsync(); updateSettings({ storageCap: opt.bytes }); }}
-                      >
-                        <Text style={[styles.chipText, settings.storageCap === opt.bytes && styles.chipTextActive]}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Storage usage bar */}
+                  {/* ── Rolling window info ───────────────────── */}
+                  <Text style={[styles.sectionLabel, { marginTop: 18 }]}>LOCAL STORAGE</Text>
                   <View style={styles.storageBarRow}>
                     <View style={styles.storageBarBg}>
-                      <View style={[styles.storageBarFill, { width: `${Math.round(storageUsedPct * 100)}%` as any }]} />
+                      <View style={[styles.storageBarFill, { width: `${Math.round((unlockedCount / 5) * 100)}%` as any }]} />
                     </View>
                     <Text style={styles.storageBarLabel}>
-                      {fmtStorage(storageUsedBytes)} / {fmtStorage(settings.storageCap)}
+                      {unlockedCount}/5 clips · {fmtStorage(storageUsedBytes)} on device
                     </Text>
                   </View>
+                  <Text style={[styles.storageBarLabel, { marginTop: 6, opacity: 0.6 }]}>
+                    The last 5 clips are kept as a rolling buffer. Lock clips to save them beyond the trip.
+                  </Text>
 
                   {/* ── Toggles ──────────────────────────────────── */}
                   <Text style={[styles.sectionLabel, { marginTop: 18 }]}>OPTIONS</Text>

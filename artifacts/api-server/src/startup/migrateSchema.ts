@@ -154,6 +154,27 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS device_secret_hash TEXT
     `);
 
+    // dashcam_clips.pinned — driver-pinned clips are exempt from the standard
+    // 30-day / 24-hour auto-deletion and expire after 60 days instead.
+    await db.execute(sql`
+      ALTER TABLE dashcam_clips
+      ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+
+    // dashcam_clips.expires_at — the timestamp when this cloud clip should be
+    // auto-deleted. Set on upload based on lockReason; extended on pin.
+    // NULL = never expires (legacy rows uploaded before this column existed).
+    await db.execute(sql`
+      ALTER TABLE dashcam_clips
+      ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS dashcam_clips_expires_at_idx
+        ON dashcam_clips (expires_at)
+        WHERE expires_at IS NOT NULL AND pinned = FALSE
+    `);
+
     // live_trips — drive-session records created by Live Trip mode.
     // Stores sensor-derived event counts and the final driving score so the
     // driver can review their history in the Trips → Drive History tab.

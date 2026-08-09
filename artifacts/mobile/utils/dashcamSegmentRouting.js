@@ -87,6 +87,7 @@ export function detectVehicleSwitch(capturedAsyncKey, currentAsyncKey) {
  */
 export function buildDashcamSegment({ id, destUri, durationS, sizeBytes, lockReason, coords, nowMs }) {
   const now = nowMs ?? Date.now();
+  const isManual = lockReason === "manual";
   return {
     id,
     uri:          destUri,
@@ -95,6 +96,8 @@ export function buildDashcamSegment({ id, destUri, durationS, sizeBytes, lockRea
     sizeBytes,
     locked:       !!lockReason,
     lockReason:   lockReason ?? undefined,
+    /** "manual" = driver-locked; "auto" = system-locked (crash, background, etc.) */
+    lockType:     lockReason ? (isManual ? "manual" : "auto") : undefined,
     uploadStatus: lockReason ? "pending" : "none",
     lat:          coords?.lat,
     lng:          coords?.lng,
