@@ -61,13 +61,29 @@ const PRIMARY_VEHICLE_ID_KEY      = "msafiri_primary_vehicle_id";
  * Falls back to the first entry in `fallbackList` and persists that
  * so subsequent calls are fast (no list parse needed).
  * Returns null only when the device has no vehicles at all.
+ *
+ * Validation: if the stored primary ID no longer exists in `fallbackList`
+ * (e.g. the original vehicle was deleted), we reassign to the first
+ * remaining vehicle and persist that, so NULL-vehicleId legacy sessions
+ * stay visible under the new primary rather than becoming orphaned.
  */
 export async function getPrimaryVehicleId(
   fallbackList: SavedVehicle[],
 ): Promise<string | null> {
   try {
     const stored = await AsyncStorage.getItem(PRIMARY_VEHICLE_ID_KEY);
-    if (stored) return stored;
+    if (stored) {
+      // Validate: the stored primary must still exist in the current list.
+      if (fallbackList.some((v) => v.id === stored)) return stored;
+      // The original vehicle was deleted — reassign to the current first vehicle.
+      const reassigned = fallbackList[0]?.id ?? null;
+      if (reassigned) {
+        AsyncStorage.setItem(PRIMARY_VEHICLE_ID_KEY, reassigned).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(PRIMARY_VEHICLE_ID_KEY).catch(() => {});
+      }
+      return reassigned;
+    }
   } catch {
     // ignore storage errors — fall through to list fallback
   }
@@ -78,7 +94,7 @@ export async function getPrimaryVehicleId(
   return first;
 }
 
-async function setPrimaryVehicleIdIfUnset(id: string): Promise<void> {
+export async function setPrimaryVehicleIdIfUnset(id: string): Promise<void> {
   try {
     const stored = await AsyncStorage.getItem(PRIMARY_VEHICLE_ID_KEY);
     if (!stored) await AsyncStorage.setItem(PRIMARY_VEHICLE_ID_KEY, id);

@@ -375,6 +375,10 @@ interface AppContextValue {
   navTripPaused: boolean;
   setNavTripActive: (v: boolean) => void;
   setNavTripPaused: (v: boolean) => void;
+  /** True while the drive screen is locked to landscape orientation.
+   *  MsafiriTabBar reads this to hide itself so the map fills the full screen. */
+  landscapeDriveActive: boolean;
+  setLandscapeDriveActive: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1064,6 +1068,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Drive tab trip state (surfaced so Home tab can show dynamic button) ───
   const [navTripActive, setNavTripActive] = useState(false);
   const [navTripPaused, setNavTripPaused] = useState(false);
+  const [landscapeDriveActive, setLandscapeDriveActive] = useState(false);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [driverName, setDriverNameState] = useState<string>("");
   const driverNameRef = useRef<string>("");
@@ -4084,6 +4089,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDashcamActive,
       profilePhotoUri, setProfilePhotoUri,
       navTripActive, navTripPaused, setNavTripActive, setNavTripPaused,
+      landscapeDriveActive, setLandscapeDriveActive,
     }}>
       {children}
     </AppContext.Provider>

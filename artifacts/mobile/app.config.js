@@ -4,7 +4,11 @@ module.exports = {
     slug: "msafiri-kenya",
     owner: "alfrex-labs",
     version: "2.0.0",
-    orientation: "portrait",
+    // "default" allows all orientations at the native level.
+    // expo-screen-orientation locks to portrait at startup (via _layout.tsx)
+    // and temporarily unlocks to LANDSCAPE_LEFT during the drive screen when
+    // the driver chooses the landscape mount option in the pre-trip checklist.
+    orientation: "default",
     icon: "./assets/images/icon.png",
     scheme: "msafiri",
     userInterfaceStyle: "automatic",
@@ -169,6 +173,7 @@ module.exports = {
             "Msafiri reads your contacts only when you add an emergency SOS contact. These contacts receive your GPS location if you trigger the SOS button while driving. Your contacts list is never stored or shared.",
         },
       ],
+      "expo-screen-orientation",
       "expo-video",
       "@react-native-community/datetimepicker",
       "./plugins/withDisableUnusedAudioServices.js",

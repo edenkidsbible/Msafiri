@@ -21,7 +21,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { saveVehicles, loadVehicles } from "@/utils/savedVehicles";
+import { saveVehicles, loadVehicles, setPrimaryVehicleIdIfUnset } from "@/utils/savedVehicles";
 import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
@@ -127,6 +127,10 @@ export default function VehicleSetup() {
 
       if (existing.length === 0) {
         await saveVehicles([newVehicle]);
+        // Durably record this as the primary vehicle ID so that any
+        // NULL-vehicleId legacy drive sessions always show under the
+        // first vehicle ever created, even if the default changes later.
+        await setPrimaryVehicleIdIfUnset(newVehicle.id);
       } else {
         // Mark all others as non-default, update first slot
         const updated = existing.map((v, i) =>

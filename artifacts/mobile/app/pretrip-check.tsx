@@ -277,14 +277,20 @@ export default function PretripCheckScreen() {
     } catch { /* ignore */ }
   }, []);
 
+  // ── Phone mount orientation ────────────────────────────────────────────────
+  const [mountOrientation, setMountOrientation] = useState<"portrait" | "landscape">("portrait");
+
   // ── Start driving ──────────────────────────────────────────────────────────
-  const handleStart = useCallback(() => {
+  const handleStart = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     // Commit the vehicle selection — drive screen and all downstream consumers
     // read from VehicleContext, so this is the canonical handoff point.
     if (selectedVehicleId) setActiveVehicle(selectedVehicleId);
+    // Persist mount orientation BEFORE navigating so the drive screen's
+    // useFocusEffect reliably reads the new value (not the previous session's).
+    await AsyncStorage.setItem("msafiri:mountOrientation", mountOrientation);
     router.replace("/(tabs)/drive");
-  }, [selectedVehicleId, setActiveVehicle]);
+  }, [selectedVehicleId, setActiveVehicle, mountOrientation]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const allEssentialGranted = locationStatus === "granted" && notifStatus === "granted";
@@ -574,6 +580,86 @@ export default function PretripCheckScreen() {
           </>
         )}
 
+        {/* ── Phone mount orientation ────────────────────────────────── */}
+        <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 20 }]}>
+          PHONE MOUNT
+        </Text>
+        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          {/* Portrait option */}
+          <TouchableOpacity
+            style={[
+              styles.mountOption,
+              mountOrientation === "portrait" && {
+                backgroundColor: c.primary + "11",
+              },
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              setMountOrientation("portrait");
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.mountIconWrap,
+              { backgroundColor: mountOrientation === "portrait" ? c.primary + "22" : c.muted },
+            ]}>
+              <Ionicons
+                name="phone-portrait-outline"
+                size={22}
+                color={mountOrientation === "portrait" ? c.primary : c.mutedForeground}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.mountOptionTitle, { color: c.foreground }]}>Portrait</Text>
+              <Text style={[styles.mountOptionDesc, { color: c.mutedForeground }]}>
+                Phone upright — standard layout
+              </Text>
+            </View>
+            {mountOrientation === "portrait"
+              ? <Ionicons name="radio-button-on" size={20} color={c.primary} />
+              : <Ionicons name="radio-button-off" size={20} color={c.mutedForeground} />
+            }
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+
+          {/* Landscape option */}
+          <TouchableOpacity
+            style={[
+              styles.mountOption,
+              mountOrientation === "landscape" && {
+                backgroundColor: c.primary + "11",
+              },
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              setMountOrientation("landscape");
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.mountIconWrap,
+              { backgroundColor: mountOrientation === "landscape" ? c.primary + "22" : c.muted },
+            ]}>
+              <Ionicons
+                name="phone-landscape-outline"
+                size={22}
+                color={mountOrientation === "landscape" ? c.primary : c.mutedForeground}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.mountOptionTitle, { color: c.foreground }]}>Landscape</Text>
+              <Text style={[styles.mountOptionDesc, { color: c.mutedForeground }]}>
+                Phone sideways — map left, controls right
+              </Text>
+            </View>
+            {mountOrientation === "landscape"
+              ? <Ionicons name="radio-button-on" size={20} color={c.primary} />
+              : <Ionicons name="radio-button-off" size={20} color={c.mutedForeground} />
+            }
+          </TouchableOpacity>
+        </View>
+
         {/* ── Tips card ────────────────────────────────────────────────── */}
         <View style={[styles.tipsCard, { backgroundColor: c.primary + "11", borderColor: c.primary + "33" }]}>
           <Ionicons name="bulb-outline" size={16} color={c.primary} />
@@ -684,6 +770,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   grantPillTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  // Phone mount option
+  mountOption: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 14,
+    gap: 12,
+  },
+  mountIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  mountOptionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  mountOptionDesc:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 
   // Camera preview
   previewWrap: {

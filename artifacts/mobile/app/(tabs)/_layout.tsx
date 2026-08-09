@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import React from "react";
 import { MsafiriTabBar } from "@/components/MsafiriTabBar";
+import { useApp } from "@/context/AppContext";
 
 /**
  * Five-tab navigation matching the UI-overhaul mockups:
@@ -13,11 +14,17 @@ import { MsafiriTabBar } from "@/components/MsafiriTabBar";
  * hidden tabs (href: null) so their routes keep working — they are rehomed /
  * restyled in follow-up tasks. The drive screen is also a hidden tab so the
  * tab bar remains visible in Drive Mode (per the mockup).
+ *
+ * When landscapeDriveActive is true (driver chose landscape mount and started
+ * a trip), the tab bar is hidden so the map and right panel fill the full screen
+ * edge-to-edge without the bar eating into vertical space.
  */
 export default function TabLayout() {
+  const { landscapeDriveActive } = useApp();
+
   return (
     <Tabs
-      tabBar={(props) => <MsafiriTabBar {...props} />}
+      tabBar={(props) => landscapeDriveActive ? null : <MsafiriTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         // Hide the default tab bar — MsafiriTabBar takes over visually.

@@ -175,6 +175,7 @@ export default function DriveScreen() {
     crashSensitivity,
     setDashcamActive,
     setNavTripActive, setNavTripPaused,
+    setLandscapeDriveActive,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -296,8 +297,46 @@ export default function DriveScreen() {
   // effect to use a shorter 8 s window (peek) instead of the 30 s manual-pan
   // window, so the driver is snapped back quickly without waiting.
   const alertFocusModeRef = useRef(false);
+  // ── Landscape mount orientation ───────────────────────────────────────────
+  const [mountLandscape, setMountLandscape] = useState(false);
+  const orientationLockedRef = useRef(false);
+  // Tracks whether orientation preference has been read and the lock (if any)
+  // applied. Auto-start is deferred until this is true so the trip never
+  // starts before the screen orientation is established.
+  // Initialised true on web (no native orientation API) so the gate is a no-op.
+  const orientationReadyRef = useRef(Platform.OS === "web");
+  // Stores a deferred startTrip call that was queued before orientation resolved.
+  const pendingStartRef = useRef<(() => void) | null>(null);
+
+  /**
+   * Orientation-aware trip start — the single entry point that every
+   * start-trip path (auto-start, route-preview Start button, vehicle picker)
+   * MUST use instead of calling `startTrip()` directly.
+   *
+   * If the orientation lock has already resolved (orientationReadyRef.current
+   * is true) the trip starts immediately. Otherwise the call is parked in
+   * pendingStartRef and fired by the orientation useFocusEffect once the lock
+   * completes, guaranteeing that LANDSCAPE_LEFT is active before the countdown
+   * ever begins.
+   */
+  const startTripWhenReady = useCallback(() => {
+    if (orientationReadyRef.current) {
+      startTrip();
+    } else {
+      pendingStartRef.current = startTrip;
+    }
+  // startTrip is stable (useCallback with empty-or-fixed deps); refs are always current.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
+
+  // Keep AppContext in sync so MsafiriTabBar can hide itself during landscape drive.
+  // Must be declared AFTER tripActive to avoid "used before declaration" TS error.
+  useEffect(() => {
+    setLandscapeDriveActive(mountLandscape && tripActive);
+  }, [mountLandscape, tripActive, setLandscapeDriveActive]);
   // Post-trip summary — populated at the moment a trip is stopped so we can
   // display stats even after tripActive clears and state resets.
   const [tripSummaryData, setTripSummaryData] = useState<TripSummaryData | null>(null);
@@ -575,7 +614,7 @@ export default function DriveScreen() {
         if (list.length > 1) {
           setShowVehiclePicker(true);
         } else {
-          startTrip();
+          startTripWhenReady();
         }
       };
       if (vehicleLoadPromiseRef.current) {
@@ -589,6 +628,66 @@ export default function DriveScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination, noAutoStart]));
 
+  // ── Landscape orientation management ────────────────────────────────────
+  // Read the mount preference whenever the drive tab gains focus.
+  // If the driver chose "landscape" in the pre-trip checklist, lock the
+  // display rotation. The cleanup restores portrait when focus is lost.
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS === "web") return;
+    orientationReadyRef.current = false;
+    pendingStartRef.current = null;
+    let cancelled = false;
+    AsyncStorage.getItem("msafiri:mountOrientation").then(async (val) => {
+      if (cancelled) return;
+      if (val === "landscape") {
+        try {
+          // Dynamic require keeps web bundle free of the native module.
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const SO = require("expo-screen-orientation");
+          await SO.lockAsync(SO.OrientationLock.LANDSCAPE_LEFT);
+          if (!cancelled) {
+            orientationLockedRef.current = true;
+            setMountLandscape(true);
+          }
+        } catch { /* ignore — orientation lock fails gracefully on simulators */ }
+      } else {
+        if (!cancelled) setMountLandscape(false);
+      }
+      // Signal that orientation is settled. Any auto-start that arrived before
+      // this resolves is stored in pendingStartRef and fired now.
+      if (!cancelled) {
+        orientationReadyRef.current = true;
+        const deferred = pendingStartRef.current;
+        pendingStartRef.current = null;
+        deferred?.();
+      }
+    }).catch(() => {
+      // On storage error fall through to portrait and unblock auto-start.
+      if (!cancelled) {
+        orientationReadyRef.current = true;
+        const deferred = pendingStartRef.current;
+        pendingStartRef.current = null;
+        deferred?.();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      orientationReadyRef.current = false;
+      pendingStartRef.current = null;
+      if (orientationLockedRef.current) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const SO = require("expo-screen-orientation");
+          SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+        } catch { /* ignore */ }
+        orientationLockedRef.current = false;
+        setMountLandscape(false);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
+
   // Reset the auto-start guard and vehicle picker state when the trip ends.
   useEffect(() => {
     if (!tripActive) {
@@ -597,6 +696,17 @@ export default function DriveScreen() {
       driveVehicleRef.current = driveVehiclesRef.current.find(v => v.isDefault)
         ?? driveVehiclesRef.current[0]
         ?? null;
+    }
+    // Restore portrait orientation when the trip ends — the driver may want to
+    // use other parts of the app normally before starting another trip.
+    if (!tripActive && orientationLockedRef.current && Platform.OS !== "web") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const SO = require("expo-screen-orientation");
+        SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+      } catch { /* ignore */ }
+      orientationLockedRef.current = false;
+      setMountLandscape(false);
     }
   }, [tripActive]);
 
@@ -1357,7 +1467,7 @@ export default function DriveScreen() {
       {/* Auto-hide once the driver has clearly passed the alert (>30 m behind
           on the route). AppContext will eventually clear it, but this filter
           gives an immediate visual response instead of showing "Behind you". */}
-      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && (
+      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && !mountLandscape && (
         <DriveAlertOverlay
           alert={activeAlert}
           extraAlerts={activeAlertExtras}
@@ -1386,7 +1496,7 @@ export default function DriveScreen() {
       {/* ── Cluster-dismiss re-arm hint ─────────────────────────────────────
           Appears for 4 s after "Got it — dismiss all" so the driver knows
           alerts near this spot are paused and when they will re-arm. */}
-      {pauseNote && (
+      {pauseNote && !mountLandscape && (
         <View
           pointerEvents="none"
           style={[
@@ -1406,7 +1516,7 @@ export default function DriveScreen() {
       {/* Drive Mode header removed — share moved to stats row, audio moved to bottom panel */}
 
       {/* ── Drive Mode top alert banner — e.g. "Speed camera ahead · 200 m" ──── */}
-      {tripActive && primaryAlert && (
+      {tripActive && primaryAlert && !mountLandscape && (
         <AnimatedTouchable
           activeOpacity={0.85}
           onPress={() => { if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true); }}
@@ -1441,7 +1551,7 @@ export default function DriveScreen() {
 
       {/* ── Compact LIVE pill — replaces the bulky trip info card so the top
           stays clear for nearby-alert overlays. Styled like the red REC pill. ── */}
-      {tripActive && navDestination != null && (
+      {tripActive && navDestination != null && !mountLandscape && (
         <View style={[styles.livePill, { top: topInset + (primaryAlert ? 90 : 16) }]}>
           <View style={styles.livePillDot} />
           <Text style={styles.livePillTxt}>LIVE</Text>
@@ -1746,7 +1856,7 @@ export default function DriveScreen() {
           · Report / Center round buttons — right edge
           · Weather + GPS chips — just above the Drive Safely panel
       ══════════════════════════════════════════════════════════════════ */}
-      {tripActive && (
+      {tripActive && !mountLandscape && (
         <>
           {/* Speed dial — green ring, big digit, km/h, limit badge below */}
           <View
@@ -1917,79 +2027,86 @@ export default function DriveScreen() {
               <ActivityIndicator size="small" color={c.primary} />
               <Text style={[styles.clearTxt, { color: fgMuted }]}>Calculating route…</Text>
             </View>
-          ) : primaryAlert ? (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={{ flex: 1, gap: 4 }}
-              onPress={() => {
-                if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
-              }}
-            >
-              {/* Row 1: "NEARBY ALERTS" label — full-width badge, text only */}
-              <View style={[styles.nearbyAlertBadge, {
-                backgroundColor: primaryAlert.color + "22",
-                borderColor:     primaryAlert.color + "55",
-                flexDirection: "row",
-                alignItems: "center",
-                alignSelf: "stretch",
-                gap: 6,
-              }]}>
-                <Ionicons name="alert-circle" size={14} color={primaryAlert.color} />
-                <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color }]}>
-                  NEARBY ALERTS
-                </Text>
-              </View>
-              {/* Row 2: Emoji row — only shown when 2+ alerts are nearby.
-                  Width is measured at render time so the number of visible
-                  emojis adapts to the actual available space automatically. */}
-              {nearbyAlertCandidates.length > 1 && (() => {
-                // Slot width: 18px emoji + 4px gap between items.
-                // Reserve 46px for the "+N" label (~28px) + gap (4px) + chevron (12px) + marginLeft (2px).
-                const maxVisible = emojiRowWidthRef.current > 0
-                  ? Math.max(1, Math.floor((emojiRowWidthRef.current - 46) / 22))
-                  : nearbyAlertCandidates.length; // unmeasured: show all, clipped by parent
-                const overflow = nearbyAlertCandidates.length - maxVisible;
-                return (
-                  <View
-                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                    onLayout={(e) => { emojiRowWidthRef.current = e.nativeEvent.layout.width; }}
-                  >
-                    {nearbyAlertCandidates.slice(0, maxVisible).map((c, i) => (
-                      <Text key={c.id + i} style={{ fontSize: 18 }}>{c.emoji}</Text>
-                    ))}
-                    {overflow > 0 && (
-                      <Text style={[styles.nearbyAlertLabel, { color: primaryAlert.color, marginLeft: 2 }]}>
-                        +{overflow}
-                      </Text>
-                    )}
-                    <Ionicons name="chevron-forward" size={12} color={primaryAlert.color} style={{ marginLeft: 2 }} />
-                  </View>
-                );
-              })()}
-              {/* Row 3: Marker + [type name above distance] — SOS floats bottom-right.
-                  paddingRight is narrower now that SOS is a square icon button. */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingRight: isSmall ? 46 : 54 }}>
-                <View style={[styles.alertMarker, { backgroundColor: primaryAlert.color }]}>
-                  <Text style={styles.alertMarkerEmoji}>
-                    {resolveIncidentType(primaryAlert.type).emoji}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
-                    {primaryAlert.typeName}
-                  </Text>
-                  {primaryAlert.speedLimit ? (
-                    <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
-                      {primaryAlert.speedLimit} km/h
+          ) : primaryAlert ? (() => {
+              // Non-null assertion: the `primaryAlert ?` condition above already
+              // guarantees this branch only executes when primaryAlert is non-null.
+              // The IIFE boundary prevents TypeScript from propagating the ternary
+              // narrowing automatically, so we assert it here to keep TSC happy.
+              const pa = primaryAlert!;
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={{ flex: 1, gap: 4 }}
+                  onPress={() => {
+                    if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
+                  }}
+                >
+                  {/* Row 1: "NEARBY ALERTS" label — full-width badge, text only */}
+                  <View style={[styles.nearbyAlertBadge, {
+                    backgroundColor: pa.color + "22",
+                    borderColor:     pa.color + "55",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    alignSelf: "stretch",
+                    gap: 6,
+                  }]}>
+                    <Ionicons name="alert-circle" size={14} color={pa.color} />
+                    <Text style={[styles.nearbyAlertLabel, { color: pa.color }]}>
+                      NEARBY ALERTS
                     </Text>
-                  ) : null}
-                  <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
-                    {distStr(primaryAlert.distanceM)} ahead
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ) : (
+                  </View>
+                  {/* Row 2: Emoji row — only shown when 2+ alerts are nearby.
+                      Width is measured at render time so the number of visible
+                      emojis adapts to the actual available space automatically. */}
+                  {nearbyAlertCandidates.length > 1 && (() => {
+                    // Slot width: 18px emoji + 4px gap between items.
+                    // Reserve 46px for the "+N" label (~28px) + gap (4px) + chevron (12px) + marginLeft (2px).
+                    const maxVisible = emojiRowWidthRef.current > 0
+                      ? Math.max(1, Math.floor((emojiRowWidthRef.current - 46) / 22))
+                      : nearbyAlertCandidates.length; // unmeasured: show all, clipped by parent
+                    const overflow = nearbyAlertCandidates.length - maxVisible;
+                    return (
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                        onLayout={(e) => { emojiRowWidthRef.current = e.nativeEvent.layout.width; }}
+                      >
+                        {nearbyAlertCandidates.slice(0, maxVisible).map((c, i) => (
+                          <Text key={c.id + i} style={{ fontSize: 18 }}>{c.emoji}</Text>
+                        ))}
+                        {overflow > 0 && (
+                          <Text style={[styles.nearbyAlertLabel, { color: pa.color, marginLeft: 2 }]}>
+                            +{overflow}
+                          </Text>
+                        )}
+                        <Ionicons name="chevron-forward" size={12} color={pa.color} style={{ marginLeft: 2 }} />
+                      </View>
+                    );
+                  })()}
+                  {/* Row 3: Marker + [type name above distance] — SOS floats bottom-right.
+                      paddingRight is narrower now that SOS is a square icon button. */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingRight: isSmall ? 46 : 54 }}>
+                    <View style={[styles.alertMarker, { backgroundColor: pa.color }]}>
+                      <Text style={styles.alertMarkerEmoji}>
+                        {resolveIncidentType(pa.type).emoji}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
+                        {pa.typeName}
+                      </Text>
+                      {pa.speedLimit ? (
+                        <Text style={[styles.zoneTypeName, { color: fgMain }]} numberOfLines={1}>
+                          {pa.speedLimit} km/h
+                        </Text>
+                      ) : null}
+                      <Text style={[styles.zoneDistAhead, { color: fgMuted }]}>
+                        {distStr(pa.distanceM)} ahead
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })() : (
             <Text style={[styles.clearTxt, { color: fgMuted, flex: 1, paddingRight: isSmall ? 56 : 70 }]}>Clear ahead</Text>
           )}
 
@@ -1999,133 +2116,140 @@ export default function DriveScreen() {
               whose speed / depth scale with proximity).
               Border colour shifts RED → ORANGE → AMBER → alert-colour as
               distance grows. SOS (zIndex 10) always floats on top. */}
-          {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert.distanceM <= 1000 && (
-            // Outer view is always fully opaque — hides the gauge + right-panel
-            // content underneath. The inner ring's opacity pulses AND the whole
-            // overlay scales in a lub-dub heartbeat so it's noticeable at a glance.
-            <Animated.View
-              style={[styles.alertOverlay, {
-                backgroundColor: bgOpaque,
-                borderLeftColor: overlayBorderColor,
-                borderLeftWidth: overlayBorderWidth,
-                transform: [{ scale: alertOverlayScale }],
-              }]}
-            >
-              {/* Pulsing ring glow — only this opacity animates, not the whole overlay */}
+          {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert!.distanceM <= 1000 && (() => {
+            // Non-null assertion: the `primaryAlert &&` guard above already
+            // guarantees this branch only executes when primaryAlert is non-null.
+            // The IIFE boundary prevents TypeScript from propagating the &&
+            // narrowing automatically, so we assert it here to keep TSC happy.
+            const pa = primaryAlert!;
+            return (
+              // Outer view is always fully opaque — hides the gauge + right-panel
+              // content underneath. The inner ring's opacity pulses AND the whole
+              // overlay scales in a lub-dub heartbeat so it's noticeable at a glance.
               <Animated.View
-                pointerEvents="none"
-                style={{
-                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: overlayBorderColor,
-                  opacity: alertOverlayPulse,
-                }}
-              />
-
-              <TouchableOpacity
-                activeOpacity={0.92}
-                style={styles.alertOverlayInner}
-                onPress={() => {
-                  if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
-                }}
+                style={[styles.alertOverlay, {
+                  backgroundColor: bgOpaque,
+                  borderLeftColor: overlayBorderColor,
+                  borderLeftWidth: overlayBorderWidth,
+                  transform: [{ scale: alertOverlayScale }],
+                }]}
               >
-                {/* Row 1: big emoji · type name · distance */}
-                <View style={[styles.alertOverlayTop, { paddingRight: isSmall ? 48 : 58 }]}>
-                  <View style={[styles.alertOverlayIconWrap, {
-                    backgroundColor: primaryAlert.color + "22",
-                    width:  isSmall ? 52 : 62,
-                    height: isSmall ? 52 : 62,
-                    borderRadius: isSmall ? 14 : 16,
-                  }]}>
-                    <Text style={[styles.alertOverlayEmoji, { fontSize: isSmall ? 26 : 34 }]}>
-                      {resolveIncidentType(primaryAlert.type).emoji}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.alertOverlayTypeName, {
-                      color: primaryAlert.color,
-                      fontSize: isSmall ? 19 : 22,
-                    }]}>
-                      {primaryAlert.typeName}
-                    </Text>
-                    {nearbyAlertCandidates.length > 1 && (
-                      <Text style={[styles.alertOverlayMoreTxt, { color: fgMuted }]}>
-                        +{nearbyAlertCandidates.length - 1} more nearby · tap
-                      </Text>
-                    )}
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[styles.alertOverlayDistNum, {
-                      color: overlayBorderColor,
-                      fontSize: isSmall ? 24 : 30,
-                    }]}>
-                      {distStr(primaryAlert.distanceM)}
-                    </Text>
-                    <Text style={[styles.alertOverlayDistLabel, { color: fgMuted }]}>ahead</Text>
-                  </View>
-                </View>
+                {/* Pulsing ring glow — only this opacity animates, not the whole overlay */}
+                <Animated.View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                    borderRadius: 16,
+                    borderWidth: 2,
+                    borderColor: overlayBorderColor,
+                    opacity: alertOverlayPulse,
+                  }}
+                />
 
-                {/* Row 2: speed comparison (camera/zone) or chips (reports) */}
-                {(primaryAlert.type === "camera" || primaryAlert.type === "zone") ? (
-                  <View style={[styles.alertOverlaySpeedRow, { paddingRight: isSmall ? 48 : 58 }]}>
-                    {/* Zone limit */}
-                    <View style={[styles.alertOverlaySpeedCell, { backgroundColor: primaryAlert.color + "18" }]}>
-                      <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>ZONE LIMIT</Text>
-                      <Text style={[styles.alertOverlayCellNum, {
-                        color: primaryAlert.color,
-                        fontSize: isSmall ? 38 : 46,
-                        lineHeight: isSmall ? 44 : 52,
-                      }]}>
-                        {primaryAlert.speedLimit != null ? `${primaryAlert.speedLimit}` : "—"}
-                      </Text>
-                      <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
-                    </View>
-                    {/* Your speed */}
-                    <View style={[styles.alertOverlaySpeedCell, {
-                      backgroundColor: overLimit
-                        ? "#E5393518"
-                        : (isDark ? "#FFFFFF0A" : "#00000008"),
+                <TouchableOpacity
+                  activeOpacity={0.92}
+                  style={styles.alertOverlayInner}
+                  onPress={() => {
+                    if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true);
+                  }}
+                >
+                  {/* Row 1: big emoji · type name · distance */}
+                  <View style={[styles.alertOverlayTop, { paddingRight: isSmall ? 48 : 58 }]}>
+                    <View style={[styles.alertOverlayIconWrap, {
+                      backgroundColor: pa.color + "22",
+                      width:  isSmall ? 52 : 62,
+                      height: isSmall ? 52 : 62,
+                      borderRadius: isSmall ? 14 : 16,
                     }]}>
-                      <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>YOUR SPEED</Text>
-                      <Text style={[styles.alertOverlayCellNum, {
-                        color: speedClr,
-                        fontSize: isSmall ? 38 : 46,
-                        lineHeight: isSmall ? 44 : 52,
-                      }]}>
-                        {Math.round(currentSpeed)}
+                      <Text style={[styles.alertOverlayEmoji, { fontSize: isSmall ? 26 : 34 }]}>
+                        {resolveIncidentType(pa.type).emoji}
                       </Text>
-                      <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.alertOverlayTypeName, {
+                        color: pa.color,
+                        fontSize: isSmall ? 19 : 22,
+                      }]}>
+                        {pa.typeName}
+                      </Text>
+                      {nearbyAlertCandidates.length > 1 && (
+                        <Text style={[styles.alertOverlayMoreTxt, { color: fgMuted }]}>
+                          +{nearbyAlertCandidates.length - 1} more nearby · tap
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={[styles.alertOverlayDistNum, {
+                        color: overlayBorderColor,
+                        fontSize: isSmall ? 24 : 30,
+                      }]}>
+                        {distStr(pa.distanceM)}
+                      </Text>
+                      <Text style={[styles.alertOverlayDistLabel, { color: fgMuted }]}>ahead</Text>
                     </View>
                   </View>
-                ) : (
-                  /* Non-speed alerts: proximity chip + optional speed limit */
-                  <View style={[styles.alertOverlayChipRow, { paddingRight: isSmall ? 48 : 58 }]}>
-                    <View style={[styles.alertOverlayChip, {
-                      backgroundColor: overlayBorderColor + "20",
-                      borderColor:     overlayBorderColor + "60",
-                    }]}>
-                      <Text style={[styles.alertOverlayChipTxt, { color: overlayBorderColor, fontSize: isSmall ? 14 : 16 }]}>
-                        {primaryAlert.distanceM <  200 ? "⚠️ Very close"
-                          : primaryAlert.distanceM < 500 ? "🔶 Approaching"
-                          : "Community report"}
-                      </Text>
-                    </View>
-                    {primaryAlert.speedLimit != null && (
-                      <View style={[styles.alertOverlayChip, {
-                        backgroundColor: primaryAlert.color + "18",
-                        borderColor:     primaryAlert.color + "50",
+
+                  {/* Row 2: speed comparison (camera/zone) or chips (reports) */}
+                  {(pa.type === "camera" || pa.type === "zone") ? (
+                    <View style={[styles.alertOverlaySpeedRow, { paddingRight: isSmall ? 48 : 58 }]}>
+                      {/* Zone limit */}
+                      <View style={[styles.alertOverlaySpeedCell, { backgroundColor: pa.color + "18" }]}>
+                        <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>ZONE LIMIT</Text>
+                        <Text style={[styles.alertOverlayCellNum, {
+                          color: pa.color,
+                          fontSize: isSmall ? 38 : 46,
+                          lineHeight: isSmall ? 44 : 52,
+                        }]}>
+                          {pa.speedLimit != null ? `${pa.speedLimit}` : "—"}
+                        </Text>
+                        <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                      </View>
+                      {/* Your speed */}
+                      <View style={[styles.alertOverlaySpeedCell, {
+                        backgroundColor: overLimit
+                          ? "#E5393518"
+                          : (isDark ? "#FFFFFF0A" : "#00000008"),
                       }]}>
-                        <Text style={[styles.alertOverlayChipTxt, { color: primaryAlert.color, fontSize: isSmall ? 14 : 16 }]}>
-                          {primaryAlert.speedLimit} km/h zone
+                        <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>YOUR SPEED</Text>
+                        <Text style={[styles.alertOverlayCellNum, {
+                          color: speedClr,
+                          fontSize: isSmall ? 38 : 46,
+                          lineHeight: isSmall ? 44 : 52,
+                        }]}>
+                          {Math.round(currentSpeed)}
+                        </Text>
+                        <Text style={[styles.alertOverlayCellUnit, { color: fgMuted }]}>km/h</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    /* Non-speed alerts: proximity chip + optional speed limit */
+                    <View style={[styles.alertOverlayChipRow, { paddingRight: isSmall ? 48 : 58 }]}>
+                      <View style={[styles.alertOverlayChip, {
+                        backgroundColor: overlayBorderColor + "20",
+                        borderColor:     overlayBorderColor + "60",
+                      }]}>
+                        <Text style={[styles.alertOverlayChipTxt, { color: overlayBorderColor, fontSize: isSmall ? 14 : 16 }]}>
+                          {pa.distanceM <  200 ? "⚠️ Very close"
+                            : pa.distanceM < 500 ? "🔶 Approaching"
+                            : "Community report"}
                         </Text>
                       </View>
-                    )}
-                  </View>
-                )}
-              </TouchableOpacity>
-            </Animated.View>
-          )}
+                      {pa.speedLimit != null && (
+                        <View style={[styles.alertOverlayChip, {
+                          backgroundColor: pa.color + "18",
+                          borderColor:     pa.color + "50",
+                        }]}>
+                          <Text style={[styles.alertOverlayChipTxt, { color: pa.color, fontSize: isSmall ? 14 : 16 }]}>
+                            {pa.speedLimit} km/h zone
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })()}
 
           {/* SOS — above the overlay via zIndex 10 */}
           <View style={{ position: "absolute", right: isSmall ? 8 : 12, bottom: isSmall ? 10 : 12, zIndex: 10 }}>
@@ -2387,7 +2511,7 @@ export default function DriveScreen() {
                 if (driveVehiclesRef.current.length > 1) {
                   setShowVehiclePicker(true);
                 } else {
-                  startTrip();
+                  startTripWhenReady();
                 }
               }}
             >
@@ -2401,7 +2525,7 @@ export default function DriveScreen() {
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Live Trip sheet
       ══════════════════════════════════════════════════════════════════ */}
-      {tripActive && (
+      {tripActive && !mountLandscape && (
         <View
           style={[styles.liveTripSheet, {
             backgroundColor: isDark ? "#111514FA" : "#FFFFFFFA",
@@ -3049,7 +3173,7 @@ export default function DriveScreen() {
                   onPress={() => {
                     driveVehicleRef.current = v;
                     setShowVehiclePicker(false);
-                    startTrip();
+                    startTripWhenReady();
                   }}
                   style={{
                     flexDirection: "row", alignItems: "center", gap: 14,
@@ -3358,6 +3482,439 @@ export default function DriveScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          LANDSCAPE DRIVE PANEL
+          Overlays the right 45 % of the screen when the driver mounted their
+          phone sideways. The map still fills the full screen; this panel sits
+          on top of the right portion so the left 55 % stays visible as the map.
+          Portrait mode is fully unaffected — this block is never rendered when
+          !mountLandscape.
+      ══════════════════════════════════════════════════════════════════ */}
+      {mountLandscape && tripActive && (
+        <View style={{
+          position: "absolute", top: 0, right: 0, bottom: 0,
+          width: "45%", zIndex: 20,
+          backgroundColor: isDark ? "#111514F8" : "#FFFFFFF8",
+          borderLeftWidth: 1, borderLeftColor: c.tileBorder,
+        }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: 10,
+              paddingTop: insets.top + 8,
+              paddingBottom: insets.bottom + 8,
+              gap: 8,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* ── Title row ─────────────────────────────────────────── */}
+            <View style={[styles.dmPanelTitleRow, { paddingTop: 0, paddingBottom: 6 }]}>
+              <Text style={[styles.dmPanelTitle, { color: c.foreground, fontSize: 14 }]}>
+                Drive Safely
+              </Text>
+              <Text style={[styles.dmPanelEta, { color: c.mutedForeground, fontSize: 11 }]} numberOfLines={1}>
+                {activeRoute != null ? `${durationStr(activeRoute.durationS)} left` : ""}
+              </Text>
+              <SOSButton compact small />
+              <TouchableOpacity
+                style={styles.endTripBtn}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                  captureAndStop();
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="stop-circle" size={11} color="#FFF" />
+                <Text style={[styles.endTripBtnTxt, { fontSize: 11 }]}>End</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Speed gauge ───────────────────────────────────────── */}
+            <View style={{
+              alignItems: "center", paddingVertical: 10, paddingHorizontal: 12,
+              backgroundColor: isDark ? "#0F1411E8" : "#F0F4F2",
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: overLimit ? c.speedDanger + "88" : c.primary + "44",
+            }}>
+              <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: overLimit ? c.speedDanger : c.mutedForeground, letterSpacing: 0.8 }}>
+                SPEED
+              </Text>
+              <Text style={{
+                fontSize: 52, fontFamily: "Inter_700Bold",
+                color: overLimit ? c.speedDanger : c.primary,
+                lineHeight: 60, includeFontPadding: false,
+              }}>
+                {Math.round(currentSpeed)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: -2 }}>
+                km/h
+              </Text>
+              {currentSpeedLimit != null && (
+                <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: c.mutedForeground }}>LIMIT</Text>
+                  <View style={{
+                    width: 32, height: 32, borderRadius: 16,
+                    borderWidth: 2.5,
+                    borderColor: overLimit ? "#E53935" : (isDark ? "#555" : "#1A1A1A"),
+                    alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: overLimit ? "#E53935" : fgMain }}>
+                      {currentSpeedLimit}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {/* Status pills: LIVE + REC + GPS */}
+              <View style={{ flexDirection: "row", gap: 5, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                {navDestination != null && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#B71C1C", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#FF5252" }} />
+                    <Text style={{ color: "#FFF", fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 }}>LIVE</Text>
+                  </View>
+                )}
+                {dashcamRecording && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.speedDanger + "22", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: c.speedDanger + "55" }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: c.speedDanger }} />
+                    <Text style={{ color: c.speedDanger, fontSize: 9, fontFamily: "Inter_700Bold" }}>REC</Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: isDark ? "#12171440" : "#00000010", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: locationGranted ? c.primary : c.speedDanger }} />
+                  <Text style={{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: c.foreground }}>
+                    GPS {locationGranted ? "OK" : "Off"}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ── Alert section ─────────────────────────────────────── */}
+            {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && currentSpeed > 0 ? (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: isDark ? "#0F1411F0" : "#FFFFFFF0",
+                  borderRadius: 12, padding: 10,
+                  borderWidth: 2, borderColor: overlayBorderColor,
+                }}
+                onPress={dismissAlert}
+                activeOpacity={0.85}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: activeAlert.speedLimit != null ? 6 : 0 }}>
+                  <Text style={{ fontSize: 22, fontFamily: EMOJI_FONT_FAMILY }}>
+                    {resolveIncidentType(activeAlert.type).emoji}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: resolveIncidentType(activeAlert.type).color }} numberOfLines={1}>
+                      {resolveIncidentType(activeAlert.type).label}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>Tap to dismiss</Text>
+                  </View>
+                </View>
+                {activeAlert.speedLimit != null && (
+                  <View style={{ flexDirection: "row", gap: 5 }}>
+                    <View style={{ flex: 1, borderRadius: 10, padding: 6, backgroundColor: resolveIncidentType(activeAlert.type).color + "18", alignItems: "center" }}>
+                      <Text style={{ fontSize: 8, fontFamily: "Inter_600SemiBold", color: c.mutedForeground }}>ZONE</Text>
+                      <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: resolveIncidentType(activeAlert.type).color, lineHeight: 28 }}>{activeAlert.speedLimit}</Text>
+                      <Text style={{ fontSize: 8, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>km/h</Text>
+                    </View>
+                    <View style={{ flex: 1, borderRadius: 10, padding: 6, backgroundColor: overLimit ? "#E5393518" : (isDark ? "#FFFFFF0A" : "#00000008"), alignItems: "center" }}>
+                      <Text style={{ fontSize: 8, fontFamily: "Inter_600SemiBold", color: c.mutedForeground }}>YOUR</Text>
+                      <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: speedClr, lineHeight: 28 }}>{Math.round(currentSpeed)}</Text>
+                      <Text style={{ fontSize: 8, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>km/h</Text>
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ) : primaryAlert ? (
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 8,
+                  backgroundColor: isDark ? "#0F1411E8" : "#F0F4F2",
+                  borderRadius: 12, padding: 10,
+                  borderWidth: 1, borderColor: primaryAlert.color + "55",
+                }}
+                onPress={() => nearbyAlertCandidates.length > 1 && setShowNearbySheet(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontSize: 20, fontFamily: EMOJI_FONT_FAMILY }}>
+                  {resolveIncidentType(primaryAlert.type).emoji}
+                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.foreground }} numberOfLines={1}>
+                    {primaryAlert.typeName} ahead
+                  </Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: primaryAlert.color }}>
+                    {distStr(primaryAlert.distanceM)}
+                  </Text>
+                </View>
+                {primaryAlert.speedLimit != null && (
+                  <View style={[styles.dmDialLimit, { position: "relative", bottom: 0, alignSelf: "center" }]}>
+                    <Text style={styles.dmDialLimitTxt}>{primaryAlert.speedLimit}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 6,
+                backgroundColor: isDark ? "#0F2010E8" : "#E8F5E9",
+                borderRadius: 12, padding: 10,
+                borderWidth: 1, borderColor: c.primary + "33",
+              }}>
+                <Ionicons name="checkmark-circle" size={16} color={c.primary} />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: c.primary }}>Clear ahead</Text>
+              </View>
+            )}
+
+            {/* ── Controls: Dashcam · Pause/Stop · Audio ────────────── */}
+            <View style={[styles.dmBottomRow, { marginTop: 0 }]}>
+              {Platform.OS !== "web" ? (
+                <TouchableOpacity
+                  style={[styles.dmToggleCard, {
+                    backgroundColor: isDark ? "#191E1B" : c.muted,
+                    borderColor: dashcamRecording
+                      ? c.speedDanger + "66"
+                      : dashcamPending ? c.primary + "66"
+                      : c.tileBorder,
+                  }]}
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    if (dashcamRecording || dashcamPending) stopAndSaveDashcam();
+                    else {
+                      const { cameraGranted } = await requestDashcamPermissions();
+                      if (!cameraGranted) { openDashcam(); return; }
+                      const ok = await startBackgroundRecording();
+                      if (!ok) openDashcam();
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <View style={{ position: "relative" }}>
+                    <View style={[styles.dmToggleIcon, {
+                      backgroundColor: dashcamRecording
+                        ? c.speedDanger + "22"
+                        : dashcamPending ? c.primary + "22"
+                        : (isDark ? "#232926" : "#FFFFFF"),
+                    }]}>
+                      {dashcamPending && !dashcamRecording
+                        ? <ActivityIndicator size="small" color={c.primary} />
+                        : <Ionicons name="videocam-outline" size={16} color={dashcamRecording ? c.speedDanger : c.foreground} />
+                      }
+                    </View>
+                    {dashcamRecording && (
+                      <TouchableOpacity
+                        style={[styles.dmLockBadge, { backgroundColor: c.primary, borderColor: c.card }]}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          lockCurrentClip("manual");
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons name="lock-closed" size={8} color="#FFF" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.dmToggleTitle, { color: c.foreground, fontSize: 12 }]} numberOfLines={1}>Dashcam</Text>
+                    <Text style={[styles.dmToggleSub, { color: dashcamRecording ? c.speedDanger : dashcamPending ? c.primary : c.mutedForeground, fontSize: 10 }]} numberOfLines={1}>
+                      {dashcamRecording ? "Recording" : dashcamPending ? "Starting…" : "Off"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : <View style={{ flex: 1 }} />}
+
+              {/* Pause / Resume / Stop */}
+              <View style={{ alignItems: "center", gap: 4 }}>
+                <TouchableOpacity
+                  style={[styles.dmStopBtn, {
+                    backgroundColor: tripPaused ? "#E5A20D" : "#E5484D",
+                    shadowColor:     tripPaused ? "#E5A20D" : "#E5484D",
+                    width: 48, height: 48, borderRadius: 24,
+                  }]}
+                  onPress={tripPaused ? resumeTrip : pauseTrip}
+                  onLongPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                    captureAndStop();
+                  }}
+                  delayLongPress={600}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name={tripPaused ? "play" : "pause"} size={20} color="#FFF" />
+                </TouchableOpacity>
+                <Text style={[styles.dmStopLbl, { color: c.mutedForeground, fontSize: 10 }]}>
+                  {tripPaused ? "Resume" : "Hold stop"}
+                </Text>
+              </View>
+
+              {/* Audio Alerts */}
+              <TouchableOpacity
+                style={[styles.dmToggleCard, {
+                  backgroundColor: isDark ? "#191E1B" : c.muted,
+                  borderColor: audioAlertsOn ? c.primary + "44" : c.tileBorder,
+                }]}
+                onPress={toggleAudioAlerts}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.dmToggleIcon, {
+                  backgroundColor: audioAlertsOn ? c.primary + "22" : (isDark ? "#232926" : "#FFFFFF"),
+                }]}>
+                  <Ionicons
+                    name={audioAlertsOn ? "volume-high-outline" : "volume-mute-outline"}
+                    size={16}
+                    color={audioAlertsOn ? c.primary : c.mutedForeground}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.dmToggleTitle, { color: c.foreground, fontSize: 12 }]} numberOfLines={1}>Audio</Text>
+                  <Text style={[styles.dmToggleSub, { color: audioAlertsOn ? c.primary : c.mutedForeground, fontSize: 10 }]} numberOfLines={1}>
+                    {audioAlertsOn ? "On" : "Off"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Stat tiles ────────────────────────────────────────── */}
+            {(() => {
+              const sc  = driveScore.score;
+              const clr = getScoreColor(sc);
+              const durTxt = (() => {
+                const h = Math.floor(tripElapsedS / 3600);
+                const m = Math.floor((tripElapsedS % 3600) / 60);
+                const s = tripElapsedS % 60;
+                return h > 0
+                  ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+                  : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+              })();
+              const distTxt = driveScore.distanceM >= 1000
+                ? `${(driveScore.distanceM / 1000).toFixed(1)}`
+                : `${Math.round(driveScore.distanceM)}`;
+              const distUnit = driveScore.distanceM >= 1000 ? "km" : "m";
+              const statTiles: { icon: keyof typeof Ionicons.glyphMap; color: string; value: string; unit?: string; label: string }[] = [
+                { icon: "shield-outline",   color: clr,       value: `${sc}`,  label: "Score" },
+                { icon: "time-outline",     color: "#FFB300", value: durTxt,   label: "Time" },
+                { icon: "navigate-outline", color: "#8B7CF6", value: distTxt, unit: distUnit, label: "Dist" },
+              ];
+              return (
+                <View style={styles.dmTileRow}>
+                  <TouchableOpacity
+                    style={[styles.dmTile, {
+                      backgroundColor: isSharingTrip ? c.primary + "18" : (isDark ? "#191E1B" : c.muted),
+                      borderColor: isSharingTrip ? c.primary + "55" : c.tileBorder,
+                    }]}
+                    onPress={handleSharePress}
+                    disabled={sharingLoading}
+                    activeOpacity={0.8}
+                  >
+                    {sharingLoading
+                      ? <ActivityIndicator size="small" color={isSharingTrip ? c.primary : c.mutedForeground} />
+                      : <Ionicons name={isSharingTrip ? "radio" : "share-social-outline"} size={15} color={isSharingTrip ? c.primary : c.foreground} />
+                    }
+                    <Text style={[styles.dmTileVal, { color: isSharingTrip ? c.primary : c.foreground, fontSize: 12 }]} numberOfLines={1}>
+                      {isSharingTrip ? "● Live" : "Off"}
+                    </Text>
+                    <Text style={[styles.dmTileLbl, { color: isSharingTrip ? c.primary : c.mutedForeground }]} numberOfLines={1}>Share</Text>
+                  </TouchableOpacity>
+                  {statTiles.map((t) => (
+                    <View
+                      key={t.label}
+                      style={[styles.dmTile, { backgroundColor: isDark ? "#191E1B" : c.muted, borderColor: c.tileBorder }]}
+                    >
+                      <Ionicons name={t.icon} size={15} color={t.color} />
+                      <Text style={[styles.dmTileVal, { color: c.foreground, fontSize: 12 }]} numberOfLines={1}>
+                        {t.value}
+                        {t.unit ? <Text style={[styles.dmTileUnit, { color: c.mutedForeground }]}> {t.unit}</Text> : null}
+                      </Text>
+                      <Text style={[styles.dmTileLbl, { color: c.mutedForeground }]} numberOfLines={1}>{t.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+
+            {/* ── Report + Nearby shortcuts ─────────────────────────── */}
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1, flexDirection: "row", alignItems: "center",
+                  justifyContent: "center", gap: 5,
+                  backgroundColor: isDark ? "#1B1210" : "#FFF3E0",
+                  borderRadius: 12, paddingVertical: 9,
+                  borderWidth: 1, borderColor: "#E6510033",
+                }}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowReport(true); }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="warning-outline" size={15} color="#E65100" />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#E65100" }}>Report</Text>
+              </TouchableOpacity>
+              {nearbyAlertCandidates.length > 0 && (
+                <TouchableOpacity
+                  style={{
+                    flex: 1, flexDirection: "row", alignItems: "center",
+                    justifyContent: "center", gap: 5,
+                    backgroundColor: isDark ? "#0F1714" : "#E8F5E9",
+                    borderRadius: 12, paddingVertical: 9,
+                    borderWidth: 1, borderColor: c.primary + "33",
+                  }}
+                  onPress={() => setShowNearbySheet(true)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="alert-circle-outline" size={15} color={c.primary} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: c.primary }}>
+                    Nearby ({nearbyAlertCandidates.length})
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* ── Side buttons: Recenter + Theme ────────────────────── */}
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1, flexDirection: "row", alignItems: "center",
+                  justifyContent: "center", gap: 5,
+                  backgroundColor: isDark ? "#191E1B" : c.muted,
+                  borderRadius: 12, paddingVertical: 9,
+                  borderWidth: 1, borderColor: c.tileBorder,
+                }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  driveMapRef.current?.recenter();
+                  setMapDrifted(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="locate-outline" size={15} color={mapDrifted ? c.primary : c.foreground} />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: mapDrifted ? c.primary : c.foreground }}>
+                  Center
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1, flexDirection: "row", alignItems: "center",
+                  justifyContent: "center", gap: 5,
+                  backgroundColor: isDark ? "#191E1B" : c.muted,
+                  borderRadius: 12, paddingVertical: 9,
+                  borderWidth: 1, borderColor: c.tileBorder,
+                }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  manualThemeRef.current = true;
+                  setThemeOverride(isDark ? "light" : "dark");
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name={isDark ? "sunny" : "moon"} size={15} color={isDark ? "#FFC107" : "#3949AB"} />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.foreground }}>
+                  {isDark ? "Light" : "Dark"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      )}
 
       {/* ── 3-second pre-trip countdown overlay ────────────────────────────── */}
       {countdownValue !== null && (

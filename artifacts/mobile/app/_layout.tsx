@@ -456,6 +456,17 @@ function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web") return;
+    // Lock to portrait on startup. The app.config.js sets orientation:"default"
+    // so native builds support all orientations (needed for the landscape drive
+    // screen), but all screens should default to portrait. The drive screen
+    // temporarily unlocks to LANDSCAPE_LEFT when the driver picks that mount
+    // option, then restores portrait on trip end or tab blur.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const SO = require("expo-screen-orientation");
+      SO.lockAsync(SO.OrientationLock.PORTRAIT_UP).catch(() => {});
+    } catch { /* ignore — orientation lock fails gracefully on simulators */ }
+
     // Run font loading and OTA update check in parallel behind the splash screen.
     // If an OTA update is available, checkForOTAUpdate() calls Updates.reloadAsync()
     // and returns true — in that case the app restarts and we must NOT hide the
