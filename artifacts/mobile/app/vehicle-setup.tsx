@@ -132,11 +132,9 @@ export default function VehicleSetup() {
         // first vehicle ever created, even if the default changes later.
         await setPrimaryVehicleIdIfUnset(newVehicle.id);
       } else {
-        // Mark all others as non-default, update first slot
-        const updated = existing.map((v, i) =>
-          i === 0 ? { ...v, ...newVehicle, id: v.id } : { ...v, isDefault: false }
-        );
-        await saveVehicles(updated);
+        // Adding an additional vehicle — append it without touching existing ones.
+        // isDefault stays false so the user's current default is preserved.
+        await saveVehicles([...existing, { ...newVehicle, isDefault: false }]);
       }
       // Sync VehicleContext so all consumers see the updated list immediately
       refreshVehicles().catch(() => {});
