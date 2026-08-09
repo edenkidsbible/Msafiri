@@ -24,6 +24,7 @@ import { useApp } from "@/context/AppContext";
 import { saveVehicles, loadVehicles, setPrimaryVehicleIdIfUnset } from "@/utils/savedVehicles";
 import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
+import { slugify } from "@/lib/vehicleImageFallback";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import CarLogoImage from "@/components/CarLogoImage";
 
@@ -95,9 +96,15 @@ export default function VehicleSetup() {
     try {
       const existing = await loadVehicles();
       const odo = parseInt(odometer, 10);
-      const resolvedMakeId = isCustomMake ? `custom-${Date.now()}` : (makeId ?? null);
-      const resolvedModelId = isCustomModel || isCustomMake ? `custom-${Date.now()}-m` : (modelId ?? null);
-      const resolvedCustomMake = isCustomMake ? customMakeName : null;
+      // Use slug-based IDs (not timestamps) so image URL resolution via
+      // slugify(customModelName) always matches what the server writes to R2.
+      const resolvedMakeId = isCustomMake ? `custom-${slugify(customMakeName)}` : (makeId ?? null);
+      const resolvedModelId = (isCustomModel || isCustomMake) ? `custom-${slugify(customModelName)}` : (modelId ?? null);
+      // For a known make + custom model, store the make's display name so
+      // vehicleDisplayName can show "Volkswagen Arteon" instead of "My Vehicle".
+      const resolvedCustomMake = isCustomMake
+        ? customMakeName
+        : (isCustomModel ? (CAR_MAKES.find((m) => m.id === makeId)?.name ?? null) : null);
       const resolvedCustomModel = (isCustomMake || isCustomModel) ? customModelName : null;
 
       // Sync primary vehicle into AppContext for backwards-compat.

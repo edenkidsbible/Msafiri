@@ -54,7 +54,7 @@ async function removeBackground(input: Buffer): Promise<Buffer> {
     await fs.writeFile(tmpIn, input);
     await execFileAsync("magick", [
       tmpIn,
-      "-fuzz", "20%",
+      "-fuzz", "8%",
       "-fill", "none",
       // Flood-fill transparent starting from all four corners so the
       // entire surrounding background is erased even when it isn't
@@ -221,15 +221,26 @@ async function fetchAndStoreCarImage(
       return;
     }
 
-    // Remove the white/grey background so the image matches our existing
-    // transparent-background car assets.  Falls back to the raw PNG if
-    // ImageMagick is unavailable or the process errors.
+    // Process the press photo:
+    //  1. Flood-fill from corners (8% fuzz) to erase the uniform white/grey
+    //     studio background — keeps the car body intact since car bodies
+    //     have shadows/reflections that push them above the 8% threshold.
+    //  2. Flatten remaining transparency onto white — avoids the dark
+    //     bleed-through that would otherwise show on dark-mode card surfaces.
+    // Falls back to the original PNG if ImageMagick is unavailable.
     let finalPng = png;
     try {
-      finalPng = await removeBackground(png);
-      console.log(`[custom-vehicles] Background removed (${(finalPng.length / 1024).toFixed(0)} KB)`);
+      const withoutBg = await removeBackground(png);
+      // Flatten transparent holes onto a clean white background.
+      // Result: photo always looks like a crisp white-background product card —
+      // safe on any colour (green hero gradient, dark garage card, etc.).
+      finalPng = await sharp(withoutBg)
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .png()
+        .toBuffer();
+      console.log(`[custom-vehicles] Background processed (${(finalPng.length / 1024).toFixed(0)} KB)`);
     } catch (bgErr) {
-      console.warn("[custom-vehicles] Background removal failed — storing original PNG:", bgErr);
+      console.warn("[custom-vehicles] Background processing failed — storing original PNG:", bgErr);
     }
 
     const key = `car-images/${makeSlug}/${modelSlug}.png`;

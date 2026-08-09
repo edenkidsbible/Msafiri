@@ -55,7 +55,12 @@ function vehicleDisplayName(v: SavedVehicle): string {
   const make  = v.makeId  ? getMakeById(v.makeId)  : null;
   const model = (v.makeId && v.modelId) ? getModelById(v.makeId, v.modelId) : null;
   if (make && model) return `${make.name} ${model.name}`;
+  // Known static make + custom/unknown model (e.g. Volkswagen + "Arteon")
+  if (make && v.customModelName) return `${make.name} ${v.customModelName}`;
+  // Fully custom make + model
   if (v.customMakeName && v.customModelName) return `${v.customMakeName} ${v.customModelName}`;
+  if (v.customMakeName) return v.customMakeName;
+  if (make) return make.name;
   return "My Vehicle";
 }
 
