@@ -336,6 +336,10 @@ export function usePushNotifications() {
                 });
             }
           }
+        } else if (type === "dashcam_review_reminder") {
+          // Driver tapped the 4-hour review reminder — take them to the drive
+          // tab where the review banner lives (noAutoStart prevents trip auto-start)
+          safePush({ pathname: "/(tabs)/drive", params: { noAutoStart: "1" } } as any);
         } else if (type === "incident") {
           safePush("/(tabs)/map" as any);
         } else if (type === "app_update") {

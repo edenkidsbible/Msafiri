@@ -268,6 +268,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const pushDeviceIdRef        = useRef<string | null>(null);
   const backgroundedWhileRecordingRef = useRef(false);
   const processUploadQueueRef  = useRef<() => Promise<void>>(() => Promise.resolve());
+  /** ID of the 4-hour "review your clips" reminder so it can be cancelled early. */
+  const reviewReminderIdRef    = useRef<string | null>(null);
 
   useEffect(() => { segmentsRef.current = segments; }, [segments]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -466,6 +468,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           JSON.stringify(segmentsRef.current),
         ).catch(() => {});
         setPendingTripReview(true);
+        scheduleReviewReminder();
 
         // Stop the in-flight clip cleanly (no lock — becomes unlocked)
         cameraRef.current?.stopRecording();
@@ -823,6 +826,38 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     cameraRef.current?.stopRecording();
   }, []);
 
+  // ── Review-reminder notification helpers ─────────────────────────────────
+  // Schedules a local notification ~4 hours after clips are saved for review,
+  // in case the driver leaves the app without locking anything. Cancelled the
+  // moment the driver locks or dismisses all review clips.
+
+  const scheduleReviewReminder = useCallback(async () => {
+    // Cancel any stale reminder first (e.g. back-to-back trips)
+    if (reviewReminderIdRef.current) {
+      Notifications.cancelScheduledNotificationAsync(reviewReminderIdRef.current).catch(() => {});
+      reviewReminderIdRef.current = null;
+    }
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Review your dashcam clips",
+          body: "Your last trip's footage is saved and waiting. Tap to lock the clips you want to keep before they're gone.",
+          data: { type: "dashcam_review_reminder" },
+        },
+        trigger: { seconds: 4 * 60 * 60, repeats: false } as any,
+      });
+      reviewReminderIdRef.current = id;
+    } catch {
+      // Non-critical — scheduling failures are silently ignored
+    }
+  }, []);
+
+  const cancelReviewReminder = useCallback(() => {
+    if (!reviewReminderIdRef.current) return;
+    Notifications.cancelScheduledNotificationAsync(reviewReminderIdRef.current).catch(() => {});
+    reviewReminderIdRef.current = null;
+  }, []);
+
   /**
    * Stop recording without auto-locking the final clip.
    * The last 5 unlocked clips are marked savedForReview in onSegmentComplete
@@ -910,9 +945,14 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
 
+    // If no review clips remain the driver has handled everything — cancel the reminder
+    if (!segmentsRef.current.some((s) => s.savedForReview)) {
+      cancelReviewReminder();
+    }
+
     uploadQueueRef.current.push(id);
     processUploadQueueRef.current();
-  }, []);
+  }, [cancelReviewReminder]);
 
   /**
    * Delete all saved-for-review clips and clear the review banner.
@@ -929,8 +969,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       segmentsRef.current = next;
       return next;
     });
+    // Driver has resolved all clips — no need to remind them
+    cancelReviewReminder();
     setPendingTripReview(false);
-  }, []);
+  }, [cancelReviewReminder]);
 
   const setCameraRef = useCallback((ref: CameraView | null) => {
     cameraRef.current = ref;
@@ -1024,6 +1066,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
               JSON.stringify(segmentsRef.current),
             ).catch(() => {});
             setPendingTripReview(true);
+            scheduleReviewReminder();
             setIsRecording(false);
           }
         }
@@ -1044,11 +1087,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             JSON.stringify(segmentsRef.current),
           ).catch(() => {});
           setPendingTripReview(true);
+          scheduleReviewReminder();
           setIsRecording(false);
         }
       }
     },
-    [applyRollingWindow, processUploadQueue]
+    [applyRollingWindow, processUploadQueue, scheduleReviewReminder]
   );
 
   const deleteSegment = useCallback(
