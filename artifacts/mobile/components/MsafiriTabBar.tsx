@@ -109,7 +109,7 @@ export function MsafiriTabBar({ state, navigation }: BottomTabBarProps) {
         if (name === "report") {
           return (
             <View key="report" style={styles.centerSlot} pointerEvents="box-none">
-              <Animated.View style={{ transform: [{ scale: scaleAnims["report"] }] }}>
+              <Animated.View style={{ width: 58, height: 0, transform: [{ scale: scaleAnims["report"] }] }}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Report"
