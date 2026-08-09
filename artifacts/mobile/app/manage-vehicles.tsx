@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -41,6 +42,11 @@ import { getCarImageUrl, getMakeById, getModelById, CAR_MAKES } from "@/data/car
 import CarLogoImage from "@/components/CarLogoImage";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
+const SCREEN_W  = Dimensions.get("window").width;
+const CARD_W    = SCREEN_W - 32;          // 16 px margin each side (matches garage)
+const IMG_H     = 140;                    // same as garage IMG_H
+const IMG_W     = CARD_W - 48;           // same formula as garage IMG_W - 16
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function vehicleDisplayName(v: SavedVehicle): string {
@@ -73,15 +79,14 @@ function customModelSlug(modelId: string): string {
 
 // ── Small vehicle thumbnail (reuses R2 image logic) ───────────────────────────
 
-function VehicleThumb({ v, size = 64 }: { v: SavedVehicle; size?: number }) {
-  const c = useColors();
+function VehicleThumb({ v, width, height }: { v: SavedVehicle; width: number; height: number }) {
   const isMakeCustom  = !v.makeId  || v.makeId.startsWith("custom-");
   const isModelCustom = !v.modelId || v.modelId.startsWith("custom-");
   const [phase, setPhase] = useState(0);
 
   if (isMakeCustom || phase >= 2) {
     return (
-      <Text style={{ fontSize: size * 0.55, fontFamily: EMOJI_FONT_FAMILY, textAlign: "center" }}>
+      <Text style={{ fontSize: height * 0.55, fontFamily: EMOJI_FONT_FAMILY, textAlign: "center" }}>
         {getVehicleEmoji(v.vehicleType)}
       </Text>
     );
@@ -100,7 +105,7 @@ function VehicleThumb({ v, size = 64 }: { v: SavedVehicle; size?: number }) {
   return (
     <Image
       source={{ uri }}
-      style={{ width: size, height: size * 0.65 }}
+      style={{ width, height }}
       resizeMode="contain"
       onError={() => setPhase(p => p + 1)}
     />
@@ -312,7 +317,7 @@ function VehicleRow({
 
       {/* ── Hero image strip ── */}
       <View style={[s.rowThumb, { backgroundColor: primary + "0D" }]}>
-        <VehicleThumb v={v} size={80} />
+        <VehicleThumb v={v} width={IMG_W} height={IMG_H} />
         {/* Default badge floats top-left */}
         {v.isDefault && (
           <View style={[s.defaultChip, { backgroundColor: primary, borderColor: primary, position: "absolute", top: 10, left: 12 }]}>
@@ -599,7 +604,7 @@ const s = StyleSheet.create({
     marginBottom: 12, overflow: "hidden",
   },
   rowThumb: {
-    width: "100%", height: 120,
+    width: "100%", height: IMG_H + 24,   // matches garage: IMG_H + 24
     alignItems: "center", justifyContent: "center",
     backgroundColor: "transparent",
   },
