@@ -165,13 +165,12 @@ interface PermCardProps {
   canAskAgain?: boolean;
   loading?: boolean;
   onEnable: () => void;
-  onDisable: () => void;
   colors: ReturnType<typeof useColors>;
 }
 
 function PermCard({
   icon, label, status, canAskAgain = true,
-  loading, onEnable, onDisable, colors: c,
+  loading, onEnable, colors: c,
 }: PermCardProps) {
   const isGranted      = status === "granted";
   const isDenied       = status === "denied";
@@ -207,42 +206,19 @@ function PermCard({
         </Text>
       </View>
 
-      {/* Action buttons */}
-      <View style={styles.permCardBtns}>
+      {/* Enable / Open Settings button — only shown when not yet granted */}
+      {!isGranted && (
         <TouchableOpacity
-          style={[
-            styles.permBtn,
-            {
-              backgroundColor: isGranted ? c.muted + "88" : "#22C55E",
-              opacity: isGranted ? 0.5 : 1,
-            },
-          ]}
+          style={[styles.permBtn, { backgroundColor: "#22C55E" }]}
           onPress={onEnable}
-          disabled={isGranted || !!loading}
+          disabled={!!loading}
           activeOpacity={0.75}
         >
-          <Text style={[styles.permBtnTxt, { color: isGranted ? c.mutedForeground : "#FFF" }]}>
+          <Text style={[styles.permBtnTxt, { color: "#FFF" }]}>
             {(!canAskAgain && !isGranted) ? "Open Settings" : "Enable"}
           </Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.permBtn,
-            {
-              backgroundColor: !isGranted ? c.muted + "88" : "#EF444422",
-              opacity: !isGranted ? 0.45 : 1,
-            },
-          ]}
-          onPress={onDisable}
-          disabled={!isGranted || !!loading}
-          activeOpacity={0.75}
-        >
-          <Text style={[styles.permBtnTxt, { color: !isGranted ? c.mutedForeground : "#EF4444" }]}>
-            Disable
-          </Text>
-        </TouchableOpacity>
-      </View>
+      )}
     </View>
   );
 }
@@ -470,7 +446,6 @@ export default function PretripCheckScreen() {
             canAskAgain={locCanAsk}
             loading={loadingPerm === "location"}
             onEnable={requestLocation}
-            onDisable={openSettings}
             colors={c}
           />
           <PermCard
@@ -480,7 +455,6 @@ export default function PretripCheckScreen() {
             canAskAgain={notifCanAsk}
             loading={loadingPerm === "notif"}
             onEnable={requestNotifs}
-            onDisable={openSettings}
             colors={c}
           />
           <PermCard
@@ -490,7 +464,6 @@ export default function PretripCheckScreen() {
             canAskAgain={camPermission?.canAskAgain ?? true}
             loading={loadingPerm === "camera"}
             onEnable={requestCamera}
-            onDisable={openSettings}
             colors={c}
           />
           <PermCard
@@ -500,7 +473,6 @@ export default function PretripCheckScreen() {
             canAskAgain={micPermission?.canAskAgain ?? true}
             loading={loadingPerm === "mic"}
             onEnable={requestMic}
-            onDisable={openSettings}
             colors={c}
           />
         </View>

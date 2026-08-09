@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -771,6 +772,31 @@ export default function DriveScreen() {
       setMountLandscape(false);
     }
   }, [tripActive, stopDashcam]);
+
+  // Re-acquire the landscape lock when the app returns from background.
+  // _layout.tsx re-locks to PORTRAIT_UP on every foreground event to guard
+  // non-drive screens. This effect fires after that and overrides back to
+  // LANDSCAPE_LEFT whenever the drive screen holds an active landscape lock,
+  // so the driver's landscape session survives app-switch / notification-tray
+  // interactions without snapping back to portrait.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      if (!orientationLockedRef.current) return;
+      // Small delay so the _layout portrait lock fires first; we override after.
+      setTimeout(() => {
+        if (!orientationLockedRef.current) return;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const SO = require("expo-screen-orientation");
+          SO.lockAsync(SO.OrientationLock.LANDSCAPE_LEFT).catch(() => {});
+        } catch { /* ignore */ }
+      }, 150);
+    });
+    return () => sub.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Tick the trip duration once per second while active.
   useEffect(() => {
@@ -4022,7 +4048,7 @@ export default function DriveScreen() {
               <Text style={{
                 color: "#fff",
                 fontSize: 80,
-                fontFamily: "Inter_900Black",
+                fontFamily: "Inter_700Bold",
                 lineHeight: 88,
                 // @ts-ignore
                 fontVariant: ["tabular-nums"],
