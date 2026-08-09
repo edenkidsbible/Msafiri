@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { MarqueeText } from "@/components/MarqueeText";
 import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -150,9 +151,9 @@ export default function MapViewScreen() {
           <View style={[styles.routePanel, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={styles.routePanelTop}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.routeDestName, { color: c.foreground }]} numberOfLines={1}>
+                <MarqueeText style={[styles.routeDestName, { color: c.foreground }]}>
                   {navDestination.name.split(",")[0]}
-                </Text>
+                </MarqueeText>
                 <Text style={[styles.routeMeta, { color: c.mutedForeground }]}>
                   {durationStr(activeRoute.durationS)} · {distStr(activeRoute.distanceM)}
                 </Text>
@@ -198,9 +199,9 @@ export default function MapViewScreen() {
                 <View style={[styles.stepNum, { backgroundColor: c.muted }]}>
                   <Text style={[styles.stepNumText, { color: c.foreground }]}>{i + 1}</Text>
                 </View>
-                <Text style={[styles.stepText, { color: c.foreground }]} numberOfLines={1}>
+                <MarqueeText style={[styles.stepText, { color: c.foreground }]} containerStyle={{ flex: 1, minWidth: 0 }}>
                   {step.instruction}
-                </Text>
+                </MarqueeText>
                 <Text style={[styles.stepDist, { color: c.mutedForeground }]}>
                   {distStr(step.distanceM)}
                 </Text>

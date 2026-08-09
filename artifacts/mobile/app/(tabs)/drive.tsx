@@ -66,6 +66,7 @@ import {
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { recordSession } from "@/utils/vehicleSessionMap";
 import { getMakeById, getModelById } from "@/data/carModels";
+import { MarqueeText } from "@/components/MarqueeText";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1395,10 +1396,10 @@ export default function DriveScreen() {
             </Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.dmAlertTitle, { color: c.foreground }]} numberOfLines={1}>
+            <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>
               {primaryAlert.typeName} ahead
-            </Text>
-            <Text style={[styles.dmAlertSub, { color: c.mutedForeground }]} numberOfLines={1}>
+            </MarqueeText>
+            <MarqueeText style={[styles.dmAlertSub, { color: c.mutedForeground }]}>
               <Text style={{ color: c.primary, fontFamily: "Inter_700Bold" }}>
                 {distStr(primaryAlert.distanceM)}
               </Text>
@@ -2338,9 +2339,9 @@ export default function DriveScreen() {
           {activeRoute.steps?.[0] && (
             <View style={styles.firstStepRow}>
               <Ionicons name="arrow-forward-circle-outline" size={13} color={fgMuted} />
-              <Text style={[styles.firstStepTxt, { color: fgMuted }]} numberOfLines={1}>
+              <MarqueeText style={[styles.firstStepTxt, { color: fgMuted }]}>
                 {activeRoute.steps[0].instruction}
-              </Text>
+              </MarqueeText>
             </View>
           )}
 
@@ -2789,9 +2790,9 @@ export default function DriveScreen() {
                     {/* Label + road */}
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
+                        <MarqueeText style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
                           {resolved.label}
-                        </Text>
+                        </MarqueeText>
                         {item.isHere && (
                           <View style={styles.liveBadge}>
                             <Text style={styles.liveBadgeTxt}>LIVE</Text>
@@ -2799,9 +2800,9 @@ export default function DriveScreen() {
                         )}
                       </View>
                       {item.road ? (
-                        <Text style={[styles.nearbySheetRowSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                        <MarqueeText style={[styles.nearbySheetRowSub, { color: c.mutedForeground }]}>
                           {item.road}
-                        </Text>
+                        </MarqueeText>
                       ) : null}
                     </View>
 

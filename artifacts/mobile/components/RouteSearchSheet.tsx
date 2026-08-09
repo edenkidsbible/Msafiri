@@ -31,6 +31,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MarqueeText } from "@/components/MarqueeText";
 import { useColors } from "@/hooks/useColors";
 import { useApp, RouteCoord } from "@/context/AppContext";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
@@ -661,16 +662,16 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
 
                     {/* Name + address */}
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.cardName, { color: c.foreground }]} numberOfLines={1}>
+                      <MarqueeText style={[styles.cardName, { color: c.foreground }]}>
                         {item.name}
-                      </Text>
-                      <Text style={[styles.cardSub, { color: item.subtypeColor }]} numberOfLines={1}>
+                      </MarqueeText>
+                      <MarqueeText style={[styles.cardSub, { color: item.subtypeColor }]}>
                         {item.subtype}
-                      </Text>
+                      </MarqueeText>
                       {!!item.address && (
-                        <Text style={[styles.cardAddr, { color: c.mutedForeground }]} numberOfLines={1}>
+                        <MarqueeText style={[styles.cardAddr, { color: c.mutedForeground }]}>
                           {item.address}
-                        </Text>
+                        </MarqueeText>
                       )}
                     </View>
 

@@ -46,6 +46,7 @@ import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
 import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
+import { MarqueeText } from "@/components/MarqueeText";
 
 interface Props {
   alert: DriveAlert;
@@ -412,13 +413,13 @@ export default function DriveAlertOverlay({
             <Ionicons name="location-sharp" size={15} color={effectiveBg} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.zoneName, { color: colors.foreground }]} numberOfLines={1}>
+            <MarqueeText style={[styles.zoneName, { color: colors.foreground }]}>
               {alert.name}
-            </Text>
+            </MarqueeText>
             {alert.road ? (
-              <Text style={[styles.zoneRoad, { color: colors.mutedForeground }]} numberOfLines={1}>
+              <MarqueeText style={[styles.zoneRoad, { color: colors.mutedForeground }]}>
                 {alert.road}
-              </Text>
+              </MarqueeText>
             ) : null}
             {tier === "new" && (
               <Text style={[styles.zoneRoad, { color: colors.mutedForeground, fontStyle: "italic" }]}>

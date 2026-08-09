@@ -25,6 +25,7 @@ import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import type { CommunityReport } from "@/context/AppContext";
 import { formatTimeAgo } from "@/lib/timeAgo";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
+import { MarqueeText } from "@/components/MarqueeText";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 
@@ -883,9 +884,9 @@ export default function MapViewScreen() {
                     <Ionicons name="location-outline" size={16} color={c.primary} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.dropdownName, { color: c.foreground }]} numberOfLines={1}>{item.short}</Text>
+                    <MarqueeText style={[styles.dropdownName, { color: c.foreground }]}>{item.short}</MarqueeText>
                     {item.display !== item.short && (
-                      <Text style={[styles.dropdownAddr, { color: c.mutedForeground }]} numberOfLines={1}>{item.display}</Text>
+                      <MarqueeText style={[styles.dropdownAddr, { color: c.mutedForeground }]}>{item.display}</MarqueeText>
                     )}
                   </View>
                   <Ionicons name="navigate-outline" size={14} color={c.primary} />
@@ -941,9 +942,9 @@ export default function MapViewScreen() {
                         />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.dropdownName, { color: c.foreground }]} numberOfLines={1}>{item.name}</Text>
+                        <MarqueeText style={[styles.dropdownName, { color: c.foreground }]}>{item.name}</MarqueeText>
                         {!!item.address && (
-                          <Text style={[styles.dropdownAddr, { color: c.mutedForeground }]} numberOfLines={1}>{item.address}</Text>
+                          <MarqueeText style={[styles.dropdownAddr, { color: c.mutedForeground }]}>{item.address}</MarqueeText>
                         )}
                       </View>
                       <View style={[styles.dropdownGoBtn, { backgroundColor: item.subtypeColor }]}>
