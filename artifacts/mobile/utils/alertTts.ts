@@ -59,6 +59,29 @@ const ALERT_AUDIO: Record<string, unknown> = {
   nav_cancel: require("@/assets/sounds/alerts/nav_cancel.mp3"),
 };
 
+// ─── Player cache ─────────────────────────────────────────────────────────────
+// Players are created once per bundled key and reused — seeking back to 0 and
+// calling play() is near-instant. Creating a new AudioPlayer each time costs
+// 1-3 s on iOS/Android because the OS needs to initialize the native player,
+// decode, and buffer the asset before the first frame can play.
+
+const playerCache = new Map<string, AudioPlayer>();
+
+function getCachedPlayer(key: string): AudioPlayer | null {
+  const bundled = ALERT_AUDIO[key];
+  if (!bundled) return null;
+  let player = playerCache.get(key);
+  if (!player) {
+    try {
+      player = createAudioPlayer(bundled as Parameters<typeof createAudioPlayer>[0]);
+      playerCache.set(key, player);
+    } catch {
+      return null;
+    }
+  }
+  return player;
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let currentPlayer: AudioPlayer | null = null;
@@ -91,19 +114,25 @@ async function playKey(key: string): Promise<void> {
   stopAlertVoice();
   await ensureAudioMode(); // shared with sound.ts — fires setAudioModeAsync only once
 
-  const bundled = ALERT_AUDIO[key];
   try {
-    const source = bundled
-      ? bundled
-      : API_BASE
-        ? { uri: `${API_BASE}/tts?text=${encodeURIComponent(key + " ahead")}` }
-        : null;
-
-    if (!source) return;
-    const player = createAudioPlayer(source as Parameters<typeof createAudioPlayer>[0]);
-    currentPlayer = player;
-    player.volume = 0.5;
-    player.play();
+    const cached = getCachedPlayer(key);
+    if (cached) {
+      // Reuse the pre-initialized player — seek to start and play immediately.
+      // This path has no native initialization cost so audio starts in <50 ms.
+      currentPlayer = cached;
+      cached.volume = 0.5;
+      cached.seekTo(0);
+      cached.play();
+    } else {
+      // Unknown key — fall back to the on-demand TTS proxy (no pre-generated asset).
+      if (!API_BASE) return;
+      const player = createAudioPlayer(
+        { uri: `${API_BASE}/tts?text=${encodeURIComponent(key + " ahead")}` }
+      );
+      currentPlayer = player;
+      player.volume = 0.5;
+      player.play();
+    }
   } catch (err) {
     console.warn("[alertTts] playback failed:", err);
   }
@@ -138,8 +167,21 @@ export async function speakAlertMulti(type: string): Promise<void> {
 // Registered in ALERT_AUDIO above so playKey() resolves them from disk —
 // no network call, no latency, plays on first trip.
 
-/** No-op kept for call-site compatibility. Bundled assets need no pre-warm. */
-export function prewarmNavAudio(): void { /* bundled — no network warm needed */ }
+/**
+ * Pre-create native audio players for every bundled alert asset.
+ * Call once at app startup (after the splash screen) so the very first alert
+ * or report confirmation plays without the 1–3 s player-initialization delay.
+ * Safe to call multiple times — players are cached and won't be recreated.
+ */
+export function prewarmAlertAudio(): void {
+  if (Platform.OS === "web") return;
+  for (const key of Object.keys(ALERT_AUDIO)) {
+    getCachedPlayer(key); // creates + caches if not already present
+  }
+}
+
+/** @deprecated Use prewarmAlertAudio() — this alias kept for call-site compat. */
+export function prewarmNavAudio(): void { prewarmAlertAudio(); }
 
 /** Play the navigation-start briefing (bundled MP3, instant playback). */
 export async function speakNavStart(): Promise<void> {

@@ -413,11 +413,13 @@ const pls = StyleSheet.create({
 // ─── Clip Row ─────────────────────────────────────────────────────────────────
 
 function ClipRow({
-  clip, locationName, loading, thumbnailUri, downloadProgress, onPlay, onMenu, onPin,
+  clip, locationName, loading, pinLoading, thumbnailUri, downloadProgress, onPlay, onMenu, onPin,
 }: {
   clip: UnifiedClip;
   locationName: string;
   loading: boolean;
+  /** True while a pin/unpin request is in-flight for this clip. */
+  pinLoading?: boolean;
   thumbnailUri?: string;
   downloadProgress?: number;   // 0–1 when downloading, undefined otherwise
   onPlay: (c: UnifiedClip) => void;
@@ -525,13 +527,16 @@ function ClipRow({
           style={vs.pinBtn}
           onPress={(e) => { e.stopPropagation?.(); onPin(clip); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          disabled={loading}
+          disabled={loading || pinLoading}
         >
-          <Ionicons
-            name={isPinned ? "pin" : "pin-outline"}
-            size={18}
-            color={isPinned ? "#F59E0B" : c.mutedForeground}
-          />
+          {pinLoading
+            ? <ActivityIndicator size="small" color="#F59E0B" />
+            : <Ionicons
+                name={isPinned ? "pin" : "pin-outline"}
+                size={18}
+                color={isPinned ? "#F59E0B" : c.mutedForeground}
+              />
+          }
         </TouchableOpacity>
       )}
 
@@ -558,51 +563,6 @@ export default function DashcamVideosScreen() {
     isRecording, openDashcam, pushDeviceId, settings,
     lockCurrentClip, cloudQuotaFull, clearCloudQuotaFull,
   } = useDashcam();
-
-  // Pin/unpin callbacks (exposed separately from context since server-only
-  // clips don't live in segments[] — we call the API directly and update
-  // serverClips state locally).
-  const handlePin = useCallback(async (clip: UnifiedClip) => {
-    if (!pushDeviceId || !API_BASE) return;
-    const isPinned = !!clip.pinned;
-    try {
-      const secret = await AsyncStorage.getItem(SECRET_KEY);
-      if (!secret) return;
-      const clipId = clip.serverId ?? clip.id;
-      const res = await fetch(`${API_BASE}/dashcam/clip/${clipId}/pin`, {
-        method: isPinned ? "DELETE" : "POST",
-        headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { code?: string };
-        if (body.code === "PIN_LIMIT") {
-          Alert.alert("Pin Limit Reached", "You can only pin 5 clips at a time. Unpin a clip first.");
-          return;
-        }
-        Alert.alert("Error", isPinned ? "Could not unpin this clip." : "Could not pin this clip.");
-        return;
-      }
-      // Update serverClips state — expiresAt is now extended to 60 days on pin,
-      // restored on unpin (the server returns the updated row but we compute it locally).
-      setServerClips((prev) => prev.map((sc) => {
-        if (sc.id !== clip.id) return sc;
-        const newPinned = !isPinned;
-        // Compute new expiresAt locally to match server logic
-        const startMs = new Date(sc.startedAt).getTime();
-        const retainMs = newPinned
-          ? 60 * 24 * 60 * 60 * 1000
-          : (sc.lockReason === "manual" ? 30 : 1) * 24 * 60 * 60 * 1000;
-        return {
-          ...sc,
-          pinned: newPinned,
-          expiresAt: new Date(startMs + retainMs).toISOString(),
-        };
-      }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      Alert.alert("Error", "Network error.");
-    }
-  }, [pushDeviceId]);
 
   const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
   const goBack = useCallback(() => {
@@ -668,6 +628,49 @@ export default function DashcamVideosScreen() {
   }, [pushDeviceId]);
 
   useFocusEffect(useCallback(() => { fetchServerClips(); }, [fetchServerClips]));
+
+  // ── Pin pending set — tracks clips with an in-flight pin/unpin request ──────
+  // Stored as state (not a ref) so ClipRow re-renders to show/hide the spinner.
+  const [pinPending, setPinPending] = useState<Set<string>>(new Set());
+
+  // Pin/unpin handler — exposed separately from context since server-only clips
+  // don't live in segments[]. Calls the API directly, then re-fetches the full
+  // clip list so expiresAt shows the server's authoritative value.
+  const handlePin = useCallback(async (clip: UnifiedClip) => {
+    if (!pushDeviceId || !API_BASE) return;
+    const clipId = clip.serverId ?? clip.id;
+
+    // Block double-taps — ignore if a request is already in-flight for this clip
+    if (pinPending.has(clipId)) return;
+
+    const isPinned = !!clip.pinned;
+    setPinPending((prev) => new Set(prev).add(clipId));
+    try {
+      const secret = await AsyncStorage.getItem(SECRET_KEY);
+      if (!secret) return;
+      const res = await fetch(`${API_BASE}/dashcam/clip/${clipId}/pin`, {
+        method: isPinned ? "DELETE" : "POST",
+        headers: { "X-Device-Id": pushDeviceId, "X-Dashcam-Secret": secret },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { code?: string };
+        if (body.code === "PIN_LIMIT") {
+          Alert.alert("Pin Limit Reached", "You can only pin 5 clips at a time. Unpin a clip first.");
+          return;
+        }
+        Alert.alert("Error", isPinned ? "Could not unpin this clip." : "Could not pin this clip.");
+        return;
+      }
+      // Re-fetch so expiresAt reflects the server's authoritative value rather
+      // than a client-estimated one (avoids drift on unusual upload times).
+      await fetchServerClips();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", "Network error.");
+    } finally {
+      setPinPending((prev) => { const next = new Set(prev); next.delete(clipId); return next; });
+    }
+  }, [pushDeviceId, pinPending, fetchServerClips]);
 
   // ── Unified clips ──────────────────────────────────────────────────────────
   const unifiedClips = useMemo<UnifiedClip[]>(() => {
@@ -1283,6 +1286,7 @@ export default function DashcamVideosScreen() {
                 clip={clip}
                 locationName={locationNames[clip.id] ?? timeOfDayName(clip.startedAt)}
                 loading={isLoading}
+                pinLoading={pinPending.has(clip.serverId ?? clip.id)}
                 thumbnailUri={thumbnails[clip.id]}
                 downloadProgress={progress}
                 onPlay={handlePlay}

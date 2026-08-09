@@ -78,6 +78,7 @@ import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
+import { prewarmAlertAudio } from "@/utils/alertTts";
 
 try {
   initializeRevenueCat();
@@ -472,6 +473,9 @@ function RootLayout() {
       // Subsetted to only the ~18 codepoints this app actually uses.
       NotoColorEmoji: require("@/assets/fonts/NotoColorEmoji.ttf"),
     }).catch(() => {});
+    // Pre-create all bundled alert audio players in parallel with font loading
+    // so the first speakAlert() call (e.g. "report submitted") is instant.
+    prewarmAlertAudio();
     const updatePromise = checkForOTAUpdate();
     Promise.all([fontPromise, updatePromise]).then(([, didReload]) => {
       if (!didReload) setReady(true);
