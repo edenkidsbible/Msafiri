@@ -1,6 +1,6 @@
 - [Mobile crash telemetry (Sentry)](mobile-crash-telemetry.md) — all Sentry access via utils/telemetry.ts (DSN-gated, web no-op twin); breadcrumb categories; DSN pending from user.
 - [Custom vehicle display name pitfalls](custom-vehicle-display-name.md) — known-make+custom-model shows "My Vehicle"; priority order + vehicle-setup.tsx ID fix.
-- [Wikipedia car image processing](wikipedia-car-image-processing.md) — 8% fuzz flood-fill + white flatten; 20% eats white car body; re-process by resetting pending.
+- [Wikipedia car image processing](wikipedia-car-image-processing.md) — rembg u2netp AI via temp files (NOT stdin); resize to 800px first; transparent PNG; never flatten to white.
 - [Course audio generation](course-audio-generation.md) — Keli/Flash v2.5 TTS, GCS upload (no public ACL), streamed via /api/course/audio/:slug, AudioPlayer component in mobile lesson screen.
 - [Auto Hazard Detection System](hazard-detection-system.md) — braking_events → clusterHazards job (30min) → source='auto' community reports; admin Auto-Detected tab uses plain authFetch not generated hook.
 - [Crash Assistant feature](crash-assistant.md) — full 7-step accident doc flow; pdfkit must be esbuild external; photo upload via blob PUT; apiPatch for PATCH calls; date-fns needs mobile install.

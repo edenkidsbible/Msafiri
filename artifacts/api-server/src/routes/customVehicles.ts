@@ -25,9 +25,9 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import sharp from "sharp";
 import { db, customVehiclesTable } from "@workspace/db";
 import * as r2 from "../lib/r2Storage.js";
-import sharp from "sharp";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,36 +35,39 @@ const router = Router();
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+// The server's start command always runs from artifacts/api-server/, so
+// process.cwd() is reliable and avoids import.meta.url esbuild complications.
+const REMBG_SCRIPT = path.resolve(process.cwd(), "scripts/remove_bg.py");
+
 /**
- * Remove the background from a car press photo using ImageMagick's flood-fill.
+ * Remove the background from a car press photo using the rembg AI model
+ * (U2-Net). Unlike the old ImageMagick flood-fill this works on ANY
+ * background — studio white, brick walls, roads, car parks, etc. — by
+ * doing semantic foreground/background segmentation.
  *
- * Wikipedia manufacturer press photos use uniform white or light-grey
- * backgrounds which flood-fill handles perfectly.  Seeds from all 4 corners
- * with 20% fuzz (captures near-white anti-aliased edges without eating into
- * the car body).
- *
- * Returns a PNG32 buffer with a transparency channel — matches the format
- * of our other car assets.
+ * The result is a transparent PNG32 ready for direct upload to R2.
+ * It never needs flattening — the transparency is intentional so the car
+ * "floats" on whatever surface the UI places it on.
  */
 async function removeBackground(input: Buffer): Promise<Buffer> {
-  const id = `car-bg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  // Pre-resize to ≤ 800 px wide — u2netp processes ~800 px in 30–60 s on CPU;
+  // full 1200 px images took 3–5 min and caused timeout kills.
+  const resized = await sharp(input)
+    .resize({ width: 800, withoutEnlargement: true })
+    .png()
+    .toBuffer();
+
+  const id     = `car-bg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const tmpIn  = path.join(os.tmpdir(), `${id}-in.png`);
   const tmpOut = path.join(os.tmpdir(), `${id}-out.png`);
+
   try {
-    await fs.writeFile(tmpIn, input);
-    await execFileAsync("magick", [
-      tmpIn,
-      "-fuzz", "8%",
-      "-fill", "none",
-      // Flood-fill transparent starting from all four corners so the
-      // entire surrounding background is erased even when it isn't
-      // perfectly uniform (e.g. slight gradient from studio lighting).
-      "-draw", "color 0,0 floodfill",
-      "-draw", "color 0,%[fx:h-1] floodfill",
-      "-draw", "color %[fx:w-1],0 floodfill",
-      "-draw", "color %[fx:w-1],%[fx:h-1] floodfill",
-      `PNG32:${tmpOut}`,
-    ]);
+    await fs.writeFile(tmpIn, resized);
+    // Use temp files (not stdin/stdout) to avoid pipe-close issues.
+    // Allow up to 5 minutes — u2netp is ~3–5× faster than u2net.
+    await execFileAsync("python3", [REMBG_SCRIPT, tmpIn, tmpOut], {
+      timeout: 5 * 60 * 1000,
+    });
     return await fs.readFile(tmpOut);
   } finally {
     await Promise.all([
@@ -114,11 +117,12 @@ async function fetchWikipediaCarImage(
   async function downloadAsPng(src: string): Promise<Buffer | null> {
     try {
       const r = await fetch(src, { headers: { "User-Agent": "MsafiriKenya/1.0 (car-image-lookup)" } });
-      if (!r.ok) return null;
+      if (!r.ok) { console.warn(`[custom-vehicles] Wikipedia download ${r.status}: ${src}`); return null; }
       const buf = Buffer.from(await r.arrayBuffer());
       // Convert whatever format Wikipedia returns (JPEG, PNG, WebP) to PNG.
       return await sharp(buf).png().toBuffer();
-    } catch {
+    } catch (err) {
+      console.warn("[custom-vehicles] downloadAsPng error:", err);
       return null;
     }
   }
@@ -221,26 +225,17 @@ async function fetchAndStoreCarImage(
       return;
     }
 
-    // Process the press photo:
-    //  1. Flood-fill from corners (8% fuzz) to erase the uniform white/grey
-    //     studio background — keeps the car body intact since car bodies
-    //     have shadows/reflections that push them above the 8% threshold.
-    //  2. Flatten remaining transparency onto white — avoids the dark
-    //     bleed-through that would otherwise show on dark-mode card surfaces.
-    // Falls back to the original PNG if ImageMagick is unavailable.
+    // Remove the background using rembg (U2-Net AI model) — works on any
+    // background type (studio, road, brick wall, parking lot, etc.).
+    // Result is a transparent PNG32; the car floats on whatever surface
+    // the UI renders it on (green hero card, dark garage tile, white sheet).
+    // Falls back to the raw Wikipedia PNG if rembg fails.
     let finalPng = png;
     try {
-      const withoutBg = await removeBackground(png);
-      // Flatten transparent holes onto a clean white background.
-      // Result: photo always looks like a crisp white-background product card —
-      // safe on any colour (green hero gradient, dark garage card, etc.).
-      finalPng = await sharp(withoutBg)
-        .flatten({ background: { r: 255, g: 255, b: 255 } })
-        .png()
-        .toBuffer();
-      console.log(`[custom-vehicles] Background processed (${(finalPng.length / 1024).toFixed(0)} KB)`);
+      finalPng = await removeBackground(png);
+      console.log(`[custom-vehicles] AI background removed (${(finalPng.length / 1024).toFixed(0)} KB)`);
     } catch (bgErr) {
-      console.warn("[custom-vehicles] Background processing failed — storing original PNG:", bgErr);
+      console.warn("[custom-vehicles] rembg failed — storing original PNG:", bgErr);
     }
 
     const key = `car-images/${makeSlug}/${modelSlug}.png`;

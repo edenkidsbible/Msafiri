@@ -1,20 +1,31 @@
 ---
 name: Wikipedia car image background processing
-description: Approach for processing Wikipedia press photos for R2 storage; fuzz + flatten pattern.
+description: AI-powered background removal for custom vehicle Wikipedia press photos stored in R2.
 ---
 
 ## Rule
-Wikipedia manufacturer press photos (white/grey studio background) are processed with:
-1. **ImageMagick flood-fill at 8% fuzz** from all 4 corners — removes uniform background without eating the car body (20% was too aggressive for white/silver cars)
-2. **sharp flatten to white (#ffffff)** — fills any remaining transparency so the image is never transparent; prevents dark-mode bleed-through on dark garage cards
+Wikipedia manufacturer press photos are processed with:
+1. **sharp resize to ≤800px wide** — reduces pixel count 4× for faster AI inference
+2. **rembg (u2netp model) via Python subprocess** — semantic AI segmentation, works on ANY background (brick walls, roads, studios, parking lots)
+3. **Result is transparent PNG** — stored in R2 as-is; no flattening needed; car "floats" on any surface
 
-Result: images stored as opaque white-background PNGs, look like crisp product cards on any surface.
+**Why NOT ImageMagick flood-fill:** Only works on uniform white/grey studio backgrounds. Wikipedia press photos often have real-world backgrounds (brick walls, streets, etc.) where flood-fill does nothing.
 
-**Why 8% fuzz:** 20% removed white car body pixels (car body has shadows/reflections slightly off pure white but still close). 8% only hits the pure white flat backgrounds at the photo edges.
+**Why NOT white-flatten:** Makes it an opaque white rectangle that looks wrong on coloured backgrounds (green hero tile, dark garage card).
 
-**Why flatten to white:** Transparent background + dark garage card = invisible car. Flattening to white makes it look like a product photo card — consistent on green hero, dark garage, any background.
+**Why u2netp over u2net:** u2netp is ~4MB (vs 176MB for u2net), 3–5× faster on CPU (30–60s vs 3–5min per image). Quality is adequate for car silhouettes.
 
-**How to apply:** `fetchAndStoreCarImage` in `customVehicles.ts`: removeBackground(png) → sharp().flatten({ background: {r:255,g:255,b:255} }).png(). Never skip the flatten step.
+**Script:** `artifacts/api-server/scripts/remove_bg.py` — takes `<input_file> <output_file>` args (temp files, NOT stdin/stdout — stdin pipe close issue causes Python process to hang indefinitely).
+
+**Key gotcha — stdin/stdout pipe:** execFileAsync with `{ encoding: 'buffer', input: Buffer }` does NOT correctly close stdin. The Python process hangs waiting for EOF on stdin. Always use temp files.
+
+**How to apply:**
+- `removeBackground(input: Buffer)` in `customVehicles.ts`: resize with sharp → write tmpIn → execFileAsync(python3, [REMBG_SCRIPT, tmpIn, tmpOut]) → read tmpOut → cleanup
+- Allow 5-minute timeout for the execFileAsync call
+- `process.cwd()` for script path resolution (server always runs from `artifacts/api-server/`)
 
 ## Re-processing
-To re-process existing images: `UPDATE custom_vehicles SET image_status = 'pending' WHERE image_status = 'done';` then restart API server (retryPendingCarImages runs on startup).
+To re-process: `UPDATE custom_vehicles SET image_status = 'pending' WHERE image_status = 'done';` then restart API server (retryPendingCarImages runs on startup, processes sequentially).
+
+## Rendering
+`DefaultVehicleImage.tsx` uses `resizeMode="contain"` with transparent PNG — car floats naturally on any background. No special container styling needed; the "border frame" visible in earlier screenshots was the opaque photo background, not a CSS border.
