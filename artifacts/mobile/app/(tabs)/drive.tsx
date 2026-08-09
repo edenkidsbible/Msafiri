@@ -2410,7 +2410,7 @@ export default function DriveScreen() {
           }]}
           onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
-          {/* Title row: "Drive Safely" + ETA (when routed) + End Trip + SOS */}
+          {/* Title row: "Drive Safely" · ETA · SOS · End Trip (far right) */}
           <View style={styles.dmPanelTitleRow}>
             <Text style={[styles.dmPanelTitle, { color: c.foreground }]}>Drive Safely</Text>
             {activeRoute != null && (
@@ -2420,6 +2420,7 @@ export default function DriveScreen() {
                 {distStr(activeRoute.distanceM)} left
               </Text>
             )}
+            <SOSButton compact small />
             <TouchableOpacity
               style={styles.endTripBtn}
               onPress={() => {
@@ -2429,9 +2430,8 @@ export default function DriveScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="stop-circle" size={12} color="#FFF" />
-              <Text style={styles.endTripBtnTxt}>End</Text>
+              <Text style={styles.endTripBtnTxt}>End Trip</Text>
             </TouchableOpacity>
-            <SOSButton compact small />
           </View>
 
           {/* Stat tiles: Share Trip · Driving Score · Duration · Distance
