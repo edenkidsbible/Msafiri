@@ -29,12 +29,14 @@ export interface SavedVehicle {
   fuelType?: "Petrol" | "Diesel" | "Electric" | "Hybrid" | "CNG";
   transmission?: "Automatic" | "Manual";
   odometerKm?: number;
+  plateNumber?: string;
 }
 
 export interface VehicleDetails {
   fuelType?: SavedVehicle["fuelType"];
   transmission?: SavedVehicle["transmission"];
   odometerKm?: number;
+  plateNumber?: string;
 }
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
@@ -191,4 +193,32 @@ export async function loadPendingDetails(): Promise<VehicleDetails | null> {
 
 export async function clearPendingDetails(): Promise<void> {
   await AsyncStorage.removeItem(PENDING_DETAILS_KEY);
+}
+
+// ── Edit existing vehicle metadata ────────────────────────────────────────────
+
+/**
+ * Update the editable metadata fields of an existing vehicle.
+ * Make, model, and vehicleType are intentionally excluded — changing them
+ * would cause data-attribution mixup (the exact issue "Change Vehicle" caused).
+ * Trip history and session data are unaffected; only the descriptive fields change.
+ */
+export async function updateVehicleDetails(
+  id: string,
+  details: VehicleDetails,
+): Promise<SavedVehicle[]> {
+  const list = await loadVehicles();
+  const updated = list.map(v =>
+    v.id === id
+      ? {
+          ...v,
+          ...(details.fuelType !== undefined     && { fuelType: details.fuelType }),
+          ...(details.transmission !== undefined && { transmission: details.transmission }),
+          ...(details.odometerKm !== undefined   && { odometerKm: details.odometerKm }),
+          ...(details.plateNumber !== undefined  && { plateNumber: details.plateNumber }),
+        }
+      : v,
+  );
+  await saveVehicles(updated);
+  return updated;
 }

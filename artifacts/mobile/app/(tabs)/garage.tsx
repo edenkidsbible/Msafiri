@@ -9,10 +9,13 @@ import {
   Dimensions,
   FlatList,
   Image,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -46,6 +49,8 @@ import {
   setPendingSlot,
   setDefaultVehicle,
   removeVehicle,
+  updateVehicleDetails,
+  type VehicleDetails,
 } from "@/utils/savedVehicles";
 // vehicleSessionMap removed — sessions are now filtered server-side via vehicleId param
 import {
@@ -252,6 +257,7 @@ interface VehicleSlideProps {
   totalVehicles: number;
   onSetDefault: (id: string) => void;
   onRemove: (id: string) => void;
+  onEdit: (v: SavedVehicle) => void;
 }
 
 // Image fills the card width minus 2×card-padding (16px each side)
@@ -261,7 +267,7 @@ const IMG_H = Math.round(IMG_W * 0.54); // ~16:9-ish ratio, typically ~196px on 
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
   odometerKm, cardBg, borderCol, subText, primary, foreground,
-  totalVehicles, onSetDefault, onRemove,
+  totalVehicles, onSetDefault, onRemove, onEdit,
 }: VehicleSlideProps) {
   const trackColor = cardBg === "#151917" || cardBg.startsWith("#0") ? "#2A3530" : "#DDE6DA";
   const fuelLabel = v.fuelType ?? "Petrol";
@@ -347,6 +353,15 @@ function VehicleSlide({
               <Text style={[styles.vehicleActionTxt, { color: "#3B82F6" }]}>Set as Default</Text>
             </TouchableOpacity>
           )}
+          {/* Edit details — always shown */}
+          <TouchableOpacity
+            style={[styles.vehicleActionBtn, { backgroundColor: "#22C55E18", borderColor: "#22C55E40" }]}
+            onPress={() => onEdit(v)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="pencil-outline" size={15} color="#22C55E" />
+            <Text style={[styles.vehicleActionTxt, { color: "#22C55E" }]}>Edit Details</Text>
+          </TouchableOpacity>
           {/* Remove vehicle — always shown */}
           <TouchableOpacity
             style={[styles.vehicleActionBtn, { backgroundColor: "#EF444418", borderColor: "#EF444440", flex: 0, paddingHorizontal: 12 }]}
@@ -358,6 +373,191 @@ function VehicleSlide({
         </View>
       </View>
     </View>
+  );
+}
+
+// ── Edit Vehicle Details Modal ────────────────────────────────────────────────
+
+const FUEL_OPTIONS = ["Petrol", "Diesel", "Electric", "Hybrid", "CNG"] as const;
+const TRANS_OPTIONS = ["Automatic", "Manual"] as const;
+
+function EditVehicleModal({
+  vehicle, visible, onClose, onSaved,
+  cardBg, borderCol, primary, foreground, subText,
+}: {
+  vehicle: SavedVehicle | null;
+  visible: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  cardBg: string;
+  borderCol: string;
+  primary: string;
+  foreground: string;
+  subText: string;
+}) {
+  const c = useColors();
+  const [fuelType,     setFuelType]     = useState<SavedVehicle["fuelType"]>(undefined);
+  const [transmission, setTransmission] = useState<SavedVehicle["transmission"]>(undefined);
+  const [odoText,      setOdoText]      = useState("");
+  const [plate,        setPlate]        = useState("");
+  const [saving,       setSaving]       = useState(false);
+
+  // Populate from vehicle whenever it changes
+  useEffect(() => {
+    if (!vehicle) return;
+    setFuelType(vehicle.fuelType);
+    setTransmission(vehicle.transmission);
+    setOdoText(vehicle.odometerKm != null && vehicle.odometerKm > 0 ? String(vehicle.odometerKm) : "");
+    setPlate(vehicle.plateNumber ?? "");
+  }, [vehicle?.id, visible]);
+
+  async function handleSave() {
+    if (!vehicle) return;
+    setSaving(true);
+    try {
+      const odo = odoText.trim() ? parseFloat(odoText.replace(/,/g, "")) : undefined;
+      const details: VehicleDetails = {};
+      if (fuelType     !== undefined) details.fuelType     = fuelType;
+      if (transmission !== undefined) details.transmission = transmission;
+      if (odo != null && !isNaN(odo) && odo >= 0) details.odometerKm = odo;
+      details.plateNumber = plate.trim().toUpperCase() || undefined;
+      await updateVehicleDetails(vehicle.id, details);
+      onSaved();
+      onClose();
+    } catch {
+      Alert.alert("Error", "Could not save changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputBg   = c.isDark ? "#1A211C" : "#F4F6F4";
+  const chipStyle = (selected: boolean) => ({
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: selected ? primary + "22" : inputBg,
+    borderColor: selected ? primary : borderCol,
+  });
+  const chipTxtStyle = (selected: boolean) => ({
+    fontSize: 13, fontFamily: "Inter_600SemiBold" as const,
+    color: selected ? primary : subText,
+  });
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#00000070" }}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={{
+            backgroundColor: c.isDark ? "#111714" : "#fff",
+            borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            paddingHorizontal: 20, paddingBottom: 36, paddingTop: 8,
+          }}>
+            {/* Handle pill */}
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2,
+              backgroundColor: borderCol, marginBottom: 16 }} />
+
+            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: foreground, marginBottom: 4 }}>
+              Edit Vehicle Details
+            </Text>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: subText, marginBottom: 20, lineHeight: 18 }}>
+              Update the specifics for{" "}
+              <Text style={{ fontFamily: "Inter_600SemiBold", color: foreground }}>
+                {vehicle ? vehicleDisplayName(vehicle) : "this vehicle"}
+              </Text>
+              {". Make and model cannot be changed here to protect your trip history."}
+            </Text>
+
+            {/* Plate number */}
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: subText, marginBottom: 6 }}>
+              Plate Number
+            </Text>
+            <TextInput
+              value={plate}
+              onChangeText={t => setPlate(t.toUpperCase())}
+              placeholder="e.g. KCB 123A"
+              placeholderTextColor={subText + "88"}
+              autoCapitalize="characters"
+              style={{
+                backgroundColor: inputBg, borderRadius: 12, borderWidth: 1,
+                borderColor: borderCol, paddingHorizontal: 14, paddingVertical: 11,
+                color: foreground, fontFamily: "Inter_500Medium", fontSize: 14,
+                marginBottom: 18,
+              }}
+            />
+
+            {/* Fuel type */}
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: subText, marginBottom: 8 }}>
+              Fuel Type
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+              {FUEL_OPTIONS.map(opt => (
+                <TouchableOpacity key={opt} style={chipStyle(fuelType === opt)} onPress={() => setFuelType(opt)} activeOpacity={0.8}>
+                  <Text style={chipTxtStyle(fuelType === opt)}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Transmission */}
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: subText, marginBottom: 8 }}>
+              Transmission
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 18 }}>
+              {TRANS_OPTIONS.map(opt => (
+                <TouchableOpacity key={opt} style={chipStyle(transmission === opt)} onPress={() => setTransmission(opt)} activeOpacity={0.8}>
+                  <Text style={chipTxtStyle(transmission === opt)}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Odometer */}
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: subText, marginBottom: 6 }}>
+              Current Odometer (km)
+            </Text>
+            <TextInput
+              value={odoText}
+              onChangeText={setOdoText}
+              placeholder="e.g. 52000"
+              placeholderTextColor={subText + "88"}
+              keyboardType="numeric"
+              style={{
+                backgroundColor: inputBg, borderRadius: 12, borderWidth: 1,
+                borderColor: borderCol, paddingHorizontal: 14, paddingVertical: 11,
+                color: foreground, fontFamily: "Inter_500Medium", fontSize: 14,
+                marginBottom: 24,
+              }}
+            />
+
+            {/* Buttons */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={{
+                  flex: 1, paddingVertical: 13, borderRadius: 14, borderWidth: 1,
+                  borderColor: borderCol, alignItems: "center",
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: subText }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving}
+                style={{
+                  flex: 2, paddingVertical: 13, borderRadius: 14,
+                  backgroundColor: primary, alignItems: "center",
+                  opacity: saving ? 0.6 : 1,
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" }}>
+                  {saving ? "Saving…" : "Save Changes"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
 
@@ -405,6 +605,15 @@ export default function GarageScreen() {
   // Bumped each time the screen is focused; triggers the care stats reload effect.
   const [focusTick, setFocusTick] = useState(0);
   const flatRef = useRef<FlatList>(null);
+
+  // Edit vehicle details modal
+  const [editTarget, setEditTarget] = useState<SavedVehicle | null>(null);
+  const [editVisible, setEditVisible] = useState(false);
+
+  function handleEditVehicle(v: SavedVehicle) {
+    setEditTarget(v);
+    setEditVisible(true);
+  }
 
   // ── VehicleContext — single source of truth for the vehicle list ─────────
   // Reading vehicles directly from context eliminates the local duplicate and
@@ -725,6 +934,7 @@ export default function GarageScreen() {
         totalVehicles={vehicles.length}
         onSetDefault={handleSetDefault}
         onRemove={handleRemoveVehicle}
+        onEdit={handleEditVehicle}
       />
     );
   }
@@ -1051,6 +1261,19 @@ export default function GarageScreen() {
         </View>
 
       </ScrollView>
+
+      {/* ── Edit vehicle details modal ── */}
+      <EditVehicleModal
+        vehicle={editTarget}
+        visible={editVisible}
+        onClose={() => setEditVisible(false)}
+        onSaved={() => refreshVehicles().catch(() => {})}
+        cardBg={cardBg}
+        borderCol={borderCol}
+        primary={c.primary}
+        foreground={c.foreground}
+        subText={subText}
+      />
     </View>
   );
 }
