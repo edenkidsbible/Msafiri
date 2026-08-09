@@ -2180,11 +2180,22 @@ export default function DriveScreen() {
                     // Stop the dashcam and save/lock the current clip
                     stopAndSaveDashcam();
                   } else {
-                    // Not recording — start silently in the background so the
-                    // map and alerts remain fully visible. If permission was
-                    // denied, open the dashcam's permission-request screen so
-                    // the user understands why nothing started.
-                    startBackgroundRecording().then((ok) => { if (!ok) openDashcam(); });
+                    // Always request permissions first — on first use this pops
+                    // the system camera + microphone dialogs before the overlay
+                    // mounts. Without this gate the overlay can load before the
+                    // OS grants access and hang in "starting" indefinitely.
+                    requestDashcamPermissions().then(({ cameraGranted }) => {
+                      if (!cameraGranted) {
+                        // Camera denied — open the dashcam screen so the user
+                        // sees the explanation and can navigate to Settings.
+                        openDashcam();
+                        return;
+                      }
+                      // Permissions granted — start recording silently in the
+                      // background. If something still fails, fall back to the
+                      // dashcam screen.
+                      startBackgroundRecording().then((ok) => { if (!ok) openDashcam(); });
+                    });
                   }
                 }}
                 activeOpacity={0.85}
@@ -2689,24 +2700,73 @@ export default function DriveScreen() {
             bottom without absoluteFill or justifyContent tricks. */}
         <View style={{ flex: 1 }}>
           <Pressable
-            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.52)" }}
             onPress={() => setShowNearbySheet(false)}
           />
-          <View style={[styles.nearbySheetContainer, { backgroundColor: c.card, paddingBottom: bottomInset + 12 }]}>
-            <View style={styles.nearbySheetHandle} />
-            <Text style={[styles.nearbySheetTitle, { color: c.foreground }]}>
-              Nearby Alerts
-            </Text>
+          <View style={[styles.nearbySheetContainer, {
+            backgroundColor: isDark ? "#0C1610F5" : "#F6FBF8F8",
+            borderTopColor:  c.primary,
+            paddingBottom:   bottomInset + 8,
+          }]}>
+            {/* Handle */}
+            <View style={[styles.nearbySheetHandle, {
+              backgroundColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.14)",
+            }]} />
+
+            {/* Header row: icon + title + count badge + close */}
+            <View style={styles.nearbySheetHeader}>
+              <View style={[styles.nearbySheetHeaderIcon, { backgroundColor: c.primary + "22" }]}>
+                <Ionicons name="alert-circle" size={18} color={c.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.nearbySheetTitle, { color: c.foreground }]}>
+                  Nearby Alerts
+                </Text>
+                <Text style={[styles.nearbySheetSubtitle, { color: c.mutedForeground }]}>
+                  Tap any alert to focus the map
+                </Text>
+              </View>
+              {/* Count pill */}
+              <View style={[styles.nearbyCountPill, { backgroundColor: c.primary + "22", borderColor: c.primary + "55" }]}>
+                <Text style={[styles.nearbyCountTxt, { color: c.primary }]}>
+                  {nearbyAlertCandidates.length}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowNearbySheet(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={[styles.nearbySheetCloseBtn, {
+                  backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+                }]}
+              >
+                <Ionicons name="close" size={17} color={c.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Divider */}
+            <View style={[styles.nearbySheetDivider, {
+              backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
+            }]} />
+
             {/* No flex:1 on ScrollView — the container's maxHeight caps overall
                 height; ScrollView expands to its content then becomes scrollable. */}
-            <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
-              {nearbyAlertCandidates.map((item) => {
-                const resolved = resolveIncidentType(item.type);
+            <ScrollView
+              contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {nearbyAlertCandidates.map((item, index) => {
+                const resolved  = resolveIncidentType(item.type);
+                const distM     = item.distanceM;
+                const pillColor = distM < 200 ? "#E53935" : distM < 500 ? "#E65100" : c.primary;
+                const isLast    = index === nearbyAlertCandidates.length - 1;
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.nearbySheetRow, { borderBottomColor: c.border }]}
-                    activeOpacity={0.7}
+                    style={[
+                      styles.nearbySheetRow,
+                      !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)" },
+                    ]}
+                    activeOpacity={0.72}
                     onPress={() => {
                       setShowNearbySheet(false);
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2719,10 +2779,15 @@ export default function DriveScreen() {
                       driveMapRef.current?.focusCoords(item.lat, item.lng);
                     }}
                   >
-                    <View style={[styles.nearbySheetIconWrap, { backgroundColor: resolved.color + "22" }]}>
-                      <Text style={{ fontSize: 20 }}>{resolved.emoji}</Text>
+                    {/* Icon circle */}
+                    <View style={[styles.nearbySheetIconWrap, { backgroundColor: resolved.color + "22", borderColor: resolved.color + "40" }]}>
+                      <Text style={[styles.nearbySheetEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>
+                        {resolved.emoji}
+                      </Text>
                     </View>
-                    <View style={{ flex: 1 }}>
+
+                    {/* Label + road */}
+                    <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={[styles.nearbySheetRowTitle, { color: c.foreground }]}>
                           {resolved.label}
@@ -2739,16 +2804,32 @@ export default function DriveScreen() {
                         </Text>
                       ) : null}
                     </View>
-                    <View style={{ alignItems: "flex-end", gap: 2 }}>
-                      <Text style={[styles.nearbySheetDist, { color: c.mutedForeground }]}>
-                        {distStr(item.distanceM)}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={12} color={c.mutedForeground} />
+
+                    {/* Distance pill + chevron */}
+                    <View style={{ alignItems: "flex-end", gap: 6 }}>
+                      <View style={[styles.nearbyDistPill, {
+                        backgroundColor: pillColor + "20",
+                        borderColor:     pillColor + "50",
+                      }]}>
+                        <Text style={[styles.nearbyDistTxt, { color: pillColor }]}>
+                          {distStr(item.distanceM)}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={13} color={c.mutedForeground} />
                     </View>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
+
+            {/* Done button */}
+            <TouchableOpacity
+              style={[styles.nearbySheetDoneBtn, { backgroundColor: c.primary }]}
+              activeOpacity={0.82}
+              onPress={() => setShowNearbySheet(false)}
+            >
+              <Text style={styles.nearbySheetDoneTxt}>Done</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3742,73 +3823,144 @@ const styles = StyleSheet.create({
   // ── Nearby Alerts sheet ───────────────────────────────────────────────────
   nearbySheetBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.52)",
   },
   nearbySheetContainer: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "60%",
-    paddingBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 24,
+    borderTopLeftRadius:  28,
+    borderTopRightRadius: 28,
+    borderTopWidth:       2,
+    maxHeight:            "62%",
+    shadowColor:          "#000",
+    shadowOffset:         { width: 0, height: -10 },
+    shadowOpacity:        0.28,
+    shadowRadius:         24,
+    elevation:            28,
   },
   nearbySheetHandle: {
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 6,
-    width: 40,
-    height: 4,
+    alignSelf:    "center",
+    marginTop:    10,
+    marginBottom: 4,
+    width:        40,
+    height:       4,
     borderRadius: 2,
-    backgroundColor: "rgba(0,0,0,0.18)",
   },
-  nearbySheetTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
-    marginHorizontal: 20,
-    marginBottom: 12,
+  // Header row: icon + title/subtitle + count pill + close
+  nearbySheetHeader: {
+    flexDirection:    "row",
+    alignItems:       "center",
+    gap:              10,
+    marginHorizontal: 16,
+    marginTop:        8,
+    marginBottom:     12,
   },
-  nearbySheetRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  nearbySheetIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
+  nearbySheetHeaderIcon: {
+    width:          40,
+    height:         40,
+    borderRadius:   12,
+    alignItems:     "center",
     justifyContent: "center",
   },
+  nearbySheetTitle: {
+    fontSize:   16,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 20,
+  },
+  nearbySheetSubtitle: {
+    fontSize:   11,
+    fontFamily: "Inter_400Regular",
+    marginTop:  1,
+  },
+  nearbyCountPill: {
+    minWidth:         28,
+    height:           28,
+    borderRadius:     14,
+    borderWidth:      1,
+    alignItems:       "center",
+    justifyContent:   "center",
+    paddingHorizontal: 8,
+  },
+  nearbyCountTxt: {
+    fontSize:   13,
+    fontFamily: "Inter_700Bold",
+  },
+  nearbySheetCloseBtn: {
+    width:          32,
+    height:         32,
+    borderRadius:   16,
+    alignItems:     "center",
+    justifyContent: "center",
+  },
+  nearbySheetDivider: {
+    height:           1,
+    marginHorizontal: 16,
+    marginBottom:     4,
+  },
+  nearbySheetRow: {
+    flexDirection:    "row",
+    alignItems:       "center",
+    gap:              12,
+    paddingHorizontal: 16,
+    paddingVertical:  13,
+  },
+  nearbySheetIconWrap: {
+    width:          46,
+    height:         46,
+    borderRadius:   14,
+    borderWidth:    1,
+    alignItems:     "center",
+    justifyContent: "center",
+  },
+  nearbySheetEmoji: {
+    fontSize: 22,
+  },
   nearbySheetRowTitle: {
-    fontSize: 15,
+    fontSize:   15,
     fontFamily: "Inter_600SemiBold",
   },
   liveBadge: {
     backgroundColor: "#D32F2F",
-    borderRadius: 4,
+    borderRadius:    4,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
   liveBadgeTxt: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    color: "#FFF",
+    fontSize:      9,
+    fontFamily:    "Inter_700Bold",
+    color:         "#FFF",
     letterSpacing: 0.8,
   },
   nearbySheetRowSub: {
-    fontSize: 12,
+    fontSize:   12,
     fontFamily: "Inter_400Regular",
-    marginTop: 2,
   },
-  nearbySheetDist: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
+  nearbyDistPill: {
+    borderWidth:      1,
+    borderRadius:     8,
+    paddingHorizontal: 8,
+    paddingVertical:  3,
+  },
+  nearbyDistTxt: {
+    fontSize:   12,
+    fontFamily: "Inter_700Bold",
+  },
+  nearbySheetDoneBtn: {
+    marginHorizontal: 16,
+    marginTop:        12,
+    paddingVertical:  14,
+    borderRadius:     14,
+    alignItems:       "center",
+    flexDirection:    "row",
+    justifyContent:   "center",
+    shadowColor:      "#00C853",
+    shadowOffset:     { width: 0, height: 4 },
+    shadowOpacity:    0.30,
+    shadowRadius:     8,
+    elevation:        5,
+  },
+  nearbySheetDoneTxt: {
+    fontSize:   15,
+    fontFamily: "Inter_700Bold",
+    color:      "#FFF",
   },
 
   // ── Driver name prompt modal ───────────────────────────────────────────────
@@ -3954,7 +4106,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25, shadowRadius: 7, elevation: 8,
   },
-  dmSideBtnTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  dmSideBtnTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", textAlign: "center", lineHeight: 13 },
 
   // ── Drive Mode weather / GPS chips ────────────────────────────────────────
   dmChipRow: {

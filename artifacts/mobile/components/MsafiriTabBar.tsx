@@ -92,7 +92,7 @@ export function MsafiriTabBar({ state, navigation }: BottomTabBarProps) {
               >
                 <Ionicons name="add" size={30} color={c.isDark ? "#04170B" : "#FFFFFF"} />
               </Pressable>
-              <Text style={[styles.label, { color: c.mutedForeground, marginTop: 26 }]}>
+              <Text style={[styles.label, { color: c.mutedForeground, marginTop: 33 }]}>
                 Report
               </Text>
             </View>
