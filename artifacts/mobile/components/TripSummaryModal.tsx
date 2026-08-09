@@ -27,6 +27,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam } from "@/context/DashcamContext";
+import TripReviewCard from "@/components/TripReviewCard";
 
 // ── Public data type ──────────────────────────────────────────────────────────
 
@@ -408,6 +409,9 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing }: Pro
               </View>
             </>
           )}
+
+          {/* ── Dashcam clip review — only shown when saved-for-review clips exist */}
+          <TripReviewCard showSeparator />
 
           <View style={[styles.sectionSep, { backgroundColor: sepColor }]} />
 

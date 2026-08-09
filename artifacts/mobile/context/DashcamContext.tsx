@@ -459,6 +459,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           segmentsRef.current = next;
           return next;
         });
+        // Persist immediately — the app may be killed before the async
+        // setSegments effect runs, losing the savedForReview flags.
+        AsyncStorage.setItem(
+          segmentsAsyncKeyRef.current,
+          JSON.stringify(segmentsRef.current),
+        ).catch(() => {});
         setPendingTripReview(true);
 
         // Stop the in-flight clip cleanly (no lock — becomes unlocked)
@@ -1008,8 +1014,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             processUploadQueue();
           }
 
-          // Trip ended → show review banner and complete the deferred isRecording=false
+          // Trip ended → persist saved-for-review segments immediately (don't
+          // rely solely on the async setSegments effect — a kill-between-render
+          // would lose the savedForReview flags and the review banner would not
+          // re-appear on the next cold start).
           if (tripEnded) {
+            AsyncStorage.setItem(
+              capturedAsyncKey,
+              JSON.stringify(segmentsRef.current),
+            ).catch(() => {});
             setPendingTripReview(true);
             setIsRecording(false);
           }
@@ -1026,6 +1039,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         }
         // Still complete the deferred stop if trip ended
         if (!isRecordingRef.current) {
+          AsyncStorage.setItem(
+            capturedAsyncKey,
+            JSON.stringify(segmentsRef.current),
+          ).catch(() => {});
           setPendingTripReview(true);
           setIsRecording(false);
         }

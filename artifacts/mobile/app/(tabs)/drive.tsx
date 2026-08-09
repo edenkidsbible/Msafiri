@@ -35,6 +35,7 @@ import { useApp } from "@/context/AppContext";
 import { useDashcam } from "@/context/DashcamContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import TripSummaryModal, { type TripSummaryData } from "@/components/TripSummaryModal";
+import TripReviewCard from "@/components/TripReviewCard";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import SOSButton from "@/components/SOSButton";
 import CrashDetectedModal from "@/components/CrashDetectedModal";
@@ -191,6 +192,7 @@ export default function DriveScreen() {
     startBackgroundRecording,
     requestDashcamPermissions,
     segments: dashcamSegments,
+    pendingTripReview,
   } = useDashcam();
 
   // Ref mirror so the empty-deps useFocusEffect can read the live recording
@@ -1311,6 +1313,37 @@ export default function DriveScreen() {
                 <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
               </TouchableOpacity>
             )}
+          </View>
+        </View>
+      )}
+
+      {/* ── Trip review banner — persists across app restarts until acted on ──
+          Shown on the pre-trip idle screen (and inside TripSummaryModal).
+          Positioned above the tab bar so it doesn't disturb the centered
+          Drive Mode content.                                                   */}
+      {!tripActive && countdownValue === null && !showRoutePreviewMode && pendingTripReview && (
+        <View
+          style={{
+            position: "absolute",
+            left: 0, right: 0,
+            bottom: bottomBase + 8,
+            zIndex: 5,
+            paddingHorizontal: 16,
+          }}
+        >
+          <View style={[{
+            backgroundColor: isDark ? "#111914F5" : "#FFFFFFF5",
+            borderRadius: 18,
+            padding: 14,
+            borderWidth: 1,
+            borderColor: isDark ? "#22C55E30" : "#22C55E50",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.12,
+            shadowRadius: 12,
+            elevation: 10,
+          }]}>
+            <TripReviewCard />
           </View>
         </View>
       )}
