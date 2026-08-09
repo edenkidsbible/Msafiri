@@ -288,7 +288,7 @@ export default function DriveAlertOverlay({
         <View style={styles.headerTextCol}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={[styles.typeLabel, { color: effectiveBg }]}>
-              {typeLabel.toUpperCase()}
+              {typeLabel}
             </Text>
             {alert.source === "here" && (
               <View style={styles.liveBadge}>
@@ -296,7 +296,7 @@ export default function DriveAlertOverlay({
               </View>
             )}
           </View>
-          <Text style={[styles.distLabel, { color: colors.foreground }]}>
+          <Text style={[styles.distLabel, { color: colors.mutedForeground }]}>
             {alert.alongTrackM != null && alert.alongTrackM < 0
               ? "Behind you"
               : alert.alongTrackM != null && alert.alongTrackM < 50
@@ -509,26 +509,26 @@ const styles = StyleSheet.create({
     gap:           12,
   },
   alertOrb: {
-    width:          56,
-    height:         56,
-    borderRadius:   18,
+    width:          64,
+    height:         64,
+    borderRadius:   20,
     borderWidth:    1,
     alignItems:     "center",
     justifyContent: "center",
   },
-  orbEmoji: { fontSize: 28 },
-  headerTextCol: { flex: 1, gap: 1 },
+  orbEmoji: { fontSize: 32 },
+  headerTextCol: { flex: 1, gap: 2 },
   typeLabel: {
-    fontSize:      10,
+    fontSize:      17,
     fontFamily:    "Inter_700Bold",
-    letterSpacing: 2.2,
+    letterSpacing: 0.2,
   },
   distLabel: {
-    fontSize:           26,
-    fontFamily:         "Inter_700Bold",
-    lineHeight:         30,
+    fontSize:           14,
+    fontFamily:         "Inter_500Medium",
+    lineHeight:         18,
     includeFontPadding: false,
-    marginTop:          2,
+    marginTop:          1,
   },
   closeBtn: {
     width:          34,

@@ -26,14 +26,14 @@ export function useHeartbeatPulse(active: boolean): Animated.Value {
     if (active) {
       const loop = Animated.loop(
         Animated.sequence([
-          // Lub — first beat (stronger)
-          Animated.timing(anim, { toValue: 1.07, duration: 120, useNativeDriver: true }),
+          // Lub — first beat (stronger, bigger pulse for driver urgency)
+          Animated.timing(anim, { toValue: 1.20, duration: 110, useNativeDriver: true }),
           Animated.timing(anim, { toValue: 1.00, duration: 100, useNativeDriver: true }),
           // Dub — second beat (softer)
-          Animated.timing(anim, { toValue: 1.05, duration: 100, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 1.12, duration: 90, useNativeDriver: true }),
           Animated.timing(anim, { toValue: 1.00, duration: 100, useNativeDriver: true }),
           // Rest between beats
-          Animated.delay(480),
+          Animated.delay(420),
         ])
       );
       loop.start();

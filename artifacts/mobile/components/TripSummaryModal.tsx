@@ -42,8 +42,9 @@ export interface TripSummaryData {
   sharpTurns:        number;
   speedingMinutes:   number;
   smoothMinutes:     number;
-  speedCameraAlerts: number;
-  policeAlerts:      number;
+  speedCameraAlerts:  number;
+  policeAlerts:       number;
+  hazardsEncountered: number;
   /**
    * Number of dashcam segments that existed at the moment the trip started.
    * The modal shows "View Dashcam Clips" reactively when the live segment

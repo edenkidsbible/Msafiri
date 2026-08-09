@@ -60,17 +60,19 @@ function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+const EAT = "Africa/Nairobi";
+
 function tripDateStr(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  const isTomorrow = d.toDateString() === tomorrow.toDateString();
-  const time = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
+  const fmtDate = (dt: Date) => dt.toLocaleDateString("en-KE", { timeZone: EAT, year: "numeric", month: "2-digit", day: "2-digit" });
+  const isToday    = fmtDate(d) === fmtDate(now);
+  const tomorrow   = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const isTomorrow = fmtDate(d) === fmtDate(tomorrow);
+  const time = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
   if (isToday) return `Today, ${time}`;
   if (isTomorrow) return `Tomorrow, ${time}`;
-  return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}, ${time}`;
+  return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short", timeZone: EAT })}, ${time}`;
 }
 
 function placeIcon(kind: SavedPlace["kind"]): React.ComponentProps<typeof Ionicons>["name"] {
@@ -778,10 +780,11 @@ export default function TripsScreen() {
           function sessionDateStr(iso: string): string {
             const d   = new Date(iso);
             const now = new Date();
-            const isToday = d.toDateString() === now.toDateString();
-            const time    = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
+            const fmtDate = (dt: Date) => dt.toLocaleDateString("en-KE", { timeZone: EAT, year: "numeric", month: "2-digit", day: "2-digit" });
+            const isToday = fmtDate(d) === fmtDate(now);
+            const time    = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
             if (isToday) return `Today, ${time}`;
-            return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}, ${time}`;
+            return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short", timeZone: EAT })}, ${time}`;
           }
 
           return (

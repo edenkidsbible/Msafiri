@@ -832,7 +832,9 @@ const DriveMapView = forwardRef(function DriveMapView(
       if (Platform.OS !== "ios" && camHeadingRef.current != null) {
         driveCameraUpdate.heading = camHeadingRef.current;
       }
-      mapRef.current?.animateCamera(driveCameraUpdate, { duration: 300 });
+      // Duration ~= GPS tick interval so each animation blends into the next,
+      // creating smooth continuous motion rather than 300 ms jerks with gaps.
+      mapRef.current?.animateCamera(driveCameraUpdate, { duration: 900 });
     }
   }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
@@ -1687,7 +1689,7 @@ const DriveMapView = forwardRef(function DriveMapView(
                     ) : null}
                     <Text style={ms.incidentMeta}>
                       {selectedHereIncident.endTime
-                        ? `Expected to clear ${new Date(selectedHereIncident.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                        ? `Expected to clear ${new Date(selectedHereIncident.endTime).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Nairobi" })}`
                         : "Duration unknown"}
                     </Text>
                   </View>

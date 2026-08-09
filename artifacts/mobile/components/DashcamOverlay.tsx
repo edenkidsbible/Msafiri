@@ -217,18 +217,21 @@ export default function DashcamOverlay() {
     [setCameraRef]
   );
 
-  // ── Audio session: let BT music and the mic coexist ──────────────────────
-  // When recording with audio enabled (and mic permission granted), switch to
-  // PlayAndRecord + MixWithOthers so iOS keeps the Bluetooth A2DP route open
-  // instead of tearing it down to grab the microphone exclusively.
-  // Restores the baseline session (DuckOthers, no recording) the moment
-  // audio recording stops for any reason (muted, stopped, unmounted).
-  const audioRecording = isRecording && settings.audioEnabled && !!micPermission?.granted;
+  // ── Audio session: keep BT music alive during recording ──────────────────
+  // iOS AVCaptureSession claims the audio route the moment recordAsync() is
+  // called — even with muted:true — because the encoder pipeline initialises
+  // an audio track regardless. Without MixWithOthers, the system tears down
+  // the A2DP (Bluetooth) route and music stops.
+  //
+  // Fix: engage PlayAndRecord + MixWithOthers whenever the camera is rolling,
+  // irrespective of whether the mic is on. This lets BT music coexist with
+  // both muted and audio-enabled recording.
+  // Restores DuckOthers (baseline) the moment recording stops.
   useEffect(() => {
-    if (Platform.OS === "web" || !audioRecording) return;
+    if (Platform.OS === "web" || !isRecording) return;
     setDashcamAudioMode(true);
     return () => { setDashcamAudioMode(false); };
-  }, [audioRecording]);
+  }, [isRecording]);
 
   // ── Keep screen awake while dashcam is active ─────────────────────────────
   // keepAwakeActive tracks whether activateKeepAwakeAsync completed successfully

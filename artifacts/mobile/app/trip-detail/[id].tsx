@@ -32,13 +32,15 @@ function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+const EAT = "Africa/Nairobi";
+
 function fmtDateTime(iso: string): string {
   const d = new Date(iso);
-  return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · ${d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" })}`;
+  return `${d.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: EAT })} · ${d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT })}`;
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
 }
 
 export default function TripDetailScreen() {

@@ -337,9 +337,12 @@ export default function DriveScreen() {
   // Tracks the last known tripActive value so the end-trip effect can detect
   // the false → true transition and fire only once per trip.
   const prevTripActiveRef = useRef(false);
-  // Alert counters incremented during the trip — sent to the server on end
+  // Alert counters incremented during the trip — sent to the server on end.
+  // alertedIdsRef prevents double-counting when the same alert persists across ticks.
   const tripSpeedCamRef  = useRef(0);
   const tripPoliceRef    = useRef(0);
+  const tripHazardRef    = useRef(0);
+  const alertedIdsRef    = useRef(new Set<string>());
   // Dashcam segment baseline — captures how many segments exist at trip start
   // so TripSummaryModal can reactively show the clips button when the count
   // grows beyond this value (covers the async final-clip save case).
@@ -483,6 +486,8 @@ export default function DriveScreen() {
     setAvgSpeedDisplay(0);
     tripSpeedCamRef.current = 0;
     tripPoliceRef.current   = 0;
+    tripHazardRef.current   = 0;
+    alertedIdsRef.current.clear();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Show 3-second countdown, then launch the trip
@@ -696,6 +701,7 @@ export default function DriveScreen() {
       smoothMinutes:     snap.smoothMinutes,
       speedCameraAlerts: tripSpeedCamRef.current,
       policeAlerts:      tripPoliceRef.current,
+      hazardsEncountered: tripHazardRef.current,
       segmentBaselineCount: segmentBaselineRef.current,
       isSharing:         isSharingTrip,
       // Capture now while the ref still holds the ID — it is cleared once
@@ -741,8 +747,9 @@ export default function DriveScreen() {
           sharpTurns:        snap.sharpTurns,
           speedingMinutes:   snap.speedingMinutes,
           smoothMinutes:     snap.smoothMinutes,
-          speedCameraAlerts: tripSpeedCamRef.current,
-          policeAlerts:      tripPoliceRef.current,
+          speedCameraAlerts:  tripSpeedCamRef.current,
+          policeAlerts:       tripPoliceRef.current,
+          hazardsEncountered: tripHazardRef.current,
         }).catch(() => {});
         sessionIdRef.current     = null;
         tripStartTimeRef.current = null;
@@ -750,6 +757,23 @@ export default function DriveScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripActive]);
+
+  // ── Alert counter — increment the right bucket each time a new alert fires ─
+  // Uses alertedIdsRef so each unique alert is counted exactly once per trip,
+  // regardless of how long it stays on screen across multiple GPS ticks.
+  useEffect(() => {
+    if (!tripActive || !activeAlert) return;
+    const id = activeAlert.id;
+    if (alertedIdsRef.current.has(id)) return;
+    alertedIdsRef.current.add(id);
+    if ((activeAlert.source as string) === "camera") {
+      tripSpeedCamRef.current += 1;
+    } else if (String(activeAlert.type).toUpperCase().includes("POLICE")) {
+      tripPoliceRef.current += 1;
+    } else {
+      tripHazardRef.current += 1;
+    }
+  }, [tripActive, activeAlert]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 30-second periodic stats push during a Live Trip ─────────────────────
   useEffect(() => {
@@ -1330,7 +1354,10 @@ export default function DriveScreen() {
            speed/zone/hazard alerts. Do NOT add a parallel alert component here.
            To add a new alert type, extend the DriveAlert union in AppContext and
            add the rendering logic inside DriveAlertOverlay itself.           ── */}
-      {activeAlert && (
+      {/* Auto-hide once the driver has clearly passed the alert (>30 m behind
+          on the route). AppContext will eventually clear it, but this filter
+          gives an immediate visual response instead of showing "Behind you". */}
+      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && (
         <DriveAlertOverlay
           alert={activeAlert}
           extraAlerts={activeAlertExtras}
@@ -1396,9 +1423,7 @@ export default function DriveScreen() {
             </Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>
-              {primaryAlert.typeName} ahead
-            </MarqueeText>
+            <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>{`${primaryAlert.typeName} ahead`}</MarqueeText>
             <Text style={[styles.dmAlertSub, { color: c.mutedForeground }]} numberOfLines={1}>
               <Text style={{ color: c.primary, fontFamily: "Inter_700Bold" }}>
                 {distStr(primaryAlert.distanceM)}
@@ -2385,7 +2410,7 @@ export default function DriveScreen() {
           }]}
           onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
-          {/* Title row: "Drive Safely" + ETA (when routed) + SOS */}
+          {/* Title row: "Drive Safely" + ETA (when routed) + End Trip + SOS */}
           <View style={styles.dmPanelTitleRow}>
             <Text style={[styles.dmPanelTitle, { color: c.foreground }]}>Drive Safely</Text>
             {activeRoute != null && (
@@ -2395,6 +2420,17 @@ export default function DriveScreen() {
                 {distStr(activeRoute.distanceM)} left
               </Text>
             )}
+            <TouchableOpacity
+              style={styles.endTripBtn}
+              onPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                captureAndStop();
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="stop-circle" size={12} color="#FFF" />
+              <Text style={styles.endTripBtnTxt}>End</Text>
+            </TouchableOpacity>
             <SOSButton compact small />
           </View>
 
@@ -2489,7 +2525,11 @@ export default function DriveScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   if (dashcamRecording || dashcamPending) stopAndSaveDashcam();
                   else {
-                    // Denied permission → show the dashcam permission screen.
+                    // Ask for camera/mic permissions upfront — same pattern as
+                    // Share Trip (phone contacts). On first use the OS shows the
+                    // native permission dialog before any recording starts.
+                    const { cameraGranted } = await requestDashcamPermissions();
+                    if (!cameraGranted) { openDashcam(); return; }
                     const ok = await startBackgroundRecording();
                     if (!ok) openDashcam();
                   }
@@ -4127,6 +4167,15 @@ const styles = StyleSheet.create({
   },
   dmPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", flexShrink: 0 },
   dmPanelEta:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "right", marginRight: 4 },
+  endTripBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#E5484D",
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 10,
+    shadowColor: "#E5484D", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35, shadowRadius: 6, elevation: 4,
+  },
+  endTripBtnTxt: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
   dmTileRow: { flexDirection: "row", gap: 8 },
   dmTile: {
     flex: 1, borderRadius: 14, borderWidth: 1,

@@ -84,10 +84,12 @@ function tripDateLabel(iso: string): string {
   const now  = new Date();
   const yest = new Date(now);
   yest.setDate(now.getDate() - 1);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString())    return `Today, ${time}`;
-  if (d.toDateString() === yest.toDateString())   return `Yesterday, ${time}`;
-  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+  const EAT = "Africa/Nairobi";
+  const fmtDate = (dt: Date) => dt.toLocaleDateString("en-KE", { timeZone: EAT, year: "numeric", month: "2-digit", day: "2-digit" });
+  const time = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
+  if (fmtDate(d) === fmtDate(now))    return `Today, ${time}`;
+  if (fmtDate(d) === fmtDate(yest))   return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString("en-KE", { month: "short", day: "numeric", timeZone: EAT })}, ${time}`;
 }
 
 function fmtDur(s: number): string {
