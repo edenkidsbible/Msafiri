@@ -40,6 +40,7 @@ import {
 } from "@/utils/savedVehicles";
 import { swapCareDataForDefaultChange } from "@/utils/vehicleCare";
 import { getCarImageUrl, getMakeById, getModelById, CAR_MAKES } from "@/data/carModels";
+import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import CarLogoImage from "@/components/CarLogoImage";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
@@ -85,22 +86,35 @@ function VehicleThumb({ v, width, height }: { v: SavedVehicle; width: number; he
   const isModelCustom = !v.modelId || v.modelId.startsWith("custom-");
   const [phase, setPhase] = useState(0);
 
-  if (isMakeCustom || phase >= 2) {
-    return (
-      <Text style={{ fontSize: height * 0.55, fontFamily: EMOJI_FONT_FAMILY, textAlign: "center" }}>
-        {getVehicleEmoji(v.vehicleType)}
-      </Text>
-    );
+  // Build the best R2 image URL for the current phase.
+  // For custom makes/models we use the slugified display name (matches the key
+  // the server wrote into R2) instead of the local timestamp-based ID.
+  let uri: string | null = null;
+  if (phase === 0) {
+    if (isMakeCustom) {
+      if (v.customMakeName && v.customModelName)
+        uri = getCarImageUrl(slugify(v.customMakeName), slugify(v.customModelName));
+    } else if (isModelCustom) {
+      if (v.customModelName)
+        uri = getCarImageUrl(v.makeId!, slugify(v.customModelName));
+    } else {
+      uri = getCarImageUrl(v.makeId!, v.modelId!);
+    }
+  } else if (phase === 1 && !isMakeCustom) {
+    // Phase 1: silhouette from the make's first standard model
+    const fb = firstStandardModel(v.makeId!);
+    if (fb) uri = getCarImageUrl(v.makeId!, fb);
   }
 
-  let uri: string;
-  if (phase === 0) {
-    const slug = isModelCustom ? customModelSlug(v.modelId!) : v.modelId!;
-    uri = getCarImageUrl(v.makeId!, slug);
-  } else {
-    const fb = firstStandardModel(v.makeId!);
-    if (!fb) { setPhase(2); return null; }
-    uri = getCarImageUrl(v.makeId!, fb);
+  // No URI or all phases exhausted → type-specific PNG (never emoji)
+  if (!uri) {
+    return (
+      <Image
+        source={getVehicleFallbackImage(v.vehicleType)}
+        style={{ width, height }}
+        resizeMode="contain"
+      />
+    );
   }
 
   return (

@@ -44,6 +44,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useVehicle } from "@/context/VehicleContext";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
+import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import { loadVehicles, SavedVehicle } from "@/utils/savedVehicles";
 import {
   DriveSession,
@@ -232,12 +233,29 @@ function VehiclePickerModal({ visible, vehicles, selectedId, onSelect, onClose }
 }
 
 function VehicleThumb({ v, size = 60 }: { v: SavedVehicle; size?: number }) {
-  const url = v.makeId && v.modelId ? getCarImageUrl(v.makeId, v.modelId) : null;
+  const [failed, setFailed] = useState(false);
+  const isMakeCustom  = !v.makeId  || v.makeId.startsWith("custom-");
+  const isModelCustom = !v.modelId || v.modelId.startsWith("custom-");
+
+  // Build URL using display-name slugs for custom vehicles so it matches R2
+  let url: string | null = null;
+  if (!failed) {
+    if (isMakeCustom) {
+      if (v.customMakeName && v.customModelName)
+        url = getCarImageUrl(slugify(v.customMakeName), slugify(v.customModelName));
+    } else if (isModelCustom) {
+      if (v.customModelName)
+        url = getCarImageUrl(v.makeId!, slugify(v.customModelName));
+    } else if (v.makeId && v.modelId) {
+      url = getCarImageUrl(v.makeId, v.modelId);
+    }
+  }
+
   return (
     <View style={{ width: size, height: size * 0.65, borderRadius: 8, overflow: "hidden", backgroundColor: "#1A2020", alignItems: "center", justifyContent: "center" }}>
       {url
-        ? <Image source={{ uri: url }} style={{ width: size, height: size * 0.65 }} resizeMode="cover" />
-        : <Ionicons name="car-outline" size={size * 0.4} color="#888" />
+        ? <Image source={{ uri: url }} style={{ width: size, height: size * 0.65 }} resizeMode="cover" onError={() => setFailed(true)} />
+        : <Image source={getVehicleFallbackImage(v.vehicleType)} style={{ width: size * 0.85, height: size * 0.55 }} resizeMode="contain" />
       }
     </View>
   );

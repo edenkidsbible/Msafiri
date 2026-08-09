@@ -321,7 +321,7 @@ export default function HomeScreen() {
             "Start driving first, then turn on the Dashcam from the Drive screen.",
             [
               { text: "View Clips", onPress: () => router.push("/dashcam-videos") },
-              { text: "Start Driving", style: "default", onPress: () => router.push("/(tabs)/drive") },
+              { text: "Start Driving", style: "default", onPress: () => router.push("/pretrip-check") },
               { text: "OK", style: "cancel" },
             ]
           );

@@ -415,6 +415,16 @@ function RootLayoutNav() {
           headerTintColor: c.foreground,
           headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
           headerBackTitle: "Back",
+          // On Android the default transition is a vertical fade-push (Material
+          // style). Override to the horizontal card slide that iOS uses so
+          // navigation feels consistent and more familiar for users coming from
+          // iOS or who prefer the directional "go back" cue.
+          ...(Platform.OS === "android" && {
+            animation: "slide_from_right",
+            gestureEnabled: true,
+            // Prevents a flash of white/black behind the incoming screen.
+            contentStyle: { backgroundColor: c.background },
+          }),
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

@@ -7,11 +7,16 @@
  *
  * The Report button is a raised green circle that sits proud of the bar —
  * exactly like the mockups — and navigates to the Report tab.
+ *
+ * Android feel improvements:
+ * — Spring-bounce press animation on every tab (quick compress → elastic return)
+ * — android_ripple on each Pressable for the material ink-spread on tap
+ * — Haptic feedback on every tab press (not just Report)
  */
 
 import { Feather, Ionicons } from "@expo/vector-icons";
-import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useRef } from "react";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
@@ -38,6 +43,32 @@ export function MsafiriTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, Platform.OS === "web" ? 10 : 8);
 
+  // ── Per-slot animated scale values ─────────────────────────────────────────
+  // Each tab press runs a quick compress → springy bounce-back animation.
+  const scaleAnims = useRef(
+    SLOTS.reduce<Record<string, Animated.Value>>((acc, name) => {
+      acc[name] = new Animated.Value(1);
+      return acc;
+    }, {}),
+  ).current;
+
+  const animatePress = (name: string) => {
+    const anim = scaleAnims[name];
+    Animated.sequence([
+      Animated.timing(anim, {
+        toValue: 0.80,
+        duration: 70,
+        useNativeDriver: true,
+      }),
+      Animated.spring(anim, {
+        toValue: 1,
+        tension: 260,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const routeFor = (name: string) =>
     state.routes.find((r: { name: string }) => r.name === name);
 
@@ -56,6 +87,12 @@ export function MsafiriTabBar({ state, navigation }: BottomTabBarProps) {
     }
   };
 
+  const handlePress = (name: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    animatePress(name);
+    navigate(name);
+  };
+
   return (
     <View
       style={[
@@ -70,28 +107,30 @@ export function MsafiriTabBar({ state, navigation }: BottomTabBarProps) {
     >
       {SLOTS.map((name) => {
         if (name === "report") {
-          // Elevated round green center button
           return (
             <View key="report" style={styles.centerSlot} pointerEvents="box-none">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Report"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                  navigate("report");
-                }}
-                style={({ pressed }) => [
-                  styles.centerBtn,
-                  {
-                    backgroundColor: c.primary,
-                    shadowColor: c.primary,
-                    borderColor: c.isDark ? "#0B0D0C" : "#FFFFFF",
-                  },
-                  pressed && { transform: [{ scale: 0.94 }] },
-                ]}
-              >
-                <Ionicons name="add" size={30} color={c.isDark ? "#04170B" : "#FFFFFF"} />
-              </Pressable>
+              <Animated.View style={{ transform: [{ scale: scaleAnims["report"] }] }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Report"
+                  onPress={() => handlePress("report")}
+                  android_ripple={
+                    Platform.OS === "android"
+                      ? { color: "rgba(255,255,255,0.25)", borderless: true, radius: 36 }
+                      : undefined
+                  }
+                  style={[
+                    styles.centerBtn,
+                    {
+                      backgroundColor: c.primary,
+                      shadowColor: c.primary,
+                      borderColor: c.isDark ? "#0B0D0C" : "#FFFFFF",
+                    },
+                  ]}
+                >
+                  <Ionicons name="add" size={30} color={c.isDark ? "#04170B" : "#FFFFFF"} />
+                </Pressable>
+              </Animated.View>
               <Text style={[styles.label, { color: c.mutedForeground, marginTop: 33 }]}>
                 Report
               </Text>
@@ -113,24 +152,36 @@ export function MsafiriTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityRole="button"
             accessibilityState={focused ? { selected: true } : {}}
             accessibilityLabel={meta.label}
-            onPress={() => navigate(name)}
-            style={({ pressed }) => [styles.tab, pressed && { opacity: 0.65 }]}
+            onPress={() => handlePress(name)}
+            android_ripple={
+              Platform.OS === "android"
+                ? { color: c.primary + "25", borderless: true, radius: 36 }
+                : undefined
+            }
+            style={styles.tab}
           >
-            <View
+            <Animated.View
               style={[
-                styles.iconWrap,
-                focused && {
-                  backgroundColor: c.primary + (c.isDark ? "1E" : "16"),
-                  borderColor: c.primary + "44",
-                  borderWidth: 1,
-                },
+                styles.iconWrapOuter,
+                { transform: [{ scale: scaleAnims[name] }] },
               ]}
             >
-              <Feather name={meta.icon} size={21} color={color} />
-            </View>
-            <Text numberOfLines={1} style={[styles.label, { color }]}>
-              {meta.label}
-            </Text>
+              <View
+                style={[
+                  styles.iconWrap,
+                  focused && {
+                    backgroundColor: c.primary + (c.isDark ? "1E" : "16"),
+                    borderColor: c.primary + "44",
+                    borderWidth: 1,
+                  },
+                ]}
+              >
+                <Feather name={meta.icon} size={21} color={color} />
+              </View>
+              <Text numberOfLines={1} style={[styles.label, { color }]}>
+                {meta.label}
+              </Text>
+            </Animated.View>
           </Pressable>
         );
       })}
@@ -152,6 +203,9 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
+    alignItems: "center",
+  },
+  iconWrapOuter: {
     alignItems: "center",
     gap: 3,
   },

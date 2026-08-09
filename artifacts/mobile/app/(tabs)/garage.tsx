@@ -30,8 +30,8 @@ import {
   scoreColor,
   formatDuration,
 } from "@/utils/driveSessionApi";
-import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
+import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import CarLogoImage from "@/components/CarLogoImage";
 import { API_BASE } from "@/utils/apiClient";
 import {
@@ -130,10 +130,10 @@ function customModelSlug(modelId: string): string {
 function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; height: number }) {
   const c = useColors();
 
-  const isMakeFully  = !v.makeId  || v.makeId.startsWith("custom-");
+  const isMakeCustom  = !v.makeId  || v.makeId.startsWith("custom-");
   const isModelCustom = !v.modelId || v.modelId.startsWith("custom-");
 
-  // Phase 0 = custom generated image; Phase 1 = standard make fallback; Phase 2 = emoji
+  // phase 0 = real model image, phase 1 = make silhouette (known make only), phase 2 = local PNG
   const [phase,   setPhase]   = useState(0);
   const [loading, setLoading] = useState(true);
   const retryCount = useRef(0);
@@ -143,36 +143,43 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
     return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
   }, []);
 
-  // No usable make → jump straight to emoji
-  if (isMakeFully || phase >= 2) {
-    return (
-      <Text style={{ fontSize: height * 0.55, fontFamily: EMOJI_FONT_FAMILY, textAlign: "center" }}>
-        {getVehicleEmoji(v.vehicleType)}
-      </Text>
-    );
+  // Build the best R2 URL for the current phase.
+  // Custom makes/models: use the slugified display name so it matches the R2
+  // key the server wrote (e.g. "arteon", not a raw timestamp ID).
+  let uri: string | null = null;
+  if (phase === 0) {
+    if (isMakeCustom) {
+      if (v.customMakeName && v.customModelName)
+        uri = getCarImageUrl(slugify(v.customMakeName), slugify(v.customModelName));
+    } else if (isModelCustom) {
+      if (v.customModelName)
+        uri = getCarImageUrl(v.makeId!, slugify(v.customModelName));
+    } else {
+      uri = getCarImageUrl(v.makeId!, v.modelId!);
+    }
+  } else if (phase === 1 && !isMakeCustom) {
+    const fallback = firstStandardModel(v.makeId!);
+    if (fallback) uri = getCarImageUrl(v.makeId!, fallback);
   }
 
-  const makeId = v.makeId!;
-
-  // Phase 0: try the custom-generated image (or standard image for non-custom models)
-  // Phase 1: try the first standard model image as a silhouette fallback
-  let uri: string;
-  if (phase === 0) {
-    const modelSlug = isModelCustom ? customModelSlug(v.modelId!) : v.modelId!;
-    uri = getCarImageUrl(makeId, modelSlug);
-  } else {
-    const fallback = firstStandardModel(makeId);
-    if (!fallback) { setPhase(2); return null; }
-    uri = getCarImageUrl(makeId, fallback);
+  // No URL or all phases exhausted → type-specific PNG silhouette (never emoji)
+  if (!uri) {
+    return (
+      <Image
+        source={getVehicleFallbackImage(v.vehicleType)}
+        style={{ width, height }}
+        resizeMode="contain"
+      />
+    );
   }
 
   function handleError() {
     setLoading(false);
-    if (phase === 0 && isModelCustom && retryCount.current < 4) {
-      // Custom image not ready yet — poll every 15 s
+    if (phase === 0 && (isModelCustom || isMakeCustom) && retryCount.current < 4) {
+      // Custom image may still be processing — poll every 15 s
       retryCount.current += 1;
       retryTimer.current = setTimeout(() => {
-        setLoading(true); // re-trigger Image load
+        setLoading(true);
       }, 15_000);
     } else {
       setPhase(p => p + 1);
@@ -186,7 +193,7 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
         <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />
       )}
       <Image
-        key={`${uri}-${retryCount.current}`}   // force re-mount on retry
+        key={`${uri}-${retryCount.current}`}
         source={{ uri }}
         style={{ width, height }}
         resizeMode="contain"

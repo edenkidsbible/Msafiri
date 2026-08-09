@@ -7,16 +7,22 @@
  * Deduplication: two users submitting the same (makeSlug, modelSlug) pair
  * will share one row; only the submittedCount increments.
  *
- * Image generation: when a new record is created the server queues an async
- * job to generate and upload a car image to R2 at:
- *   car-images/{makeSlug}/{modelSlug}.png
- * The mobile app polls via imageStatus ("pending" → "done").
+ * Image sourcing: when a new record is created the server queues an async
+ * job that fetches the real manufacturer press photo from Wikipedia's
+ * pageimages API (free, no API key, uses official article thumbnail).
+ * The image is stored in R2 at: car-images/{makeSlug}/{modelSlug}.png
+ *
+ * imageStatus lifecycle:
+ *   "pending"   → job queued, not yet complete
+ *   "done"      → real photo found and stored in R2
+ *   "not_found" → Wikipedia had no usable image; app shows emoji fallback
  */
 
 import { Router, type Request, type Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, customVehiclesTable } from "@workspace/db";
 import * as r2 from "../lib/r2Storage.js";
+import sharp from "sharp";
 
 const router = Router();
 
@@ -31,64 +37,180 @@ function slugify(name: string): string {
 }
 
 /**
- * Attempt to generate and upload a car image for the given make/model.
- * Requires OPENAI_API_KEY to be set.  Silently skips when unavailable.
+ * Fetch the real manufacturer press photo from Wikipedia's pageimages API.
+ *
+ * Strategy:
+ *  1. Direct title lookup: "{makeName} {modelName}" (handles redirects)
+ *  2. If no thumbnail, OpenSearch to find the best matching article
+ *  3. Extract the thumbnail URL and download it
+ *
+ * Returns a PNG Buffer (normalised via sharp), or null if nothing was found.
  */
-async function generateAndUploadCarImage(
+async function fetchWikipediaCarImage(
+  makeName: string,
+  modelName: string,
+): Promise<Buffer | null> {
+  const WP = "https://en.wikipedia.org/w/api.php";
+
+  /** Build pageimages query URL for a given title. */
+  function pageImagesUrl(title: string): string {
+    const u = new URL(WP);
+    u.searchParams.set("action", "query");
+    u.searchParams.set("titles", title);
+    u.searchParams.set("prop", "pageimages");
+    u.searchParams.set("pithumbsize", "1200");
+    u.searchParams.set("format", "json");
+    u.searchParams.set("redirects", "1");
+    return u.toString();
+  }
+
+  /** Download a Wikipedia thumbnail URL and convert to PNG. */
+  async function downloadAsPng(src: string): Promise<Buffer | null> {
+    try {
+      const r = await fetch(src, { headers: { "User-Agent": "MsafiriKenya/1.0 (car-image-lookup)" } });
+      if (!r.ok) return null;
+      const buf = Buffer.from(await r.arrayBuffer());
+      // Convert whatever format Wikipedia returns (JPEG, PNG, WebP) to PNG.
+      return await sharp(buf).png().toBuffer();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Pull the thumbnail URL out of a Wikipedia API response. */
+  function extractThumbnail(data: unknown): string | null {
+    try {
+      const pages = (data as any).query?.pages;
+      if (!pages) return null;
+      const page = Object.values(pages)[0] as any;
+      if (!page || page.missing !== undefined) return null;
+      return page.thumbnail?.source ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ── Step 1: direct title lookup ───────────────────────────────────────────
+  const candidates = [
+    `${makeName} ${modelName}`,          // "Volkswagen Arteon"
+    `${makeName} ${modelName} (automobile)`,
+    `${makeName} ${modelName} (car)`,
+  ];
+
+  for (const title of candidates) {
+    try {
+      const resp = await fetch(pageImagesUrl(title), {
+        headers: { "User-Agent": "MsafiriKenya/1.0 (car-image-lookup)" },
+      });
+      if (!resp.ok) continue;
+      const src = extractThumbnail(await resp.json());
+      if (src) {
+        const png = await downloadAsPng(src);
+        if (png) return png;
+      }
+    } catch { /* try next */ }
+  }
+
+  // ── Step 2: OpenSearch to find best article title ─────────────────────────
+  try {
+    const su = new URL(WP);
+    su.searchParams.set("action", "opensearch");
+    su.searchParams.set("search", `${makeName} ${modelName} car`);
+    su.searchParams.set("limit", "5");
+    su.searchParams.set("format", "json");
+
+    const sr = await fetch(su.toString(), {
+      headers: { "User-Agent": "MsafiriKenya/1.0 (car-image-lookup)" },
+    });
+    if (sr.ok) {
+      const [, titles] = (await sr.json()) as [string, string[]];
+      for (const title of (titles ?? [])) {
+        // Only consider articles whose title plausibly relates to the model
+        const lTitle = title.toLowerCase();
+        if (
+          !lTitle.includes(makeName.toLowerCase()) &&
+          !lTitle.includes(modelName.toLowerCase())
+        ) continue;
+
+        try {
+          const resp = await fetch(pageImagesUrl(title), {
+            headers: { "User-Agent": "MsafiriKenya/1.0 (car-image-lookup)" },
+          });
+          if (!resp.ok) continue;
+          const src = extractThumbnail(await resp.json());
+          if (src) {
+            const png = await downloadAsPng(src);
+            if (png) return png;
+          }
+        } catch { /* try next */ }
+      }
+    }
+  } catch { /* fall through */ }
+
+  return null;
+}
+
+/**
+ * Fetch real manufacturer press photo and upload to R2.
+ * Updates imageStatus to "done" or "not_found" when finished.
+ */
+async function fetchAndStoreCarImage(
   makeSlug: string,
   modelSlug: string,
   makeName: string,
   modelName: string,
   recordId: string,
 ): Promise<void> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || !r2.isR2Configured()) return;
+  if (!r2.isR2Configured()) return;
 
   try {
-    const fetch = (await import("node-fetch")).default as typeof globalThis.fetch;
-    const resp = await (fetch as any)("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "dall-e-3",
-        prompt: `Professional studio side three-quarter view photograph of a ${makeName} ${modelName} car, pure white background, no logos, no badges, no text, sharp realistic detail, product photography`,
-        n: 1,
-        size: "1024x1024",
-        response_format: "url",
-      }),
-    });
+    const png = await fetchWikipediaCarImage(makeName, modelName);
 
-    if (!resp.ok) {
-      console.warn(`[custom-vehicles] DALL-E generation failed: ${resp.status}`);
+    if (!png) {
+      console.warn(`[custom-vehicles] No Wikipedia image found for: ${makeName} ${modelName}`);
+      await db
+        .update(customVehiclesTable)
+        .set({ imageStatus: "not_found" })
+        .where(eq(customVehiclesTable.id, recordId));
       return;
     }
 
-    const json = (await resp.json()) as { data: Array<{ url: string }> };
-    const imageUrl = json.data?.[0]?.url;
-    if (!imageUrl) return;
-
-    // Download the generated image
-    const imgResp = await (fetch as any)(imageUrl);
-    if (!imgResp.ok) return;
-    const arrayBuffer = await imgResp.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Upload to R2
     const key = `car-images/${makeSlug}/${modelSlug}.png`;
-    await r2.uploadBuffer(key, buffer, "image/png");
+    await r2.uploadBuffer(key, png, "image/png");
 
-    // Mark as done
     await db
       .update(customVehiclesTable)
       .set({ imageStatus: "done" })
       .where(eq(customVehiclesTable.id, recordId));
 
-    console.log(`[custom-vehicles] Image ready: ${key}`);
+    console.log(`[custom-vehicles] Real photo stored: ${key} (${(png.length / 1024).toFixed(0)} KB)`);
   } catch (err) {
-    console.error("[custom-vehicles] generateAndUploadCarImage error:", err);
+    console.error("[custom-vehicles] fetchAndStoreCarImage error:", err);
+  }
+}
+
+// ── Startup: retry pending records ────────────────────────────────────────────
+// Called by the server startup sequence.  Picks up any records that were left
+// in "pending" (e.g. from a previous failed or skipped generation run).
+export async function retryPendingCarImages(): Promise<void> {
+  if (!r2.isR2Configured()) return;
+  try {
+    const pending = await db
+      .select()
+      .from(customVehiclesTable)
+      .where(eq(customVehiclesTable.imageStatus, "pending"));
+
+    if (pending.length === 0) return;
+    console.log(`[custom-vehicles] Retrying ${pending.length} pending image(s)…`);
+
+    for (const row of pending) {
+      // Run sequentially to avoid hammering Wikipedia
+      await fetchAndStoreCarImage(
+        row.makeSlug, row.modelSlug, row.makeName, row.modelName, row.id,
+      );
+    }
+  } catch (err) {
+    console.error("[custom-vehicles] retryPendingCarImages error:", err);
   }
 }
 
@@ -141,7 +263,6 @@ router.post("/custom-vehicles", async (req: Request, res: Response) => {
       .limit(1);
 
     if (existing) {
-      // Increment counter and return existing record
       const [updated] = await db
         .update(customVehiclesTable)
         .set({ submittedCount: existing.submittedCount + 1 })
@@ -150,7 +271,7 @@ router.post("/custom-vehicles", async (req: Request, res: Response) => {
       return res.json({ ...updated, isNew: false });
     }
 
-    // New record
+    // New record — set to pending immediately, fetch image in background
     const [record] = await db
       .insert(customVehiclesTable)
       .values({
@@ -164,10 +285,8 @@ router.post("/custom-vehicles", async (req: Request, res: Response) => {
       })
       .returning();
 
-    // Fire-and-forget image generation
-    generateAndUploadCarImage(makeSlug, modelSlug, makeName, modelName, record.id).catch(
-      () => {},
-    );
+    // Fire-and-forget — real Wikipedia photo lookup
+    fetchAndStoreCarImage(makeSlug, modelSlug, makeName.trim(), modelName.trim(), record.id).catch(() => {});
 
     return res.status(201).json({ ...record, isNew: true });
   } catch (err) {

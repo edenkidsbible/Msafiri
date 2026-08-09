@@ -17,6 +17,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, ImageStyle, StyleProp, Text, View } from "react-native";
 import { CAR_MAKES, getCarImageUrl } from "@/data/carModels";
+import { slugify } from "@/lib/vehicleImageFallback";
 import { loadVehicles, SavedVehicle } from "@/utils/savedVehicles";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
@@ -162,7 +163,11 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
       }
       uri = getCarImageUrl(makeId, fallback);
     } else {
-      const slug = isModelCustom ? customModelSlug(vehicle.modelId) : vehicle.modelId;
+      // For custom models use the slugified display name — matches the R2 key
+      // the server wrote (e.g. "arteon"), not the local timestamp-based ID.
+      const slug = isModelCustom
+        ? (vehicle.customModelName ? slugify(vehicle.customModelName) : vehicle.modelId!)
+        : vehicle.modelId!;
       uri = getCarImageUrl(makeId, slug);
     }
   } else {

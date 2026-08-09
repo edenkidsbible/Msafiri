@@ -13,6 +13,7 @@ import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
 import { seedPois } from "./startup/seedPois";
+import { retryPendingCarImages } from "./routes/customVehicles.js";
 import { startHereTrafficJob } from "./jobs/hereTraffic";
 import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
 import { startClusterHazardsJob } from "./jobs/clusterHazards";
@@ -104,5 +105,11 @@ app.listen(port, async (err) => {
   // background so startup latency is unaffected.
   backfillR2Media().catch((err) =>
     logger.error({ err }, "R2 media backfill crashed"),
+  );
+
+  // Retry any custom vehicle images left in "pending" state (e.g. from a
+  // previous server run before the Wikipedia-based lookup was in place).
+  retryPendingCarImages().catch((err) =>
+    logger.error({ err }, "retryPendingCarImages crashed"),
   );
 });
