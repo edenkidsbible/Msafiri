@@ -4,8 +4,9 @@
  * current odometer, then seeds the savedVehicles list and navigates to the
  * main app. All steps are optional — the user can skip at any time.
  */
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +15,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type TextInput as TextInputType,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -90,6 +92,31 @@ export default function VehicleSetup() {
   const [saving, setSaving] = useState(false);
 
   const selectedMake = useMemo(() => CAR_MAKES.find((m) => m.id === makeId), [makeId]);
+
+  // Refs for auto-scroll + auto-focus when "Other" is selected
+  const scrollViewRef = useRef<ScrollView>(null);
+  const customMakeInputRef = useRef<TextInputType>(null);
+  const customModelInputRef = useRef<TextInputType>(null);
+
+  /** Scroll to bottom then focus the given input after state has rendered. */
+  function revealInput(inputRef: React.RefObject<TextInputType | null>) {
+    // Two-frame delay: first frame lets React render the new input,
+    // second frame lets the ScrollView measure the new content height.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+        inputRef.current?.focus();
+      });
+    });
+
+    // The keyboard animation takes ~250–300 ms. After it fully opens the
+    // KeyboardAvoidingView shrinks, so we scroll once more to ensure the
+    // input stays above the keyboard and is visible to the user.
+    const sub = Keyboard.addListener("keyboardDidShow", () => {
+      sub.remove();
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    });
+  }
 
   const handleFinish = async () => {
     setSaving(true);
@@ -196,8 +223,9 @@ export default function VehicleSetup() {
         </Text>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={cs.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -265,7 +293,7 @@ export default function VehicleSetup() {
                     cs.makeCard,
                     isCustomMake ? { borderColor: "#00A845", backgroundColor: "#00A84515" } : { borderColor: "rgba(255,255,255,0.1)" },
                   ]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomMake(true); setMakeId(null); setIsCustomModel(true); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomMake(true); setMakeId(null); setIsCustomModel(true); revealInput(customMakeInputRef); }}
                   activeOpacity={0.8}
                 >
                   <Text style={cs.makeEmoji}>🚗</Text>
@@ -276,21 +304,26 @@ export default function VehicleSetup() {
                 <View style={cs.customInputGroup}>
                   <Text style={cs.customLabel}>Make name</Text>
                   <TextInput
+                    ref={customMakeInputRef}
                     style={cs.customInput}
                     value={customMakeName}
                     onChangeText={setCustomMakeName}
                     placeholder="e.g. Foton, JAC, King Long…"
                     placeholderTextColor="#555"
                     autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => customModelInputRef.current?.focus()}
                   />
                   <Text style={[cs.customLabel, { marginTop: 12 }]}>Model name</Text>
                   <TextInput
+                    ref={customModelInputRef}
                     style={cs.customInput}
                     value={customModelName}
                     onChangeText={setCustomModelName}
                     placeholder="e.g. Tunland, S5…"
                     placeholderTextColor="#555"
                     autoCorrect={false}
+                    returnKeyType="done"
                   />
                 </View>
               )}
@@ -326,7 +359,7 @@ export default function VehicleSetup() {
                     cs.modelRow,
                     { borderColor: isCustomModel ? "#00A845" : "rgba(255,255,255,0.08)", backgroundColor: isCustomModel ? "#00A84510" : "transparent" },
                   ]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomModel(true); setModelId(null); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomModel(true); setModelId(null); revealInput(customModelInputRef); }}
                   activeOpacity={0.8}
                 >
                   <Text style={[cs.modelName, { color: isCustomModel ? "#00A845" : "#ddd" }]}>Other / Variant</Text>
@@ -337,12 +370,14 @@ export default function VehicleSetup() {
                 <View style={cs.customInputGroup}>
                   <Text style={cs.customLabel}>Model name</Text>
                   <TextInput
+                    ref={customModelInputRef}
                     style={cs.customInput}
                     value={customModelName}
                     onChangeText={setCustomModelName}
                     placeholder="e.g. GX Super, LX Special…"
                     placeholderTextColor="#555"
                     autoCorrect={false}
+                    returnKeyType="done"
                   />
                 </View>
               )}
