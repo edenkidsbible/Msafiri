@@ -38,6 +38,7 @@ import {
   updateVehicleDetails,
   type VehicleDetails,
 } from "@/utils/savedVehicles";
+import { swapCareDataForDefaultChange } from "@/utils/vehicleCare";
 import { getCarImageUrl, getMakeById, getModelById, CAR_MAKES } from "@/data/carModels";
 import CarLogoImage from "@/components/CarLogoImage";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
@@ -437,6 +438,16 @@ export default function ManageVehiclesScreen() {
   }
 
   async function handleSetDefault(id: string) {
+    // ── 1. Migrate vehicle care data BEFORE flipping isDefault flags ───────────
+    // getCareStorageKey returns the shared legacy key for the default vehicle and
+    // a vehicle-specific key for others. Swapping the default without migrating
+    // first causes the new default to read the old default's care records.
+    const oldDefault = vehicles.find(v => v.isDefault);
+    if (oldDefault && oldDefault.id !== id) {
+      await swapCareDataForDefaultChange(oldDefault.id, id);
+    }
+
+    // ── 2. Persist the new default flag ───────────────────────────────────────
     const updated = await setDefaultVehicle(id);
     syncCtx(updated);
     setActiveVehicle(id);

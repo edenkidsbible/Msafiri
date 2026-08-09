@@ -26,7 +26,7 @@ import React, {
   useState,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
+import { loadVehicles, getPrimaryVehicleId, type SavedVehicle } from "@/utils/savedVehicles";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,13 @@ export interface VehicleContextValue {
   activeVehicle: SavedVehicle | null;
   /** Convenience — same as activeVehicle?.id ?? null. */
   activeVehicleId: string | null;
+  /**
+   * The ID of the first vehicle ever created on this device.
+   * Unattributed (NULL vehicleId) drive sessions are permanently attached
+   * to this vehicle so trip history never moves when the default changes.
+   * Null only before the first vehicle is added.
+   */
+  primaryVehicleId: string | null;
   /**
    * Switch the active vehicle. Pass the vehicle's id.
    * Persists the choice to AsyncStorage so it survives app restarts.
@@ -68,8 +75,9 @@ const ACTIVE_VEHICLE_KEY = "msafiri_active_vehicle_id_v1";
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function VehicleProvider({ children }: { children: React.ReactNode }) {
-  const [vehicles, setVehicles]           = useState<SavedVehicle[]>([]);
-  const [activeVehicleId, _setActiveId]   = useState<string | null>(null);
+  const [vehicles, setVehicles]               = useState<SavedVehicle[]>([]);
+  const [activeVehicleId, _setActiveId]       = useState<string | null>(null);
+  const [primaryVehicleId, setPrimaryVehicleId] = useState<string | null>(null);
 
   // Keep a ref so callbacks can read the latest list without closure staleness
   const vehiclesRef = useRef<SavedVehicle[]>([]);
@@ -88,7 +96,11 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
       const list = await loadVehicles();
       setVehicles(list);
 
-      const storedId = await AsyncStorage.getItem(ACTIVE_VEHICLE_KEY);
+      const [storedId, primaryId] = await Promise.all([
+        AsyncStorage.getItem(ACTIVE_VEHICLE_KEY),
+        getPrimaryVehicleId(list),
+      ]);
+
       // Validate: the stored id must still exist in the list
       const validId =
         storedId && list.some((v) => v.id === storedId)
@@ -96,6 +108,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
           : list.find((v) => v.isDefault)?.id ?? list[0]?.id ?? null;
 
       _setActiveId(validId);
+      setPrimaryVehicleId(primaryId);
     })();
   }, []);
 
@@ -110,6 +123,9 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
     const list = await loadVehicles();
     setVehicles(list);
 
+    // Refresh primary vehicle id in case it was just initialised for the first time
+    getPrimaryVehicleId(list).then(setPrimaryVehicleId).catch(() => {});
+
     // If the currently active vehicle was removed, fall back to default
     _setActiveId((prevId) => {
       const stillExists = prevId && list.some((v) => v.id === prevId);
@@ -123,7 +139,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <VehicleContext.Provider
-      value={{ vehicles, activeVehicle, activeVehicleId, setActiveVehicle, refreshVehicles }}
+      value={{ vehicles, activeVehicle, activeVehicleId, primaryVehicleId, setActiveVehicle, refreshVehicles }}
     >
       {children}
     </VehicleContext.Provider>

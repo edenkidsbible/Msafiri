@@ -437,7 +437,7 @@ export default function TripHistoryScreen() {
   const { deviceId } = useApp();
   // Global active vehicle — used to initialise this screen's local selection
   // and to react when the user swipes to a different car in the garage.
-  const { activeVehicle: ctxActiveVehicle } = useVehicle();
+  const { activeVehicle: ctxActiveVehicle, primaryVehicleId } = useVehicle();
   const params = useLocalSearchParams<{ tab?: string; fromSummary?: string; sessionId?: string }>();
   const fromSummary      = params.fromSummary === "1";
   const pendingSessionId = params.sessionId ?? null;
@@ -647,7 +647,11 @@ export default function TripHistoryScreen() {
     // Clear immediately so the UI never shows another vehicle's trips
     setFilteredSessions([]);
     const gen = ++sessionFetchGenRef.current;
-    listDriveSessions(deviceId, 100, 0, activeVehicle?.id ?? undefined, activeVehicle?.isDefault ?? true)
+    listDriveSessions(
+      deviceId, 100, 0, activeVehicle?.id ?? undefined,
+      // Unattributed sessions always belong to the primary (first-created) vehicle
+      activeVehicle?.id === primaryVehicleId,
+    )
       .then(({ sessions }) => {
         if (gen !== sessionFetchGenRef.current) return; // superseded by a later vehicle switch
         setFilteredSessions(sessions.filter(s => s.endedAt != null && !hiddenIds.has(s.id)));

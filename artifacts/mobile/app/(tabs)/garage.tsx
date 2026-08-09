@@ -619,7 +619,7 @@ export default function GarageScreen() {
   // prevents the local list and context list from drifting apart after any
   // mutation (add / remove / set-default). The garage writes to VehicleContext
   // via setActiveVehicle / refreshVehicles; all other screens read from it.
-  const { vehicles, setActiveVehicle, refreshVehicles } = useVehicle();
+  const { vehicles, setActiveVehicle, refreshVehicles, primaryVehicleId } = useVehicle();
 
   // Clamp slideIndex to the live vehicle count so removing a vehicle can never
   // leave the carousel pointing at a now-missing slot. Used for all data
@@ -729,7 +729,10 @@ export default function GarageScreen() {
       100,
       0,
       slideVehicle.id,
-      slideVehicle.isDefault,
+      // Always attach unattributed (NULL vehicleId) sessions to the first vehicle
+      // ever created — never to whichever happens to be the current default.
+      // This prevents trip history from jumping around when the default changes.
+      slideVehicle.id === primaryVehicleId,
     )
       .then(({ sessions }) => {
         if (gen !== sessionsFetchGen.current) return; // stale — a newer request is in flight

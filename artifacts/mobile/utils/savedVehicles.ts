@@ -44,8 +44,48 @@ export interface VehicleDetails {
 const LIST_KEY                    = "msafiri_vehicles_v1";
 export const PENDING_SLOT_KEY     = "msafiri_pending_vehicle_slot";
 const PENDING_DETAILS_KEY         = "msafiri_pending_vehicle_details";
+/**
+ * Stores the ID of the first vehicle ever created on this device.
+ * Used to consistently attribute NULL-vehicleId drive sessions regardless
+ * of which vehicle is currently set as the default.  Written once, never
+ * updated (even when the primary vehicle is deleted and another one takes
+ * its place), so trips from before multi-vehicle support always live under
+ * the same vehicle.
+ */
+const PRIMARY_VEHICLE_ID_KEY      = "msafiri_primary_vehicle_id";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the ID of the first vehicle ever created on this device.
+ * Falls back to the first entry in `fallbackList` and persists that
+ * so subsequent calls are fast (no list parse needed).
+ * Returns null only when the device has no vehicles at all.
+ */
+export async function getPrimaryVehicleId(
+  fallbackList: SavedVehicle[],
+): Promise<string | null> {
+  try {
+    const stored = await AsyncStorage.getItem(PRIMARY_VEHICLE_ID_KEY);
+    if (stored) return stored;
+  } catch {
+    // ignore storage errors — fall through to list fallback
+  }
+  const first = fallbackList[0]?.id ?? null;
+  if (first) {
+    AsyncStorage.setItem(PRIMARY_VEHICLE_ID_KEY, first).catch(() => {});
+  }
+  return first;
+}
+
+async function setPrimaryVehicleIdIfUnset(id: string): Promise<void> {
+  try {
+    const stored = await AsyncStorage.getItem(PRIMARY_VEHICLE_ID_KEY);
+    if (!stored) await AsyncStorage.setItem(PRIMARY_VEHICLE_ID_KEY, id);
+  } catch {
+    // best-effort — a missing primary ID just means isDefault falls back as before
+  }
+}
 
 export async function loadVehicles(): Promise<SavedVehicle[]> {
   try {
@@ -92,6 +132,7 @@ export async function ensureVehicles(params: {
     isDefault: true,
   };
   await saveVehicles([seed]);
+  await setPrimaryVehicleIdIfUnset(seed.id);
   return [seed];
 }
 
@@ -133,6 +174,8 @@ export async function applyPendingSlot(params: {
     };
     const updated = [...list, newVehicle];
     await saveVehicles(updated);
+    // If the list was empty, this is the first vehicle — record it as primary
+    if (list.length === 0) await setPrimaryVehicleIdIfUnset(newVehicle.id);
     return updated;
   }
 

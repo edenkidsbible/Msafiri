@@ -89,7 +89,7 @@ export default function TripsScreen() {
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, currentLat, currentLng,
   } = useApp();
-  const { activeVehicle, activeVehicleId } = useVehicle();
+  const { activeVehicle, activeVehicleId, primaryVehicleId } = useVehicle();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -195,8 +195,9 @@ export default function TripsScreen() {
       30,
       0,
       activeVehicleId ?? undefined,
-      // Default vehicle shows legacy sessions (vehicle_id IS NULL) too
-      activeVehicle?.isDefault ?? true,
+      // Unattributed (NULL vehicleId) sessions always belong to the primary vehicle
+      // (first vehicle ever created), not whichever is currently the default.
+      activeVehicleId === primaryVehicleId,
     )
       .then(({ sessions }) => {
         if (gen !== driveHistFetchGenRef.current) return; // stale — vehicle changed mid-flight
@@ -218,7 +219,7 @@ export default function TripsScreen() {
         30,
         0,
         activeVehicleId ?? undefined,
-        activeVehicle?.isDefault ?? true,
+        activeVehicleId === primaryVehicleId,
       )
         .then(({ sessions }) => {
           if (gen !== driveHistFetchGenRef.current) return; // stale
