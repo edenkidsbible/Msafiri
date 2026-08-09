@@ -258,8 +258,15 @@ export default function DriveScreen() {
 
   // Responsive scaling — iPhone SE / 13 mini / older Pros are 375-390pt wide.
   // At that width the speed strip becomes too cramped at full size.
-  const { width: screenW } = useWindowDimensions();
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const isSmall = screenW <= 390;
+
+  // In landscape-trip mode the map lives in a portrait-proportioned left column
+  // so the map viewport stays taller-than-wide rather than stretching to fill
+  // the full landscape screen. 40 % of the landscape width gives a ratio of
+  // roughly 0.9 : 1 on typical phones — noticeably narrower than landscape but
+  // wide enough to show useful road context.
+  const mapColW = Math.round(screenW * 0.40);
 
   // Measured pixel width of the emoji row — updated by onLayout.
   // Used to derive how many emojis fit without hardcoding a count.
@@ -1324,7 +1331,22 @@ export default function DriveScreen() {
           the driver has entered route-preview mode (destination set, reviewing
           the route before confirming). In plain idle state a clean screen shows. */}
       {(tripActive || countdownValue !== null || showRoutePreviewMode) && (
-        <View style={StyleSheet.absoluteFillObject}>
+        <View style={
+          // In landscape-trip mode the map is clipped to a portrait-proportioned
+          // left column. overflow:hidden stops the map tile layer from bleeding
+          // into the HUD panel. In all other states (portrait, route-preview,
+          // countdown) the map fills the full screen as normal.
+          mountLandscape && tripActive
+            ? {
+                position:  "absolute",
+                top:       0,
+                bottom:    0,
+                left:      0,
+                width:     mapColW,
+                overflow:  "hidden",
+              }
+            : StyleSheet.absoluteFillObject
+        }>
           <ErrorBoundary FallbackComponent={MapErrorFallback}>
             <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
           </ErrorBoundary>
@@ -3548,8 +3570,8 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {mountLandscape && tripActive && (
         <View style={{
-          position: "absolute", top: 0, right: 0, bottom: 0,
-          width: "45%", zIndex: 20,
+          position: "absolute", top: 0, left: mapColW, right: 0, bottom: 0,
+          zIndex: 20,
           backgroundColor: isDark ? "#111514F8" : "#FFFFFFF8",
           borderLeftWidth: 1, borderLeftColor: c.tileBorder,
         }}>
