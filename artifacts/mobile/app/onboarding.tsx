@@ -1,16 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
   Dimensions,
   FlatList,
   Image,
-  KeyboardAvoidingView,
   Platform,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   ViewToken,
@@ -21,8 +17,6 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
-import { sendOtp, verifyAndLinkPhone } from "@/utils/backupSync";
-import { normalizeKenyaPhone, displayKenyaPhone } from "@/utils/phoneUtils";
 
 
 const { width, height } = Dimensions.get("window");
@@ -50,8 +44,7 @@ type BaseSlide = {
 type GridSlide   = BaseSlide & { kind: "grid";   badges: AlertBadge[] };
 type FeatureSlide= BaseSlide & { kind: "feature"; features: { emoji: string; text: string }[] };
 type PickerSlide = BaseSlide & { kind: "picker" };
-type PhoneSlide  = BaseSlide & { kind: "phone" };
-type Slide = GridSlide | FeatureSlide | PickerSlide | PhoneSlide;
+type Slide = GridSlide | FeatureSlide | PickerSlide;
 
 // ── Slide data ────────────────────────────────────────────────────────────────
 const SLIDES: Slide[] = [
@@ -122,15 +115,6 @@ const SLIDES: Slide[] = [
     heroEmoji:  "🚗",
     headline:   "Your Vehicle,\nYour Limit.",
     sub:        "Speed limits differ by class in Kenya. Set yours once — we handle the rest.",
-  },
-  {
-    id:         "6",
-    kind:       "phone",
-    accentColor: GREEN,
-    chip:       "ACCOUNT RECOVERY",
-    heroEmoji:  "📱",
-    headline:   "Secure Your\nAccount.",
-    sub:        "This number will be used to restore your data on any new device via SMS code.",
   },
 ];
 
@@ -286,163 +270,6 @@ const v = StyleSheet.create({
   },
 });
 
-// ── Phone OTP slide ───────────────────────────────────────────────────────────
-function PhoneOtpSlide({ accent, onComplete }: { accent: string; onComplete: () => void }) {
-  const { deviceId } = useApp();
-  const [step, setStep]         = useState<1 | 2>(1);
-  const [rawPhone, setRawPhone] = useState("");
-  const [e164, setE164]         = useState("");
-  const [otp, setOtp]           = useState("");
-  const [loading, setLoading]   = useState(false);
-
-  const border   = accent + "35";
-  const inputBg  = accent + "0A";
-
-  const handleSend = async () => {
-    const normalized = normalizeKenyaPhone(rawPhone.trim());
-    if (!normalized) {
-      Alert.alert("Invalid number", "Enter a valid Kenyan number, e.g. 0712 345 678.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await sendOtp(normalized, "link");
-      if (result?.devOtp) setOtp(String(result.devOtp));
-      setE164(normalized);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setStep(2);
-    } catch (err: any) {
-      Alert.alert("Failed to send code", err?.message || "Check your connection and try again.");
-    } finally { setLoading(false); }
-  };
-
-  const handleVerify = async () => {
-    const cleaned = otp.trim().replace(/\s/g, "");
-    if (cleaned.length !== 6) {
-      Alert.alert("Invalid code", "Enter the 6-digit code we sent.");
-      return;
-    }
-    if (!deviceId) {
-      Alert.alert("Error", "Device ID unavailable. Restart the app and try again.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await verifyAndLinkPhone(e164, cleaned, deviceId);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onComplete();
-    } catch (err: any) {
-      const msg: string = err?.message ?? "";
-      if (msg.includes("Invalid OTP") || msg.includes("expired")) {
-        Alert.alert("Wrong or expired code", "Check the code and try again, or go back to request a new one.");
-      } else if (msg.includes("Too many") || msg.includes("locked")) {
-        Alert.alert("Too many attempts", "This code is locked. Request a new one.");
-      } else {
-        Alert.alert("Verification failed", msg || "Check your connection and try again.");
-      }
-    } finally { setLoading(false); }
-  };
-
-  if (step === 1) {
-    return (
-      <View style={{ width: "100%", gap: 10 }}>
-        <View style={{ borderWidth: 1, borderColor: border, borderRadius: 18, backgroundColor: inputBg, padding: 16, gap: 10 }}>
-          <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: accent, letterSpacing: 1 }}>
-            PHONE NUMBER
-          </Text>
-          <TextInput
-            value={rawPhone}
-            onChangeText={setRawPhone}
-            placeholder="+254 7XX XXX XXX"
-            placeholderTextColor="#9AAA9A"
-            keyboardType="phone-pad"
-            style={{
-              borderWidth: 1, borderColor: border, borderRadius: 12,
-              paddingHorizontal: 14, paddingVertical: 12,
-              fontSize: 17, fontFamily: "Inter_400Regular", color: "#0C120E",
-              backgroundColor: "#fff",
-            }}
-            autoFocus
-          />
-          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#7A8C7A", lineHeight: 17 }}>
-            Safaricom, Airtel & Telkom supported. SMS rates may apply.
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={{
-            backgroundColor: rawPhone.trim().length >= 9 ? accent : "#D0D5D0",
-            borderRadius: 16, paddingVertical: 14,
-            flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-            opacity: loading ? 0.7 : 1,
-          }}
-          onPress={handleSend}
-          disabled={loading || rawPhone.trim().length < 9}
-          activeOpacity={0.85}
-        >
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <><Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>Send Verification Code</Text>
-                <Ionicons name="send-outline" size={15} color="#fff" /></>}
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ width: "100%", gap: 10 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center",
-        backgroundColor: accent + "12", borderRadius: 20, borderWidth: 1, borderColor: accent + "33",
-        paddingHorizontal: 12, paddingVertical: 6 }}>
-        <Ionicons name="phone-portrait-outline" size={13} color={accent} />
-        <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: accent }}>
-          Sent to {displayKenyaPhone(e164)}
-        </Text>
-      </View>
-      <View style={{ borderWidth: 1, borderColor: border, borderRadius: 18, backgroundColor: inputBg, padding: 16, gap: 10 }}>
-        <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: accent, letterSpacing: 1 }}>
-          6-DIGIT CODE
-        </Text>
-        <TextInput
-          value={otp}
-          onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
-          placeholder="000000"
-          placeholderTextColor="#9AAA9A"
-          keyboardType="number-pad"
-          maxLength={6}
-          style={{
-            borderWidth: 1, borderColor: border, borderRadius: 12,
-            paddingHorizontal: 14, paddingVertical: 12,
-            fontSize: 32, fontFamily: "Inter_700Bold", color: accent,
-            textAlign: "center", letterSpacing: 10, backgroundColor: "#fff",
-          }}
-          autoFocus
-        />
-      </View>
-      <TouchableOpacity
-        style={{
-          backgroundColor: otp.length === 6 ? accent : "#D0D5D0",
-          borderRadius: 16, paddingVertical: 14,
-          flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-          opacity: loading ? 0.7 : 1,
-        }}
-        onPress={handleVerify}
-        disabled={loading || otp.length !== 6}
-        activeOpacity={0.85}
-      >
-        {loading
-          ? <ActivityIndicator color="#fff" />
-          : <><Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>Verify & Link</Text>
-              <Ionicons name="checkmark-circle-outline" size={15} color="#fff" /></>}
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => { setStep(1); setOtp(""); }} style={{ alignItems: "center", paddingTop: 2 }}>
-        <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: accent + "BB" }}>
-          Wrong number? Go back
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -480,16 +307,12 @@ export default function OnboardingScreen() {
     router.replace("/paywall");
   };
 
-  const safeIdx      = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
-  const accent       = SLIDES[safeIdx].accentColor;
-  const isPhoneSlide = SLIDES[safeIdx].kind === "phone";
-  const isLast       = activeIdx === SLIDES.length - 1;
+  const safeIdx = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
+  const accent  = SLIDES[safeIdx].accentColor;
+  const isLast  = activeIdx === SLIDES.length - 1;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={styles.screen}>
       <StatusBar barStyle="dark-content" />
 
       {/* ── Header ── */}
@@ -544,9 +367,6 @@ export default function OnboardingScreen() {
                   setVehicleType={setVehicleType}
                 />
               )}
-              {item.kind === "phone"   && (
-                <PhoneOtpSlide accent={item.accentColor} onComplete={finish} />
-              )}
             </View>
 
             {/* Text block */}
@@ -579,30 +399,20 @@ export default function OnboardingScreen() {
       {/* ── CTA ── */}
       <View style={[styles.actions, { paddingBottom: bottomInset + 20 }]}>
         <TouchableOpacity
-          style={[
-            styles.ctaBtn,
-            isPhoneSlide
-              ? { backgroundColor: "transparent", borderWidth: 1.5, borderColor: accent + "55",
-                  shadowOpacity: 0, elevation: 0 }
-              : { backgroundColor: accent, shadowColor: accent },
-          ]}
+          style={[styles.ctaBtn, { backgroundColor: accent, shadowColor: accent }]}
           onPress={next}
           activeOpacity={0.87}
         >
-          <Text style={[styles.ctaTxt, isPhoneSlide && { color: accent }]}>
-            {isPhoneSlide ? "Skip for now" : isLast ? "Get Started" : "Next"}
-          </Text>
-          {!isPhoneSlide && (
-            <Ionicons
-              name={isLast ? "checkmark-circle" : "arrow-forward-circle"}
-              size={22}
-              color="#FFF"
-            />
-          )}
+          <Text style={styles.ctaTxt}>{isLast ? "Get Started" : "Next"}</Text>
+          <Ionicons
+            name={isLast ? "checkmark-circle" : "arrow-forward-circle"}
+            size={22}
+            color="#FFF"
+          />
         </TouchableOpacity>
       </View>
 
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -112,6 +112,8 @@ export default function LinkPhoneScreen() {
     );
   }
 
+  const canProceed = step === 1 ? rawPhone.trim().length >= 9 : otp.length === 6;
+
   return (
     <SafeAreaView style={[s.screen, { backgroundColor: bg }]}>
       {/* Header */}
@@ -125,9 +127,22 @@ export default function LinkPhoneScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
+      {/*
+        KeyboardAvoidingView wraps both scroll content AND sticky CTA so the
+        whole block rises together when the keyboard appears.
+        iOS → "padding" adds bottom padding to lift the CTA above the keyboard.
+        Android → "height" shrinks the container so the CTA stays visible.
+      */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={s.body}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={[s.iconWrap, { backgroundColor: c.primary + "18" }]}>
             <Ionicons name={step === 1 ? "phone-portrait-outline" : "chatbubble-ellipses-outline"} size={36} color={c.primary} />
           </View>
@@ -167,6 +182,7 @@ export default function LinkPhoneScreen() {
                 placeholder="+254 7XX XXX XXX"
                 placeholderTextColor={c.mutedForeground + "88"}
                 keyboardType="phone-pad"
+                returnKeyType="done"
                 style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
                 autoFocus
               />
@@ -187,6 +203,7 @@ export default function LinkPhoneScreen() {
                 placeholderTextColor={c.mutedForeground + "88"}
                 keyboardType="number-pad"
                 maxLength={6}
+                returnKeyType="done"
                 style={[s.otpInput, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
                 autoFocus
               />
@@ -197,17 +214,17 @@ export default function LinkPhoneScreen() {
               </TouchableOpacity>
             </View>
           )}
+        </ScrollView>
 
-          {/* CTA */}
+        {/* ── Sticky CTA — lives OUTSIDE the ScrollView so it's always visible ── */}
+        <View style={[s.ctaWrap, { backgroundColor: bg }]}>
           <TouchableOpacity
             style={[s.cta, {
-              backgroundColor: step === 1
-                ? (rawPhone.trim().length >= 9 ? c.primary : c.muted)
-                : (otp.length === 6 ? c.primary : c.muted),
+              backgroundColor: canProceed ? c.primary : c.muted,
               opacity: loading ? 0.7 : 1,
             }]}
             onPress={step === 1 ? handleSend : handleVerify}
-            disabled={loading || (step === 1 ? rawPhone.trim().length < 9 : otp.length !== 6)}
+            disabled={loading || !canProceed}
             activeOpacity={0.85}
           >
             {loading
@@ -219,7 +236,7 @@ export default function LinkPhoneScreen() {
                 </>
               )}
           </TouchableOpacity>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -230,7 +247,8 @@ const s = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
   backBtn:    { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   title:      { flex: 1, fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
-  body:       { padding: 20, paddingBottom: 48, gap: 20 },
+  body:       { padding: 20, paddingBottom: 20, gap: 20 },
+  ctaWrap:    { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderTopWidth: StyleSheet.hairlineWidth },
   iconWrap:   { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", alignSelf: "center" },
   heading:    { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
   sub:        { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, textAlign: "center" },

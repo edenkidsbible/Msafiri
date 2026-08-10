@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   BackHandler,
   Platform,
   ScrollView,
@@ -119,11 +120,22 @@ function SuccessScreen({
 }) {
   const [linkedPhone, setLinkedPhone] = useState<string | null | "loading">("loading");
 
-  useEffect(() => {
+  const checkLinkedPhone = useCallback(() => {
     getLinkedPhone()
       .then((p) => setLinkedPhone(p))
       .catch(() => setLinkedPhone(null));
   }, []);
+
+  // Initial check
+  useEffect(() => { checkLinkedPhone(); }, [checkLinkedPhone]);
+
+  // Re-check when user returns from the link-phone screen
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") checkLinkedPhone();
+    });
+    return () => sub.remove();
+  }, [checkLinkedPhone]);
 
   return (
     <View style={[ss.root, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
@@ -176,26 +188,25 @@ function SuccessScreen({
         Manage or cancel anytime in your App Store or Google Play account settings.
       </Text>
 
-      {/* Recovery phone nudge */}
+      {/* Recovery phone — prominent when not yet linked */}
       {linkedPhone === null && (
-        <View style={[ss.phoneCard, { backgroundColor: c.card, borderColor: c.primary + "44" }]}>
-          <View style={[ss.phoneIconWrap, { backgroundColor: c.primary + "18" }]}>
-            <Ionicons name="phone-portrait-outline" size={20} color={c.primary} />
+        <View style={[ss.phonePrompt, { backgroundColor: c.card, borderColor: c.primary + "50" }]}>
+          <View style={[ss.phonePromptIcon, { backgroundColor: c.primary + "18" }]}>
+            <Ionicons name="shield-checkmark-outline" size={26} color={c.primary} />
           </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: c.foreground }}>
-              Link your recovery phone
-            </Text>
-            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground, lineHeight: 15 }}>
-              Restore your data on any new device with an SMS code.
-            </Text>
-          </View>
+          <Text style={[ss.phonePromptTitle, { color: c.foreground }]}>
+            Secure your Premium account
+          </Text>
+          <Text style={[ss.phonePromptBody, { color: c.mutedForeground }]}>
+            Link your phone number so you can restore your subscription and all your data on any new device — with just an SMS code.
+          </Text>
           <TouchableOpacity
-            style={[ss.phoneLinkBtn, { backgroundColor: c.primary }]}
+            style={[ss.phonePromptBtn, { backgroundColor: c.primary }]}
             onPress={() => router.push("/link-phone" as any)}
             activeOpacity={0.85}
           >
-            <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" }}>Link</Text>
+            <Ionicons name="phone-portrait-outline" size={17} color="#fff" />
+            <Text style={ss.phonePromptBtnTxt}>Link Phone Number</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -208,9 +219,25 @@ function SuccessScreen({
         </View>
       )}
 
-      <TouchableOpacity style={[ss.cta, { backgroundColor: c.primary }]} onPress={onEnter} activeOpacity={0.85}>
-        <Text style={ss.ctaTxt}>Start Driving</Text>
-        <Ionicons name="arrow-forward" size={20} color="#fff" />
+      {/* Start Driving — secondary when phone prompt is shown, primary otherwise */}
+      <TouchableOpacity
+        style={[
+          ss.cta,
+          linkedPhone === null
+            ? { backgroundColor: "transparent", borderWidth: 1.5, borderColor: c.border }
+            : { backgroundColor: c.primary },
+        ]}
+        onPress={onEnter}
+        activeOpacity={0.85}
+      >
+        <Text style={[ss.ctaTxt, linkedPhone === null && { color: c.mutedForeground }]}>
+          {linkedPhone === null ? "Skip, start driving" : "Start Driving"}
+        </Text>
+        <Ionicons
+          name="arrow-forward"
+          size={20}
+          color={linkedPhone === null ? c.mutedForeground : "#fff"}
+        />
       </TouchableOpacity>
     </View>
   );
@@ -232,10 +259,18 @@ const ss = StyleSheet.create({
   note:         { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
   cta:          { alignSelf: "stretch", borderRadius: 18, paddingVertical: 17, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   ctaTxt:       { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
-  phoneCard:    { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 12,
-                  borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
-  phoneIconWrap:{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  phoneLinkBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
+  phoneCard:       { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 12,
+                     borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  phonePrompt:     { alignSelf: "stretch", borderRadius: 20, borderWidth: 1.5,
+                     padding: 20, gap: 10, alignItems: "center" },
+  phonePromptIcon: { width: 52, height: 52, borderRadius: 16,
+                     alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  phonePromptTitle:{ fontSize: 16, fontFamily: "Inter_700Bold", textAlign: "center" },
+  phonePromptBody: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center",
+                     lineHeight: 19, marginBottom: 4 },
+  phonePromptBtn:  { alignSelf: "stretch", flexDirection: "row", alignItems: "center",
+                     justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 14 },
+  phonePromptBtnTxt:{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
