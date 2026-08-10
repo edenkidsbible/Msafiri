@@ -927,7 +927,7 @@ export default function HomeScreen() {
               <Ionicons name="book-outline" size={32} color={c.primary} />
             </View>
             <Text style={[styles.disclaimerTitle, { color: c.foreground }]}>Before you start</Text>
-            <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
               <Text style={[styles.disclaimerBody, { color: c.mutedForeground }]}>
                 The Msafiri Kenya driving course is a refresher resource designed to help you review key road rules, traffic signs, and safe driving practices.
               </Text>
@@ -1186,6 +1186,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 28,
     gap: 14,
+    maxHeight: "82%",
   },
   disclaimerIconWrap: {
     width: 60, height: 60, borderRadius: 18,
