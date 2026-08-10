@@ -76,7 +76,7 @@ router.post("/auth/send-otp", async (req, res) => {
     const rows = await db.execute(
       sql`SELECT id FROM device_backups WHERE phone_number = ${phone} LIMIT 1`
     );
-    if ((rows as any[]).length === 0) {
+    if ((rows.rows as any[]).length === 0) {
       return res.status(404).json({ error: "No account found for this phone number" });
     }
   }
@@ -87,7 +87,7 @@ router.post("/auth/send-otp", async (req, res) => {
         WHERE phone = ${phone} AND expires_at > NOW() AND attempts < 10
         LIMIT 1`
   );
-  if ((existing as any[]).length > 0) {
+  if ((existing.rows as any[]).length > 0) {
     return res.status(429).json({ error: "An OTP was already sent recently. Wait a few minutes." });
   }
 
@@ -151,12 +151,13 @@ router.post("/auth/verify-otp", async (req, res) => {
   }
 
   // Find the most-recent active record for this phone
-  const records = await db.execute(
+  const recordsResult = await db.execute(
     sql`SELECT id, otp_hash, attempts FROM phone_verifications
         WHERE phone = ${phone} AND expires_at > NOW()
         ORDER BY expires_at DESC
         LIMIT 1`
-  ) as any[];
+  );
+  const records = recordsResult.rows as any[];
 
   if (records.length === 0) {
     return res.status(401).json({ error: "OTP expired or not found. Request a new one." });
@@ -198,12 +199,13 @@ router.post("/auth/verify-otp", async (req, res) => {
     return res.status(400).json({ error: "newDeviceId is required for restore intent" });
   }
 
-  const backups = await db.execute(
+  const backupsResult = await db.execute(
     sql`SELECT vehicles_json, settings_json FROM device_backups
         WHERE phone_number = ${phone}
         ORDER BY last_backup_at DESC
         LIMIT 1`
-  ) as any[];
+  );
+  const backups = backupsResult.rows as any[];
 
   if (backups.length === 0) {
     return res.status(404).json({ error: "No backup found for this phone number" });
