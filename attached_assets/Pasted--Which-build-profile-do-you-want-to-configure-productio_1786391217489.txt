@@ -1,0 +1,61 @@
+ Which build profile do you want to configure? › production
+✔ Using build profile: production
+Android Credentials     
+Project                 msafiri-kenya
+Application Identifier  com.msafirikenya.app
+
+Push Notifications (FCM Legacy)  
+  None assigned yet
+
+Push Notifications (FCM V1): Google Service Account Key For FCM V1  
+Project ID      msafiri-notifications
+Client Email    firebase-adminsdk-fbsvc@msafiri-notifications.iam.gserviceaccount.com
+Client ID       115552028366799179450
+Private Key ID  26ffb266e72265bbba00d53c9bea6b2cfc58a4c0
+Updated         19 days ago
+
+Submissions: Google Service Account Key for Play Store Submissions  
+  None assigned yet
+
+Configuration: Build Credentials e79J2iB9Jp (Default)  
+Keystore  
+Type                JKS
+Key Alias           a8f093b85646830d70c36c7b93c72f34
+MD5 Fingerprint     6F:F7:CC:94:07:21:CE:8D:E3:AC:58:24:DC:5C:49:29
+SHA1 Fingerprint    F2:60:48:DA:A6:D6:19:26:69:BA:24:07:78:91:4D:A8:BD:E8:72:2B
+SHA256 Fingerprint  33:0F:2A:05:1B:2B:E9:33:30:C8:05:DE:F2:14:C8:34:54:10:49:DB:EC:44:EC:F1:BB:46:88:36:EF:3D:72:F4
+Updated             1 month ago
+
+✔ What do you want to do? › credentials.json: Upload/Download credentials between EAS servers and your local json 
+Android Credentials     
+Project                 msafiri-kenya
+Application Identifier  com.msafirikenya.app
+
+Push Notifications (FCM Legacy)  
+  None assigned yet
+
+Push Notifications (FCM V1): Google Service Account Key For FCM V1  
+Project ID      msafiri-notifications
+Client Email    firebase-adminsdk-fbsvc@msafiri-notifications.iam.gserviceaccount.com
+Client ID       115552028366799179450
+Private Key ID  26ffb266e72265bbba00d53c9bea6b2cfc58a4c0
+Updated         19 days ago
+
+Submissions: Google Service Account Key for Play Store Submissions  
+  None assigned yet
+
+Configuration: Build Credentials e79J2iB9Jp (Default)  
+Keystore  
+Type                JKS
+Key Alias           a8f093b85646830d70c36c7b93c72f34
+MD5 Fingerprint     6F:F7:CC:94:07:21:CE:8D:E3:AC:58:24:DC:5C:49:29
+SHA1 Fingerprint    F2:60:48:DA:A6:D6:19:26:69:BA:24:07:78:91:4D:A8:BD:E8:72:2B
+SHA256 Fingerprint  33:0F:2A:05:1B:2B:E9:33:30:C8:05:DE:F2:14:C8:34:54:10:49:DB:EC:44:EC:F1:BB:46:88:36:EF:3D:72:F4
+Updated             1 month ago
+
+✔ What do you want to do? › Download credentials from EAS to credentials.json
+Updating Android credentials in credentials.json
+Writing Keystore to credentials/android/keystore.jks
+File credentials.json is currently untracked, remember to add it to .gitignore, or to encrypt it (e.g. with git-crypt).
+✔ Android part of your local credentials.json is synced with values stored on EAS servers.
+Press any key to continue...
