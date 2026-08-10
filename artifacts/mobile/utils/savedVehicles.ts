@@ -107,7 +107,12 @@ export async function loadVehicles(): Promise<SavedVehicle[]> {
   try {
     const raw = await AsyncStorage.getItem(LIST_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as SavedVehicle[];
+    const list = JSON.parse(raw) as SavedVehicle[];
+    // Normalize plate display format on every read so legacy/raw stored values
+    // always render as "KDA 123A" regardless of how they were originally saved.
+    return list.map((v) =>
+      v.plateNumber ? { ...v, plateNumber: normalizePlate(v.plateNumber) } : v
+    );
   } catch {
     return [];
   }

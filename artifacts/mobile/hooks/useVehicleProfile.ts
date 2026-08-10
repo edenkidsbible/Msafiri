@@ -6,6 +6,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
+import { normalizePlate } from "@/utils/savedVehicles";
 
 export interface VehicleProfile {
   carMakeId: string | null;    // Imagin.Studio make slug, e.g. "toyota"
@@ -42,7 +43,7 @@ async function loadProfile(): Promise<VehicleProfile> {
     carMakeName: makeName || null,
     carModelId:  modelId  || null,
     carModelName: modelName || null,
-    plateNumber: plate    || null,
+    plateNumber: plate ? normalizePlate(plate) : null,
   };
 }
 
