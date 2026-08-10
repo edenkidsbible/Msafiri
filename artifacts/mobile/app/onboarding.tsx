@@ -13,13 +13,12 @@ import {
   ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
-import { getLinkedPhone } from "@/utils/backupSync";
-import { displayKenyaPhone } from "@/utils/phoneUtils";
+import { getLocalRecoveryCode, initBackup } from "@/utils/backupSync";
 
 const { width, height } = Dimensions.get("window");
 
@@ -46,8 +45,8 @@ type BaseSlide = {
 type GridSlide   = BaseSlide & { kind: "grid";   badges: AlertBadge[] };
 type FeatureSlide= BaseSlide & { kind: "feature"; features: { emoji: string; text: string }[] };
 type PickerSlide = BaseSlide & { kind: "picker" };
-type PhoneSlide  = BaseSlide & { kind: "phone" };
-type Slide = GridSlide | FeatureSlide | PickerSlide | PhoneSlide;
+type BackupSlide = BaseSlide & { kind: "backup" };
+type Slide = GridSlide | FeatureSlide | PickerSlide | BackupSlide;
 
 // ── Slide data ────────────────────────────────────────────────────────────────
 const SLIDES: Slide[] = [
@@ -121,12 +120,12 @@ const SLIDES: Slide[] = [
   },
   {
     id:         "6",
-    kind:       "phone",
+    kind:       "backup",
     accentColor: GREEN,
-    chip:       "ACCOUNT RECOVERY",
-    heroEmoji:  "📱",
-    headline:   "One SMS.\nAll Your Data Back.",
-    sub:        "Link your phone number so we can send you a code to restore your vehicles and settings on any new device.",
+    chip:       "YOUR BACKUP CODE",
+    heroEmoji:  "🔑",
+    headline:   "Save Your\nRecovery Code.",
+    sub:        "You'll need this code plus your plate number to restore your data on a new device.",
   },
 ];
 
@@ -282,78 +281,72 @@ const v = StyleSheet.create({
   },
 });
 
-// ── Phone recovery slide ──────────────────────────────────────────────────────
-function PhoneVerificationSlide({ accent }: { accent: string }) {
-  const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
+// ── Backup code slide ─────────────────────────────────────────────────────────
+function BackupCodeSlide({ accent }: { accent: string }) {
+  const { deviceId } = useApp();
+  const [code, setCode] = useState<string | null>(null);
 
-  // Re-read whenever the onboarding screen regains focus (e.g. returning from
-  // the link-phone screen) so the status updates without a full remount.
-  useFocusEffect(
-    React.useCallback(() => {
-      getLinkedPhone().then((p) => { if (p) setLinkedPhone(p); }).catch(() => {});
-    }, []),
-  );
+  useEffect(() => {
+    getLocalRecoveryCode()
+      .then((cached) => {
+        if (cached) { setCode(cached); return; }
+        if (deviceId) {
+          initBackup(deviceId).then((c) => { if (c) setCode(c); }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, [deviceId]);
+
+  if (!code) {
+    return (
+      <View style={{ alignItems: "center", paddingVertical: 24, gap: 10 }}>
+        <ActivityIndicator color={accent} size="large" />
+        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#7A8C7A" }}>
+          Generating your code…
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ width: "100%", gap: 10 }}>
-      {/* Status chip */}
-      {linkedPhone ? (
-        <View style={[ph.statusBox, { backgroundColor: "#22C55E18", borderColor: "#22C55E55" }]}>
-          <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
-          <View style={{ gap: 1 }}>
-            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#22C55E", letterSpacing: 0.8 }}>
-              RECOVERY PHONE LINKED
-            </Text>
-            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#22C55E" }}>
-              {displayKenyaPhone(linkedPhone)}
-            </Text>
-          </View>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={[ph.statusBox, { backgroundColor: accent + "12", borderColor: accent + "44" }]}
-          onPress={() => router.push("/link-phone" as any)}
-          activeOpacity={0.82}
-        >
-          <Ionicons name="phone-portrait-outline" size={22} color={accent} />
-          <View style={{ flex: 1, gap: 1 }}>
-            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: accent, letterSpacing: 0.8 }}>
-              NOT LINKED YET
-            </Text>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: "#3D5C42" }}>
-              Tap to link your phone number →
-            </Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
+      {/* Code display */}
+      <View style={[bc.codeBox, { backgroundColor: accent + "12", borderColor: accent + "44" }]}>
+        <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: accent, letterSpacing: 1.4 }}>
+          RECOVERY CODE
+        </Text>
+        <Text style={{ fontSize: 40, fontFamily: "Inter_700Bold", color: accent, letterSpacing: 10, marginTop: 6 }}>
+          {code}
+        </Text>
+        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#7A8C7A", marginTop: 4 }}>
+          Screenshot this or write it down
+        </Text>
+      </View>
       {/* Info rows */}
       {[
-        { emoji: "📲", text: "Get a one-time SMS code to restore your data instantly" },
-        { emoji: "🔒", text: "No codes to write down or lose — just your phone" },
-        { emoji: "⚙️", text: "Update your number anytime in Settings → Data & Recovery" },
+        { emoji: "📱", text: "Restore your vehicles & settings on a new phone" },
+        { emoji: "🔒", text: "Works only with your matching plate number" },
+        { emoji: "⚙️",  text: "Find it anytime in Settings → Data & Recovery" },
       ].map((item, i) => (
-        <View key={i} style={[ph.infoRow, { borderColor: accent + "20", backgroundColor: accent + "08" }]}>
-          <View style={[ph.emojiBox, { backgroundColor: accent + "16" }]}>
+        <View key={i} style={[bc.infoRow, { borderColor: accent + "20", backgroundColor: accent + "08" }]}>
+          <View style={[bc.emojiBox, { backgroundColor: accent + "16" }]}>
             <Text style={{ fontSize: 18 }}>{item.emoji}</Text>
           </View>
-          <Text style={ph.infoText}>{item.text}</Text>
+          <Text style={bc.infoText}>{item.text}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-const ph = StyleSheet.create({
-  statusBox: {
+const bc = StyleSheet.create({
+  codeBox: {
     width: "100%",
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1.5,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    flexDirection: "row",
+    paddingVertical: 20,
     alignItems: "center",
-    gap: 14,
+    gap: 2,
   },
   infoRow: {
     flexDirection: "row",
@@ -477,7 +470,7 @@ export default function OnboardingScreen() {
                   setVehicleType={setVehicleType}
                 />
               )}
-              {item.kind === "phone"   && <PhoneVerificationSlide accent={item.accentColor} />}
+              {item.kind === "backup"  && <BackupCodeSlide accent={item.accentColor} />}
             </View>
 
             {/* Text block */}

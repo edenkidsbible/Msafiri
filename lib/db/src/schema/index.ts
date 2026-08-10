@@ -18,4 +18,3 @@ export * from "./crashEvents";
 export * from "./accidents";
 export * from "./customVehicles";
 export * from "./deviceBackups";
-export * from "./phoneVerifications";

@@ -701,7 +701,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                       <Text style={[styles.alertDuoType, { color: c.foreground }]} numberOfLines={1}>
-                        Driving Course
+                        Driving 101
                       </Text>
                       <Text style={[styles.alertDuoRoad, { color: c.mutedForeground }]} numberOfLines={2}>
                         Kenya road rules &amp; signs

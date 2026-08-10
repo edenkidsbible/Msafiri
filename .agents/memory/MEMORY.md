@@ -71,4 +71,5 @@
 - [Live Trip mode architecture](live-trip-mode.md) — startNavigation() never called; tripActive is local state; DriveMapView gets tripMode prop for green/blue polyline split.
 - [Dashcam recordAsync loop resilience](dashcam-record-loop-resilience.md) — never break the record loop on one failure; mic permission separate from camera (muted fallback); permission gate replaces UI.
 - [Multi-vehicle session scoping](multi-vehicle-session-scoping.md) — drive sessions have no vehicleId server-side; bridge with local vehicleSessionMap (AsyncStorage); default vehicle gets all unclaimed sessions as catch-all.
+- [Task commit scope hygiene](task-commit-scope-hygiene.md) — completion review sees the full base..HEAD diff; unrelated swept-in work must be git-reverted (resets get rebased away); save a patch to .local first.
 - [Per-vehicle data isolation architecture](per-vehicle-data-isolation.md) — all data (dashcam, sessions, accidents) vehicle-scoped; VehicleContext drives it; garage swipe calls setActiveVehicle; default vehicle gets legacy NULL rows.

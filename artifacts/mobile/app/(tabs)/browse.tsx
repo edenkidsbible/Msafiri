@@ -153,7 +153,7 @@ function LearnBrowseView({ bottomInset, tabBarHeight }: { bottomInset: number; t
           ListHeaderComponent={
             <View style={[styles.learnHeader, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.learnHeaderTitle, { color: c.foreground }]}>Driving Course</Text>
+                <Text style={[styles.learnHeaderTitle, { color: c.foreground }]}>Driving 101</Text>
                 <Text style={[styles.learnHeaderSub, { color: c.mutedForeground }]}>
                   {completedLessons} of {totalLessons} lessons complete
                 </Text>
