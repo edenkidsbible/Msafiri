@@ -69,7 +69,7 @@ module.exports = {
     android: {
       package: "com.msafirikenya.app",
       // 92 is the seed value. EAS autoIncrement bumps this to 93 on next build.
-      versionCode: 93,
+      versionCode: 33,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       permissions: [
         "ACCESS_FINE_LOCATION",
