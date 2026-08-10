@@ -39,7 +39,12 @@ import {
   normalizePlate,
   type VehicleDetails,
 } from "@/utils/savedVehicles";
-import { swapCareDataForDefaultChange } from "@/utils/vehicleCare";
+import {
+  swapCareDataForDefaultChange,
+  loadVehicleCareData,
+  saveVehicleCareData,
+  getCareStorageKey,
+} from "@/utils/vehicleCare";
 import { getCarImageUrl, getMakeById, getModelById, CAR_MAKES } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import CarLogoImage from "@/components/CarLogoImage";
@@ -207,6 +212,17 @@ function EditSheet({
       if (odo != null && !isNaN(odo) && odo >= 0) details.odometerKm = odo;
       details.plateNumber = normalizePlate(plate) || undefined;
       await updateVehicleDetails(vehicle.id, details);
+
+      // When the odometer is manually corrected, reset trip accumulation so
+      // the estimated reading doesn't double-count km driven before the edit.
+      if (odo != null && !isNaN(odo) && odo >= 0) {
+        const careKey = getCareStorageKey(vehicle.id, vehicle.isDefault);
+        const careData = await loadVehicleCareData(careKey);
+        careData.initialOdometerKm = odo;
+        careData.tripAccumulatedKm = 0;
+        await saveVehicleCareData(careData, careKey);
+      }
+
       onSaved();
       onClose();
     } catch {

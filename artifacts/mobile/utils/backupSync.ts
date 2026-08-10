@@ -133,6 +133,23 @@ export async function restoreViaPhone(
 // ── Legacy code+plate restore ─────────────────────────────────────────────────
 
 /**
+ * Returns the phone number linked to this device's backup, or null if none.
+ * Used by the Profile and Personal Information screens to display/pre-fill
+ * the phone number associated with the backup recovery flow.
+ */
+export async function getLinkedPhone(): Promise<string | null> {
+  return AsyncStorage.getItem(LINKED_PHONE_KEY).catch(() => null);
+}
+
+/**
+ * Persists a phone number as the linked backup phone for this device.
+ * Called by the link-phone flow after the server confirms the link.
+ */
+export async function setLinkedPhone(phone: string): Promise<void> {
+  await AsyncStorage.setItem(LINKED_PHONE_KEY, phone);
+}
+
+/**
  * Verifies the recovery code + plate and restores data.
  * Returns the backed-up vehicles and settings on success, throws on failure.
  */

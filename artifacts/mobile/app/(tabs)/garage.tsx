@@ -36,6 +36,7 @@ import CarLogoImage from "@/components/CarLogoImage";
 import { API_BASE } from "@/utils/apiClient";
 import {
   loadVehicleCareData,
+  saveVehicleCareData,
   computeVehicleCareStats,
   getCareStorageKey,
   swapCareDataForDefaultChange,
@@ -460,6 +461,17 @@ function EditVehicleModal({
       if (odo != null && !isNaN(odo) && odo >= 0) details.odometerKm = odo;
       details.plateNumber = normalizePlate(plate) || undefined;
       await updateVehicleDetails(vehicle.id, details);
+
+      // When the odometer is manually corrected, reset trip accumulation so
+      // the estimated reading doesn't double-count km driven before the edit.
+      if (odo != null && !isNaN(odo) && odo >= 0) {
+        const careKey = getCareStorageKey(vehicle.id, vehicle.isDefault);
+        const careData = await loadVehicleCareData(careKey);
+        careData.initialOdometerKm = odo;
+        careData.tripAccumulatedKm = 0;
+        await saveVehicleCareData(careData, careKey);
+      }
+
       onSaved();
       onClose();
     } catch {
