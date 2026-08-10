@@ -34,7 +34,7 @@ import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { telemetryEnabled, sendTelemetryTestError } from "@/utils/telemetry";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
-import { getLocalRecoveryCode, syncBackup } from "@/utils/backupSync";
+import { getLocalRecoveryCode, syncBackup, initBackup } from "@/utils/backupSync";
 import * as Clipboard from "expo-clipboard";
 
 interface EmergencyContact { id: string; name: string; phone: string }
@@ -104,10 +104,20 @@ export default function SettingsScreen() {
 
   useEffect(() => { loadEmergencyContacts(); }, [loadEmergencyContacts]);
 
-  // Load recovery code from local cache (set by initBackup on app start)
+  // Load recovery code — read cache first, fall back to calling initBackup if cold.
   useEffect(() => {
-    getLocalRecoveryCode().then(setRecoveryCode).catch(() => {});
-  }, []);
+    getLocalRecoveryCode()
+      .then((cached) => {
+        if (cached) { setRecoveryCode(cached); return; }
+        // Cache is empty (first launch or cleared) — generate/fetch via API.
+        if (deviceId) {
+          initBackup(deviceId)
+            .then((c) => { if (c) setRecoveryCode(c); })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, [deviceId]);
 
   const copyRecoveryCode = async () => {
     if (!recoveryCode) return;

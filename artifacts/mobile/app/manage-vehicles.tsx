@@ -36,6 +36,7 @@ import {
   removeVehicle,
   setDefaultVehicle,
   updateVehicleDetails,
+  normalizePlate,
   type VehicleDetails,
 } from "@/utils/savedVehicles";
 import { swapCareDataForDefaultChange } from "@/utils/vehicleCare";
@@ -204,7 +205,7 @@ function EditSheet({
       if (fuelType     !== undefined) details.fuelType     = fuelType;
       if (transmission !== undefined) details.transmission = transmission;
       if (odo != null && !isNaN(odo) && odo >= 0) details.odometerKm = odo;
-      details.plateNumber = plate.trim().toUpperCase() || undefined;
+      details.plateNumber = normalizePlate(plate) || undefined;
       await updateVehicleDetails(vehicle.id, details);
       onSaved();
       onClose();

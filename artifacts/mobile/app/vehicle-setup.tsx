@@ -23,7 +23,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { saveVehicles, loadVehicles, setPrimaryVehicleIdIfUnset } from "@/utils/savedVehicles";
+import { saveVehicles, loadVehicles, setPrimaryVehicleIdIfUnset, normalizePlate } from "@/utils/savedVehicles";
 import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
 import { slugify } from "@/lib/vehicleImageFallback";
@@ -158,7 +158,7 @@ export default function VehicleSetup() {
         fuelType: fuelType ?? undefined,
         transmission: transmission ?? undefined,
         odometerKm: isNaN(odo) ? undefined : odo,
-        plateNumber: plateNumber.trim().toUpperCase() || undefined,
+        plateNumber: normalizePlate(plateNumber) || undefined,
       };
 
       if (existing.length === 0) {

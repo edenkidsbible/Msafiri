@@ -50,6 +50,7 @@ import {
   setDefaultVehicle,
   removeVehicle,
   updateVehicleDetails,
+  normalizePlate,
   type VehicleDetails,
 } from "@/utils/savedVehicles";
 // vehicleSessionMap removed — sessions are now filtered server-side via vehicleId param
@@ -457,7 +458,7 @@ function EditVehicleModal({
       if (fuelType     !== undefined) details.fuelType     = fuelType;
       if (transmission !== undefined) details.transmission = transmission;
       if (odo != null && !isNaN(odo) && odo >= 0) details.odometerKm = odo;
-      details.plateNumber = plate.trim().toUpperCase() || undefined;
+      details.plateNumber = normalizePlate(plate) || undefined;
       await updateVehicleDetails(vehicle.id, details);
       onSaved();
       onClose();

@@ -1,5 +1,6 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -17,6 +18,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
+import { getLocalRecoveryCode, initBackup } from "@/utils/backupSync";
 
 const { width, height } = Dimensions.get("window");
 
@@ -43,7 +45,8 @@ type BaseSlide = {
 type GridSlide   = BaseSlide & { kind: "grid";   badges: AlertBadge[] };
 type FeatureSlide= BaseSlide & { kind: "feature"; features: { emoji: string; text: string }[] };
 type PickerSlide = BaseSlide & { kind: "picker" };
-type Slide = GridSlide | FeatureSlide | PickerSlide;
+type BackupSlide = BaseSlide & { kind: "backup" };
+type Slide = GridSlide | FeatureSlide | PickerSlide | BackupSlide;
 
 // ── Slide data ────────────────────────────────────────────────────────────────
 const SLIDES: Slide[] = [
@@ -114,6 +117,15 @@ const SLIDES: Slide[] = [
     heroEmoji:  "🚗",
     headline:   "Your Vehicle,\nYour Limit.",
     sub:        "Speed limits differ by class in Kenya. Set yours once — we handle the rest.",
+  },
+  {
+    id:         "6",
+    kind:       "backup",
+    accentColor: GREEN,
+    chip:       "YOUR BACKUP CODE",
+    heroEmoji:  "🔑",
+    headline:   "Save Your\nRecovery Code.",
+    sub:        "You'll need this code plus your plate number to restore your data on a new device.",
   },
 ];
 
@@ -269,6 +281,98 @@ const v = StyleSheet.create({
   },
 });
 
+// ── Backup code slide ─────────────────────────────────────────────────────────
+function BackupCodeSlide({ accent }: { accent: string }) {
+  const { deviceId } = useApp();
+  const [code, setCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    getLocalRecoveryCode()
+      .then((cached) => {
+        if (cached) { setCode(cached); return; }
+        if (deviceId) {
+          initBackup(deviceId).then((c) => { if (c) setCode(c); }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, [deviceId]);
+
+  if (!code) {
+    return (
+      <View style={{ alignItems: "center", paddingVertical: 24, gap: 10 }}>
+        <ActivityIndicator color={accent} size="large" />
+        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#7A8C7A" }}>
+          Generating your code…
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: "100%", gap: 10 }}>
+      {/* Code display */}
+      <View style={[bc.codeBox, { backgroundColor: accent + "12", borderColor: accent + "44" }]}>
+        <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: accent, letterSpacing: 1.4 }}>
+          RECOVERY CODE
+        </Text>
+        <Text style={{ fontSize: 40, fontFamily: "Inter_700Bold", color: accent, letterSpacing: 10, marginTop: 6 }}>
+          {code}
+        </Text>
+        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#7A8C7A", marginTop: 4 }}>
+          Screenshot this or write it down
+        </Text>
+      </View>
+      {/* Info rows */}
+      {[
+        { emoji: "📱", text: "Restore your vehicles & settings on a new phone" },
+        { emoji: "🔒", text: "Works only with your matching plate number" },
+        { emoji: "⚙️",  text: "Find it anytime in Settings → Data & Recovery" },
+      ].map((item, i) => (
+        <View key={i} style={[bc.infoRow, { borderColor: accent + "20", backgroundColor: accent + "08" }]}>
+          <View style={[bc.emojiBox, { backgroundColor: accent + "16" }]}>
+            <Text style={{ fontSize: 18 }}>{item.emoji}</Text>
+          </View>
+          <Text style={bc.infoText}>{item.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const bc = StyleSheet.create({
+  codeBox: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    paddingVertical: 20,
+    alignItems: "center",
+    gap: 2,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  emojiBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "#0C120E",
+    lineHeight: 19,
+  },
+});
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -366,6 +470,7 @@ export default function OnboardingScreen() {
                   setVehicleType={setVehicleType}
                 />
               )}
+              {item.kind === "backup"  && <BackupCodeSlide accent={item.accentColor} />}
             </View>
 
             {/* Text block */}

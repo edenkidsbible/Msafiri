@@ -262,6 +262,20 @@ export async function clearPendingDetails(): Promise<void> {
  * would cause data-attribution mixup (the exact issue "Change Vehicle" caused).
  * Trip history and session data are unaffected; only the descriptive fields change.
  */
+/**
+ * Normalise a Kenyan number plate to canonical form.
+ * Standard civilian format: 3 letters + space + 3 digits + 1 letter  →  "KDA 123A".
+ * Strips spaces and hyphens, uppercases, then inserts the canonical space if the
+ * pattern matches. Non-standard plates (govt, motorcycle, vintage) are stored
+ * stripped + uppercase with no reformatting.
+ */
+export function normalizePlate(raw: string): string {
+  const stripped = raw.replace(/[\s\-]/g, "").toUpperCase();
+  const m = stripped.match(/^([A-Z]{3})(\d{3})([A-Z])$/);
+  if (m) return `${m[1]} ${m[2]}${m[3]}`;   // e.g. "KDA 123A"
+  return stripped;
+}
+
 export async function updateVehicleDetails(
   id: string,
   details: VehicleDetails,
