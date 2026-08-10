@@ -192,7 +192,7 @@ export default function ProfileScreen() {
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
               <Text style={[styles.profileName, { color: c.foreground }]} numberOfLines={1}>
-                {driverName || "Driver"}
+                {driverName || "Set your name"}
               </Text>
               <View style={[styles.verifiedPill, { backgroundColor: c.primary + "22" }]}>
                 <Text style={[styles.verifiedTxt, { color: c.primary }]}>Verified Driver ✓</Text>

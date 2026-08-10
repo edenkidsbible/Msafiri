@@ -236,6 +236,7 @@ export default function DriveScreen() {
         lat: currentLatRef.current ?? 0,
         lng: currentLngRef.current ?? 0,
         driverName,
+        alertType: "accident",
       }).catch(() => {});
     }
     // Lock the current dashcam segment as a crash clip

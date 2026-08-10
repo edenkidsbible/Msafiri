@@ -78,7 +78,7 @@ export default function SOSButton({ compact = false, small = false }: Props) {
 
               const res = await apiPost<{ sent: number; total: number; message?: string }>(
                 "/emergency/alert",
-                { deviceId, lat, lng, driverName, isTest: false },
+                { deviceId, lat, lng, driverName, isTest: false, alertType: "sos" },
                 12_000
               );
 

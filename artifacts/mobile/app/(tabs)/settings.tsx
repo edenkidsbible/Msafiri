@@ -7,6 +7,7 @@ import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Share,
@@ -173,7 +174,7 @@ export default function SettingsScreen() {
     setSendingTest(true);
     try {
       const res = await apiPost<{ sent: number; total: number }>("/emergency/alert", {
-        deviceId, lat: 0, lng: 0, driverName, isTest: true,
+        deviceId, lat: 0, lng: 0, driverName, isTest: true, alertType: "sos",
       });
       Alert.alert("Test Sent", res.sent > 0
         ? `Test message sent to ${res.sent} contact${res.sent !== 1 ? "s" : ""}.`
@@ -304,11 +305,13 @@ export default function SettingsScreen() {
 
   return (
     <>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <ScrollView
       {...SCROLL_PROPS}
       style={[styles.screen, { backgroundColor: c.background }]}
       contentContainerStyle={{ paddingBottom: bottomInset + 40, paddingTop: topInset + 12 }}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       <View style={styles.pageTitleRow}>
         <TouchableOpacity
@@ -1160,6 +1163,7 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
 
     <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
     </>

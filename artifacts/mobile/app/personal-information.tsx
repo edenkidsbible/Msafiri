@@ -1,6 +1,6 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useEffect, useState } from "react";
-import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -109,7 +109,8 @@ export default function PersonalInformationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={handleChangePhoto} activeOpacity={0.75}>
             <View style={[styles.avatarCircle, { backgroundColor: c.primary + "1E" }]}>
@@ -184,6 +185,7 @@ export default function PersonalInformationScreen() {
           <Text style={[styles.saveBtnText, { color: c.primaryForeground }]}>Save Changes</Text>
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ── Vehicle type bottom-sheet picker ─────────────────────────────── */}
       <Modal

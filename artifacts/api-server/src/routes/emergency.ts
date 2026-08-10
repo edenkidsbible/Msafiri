@@ -131,12 +131,13 @@ router.delete("/emergency-contacts/:id", async (req: Request, res: Response) => 
 // POST /emergency/alert
 router.post("/emergency/alert", async (req: Request, res: Response) => {
   try {
-    const { deviceId, lat, lng, driverName, isTest } = req.body as {
+    const { deviceId, lat, lng, driverName, isTest, alertType } = req.body as {
       deviceId: string;
       lat: number;
       lng: number;
       driverName?: string;
       isTest?: boolean;
+      alertType?: "sos" | "accident";
     };
 
     if (!deviceId || lat == null || lng == null) {
@@ -154,12 +155,19 @@ router.post("/emergency/alert", async (req: Request, res: Response) => {
 
     const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
     const now = new Date().toLocaleString("en-KE", { timeZone: "Africa/Nairobi" });
-    const name = driverName?.trim() || "A Msafiri user";
-    const prefix = isTest ? "[TEST] " : "";
+    // Use first name only; never fall back to "driver"
+    const fullName = driverName?.trim() || "";
+    const firstName = fullName.split(" ")[0] || "a Msafiri user";
+    const type = alertType ?? "sos";
 
-    const body = isTest
-      ? `${prefix}This is a test alert from ${name} on Msafiri Kenya. No emergency has occurred. Their current location: ${mapsLink}`
-      : `${prefix}EMERGENCY ALERT: ${name} may have been in a car accident. Last known location: ${mapsLink}\n\nTime: ${now} (Nairobi)\n\nSent automatically by Msafiri Kenya.`;
+    let body: string;
+    if (isTest) {
+      body = `[TEST] This is a test alert from ${firstName} on Msafiri Kenya. No emergency has occurred. Their current location: ${mapsLink}`;
+    } else if (type === "accident") {
+      body = `ACCIDENT ALERT: Msafiri Kenya has detected that ${firstName} may have been in a car accident.\n\nLast known location: ${mapsLink}\n\nTime: ${now} (Nairobi)\n\nThis was triggered automatically. ${firstName} may be unable to call.\n\nSent by Msafiri Kenya.`;
+    } else {
+      body = `SOS ALERT: ${firstName} has triggered an emergency alert and needs help.\n\nLast known location: ${mapsLink}\n\nTime: ${now} (Nairobi)\n\nSent via Msafiri Kenya.`;
+    }
 
     let sent = 0;
     for (const contact of contacts) {

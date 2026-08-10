@@ -2,6 +2,7 @@ export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -93,6 +94,17 @@ export default function EmergencyContactsScreen() {
 
   // ── Save contact ──────────────────────────────────────────────────────────
   const addEmergencyContact = async () => {
+    if (!driverName) {
+      Alert.alert(
+        "Your name is required",
+        "Emergency alerts include your name so contacts know who needs help. Please add your name in your profile first.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Add name", onPress: () => router.push("/personal-information") },
+        ]
+      );
+      return;
+    }
     if (!ecName.trim()) {
       Alert.alert("Name required", "Enter a name for this contact.");
       return;
@@ -182,13 +194,33 @@ export default function EmergencyContactsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.subtitle, { color: c.mutedForeground }]}>
           These contacts receive an SMS alert if a crash is detected or you tap SOS.
         </Text>
+
+        {/* ── Name required banner ────────────────────────────────────────── */}
+        {!driverName && (
+          <TouchableOpacity
+            style={[styles.nameBanner, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B" }]}
+            onPress={() => router.push("/personal-information")}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="person-outline" size={20} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.nameBannerTitle, { color: "#F59E0B" }]}>Your name is required</Text>
+              <Text style={[styles.nameBannerSub, { color: c.mutedForeground }]}>
+                Emergency alerts include your name so contacts know who needs help. Tap to add it.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#F59E0B" />
+          </TouchableOpacity>
+        )}
 
         {/* ── Saved contacts ─────────────────────────────────────────────── */}
         <View style={[styles.cardGroup, { backgroundColor: c.card }]}>
@@ -331,6 +363,7 @@ export default function EmergencyContactsScreen() {
           Sends a harmless test SMS to all saved contacts via the Msafiri server.
         </Text>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -387,4 +420,11 @@ const styles = StyleSheet.create({
   },
   testBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   testHint: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 8 },
+
+  nameBanner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 16,
+  },
+  nameBannerTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  nameBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
 });
