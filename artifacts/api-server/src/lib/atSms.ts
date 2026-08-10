@@ -12,18 +12,15 @@
  * are consumed. Sandbox always requires username="sandbox".
  */
 
-const AT_PROD_URL    = "https://api.africastalking.com/version1/messaging";
-const AT_SANDBOX_URL = "https://api.sandbox.africastalking.com/version1/messaging";
-
-const isDev = process.env.NODE_ENV !== "production";
+const AT_PROD_URL = "https://api.africastalking.com/version1/messaging";
 
 export async function sendSmsAT(to: string, message: string): Promise<void> {
   const apiKey   = process.env.AT_API_KEY;
-  const username = isDev ? "sandbox" : (process.env.AT_USERNAME ?? "");
-  const endpoint = isDev ? AT_SANDBOX_URL : AT_PROD_URL;
+  const username = process.env.AT_USERNAME ?? "";
+  const endpoint = AT_PROD_URL;
 
   if (!apiKey) throw new Error("AT_API_KEY not configured");
-  if (!isDev && !username) throw new Error("AT_USERNAME not configured");
+  if (!username) throw new Error("AT_USERNAME not configured");
 
   const body = new URLSearchParams({ username, to, message });
 
@@ -60,7 +57,5 @@ export async function sendSmsAT(to: string, message: string): Promise<void> {
     throw new Error(`AT delivery failed for ${failed[0].number}: ${failed[0].status}`);
   }
 
-  if (isDev) {
-    console.log(`[atSms] SANDBOX: sent to ${to} — ${json?.SMSMessageData?.Message}`);
-  }
+  console.log(`[atSms] sent to ${to} — ${json?.SMSMessageData?.Message}`);
 }
