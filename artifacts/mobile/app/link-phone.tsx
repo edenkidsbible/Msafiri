@@ -232,11 +232,7 @@ export default function LinkPhoneScreen() {
                 keyboardType="number-pad"
                 maxLength={6}
                 returnKeyType="done"
-                // iOS: tells the OS this is a one-time code field → shows the
-                //       "From Messages" autofill suggestion above the keyboard
-                textContentType="oneTimeCode"
-                // Android: hints to autofill service this is an SMS OTP field
-                autoComplete="sms-otp"
+                textContentType="none"
                 style={[s.otpInput, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
                 autoFocus
               />
