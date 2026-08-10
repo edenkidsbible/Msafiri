@@ -5,7 +5,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { db, deviceBackupsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -28,13 +28,17 @@ router.post("/backup/sync", async (req: Request, res: Response) => {
     .returning({ id: deviceBackupsTable.id });
 
   if (updated.length === 0) {
-    // Auto-create record if none exists yet (first sync after OTP link)
-    await db.insert(deviceBackupsTable).values({
-      recoveryCode: "",   // legacy column — no longer used
-      deviceId,
-      vehiclesJson,
-      settingsJson,
-    });
+    // Auto-create record if none exists yet (first sync after OTP link).
+    // recovery_code is a legacy NOT NULL UNIQUE column — generate a random
+    // throwaway value so we satisfy the constraint without collisions.
+    await db.execute(
+      sql`INSERT INTO device_backups (device_id, vehicles_json, settings_json)
+          VALUES (${deviceId}, ${vehiclesJson}, ${settingsJson})
+          ON CONFLICT (device_id) DO UPDATE
+            SET vehicles_json = EXCLUDED.vehicles_json,
+                settings_json = EXCLUDED.settings_json,
+                last_backup_at = NOW()`
+    );
   }
 
   return res.json({ ok: true });

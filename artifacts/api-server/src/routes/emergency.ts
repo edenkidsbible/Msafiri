@@ -180,8 +180,8 @@ router.post("/emergency/alert", async (req: Request, res: Response) => {
     }
 
     // Log the dispatch so the admin dashboard can compute false-positive rate.
-    // We log even when sent=0 (e.g. no Twilio credentials) so trigger counts
-    // can be compared against intent-to-alert counts separately.
+    // We log even when sent=0 so trigger counts can be compared against
+    // intent-to-alert counts separately.
     if (!isTest) {
       db.insert(emergencyAlertsLogTable).values({
         deviceId:     deviceId.trim(),

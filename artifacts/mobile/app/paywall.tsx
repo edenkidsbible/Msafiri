@@ -201,7 +201,7 @@ function SuccessScreen({
             Secure your Premium account
           </Text>
           <Text style={[ss.phonePromptBody, { color: c.mutedForeground }]}>
-            Link your phone number so you can restore your subscription and all your data on any new device — with just an SMS code.
+            Link your phone number so you can restore all your data on any new device — with just an SMS code.
           </Text>
           <TouchableOpacity
             style={[ss.phonePromptBtn, { backgroundColor: c.primary }]}

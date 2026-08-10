@@ -242,8 +242,8 @@ router.post("/auth/verify-otp", async (req, res) => {
     // Upsert: if the device has never synced a backup yet there is no row to
     // UPDATE — use INSERT … ON CONFLICT so the phone number is always persisted.
     await db.execute(
-      sql`INSERT INTO device_backups (device_id, phone_number, recovery_code, vehicles_json, settings_json)
-          VALUES (${deviceId}, ${phone}, '', '[]', '{}')
+      sql`INSERT INTO device_backups (device_id, phone_number, vehicles_json, settings_json)
+          VALUES (${deviceId}, ${phone}, '[]', '{}')
           ON CONFLICT (device_id) DO UPDATE SET phone_number = EXCLUDED.phone_number`
     );
     return res.json({ ok: true, phone });

@@ -30,8 +30,12 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
   const senderId  = process.env.SMSLEOPARD_SENDER_ID ?? "SMS_Leopard";
 
   if (!apiKey || !apiSecret) {
-    console.warn("[smsleopard] SMSLEOPARD_API_KEY / SMSLEOPARD_API_SECRET not set — SMS not sent to", to);
+    console.error("[smsleopard] SMSLEOPARD_API_KEY / SMSLEOPARD_API_SECRET not configured in this environment — SMS not sent to", to);
     return false;
+  }
+
+  if (!process.env.SMSLEOPARD_SENDER_ID) {
+    console.warn("[smsleopard] SMSLEOPARD_SENDER_ID not set — falling back to 'SMS_Leopard' (dev/test only; set a custom approved sender ID for production)");
   }
 
   const token = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
@@ -59,6 +63,7 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
 
   if (!json.success) {
     const recipientStatus = json.recipients?.[0]?.status ?? "";
+    console.error("[smsleopard] send failed — message:", json.message, "| recipient status:", recipientStatus || "(none)", "| senderId:", senderId);
     if (recipientStatus === "restricted_send_time") {
       throw new SmsRestrictedTimeError();
     }

@@ -1,20 +1,25 @@
 import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
- * device_backups — maps a device to its 5-char recovery code and stores a
- * snapshot of the vehicle list and app settings so a user can restore their
- * data on a new device.
+ * device_backups — stores a snapshot of a device's vehicles and settings so
+ * a user can restore their data on a new device via phone OTP.
  *
  * Security model:
- *   Restore requires BOTH the recoveryCode AND a matching plate number from
- *   the backed-up vehicle list.  Neither alone is sufficient.
+ *   Restore is gated by phone OTP — the user must verify ownership of the
+ *   recovery phone number linked to this record.
+ *
+ * Note: recovery_code is a legacy column (previously used for 5-char code
+ * restore). It is no longer used by any flow and is kept only to avoid a
+ * destructive migration on existing rows.
  */
 export const deviceBackupsTable = pgTable("device_backups", {
   id:            uuid("id").primaryKey().defaultRandom(),
-  /** 5-char uppercase alphanumeric code shown to the user (e.g. "A7K2M"). */
-  recoveryCode:  text("recovery_code").notNull().unique(),
+  /** Legacy — no longer used. Kept to avoid dropping existing data. */
+  recoveryCode:  text("recovery_code"),
   /** Current device ID — updated to the new device's ID on restore. */
   deviceId:      text("device_id").notNull().unique(),
+  /** E.164 phone number linked for OTP-based restore. */
+  phoneNumber:   text("phone_number"),
   /** JSON array of SavedVehicle objects (includes plateNumber). */
   vehiclesJson:  text("vehicles_json").notNull().default("[]"),
   /** JSON object — arbitrary app settings (theme, driver name, etc.). */
