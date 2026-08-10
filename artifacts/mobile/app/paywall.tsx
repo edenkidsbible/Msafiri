@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSubscription, REVENUECAT_ENTITLEMENT_IDENTIFIER } from "@/lib/revenuecat";
 import { loadVehicles } from "@/utils/savedVehicles";
 import { useColors } from "@/hooks/useColors";
@@ -129,7 +129,10 @@ function SuccessScreen({
   // Initial check
   useEffect(() => { checkLinkedPhone(); }, [checkLinkedPhone]);
 
-  // Re-check when user returns from the link-phone screen
+  // Re-check when screen regains focus (e.g. returning from /link-phone within the app)
+  useFocusEffect(useCallback(() => { checkLinkedPhone(); }, [checkLinkedPhone]));
+
+  // Re-check when app returns from background (e.g. after user checks SMS in another app)
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") checkLinkedPhone();

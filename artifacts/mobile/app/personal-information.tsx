@@ -1,11 +1,11 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
-import { router, Stack } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { getLinkedPhone } from "@/utils/backupSync";
@@ -35,8 +35,12 @@ export default function PersonalInformationScreen() {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
     AsyncStorage.getItem("profile_phone").then(val => { if (val) setPhone(val); });
     AsyncStorage.getItem("profile_photo_uri").then(val => { if (val) setPhotoUri(val); });
-    getLinkedPhone().then(linked => setLinkedPhone(linked)).catch(() => {});
   }, []);
+
+  // Re-check linked phone whenever this screen gains focus (e.g. returning from /link-phone)
+  useFocusEffect(useCallback(() => {
+    getLinkedPhone().then(linked => setLinkedPhone(linked)).catch(() => {});
+  }, []));
 
   const handleChangePhoto = async () => {
     try {
