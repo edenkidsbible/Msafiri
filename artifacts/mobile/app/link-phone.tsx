@@ -198,12 +198,22 @@ export default function LinkPhoneScreen() {
               <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>6-DIGIT CODE</Text>
               <TextInput
                 value={otp}
-                onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
+                onChangeText={(t) => {
+                  // Strip any non-digit characters (handles both manual typing and
+                  // SMS autofill which may include surrounding text on Android)
+                  const digits = t.replace(/\D/g, "").slice(0, 6);
+                  setOtp(digits);
+                }}
                 placeholder="000000"
                 placeholderTextColor={c.mutedForeground + "88"}
                 keyboardType="number-pad"
                 maxLength={6}
                 returnKeyType="done"
+                // iOS: tells the OS this is a one-time code field → shows the
+                //       "From Messages" autofill suggestion above the keyboard
+                textContentType="oneTimeCode"
+                // Android: hints to autofill service this is an SMS OTP field
+                autoComplete="sms-otp"
                 style={[s.otpInput, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
                 autoFocus
               />
