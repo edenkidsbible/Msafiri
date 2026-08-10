@@ -15,6 +15,7 @@ import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 
 const RECOVERY_CODE_KEY = "msafiri_recovery_code_v1";
 const LAST_SYNC_KEY     = "msafiri_backup_last_sync_v1";
+const LINKED_PHONE_KEY  = "msafiri_linked_phone_v1";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,54 @@ export async function syncBackup(
     // Best-effort — never block the user for a backup failure
   }
 }
+
+// ── Phone OTP helpers ─────────────────────────────────────────────────────────
+
+/** Returns the OTP-verified recovery phone number, or null if not linked. */
+export async function getLinkedPhone(): Promise<string | null> {
+  return AsyncStorage.getItem(LINKED_PHONE_KEY).catch(() => null);
+}
+
+/**
+ * Sends an OTP to the given E.164 phone number.
+ * intent: "link"    → link this phone to the current device's backup
+ *         "restore" → look up a backup by phone and send restore OTP
+ */
+export async function sendOtp(phone: string, intent: "link" | "restore"): Promise<void> {
+  await apiPost("/auth/send-otp", { phone, intent });
+}
+
+/**
+ * Verifies an OTP and links the phone to this device's backup record.
+ * Saves the phone locally on success.
+ */
+export async function verifyAndLinkPhone(
+  phone: string,
+  otp: string,
+  deviceId: string,
+): Promise<void> {
+  await apiPost("/auth/verify-otp", { phone, otp, intent: "link", deviceId });
+  await AsyncStorage.setItem(LINKED_PHONE_KEY, phone).catch(() => {});
+}
+
+/**
+ * Verifies an OTP and restores backup data for the given phone number.
+ * Returns vehicles and settings on success, throws on failure.
+ */
+export async function restoreViaPhone(
+  phone: string,
+  otp: string,
+  newDeviceId: string,
+): Promise<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }> {
+  const result = await apiPost<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }>(
+    "/auth/verify-otp",
+    { phone, otp, intent: "restore", newDeviceId },
+  );
+  await AsyncStorage.setItem(LINKED_PHONE_KEY, phone).catch(() => {});
+  return result;
+}
+
+// ── Legacy code+plate restore ─────────────────────────────────────────────────
 
 /**
  * Verifies the recovery code + plate and restores data.
