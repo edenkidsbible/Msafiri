@@ -14,6 +14,7 @@ import { db, deviceBackupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { sendOtpSms } from "../lib/smsSender.js";
+import { sendWhatsAppOtp } from "../lib/smsleopard-whatsapp.js";
 import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -58,13 +59,17 @@ function normalisePhone(raw: string): string | null {
 }
 
 // ── POST /auth/send-otp ───────────────────────────────────────────────────────
-// Body: { phone, intent, deviceId? }
+// Body: { phone, intent, deviceId?, channel? }
+// channel: "sms" (default) | "whatsapp"
 // For link intent, deviceId is required — the OTP is bound to that device so
 // only the same device can verify it. This prevents a code intercepted via
 // iOS proximity sharing / iCloud from being usable on a different device.
 router.post("/auth/send-otp", async (req, res) => {
-  const { phone: rawPhone, intent, deviceId } =
-    req.body as { phone?: string; intent?: string; deviceId?: string };
+  const { phone: rawPhone, intent, deviceId, channel } =
+    req.body as { phone?: string; intent?: string; deviceId?: string; channel?: string };
+
+  const deliveryChannel: "sms" | "whatsapp" =
+    channel === "whatsapp" ? "whatsapp" : "sms";
 
   if (!rawPhone || !intent || !["link", "restore"].includes(intent)) {
     return res.status(400).json({ error: "phone and intent (link|restore) are required" });
@@ -113,11 +118,11 @@ router.post("/auth/send-otp", async (req, res) => {
   );
 
   if (isDev) {
-    logger.info({ phone, otp, intent }, "[OTP-DEV] Generated OTP — check this log to verify");
+    logger.info({ phone, otp, intent, channel: deliveryChannel }, "[OTP-DEV] Generated OTP — check this log to verify");
   }
 
-  // Intent-specific SMS text — restore message explicitly warns against sharing
-  const message = intent === "restore"
+  // Intent-specific SMS text (only used for SMS channel)
+  const smsMessage = intent === "restore"
     ? `Msafiri Kenya data recovery code: ${otp}. Expires in 10 min. ` +
       `Enter this in the app to restore your account. ` +
       `Do NOT share this code — Msafiri staff will never ask for it.`
@@ -126,15 +131,20 @@ router.post("/auth/send-otp", async (req, res) => {
       `If you did not request this, ignore this message.`;
 
   try {
-    await sendOtpSms(phone, message);
-  } catch (smsErr: any) {
-    logger.error({ err: smsErr?.message }, "[OTP] SMS send failed");
+    if (deliveryChannel === "whatsapp") {
+      await sendWhatsAppOtp(phone, otp);
+    } else {
+      await sendOtpSms(phone, smsMessage);
+    }
+  } catch (sendErr: any) {
+    logger.error({ err: sendErr?.message, channel: deliveryChannel }, "[OTP] delivery failed");
     // Roll back the record so the user can retry immediately
     await db.execute(
       sql`DELETE FROM phone_verifications WHERE phone = ${phone} AND otp_hash = ${hashed}`
     ).catch(() => {});
-    const detail = isDev ? ` (${smsErr?.message ?? "unknown"})` : "";
-    return res.status(502).json({ error: `Failed to send SMS. Try again.${detail}` });
+    const detail = isDev ? ` (${sendErr?.message ?? "unknown"})` : "";
+    const via = deliveryChannel === "whatsapp" ? "WhatsApp" : "SMS";
+    return res.status(502).json({ error: `Failed to send code via ${via}. Try again.${detail}` });
   }
 
   return res.json({ ok: true, ...(isDev ? { devOtp: otp } : {}) });

@@ -39,14 +39,18 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
     body: JSON.stringify(body),
   });
 
-  const rawText = await res.text();
-  console.log(`[smsleopard] HTTP ${res.status} — raw response: ${rawText}`);
-
-  let json: { success: boolean; message: string; recipients: { id: string; cost: number; number: string; status: string }[] };
-  try { json = JSON.parse(rawText); } catch { throw new Error(`SMSLeopard: non-JSON response (${res.status}): ${rawText.slice(0, 200)}`); }
+  const json = await res.json() as {
+    success: boolean;
+    message: string;
+    recipients: { id: string; cost: number; number: string; status: string }[];
+  };
 
   if (!json.success) {
-    throw new Error(`SMSLeopard: ${json.message}`);
+    // Include the per-recipient status in dev so restricted_send_time / DND
+    // failures are visible without adding a separate debug log.
+    const recipientStatus = json.recipients?.[0]?.status ?? "";
+    const detail = recipientStatus ? ` (${recipientStatus})` : "";
+    throw new Error(`SMSLeopard: ${json.message}${detail}`);
   }
 
   const failed = json.recipients.filter((r) => r.status !== "queued" && r.status !== "sent");

@@ -32,6 +32,7 @@ export default function LinkPhoneScreen() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [channel, setChannel] = useState<"sms" | "whatsapp">("sms");
 
   const bg      = c.isDark ? "#0D1611" : "#F6FAF7";
   const cardBg  = c.isDark ? "#131F17" : "#fff";
@@ -50,7 +51,7 @@ export default function LinkPhoneScreen() {
       // Pass deviceId so the server binds this OTP to our device —
       // any code intercepted on another device (e.g. via iCloud proximity) will
       // be rejected at verify time if it comes from a different deviceId.
-      const result = await sendOtp(normalized, "link", deviceId ?? undefined);
+      const result = await sendOtp(normalized, "link", deviceId ?? undefined, channel);
       setE164Phone(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // Dev-only: auto-fill OTP from server response so we can test without real SMS
@@ -156,7 +157,7 @@ export default function LinkPhoneScreen() {
           <Text style={[s.sub, { color: c.mutedForeground }]}>
             {step === 1
               ? "We'll send you a one-time code to verify this number. It will be used to recover your data if you change devices."
-              : `We sent a 6-digit code to ${displayKenyaPhone(e164Phone)}. Enter it below.`}
+              : `We sent a 6-digit code via ${channel === "whatsapp" ? "WhatsApp" : "SMS"} to ${displayKenyaPhone(e164Phone)}. Enter it below.`}
           </Text>
 
           {/* Step indicators */}
@@ -177,22 +178,46 @@ export default function LinkPhoneScreen() {
 
           {/* Step 1: Phone input */}
           {step === 1 && (
-            <View style={[s.card, { backgroundColor: cardBg, borderColor: border }]}>
-              <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>PHONE NUMBER</Text>
-              <TextInput
-                value={rawPhone}
-                onChangeText={setRawPhone}
-                placeholder="+254 7XX XXX XXX"
-                placeholderTextColor={c.mutedForeground + "88"}
-                keyboardType="phone-pad"
-                returnKeyType="done"
-                style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
-                autoFocus
-              />
-              <Text style={[s.hint, { color: c.mutedForeground }]}>
-                Safaricom, Airtel, and Telkom numbers supported. Standard SMS rates may apply.
-              </Text>
-            </View>
+            <>
+              <View style={[s.card, { backgroundColor: cardBg, borderColor: border }]}>
+                <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>PHONE NUMBER</Text>
+                <TextInput
+                  value={rawPhone}
+                  onChangeText={setRawPhone}
+                  placeholder="+254 7XX XXX XXX"
+                  placeholderTextColor={c.mutedForeground + "88"}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                  style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
+                  autoFocus
+                />
+                <Text style={[s.hint, { color: c.mutedForeground }]}>
+                  {channel === "whatsapp"
+                    ? "We'll send your code via WhatsApp."
+                    : "Safaricom, Airtel, and Telkom numbers supported."}
+                </Text>
+              </View>
+
+              {/* Channel toggle — SMS vs WhatsApp */}
+              <View style={s.channelRow}>
+                <TouchableOpacity
+                  style={[s.channelBtn, { borderColor: border, backgroundColor: channel === "sms" ? c.primary : cardBg }]}
+                  onPress={() => setChannel("sms")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble-outline" size={14} color={channel === "sms" ? "#fff" : c.mutedForeground} />
+                  <Text style={[s.channelBtnTxt, { color: channel === "sms" ? "#fff" : c.mutedForeground }]}>SMS</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.channelBtn, { borderColor: channel === "whatsapp" ? "#25D366" : border, backgroundColor: channel === "whatsapp" ? "#25D366" : cardBg }]}
+                  onPress={() => setChannel("whatsapp")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="logo-whatsapp" size={14} color={channel === "whatsapp" ? "#fff" : c.mutedForeground} />
+                  <Text style={[s.channelBtnTxt, { color: channel === "whatsapp" ? "#fff" : c.mutedForeground }]}>WhatsApp</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
 
           {/* Step 2: OTP input */}
@@ -275,7 +300,10 @@ const s = StyleSheet.create({
   input:      { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 16, fontFamily: "Inter_400Regular" },
   otpInput:   { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center", letterSpacing: 8 },
   hint:       { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, color: "#7A8C7A" },
-  resend:     { fontSize: 13, fontFamily: "Inter_500Medium" },
+  resend:       { fontSize: 13, fontFamily: "Inter_500Medium" },
+  channelRow:   { flexDirection: "row", gap: 10, justifyContent: "center" },
+  channelBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
+  channelBtnTxt:{ fontSize: 14, fontFamily: "Inter_500Medium" },
   cta:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16 },
   ctaTxt:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
 });

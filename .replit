@@ -60,6 +60,7 @@ BACKUP_EMAIL_ADDRESS = "alfrexlabs@gmail.com"
 SENTRY_ORG = "alfrex-labs"
 SENTRY_PROJECT = "msafiri-mobile"
 SMSLEOPARD_SENDER_ID = "SMS_TEST"
+SMSLEOPARD_WA_PHONE_ID = "1279612125225629"
 
 [userenv.production]
 
