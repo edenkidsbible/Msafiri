@@ -269,6 +269,32 @@ export async function migrateSchema(): Promise<void> {
       ALTER TABLE custom_vehicles ADD COLUMN IF NOT EXISTS logo_status TEXT NOT NULL DEFAULT 'pending'
     `);
 
+    // phone_number on device_backups — E.164 Kenyan number linked via OTP for
+    // phone-based account recovery. NULL for accounts created before this feature.
+    await db.execute(sql`
+      ALTER TABLE device_backups ADD COLUMN IF NOT EXISTS phone_number TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_device_backups_phone_number ON device_backups(phone_number)
+    `);
+
+    // phone_verifications — short-lived OTP records (6-digit code, 10-min TTL).
+    // Each row is one OTP request; verified=true once the correct code is supplied.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS phone_verifications (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        phone       TEXT NOT NULL,
+        otp_hash    TEXT NOT NULL,
+        expires_at  TIMESTAMP NOT NULL,
+        attempts    INTEGER NOT NULL DEFAULT 0,
+        verified    BOOLEAN NOT NULL DEFAULT false,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_phone_verifications_phone ON phone_verifications(phone)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

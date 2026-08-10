@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { CommunityReport } from "@/context/AppContext";
@@ -34,8 +34,8 @@ import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { telemetryEnabled, sendTelemetryTestError } from "@/utils/telemetry";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
-import { getLocalRecoveryCode, syncBackup, initBackup } from "@/utils/backupSync";
-import * as Clipboard from "expo-clipboard";
+import { getLinkedPhone, syncBackup } from "@/utils/backupSync";
+import { displayKenyaPhone } from "@/utils/phoneUtils";
 
 interface EmergencyContact { id: string; name: string; phone: string }
 
@@ -74,8 +74,7 @@ export default function SettingsScreen() {
   const [editSpeed, setEditSpeed] = useState("");
   const [flaggingReportId, setFlaggingReportId] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
-  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
-  const [codeCopied,   setCodeCopied]   = useState(false);
+  const [linkedPhone,  setLinkedPhone]   = useState<string | null>(null);
 
   // ── Emergency contacts state ─────────────────────────────────────────────
   const [ecContacts, setEcContacts] = useState<EmergencyContact[]>([]);
@@ -104,30 +103,13 @@ export default function SettingsScreen() {
 
   useEffect(() => { loadEmergencyContacts(); }, [loadEmergencyContacts]);
 
-  // Load recovery code — read cache first, fall back to calling initBackup if cold.
-  useEffect(() => {
-    getLocalRecoveryCode()
-      .then((cached) => {
-        if (cached) { setRecoveryCode(cached); return; }
-        // Cache is empty (first launch or cleared) — generate/fetch via API.
-        if (deviceId) {
-          initBackup(deviceId)
-            .then((c) => { if (c) setRecoveryCode(c); })
-            .catch(() => {});
-        }
-      })
-      .catch(() => {});
-  }, [deviceId]);
-
-  const copyRecoveryCode = async () => {
-    if (!recoveryCode) return;
-    try {
-      await Clipboard.setStringAsync(recoveryCode);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2200);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch { /* ignore */ }
-  };
+  // Reload linked phone whenever this screen comes into focus — catches changes
+  // made from the link-phone screen when the user navigates back.
+  useFocusEffect(
+    useCallback(() => {
+      getLinkedPhone().then((p) => { if (p) setLinkedPhone(p); }).catch(() => {});
+    }, []),
+  );
 
   const syncNow = async () => {
     if (!deviceId) return;
@@ -985,46 +967,45 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DATA &amp; RECOVERY</Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
 
-          {/* Recovery code display */}
+          {/* Recovery phone */}
           <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
-            Your recovery code lets you restore your vehicles and settings on a new device. Keep it safe — it's useless without a matching plate number.
+            Link your phone number to restore your vehicles and settings on a new device with a one-time SMS code — no codes to write down.
           </Text>
 
-          {recoveryCode ? (
-            <TouchableOpacity
-              onPress={copyRecoveryCode}
-              activeOpacity={0.75}
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                backgroundColor: c.primary + "14", borderRadius: 14, borderWidth: 1,
-                borderColor: c.primary + "44", paddingHorizontal: 16, paddingVertical: 14,
-              }}
-            >
+          {linkedPhone ? (
+            <View style={{
+              flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+              backgroundColor: c.primary + "14", borderRadius: 14, borderWidth: 1,
+              borderColor: c.primary + "44", paddingHorizontal: 16, paddingVertical: 14,
+            }}>
               <View style={{ gap: 2 }}>
                 <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: c.mutedForeground, letterSpacing: 1 }}>
-                  RECOVERY CODE
+                  RECOVERY PHONE
                 </Text>
-                <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: c.primary, letterSpacing: 5 }}>
-                  {recoveryCode}
-                </Text>
-              </View>
-              <View style={{ alignItems: "center", gap: 3 }}>
-                <Ionicons
-                  name={codeCopied ? "checkmark-circle" : "copy-outline"}
-                  size={22}
-                  color={codeCopied ? "#22C55E" : c.primary}
-                />
-                <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: codeCopied ? "#22C55E" : c.mutedForeground }}>
-                  {codeCopied ? "Copied!" : "Copy"}
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: c.primary }}>
+                  {displayKenyaPhone(linkedPhone)}
                 </Text>
               </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ paddingVertical: 8, alignItems: "center" }}>
-              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>
-                Recovery code loading…
-              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/link-phone" as any)}
+                style={{ alignItems: "center", gap: 3 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="create-outline" size={20} color={c.primary} />
+                <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>
+                  Update
+                </Text>
+              </TouchableOpacity>
             </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.deleteDataBtn, { borderColor: c.primary + "50", backgroundColor: c.primary + "0D" }]}
+              activeOpacity={0.75}
+              onPress={() => router.push("/link-phone" as any)}
+            >
+              <Ionicons name="phone-portrait-outline" size={16} color={c.primary} />
+              <Text style={[styles.deleteDataBtnText, { color: c.primary }]}>Link Phone Number</Text>
+            </TouchableOpacity>
           )}
 
           {/* Backup now */}

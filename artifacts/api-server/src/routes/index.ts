@@ -30,6 +30,7 @@ import carLogosRouter from "./carLogos.js";
 import customVehiclesRouter from "./customVehicles.js";
 import geocodeRouter from "./geocode.js";
 import backupRouter from "./backup.js";
+import otpRouter from "./otp.js";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(carLogosRouter);
 router.use(customVehiclesRouter);
 router.use(geocodeRouter);
 router.use(backupRouter);
+router.use(otpRouter);
 
 export default router;

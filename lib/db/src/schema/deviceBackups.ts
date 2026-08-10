@@ -19,6 +19,12 @@ export const deviceBackupsTable = pgTable("device_backups", {
   vehiclesJson:  text("vehicles_json").notNull().default("[]"),
   /** JSON object — arbitrary app settings (theme, driver name, etc.). */
   settingsJson:  text("settings_json").notNull().default("{}"),
+  /**
+   * E.164 Kenyan phone number linked via OTP verification, e.g. "+254712345678".
+   * Used as the primary recovery factor — user receives an OTP to restore data.
+   * NULL for accounts created before phone-based recovery was introduced.
+   */
+  phoneNumber:   text("phone_number"),
   lastBackupAt:  timestamp("last_backup_at").notNull().defaultNow(),
   createdAt:     timestamp("created_at").notNull().defaultNow(),
 });
