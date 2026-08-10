@@ -53,8 +53,6 @@ export default function LinkPhoneScreen() {
       const result = await sendOtp(normalized, "link", deviceId ?? undefined);
       setE164Phone(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // Dev-only: auto-fill OTP from server response so we can test without real SMS
-      if (result?.devOtp) setOtp(String(result.devOtp));
       setStep(2);
     } catch (err: any) {
       const msg: string = err?.message ?? "";

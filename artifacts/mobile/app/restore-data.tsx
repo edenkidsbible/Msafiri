@@ -58,7 +58,6 @@ export default function RestoreDataScreen() {
       const result = await sendOtp(normalized, "restore");
       setE164(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      if (result?.devOtp) setOtp(String(result.devOtp));
       setStep(2);
     } catch (err: any) {
       const msg: string = err?.message ?? "";
