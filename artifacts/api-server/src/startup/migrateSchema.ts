@@ -296,6 +296,21 @@ export async function migrateSchema(): Promise<void> {
         WHERE phone_number IS NOT NULL
     `);
 
+    // ── intent + requesting_device_id on phone_verifications ─────────────────
+    // intent: locks each OTP to the intent it was created for (link | restore),
+    // so a link OTP cannot be replayed as a restore OTP and vice-versa.
+    // requesting_device_id: for link intent, the OTP is bound to the device that
+    // requested it — a different device cannot use the same code to claim a phone
+    // number it did not request the OTP for.
+    await db.execute(sql`
+      ALTER TABLE phone_verifications
+      ADD COLUMN IF NOT EXISTS intent TEXT NOT NULL DEFAULT 'link'
+    `);
+    await db.execute(sql`
+      ALTER TABLE phone_verifications
+      ADD COLUMN IF NOT EXISTS requesting_device_id TEXT
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

@@ -60,14 +60,22 @@ export async function getLinkedPhone(): Promise<string | null> {
 
 /**
  * Sends an OTP to the given E.164 phone number.
- * intent: "link"    → link this phone to the current device's backup
+ * intent: "link"    → link this phone to the current device's backup.
+ *                     deviceId is required: the OTP is bound to this device
+ *                     so only the same device can verify it (prevents a code
+ *                     intercepted on another Apple device from being used).
  *         "restore" → look up a backup by phone and send restore OTP
  */
 export async function sendOtp(
   phone: string,
   intent: "link" | "restore",
+  deviceId?: string,
 ): Promise<{ ok: boolean; devOtp?: string }> {
-  return apiPost<{ ok: boolean; devOtp?: string }>("/auth/send-otp", { phone, intent });
+  return apiPost<{ ok: boolean; devOtp?: string }>("/auth/send-otp", {
+    phone,
+    intent,
+    ...(deviceId ? { deviceId } : {}),
+  });
 }
 
 /**

@@ -58,12 +58,21 @@ function normalisePhone(raw: string): string | null {
 }
 
 // ── POST /auth/send-otp ───────────────────────────────────────────────────────
-// Body: { phone: string, intent: "link" | "restore" }
+// Body: { phone, intent, deviceId? }
+// For link intent, deviceId is required — the OTP is bound to that device so
+// only the same device can verify it. This prevents a code intercepted via
+// iOS proximity sharing / iCloud from being usable on a different device.
 router.post("/auth/send-otp", async (req, res) => {
-  const { phone: rawPhone, intent } = req.body as { phone?: string; intent?: string };
+  const { phone: rawPhone, intent, deviceId } =
+    req.body as { phone?: string; intent?: string; deviceId?: string };
 
   if (!rawPhone || !intent || !["link", "restore"].includes(intent)) {
     return res.status(400).json({ error: "phone and intent (link|restore) are required" });
+  }
+
+  // For link intent a deviceId is required so we can bind the OTP to the requester.
+  if (intent === "link" && !deviceId) {
+    return res.status(400).json({ error: "deviceId is required for link intent" });
   }
 
   const phone = normalisePhone(rawPhone);
@@ -81,31 +90,41 @@ router.post("/auth/send-otp", async (req, res) => {
     }
   }
 
-  // Rate-limit: reject if an active (non-expired, <10 attempts) OTP already exists
+  // Rate-limit: reject if an active (non-expired, <5 attempts) OTP already exists
   const existing = await db.execute(
     sql`SELECT id FROM phone_verifications
-        WHERE phone = ${phone} AND expires_at > NOW() AND attempts < 10
+        WHERE phone = ${phone} AND expires_at > NOW() AND attempts < 5
         LIMIT 1`
   );
   if ((existing.rows as any[]).length > 0) {
-    return res.status(429).json({ error: "An OTP was already sent recently. Wait a few minutes." });
+    return res.status(429).json({ error: "A code was already sent recently. Wait a few minutes before trying again." });
   }
 
   const otp    = generateOtp();
   const hashed = hashOtp(otp);
 
+  // Store intent and requesting device so verify can enforce binding
   await db.execute(
-    sql`INSERT INTO phone_verifications (phone, otp_hash, expires_at, attempts, verified)
-        VALUES (${phone}, ${hashed}, NOW() + INTERVAL '10 minutes', 0, FALSE)`
+    sql`INSERT INTO phone_verifications
+          (phone, otp_hash, expires_at, attempts, verified, intent, requesting_device_id)
+        VALUES
+          (${phone}, ${hashed}, NOW() + INTERVAL '10 minutes', 0, FALSE,
+           ${intent}, ${deviceId ?? null})`
   );
 
-  // In dev: log the OTP plainly so it can be read from the API server console
-  // (sandbox doesn't send real SMS)
   if (isDev) {
-    logger.info({ phone, otp }, "[OTP-DEV] Generated OTP — check this log to verify");
+    logger.info({ phone, otp, intent }, "[OTP-DEV] Generated OTP — check this log to verify");
   }
 
-  const message = `Your Msafiri Kenya verification code is: ${otp}. It expires in 10 minutes. Do not share it.`;
+  // Intent-specific SMS text — restore message explicitly warns against sharing
+  const message = intent === "restore"
+    ? `Msafiri Kenya data recovery code: ${otp}. Expires in 10 min. ` +
+      `Enter this in the app to restore your account. ` +
+      `Do NOT share this code — Msafiri staff will never ask for it.`
+    : `Msafiri Kenya security code: ${otp}. Expires in 10 min. ` +
+      `Use this in the app to link your phone for account recovery. ` +
+      `If you did not request this, ignore this message.`;
+
   try {
     await sendOtpSms(phone, message);
   } catch (smsErr: any) {
@@ -152,7 +171,8 @@ router.post("/auth/verify-otp", async (req, res) => {
 
   // Find the most-recent active record for this phone
   const recordsResult = await db.execute(
-    sql`SELECT id, otp_hash, attempts FROM phone_verifications
+    sql`SELECT id, otp_hash, attempts, intent AS stored_intent, requesting_device_id
+        FROM phone_verifications
         WHERE phone = ${phone} AND expires_at > NOW()
         ORDER BY expires_at DESC
         LIMIT 1`
@@ -168,6 +188,12 @@ router.post("/auth/verify-otp", async (req, res) => {
   // Locked after 5 wrong attempts
   if (record.attempts >= 5) {
     return res.status(429).json({ error: "Too many attempts. Request a new OTP." });
+  }
+
+  // Reject if the intent doesn't match what was stored — prevents a link OTP
+  // from being replayed as a restore (or vice versa).
+  if (record.stored_intent && record.stored_intent !== intent) {
+    return res.status(403).json({ error: "This code cannot be used for this action." });
   }
 
   const hashed = hashOtp(otp.trim());
@@ -188,8 +214,25 @@ router.post("/auth/verify-otp", async (req, res) => {
     if (!deviceId) {
       return res.status(400).json({ error: "deviceId is required for link intent" });
     }
+
+    // Device binding: if the OTP was created with a requesting_device_id, the
+    // verifying device must match. This blocks a code intercepted on another
+    // Apple device (via iCloud proximity / Handoff) from being used to claim
+    // a phone number on a different device.
+    if (record.requesting_device_id && record.requesting_device_id !== deviceId) {
+      logger.warn({ phone, requestingDevice: record.requesting_device_id, verifyingDevice: deviceId },
+        "[OTP] Link rejected — verifying device does not match requesting device");
+      return res.status(403).json({
+        error: "This code was sent to a different device. Request a new code on this device.",
+      });
+    }
+
+    // Upsert: if the device has never synced a backup yet there is no row to
+    // UPDATE — use INSERT … ON CONFLICT so the phone number is always persisted.
     await db.execute(
-      sql`UPDATE device_backups SET phone_number = ${phone} WHERE device_id = ${deviceId}`
+      sql`INSERT INTO device_backups (device_id, phone_number, recovery_code, vehicles_json, settings_json)
+          VALUES (${deviceId}, ${phone}, '', '[]', '{}')
+          ON CONFLICT (device_id) DO UPDATE SET phone_number = EXCLUDED.phone_number`
     );
     return res.json({ ok: true, phone });
   }

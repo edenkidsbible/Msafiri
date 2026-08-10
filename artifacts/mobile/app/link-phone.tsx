@@ -47,7 +47,10 @@ export default function LinkPhoneScreen() {
     }
     setLoading(true);
     try {
-      const result = await sendOtp(normalized, "link");
+      // Pass deviceId so the server binds this OTP to our device —
+      // any code intercepted on another device (e.g. via iCloud proximity) will
+      // be rejected at verify time if it comes from a different deviceId.
+      const result = await sendOtp(normalized, "link", deviceId ?? undefined);
       setE164Phone(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // Dev-only: auto-fill OTP from server response so we can test without real SMS
