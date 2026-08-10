@@ -103,6 +103,12 @@ export default function DashcamOverlay() {
   const loopCancelRef   = useRef(false);
   const segmentStartRef = useRef(Date.now());
 
+  // Track whether the CameraView has already fired onCameraReady. The view is
+  // always mounted (translated off-screen when idle) so onCameraReady fires
+  // once at app start — not again when backgroundRecordPending is set later.
+  // This ref lets us start recording immediately if the camera is already warm.
+  const cameraReadyRef = useRef(false);
+
   // Total recording elapsed time (not per-segment)
   const [totalDuration, setTotalDuration] = useState(0);
   const totalStartRef = useRef<number>(0);
@@ -136,6 +142,18 @@ export default function DashcamOverlay() {
     if (angleTimerRef.current)  { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
     if (angleTickRef.current)   { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
   }, []);
+
+  // If backgroundRecordPending is set while the camera is already warm (the
+  // normal case — CameraView is always mounted and onCameraReady fired at app
+  // start), immediately kick off recording without waiting for a second
+  // onCameraReady that will never arrive.
+  useEffect(() => {
+    if (backgroundRecordPending && cameraReadyRef.current) {
+      startDashcam();
+      clearBackgroundRecordPending();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backgroundRecordPending]);
 
   // Trigger angle preview when background recording starts
   useEffect(() => {
@@ -495,8 +513,9 @@ export default function DashcamOverlay() {
           mode="video"
           videoQuality={settings.quality === "720p" ? "720p" : "1080p"}
           onCameraReady={() => {
-            // Auto-start recording silently when the camera has warmed up for
-            // a background recording request.
+            cameraReadyRef.current = true;
+            // Fallback: if backgroundRecordPending was set before the camera
+            // finished warming up (e.g. very first launch), start now.
             if (backgroundRecordPending) {
               startDashcam();
               clearBackgroundRecordPending();

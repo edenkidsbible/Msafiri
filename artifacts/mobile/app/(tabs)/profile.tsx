@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share } from "react-native";
+import { Image, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Share } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
@@ -247,7 +247,22 @@ export default function ProfileScreen() {
               {isSubscribed ? (renewalDateLabel ?? "") : "Subscribe now"}
             </Text>
           </View>
-          <TouchableOpacity style={[styles.manageBtn, { borderColor: c.border }]} onPress={() => router.push("/paywall" as any)}>
+          <TouchableOpacity
+            style={[styles.manageBtn, { borderColor: c.border }]}
+            onPress={() => {
+              if (isSubscribed) {
+                // RevenueCat provides the correct store URL per platform
+                // (App Store for iOS, Play Store for Android).
+                const url = customerInfo?.managementURL
+                  ?? (Platform.OS === "ios"
+                    ? "https://apps.apple.com/account/subscriptions"
+                    : "https://play.google.com/store/account/subscriptions");
+                Linking.openURL(url).catch(() => {});
+              } else {
+                router.push("/paywall" as any);
+              }
+            }}
+          >
             <Text style={[styles.manageBtnTxt, { color: c.foreground }]}>{isSubscribed ? "Manage >" : "Subscribe >"}</Text>
           </TouchableOpacity>
         </View>
