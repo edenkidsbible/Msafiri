@@ -44,6 +44,8 @@ import {
   loadVehicleCareData,
   saveVehicleCareData,
   getCareStorageKey,
+  estimatedOdometerKm,
+  VehicleCareData,
 } from "@/utils/vehicleCare";
 import { getCarImageUrl, getMakeById, getModelById, CAR_MAKES } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
@@ -335,10 +337,11 @@ function EditSheet({
 // ── Vehicle row card ──────────────────────────────────────────────────────────
 
 function VehicleRow({
-  v, onEdit, onSetDefault, onDelete,
+  v, estimatedOdoKm, onEdit, onSetDefault, onDelete,
   cardBg, border, primary, foreground, muted,
 }: {
   v: SavedVehicle;
+  estimatedOdoKm: number;
   onEdit: (v: SavedVehicle) => void;
   onSetDefault: (id: string) => void;
   onDelete: (id: string) => void;
@@ -402,12 +405,15 @@ function VehicleRow({
         </View>
 
         {/* Odometer */}
-        {(v.odometerKm && v.odometerKm > 0) ? (
+        {estimatedOdoKm > 0 ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 }}>
             <Ionicons name="speedometer-outline" size={12} color={muted} />
-            <Text style={[s.rowOdo, { color: muted }]}>
-              {v.odometerKm.toLocaleString()} km estimated odometer
-            </Text>
+            <View>
+              <Text style={[s.rowOdo, { color: foreground, fontSize: 13, fontFamily: "Inter_600SemiBold" }]}>
+                {estimatedOdoKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km
+              </Text>
+              <Text style={[s.rowOdo, { color: muted }]}>Estimated from trips</Text>
+            </View>
           </View>
         ) : null}
       </View>
@@ -455,11 +461,28 @@ export default function ManageVehiclesScreen() {
 
   const [editTarget, setEditTarget] = useState<SavedVehicle | null>(null);
   const [editVisible, setEditVisible] = useState(false);
+  const [careDataMap, setCareDataMap] = useState<Record<string, VehicleCareData>>({});
+
+  async function loadCareData(vehicleList: typeof vehicles) {
+    const entries = await Promise.all(
+      vehicleList.map(async v => {
+        const key = getCareStorageKey(v.id, v.isDefault);
+        const data = await loadVehicleCareData(key);
+        return [v.id, data] as const;
+      }),
+    );
+    setCareDataMap(Object.fromEntries(entries));
+  }
 
   // Re-load vehicles on every focus in case another screen changed them
   useFocusEffect(useCallback(() => {
     refreshVehicles();
   }, [refreshVehicles]));
+
+  // Reload care data whenever the vehicle list changes
+  useEffect(() => {
+    if (vehicles.length > 0) loadCareData(vehicles);
+  }, [vehicles]);
 
   // ── Sync AppContext after default/remove changes ───────────────────────────
   function syncCtx(updated: SavedVehicle[]) {
@@ -580,20 +603,25 @@ export default function ManageVehiclesScreen() {
           </View>
         ) : (
           <>
-            {vehicles.map(v => (
-              <VehicleRow
-                key={v.id}
-                v={v}
-                onEdit={handleEdit}
-                onSetDefault={handleSetDefault}
-                onDelete={handleDelete}
-                cardBg={cardBg}
-                border={border}
-                primary={c.primary}
-                foreground={c.foreground}
-                muted={muted}
-              />
-            ))}
+            {vehicles.map(v => {
+              const careData = careDataMap[v.id];
+              const estimatedOdoKm = careData ? estimatedOdometerKm(careData) : (v.odometerKm ?? 0);
+              return (
+                <VehicleRow
+                  key={v.id}
+                  v={v}
+                  estimatedOdoKm={estimatedOdoKm}
+                  onEdit={handleEdit}
+                  onSetDefault={handleSetDefault}
+                  onDelete={handleDelete}
+                  cardBg={cardBg}
+                  border={border}
+                  primary={c.primary}
+                  foreground={c.foreground}
+                  muted={muted}
+                />
+              );
+            })}
 
             {/* Add another vehicle CTA */}
             {vehicles.length < 4 && (
