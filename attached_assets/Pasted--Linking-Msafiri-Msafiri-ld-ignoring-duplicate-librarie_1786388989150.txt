@@ -1,0 +1,46 @@
+› Linking   Msafiri » Msafiri
+⚠️  ld: ignoring duplicate libraries: '-lc++'
+› Executing Msafiri » Bundle React Native code and images
+
+❌  error: sentry-cli - To disable source maps auto upload, set SENTRY_DISABLE_AUTO_UPLOAD=true in your environment variables. Or to allow failing upload, set SENTRY_ALLOW_FAILURE=true
+
+
+❌  error: sentry-cli -   INFO    2026-08-10 12:07:30.084556 -07:00 Loaded file referenced by SENTRY_PROPERTIES (sentry.properties)
+
+
+❌  error: Auth token is required for this request. Please run `sentry-cli login` and try again!
+
+› Generating debug Msafiri » Msafiri.app.dSYM
+⚠️  Script has ambiguous dependencies causing it to run on every build.
+   To fix, go to: Xcode » Msafiri/Msafiri » Build Phases » 'Upload Debug Symbols to Sentry'
+   Either: Uncheck "Based on dependency analysis", or select output files to trigger the script
+⚠️  Pods/react-native-maps-ReactNativeMapsPrivacy: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 26.0.99
+⚠️  Pods/Sentry-Sentry: iOS@11.0 deployment version mismatch, expected >= 2.0 <= 26.0.99
+⚠️  Pods/SDWebImage-SDWebImage: iOS@9.0 deployment version mismatch, expected >= 2.0 <= 26.0.99
+▸ ** ARCHIVE FAILED **
+▸ The following build commands failed:
+▸ 	PhaseScriptExecution Bundle\ React\ Native\ code\ and\ images /Users/expo/workingdir/build/artifacts/mobile/ios/build/Build/Intermediates.noindex/ArchiveIntermediates/Msafiri/IntermediateBuildFilesPath/Msafiri.build/Release-iphoneos/Msafiri.build/Script-00DD1BFF1BD5951E006B06BC.sh (in target 'Msafiri' from project 'Msafiri')
+▸ 	Archiving workspace Msafiri with scheme Msafiri
+▸ (2 failures)
+Exit status: 65
++---------------------------------------+
+|           Build environment           |
++-------------+-------------------------+
+| xcode_path  | /Applications/Xcode.app |
+| gym_version | 2.228.0                 |
+| sdk         | iPhoneOS26.0.sdk        |
++-------------+-------------------------+
+Looks like fastlane ran into a build/archive error with your project
+It's hard to tell what's causing the error, so we wrote some guides on how
+to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
+Before submitting an issue on GitHub, please follow the guide above and make
+sure your project is set up correctly.
+fastlane uses `xcodebuild` commands to generate your binary, you can see the
+the full commands printed out in yellow in the above log.
+Make sure to inspect the output above, as usually you'll find more error information there
+[!] Error building the application - see the log above
+Error: The "Run fastlane" step failed because of an error in the Xcode build process. We automatically detected following errors in your Xcode build logs:
+- sentry-cli - To disable source maps auto upload, set SENTRY_DISABLE_AUTO_UPLOAD=true in your environment variables. Or to allow failing upload, set SENTRY_ALLOW_FAILURE=true
+- sentry-cli -   INFO    2026-08-10 12:07:30.084556 -07:00 Loaded file referenced by SENTRY_PROPERTIES (sentry.properties)
+- Auth token is required for this request. Please run `sentry-cli login` and try again!
+Refer to "Xcode Logs" below for additional, more detailed logs.

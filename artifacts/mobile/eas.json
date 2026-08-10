@@ -14,7 +14,8 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
         "SENTRY_ORG": "alfrex-labs",
-        "SENTRY_PROJECT": "msafiri-mobile"
+        "SENTRY_PROJECT": "msafiri-mobile",
+        "SENTRY_ALLOW_FAILURE": "true"
       }
     },
     "preview": {
@@ -30,7 +31,8 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
         "SENTRY_ORG": "alfrex-labs",
-        "SENTRY_PROJECT": "msafiri-mobile"
+        "SENTRY_PROJECT": "msafiri-mobile",
+        "SENTRY_ALLOW_FAILURE": "true"
       }
     },
     "production": {
@@ -42,7 +44,8 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
         "SENTRY_ORG": "alfrex-labs",
-        "SENTRY_PROJECT": "msafiri-mobile"
+        "SENTRY_PROJECT": "msafiri-mobile",
+        "SENTRY_ALLOW_FAILURE": "true"
       }
     }
   },
