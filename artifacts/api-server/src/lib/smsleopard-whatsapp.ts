@@ -52,39 +52,15 @@ async function resolvePhoneId(): Promise<string> {
 
 // --- template ID -------------------------------------------------------------
 
-let _cachedTemplateId: string | null = null;
-
-async function resolveTemplateId(phoneId: string): Promise<string> {
-  if (process.env.SMSLEOPARD_WA_TEMPLATE_ID) return process.env.SMSLEOPARD_WA_TEMPLATE_ID;
-  if (_cachedTemplateId) return _cachedTemplateId;
-
-  const res  = await fetch(`${WA_BASE}/v1/phone_number_ids/${phoneId}/templates`, {
-    headers: { Authorization: authHeader() },
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`SMSLeopard WA: templates fetch failed (${res.status}): ${text.slice(0, 200)}`);
+function resolveTemplateId(): string {
+  const id = process.env.SMSLEOPARD_WA_TEMPLATE_ID;
+  if (!id) {
+    throw new Error(
+      "SMSLeopard WA: SMSLEOPARD_WA_TEMPLATE_ID is not set. " +
+      "Go to SMSLeopard dashboard → WhatsApp → Templates → click your template → copy the numeric ID."
+    );
   }
-
-  const templates = await res.json() as { id: string; name: string; status: string }[];
-
-  const tpl = templates.find((t) => t.name === TEMPLATE_NAME && t.status === "APPROVED")
-           ?? templates.find((t) => t.name === TEMPLATE_NAME)
-           ?? templates.find((t) => t.status === "APPROVED");
-
-  if (!tpl) {
-    const names = templates.map((t) => t.name).join(", ");
-    throw new Error(`SMSLeopard WA: no usable template found (available: ${names || "none"})`);
-  }
-
-  if (tpl.name !== TEMPLATE_NAME) {
-    console.warn(`[smsleopard-wa] template "${TEMPLATE_NAME}" not found — falling back to "${tpl.name}"`);
-  }
-
-  _cachedTemplateId = tpl.id;
-  console.log(`[smsleopard-wa] resolved template ID: ${_cachedTemplateId} (${tpl.name})`);
-  return _cachedTemplateId;
+  return id;
 }
 
 // --- send --------------------------------------------------------------------
@@ -104,7 +80,7 @@ export async function sendWhatsAppOtp(to: string, otp: string): Promise<void> {
   }
 
   const phoneNumberId = await resolvePhoneId();
-  const templateId    = await resolveTemplateId(phoneNumberId);
+  const templateId    = resolveTemplateId();
 
   const body = {
     destination:     to,
