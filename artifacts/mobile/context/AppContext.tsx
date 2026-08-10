@@ -29,6 +29,8 @@ import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { initBackup, syncBackup } from "@/utils/backupSync";
+import { loadVehicles } from "@/utils/savedVehicles";
+import { getCareStorageKey, updateTripOdometer } from "@/utils/vehicleCare";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { Accelerometer } from "expo-sensors";
 
@@ -2310,6 +2312,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (t && (t.distance ?? 0) >= MIN_TRIP_DIST) {
             const done: TripData = { id: t.id ?? genId(), startTime: t.startTime ?? Date.now(), endTime: Date.now(), distance: t.distance ?? 0, maxSpeed: t.maxSpeed ?? 0, avgSpeed: t.avgSpeed ?? 0, alertsCount: t.alertsCount ?? 0, positions: t.positions ?? [] };
             setTripHistory((prev) => { const u = [done, ...prev].slice(0, 50); AsyncStorage.setItem(KEYS.TRIPS, JSON.stringify(u)); return u; });
+            // Increment the care-odometer for whichever vehicle is active
+            loadVehicles().then(vs => {
+              const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
+              if (!active) return;
+              updateTripOdometer(done.distance / 1000, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+            }).catch(() => {});
           }
           tripRef.current = null; setCurrentTrip(null); stopTimer.current = null;
         }, STOP_TIMEOUT_MS);

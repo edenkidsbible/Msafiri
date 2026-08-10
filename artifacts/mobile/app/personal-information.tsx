@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { getLinkedPhone } from "@/utils/backupSync";
 import { useColors } from "@/hooks/useColors";
 import { getVehicleTypeDef, VEHICLE_TYPES } from "@/data/vehicleTypes";
 import type { VehicleTypeId } from "@/data/vehicleTypes";
@@ -31,7 +32,15 @@ export default function PersonalInformationScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
-    AsyncStorage.getItem("profile_phone").then(val => { if (val) setPhone(val); });
+    AsyncStorage.getItem("profile_phone").then(val => {
+      if (val) {
+        setPhone(val);
+      } else {
+        // Pre-fill from the OTP-verified recovery phone if the profile hasn't
+        // been filled in yet (e.g. first open after linking via OTP).
+        getLinkedPhone().then(linked => { if (linked) setPhone(linked); }).catch(() => {});
+      }
+    });
     AsyncStorage.getItem("profile_photo_uri").then(val => { if (val) setPhotoUri(val); });
   }, []);
 
