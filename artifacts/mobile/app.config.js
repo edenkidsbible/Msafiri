@@ -22,7 +22,7 @@ module.exports = {
       bundleIdentifier: "com.msafirikenya.app",
       // 92 is the seed value. EAS autoIncrement (production profile) bumps
       // this to 93 before the next build artifact is produced.
-      buildNumber: "92",
+      buildNumber: "93",
       supportsTablet: false,
       config: {
         googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
@@ -69,7 +69,7 @@ module.exports = {
     android: {
       package: "com.msafirikenya.app",
       // 92 is the seed value. EAS autoIncrement bumps this to 93 on next build.
-      versionCode: 92,
+      versionCode: 93,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       permissions: [
         "ACCESS_FINE_LOCATION",
