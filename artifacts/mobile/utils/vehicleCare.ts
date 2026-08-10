@@ -220,15 +220,20 @@ export function estimatedOdometerKm(data: VehicleCareData): number {
   return (data.initialOdometerKm ?? 0) + (data.tripAccumulatedKm ?? 0);
 }
 
-interface ItemStatus {
+export interface ItemStatus {
   reminder: ReminderConfig;
   lastRecord: ServiceRecord | null;
   /** km until next service (negative = overdue) */
   kmRemaining: number | null;
   /** days until next service (negative = overdue) */
   daysRemaining: number | null;
-  /** overall status */
-  status: "ok" | "upcoming" | "overdue";
+  /**
+   * overall status:
+   *   "corrected" — last service mileage is higher than the current odometer
+   *   reading, which means an odometer correction made the record inconsistent.
+   *   The reminder should not be shown as overdue.
+   */
+  status: "ok" | "upcoming" | "overdue" | "corrected";
 }
 
 export function computeItemStatuses(data: VehicleCareData): ItemStatus[] {
@@ -241,6 +246,20 @@ export function computeItemStatuses(data: VehicleCareData): ItemStatus[] {
       .filter(r => r.itemId === reminder.itemId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const last = records[0] ?? null;
+
+    // Guard: if the last service mileage exceeds the current odometer the data
+    // is inconsistent — the car was "serviced in the future".  This happens
+    // when the driver corrects the odometer downward.  Show a graceful
+    // "corrected" state instead of computing bogus km values.
+    if (last && reminder.intervalKm && last.mileageKm > odometerKm) {
+      return {
+        reminder,
+        lastRecord: last,
+        kmRemaining: null,
+        daysRemaining: null,
+        status: "corrected",
+      };
+    }
 
     let kmRemaining: number | null = null;
     let daysRemaining: number | null = null;
@@ -276,6 +295,27 @@ export function computeItemStatuses(data: VehicleCareData): ItemStatus[] {
   });
 }
 
+/**
+ * Re-anchor service records after a downward odometer correction.
+ *
+ * Any record whose mileageKm exceeds the new odometer reading is clamped
+ * to newOdometerKm so that km-based reminders are calculated from a
+ * consistent baseline and don't show as "corrected" indefinitely.
+ *
+ * Returns a new VehicleCareData object (does not mutate the input).
+ */
+export function reAnchorServiceRecords(
+  data: VehicleCareData,
+  newOdometerKm: number,
+): VehicleCareData {
+  return {
+    ...data,
+    records: data.records.map(r =>
+      r.mileageKm > newOdometerKm ? { ...r, mileageKm: newOdometerKm } : r,
+    ),
+  };
+}
+
 export interface VehicleCareStats {
   upcoming30Days: number;
   overdue: number;
@@ -292,6 +332,7 @@ export function computeVehicleCareStats(data: VehicleCareData): VehicleCareStats
   const twelveMonthsAgo = new Date(now);
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
+  // "corrected" items are NOT counted as overdue — they need re-anchoring, not service
   const overdue = statuses.filter(s => s.status === "overdue").length;
   const upcoming30Days = statuses.filter(s => s.status === "upcoming").length;
   const completedThisYear = data.records.filter(

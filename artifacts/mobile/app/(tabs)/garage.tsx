@@ -40,6 +40,7 @@ import {
   computeVehicleCareStats,
   getCareStorageKey,
   swapCareDataForDefaultChange,
+  reAnchorServiceRecords,
   VehicleCareStats,
   estimatedOdometerKm,
 } from "@/utils/vehicleCare";
@@ -466,7 +467,45 @@ function EditVehicleModal({
       // the estimated reading doesn't double-count km driven before the edit.
       if (odo != null && !isNaN(odo) && odo >= 0) {
         const careKey = getCareStorageKey(vehicle.id, vehicle.isDefault);
-        const careData = await loadVehicleCareData(careKey);
+        let careData = await loadVehicleCareData(careKey);
+
+        // Check whether any service records are now "above" the new reading.
+        // This happens after a downward correction and leaves km-based reminders
+        // in a "corrected" (inconsistent) state.  Offer to re-anchor them now.
+        const staleCount = careData.records.filter(r => r.mileageKm > odo).length;
+        if (staleCount > 0) {
+          // Finish the regular save first so the odometer update is not lost
+          // if the user dismisses the dialog.
+          careData.initialOdometerKm = odo;
+          careData.tripAccumulatedKm = 0;
+          await saveVehicleCareData(careData, careKey);
+
+          onSaved();
+          onClose();
+
+          // Prompt after closing the modal so it doesn't stack on top
+          setTimeout(() => {
+            Alert.alert(
+              "Re-anchor service records?",
+              `${staleCount} service record${staleCount > 1 ? "s were" : " was"} logged above ` +
+              `${odo.toLocaleString(undefined, { maximumFractionDigits: 0 })} km. ` +
+              `Reset ${staleCount > 1 ? "their" : "its"} mileage to the new odometer so reminders calculate correctly?`,
+              [
+                { text: "Keep as-is", style: "cancel" },
+                {
+                  text: "Reset mileage",
+                  onPress: async () => {
+                    const freshData = await loadVehicleCareData(careKey);
+                    await saveVehicleCareData(reAnchorServiceRecords(freshData, odo), careKey);
+                    onSaved();
+                  },
+                },
+              ],
+            );
+          }, 400);
+          return;
+        }
+
         careData.initialOdometerKm = odo;
         careData.tripAccumulatedKm = 0;
         await saveVehicleCareData(careData, careKey);

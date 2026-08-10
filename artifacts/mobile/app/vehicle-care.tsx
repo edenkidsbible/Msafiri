@@ -38,6 +38,7 @@ import {
   computeItemStatuses,
   computeVehicleCareStats,
   estimatedOdometerKm,
+  reAnchorServiceRecords,
   MAINTENANCE_CATALOGUE,
   CATEGORIES,
   VehicleCareData,
@@ -71,11 +72,12 @@ function HealthRing({ pct, size = 120, color, bg }: { pct: number; size?: number
 
 // ── Status pill ───────────────────────────────────────────────────────────────
 
-function StatusPill({ status }: { status: "overdue" | "upcoming" | "ok" }) {
+function StatusPill({ status }: { status: "overdue" | "upcoming" | "ok" | "corrected" }) {
   const cfg = {
-    overdue:  { label: "Overdue",  bg: "#E5484D20", color: "#E5484D" },
-    upcoming: { label: "Upcoming", bg: "#FFB30020", color: "#FFB300" },
-    ok:       { label: "Up to date", bg: "#22DD6620", color: "#22DD66" },
+    overdue:   { label: "Overdue",    bg: "#E5484D20", color: "#E5484D" },
+    upcoming:  { label: "Upcoming",   bg: "#FFB30020", color: "#FFB300" },
+    ok:        { label: "Up to date", bg: "#22DD6620", color: "#22DD66" },
+    corrected: { label: "Needs reset", bg: "#8B5CF620", color: "#8B5CF6" },
   }[status];
   return (
     <View style={{ backgroundColor: cfg.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
@@ -274,18 +276,15 @@ function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClos
     if (visible) setValue(currentKm > 0 ? String(Math.round(currentKm)) : "");
   }, [visible, currentKm]);
 
-  async function handleSave() {
-    const km = parseFloat(value.replace(/,/g, ""));
-    if (isNaN(km) || km < 0) {
-      Alert.alert("Invalid Value", "Please enter a valid odometer reading.");
-      return;
-    }
+  async function persistSave(km: number, shouldReAnchor: boolean) {
     setSaving(true);
     try {
-      // Update vehicle care data — new reading resets trip accumulation
-      const data = await loadVehicleCareData(storageKey);
-      data.initialOdometerKm  = km;
-      data.tripAccumulatedKm  = 0;
+      let data = await loadVehicleCareData(storageKey);
+      if (shouldReAnchor) {
+        data = reAnchorServiceRecords(data, km);
+      }
+      data.initialOdometerKm = km;
+      data.tripAccumulatedKm = 0;
       await saveVehicleCareData(data, storageKey);
 
       // Also update the matching saved vehicle so the garage slide reflects it
@@ -307,6 +306,43 @@ function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClos
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSave() {
+    const km = parseFloat(value.replace(/,/g, ""));
+    if (isNaN(km) || km < 0) {
+      Alert.alert("Invalid Value", "Please enter a valid odometer reading.");
+      return;
+    }
+
+    // Check whether any service records are "above" the new reading.
+    // That happens after a downward correction and leaves reminders in an
+    // inconsistent state ("Needs reset").  Offer to re-anchor them now.
+    const data = await loadVehicleCareData(storageKey);
+    const staleRecords = data.records.filter(r => r.mileageKm > km);
+    if (staleRecords.length > 0) {
+      Alert.alert(
+        "Re-anchor service records?",
+        `${staleRecords.length} service record${staleRecords.length > 1 ? "s" : ""} ` +
+        `${staleRecords.length > 1 ? "were" : "was"} logged above ` +
+        `${km.toLocaleString(undefined, { maximumFractionDigits: 0 })} km. ` +
+        `Would you like to reset ${staleRecords.length > 1 ? "their" : "its"} mileage to the new odometer so reminders calculate correctly?`,
+        [
+          {
+            text: "Keep as-is",
+            style: "cancel",
+            onPress: () => persistSave(km, false),
+          },
+          {
+            text: "Reset mileage",
+            onPress: () => persistSave(km, true),
+          },
+        ],
+      );
+      return;
+    }
+
+    await persistSave(km, false);
   }
 
   return (
@@ -485,9 +521,10 @@ export default function VehicleCareScreen() {
     : "#E5484D";
   const healthRingBg = c.isDark ? "#1E2820" : "#E8F5EE";
 
-  const overdue  = statuses.filter(s => s.status === "overdue");
-  const upcoming = statuses.filter(s => s.status === "upcoming");
-  const ok       = statuses.filter(s => s.status === "ok" && s.lastRecord);
+  const overdue   = statuses.filter(s => s.status === "overdue");
+  const corrected = statuses.filter(s => s.status === "corrected");
+  const upcoming  = statuses.filter(s => s.status === "upcoming");
+  const ok        = statuses.filter(s => s.status === "ok" && s.lastRecord);
 
   // Category filtering
   const categoryItems = activeCategory
@@ -638,6 +675,55 @@ export default function VehicleCareScreen() {
                             <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleDeleteRecord(s.lastRecord!.id)}>
                               <Ionicons name="trash-outline" size={14} color="#E5484D" />
                               <Text style={[styles.recordActionTxt, { color: "#E5484D" }]}>Delete last</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Corrected — odometer was set below a service record's mileage */}
+            {corrected.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={[styles.groupTitle, { color: "#8B5CF6" }]}>↺ Reset after odometer correction</Text>
+                <View style={{ backgroundColor: "#8B5CF610", borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#8B5CF630" }}>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8B5CF6", lineHeight: 18 }}>
+                    These reminders have service records logged above the current odometer. Tap "Update Odometer" and choose to reset their mileage so reminders calculate correctly.
+                  </Text>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {corrected.map(s => (
+                    <View
+                      key={s.reminder.itemId}
+                      style={[styles.itemCard, { backgroundColor: cardBg, borderColor: "#8B5CF630", flexDirection: "column", alignItems: "stretch" }]}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View style={[styles.itemIconWrap, { backgroundColor: CATEGORY_ICONS[s.reminder.category]?.bg ?? "#88888820" }]}>
+                          <Ionicons name={(CATEGORY_ICONS[s.reminder.category]?.icon ?? "build-outline") as any} size={18} color={CATEGORY_ICONS[s.reminder.category]?.color ?? "#888"} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[styles.itemName, { color: c.foreground }]}>{s.reminder.itemName}</Text>
+                          <Text style={[styles.itemSub, { color: "#8B5CF6" }]}>
+                            {s.lastRecord ? `Last logged at ${s.lastRecord.mileageKm.toLocaleString()} km` : ""}
+                          </Text>
+                        </View>
+                        <StatusPill status="corrected" />
+                      </View>
+                      {/* Action row */}
+                      <View style={[styles.recordActions, { borderTopColor: borderCol }]}>
+                        <TouchableOpacity style={styles.recordActionBtn} onPress={() => setShowOdoModal(true)}>
+                          <Ionicons name="refresh-outline" size={14} color="#8B5CF6" />
+                          <Text style={[styles.recordActionTxt, { color: "#8B5CF6" }]}>Update Odometer</Text>
+                        </TouchableOpacity>
+                        {s.lastRecord && (
+                          <>
+                            <View style={styles.recordActionDiv} />
+                            <TouchableOpacity style={styles.recordActionBtn} onPress={() => handleEditRecord(s.lastRecord!)}>
+                              <Ionicons name="pencil-outline" size={14} color={c.mutedForeground} />
+                              <Text style={[styles.recordActionTxt, { color: c.mutedForeground }]}>Edit last</Text>
                             </TouchableOpacity>
                           </>
                         )}
