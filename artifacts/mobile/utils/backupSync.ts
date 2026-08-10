@@ -96,8 +96,11 @@ export async function getLinkedPhone(): Promise<string | null> {
  * intent: "link"    → link this phone to the current device's backup
  *         "restore" → look up a backup by phone and send restore OTP
  */
-export async function sendOtp(phone: string, intent: "link" | "restore"): Promise<void> {
-  await apiPost("/auth/send-otp", { phone, intent });
+export async function sendOtp(
+  phone: string,
+  intent: "link" | "restore",
+): Promise<{ ok: boolean; devOtp?: string }> {
+  return apiPost<{ ok: boolean; devOtp?: string }>("/auth/send-otp", { phone, intent });
 }
 
 /**

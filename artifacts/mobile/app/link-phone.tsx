@@ -47,16 +47,18 @@ export default function LinkPhoneScreen() {
     }
     setLoading(true);
     try {
-      await sendOtp(normalized, "link");
+      const result = await sendOtp(normalized, "link");
       setE164Phone(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Dev-only: auto-fill OTP from server response so we can test without real SMS
+      if (result?.devOtp) setOtp(String(result.devOtp));
       setStep(2);
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("rate") || msg.includes("429")) {
+      if (msg.includes("rate") || msg.includes("Too many")) {
         Alert.alert("Too many requests", "An OTP was already sent recently. Wait a few minutes and try again.");
       } else {
-        Alert.alert("Failed to send OTP", "Check your internet connection and try again.");
+        Alert.alert("Failed to send OTP", msg || "Check your internet connection and try again.");
       }
     } finally {
       setLoading(false);
@@ -82,12 +84,12 @@ export default function LinkPhoneScreen() {
       setTimeout(() => router.back(), 1800);
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("Invalid") || msg.includes("expired") || msg.includes("401")) {
+      if (msg.includes("Invalid OTP") || msg.includes("expired") || msg.includes("not found")) {
         Alert.alert("Wrong or expired code", "Check the code and try again, or go back to request a new one.");
-      } else if (msg.includes("locked") || msg.includes("429")) {
+      } else if (msg.includes("Too many") || msg.includes("locked")) {
         Alert.alert("Too many attempts", "This OTP is locked after 5 wrong attempts. Request a new code.");
       } else {
-        Alert.alert("Verification failed", "Check your connection and try again.");
+        Alert.alert("Verification failed", msg || "Check your connection and try again.");
       }
     } finally {
       setLoading(false);

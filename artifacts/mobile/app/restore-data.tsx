@@ -98,18 +98,20 @@ function PhoneRestoreFlow({
     }
     setLoading(true);
     try {
-      await sendOtp(normalized, "restore");
+      const result = await sendOtp(normalized, "restore");
       setE164(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Dev-only: auto-fill OTP from server response so we can test without real SMS
+      if (result?.devOtp) setOtp(String(result.devOtp));
       setStep(2);
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("not found") || msg.includes("404")) {
+      if (msg.includes("No account") || msg.includes("not found")) {
         Alert.alert("No account found", "We couldn't find a backup linked to that number. Try a different number or use your recovery code below.");
-      } else if (msg.includes("rate") || msg.includes("429")) {
+      } else if (msg.includes("Too many") || msg.includes("rate")) {
         Alert.alert("Too many requests", "Wait a few minutes and try again.");
       } else {
-        Alert.alert("Failed to send OTP", "Check your internet connection and try again.");
+        Alert.alert("Failed to send OTP", msg || "Check your internet connection and try again.");
       }
     } finally {
       setLoading(false);

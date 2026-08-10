@@ -14,7 +14,10 @@ import { db, deviceBackupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { sendSmsAT } from "../lib/atSms.js";
+import pino from "pino";
 
+const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
+const isDev  = process.env.NODE_ENV !== "production";
 const router = Router();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -27,12 +30,30 @@ function generateOtp(): string {
   return String(randomInt(100000, 999999));
 }
 
-/** Normalise E.164 — accept +254XXXXXXXXX or 07XXXXXXXX / 01XXXXXXXX */
+/**
+ * Normalise any Kenyan phone format → E.164 (+254XXXXXXXXX).
+ *
+ * Accepted inputs (spaces/dashes/dots stripped first):
+ *   +254712345678   already E.164
+ *   254712345678    no leading +
+ *   0712345678      leading 0 (Safaricom / Airtel 07xx or 01xx)
+ *   712345678       9-digit local (assume 7xx)
+ *   0112345678      Airtel 01xx local
+ *   112345678       9-digit Airtel (assume 1xx → 01xx)
+ */
 function normalisePhone(raw: string): string | null {
-  const s = raw.trim().replace(/\s+/g, "");
-  if (/^\+254\d{9}$/.test(s)) return s;
-  if (/^07\d{8}$/.test(s))    return "+254" + s.slice(1);
-  if (/^01\d{8}$/.test(s))    return "+254" + s.slice(1);
+  // Strip whitespace, dashes, dots, parentheses
+  const s = raw.trim().replace(/[\s\-.()+]/g, "").replace(/^00/, "");
+
+  // Already valid E.164 (after stripping the +)
+  if (/^254\d{9}$/.test(s)) return "+" + s;
+
+  // 07XXXXXXXX or 01XXXXXXXX (10 digits, leading 0)
+  if (/^0[71]\d{8}$/.test(s)) return "+254" + s.slice(1);
+
+  // 7XXXXXXXX or 1XXXXXXXX (9 digits, no leading 0)
+  if (/^[71]\d{8}$/.test(s)) return "+254" + s;
+
   return null;
 }
 
@@ -78,18 +99,26 @@ router.post("/auth/send-otp", async (req, res) => {
         VALUES (${phone}, ${hashed}, NOW() + INTERVAL '10 minutes', 0, FALSE)`
   );
 
+  // In dev: log the OTP plainly so it can be read from the API server console
+  // (sandbox doesn't send real SMS)
+  if (isDev) {
+    logger.info({ phone, otp }, "[OTP-DEV] Generated OTP — check this log to verify");
+  }
+
   const message = `Your Msafiri Kenya verification code is: ${otp}. It expires in 10 minutes. Do not share it.`;
   try {
     await sendSmsAT(phone, message);
-  } catch (err) {
+  } catch (smsErr: any) {
+    logger.error({ err: smsErr?.message }, "[OTP] SMS send failed");
     // Roll back the record so the user can retry immediately
     await db.execute(
       sql`DELETE FROM phone_verifications WHERE phone = ${phone} AND otp_hash = ${hashed}`
     ).catch(() => {});
-    return res.status(502).json({ error: "Failed to send SMS. Try again." });
+    const detail = isDev ? ` (${smsErr?.message ?? "unknown"})` : "";
+    return res.status(502).json({ error: `Failed to send SMS. Try again.${detail}` });
   }
 
-  return res.json({ ok: true });
+  return res.json({ ok: true, ...(isDev ? { devOtp: otp } : {}) });
 });
 
 // ── POST /auth/verify-otp ─────────────────────────────────────────────────────
