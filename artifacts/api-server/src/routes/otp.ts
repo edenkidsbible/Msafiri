@@ -14,6 +14,7 @@ import { db, deviceBackupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { sendOtpSms } from "../lib/smsSender.js";
+import { SmsRestrictedTimeError } from "../lib/smsleopard.js";
 import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -57,15 +58,6 @@ function normalisePhone(raw: string): string | null {
   return null;
 }
 
-// ── EAT send window (8 AM – 6 PM) ────────────────────────────────────────────
-// SMSLeopard only allows sending during daytime hours. We enforce this server-
-// side so the error is clear rather than a cryptic "restricted_send_time".
-function isWithinSendWindow(): boolean {
-  const utcHour = new Date().getUTCHours();
-  const eatHour = (utcHour + 3) % 24;
-  return eatHour >= 8 && eatHour < 18;
-}
-
 // ── POST /auth/send-otp ───────────────────────────────────────────────────────
 // Body: { phone, intent, deviceId? }
 // For link intent, deviceId is required — the OTP is bound to that device so
@@ -87,14 +79,6 @@ router.post("/auth/send-otp", async (req, res) => {
   const phone = normalisePhone(rawPhone);
   if (!phone) {
     return res.status(400).json({ error: "Invalid phone number — use E.164 or Kenyan local format" });
-  }
-
-  // Enforce EAT send window (8 AM – 6 PM) — SMSLeopard rejects outside this window.
-  if (!isWithinSendWindow()) {
-    return res.status(403).json({
-      error: "SMS codes can only be sent between 8:00 AM and 6:00 PM EAT (East Africa Time). Please try again during those hours.",
-      code: "OUTSIDE_SEND_WINDOW",
-    });
   }
 
   // For restore intent: confirm a backup exists for this phone before sending
@@ -145,11 +129,22 @@ router.post("/auth/send-otp", async (req, res) => {
   try {
     await sendOtpSms(phone, smsMessage);
   } catch (sendErr: any) {
-    logger.error({ err: sendErr?.message }, "[OTP] SMS send failed");
     // Roll back the record so the user can retry immediately
     await db.execute(
       sql`DELETE FROM phone_verifications WHERE phone = ${phone} AND otp_hash = ${hashed}`
     ).catch(() => {});
+
+    if (sendErr instanceof SmsRestrictedTimeError) {
+      // Carrier-level time restriction — only Safaricom numbers are affected.
+      // Airtel and Telkom go through at any hour so we only show this when
+      // SMSLeopard explicitly tells us the number is restricted right now.
+      return res.status(403).json({
+        error: "SMS codes for this number can only be sent between 8:00 AM and 6:00 PM EAT. Please try again during those hours.",
+        code: "OUTSIDE_SEND_WINDOW",
+      });
+    }
+
+    logger.error({ err: sendErr?.message }, "[OTP] SMS send failed");
     const detail = isDev ? ` (${sendErr?.message ?? "unknown"})` : "";
     return res.status(502).json({ error: `Failed to send SMS. Try again.${detail}` });
   }

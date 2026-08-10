@@ -12,6 +12,18 @@
 
 const ENDPOINT = "https://api.smsleopard.com/v1/sms/send";
 
+/**
+ * Thrown when SMSLeopard rejects the send because of a carrier-level time
+ * restriction on the sender ID (e.g. Safaricom after 6 PM EAT).
+ * Airtel and Telkom numbers are not affected by this restriction.
+ */
+export class SmsRestrictedTimeError extends Error {
+  constructor() {
+    super("restricted_send_time");
+    this.name = "SmsRestrictedTimeError";
+  }
+}
+
 export async function sendSms(to: string, message: string): Promise<boolean> {
   const apiKey    = process.env.SMSLEOPARD_API_KEY;
   const apiSecret = process.env.SMSLEOPARD_API_SECRET;
@@ -46,16 +58,19 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
   };
 
   if (!json.success) {
-    // Include the per-recipient status in dev so restricted_send_time / DND
-    // failures are visible without adding a separate debug log.
     const recipientStatus = json.recipients?.[0]?.status ?? "";
+    if (recipientStatus === "restricted_send_time") {
+      throw new SmsRestrictedTimeError();
+    }
     const detail = recipientStatus ? ` (${recipientStatus})` : "";
     throw new Error(`SMSLeopard: ${json.message}${detail}`);
   }
 
   const failed = json.recipients.filter((r) => r.status !== "queued" && r.status !== "sent");
   if (failed.length > 0) {
-    throw new Error(`SMSLeopard delivery failed for ${failed[0].number}: ${failed[0].status}`);
+    const status = failed[0].status;
+    if (status === "restricted_send_time") throw new SmsRestrictedTimeError();
+    throw new Error(`SMSLeopard delivery failed for ${failed[0].number}: ${status}`);
   }
 
   console.log(`[smsleopard] sent to ${to} — ${json.message}`);
