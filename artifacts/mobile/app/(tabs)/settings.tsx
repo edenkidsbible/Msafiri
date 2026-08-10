@@ -32,7 +32,6 @@ import { PaywallModal } from "@/components/PaywallModal";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
-import { telemetryEnabled, sendTelemetryTestError } from "@/utils/telemetry";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 import { syncBackup } from "@/utils/backupSync";
@@ -1046,28 +1045,6 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={18} color={c.mutedForeground} />
         </TouchableOpacity>
       </View>
-
-      {/* Crash reporting — shown only when Sentry DSN is configured */}
-      {telemetryEnabled() && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>CRASH REPORTING</Text>
-          <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, padding: 0, overflow: "hidden" }]}>
-            <Row
-              label="Send Test Crash Report"
-              icon="bug-outline"
-              onPress={() => {
-                const sent = sendTelemetryTestError();
-                Alert.alert(
-                  sent ? "Test event sent" : "Telemetry not active",
-                  sent
-                    ? "A test error was sent to Sentry. It should appear in your dashboard within a few seconds."
-                    : "Sentry is not initialised — check that EXPO_PUBLIC_SENTRY_DSN is set in this build.",
-                );
-              }}
-            />
-          </View>
-        </View>
-      )}
 
       {/* About */}
       <View style={styles.section}>
