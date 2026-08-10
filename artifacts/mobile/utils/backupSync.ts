@@ -2,20 +2,18 @@
  * backupSync — client-side helpers for the data backup & recovery feature.
  *
  * Responsibilities:
- *  • Ensure this device has a recovery code (call initBackup on first launch)
  *  • Upload a fresh vehicle + settings snapshot whenever data changes
- *  • Expose the recovery code for display in the Settings screen
+ *  • OTP-based phone linking and restore
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiGet, apiPost } from "@/utils/apiClient";
+import { apiPost } from "@/utils/apiClient";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 
 // ── AsyncStorage keys ─────────────────────────────────────────────────────────
 
-const RECOVERY_CODE_KEY = "msafiri_recovery_code_v1";
-const LAST_SYNC_KEY     = "msafiri_backup_last_sync_v1";
-const LINKED_PHONE_KEY  = "msafiri_linked_phone_v1";
+const LAST_SYNC_KEY    = "msafiri_backup_last_sync_v1";
+const LINKED_PHONE_KEY = "msafiri_linked_phone_v1";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,37 +24,6 @@ export interface SettingsSnapshot {
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Called once at app start (from AppContext or _layout).
- * Creates a backup record on the server if one doesn't exist, then caches
- * the recovery code locally.
- * Returns the recovery code (or null on failure).
- */
-export async function initBackup(deviceId: string): Promise<string | null> {
-  try {
-    // Fast path: code already cached locally
-    const cached = await AsyncStorage.getItem(RECOVERY_CODE_KEY);
-    if (cached) return cached;
-
-    const data = await apiPost<{ recoveryCode: string }>("/backup/init", { deviceId });
-    if (data?.recoveryCode) {
-      await AsyncStorage.setItem(RECOVERY_CODE_KEY, data.recoveryCode);
-      return data.recoveryCode;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Returns the cached recovery code without hitting the server.
- * Returns null if initBackup hasn't been called yet.
- */
-export async function getLocalRecoveryCode(): Promise<string | null> {
-  return AsyncStorage.getItem(RECOVERY_CODE_KEY).catch(() => null);
-}
 
 /**
  * Uploads the current vehicle list and selected settings to the server.
@@ -133,24 +100,3 @@ export async function restoreViaPhone(
   return result;
 }
 
-/**
- * Verifies the recovery code + plate and restores data.
- * Returns the backed-up vehicles and settings on success, throws on failure.
- */
-export async function verifyAndRestore(
-  recoveryCode: string,
-  plateNumber: string,
-  newDeviceId: string,
-): Promise<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }> {
-  const result = await apiPost<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }>(
-    "/backup/verify",
-    {
-      recoveryCode: recoveryCode.toUpperCase().trim(),
-      plateNumber:  plateNumber.trim(),
-      newDeviceId,
-    },
-  );
-  // Cache the recovery code locally now that it's verified
-  await AsyncStorage.setItem(RECOVERY_CODE_KEY, recoveryCode.toUpperCase().trim()).catch(() => {});
-  return result;
-}

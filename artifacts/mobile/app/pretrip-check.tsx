@@ -253,12 +253,12 @@ export default function PretripCheckScreen() {
   const [locCanAsk,       setLocCanAsk]       = useState(true);
   const [notifCanAsk,     setNotifCanAsk]     = useState(true);
 
-  const [camPermission,   requestCamPerm]     = useCameraPermissions
+  const [camPermission,   requestCamPerm,  getCamPerm]  = useCameraPermissions
     ? useCameraPermissions()
-    : [null, async () => null];
-  const [micPermission,   requestMicPerm]     = useMicrophonePermissions
+    : [null, async () => null, async () => null];
+  const [micPermission,   requestMicPerm,  getMicPerm]  = useMicrophonePermissions
     ? useMicrophonePermissions()
-    : [null, async () => null];
+    : [null, async () => null, async () => null];
 
   const cameraStatus = toStatus(camPermission?.granted, camPermission?.canAskAgain);
   const micStatus    = toStatus(micPermission?.granted,  micPermission?.canAskAgain);
@@ -287,7 +287,13 @@ export default function PretripCheckScreen() {
     } else {
       setNotifStatus("granted");
     }
-  }, []);
+
+    // Re-check camera & mic — critical when returning from iOS/Android Settings.
+    // The hooks expose a 3rd "getPermission" function that re-reads status without
+    // showing a dialog, which lets us update the displayed badge immediately.
+    try { if (getCamPerm) await getCamPerm(); } catch { /* ignore */ }
+    try { if (getMicPerm) await getMicPerm(); } catch { /* ignore */ }
+  }, [getCamPerm, getMicPerm]);
 
   useEffect(() => {
     refreshPermissions();
@@ -338,17 +344,26 @@ export default function PretripCheckScreen() {
   const requestCamera = useCallback(async () => {
     setLoadingPerm("camera");
     if (!camPermission?.canAskAgain && !camPermission?.granted) {
+      // Permission permanently denied — send user to Settings.
+      // AppState "active" will fire on return and refreshPermissions() will
+      // call getCamPerm() to pick up the new status immediately.
       Linking.openSettings();
       setLoadingPerm(null);
       return;
     }
-    await requestDashcamPermissions();
+    try {
+      // Call the hook's own request so it updates its internal state.
+      await requestCamPerm();
+      // Also run dashcam-level init (camera context setup etc.)
+      await requestDashcamPermissions();
+    } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestDashcamPermissions, camPermission]);
+  }, [requestDashcamPermissions, camPermission, requestCamPerm]);
 
   const requestMic = useCallback(async () => {
     setLoadingPerm("mic");
     if (!micPermission?.canAskAgain && !micPermission?.granted) {
+      // Permission permanently denied — send user to Settings.
       Linking.openSettings();
       setLoadingPerm(null);
       return;

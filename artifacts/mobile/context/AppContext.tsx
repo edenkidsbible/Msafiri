@@ -28,7 +28,7 @@ import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
-import { initBackup, syncBackup } from "@/utils/backupSync";
+import { syncBackup } from "@/utils/backupSync";
 import { loadVehicles } from "@/utils/savedVehicles";
 import { getCareStorageKey, updateTripOdometer } from "@/utils/vehicleCare";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
@@ -1328,9 +1328,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!storedDeviceId) await AsyncStorage.setItem(KEYS.DEVICE_ID, did);
       deviceIdRef.current = did;
       setDeviceId(did);
-      // Ensure this device has a server-side backup record and recovery code.
-      // Fire-and-forget — never block the UI startup for a backup call.
-      initBackup(did).catch(() => {});
       // Only auto-request on launch for returning users who already saw the
       // in-app rationale during onboarding. First-time users get this
       // requested explicitly at the end of onboarding, right after the

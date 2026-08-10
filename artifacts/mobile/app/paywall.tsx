@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,8 @@ import { loadVehicles } from "@/utils/savedVehicles";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { AdminPinModal } from "@/components/AdminPinModal";
+import { getLinkedPhone } from "@/utils/backupSync";
+import { displayKenyaPhone } from "@/utils/phoneUtils";
 
 type Result = "success" | "restored" | "error" | null;
 
@@ -115,6 +117,14 @@ function SuccessScreen({
   topPad: number;
   botPad: number;
 }) {
+  const [linkedPhone, setLinkedPhone] = useState<string | null | "loading">("loading");
+
+  useEffect(() => {
+    getLinkedPhone()
+      .then((p) => setLinkedPhone(p))
+      .catch(() => setLinkedPhone(null));
+  }, []);
+
   return (
     <View style={[ss.root, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
       {/* Glow badge */}
@@ -166,6 +176,38 @@ function SuccessScreen({
         Manage or cancel anytime in your App Store or Google Play account settings.
       </Text>
 
+      {/* Recovery phone nudge */}
+      {linkedPhone === null && (
+        <View style={[ss.phoneCard, { backgroundColor: c.card, borderColor: c.primary + "44" }]}>
+          <View style={[ss.phoneIconWrap, { backgroundColor: c.primary + "18" }]}>
+            <Ionicons name="phone-portrait-outline" size={20} color={c.primary} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: c.foreground }}>
+              Link your recovery phone
+            </Text>
+            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground, lineHeight: 15 }}>
+              Restore your data on any new device with an SMS code.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[ss.phoneLinkBtn, { backgroundColor: c.primary }]}
+            onPress={() => router.push("/link-phone" as any)}
+            activeOpacity={0.85}
+          >
+            <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" }}>Link</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {linkedPhone && linkedPhone !== "loading" && (
+        <View style={[ss.phoneCard, { backgroundColor: "#22C55E10", borderColor: "#22C55E44" }]}>
+          <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+          <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: c.foreground }}>
+            Recovery phone linked · {displayKenyaPhone(linkedPhone)}
+          </Text>
+        </View>
+      )}
+
       <TouchableOpacity style={[ss.cta, { backgroundColor: c.primary }]} onPress={onEnter} activeOpacity={0.85}>
         <Text style={ss.ctaTxt}>Start Driving</Text>
         <Ionicons name="arrow-forward" size={20} color="#fff" />
@@ -187,9 +229,13 @@ const ss = StyleSheet.create({
   cardLabel:  { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   cardValue:  { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "right", maxWidth: "50%" },
   div:        { height: StyleSheet.hairlineWidth, marginHorizontal: 12 },
-  note:       { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
-  cta:        { alignSelf: "stretch", borderRadius: 18, paddingVertical: 17, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  ctaTxt:     { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
+  note:         { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
+  cta:          { alignSelf: "stretch", borderRadius: 18, paddingVertical: 17, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  ctaTxt:       { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
+  phoneCard:    { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 12,
+                  borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  phoneIconWrap:{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  phoneLinkBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

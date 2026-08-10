@@ -27,21 +27,15 @@ export default function PersonalInformationScreen() {
   const [name, setName] = useState(driverName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [showVehiclePicker, setShowVehiclePicker] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
-    AsyncStorage.getItem("profile_phone").then(val => {
-      if (val) {
-        setPhone(val);
-      } else {
-        // Pre-fill from the OTP-verified recovery phone if the profile hasn't
-        // been filled in yet (e.g. first open after linking via OTP).
-        getLinkedPhone().then(linked => { if (linked) setPhone(linked); }).catch(() => {});
-      }
-    });
+    AsyncStorage.getItem("profile_phone").then(val => { if (val) setPhone(val); });
     AsyncStorage.getItem("profile_photo_uri").then(val => { if (val) setPhotoUri(val); });
+    getLinkedPhone().then(linked => setLinkedPhone(linked)).catch(() => {});
   }, []);
 
   const handleChangePhoto = async () => {
@@ -152,7 +146,7 @@ export default function PersonalInformationScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: c.mutedForeground }]}>Phone Number</Text>
+            <Text style={[styles.label, { color: c.mutedForeground }]}>Contact Phone</Text>
             <TextInput
               style={[styles.input, { backgroundColor: c.muted, color: c.foreground }]}
               value={phone}
@@ -161,6 +155,43 @@ export default function PersonalInformationScreen() {
               placeholderTextColor={c.mutedForeground}
               keyboardType="phone-pad"
             />
+          </View>
+
+          {/* Recovery phone — OTP-verified, read-only */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: c.mutedForeground }]}>Recovery Phone</Text>
+            {linkedPhone ? (
+              <TouchableOpacity
+                style={[styles.input, styles.readOnlyRow, { backgroundColor: c.muted }]}
+                onPress={() => router.push("/link-phone" as any)}
+                activeOpacity={0.75}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                  <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                  <Text style={{ color: c.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                    {linkedPhone.replace(/(\+254)(\d{3})(\d{3})(\d{3})/, "$1 $2 $3 $4")}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: c.primary }}>Change</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.input, { backgroundColor: c.primary + "10", borderWidth: 1,
+                  borderColor: c.primary + "40", borderRadius: 10, flexDirection: "row",
+                  alignItems: "center", gap: 8 }]}
+                onPress={() => router.push("/link-phone" as any)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="phone-portrait-outline" size={16} color={c.primary} />
+                <Text style={{ color: c.primary, fontFamily: "Inter_500Medium", fontSize: 14, flex: 1 }}>
+                  Link recovery phone
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={c.primary} />
+              </TouchableOpacity>
+            )}
+            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: 4, lineHeight: 15 }}>
+              Used to restore your data via SMS if you lose your phone.
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
