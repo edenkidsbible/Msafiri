@@ -1,5 +1,4 @@
-// Telemetry no-ops — Sentry has been removed from this project.
-// All call sites are kept so nothing else needs to change.
+// Telemetry no-ops. All call sites are kept so nothing needs to change.
 
 export function initTelemetry(): boolean {
   return false;

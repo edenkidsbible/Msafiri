@@ -31,8 +31,6 @@ if (typeof global !== "undefined" && (global as any).HermesInternal?.enablePromi
           "[UnhandledRejection id=" + id + "]",
           error instanceof Error ? error.message + "\n" + (error.stack ?? "") : error
         );
-        // Our tracker registration overrides Sentry's own rejection hook
-        // (last registration wins in Hermes), so forward to Sentry manually.
         captureError(error, { source: "unhandledRejection", rejectionId: id });
       },
       onHandled: () => {},

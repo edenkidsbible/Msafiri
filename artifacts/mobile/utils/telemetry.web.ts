@@ -1,7 +1,5 @@
-// Web no-op variant of the crash-telemetry module. Native crash capture is
-// meaningless in the browser preview, and keeping @sentry/react-native out of
-// the web bundle avoids any bundling/runtime surprises there. Metro picks
-// this file on web via the .web.ts platform suffix; native uses telemetry.ts.
+// Web no-op variant of the telemetry module.
+// Metro picks this file on web via the .web.ts platform suffix; native uses telemetry.ts.
 
 export function initTelemetry(): boolean {
   return false;
