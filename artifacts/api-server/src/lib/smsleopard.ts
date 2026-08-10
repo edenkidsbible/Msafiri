@@ -39,11 +39,11 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
     body: JSON.stringify(body),
   });
 
-  const json = await res.json() as {
-    success: boolean;
-    message: string;
-    recipients: { id: string; cost: number; number: string; status: string }[];
-  };
+  const rawText = await res.text();
+  console.log(`[smsleopard] HTTP ${res.status} — raw response: ${rawText}`);
+
+  let json: { success: boolean; message: string; recipients: { id: string; cost: number; number: string; status: string }[] };
+  try { json = JSON.parse(rawText); } catch { throw new Error(`SMSLeopard: non-JSON response (${res.status}): ${rawText.slice(0, 200)}`); }
 
   if (!json.success) {
     throw new Error(`SMSLeopard: ${json.message}`);
