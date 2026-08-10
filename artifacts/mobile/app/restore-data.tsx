@@ -8,7 +8,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -28,6 +27,7 @@ import { useVehicle } from "@/context/VehicleContext";
 import { sendOtp, restoreViaPhone } from "@/utils/backupSync";
 import { saveVehicles, setPrimaryVehicleIdIfUnset } from "@/utils/savedVehicles";
 import { normalizeKenyaPhone, displayKenyaPhone } from "@/utils/phoneUtils";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 export default function RestoreDataScreen() {
   const c = useColors();
@@ -152,8 +152,7 @@ export default function RestoreDataScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollViewCompat style={{ flex: 1 }} contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
 
           <View style={[s.iconWrap, { backgroundColor: c.primary + "18" }]}>
             <Ionicons name="shield-checkmark" size={38} color={c.primary} />
@@ -271,8 +270,7 @@ export default function RestoreDataScreen() {
               )}
           </TouchableOpacity>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollViewCompat>
     </SafeAreaView>
   );
 }

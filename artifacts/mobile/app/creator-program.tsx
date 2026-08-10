@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
@@ -19,6 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import { apiPost } from "@/utils/apiClient";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 const STORAGE_KEY    = "creator_application_submitted";
 const DEVICE_ID_KEY  = "msafiri_device_id";
@@ -139,18 +139,11 @@ export default function CreatorProgramScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         {...SCROLL_PROPS}
         style={{ flex: 1 }}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
       >
         <View style={[styles.heroBadge, { backgroundColor: c.primary + "18" }]}>
           <Ionicons name="star" size={36} color={c.primary} />
@@ -316,8 +309,7 @@ export default function CreatorProgramScreen() {
             <Text style={[styles.codeBtnTxt, { color: c.primary }]}>Redeem Promo Code</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }

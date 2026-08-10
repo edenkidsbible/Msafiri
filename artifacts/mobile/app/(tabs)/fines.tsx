@@ -163,6 +163,7 @@ export default function FinesScreen() {
 
           <FlatList
             {...FLAT_LIST_PROPS}
+            keyboardShouldPersistTaps="handled"
             data={fines}
             keyExtractor={(f) => f.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 100 }}

@@ -156,6 +156,7 @@ export default function FinesContent() {
 
           <FlatList
             {...FLAT_LIST_PROPS}
+            keyboardShouldPersistTaps="handled"
             data={fines}
             keyExtractor={(f) => f.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: scrollPad }}

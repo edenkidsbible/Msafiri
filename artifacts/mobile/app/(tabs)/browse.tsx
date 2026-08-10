@@ -101,6 +101,7 @@ function LearnBrowseView({ bottomInset, tabBarHeight }: { bottomInset: number; t
           {...SCROLL_PROPS}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom, gap: 8 }}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {searching ? (
             <View style={{ alignItems: "center", paddingVertical: 32, gap: 10 }}>

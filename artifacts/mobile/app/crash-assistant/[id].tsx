@@ -14,7 +14,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -25,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -554,8 +554,7 @@ export default function CrashAssistantScreen() {
       </View>
 
       {/* ── Step Content ─────────────────────────────────────────────────── */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollViewCompat ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.content}>
 
           {currentStep === "evidence" && (
             <>
@@ -649,8 +648,7 @@ export default function CrashAssistantScreen() {
             />
           )}
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollViewCompat>
 
       {/* ── Navigation Buttons ────────────────────────────────────────────── */}
       <SafeAreaView edges={["bottom"]} style={[styles.navBar, { borderTopColor: colors.border }]}>

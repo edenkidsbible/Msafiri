@@ -7,7 +7,6 @@ import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
   Image,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Share,
@@ -35,6 +34,7 @@ import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 import { syncBackup } from "@/utils/backupSync";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 interface EmergencyContact { id: string; name: string; phone: string }
 
@@ -269,13 +269,11 @@ export default function SettingsScreen() {
 
   return (
     <>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-    <ScrollView
+    <KeyboardAwareScrollViewCompat
       {...SCROLL_PROPS}
       style={[styles.screen, { backgroundColor: c.background }]}
       contentContainerStyle={{ paddingBottom: bottomInset + 40, paddingTop: topInset + 12 }}
       showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
     >
       <View style={styles.pageTitleRow}>
         <TouchableOpacity
@@ -1063,8 +1061,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </View>
-    </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollViewCompat>
 
     <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
     </>

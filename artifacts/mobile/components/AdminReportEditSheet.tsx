@@ -67,7 +67,7 @@ export default function AdminReportEditSheet({ report, visible, onClose, onSave 
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={ss.backdrop}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={[ss.sheet, { backgroundColor: bg }]}
         >
           <View style={[ss.handle, { backgroundColor: fgMuted + "55" }]} />

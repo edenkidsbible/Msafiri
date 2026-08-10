@@ -1,6 +1,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -42,7 +43,7 @@ export default function PersonalInformationScreen() {
     getLinkedPhone().then(linked => setLinkedPhone(linked)).catch(() => {});
   }, []));
 
-  const handleChangePhoto = async () => {
+  const pickPhoto = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
@@ -86,6 +87,34 @@ export default function PersonalInformationScreen() {
     }
   };
 
+  const removePhoto = async () => {
+    try {
+      if (Platform.OS !== "web" && photoUri) {
+        const FileSystem = await import("expo-file-system/legacy");
+        if (FileSystem.documentDirectory && photoUri.startsWith(FileSystem.documentDirectory)) {
+          FileSystem.deleteAsync(photoUri, { idempotent: true }).catch(() => {});
+        }
+      }
+      await AsyncStorage.removeItem("profile_photo_uri");
+      setPhotoUri(null);
+      setProfilePhotoUri(null);
+    } catch (e) {
+      console.warn("Remove photo error:", e);
+    }
+  };
+
+  const handleChangePhoto = () => {
+    if (photoUri) {
+      Alert.alert("Profile Photo", "What would you like to do?", [
+        { text: "Change Photo", onPress: pickPhoto },
+        { text: "Remove Photo", style: "destructive", onPress: removePhoto },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    } else {
+      pickPhoto();
+    }
+  };
+
   const vehicleLabel = getVehicleTypeDef(vehicleType).label;
   const initials = name ? name.substring(0, 2).toUpperCase() : "DR";
 
@@ -107,8 +136,7 @@ export default function PersonalInformationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollViewCompat style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={handleChangePhoto} activeOpacity={0.75}>
             <View style={[styles.avatarCircle, { backgroundColor: c.primary + "1E" }]}>
@@ -219,8 +247,7 @@ export default function PersonalInformationScreen() {
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: c.primary }]} onPress={handleSave} activeOpacity={0.8}>
           <Text style={[styles.saveBtnText, { color: c.primaryForeground }]}>Save Changes</Text>
         </TouchableOpacity>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
 
       {/* ── Vehicle type bottom-sheet picker ─────────────────────────────── */}
       <Modal

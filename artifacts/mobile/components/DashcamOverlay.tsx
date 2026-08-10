@@ -210,14 +210,11 @@ export default function DashcamOverlay() {
     ? useMicrophonePermissions()
     : [{ granted: true }, async () => ({ granted: true })];
 
-  // Whether recordAsync should be muted — read via ref at record time so the
-  // loop effect never restarts mid-segment. Recording with audio enabled but
-  // no mic permission throws, which used to silently kill the whole loop
-  // (REC indicator stayed on but no clips were ever saved).
-  const recordMutedRef = useRef(true);
-  useEffect(() => {
-    recordMutedRef.current = !settings.audioEnabled || !micPermission?.granted;
-  }, [settings.audioEnabled, micPermission?.granted]);
+  // Whether the camera should record audio. Computed directly from settings
+  // and mic permission — expo-camera v17 controls this via the CameraView
+  // `mute` prop, NOT via a recordAsync option (the `muted` key in
+  // recordAsync is silently ignored by this version of the library).
+  const audioMuted = !settings.audioEnabled || !(micPermission?.granted ?? false);
 
   // ── Register camera ref with DashcamContext ────────────────────────────────
   const cameraCallbackRef = useCallback(
@@ -354,7 +351,6 @@ export default function DashcamOverlay() {
           onSegmentStart();
           const result = await localCameraRef.current.recordAsync({
             maxDuration: 120,
-            muted: recordMutedRef.current,
           });
           if (result?.uri) {
             consecutiveFailures = 0;
@@ -512,6 +508,7 @@ export default function DashcamOverlay() {
           facing="back"
           mode="video"
           videoQuality={settings.quality === "720p" ? "720p" : "1080p"}
+          mute={audioMuted}
           onCameraReady={() => {
             cameraReadyRef.current = true;
             // Fallback: if backgroundRecordPending was set before the camera

@@ -534,7 +534,7 @@ export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) 
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.kav}
       >
         <View style={[styles.sheet, {

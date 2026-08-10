@@ -8,7 +8,9 @@ import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -153,6 +155,7 @@ export function AdminLocationPickerModal({
         )}
 
         {/* Bottom panel */}
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View
           style={[
             styles.panel,
@@ -212,6 +215,7 @@ export function AdminLocationPickerModal({
             )}
           </TouchableOpacity>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

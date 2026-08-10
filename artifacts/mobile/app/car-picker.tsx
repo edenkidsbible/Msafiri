@@ -3,7 +3,6 @@ import React, { useCallback, useState, useRef, useMemo, useEffect } from "react"
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Image, ActivityIndicator, Platform, ScrollView,
-  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
@@ -17,6 +16,7 @@ import {
 import CarLogoImage from "@/components/CarLogoImage";
 import { apiGet, apiPost, API_BASE } from "@/utils/apiClient";
 import { savePendingDetails, type VehicleDetails } from "@/utils/savedVehicles";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Step = "make" | "model" | "custom-make" | "custom-model" | "vehicle-details" | "custom-done";
@@ -547,16 +547,10 @@ export default function CarPickerScreen() {
 
       {/* ── Vehicle Details step ────────────────────────────────────────── */}
       {step === "vehicle-details" && (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={insets.top + 56}
+        <KeyboardAwareScrollViewCompat
+          contentContainerStyle={[styles.customForm, { paddingBottom: insets.bottom + 32 }]}
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView
-            contentContainerStyle={[styles.customForm, { paddingBottom: insets.bottom + 32 }]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
             <View style={[styles.customCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
               {/* Vehicle chip */}
               {(pendingMakeForDetails || pendingModelForDetails) && (
@@ -662,8 +656,7 @@ export default function CarPickerScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollViewCompat>
       )}
 
       {/* ── Custom done — success state ─────────────────────────────────── */}

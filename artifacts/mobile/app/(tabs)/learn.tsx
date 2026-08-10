@@ -334,6 +334,7 @@ export default function LearnScreen() {
             {...SCROLL_PROPS}
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: bottomInset + tabBarHeight + 16, gap: 8 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {searching ? (
               <View style={styles.searchStateWrap}>

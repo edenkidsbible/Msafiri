@@ -924,7 +924,7 @@ export default function TripsScreen() {
       <Modal visible={placeModal} animationType="slide" transparent onRequestClose={() => setPlaceModal(false)}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? topInset : 0}
         >
           <View style={[styles.modalCard, { backgroundColor: c.card }]}>
@@ -1109,7 +1109,7 @@ export default function TripsScreen() {
       <Modal visible={tripModal} animationType="slide" transparent onRequestClose={() => setTripModal(false)}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? topInset : 0}
         >
           <View style={[styles.modalCard, { backgroundColor: c.card }]}>

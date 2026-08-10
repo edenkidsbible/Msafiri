@@ -7,7 +7,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -29,6 +28,7 @@ import { CAR_MAKES } from "@/data/carModels";
 import { slugify } from "@/lib/vehicleImageFallback";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import CarLogoImage from "@/components/CarLogoImage";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -223,13 +223,11 @@ export default function VehicleSetup() {
         </Text>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={cs.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAwareScrollViewCompat
+        ref={scrollViewRef}
+        contentContainerStyle={cs.content}
+        showsVerticalScrollIndicator={false}
+      >
           {/* ── Step 0: Vehicle type ───────────────────────────────────────── */}
           {step === 0 && (
             <>
@@ -425,8 +423,7 @@ export default function VehicleSetup() {
               />
             </>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
 
       {/* Bottom CTA */}
       <View style={cs.bottom}>
