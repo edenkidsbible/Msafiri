@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { db, emergencyContactsTable, emergencyAlertsLogTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { sendSms } from "../lib/sms.js";
+import { sendSms } from "../lib/smsleopard.js";
 import { normalizeKenyaPhone } from "../lib/phoneUtils.js";
 
 const router: Router = Router();

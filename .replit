@@ -59,6 +59,7 @@ REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "appd3493629e8"
 BACKUP_EMAIL_ADDRESS = "alfrexlabs@gmail.com"
 SENTRY_ORG = "alfrex-labs"
 SENTRY_PROJECT = "msafiri-mobile"
+SMSLEOPARD_SENDER_ID = "SMS_Leopard"
 
 [userenv.production]
 
