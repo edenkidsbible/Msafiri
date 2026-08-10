@@ -14,7 +14,6 @@ import { db, deviceBackupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { sendOtpSms } from "../lib/smsSender.js";
-import { sendWhatsAppOtp } from "../lib/smsleopard-whatsapp.js";
 import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -58,18 +57,23 @@ function normalisePhone(raw: string): string | null {
   return null;
 }
 
+// ── EAT send window (8 AM – 6 PM) ────────────────────────────────────────────
+// SMSLeopard only allows sending during daytime hours. We enforce this server-
+// side so the error is clear rather than a cryptic "restricted_send_time".
+function isWithinSendWindow(): boolean {
+  const utcHour = new Date().getUTCHours();
+  const eatHour = (utcHour + 3) % 24;
+  return eatHour >= 8 && eatHour < 18;
+}
+
 // ── POST /auth/send-otp ───────────────────────────────────────────────────────
-// Body: { phone, intent, deviceId?, channel? }
-// channel: "sms" (default) | "whatsapp"
+// Body: { phone, intent, deviceId? }
 // For link intent, deviceId is required — the OTP is bound to that device so
 // only the same device can verify it. This prevents a code intercepted via
 // iOS proximity sharing / iCloud from being usable on a different device.
 router.post("/auth/send-otp", async (req, res) => {
-  const { phone: rawPhone, intent, deviceId, channel } =
-    req.body as { phone?: string; intent?: string; deviceId?: string; channel?: string };
-
-  const deliveryChannel: "sms" | "whatsapp" =
-    channel === "whatsapp" ? "whatsapp" : "sms";
+  const { phone: rawPhone, intent, deviceId } =
+    req.body as { phone?: string; intent?: string; deviceId?: string };
 
   if (!rawPhone || !intent || !["link", "restore"].includes(intent)) {
     return res.status(400).json({ error: "phone and intent (link|restore) are required" });
@@ -83,6 +87,14 @@ router.post("/auth/send-otp", async (req, res) => {
   const phone = normalisePhone(rawPhone);
   if (!phone) {
     return res.status(400).json({ error: "Invalid phone number — use E.164 or Kenyan local format" });
+  }
+
+  // Enforce EAT send window (8 AM – 6 PM) — SMSLeopard rejects outside this window.
+  if (!isWithinSendWindow()) {
+    return res.status(403).json({
+      error: "SMS codes can only be sent between 8:00 AM and 6:00 PM EAT (East Africa Time). Please try again during those hours.",
+      code: "OUTSIDE_SEND_WINDOW",
+    });
   }
 
   // For restore intent: confirm a backup exists for this phone before sending
@@ -118,10 +130,10 @@ router.post("/auth/send-otp", async (req, res) => {
   );
 
   if (isDev) {
-    logger.info({ phone, otp, intent, channel: deliveryChannel }, "[OTP-DEV] Generated OTP — check this log to verify");
+    logger.info({ phone, otp, intent }, "[OTP-DEV] Generated OTP — check this log to verify");
   }
 
-  // Intent-specific SMS text (only used for SMS channel)
+  // Intent-specific SMS text
   const smsMessage = intent === "restore"
     ? `Msafiri Kenya data recovery code: ${otp}. Expires in 10 min. ` +
       `Enter this in the app to restore your account. ` +
@@ -131,20 +143,15 @@ router.post("/auth/send-otp", async (req, res) => {
       `If you did not request this, ignore this message.`;
 
   try {
-    if (deliveryChannel === "whatsapp") {
-      await sendWhatsAppOtp(phone, otp);
-    } else {
-      await sendOtpSms(phone, smsMessage);
-    }
+    await sendOtpSms(phone, smsMessage);
   } catch (sendErr: any) {
-    logger.error({ err: sendErr?.message, channel: deliveryChannel }, "[OTP] delivery failed");
+    logger.error({ err: sendErr?.message }, "[OTP] SMS send failed");
     // Roll back the record so the user can retry immediately
     await db.execute(
       sql`DELETE FROM phone_verifications WHERE phone = ${phone} AND otp_hash = ${hashed}`
     ).catch(() => {});
     const detail = isDev ? ` (${sendErr?.message ?? "unknown"})` : "";
-    const via = deliveryChannel === "whatsapp" ? "WhatsApp" : "SMS";
-    return res.status(502).json({ error: `Failed to send code via ${via}. Try again.${detail}` });
+    return res.status(502).json({ error: `Failed to send SMS. Try again.${detail}` });
   }
 
   return res.json({ ok: true, ...(isDev ? { devOtp: otp } : {}) });

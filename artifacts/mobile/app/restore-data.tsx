@@ -62,7 +62,12 @@ export default function RestoreDataScreen() {
       setStep(2);
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("No account") || msg.includes("not found")) {
+      if (msg.includes("8:00 AM") || msg.includes("send window") || msg.includes("outside")) {
+        Alert.alert(
+          "Outside sending hours",
+          "SMS codes can only be sent between 8:00 AM and 6:00 PM EAT (East Africa Time). Please try again during those hours.",
+        );
+      } else if (msg.includes("No account") || msg.includes("not found")) {
         Alert.alert("No account found", "We couldn't find a backup linked to that number. Make sure you're using the phone you registered with.");
       } else if (msg.includes("Too many") || msg.includes("rate")) {
         Alert.alert("Too many requests", "Wait a few minutes and try again.");
@@ -182,21 +187,32 @@ export default function RestoreDataScreen() {
 
           {/* Step 1: Phone input */}
           {step === 1 && (
-            <View style={[s.card, { backgroundColor: cardBg, borderColor: border }]}>
-              <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>RECOVERY PHONE NUMBER</Text>
-              <TextInput
-                value={rawPhone}
-                onChangeText={setRawPhone}
-                placeholder="+254 7XX XXX XXX"
-                placeholderTextColor={c.mutedForeground + "88"}
-                keyboardType="phone-pad"
-                style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
-                autoFocus
-              />
-              <Text style={[s.hint, { color: c.mutedForeground }]}>
-                Enter the phone number you linked to your Msafiri account on your previous device.
-              </Text>
-            </View>
+            <>
+              <View style={[s.card, { backgroundColor: cardBg, borderColor: border }]}>
+                <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>RECOVERY PHONE NUMBER</Text>
+                <TextInput
+                  value={rawPhone}
+                  onChangeText={setRawPhone}
+                  placeholder="+254 7XX XXX XXX"
+                  placeholderTextColor={c.mutedForeground + "88"}
+                  keyboardType="phone-pad"
+                  style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
+                  autoFocus
+                />
+                <Text style={[s.hint, { color: c.mutedForeground }]}>
+                  Enter the phone number you linked to your Msafiri account on your previous device.
+                </Text>
+              </View>
+
+              {/* SMS send-window notice */}
+              <View style={[s.windowBanner, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
+                <Ionicons name="time-outline" size={15} color="#F59E0B" />
+                <Text style={[s.windowBannerTxt, { color: c.mutedForeground }]}>
+                  Codes are only sent between{" "}
+                  <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>8:00 AM – 6:00 PM EAT</Text>
+                </Text>
+              </View>
+            </>
           )}
 
           {/* Step 2: OTP input */}
@@ -274,7 +290,9 @@ const s = StyleSheet.create({
   fieldLabel:  { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1 },
   input:       { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 16, fontFamily: "Inter_400Regular" },
   otpInput:    { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center", letterSpacing: 8 },
-  hint:        { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  hint:           { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  windowBanner:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  windowBannerTxt:{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
   phoneChip:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1, alignSelf: "flex-start" },
   phoneChipTxt:{ fontSize: 12, fontFamily: "Inter_700Bold" },
   cta:         { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16 },

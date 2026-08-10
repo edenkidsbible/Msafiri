@@ -70,12 +70,10 @@ export async function sendOtp(
   phone: string,
   intent: "link" | "restore",
   deviceId?: string,
-  channel: "sms" | "whatsapp" = "sms",
 ): Promise<{ ok: boolean; devOtp?: string }> {
   return apiPost<{ ok: boolean; devOtp?: string }>("/auth/send-otp", {
     phone,
     intent,
-    channel,
     ...(deviceId ? { deviceId } : {}),
   });
 }

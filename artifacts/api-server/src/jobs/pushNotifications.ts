@@ -1,5 +1,5 @@
-import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable } from "@workspace/db";
-import { and, eq, lte, gte, isNull, or, ne, isNotNull, inArray } from "drizzle-orm";
+import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable, deviceBackupsTable } from "@workspace/db";
+import { and, eq, lte, gte, isNull, or, ne, isNotNull, inArray, notInArray, sql } from "drizzle-orm";
 import { sendPushNotifications, flushBadTokensFromReceipts } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
@@ -465,6 +465,80 @@ async function sendActiveCampaign(type: string, title: string, body: string): Pr
   logger.info({ type, activeTokens: tokens.length, ok, failed }, "Active-only daily campaign sent");
 }
 
+// ─── Recovery phone nudge ─────────────────────────────────────────────────────
+// Sent once per week (Monday 9 AM EAT) to devices that have a push token but
+// have not yet linked a recovery phone number. The campaign type key includes
+// the week number so alreadySentToday won't block it the following Monday.
+
+const RECOVERY_PHONE_NUDGE_MESSAGES = [
+  {
+    title: "🔐 Your Msafiri data has no recovery phone",
+    body: "If you change devices you'll lose all your vehicles and settings. Add a recovery phone — it takes 30 seconds.",
+  },
+  {
+    title: "📱 One step protects everything in Msafiri",
+    body: "Add a recovery phone number so you can restore your account on any new device. Tap to set it up now.",
+  },
+  {
+    title: "⚠️ Can you restore your data if you lose your phone?",
+    body: "Link a recovery phone in Msafiri and you'll always be able to get your vehicles and settings back.",
+  },
+];
+
+async function nudgeUnlinkedDevices(): Promise<void> {
+  // Use ISO week number so the key changes each Monday and alreadySentToday
+  // only deduplicates within the same calendar day.
+  const now    = new Date();
+  const eat    = toEat(now);
+  const weekNo = Math.ceil(
+    ((eat.getTime() - new Date(Date.UTC(eat.getUTCFullYear(), 0, 1)).getTime()) / 86400000 + 1) / 7
+  );
+  const campaignType = `recovery_phone_nudge_w${weekNo}`;
+  if (await alreadySentToday(campaignType)) return;
+
+  // Find push tokens whose device has no linked phone number.
+  const rows = await db.execute(sql`
+    SELECT pt.token
+    FROM   push_tokens pt
+    WHERE  pt.device_id NOT IN (
+             SELECT db.device_id
+             FROM   device_backups db
+             WHERE  db.phone_number IS NOT NULL
+           )
+  `);
+  const tokens = (rows.rows as { token: string }[]).map((r) => r.token);
+
+  if (tokens.length === 0) {
+    logger.info({ campaignType }, "recovery_phone_nudge: all devices have a recovery phone — skipping");
+    return;
+  }
+
+  const msg = pickMessage(RECOVERY_PHONE_NUDGE_MESSAGES);
+
+  const [campaign] = await db
+    .insert(pushCampaignsTable)
+    .values({ title: msg.title, body: msg.body, type: campaignType, status: "sending", createdBy: "system" })
+    .returning();
+
+  const { ok, failed } = await sendPushNotifications(
+    tokens.map((t) => ({
+      to: t,
+      title: msg.title,
+      body: msg.body,
+      sound: "default" as const,
+      channelId: "msafiri_alerts",
+      data: { type: "recovery_phone_nudge", screen: "/link-phone" },
+    }))
+  );
+
+  await db
+    .update(pushCampaignsTable)
+    .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed, targetCount: tokens.length })
+    .where(eq(pushCampaignsTable.id, campaign.id));
+
+  logger.info({ campaignType, targets: tokens.length, ok, failed }, "Recovery phone nudge sent");
+}
+
 // ─── Scheduled campaign processor ────────────────────────────────────────────
 
 async function processScheduledCampaigns(): Promise<void> {
@@ -576,6 +650,11 @@ async function checkDailyTriggers(): Promise<void> {
     await sendActiveCampaign("engagement", msg.title, msg.body);
   }
 
+  // Monday 9:00–9:05 AM EAT → weekly nudge to devices without a recovery phone
+  if (eatDay === 1 && eatHour === 9 && min < 5) {
+    await nudgeUnlinkedDevices();
+  }
+
   // 10:00–10:05 AM EAT daily → re-engagement for devices inactive 3+ days
   // (per-device cooldown inside checkReengagement means this is safe to run
   // every day — devices that were just re-engaged won't be hit again for 4 days)
@@ -640,6 +719,11 @@ async function catchUpMissedTriggers(): Promise<void> {
   if (eatDay === 3 && freshEnough(12 * 60 + 5)) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
     await sendActiveCampaign("engagement", msg.title, msg.body);
+  }
+
+  // Monday recovery phone nudge window closed at 09:05 EAT
+  if (eatDay === 1 && freshEnough(9 * 60 + 5)) {
+    await nudgeUnlinkedDevices();
   }
 
   // Re-engagement window closed at 10:05 EAT

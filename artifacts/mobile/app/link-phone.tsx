@@ -32,7 +32,6 @@ export default function LinkPhoneScreen() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [channel, setChannel] = useState<"sms" | "whatsapp">("sms");
 
   const bg      = c.isDark ? "#0D1611" : "#F6FAF7";
   const cardBg  = c.isDark ? "#131F17" : "#fff";
@@ -51,7 +50,7 @@ export default function LinkPhoneScreen() {
       // Pass deviceId so the server binds this OTP to our device —
       // any code intercepted on another device (e.g. via iCloud proximity) will
       // be rejected at verify time if it comes from a different deviceId.
-      const result = await sendOtp(normalized, "link", deviceId ?? undefined, channel);
+      const result = await sendOtp(normalized, "link", deviceId ?? undefined);
       setE164Phone(normalized);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // Dev-only: auto-fill OTP from server response so we can test without real SMS
@@ -59,7 +58,12 @@ export default function LinkPhoneScreen() {
       setStep(2);
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("rate") || msg.includes("Too many")) {
+      if (msg.includes("8:00 AM") || msg.includes("send window") || msg.includes("outside")) {
+        Alert.alert(
+          "Outside sending hours",
+          "SMS codes can only be sent between 8:00 AM and 6:00 PM EAT (East Africa Time). Please try again during those hours.",
+        );
+      } else if (msg.includes("rate") || msg.includes("Too many")) {
         Alert.alert("Too many requests", "An OTP was already sent recently. Wait a few minutes and try again.");
       } else {
         Alert.alert("Failed to send OTP", msg || "Check your internet connection and try again.");
@@ -156,8 +160,8 @@ export default function LinkPhoneScreen() {
           </Text>
           <Text style={[s.sub, { color: c.mutedForeground }]}>
             {step === 1
-              ? "We'll send you a one-time code to verify this number. It will be used to recover your data if you change devices."
-              : `We sent a 6-digit code via ${channel === "whatsapp" ? "WhatsApp" : "SMS"} to ${displayKenyaPhone(e164Phone)}. Enter it below.`}
+              ? "We'll send you a one-time SMS code to verify this number. It will be used to recover your data if you change devices."
+              : `We sent a 6-digit code via SMS to ${displayKenyaPhone(e164Phone)}. Enter it below.`}
           </Text>
 
           {/* Step indicators */}
@@ -192,30 +196,17 @@ export default function LinkPhoneScreen() {
                   autoFocus
                 />
                 <Text style={[s.hint, { color: c.mutedForeground }]}>
-                  {channel === "whatsapp"
-                    ? "We'll send your code via WhatsApp."
-                    : "Safaricom, Airtel, and Telkom numbers supported."}
+                  Safaricom, Airtel, and Telkom numbers supported.
                 </Text>
               </View>
 
-              {/* Channel toggle — SMS vs WhatsApp */}
-              <View style={s.channelRow}>
-                <TouchableOpacity
-                  style={[s.channelBtn, { borderColor: border, backgroundColor: channel === "sms" ? c.primary : cardBg }]}
-                  onPress={() => setChannel("sms")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="chatbubble-outline" size={14} color={channel === "sms" ? "#fff" : c.mutedForeground} />
-                  <Text style={[s.channelBtnTxt, { color: channel === "sms" ? "#fff" : c.mutedForeground }]}>SMS</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.channelBtn, { borderColor: channel === "whatsapp" ? "#25D366" : border, backgroundColor: channel === "whatsapp" ? "#25D366" : cardBg }]}
-                  onPress={() => setChannel("whatsapp")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="logo-whatsapp" size={14} color={channel === "whatsapp" ? "#fff" : c.mutedForeground} />
-                  <Text style={[s.channelBtnTxt, { color: channel === "whatsapp" ? "#fff" : c.mutedForeground }]}>WhatsApp</Text>
-                </TouchableOpacity>
+              {/* SMS send-window notice */}
+              <View style={[s.windowBanner, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
+                <Ionicons name="time-outline" size={15} color="#F59E0B" />
+                <Text style={[s.windowBannerTxt, { color: c.mutedForeground }]}>
+                  Codes are only sent between{" "}
+                  <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>8:00 AM – 6:00 PM EAT</Text>
+                </Text>
               </View>
             </>
           )}
@@ -300,10 +291,9 @@ const s = StyleSheet.create({
   input:      { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 16, fontFamily: "Inter_400Regular" },
   otpInput:   { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center", letterSpacing: 8 },
   hint:       { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, color: "#7A8C7A" },
-  resend:       { fontSize: 13, fontFamily: "Inter_500Medium" },
-  channelRow:   { flexDirection: "row", gap: 10, justifyContent: "center" },
-  channelBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
-  channelBtnTxt:{ fontSize: 14, fontFamily: "Inter_500Medium" },
+  resend:         { fontSize: 13, fontFamily: "Inter_500Medium" },
+  windowBanner:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  windowBannerTxt:{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
   cta:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16 },
   ctaTxt:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
 });
