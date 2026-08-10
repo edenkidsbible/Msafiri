@@ -13,7 +13,7 @@ import { createHash, randomInt } from "crypto";
 import { db, deviceBackupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { sendSmsAT } from "../lib/atSms.js";
+import { sendOtpSms } from "../lib/smsSender.js";
 import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -107,7 +107,7 @@ router.post("/auth/send-otp", async (req, res) => {
 
   const message = `Your Msafiri Kenya verification code is: ${otp}. It expires in 10 minutes. Do not share it.`;
   try {
-    await sendSmsAT(phone, message);
+    await sendOtpSms(phone, message);
   } catch (smsErr: any) {
     logger.error({ err: smsErr?.message }, "[OTP] SMS send failed");
     // Roll back the record so the user can retry immediately

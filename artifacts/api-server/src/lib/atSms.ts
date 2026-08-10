@@ -1,13 +1,15 @@
 /**
  * Africa's Talking SMS sender.
- * Cheaper and more reliable for Kenya than Twilio (~6-10× lower cost,
- * direct Safaricom interconnect).
  *
- * Env vars required: AT_USERNAME, AT_API_KEY
+ * Production notes:
+ *   1. AT_USERNAME must match the account that generated AT_API_KEY.
+ *      Log into account.africastalking.com → top-right shows your username.
+ *   2. Without a registered Sender ID, AT can only reach Airtel Kenya numbers.
+ *      Apply for a Sender ID at: https://account.africastalking.com/sms/sender-ids
+ *      Until approved, use Twilio (see smsSender.ts) which reaches all networks.
  *
- * In development (NODE_ENV !== "production") the sandbox endpoint is used
- * automatically so you don't burn real SMS credits during testing.
- * The sandbox always requires username="sandbox" — production uses AT_USERNAME.
+ * In development the sandbox endpoint is used automatically so no real credits
+ * are consumed. Sandbox always requires username="sandbox".
  */
 
 const AT_PROD_URL    = "https://api.africastalking.com/version1/messaging";
@@ -25,47 +27,39 @@ export async function sendSmsAT(to: string, message: string): Promise<void> {
 
   const body = new URLSearchParams({ username, to, message });
 
-  let resText = "";
-  let status  = 0;
-  try {
-    const res = await fetch(endpoint, {
-      method:  "POST",
-      headers: {
-        "apiKey":        apiKey,
-        "Accept":        "application/json",
-        "Content-Type":  "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    });
-    status  = res.status;
-    resText = await res.text();
-    if (!res.ok) {
-      throw new Error(`AT HTTP ${status}: ${resText}`);
-    }
-  } catch (err: any) {
-    // Re-throw with a clear message that contains the AT response
-    throw new Error(`AT SMS failed (${status}): ${err?.message ?? resText}`);
+  const res = await fetch(endpoint, {
+    method:  "POST",
+    headers: {
+      "apiKey":        apiKey,
+      "Accept":        "application/json",
+      "Content-Type":  "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+
+  const resText = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`AT HTTP ${res.status}: ${resText}`);
   }
 
-  // Parse delivery report
   let json: any;
   try { json = JSON.parse(resText); } catch {
-    throw new Error(`AT SMS: unexpected response body: ${resText}`);
+    throw new Error(`AT unexpected response: ${resText}`);
   }
 
   const recipients: { status: string; number: string }[] =
     json?.SMSMessageData?.Recipients ?? [];
 
   if (recipients.length === 0) {
-    throw new Error(`AT SMS: no recipients in response: ${resText}`);
+    throw new Error(`AT no recipients in response: ${resText}`);
   }
 
   const failed = recipients.filter((r) => r.status !== "Success");
   if (failed.length > 0) {
-    throw new Error(`AT SMS delivery failed for ${failed[0].number}: ${failed[0].status}`);
+    throw new Error(`AT delivery failed for ${failed[0].number}: ${failed[0].status}`);
   }
 
-  // Success — log in dev so we can confirm during testing
   if (isDev) {
     console.log(`[atSms] SANDBOX: sent to ${to} — ${json?.SMSMessageData?.Message}`);
   }
