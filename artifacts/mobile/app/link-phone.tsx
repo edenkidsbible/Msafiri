@@ -233,6 +233,7 @@ export default function LinkPhoneScreen() {
                 maxLength={6}
                 returnKeyType="done"
                 textContentType="none"
+                autoComplete="off"
                 style={[s.otpInput, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
                 autoFocus
               />

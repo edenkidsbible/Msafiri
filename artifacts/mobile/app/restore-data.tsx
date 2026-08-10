@@ -239,6 +239,8 @@ export default function RestoreDataScreen() {
                 placeholderTextColor={c.mutedForeground + "88"}
                 keyboardType="number-pad"
                 maxLength={6}
+                textContentType="none"
+                autoComplete="off"
                 style={[s.otpInput, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
                 autoFocus
               />
