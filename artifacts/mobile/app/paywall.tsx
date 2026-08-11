@@ -661,7 +661,9 @@ export default function PaywallScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[p.planName, { color: c.foreground }]}>Weekly</Text>
-                  <Text style={[p.planNote, { color: c.mutedForeground }]}>Flexible · Cancel anytime</Text>
+                  <Text style={[p.planNote, { color: c.mutedForeground }]}>
+                    {trialEligible ? "3 days free · " : ""}Flexible · Cancel anytime
+                  </Text>
                 </View>
                 <View style={p.priceBlock}>
                   <Text style={[p.price, { color: c.foreground }]}>{weeklyPriceString || "—"}</Text>
@@ -709,13 +711,13 @@ export default function PaywallScreen() {
             {trialEligible ? (
               <View>
                 <Text style={[p.ctaPriceMain, { color: c.foreground }]}>
-                  {selectedPkg === "$rc_weekly" ? weeklyPriceString : "Free"}{" "}
+                  Free{" "}
                   <Text style={{ color: c.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" }}>
                     today
                   </Text>
                 </Text>
                 <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
-                  Then {chosenPriceString}/{periodLabel}
+                  Then {chosenPriceString}/{periodLabel} after 3 days
                 </Text>
               </View>
             ) : (
