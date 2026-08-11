@@ -1271,7 +1271,7 @@ export default function DriveScreen() {
       {/* Map only mounts when a trip (or pre-trip countdown) is active, OR when
           the driver has entered route-preview mode (destination set, reviewing
           the route before confirming). In plain idle state a clean screen shows. */}
-      {(tripActive || countdownValue !== null || showRoutePreviewMode) && (
+      {(tripActive || countdownValue !== null || showRoutePreviewMode || isMapMode) && (
         <View style={StyleSheet.absoluteFillObject}>
           <ErrorBoundary FallbackComponent={MapErrorFallback}>
             <DriveMapView ref={driveMapRef} mapDrifted={mapDrifted} onDriftChange={setMapDrifted} tripMode={tripActive} />
@@ -1282,7 +1282,7 @@ export default function DriveScreen() {
       {/* ── Pre-trip idle screen — replaces the old map-based idle state ─────
           Hidden when the driver enters route-preview mode (showRoutePreviewMode),
           at which point the map + route preview sheet take over.              */}
-      {!tripActive && countdownValue === null && !showRoutePreviewMode && (
+      {!tripActive && countdownValue === null && !showRoutePreviewMode && !isMapMode && (
         <View style={[StyleSheet.absoluteFillObject, {
           backgroundColor: isDark ? "#0D120E" : "#F4F7F5",
           alignItems: "center",
@@ -1410,7 +1410,7 @@ export default function DriveScreen() {
           Shown on the pre-trip idle screen (and inside TripSummaryModal).
           Positioned above the tab bar so it doesn't disturb the centered
           Drive Mode content.                                                   */}
-      {!tripActive && countdownValue === null && !showRoutePreviewMode && pendingTripReview && (
+      {!tripActive && countdownValue === null && !showRoutePreviewMode && !isMapMode && pendingTripReview && (
         <View
           style={{
             position: "absolute",
