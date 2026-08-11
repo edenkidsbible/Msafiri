@@ -43,6 +43,10 @@ import {
   fmtDateTime,
 } from "@/components/VideoPlayerModal";
 import { watermarkedPath } from "@/utils/videoWatermark";
+import {
+  loadDashcamLocationCache,
+  saveDashcamLocationName,
+} from "@/utils/dashcamLocationCache";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +94,6 @@ type ListItem =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SECRET_KEY       = "dashcam_secret_v1";
-const LOC_CACHE_KEY    = (id: string) => `dc_loc_v1_${id}`;
 const MAX_PINS_PER_DEVICE = 5;
 
 /** Module-level thumbnail URI cache — survives re-renders in the same session. */
@@ -562,6 +565,24 @@ export default function DashcamVideosScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unifiedClips]);
 
+  // ── Eager cache restore on mount ──────────────────────────────────────────
+  //
+  // Load persisted location names from AsyncStorage immediately so the list
+  // shows real place names on first render rather than waiting for the
+  // coordsKey geocode effect to fire.
+  useEffect(() => {
+    let cancelled = false;
+    loadDashcamLocationCache().then((cached) => {
+      if (!cancelled && Object.keys(cached).length > 0) {
+        locCacheRef.current = cached;
+        setLocationNames(cached);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  // Run once on mount only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Resolve location names via API-proxied HERE reverse geocode ────────────
   //
   // Key the effect on a stable hash of clip ID + coords only.  Metadata
@@ -577,13 +598,10 @@ export default function DashcamVideosScreen() {
     // runs.  The closure captures `unifiedClips` from the enclosing render.
     const clipsToProcess = unifiedClips;
     (async () => {
-      // 1. Warm the in-memory cache from AsyncStorage for all current clips.
-      const cache = { ...locCacheRef.current };
-      for (const clip of clipsToProcess) {
-        if (cache[clip.id]) continue;
-        const stored = await AsyncStorage.getItem(LOC_CACHE_KEY(clip.id)).catch(() => null);
-        if (stored) cache[clip.id] = stored;
-      }
+      // 1. Merge the persisted cache into the in-memory ref so we never
+      //    re-geocode a clip that was resolved in a previous session.
+      const persisted = await loadDashcamLocationCache();
+      const cache = { ...persisted, ...locCacheRef.current };
       if (!cancelled) { locCacheRef.current = cache; setLocationNames({ ...cache }); }
 
       // 2. Geocode clips that still have no name but do have coordinates.
@@ -595,9 +613,14 @@ export default function DashcamVideosScreen() {
           cache[clip.id] = name;
           locCacheRef.current = { ...cache };
           setLocationNames({ ...cache });
-          AsyncStorage.setItem(LOC_CACHE_KEY(clip.id), name).catch(() => {});
+          // Write-through to AsyncStorage via the dedicated cache utility.
+          saveDashcamLocationName(clip.id, name).catch(() => {});
         }
       }
+
+      // Note: active cache pruning is intentionally omitted.  The 500-entry cap
+      // and 90-day TTL in dashcamLocationCache.ts bound growth without the risk
+      // of deleting valid entries from a partial or in-flight clip list.
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
