@@ -597,12 +597,10 @@ export default function DriveScreen() {
     // just returned from a Clips/History detour), never auto-start a new trip.
     if (tripSummaryDataRef.current) return;
     if (navDestination) {
-      // Destination already set (e.g. from the Map tab) — enter route preview
-      // mode so the driver can inspect the route before confirming the trip.
-      // NOT guarded by autoStartedRef: this must fire every time focus arrives
-      // with a destination, even after a prior no-destination auto-start cycle
-      // has already consumed the guard.
-      setShowRoutePreviewMode(true);
+      // Destination already set (e.g. after returning from the pre-trip
+      // checklist). The idle screen shows the destination chip with a "Start"
+      // button — no extra mode change needed here; the driver taps Start when
+      // ready and startTrip() launches the countdown.
     } else if (!autoStartedRef.current && noAutoStart !== "1") {
       // No destination — auto-start once per session (guarded so it doesn't
       // re-fire while a trip is still active or when focus bounces).
@@ -1168,6 +1166,9 @@ export default function DriveScreen() {
     setNavDestination({ name: r.display, lat: r.lat, lng: r.lng });
     // Persist to recents (newest-first, deduped)
     saveRecentSearch(r).then(setRecentSearches);
+    // Route through pre-trip checklist so the driver sets up permissions
+    // before the trip starts.
+    router.push("/pretrip-check");
   };
 
   /** Navigate directly to a saved place (Home / Work / custom).
@@ -1181,6 +1182,8 @@ export default function DriveScreen() {
     setShowDestPicker(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setNavDestination({ name: place.label, lat: place.lat, lng: place.lng });
+    // Route through pre-trip checklist before starting.
+    router.push("/pretrip-check");
   }, [setNavDestination]);
 
   const clearDestination = () => {
@@ -1284,35 +1287,21 @@ export default function DriveScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Start button — enters route-preview mode so the driver can
-                    inspect alt routes and incidents before confirming the trip.
-                    The route preview sheet's own Start button calls startTrip(). */}
+                {/* Start button — begins the countdown and starts the trip. */}
                 <TouchableOpacity
-                  disabled={routeLoading}
                   style={{
                     flexDirection: "row", alignItems: "center", justifyContent: "center",
                     gap: 8, width: "100%",
-                    backgroundColor: routeLoading ? (isDark ? "#1A2A1A" : "#C8E6C9") : c.primary,
+                    backgroundColor: c.primary,
                     borderRadius: 18, paddingVertical: 16,
                   }}
-                  onPress={() => { setShowRoutePreviewMode(true); }}
+                  onPress={startTrip}
                   activeOpacity={0.85}
                 >
-                  {routeLoading ? (
-                    <>
-                      <ActivityIndicator size="small" color={c.primary} />
-                      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: c.primary }}>
-                        Calculating route…
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Ionicons name="navigate" size={19} color="#FFF" />
-                      <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" }}>
-                        Start
-                      </Text>
-                    </>
-                  )}
+                  <Ionicons name="navigate" size={19} color="#FFF" />
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" }}>
+                    Start
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Change destination link */}

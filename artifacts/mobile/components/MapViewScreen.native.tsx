@@ -577,7 +577,7 @@ export default function MapViewScreen() {
     setActiveChipCat(null); setChipResults([]); setChipError(null);
     setNavDestination({ name, lat, lng });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.replace("/(tabs)/drive");
+    router.push("/pretrip-check");
   };
 
   const openCluster = (group: ClusterGroup) => {
@@ -981,7 +981,7 @@ export default function MapViewScreen() {
                         setActiveChipCat(null); setChipResults([]); setChipError(null);
                         setNavDestination({ name: item.name, lat: item.lat, lng: item.lng });
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        router.replace("/(tabs)/drive");
+                        router.push("/pretrip-check");
                       }}
                     >
                       <View style={[styles.dropdownIcon, { backgroundColor: item.subtypeColor + "20" }]}>
