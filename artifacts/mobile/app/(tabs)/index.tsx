@@ -376,12 +376,12 @@ export default function HomeScreen() {
                 on dark surfaces without needing a separate dark-mode asset. */}
             <View style={[styles.logoWrap, {
               backgroundColor: c.isDark ? "#FFFFFF" : "transparent",
-              borderRadius: 9,
+              borderRadius: 12,
               overflow: "hidden",
             }]}>
               <Image
                 source={require("@/assets/images/msafiri-logo-transparent.png")}
-                style={{ width: 30, height: 30 }}
+                style={{ width: 40, height: 40 }}
                 resizeMode="contain"
               />
             </View>
@@ -614,10 +614,10 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionLink, { color: c.primary }]}>See all</Text>
               </TouchableOpacity>
             </View>
-            {nearbyAlerts.length === 2 ? (
-              /* ── 2 alerts: full-width 2-column grid, horizontal card layout ── */
+            {nearbyAlerts.length >= 2 ? (
+              /* ── 2+ alerts: full-width 2-column grid — show first two only ── */
               <View style={styles.alertDuoRow}>
-                {nearbyAlerts.map((a) => (
+                {nearbyAlerts.slice(0, 2).map((a) => (
                   <TouchableOpacity
                     key={a.id}
                     activeOpacity={0.8}
@@ -713,41 +713,9 @@ export default function HomeScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
-            ) : (
-              /* ── 3+ alerts: 3-column grid, same edge alignment as other tiles ── */
-              <View style={styles.alertTrioRow}>
-                {nearbyAlerts.slice(0, 3).map((a) => (
-                  <TouchableOpacity
-                    key={a.id}
-                    activeOpacity={0.8}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/(tabs)/map",
-                        params: { focusId: a.id, focusLat: String(a.lat), focusLng: String(a.lng), focusTs: String(Date.now()) },
-                      })
-                    }
-                    style={[styles.alertCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
-                  >
-                    <View style={[styles.alertIcon, { backgroundColor: a.color + "22" }]}>
-                      <Text style={{ fontSize: 16, fontFamily: EMOJI_FONT_FAMILY }}>{a.emoji}</Text>
-                    </View>
-                    <Text style={[styles.alertType, { color: c.foreground }]} numberOfLines={2}>
-                      {a.label}
-                    </Text>
-                    <Text style={[styles.alertDist, { color: a.color }]} numberOfLines={1}>
-                      {distStr(a.distanceM)} ahead
-                    </Text>
-                    {a.road ? (
-                      <Text style={[styles.alertRoad, { color: c.mutedForeground }]} numberOfLines={1}>
-                        {a.road}
-                      </Text>
-                    ) : null}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-            {/* Course promo banner — shown below scroll when there are 2 alerts */}
-            {nearbyAlerts.length === 2 && (
+            ) : null}
+            {/* Course promo banner — shown below the alert duo when there are 2+ alerts */}
+            {nearbyAlerts.length >= 2 && (
               <TouchableOpacity activeOpacity={0.88} onPress={openCourse} style={[styles.courseBanner, { borderColor: c.primary + "44" }]}>
                 <LinearGradient
                   colors={c.isDark ? ["#0D2B1A", "#0A1F14"] : ["#E8F5EE", "#D0EDD9"]}
@@ -965,7 +933,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoWrap: { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  logoWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   logoTxt: { fontSize: 19, fontFamily: "Inter_700Bold" },
   logoTag: { fontSize: 10.5, fontFamily: "Inter_400Regular", marginTop: 1 },
   bellBtn: {
@@ -1053,21 +1021,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
   sectionLink: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  // ── 3-column grid (3+ alerts) ────────────────────────────────────────────
-  alertTrioRow: {
-    flexDirection: "row", gap: 10,
-  },
-  // Each card stretches equally; edges align with the surrounding tile grid.
-  alertCard: {
-    flex: 1, borderRadius: 16, borderWidth: 1,
-    paddingVertical: 12, paddingHorizontal: 10, gap: 5,
-  },
-  alertIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  alertType: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 1 },
-  alertDist: { fontSize: 11.5, fontFamily: "Inter_700Bold" },
-  alertRoad: { fontSize: 10.5, fontFamily: "Inter_400Regular" },
-
-  // ── 2-column full-width grid cards (exactly 2 alerts) ────────────────────
+  // ── 2-column full-width grid cards (1–2 alerts) ──────────────────────────
   alertDuoRow: {
     flexDirection: "row", gap: 10,
   },

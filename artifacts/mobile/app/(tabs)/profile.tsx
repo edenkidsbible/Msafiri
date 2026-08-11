@@ -60,7 +60,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const tabBarH = Platform.OS === "web" ? 84 : 96;
   
-  const { driverName, clearAllData, deviceId, profilePhotoUri } = useApp();
+  const { driverName, clearAllData, deviceId, profilePhotoUri, isAdmin } = useApp();
   const { isSubscribed, customerInfo, isOnTrial, subscriptionPlan } = useSubscription();
   const version = Constants.expoConfig?.version ?? "2.1.0";
 
@@ -340,6 +340,23 @@ export default function ProfileScreen() {
             />
           </View>
         </View>
+
+        {/* Administration — only visible when logged in with admin PIN */}
+        {isAdmin && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: c.foreground, marginHorizontal: 16 }]}>Administration</Text>
+            <View style={[styles.sectionGroup, { backgroundColor: c.card, borderColor: c.tileBorder, marginHorizontal: 16 }]}>
+              <SettingsRow
+                icon="list-circle-outline"
+                iconColor="#EF4444"
+                title="Manage Listings"
+                sub="Review and approve community reports"
+                onPress={() => router.push("/admin-listings" as any)}
+                isLast
+              />
+            </View>
+          </View>
+        )}
 
         {/* Support & More Section */}
         <View style={styles.section}>

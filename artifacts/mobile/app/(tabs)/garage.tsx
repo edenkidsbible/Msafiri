@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image as ExpoImage } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -61,9 +62,12 @@ import {
 } from "@/utils/savedVehicles";
 // vehicleSessionMap removed — sessions are now filtered server-side via vehicleId param
 import {
+  TripLocation,
   TripLocationMap,
   loadTripLocationCache,
+  saveTripLocation,
 } from "@/utils/tripLocationCache";
+import { reverseGeocode } from "@/utils/geocoding";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -177,10 +181,10 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
   // No URL or all phases exhausted → type-specific PNG silhouette (never emoji)
   if (!uri) {
     return (
-      <Image
+      <ExpoImage
         source={getVehicleFallbackImage(v.vehicleType)}
         style={{ width, height }}
-        resizeMode="contain"
+        contentFit="contain"
       />
     );
   }
@@ -204,11 +208,13 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
       {loading && (
         <ActivityIndicator size="small" color={c.primary} style={{ position: "absolute" }} />
       )}
-      <Image
+      {/* expo-image caches to disk automatically — images survive offline & app restarts */}
+      <ExpoImage
         key={`${uri}-${retryCount.current}`}
         source={{ uri }}
         style={{ width, height }}
-        resizeMode="contain"
+        contentFit="contain"
+        cachePolicy="disk"
         onLoad={() => setLoading(false)}
         onError={handleError}
       />
@@ -294,10 +300,14 @@ function VehicleSlide({
   const fuelLabel = v.fuelType ?? "Petrol";
   const trLabel   = v.transmission ?? "Automatic";
   const odoDisplay = (() => {
+    // Prefer the live care estimate (initial odometer + accumulated trip km) over
+    // the static v.odometerKm snapshot — the estimate stays current with every
+    // completed trip. Only fall back to the snapshot for vehicles whose care data
+    // has never been initialised (legacy/never-driven case).
+    if (odometerKm > 0)
+      return `${Math.round(odometerKm).toLocaleString()} km`;
     if (v.odometerKm && v.odometerKm > 0)
       return `${v.odometerKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
-    if (odometerKm > 0)
-      return `${odometerKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
     return "— km";
   })();
 
@@ -724,10 +734,29 @@ export default function GarageScreen() {
     vehicleType, deviceId, vehicleMakeId, vehicleModelId,
     vehicleCustomMakeName, vehicleCustomModelName,
     setVehicleModel, setCustomVehicle, setVehicleType,
+    isOffline,
   } = useApp();
+
+  // ── Offline session / stats cache keys ───────────────────────────────────────
+  // Keyed by vehicleId so swapping cars always shows the right history.
+  const sessionsCacheKey = useCallback(
+    (vehicleId: string) => `msafiri_sessions_v1_${vehicleId}`,
+    []
+  );
+  const sharedStatsCacheKey = useCallback(
+    (sharedId: string) => `msafiri_shared_stats_v1_${sharedId}`,
+    []
+  );
 
   const [filteredSessions, setFilteredSessions] = useState<DriveSession[]>([]);
   const [locationCache,    setLocationCache]    = useState<TripLocationMap>({});
+  // Ref mirror so the geocoding effect can read the current cache without
+  // putting locationCache in deps (which would cause an infinite loop).
+  const locationCacheRef    = useRef<TripLocationMap>({});
+  useEffect(() => { locationCacheRef.current = locationCache; }, [locationCache]);
+  // Track which session IDs are already queued for geocoding so rapid
+  // re-renders don't duplicate in-flight requests.
+  const geocodingInFlightRef = useRef(new Set<string>());
   const [careStats,  setCareStats]  = useState<VehicleCareStats | null>(null);
   const [odometerKm, setOdometerKm] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -886,6 +915,7 @@ export default function GarageScreen() {
   // ── Shared vehicle aggregate stats ───────────────────────────────────────────
   // When the active slide is a shared vehicle, fetch summed distance/time/trips
   // across ALL co-drivers (server-side). Only totals — no per-session data.
+  // Caches to AsyncStorage so co-driver totals are visible while offline.
   useEffect(() => {
     const activeVehicle = vehicles[clampedSlideIndex] ?? vehicles[0];
     const sharedId = activeVehicle?.sharedVehicleId;
@@ -893,10 +923,20 @@ export default function GarageScreen() {
       setSharedStats(null);
       return;
     }
+    // Load cached value immediately so the UI never shows zeros while waiting
+    const cacheKey = sharedStatsCacheKey(sharedId);
+    AsyncStorage.getItem(cacheKey)
+      .then((raw) => { if (raw) setSharedStats(JSON.parse(raw)); })
+      .catch(() => {});
+    // Skip network fetch while offline — cached value is already shown
+    if (isOffline) return;
     getSharedVehicleStats(sharedId)
-      .then(stats => setSharedStats(stats))
-      .catch(() => setSharedStats(null));
-  }, [vehicles, clampedSlideIndex, focusTick]);
+      .then(stats => {
+        setSharedStats(stats);
+        AsyncStorage.setItem(cacheKey, JSON.stringify(stats)).catch(() => {});
+      })
+      .catch(() => {/* keep cached value */});
+  }, [vehicles, clampedSlideIndex, focusTick, isOffline, sharedStatsCacheKey]);
 
   // ── Per-vehicle session fetch ────────────────────────────────────────────────
   // Fetch sessions from the server scoped to the vehicle currently shown on the
@@ -904,6 +944,10 @@ export default function GarageScreen() {
   // recorded during a drive appear immediately without a manual pull-to-refresh.
   // The default vehicle also includes legacy rows where vehicle_id IS NULL so
   // pre-tracking trips still appear in its history.
+  //
+  // Offline behaviour: loads from AsyncStorage cache immediately (stale-while-
+  // revalidate). On a successful network fetch the cache is updated. While
+  // offline the fetch is skipped entirely and the cached list is shown.
   //
   // Generation counter: each effect invocation increments `sessionsFetchGen`.
   // The response handler checks that its generation is still the latest before
@@ -913,9 +957,20 @@ export default function GarageScreen() {
   useEffect(() => {
     if (!deviceId || vehicles.length === 0) return;
     const slideVehicle = vehicles[clampedSlideIndex] ?? vehicles[0];
-    // Clear immediately so stale data from the previous vehicle never lingers
-    setFilteredSessions([]);
+    const cacheKey = sessionsCacheKey(slideVehicle.id);
     const gen = ++sessionsFetchGen.current;
+
+    // 1. Show cached sessions instantly — avoids an empty flash while loading
+    AsyncStorage.getItem(cacheKey)
+      .then((raw) => {
+        if (!raw || gen !== sessionsFetchGen.current) return;
+        try { setFilteredSessions(JSON.parse(raw)); } catch { /* malformed cache */ }
+      })
+      .catch(() => {});
+
+    // 2. Skip network fetch while offline — cached data is already displayed
+    if (isOffline) return;
+
     listDriveSessions(
       deviceId,
       100,
@@ -929,9 +984,50 @@ export default function GarageScreen() {
       .then(({ sessions }) => {
         if (gen !== sessionsFetchGen.current) return; // stale — a newer request is in flight
         setFilteredSessions(sessions);
+        // Update cache with fresh data for next offline session
+        AsyncStorage.setItem(cacheKey, JSON.stringify(sessions)).catch(() => {});
       })
-      .catch(() => {});
-  }, [deviceId, vehicles, clampedSlideIndex, focusTick]);
+      .catch(() => {/* keep whatever the cache already showed */});
+  }, [deviceId, vehicles, clampedSlideIndex, focusTick, isOffline, sessionsCacheKey, primaryVehicleId]);
+
+  // ── Background geocoding for "My last trips" ─────────────────────────────────
+  // Reverse-geocode the start/end coordinates of any completed sessions that
+  // are not yet in the location cache.  This runs whenever filteredSessions
+  // changes (e.g. after the vehicle-scoped fetch above completes).  We cap at
+  // 5 per run so a long history doesn't spam the Photon API.
+  useEffect(() => {
+    const toGeocode = filteredSessions.filter(s =>
+      s.endedAt != null &&
+      s.startLat != null &&
+      !locationCacheRef.current[s.id] &&
+      !geocodingInFlightRef.current.has(s.id)
+    ).slice(0, 5);
+    if (toGeocode.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const s of toGeocode) {
+        if (cancelled || s.startLat == null || s.startLng == null) continue;
+        geocodingInFlightRef.current.add(s.id);
+        try {
+          const [from, to] = await Promise.all([
+            reverseGeocode(s.startLat, s.startLng),
+            s.endLat != null && s.endLng != null
+              ? reverseGeocode(s.endLat, s.endLng)
+              : Promise.resolve(""),
+          ]);
+          if (cancelled) break;
+          if (!from) { geocodingInFlightRef.current.delete(s.id); continue; }
+          const loc: TripLocation = { from, to: to || from };
+          await saveTripLocation(s.id, loc);
+          if (!cancelled) setLocationCache(prev => ({ ...prev, [s.id]: loc }));
+        } catch {
+          geocodingInFlightRef.current.delete(s.id);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filteredSessions]);
 
   // ── Per-vehicle care stats ───────────────────────────────────────────────────
   // Reload Vehicle Care stats whenever the active slide or focus changes so the
@@ -1262,6 +1358,16 @@ export default function GarageScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── Offline banner ── */}
+        {isOffline && (
+          <View style={[styles.offlineBanner, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
+            <Ionicons name="cloud-offline-outline" size={16} color="#D97706" />
+            <Text style={styles.offlineBannerTxt}>
+              You're offline · Showing last synced data
+            </Text>
+          </View>
+        )}
 
         {/* ── My Vehicles — horizontal swipeable slides ── */}
         <View style={{ marginBottom: 16 }}>
@@ -1691,6 +1797,14 @@ const styles = StyleSheet.create({
   },
 
   card: { borderRadius: 18, borderWidth: 1, padding: 16 },
+
+  offlineBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 16, marginBottom: 12,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, borderWidth: 1,
+  },
+  offlineBannerTxt: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#D97706" },
 
   sectionHeaderRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

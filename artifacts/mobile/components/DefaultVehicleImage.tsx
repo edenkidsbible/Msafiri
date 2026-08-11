@@ -15,7 +15,8 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, ImageStyle, StyleProp, Text, View } from "react-native";
+import { ActivityIndicator, ImageStyle, StyleProp, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { CAR_MAKES, getCarImageUrl } from "@/data/carModels";
 import { slugify } from "@/lib/vehicleImageFallback";
 import { loadVehicles, SavedVehicle } from "@/utils/savedVehicles";
@@ -85,7 +86,7 @@ export function DefaultVehicleImage({ width, height, vehicle: vehicleProp, refre
       <Image
         source={src}
         style={[{ width, height }, style]}
-        resizeMode="contain"
+        contentFit="contain"
       />
     );
   }
@@ -144,7 +145,7 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
       <Image
         source={src}
         style={[{ width, height }, style]}
-        resizeMode="contain"
+        contentFit="contain"
       />
     );
   }
@@ -180,7 +181,7 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
         <Image
           source={src}
           style={[{ width, height }, style]}
-          resizeMode="contain"
+          contentFit="contain"
         />
       );
     }
@@ -207,11 +208,13 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
           style={{ position: "absolute" }}
         />
       )}
+      {/* expo-image: disk cache means the correct car photo loads even offline */}
       <Image
         key={`${uri}-${retryCount.current}`}
         source={{ uri }}
         style={[{ width, height }, style]}
-        resizeMode="contain"
+        contentFit="contain"
+        cachePolicy="disk"
         onLoad={onLoaded}
         onError={handleError}
       />

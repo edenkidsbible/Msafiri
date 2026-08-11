@@ -453,6 +453,7 @@ function RootLayoutNav() {
         <Stack.Screen name="creator-program" options={{ headerShown: false }} />
         <Stack.Screen name="live/[code]"     options={{ headerShown: false }} />
         <Stack.Screen name="accident-assistant-info" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-listings"           options={{ headerShown: false }} />
         <Stack.Screen name="trip-detail/[id]"        options={{ headerShown: false }} />
         <Stack.Screen name="vehicle-care"            options={{ headerShown: false }} />
         <Stack.Screen name="trip-history"            options={{ headerShown: false }} />

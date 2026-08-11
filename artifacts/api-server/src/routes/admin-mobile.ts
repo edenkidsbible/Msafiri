@@ -69,6 +69,57 @@ router.post("/admin-mobile/auth", (req: Request, res: Response) => {
 });
 
 // ─── POST /admin-mobile/reports/:id/verify ───────────────────────────────────
+// ─── GET /admin-mobile/reports ───────────────────────────────────────────────
+// Returns reports by status (default: pending_review) for the admin listings
+// screen.  Also supports status=active to inspect live reports.
+router.get("/admin-mobile/reports", adminMobileAuth, async (req: Request, res: Response) => {
+  try {
+    const status = (req.query.status as string) || "pending_review";
+    const VALID = ["pending_review", "active", "confirmed", "denied", "expired", "flagged"];
+    const safeStatus = VALID.includes(status) ? status : "pending_review";
+
+    const rows = await db
+      .select({
+        id: communityReportsTable.id,
+        type: communityReportsTable.type,
+        status: communityReportsTable.status,
+        lat: communityReportsTable.lat,
+        lng: communityReportsTable.lng,
+        roadName: communityReportsTable.roadName,
+        confirmCount: communityReportsTable.confirmCount,
+        denyCount: communityReportsTable.denyCount,
+        adminVerified: communityReportsTable.adminVerified,
+        speedLimit: communityReportsTable.speedLimit,
+        createdAt: communityReportsTable.createdAt,
+        expiresAt: communityReportsTable.expiresAt,
+      })
+      .from(communityReportsTable)
+      .where(eq(communityReportsTable.status, safeStatus as any))
+      .orderBy(desc(communityReportsTable.createdAt))
+      .limit(100);
+
+    return res.json({
+      reports: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        status: r.status,
+        lat: r.lat,
+        lng: r.lng,
+        roadName: r.roadName ?? null,
+        confirmCount: r.confirmCount,
+        denyCount: r.denyCount,
+        adminVerified: r.adminVerified,
+        speedLimit: r.speedLimit ?? null,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+        expiresAt: r.expiresAt instanceof Date ? r.expiresAt.toISOString() : (r.expiresAt ?? null),
+      })),
+    });
+  } catch (err) {
+    console.error("GET /admin-mobile/reports error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Mark a report as admin-verified: adminVerified=true, status=confirmed,
 // confirmCount=random 5-49, expiresAt=null (no expiry).
 router.post(

@@ -81,6 +81,9 @@ function placeIcon(kind: SavedPlace["kind"]): React.ComponentProps<typeof Ionico
   return "location";
 }
 
+// Module-level tab persistence — survives component remounts within the same JS session.
+let _lastTab: "share" | "planned" | "past" = "share";
+
 export default function TripsScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -115,11 +118,22 @@ export default function TripsScreen() {
   // Deep-link support: router.push("/(tabs)/trips?initialTab=planned") jumps
   // straight to the Saved Places section without going through the Share tab.
   const { initialTab } = useLocalSearchParams<{ initialTab?: string }>();
-  const [tab, setTab] = useState<"share" | "planned" | "past">(
-    initialTab === "planned" ? "planned" : initialTab === "past" ? "past" : "share"
-  );
-  // Re-apply if the param changes while the screen is mounted (e.g. deep-link
-  // fired while the trips tab was already in the navigator).
+
+  // ── Tab persistence across remounts ───────────────────────────────────────
+  // On Android, returning from a Stack push (e.g. trip-detail) can cause the
+  // tab screen to remount under memory pressure, resetting useState to its
+  // initial value.  A module-level variable (survives remounts within the same
+  // JS bundle session) lets us restore the user's last manually-selected tab
+  // so the list doesn't snap back to "share" after they've navigated away.
+  const [tab, setTab] = useState<"share" | "planned" | "past">(() => {
+    if (initialTab === "planned") return "planned";
+    if (initialTab === "past")    return "past";
+    return _lastTab;
+  });
+  // Persist tab choice whenever it changes
+  useEffect(() => { _lastTab = tab; }, [tab]);
+  // Re-apply deep-link param if it changes while the screen is already mounted
+  // (e.g. a second deep-link fired while the trips tab was in the navigator).
   useEffect(() => {
     if (initialTab === "planned") setTab("planned");
     else if (initialTab === "past") setTab("past");
@@ -500,7 +514,17 @@ export default function TripsScreen() {
     ]);
   };
 
-  const upcomingTrips = trips.filter((t) => t.status === "upcoming" || t.status === "notified");
+  const now = Date.now();
+  const upcomingTrips = trips.filter(
+    (t) => (t.status === "upcoming" || t.status === "notified") && t.plannedAt > now
+  );
+  // Planned trips whose departure time has already passed — shown in the Past tab.
+  const expiredTrips = trips
+    .filter((t) =>
+      t.status === "completed" ||
+      ((t.status === "upcoming" || t.status === "notified") && t.plannedAt <= now)
+    )
+    .sort((a, b) => b.plannedAt - a.plannedAt); // most recent first
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -797,6 +821,31 @@ export default function TripsScreen() {
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={
                 <>
+                  {/* Expired planned trips — shown at the top of the Past tab */}
+                  {expiredTrips.length > 0 && (
+                    <View style={{ paddingHorizontal: 16, marginBottom: 16, marginTop: 4 }}>
+                      <Text style={[styles.sectionTitle, { color: c.foreground, marginBottom: 8 }]}>
+                        Planned Trips
+                      </Text>
+                      {expiredTrips.map(t => (
+                        <View
+                          key={t.id}
+                          style={[styles.tripRow, { backgroundColor: c.card, borderColor: c.border, marginBottom: 8 }]}
+                        >
+                          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.muted, alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                            <Ionicons name="calendar-outline" size={16} color={c.mutedForeground} />
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[styles.tripLabel, { color: c.foreground }]} numberOfLines={1}>{t.label}</Text>
+                            <Text style={[styles.tripTime, { color: c.mutedForeground }]}>{tripDateStr(t.plannedAt)}</Text>
+                          </View>
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: c.muted, marginLeft: 8 }}>
+                            <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>Passed</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                   {/* Summary cards */}
                   {totalDriveTrips > 0 && (
                     <View style={styles.summaryRow}>
@@ -828,7 +877,10 @@ export default function TripsScreen() {
                 return (
                   <TouchableOpacity
                     activeOpacity={0.8}
-                    onPress={() => router.push(`/trip-detail/${s.id}`)}
+                    onPress={() => {
+                      if (!s.id) return;
+                      router.push({ pathname: "/trip-detail/[id]", params: { id: s.id } } as any);
+                    }}
                     style={[styles.driveSessionCard, { backgroundColor: c.card, borderColor: c.border }]}
                   >
                     {/* Header row: date + score badge */}
@@ -1215,7 +1267,7 @@ export default function TripsScreen() {
                 >
                   <Ionicons name="calendar-outline" size={15} color={showPicker === "date" ? c.primary : c.mutedForeground} />
                   <Text style={[styles.dateBtnText, { color: c.foreground }]}>
-                    {tripDate.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}
+                    {tripDate.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short", timeZone: EAT })}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1224,7 +1276,7 @@ export default function TripsScreen() {
                 >
                   <Ionicons name="time-outline" size={15} color={showPicker === "time" ? c.primary : c.mutedForeground} />
                   <Text style={[styles.dateBtnText, { color: c.foreground }]}>
-                    {tripDate.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" })}
+                    {tripDate.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT })}
                   </Text>
                 </TouchableOpacity>
               </View>

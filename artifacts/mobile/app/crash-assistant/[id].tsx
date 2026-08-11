@@ -30,13 +30,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { format } from "date-fns";
 import * as ImagePicker from "expo-image-picker";
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from "expo-audio";
 import { useApp } from "@/context/AppContext";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, API_BASE } from "@/utils/apiClient";
 import { useColors } from "@/hooks/useColors";
@@ -121,7 +114,6 @@ interface AccidentRecord {
   police?: PoliceInfo | null;
   driverStatement?: string | null;
   hasPdf: boolean;
-  hasAudioStatement: boolean;
   dashcamClipId?: string | null;
   photos: Photo[];
   witnesses: Witness[];
@@ -165,10 +157,6 @@ const VEHICLE_TYPES = [
   "Other",
 ] as const;
 
-function formatDuration(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
 
 const PHOTO_CATEGORIES = [
   { id: "front_damage",   label: "Front Damage",   icon: "car-outline" },
@@ -201,8 +189,6 @@ export default function CrashAssistantScreen() {
   const [statement, setStatement] = useState("");
   const [witnessForm, setWitnessForm] = useState({ name: "", phone: "", notes: "" });
   const [showWitnessForm, setShowWitnessForm] = useState(false);
-  // Audio statement state (tracks whether audio has been uploaded so the PDF can note it)
-  const [audioStatementUploaded, setAudioStatementUploaded] = useState(false);
 
   // Report step
   const [generating, setGenerating] = useState(false);
@@ -231,7 +217,6 @@ export default function CrashAssistantScreen() {
       if (data.otherDriver) setOtherParty(data.otherDriver);
       if (data.police) setPolice(data.police);
       if (data.driverStatement) setStatement(data.driverStatement);
-      if (data.hasAudioStatement) setAudioStatementUploaded(true);
       if (data.hasPdf) setPdfUrl(`report-ready`);
     } catch {
       Alert.alert("Error", "Could not load accident record.");
@@ -637,10 +622,6 @@ export default function CrashAssistantScreen() {
             <StatementStep
               value={statement}
               onChange={setStatement}
-              accidentId={id}
-              deviceId={deviceId ?? ""}
-              hasAudioStatement={audioStatementUploaded}
-              onAudioUploaded={() => { setAudioStatementUploaded(true); loadRecord(); }}
               colors={colors}
               styles={styles}
             />
@@ -1208,216 +1189,34 @@ function PoliceStep({ value, onChange, colors, styles }: {
   );
 }
 
-/** Statement step — text input tab or in-app audio recording tab. */
+/** Statement step — written account of the incident. */
 function StatementStep({
   value, onChange,
-  accidentId, deviceId,
-  hasAudioStatement, onAudioUploaded,
   colors, styles,
 }: {
   value: string;
   onChange: (v: string) => void;
-  accidentId: string;
-  deviceId: string;
-  hasAudioStatement: boolean;
-  onAudioUploaded: () => void;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
-  const [mode, setMode] = useState<"text" | "audio">("text");
-  const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  // expo-audio recording hooks (must be at component top level)
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(recorder, 250);
-
-  const startRecording = useCallback(async () => {
-    const { granted } = await requestRecordingPermissionsAsync();
-    if (!granted) {
-      Alert.alert(
-        "Microphone Access Required",
-        "Msafiri needs microphone access to record your voice statement as part of this accident report.\n\nTo enable: Settings → Privacy & Security → Microphone → Msafiri → turn on.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    // Set audio mode so recording works on iOS even in silent mode.
-    // Wrapped in its own try-catch: a failure here must not block recording.
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: true } as any);
-    } catch { /* non-fatal — proceed anyway */ }
-    try {
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-    } catch {
-      Alert.alert("Error", "Could not start recording. Please try again.");
-    }
-  }, [recorder]);
-
-  const stopRecording = useCallback(async () => {
-    try {
-      // recorder.stop() returns a RecordingResult with the URI in expo-audio
-      const result = await recorder.stop();
-      const uri = (result as any)?.uri ?? recorder.uri;
-      if (uri) {
-        setRecordingUri(uri);
-      } else {
-        Alert.alert("Recording Error", "Could not save the recording. Please try again.");
-      }
-    } catch {
-      Alert.alert("Error", "Could not stop recording.");
-    }
-  }, [recorder]);
-
-  const uploadAudio = useCallback(async () => {
-    if (!recordingUri || !accidentId || !deviceId) return;
-    setUploading(true);
-    try {
-      const { photoId, uploadUrl } = await apiPost(
-        `/accidents/${accidentId}/photos/request-upload`,
-        { deviceId, category: "audio_statement", contentType: "audio/m4a" },
-      ) as { photoId: string; uploadUrl: string };
-
-      const blob = await (await fetch(recordingUri)).blob();
-      await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": "audio/m4a" },
-        body: blob,
-      });
-      await apiPost(`/accidents/${accidentId}/photos/${photoId}/confirm`, { deviceId });
-      onAudioUploaded();
-      setRecordingUri(null); // mark as committed
-    } catch {
-      Alert.alert("Upload Failed", "Could not save your audio statement. Please try again.");
-    } finally {
-      setUploading(false);
-    }
-  }, [recordingUri, accidentId, deviceId, onAudioUploaded]);
-
-  const discardRecording = useCallback(() => {
-    setRecordingUri(null);
-  }, []);
-
-  const isRecording = recorderState.isRecording;
-  const durationMs  = recorderState.durationMillis ?? 0;
-
   return (
     <View>
-      {/* ── Mode tabs ────────────────────────────────────────────────────── */}
-      <View style={[styles.modeTabs, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {(["text", "audio"] as const).map((m) => (
-          <TouchableOpacity
-            key={m}
-            style={[styles.modeTab, mode === m && { backgroundColor: colors.primary }]}
-            onPress={() => setMode(m)}
-          >
-            <Ionicons
-              name={m === "text" ? "create-outline" : "mic-outline"}
-              size={16}
-              color={mode === m ? "#fff" : colors.mutedForeground}
-            />
-            <Text style={[styles.modeTabText, { color: mode === m ? "#fff" : colors.mutedForeground }]}>
-              {m === "text" ? "Write" : "Record"}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
+        Describe what happened in your own words. You can also use your keyboard's built-in dictation button to speak your statement.
+      </Text>
+      <View style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TextInput
+          style={[styles.statementInput, { color: colors.text }]}
+          value={value}
+          onChangeText={onChange}
+          placeholder="Describe the sequence of events, road conditions, visibility, speed, what you saw, and anything else relevant to the incident…"
+          placeholderTextColor={colors.mutedForeground}
+          multiline
+          textAlignVertical="top"
+          returnKeyType="default"
+        />
       </View>
-
-      {/* ── Write mode ───────────────────────────────────────────────────── */}
-      {mode === "text" && (
-        <>
-          <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
-            Describe what happened. Use your keyboard's microphone button to dictate if preferred.
-          </Text>
-          <View style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TextInput
-              style={[styles.statementInput, { color: colors.text }]}
-              value={value}
-              onChangeText={onChange}
-              placeholder="Describe the sequence of events, road conditions, visibility, speed, what you saw, and anything else relevant to the incident…"
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              textAlignVertical="top"
-              returnKeyType="default"
-            />
-          </View>
-          <Text style={[styles.charCount, { color: colors.mutedForeground }]}>{value.length} characters</Text>
-        </>
-      )}
-
-      {/* ── Record mode ──────────────────────────────────────────────────── */}
-      {mode === "audio" && (
-        <View style={{ alignItems: "center", paddingTop: 16 }}>
-          {hasAudioStatement && !recordingUri && (
-            <View style={[styles.audioSavedBanner, { backgroundColor: "#34C75918", borderColor: "#34C759" }]}>
-              <Ionicons name="checkmark-circle" size={18} color="#34C759" />
-              <Text style={[styles.audioSavedText, { color: "#34C759" }]}>Audio statement saved</Text>
-            </View>
-          )}
-
-          {/* Big mic button */}
-          {!recordingUri && (
-            <>
-              <Text style={[styles.stepIntro, { color: colors.mutedForeground, textAlign: "center" }]}>
-                {isRecording
-                  ? "Recording in progress — tap to stop when done."
-                  : "Tap the microphone to start recording your statement."}
-              </Text>
-
-              <TouchableOpacity
-                style={[
-                  styles.micBtn,
-                  { backgroundColor: isRecording ? "#FF3B30" : colors.primary },
-                ]}
-                onPress={isRecording ? stopRecording : startRecording}
-                activeOpacity={0.85}
-              >
-                <Ionicons name={isRecording ? "stop" : "mic"} size={36} color="#fff" />
-              </TouchableOpacity>
-
-              {isRecording && (
-                <Text style={[styles.recordTimer, { color: colors.primary }]}>
-                  {formatDuration(durationMs)}
-                </Text>
-              )}
-            </>
-          )}
-
-          {/* After recording — confirm / discard / upload */}
-          {recordingUri && (
-            <View style={{ width: "100%", gap: 12 }}>
-              <View style={[styles.audioReadyCard, { backgroundColor: colors.card, borderColor: colors.primary + "60" }]}>
-                <Ionicons name="musical-note-outline" size={24} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.audioReadyTitle, { color: colors.text }]}>Recording complete</Text>
-                  <Text style={[styles.audioReadySub, { color: colors.mutedForeground }]}>{formatDuration(durationMs)} recorded</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.uploadAudioBtn, { backgroundColor: colors.primary }]}
-                onPress={uploadAudio}
-                disabled={uploading}
-              >
-                {uploading
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Ionicons name="cloud-upload-outline" size={20} color="#fff" />}
-                <Text style={styles.uploadAudioBtnText}>{uploading ? "Saving…" : "Save to Report"}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.discardAudioBtn, { borderColor: colors.border }]}
-                onPress={discardRecording}
-              >
-                <Ionicons name="trash-outline" size={18} color="#FF3B30" />
-                <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#FF3B30" }}>Discard & Re-record</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
+      <Text style={[styles.charCount, { color: colors.mutedForeground }]}>{value.length} characters</Text>
     </View>
   );
 }
@@ -1818,45 +1617,5 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14, borderWidth: 1,
     },
     causeText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-
-    // ── Statement mode tabs ───────────────────────────────────────────────
-    modeTabs: {
-      flexDirection: "row", borderRadius: 14, borderWidth: 1,
-      overflow: "hidden", marginBottom: 16,
-    },
-    modeTab: {
-      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 6, paddingVertical: 11,
-    },
-    modeTabText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-
-    // ── Recording UI ──────────────────────────────────────────────────────
-    micBtn: {
-      width: 100, height: 100, borderRadius: 50,
-      alignItems: "center", justifyContent: "center",
-      marginVertical: 24,
-    },
-    recordTimer: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: 2, marginBottom: 8 },
-    audioSavedBanner: {
-      flexDirection: "row", alignItems: "center", gap: 8,
-      borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-      marginBottom: 16, width: "100%",
-    },
-    audioSavedText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    audioReadyCard: {
-      flexDirection: "row", alignItems: "center", gap: 12,
-      borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 4,
-    },
-    audioReadyTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    audioReadySub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-    uploadAudioBtn: {
-      flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 15, borderRadius: 14,
-    },
-    uploadAudioBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
-    discardAudioBtn: {
-      flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1,
-    },
   });
 }

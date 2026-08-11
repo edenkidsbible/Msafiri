@@ -71,6 +71,7 @@ import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { recordSession } from "@/utils/vehicleSessionMap";
 import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
+import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,7 @@ export default function DriveScreen() {
     crashSensitivity,
     setDashcamActive,
     setNavTripActive, setNavTripPaused,
+    isOffline, lastAlertDataSyncedAt,
   } = useApp();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
@@ -314,6 +316,13 @@ export default function DriveScreen() {
   // Post-trip summary — populated at the moment a trip is stopped so we can
   // display stats even after tripActive clears and state resets.
   const [tripSummaryData, setTripSummaryData] = useState<TripSummaryData | null>(null);
+  // When the user navigates to Dashcam Clips or Trip History from the summary
+  // modal we hide (not dismiss) the modal so it reappears on back-navigation.
+  const [summaryHiddenForNav, setSummaryHiddenForNav] = useState(false);
+  // Ref mirror so the empty-deps auto-start useFocusEffect can read the live
+  // summary state without re-registering the callback on every data change.
+  const tripSummaryDataRef = useRef<TripSummaryData | null>(null);
+  useEffect(() => { tripSummaryDataRef.current = tripSummaryData; }, [tripSummaryData]);
   const [tripPaused, setTripPaused] = useState(false);
   // Refs for accurate elapsed-time accounting across pauses
   const pausedAtMsRef = useRef<number | null>(null);
@@ -575,7 +584,17 @@ export default function DriveScreen() {
   // autoStartedRef guard prevents double-starting while a trip is already
   // active. The ref is reset in the effect below when tripActive goes false.
   const { noAutoStart } = useLocalSearchParams<{ noAutoStart?: string }>();
+  // Un-hide the summary modal when the user navigates back from Dashcam Clips
+  // or Trip History. This runs every time drive gains focus; when
+  // summaryHiddenForNav is already false it is a harmless no-op.
   useFocusEffect(useCallback(() => {
+    setSummaryHiddenForNav(false);
+  }, []));
+
+  useFocusEffect(useCallback(() => {
+    // If the post-trip summary is still showing (pending dismissal or the user
+    // just returned from a Clips/History detour), never auto-start a new trip.
+    if (tripSummaryDataRef.current) return;
     if (navDestination) {
       // Destination already set (e.g. from the Map tab) — enter route preview
       // mode so the driver can inspect the route before confirming the trip.
@@ -1518,6 +1537,11 @@ export default function DriveScreen() {
           <View style={styles.livePillDot} />
           <Text style={styles.livePillTxt}>LIVE</Text>
         </View>
+      )}
+
+      {/* ── Offline mode pill — shown whenever device has no internet ──────── */}
+      {isOffline && Platform.OS !== "web" && (
+        <OfflineAlertBanner lastSyncedAt={lastAlertDataSyncedAt} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -3060,7 +3084,7 @@ export default function DriveScreen() {
       {/* Post-trip summary — slides up after the driver ends a trip */}
       <TripSummaryModal
         data={tripSummaryData}
-        hidden={!!previewConfig}
+        hidden={!!previewConfig || summaryHiddenForNav}
         onPreview={setPreviewConfig}
         onDismiss={() => {
           // Only clear the data — the modal's own action buttons (goHome,
@@ -3068,6 +3092,13 @@ export default function DriveScreen() {
           // router.back()/replace here fires ~20 ms after those navigations
           // complete and undoes them (e.g. pops trip-history immediately).
           setTripSummaryData(null);
+          setSummaryHiddenForNav(false);
+        }}
+        onNavigateAway={() => {
+          // User tapped Clips or History — hide the modal while they browse,
+          // but keep tripSummaryData alive. The un-hide useFocusEffect above
+          // restores visibility when they press back to the drive tab.
+          setSummaryHiddenForNav(true);
         }}
         onStopSharing={() => {
           stopSharingTrip();

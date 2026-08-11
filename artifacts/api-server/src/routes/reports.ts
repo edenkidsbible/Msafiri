@@ -32,7 +32,11 @@ async function geocodeRoadName(lat: number, lng: number): Promise<string | null>
 // Report types that must be reviewed by a moderator before they go live to
 // drivers. Kept small and deliberate — these are the types most likely to
 // cause real harm to drivers if a bad report goes live unreviewed.
-const MODERATED_TYPES = new Set(["camera", "police"]);
+// Only cameras require admin moderation before going live — they are permanent
+// physical infrastructure that need verification.  Police checkpoints are
+// time-sensitive crowd signals that should appear on the map immediately;
+// removing them from moderation means drivers see them while they are relevant.
+const MODERATED_TYPES = new Set(["camera"]);
 
 // ── TTL per report type (seconds; null = never expires) ───────────────────────
 // Per-type TTLs reflect how quickly each incident class realistically clears:

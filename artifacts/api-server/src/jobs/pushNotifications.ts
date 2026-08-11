@@ -822,7 +822,7 @@ async function sendTripAdvice(deviceId: string, token: string, tripId: string, l
   let body: string;
 
   if (!route) {
-    title = `🗺️ Trip to ${label} coming up`;
+    title = `🗺️ Trip to ${label} in ~30 minutes`;
     body = `You planned to leave around ${formatEatTime(plannedAt)}. Open Msafiri to check live road conditions before you go.`;
   } else {
     const reports = await db
@@ -903,12 +903,33 @@ async function checkPlannedTrips(): Promise<void> {
   }
 }
 
+// ─── Auto-expire planned trips ────────────────────────────────────────────────
+// Any trip whose plannedAt timestamp is in the past and still has status
+// "upcoming" or "notified" is moved to "completed" so clients can show it in
+// the Past tab instead of the Upcoming list.
+async function markExpiredTrips(): Promise<void> {
+  const now = new Date();
+  await db
+    .update(plannedTripsTable)
+    .set({ status: "completed" })
+    .where(
+      and(
+        or(
+          eq(plannedTripsTable.status, "upcoming"),
+          eq(plannedTripsTable.status, "notified"),
+        ),
+        lte(plannedTripsTable.plannedAt, now),
+      )
+    );
+}
+
 // ─── Job entry point ──────────────────────────────────────────────────────────
 
 async function runJob(): Promise<void> {
   await processScheduledCampaigns();
   await checkDailyTriggers();
   await checkPlannedTrips();
+  await markExpiredTrips();
 }
 
 // ── Receipt-based bad token purge ─────────────────────────────────────────────

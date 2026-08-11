@@ -360,14 +360,15 @@ export default function DashcamVideosScreen() {
 
   const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
   const goBack = useCallback(() => {
-    if (fromSummary === "1") router.replace("/(tabs)");
-    else router.back();
-  }, [fromSummary]);
+    // Always use router.back() — when opened from the post-trip summary modal
+    // this returns to the drive tab where the modal reappears automatically.
+    router.back();
+  }, []);
 
   useEffect(() => {
     if (fromSummary !== "1") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      router.replace("/(tabs)");
+      router.back();
       return true;
     });
     return () => sub.remove();

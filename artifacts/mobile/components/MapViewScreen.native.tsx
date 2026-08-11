@@ -8,6 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { CrosshairPickerModal } from "@/components/CrosshairPicker";
@@ -140,7 +141,21 @@ function reportLabel(type: string): string {
 // ─── Cluster grouping ─────────────────────────────────────────────────────────
 
 type ClusterGroup = { members: CommunityReport[]; lat: number; lng: number };
-const CLUSTER_RADIUS = 0.003;
+
+// Only merge reports of the SAME type within 100 m — keeps distinct incident
+// types visually separate while collapsing genuine duplicate submissions.
+const CLUSTER_RADIUS_M = 100;
+// Quick bounding-box pre-filter: 100 m ≈ 0.0009° at equatorial latitudes.
+const CLUSTER_BBOX_DEG = 0.0009;
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const f1 = (lat1 * Math.PI) / 180, f2 = (lat2 * Math.PI) / 180;
+  const df = ((lat2 - lat1) * Math.PI) / 180;
+  const dl = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
   const used = new Set<string>();
@@ -154,11 +169,25 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
     for (const s of reports) {
       if (used.has(s.id)) continue;
       if (s.lat == null || s.lng == null || isNaN(s.lat) || isNaN(s.lng)) continue;
-      if (Math.abs(s.lat - r.lat) < CLUSTER_RADIUS && Math.abs(s.lng - r.lng) < CLUSTER_RADIUS) {
+      // Same-type only, bounding-box pre-filter then precise haversine check
+      if (
+        s.type === r.type &&
+        Math.abs(s.lat - r.lat) < CLUSTER_BBOX_DEG &&
+        Math.abs(s.lng - r.lng) < CLUSTER_BBOX_DEG &&
+        haversineM(r.lat, r.lng, s.lat, s.lng) <= CLUSTER_RADIUS_M
+      ) {
         group.members.push(s);
         used.add(s.id);
       }
     }
+    // Anchor the cluster at the most-confirmed member's location so the marker
+    // sits on the most-verified sighting rather than the first submission.
+    const lead = group.members.reduce(
+      (best, m) => m.confirmCount > best.confirmCount ? m : best,
+      group.members[0],
+    );
+    group.lat = lead.lat;
+    group.lng = lead.lng;
     clusters.push(group);
   }
   return clusters;
@@ -199,23 +228,39 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
     );
   }
 
-  const icons = members.slice(0, 4);
+  // All members share the same type (same-type clustering).
+  // Show ONE emoji anchor with a count badge — avoids a grid of identical emoji
+  // and gives the user a clear "N reports here" signal.
+  const lead = members[0];
+  if (lead.type === "camera") {
+    return (
+      <View collapsable={false} style={{ position: "relative" }}>
+        <View
+          style={{
+            width: 32, height: 32, borderRadius: 16,
+            backgroundColor: "#E53935",
+            alignItems: "center", justifyContent: "center",
+            borderWidth: 2.5, borderColor: "#FFF",
+            shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.35, shadowRadius: 4, elevation: 7,
+          }}
+        >
+          <Ionicons name="camera" size={16} color="#FFF" />
+        </View>
+        <View style={styles.clusterCountBadge}>
+          <Text style={styles.clusterCountTxt}>{members.length}</Text>
+        </View>
+      </View>
+    );
+  }
+  const def = resolveIncidentType(lead.type);
   return (
-    <View collapsable={false}>
-      <View style={styles.clusterWrap}>
-        <View style={styles.clusterGrid}>
-          {icons.map((r) => {
-            const def = resolveIncidentType(r.type);
-            return (
-              <View key={r.id} style={[styles.clusterCell, { backgroundColor: def.color }]}>
-                <Text style={styles.clusterEmoji}>{def.emoji}</Text>
-              </View>
-            );
-          })}
-        </View>
-        <View style={styles.clusterBadge}>
-          <Text style={styles.clusterBadgeTxt}>{members.length}</Text>
-        </View>
+    <View collapsable={false} style={{ position: "relative" }}>
+      <View style={[styles.emojiMarker, { backgroundColor: def.color }]}>
+        <Text style={styles.emojiMarkerText}>{def.emoji}</Text>
+      </View>
+      <View style={styles.clusterCountBadge}>
+        <Text style={styles.clusterCountTxt}>{members.length}</Text>
       </View>
     </View>
   );
@@ -240,6 +285,8 @@ export default function MapViewScreen() {
     routeIncidentsAhead, setRouteIncidentsExpanded,
     mapPickerActive,
     setMapPickerActive,
+    isOffline, lastAlertDataSyncedAt,
+    navTripActive,
   } = useApp();
   const weather = useWeather(currentLat, currentLng);
 
@@ -1091,13 +1138,16 @@ export default function MapViewScreen() {
           );
         })}
 
-        {/* Alternative routes */}
-        {altRoutes.map((r) => (
+        {/* Route polylines — only visible when a trip is actively running.
+            Before the driver taps Start, no polyline is drawn on the browse
+            map so the route doesn't linger here after being set from the Map
+            tab or Saved Places. The drive screen's DriveMapView handles the
+            green/blue trip-mode split independently. */}
+        {navTripActive && altRoutes.map((r) => (
           <Polyline key={r.id} coordinates={r.coords} strokeColor="#88888888" strokeWidth={4} tappable onPress={() => selectRoute(r)} />
         ))}
 
-        {/* Active route */}
-        {activeRoute && (
+        {navTripActive && activeRoute && (
           <Polyline
             coordinates={activeRoute.coords}
             strokeColor="#2196F3"
@@ -1642,6 +1692,14 @@ export default function MapViewScreen() {
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* ── Offline indicator — floats above map controls ──────────────────── */}
+      {isOffline && (
+        <OfflineAlertBanner
+          lastSyncedAt={lastAlertDataSyncedAt}
+          bottomOffset={16}
+        />
+      )}
     </View>
   );
 }
@@ -1900,6 +1958,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#00000020",
   },
   clusterBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#222" },
+  // Badge for same-type clusters: overlaid count pill on the single emoji anchor
+  clusterCountBadge: {
+    position: "absolute", top: -6, right: -6,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: "#FFF", alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3, borderWidth: 1.5, borderColor: "#00000030",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2, shadowRadius: 2, elevation: 3,
+  },
+  clusterCountTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#111" },
   trafficBadge: {
     position: "absolute", right: 12,
     flexDirection: "row", alignItems: "center", gap: 4,

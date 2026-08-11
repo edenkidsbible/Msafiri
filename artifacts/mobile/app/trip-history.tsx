@@ -104,29 +104,31 @@ function fmtDur(s: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+const EAT = "Africa/Nairobi";
+
 function fmtDate(epoch: number) {
   const d = new Date(epoch);
   return {
-    monthShort: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
-    day:        d.getDate(),
-    weekday:    d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
-    timeStr:    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-    fullStr:    d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }),
+    monthShort: d.toLocaleDateString("en-KE", { month: "short", timeZone: EAT }).toUpperCase(),
+    day:        parseInt(d.toLocaleDateString("en-KE", { day: "numeric", timeZone: EAT }), 10),
+    weekday:    d.toLocaleDateString("en-KE", { weekday: "short", timeZone: EAT }).toUpperCase(),
+    timeStr:    d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT }),
+    fullStr:    d.toLocaleDateString("en-KE", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: EAT }),
   };
 }
 
 function sessionDate(startedAt: string) {
   const d = new Date(startedAt);
   return {
-    monthShort: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
-    day:        d.getDate(),
-    weekday:    d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
-    timeStr:    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    monthShort: d.toLocaleDateString("en-KE", { month: "short", timeZone: EAT }).toUpperCase(),
+    day:        parseInt(d.toLocaleDateString("en-KE", { day: "numeric", timeZone: EAT }), 10),
+    weekday:    d.toLocaleDateString("en-KE", { weekday: "short", timeZone: EAT }).toUpperCase(),
+    timeStr:    d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT }),
   };
 }
 
 function timePeriod(startedAt: string): string {
-  const h = new Date(startedAt).getHours();
+  const h = parseInt(new Date(startedAt).toLocaleTimeString("en-KE", { hour: "2-digit", hour12: false, timeZone: EAT }), 10);
   if (h < 12) return "Morning";
   if (h < 17) return "Afternoon";
   if (h < 21) return "Evening";
@@ -397,7 +399,7 @@ function AddTripModal({ visible, editing, savedPlaces, deviceId, onClose, onSave
             <TouchableOpacity style={[styles.pickerBtn, { borderColor: borderCol }]} onPress={() => setShowDatePicker(true)}>
               <Ionicons name="calendar-outline" size={18} color={c.primary} />
               <Text style={{ fontSize: 15, fontFamily: "Inter_400Regular", color: c.foreground }}>
-                {tripDate.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" })}
+                {tripDate.toLocaleDateString("en-KE", { weekday: "short", month: "long", day: "numeric", year: "numeric", timeZone: EAT })}
               </Text>
             </TouchableOpacity>
             {showDatePicker && (
@@ -416,7 +418,7 @@ function AddTripModal({ visible, editing, savedPlaces, deviceId, onClose, onSave
             <TouchableOpacity style={[styles.pickerBtn, { borderColor: borderCol }]} onPress={() => setShowTimePicker(true)}>
               <Ionicons name="time-outline" size={18} color={c.primary} />
               <Text style={{ fontSize: 15, fontFamily: "Inter_400Regular", color: c.foreground }}>
-                {tripDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                {tripDate.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT })}
               </Text>
             </TouchableOpacity>
             {showTimePicker && (
@@ -637,11 +639,11 @@ export default function TripHistoryScreen() {
     // initial value; subsequent changes are handled by the effect below.
   );
 
-  // ── Android hardware back: go to tabs when arriving from summary ──────────
+  // ── Android hardware back: return to drive tab (summary modal reappears) ──
   useEffect(() => {
     if (!fromSummary) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      router.replace("/(tabs)");
+      router.back();
       return true;
     });
     return () => sub.remove();
@@ -696,7 +698,7 @@ export default function TripHistoryScreen() {
 
   const upcomingTrips = useMemo(
     () => plannedTrips
-      .filter(t => t.status === "upcoming" || t.status === "notified")
+      .filter(t => (t.status === "upcoming" || t.status === "notified") && t.plannedAt > Date.now())
       .sort((a, b) => a.plannedAt - b.plannedAt),
     [plannedTrips]
   );
@@ -879,7 +881,7 @@ export default function TripHistoryScreen() {
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <TouchableOpacity
-            onPress={() => fromSummary ? router.replace("/(tabs)") : router.back()}
+            onPress={() => router.back()}
             style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.isDark ? "#1A2820" : "#fff", alignItems: "center", justifyContent: "center" }}
           >
             <Ionicons name="arrow-back" size={20} color={c.foreground} />

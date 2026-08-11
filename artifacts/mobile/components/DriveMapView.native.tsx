@@ -1327,12 +1327,14 @@ const DriveMapView = forwardRef(function DriveMapView(
           );
         })}
 
-        {/* Alternative routes — traffic-coloured (same bands as active route), selectable.
+        {/* Alternative routes — only shown in route-preview mode (before trip starts).
+            Hidden immediately when tripMode becomes true so the driver sees only
+            the active green/blue split, never a cluttered set of grey alternatives.
             Geometry is sanitized + memoized in altRouteSegs (rebuilds only when
             altRoutes changes, never on GPS ticks). The sanitized route object is
             used for BOTH display and selection so selectRoute() never receives
             corrupt coordinates that would crash the native polyline layer. */}
-        {altRouteSegs.map(({ route: safeRoute, segs }) => {
+        {!tripMode && altRouteSegs.map(({ route: safeRoute, segs }) => {
           return (
             <React.Fragment key={safeRoute.id}>
               {segs.map((seg, i) => (
@@ -1365,9 +1367,12 @@ const DriveMapView = forwardRef(function DriveMapView(
         })}
 
 
-        {/* Route polyline — trip mode: green (covered) + blue (ahead) split.
-            Preview / non-trip: standard traffic-coloured segments. */}
-        {tripMode && activeRoute && activeRoute.coords.length >= 2 ? (
+        {/* Route polyline — only rendered once the trip is active (tripMode=true).
+            No polyline is shown in preview/pre-trip mode: the route-info sheet
+            already shows destination, duration, and distance as text, and
+            drawing a blue line before Start caused it to linger on the home
+            map and persist through alt-route selection. */}
+        {tripMode && activeRoute && activeRoute.coords.length >= 2 && (
           <>
             {/* Green section — coords already driven */}
             {tripSplitIdx > 1 && (
@@ -1404,16 +1409,7 @@ const DriveMapView = forwardRef(function DriveMapView(
               </>
             )}
           </>
-        ) : (activeRouteSegs && (
-          <>
-            {activeRouteSegs.map((seg, i) => (
-              <React.Fragment key={i}>
-                <Polyline coordinates={seg.coords} strokeColor={seg.halo} strokeWidth={10} lineCap="round" lineJoin="round" />
-                <Polyline coordinates={seg.coords} strokeColor={seg.color} strokeWidth={6} lineCap="round" lineJoin="round" />
-              </React.Fragment>
-            ))}
-          </>
-        ))}
+        )}
 
         {/* Destination marker — red dot in trip mode, blue nav pin in preview */}
         {activeRoute && activeRoute.coords.length > 0 && (

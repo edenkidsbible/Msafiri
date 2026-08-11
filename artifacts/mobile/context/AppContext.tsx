@@ -31,6 +31,7 @@ import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { syncBackup } from "@/utils/backupSync";
 import { loadVehicles } from "@/utils/savedVehicles";
 import { getCareStorageKey, updateTripOdometer } from "@/utils/vehicleCare";
+import { flushOfflineSessions } from "@/utils/driveSessionApi";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { Accelerometer } from "expo-sensors";
 
@@ -249,6 +250,8 @@ interface AppContextValue {
   onboardingComplete: boolean;
   completeOnboarding: () => void;
   isOffline: boolean;
+  /** Timestamp of the last successful alert-data sync (reports + zones). Null until first sync. */
+  lastAlertDataSyncedAt: Date | null;
   vehicleType: VehicleTypeId;
   setVehicleType: (v: VehicleTypeId) => void;
   /** Selected car make id (e.g. "toyota", or "custom-haima" for custom). Null when not yet chosen. */
@@ -989,6 +992,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [lastAlertDataSyncedAt, setLastAlertDataSyncedAt] = useState<Date | null>(null);
   const [vehicleType, setVehicleTypeState] = useState<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   const vehicleTypeRef = useRef<VehicleTypeId>(DEFAULT_VEHICLE_TYPE);
   const [vehicleMakeId, setVehicleMakeIdState] = useState<string | null>(null);
@@ -1288,7 +1292,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setCrashSensitivityState(storedCrashSensitivity);
         crashSensitivityRef.current = storedCrashSensitivity;
       }
-      if (storedProfilePhoto) setProfilePhotoUriState(storedProfilePhoto);
+      if (storedProfilePhoto && !storedProfilePhoto.startsWith("http")) {
+        setProfilePhotoUriState(storedProfilePhoto);
+      } else if (storedProfilePhoto) {
+        // Stale HTTP car-image URL stored by an older build — clear it silently
+        AsyncStorage.removeItem("profile_photo_uri").catch(() => {});
+      }
       if (storedMakeId) setVehicleMakeIdState(storedMakeId);
       if (storedModelId) setVehicleModelIdState(storedModelId);
       if (storedCustomMakeName) setVehicleCustomMakeNameState(storedCustomMakeName);
@@ -1383,7 +1392,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const unsub = NetInfo.addEventListener((s) => {
       const nowOnline = s.isConnected ?? true;
-      if (nowOnline && isOfflineRef.current) retrySyncQueue();
+      if (nowOnline && isOfflineRef.current) {
+        retrySyncQueue();
+        // Replay any drive sessions that were recorded while offline
+        const did = deviceIdRef.current;
+        if (did) flushOfflineSessions(did).catch(() => {});
+      }
       setIsOffline(!nowOnline);
     });
     return unsub;
@@ -2566,6 +2580,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           (r) => r.status !== "expired" && r.status !== "denied"
         );
       });
+      setLastAlertDataSyncedAt(new Date());
     } catch { /* network error — keep local copy */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2616,6 +2631,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setDbZones(data.zones.flatMap(apiZoneToStaticZones));
         setDbStretches(data.zones.map(apiZoneToStretch).filter((s): s is SpeedStretch => s !== null));
         setSuppressedStaticIds(data.suppressedStaticIds ?? []);
+        setLastAlertDataSyncedAt(new Date());
       } catch { /* network error — keep previous DB zones */ }
     };
     poll(); // immediate on mount
@@ -4070,6 +4086,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentTrip, tripHistory, clearTripHistory,
       hydrated, onboardingComplete, completeOnboarding,
       isOffline,
+      lastAlertDataSyncedAt,
       vehicleType, setVehicleType,
       vehicleMakeId, vehicleModelId, setVehicleModel,
       vehicleCustomMakeName, vehicleCustomModelName, setCustomVehicle,

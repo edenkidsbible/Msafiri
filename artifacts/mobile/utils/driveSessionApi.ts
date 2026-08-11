@@ -6,7 +6,90 @@
  * callers should catch errors silently so an API failure never blocks the UI.
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGet, apiPost, apiPatch } from "@/utils/apiClient";
+
+// ── Offline session queue ─────────────────────────────────────────────────────
+//
+// When startDriveSession fails (device offline) we generate a local placeholder
+// ID, persist the session start data to AsyncStorage, and return the local ID so
+// the drive screen can still reference it for the end call.  endDriveSession
+// recognises the local prefix and appends the finalStats to the queued record
+// instead of hitting the server.  flushOfflineSessions() replays every queued
+// item against the server once connectivity is restored.
+
+const OFFLINE_QUEUE_KEY = "msafiri_offline_sessions_v1";
+const LOCAL_PREFIX       = "local-";
+
+interface QueuedSession {
+  localId:         string;
+  startedAt:       string;          // ISO-8601 of when the trip actually started
+  deviceId:        string;
+  startLat?:       number | null;
+  startLng?:       number | null;
+  vehicleId?:      string | null;
+  sharedVehicleId?: string | null;
+  endData?: {
+    endLat?:            number | null;
+    endLng?:            number | null;
+    distanceM:          number;
+    durationS:          number;
+    avgSpeedKmh:        number;
+    maxSpeedKmh:        number;
+    harshBrakes:        number;
+    harshAccels:        number;
+    sharpTurns:         number;
+    speedingMinutes:    number;
+    smoothMinutes:      number;
+    speedCameraAlerts?: number;
+    policeAlerts?:      number;
+    hazardsEncountered?: number;
+  };
+}
+
+async function readQueue(): Promise<QueuedSession[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    return raw ? (JSON.parse(raw) as QueuedSession[]) : [];
+  } catch { return []; }
+}
+
+async function writeQueue(q: QueuedSession[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+  } catch { /* non-fatal */ }
+}
+
+/**
+ * Replay all queued offline sessions against the server.
+ * Call this whenever the device comes back online.
+ * Sessions that still fail (intermittent) remain in the queue for the next attempt.
+ */
+export async function flushOfflineSessions(deviceId: string): Promise<void> {
+  const queue = await readQueue();
+  if (queue.length === 0) return;
+
+  const remaining: QueuedSession[] = [];
+  for (const item of queue) {
+    if (!item.endData) {
+      // Trip was started but never ended (app killed mid-trip) — discard stale entry
+      continue;
+    }
+    try {
+      const { id } = await apiPost<{ id: string }>("/drive-sessions", {
+        deviceId:        item.deviceId,
+        startLat:        item.startLat        ?? null,
+        startLng:        item.startLng        ?? null,
+        vehicleId:       item.vehicleId       ?? null,
+        sharedVehicleId: item.sharedVehicleId ?? null,
+      });
+      await apiPost(`/drive-sessions/${id}/end`, { deviceId: item.deviceId, ...item.endData });
+    } catch {
+      remaining.push(item); // still offline — retry next time
+    }
+  }
+  await writeQueue(remaining);
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,14 +160,32 @@ export async function startDriveSession(
   vehicleId?:      string | null,
   sharedVehicleId?: string | null,
 ): Promise<string> {
-  const { id } = await apiPost<{ id: string }>("/drive-sessions", {
-    deviceId,
-    startLat:        startLat        ?? null,
-    startLng:        startLng        ?? null,
-    vehicleId:       vehicleId       ?? null,
-    sharedVehicleId: sharedVehicleId ?? null,
-  });
-  return id;
+  try {
+    const { id } = await apiPost<{ id: string }>("/drive-sessions", {
+      deviceId,
+      startLat:        startLat        ?? null,
+      startLng:        startLng        ?? null,
+      vehicleId:       vehicleId       ?? null,
+      sharedVehicleId: sharedVehicleId ?? null,
+    });
+    return id;
+  } catch {
+    // Offline — queue the session locally so it can be replayed on reconnect.
+    // Return a local placeholder ID so the drive screen can still reference it.
+    const localId = LOCAL_PREFIX + Date.now();
+    const queue   = await readQueue();
+    queue.push({
+      localId,
+      startedAt:       new Date().toISOString(),
+      deviceId,
+      startLat,
+      startLng,
+      vehicleId,
+      sharedVehicleId,
+    });
+    await writeQueue(queue);
+    return localId;
+  }
 }
 
 /**
@@ -133,6 +234,17 @@ export async function endDriveSession(
     hazardsEncountered?: number;
   },
 ): Promise<{ score: number; endedAt: string }> {
+  // If this is an offline-queued session, attach the end data and return a
+  // synthetic response — the real server call happens in flushOfflineSessions().
+  if (sessionId.startsWith(LOCAL_PREFIX)) {
+    const queue = await readQueue();
+    const idx   = queue.findIndex((s) => s.localId === sessionId);
+    if (idx >= 0) {
+      queue[idx].endData = finalStats;
+      await writeQueue(queue);
+    }
+    return { score: 0, endedAt: new Date().toISOString() };
+  }
   return apiPost<{ score: number; endedAt: string }>(
     `/drive-sessions/${sessionId}/end`,
     { deviceId, ...finalStats },

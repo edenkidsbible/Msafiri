@@ -74,6 +74,12 @@ interface Props {
   /** Forwarded to TripReviewCard so the caller can render VideoPlayerModal
    *  outside any Modal nesting. */
   onPreview?:     (config: PlayerConfig) => void;
+  /**
+   * Called when the user taps "View Dashcam Clips" or "View Trip History"
+   * instead of dismiss — lets the caller hide (not destroy) the modal while
+   * the user browses those screens, so it reappears when they navigate back.
+   */
+  onNavigateAway?: () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -163,7 +169,7 @@ const badge = StyleSheet.create({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidden = false, onPreview }: Props) {
+export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidden = false, onPreview, onNavigateAway }: Props) {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   // Subscribe to live segments so the button appears reactively even when
@@ -212,22 +218,31 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidde
   }, [dismiss]);
 
   const goClips = useCallback(() => {
-    // Navigate first so the new screen covers the drive tab instantly —
-    // no 180 ms gap that would briefly expose the drive screen behind the modal.
-    router.push("/dashcam-videos?fromSummary=1" as any);
-    dismiss();
-  }, [dismiss]);
+    // Hide (don't dismiss) the modal so it reappears when the user presses back.
+    // onNavigateAway signals the parent to set hidden=true temporarily.
+    if (onNavigateAway) {
+      onNavigateAway();
+      router.push("/dashcam-videos?fromSummary=1" as any);
+    } else {
+      router.push("/dashcam-videos?fromSummary=1" as any);
+      dismiss();
+    }
+  }, [dismiss, onNavigateAway]);
 
   const goHistory = useCallback(() => {
     const sid = data?.sessionId;
-    dismiss();
-    setTimeout(() => {
-      const url = sid
-        ? `/trip-history?fromSummary=1&sessionId=${encodeURIComponent(sid)}`
-        : "/trip-history?fromSummary=1";
+    const url = sid
+      ? `/trip-history?fromSummary=1&sessionId=${encodeURIComponent(sid)}`
+      : "/trip-history?fromSummary=1";
+    // Hide (don't dismiss) — modal reappears when the user navigates back.
+    if (onNavigateAway) {
+      onNavigateAway();
       router.push(url as any);
-    }, 180);
-  }, [dismiss, data?.sessionId]);
+    } else {
+      dismiss();
+      setTimeout(() => router.push(url as any), 180);
+    }
+  }, [dismiss, onNavigateAway, data?.sessionId]);
 
   const handleStopSharing = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

@@ -52,6 +52,8 @@
 - [Speed gauge vs zones-bar overlap](speed-gauge-zonesbar-overlap.md) — pale pill above the drive-screen speed digit was the zones strip, not AlertBanner; digit clipping needs flexShrink:0 on its wrapper.
 - [Incident re-notify rotation](incident-renotify-rotation.md) — no device location history exists (only push_tokens.lastLat/lastLng latest fix), so "ask fresh drivers" = exclude cumulative notifiedTokens per report + tiebreak by lastSeenAt.
 - [Report flag auto-hide vs deny](report-flag-autohide-vs-deny.md) — flag route now auto-hides on 2 distinct-device flags (status "flagged"); kept separate from the pre-existing single-vote "deny"/Gone-now path.
+- [Reports moderation pitfall](reports-moderation-pitfall.md) — police was in MODERATED_TYPES causing all checkpoints to vanish; only `camera` should be moderated.
+- [Report clustering architecture](report-clustering-architecture.md) — same-type 100m haversine, single emoji + count badge; no cross-type merging.
 - [Admin mobile system](admin-mobile-system.md) — PIN auth → 30-day JWT (SESSION_SECRET); adminVerified column; verify/deny/relocate endpoints; admin state lives in AppContext not a separate context.
 - [Backup & Recovery system](backup-recovery-system.md) — device_backups table; 5-char code + plate dual-factor; /backup/* routes; auto-sync via AppContext vehicle useEffect; restore-data.tsx screen.
 - [Sentry + OpenTelemetry bundling](sentry-otel-bundling.md) — @sentry/node v10 must NOT be in esbuild externals; also causes drizzle-orm dual-instance TS errors fixed by adding @opentelemetry/api to both api-server and db packages.
@@ -73,3 +75,5 @@
 - [Multi-vehicle session scoping](multi-vehicle-session-scoping.md) — drive sessions have no vehicleId server-side; bridge with local vehicleSessionMap (AsyncStorage); default vehicle gets all unclaimed sessions as catch-all.
 - [Task commit scope hygiene](task-commit-scope-hygiene.md) — completion review sees the full base..HEAD diff; unrelated swept-in work must be git-reverted (resets get rebased away); save a patch to .local first.
 - [Per-vehicle data isolation architecture](per-vehicle-data-isolation.md) — all data (dashcam, sessions, accidents) vehicle-scoped; VehicleContext drives it; garage swipe calls setActiveVehicle; default vehicle gets legacy NULL rows.
+- [Route polyline gating rule](route-polyline-gating.md) — polylines only render when trip is active; gated on navTripActive (MapViewScreen) and tripMode (DriveMapView); alt routes hidden during trip; no preview polyline.
+- [Garage offline caching pattern](garage-offline-caching.md) — sessions + shared stats cached per vehicleId in AsyncStorage; stale-while-revalidate; isOffline in effect deps triggers re-fetch on reconnect; offline banner shown.
