@@ -12,7 +12,9 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     if (!feature) return "";
     const p    = feature.properties ?? {};
     const name = (p.name as string) ?? (p.street as string) ?? "";
-    const city = (p.city as string) ?? (p.county as string) ?? (p.district as string) ?? "";
+    const city = (p.city as string) ?? (p.town as string) ?? (p.locality as string) ??
+      (p.suburb as string) ?? (p.village as string) ?? (p.hamlet as string) ??
+      (p.district as string) ?? (p.county as string) ?? "";
     return [name, city].filter(Boolean).join(", ").substring(0, 60);
   } catch {
     return "";
@@ -78,7 +80,9 @@ async function photonFallback(q: string): Promise<GeoResult[]> {
       .map((f: any) => {
         const p    = f.properties ?? {};
         const name = (p.name as string) ?? "";
-        const city = (p.city as string) ?? (p.county as string) ?? "";
+        const city = (p.city as string) ?? (p.town as string) ?? (p.locality as string) ??
+          (p.suburb as string) ?? (p.village as string) ?? (p.hamlet as string) ??
+          (p.district as string) ?? (p.county as string) ?? "";
         const country = (p.country as string) ?? "";
         const display = [name, city, country].filter(Boolean).join(", ");
         const short   = [name, city].filter(Boolean).join(", ").substring(0, 80);

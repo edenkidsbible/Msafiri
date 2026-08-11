@@ -14,6 +14,42 @@ import { Router } from "express";
 
 const router = Router();
 
+/**
+ * Call Photon (komoot) reverse geocode and return the most specific area name.
+ * Priority: city → town → locality → suburb → village → hamlet → district → county
+ * Returns null if the call fails or no result is found.
+ */
+async function photonReverse(lat: number, lng: number, timeoutMs: number): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(
+      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`,
+      { signal: controller.signal },
+    );
+    clearTimeout(timer);
+    if (!r.ok) return null;
+    const data = await r.json() as { features?: any[] };
+    const feature = data.features?.[0];
+    if (!feature) return null;
+    const p = feature.properties ?? {};
+    return (
+      (p.city as string | undefined) ??
+      (p.town as string | undefined) ??
+      (p.locality as string | undefined) ??
+      (p.suburb as string | undefined) ??
+      (p.village as string | undefined) ??
+      (p.hamlet as string | undefined) ??
+      (p.district as string | undefined) ??
+      (p.county as string | undefined) ??
+      null
+    );
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
 router.get("/geocode/reverse", async (req, res) => {
   const lat = parseFloat(req.query.lat as string);
   const lng = parseFloat(req.query.lng as string);
@@ -55,8 +91,18 @@ router.get("/geocode/reverse", async (req, res) => {
 
     // Area: sub-district first (constituency-level in Kenya), then district,
     // then city, then county — whichever is most specific.
-    const area: string | null =
+    let area: string | null =
       addr.subdistrict || addr.district || addr.city || addr.county || addr.state || null;
+
+    // Detect when HERE only resolved to county/state level (no sub-county data).
+    // In that case, try Photon for a finer-grained area name.
+    const hereIsCoarseOnly = !addr.subdistrict && !addr.district && !addr.city;
+    if (hereIsCoarseOnly) {
+      const photonArea = await photonReverse(lat, lng, 3000);
+      if (photonArea) {
+        area = photonArea;
+      }
+    }
 
     // Road: use the street name if present.  Skip it when it equals the area
     // (some HERE responses repeat the district as the street).
