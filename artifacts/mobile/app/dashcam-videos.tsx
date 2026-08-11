@@ -764,7 +764,9 @@ export default function DashcamVideosScreen() {
 
       // Save to the device's photo/video library
       if (Platform.OS !== "web") {
-        const { status } = await MediaLibrary.requestPermissionsAsync();
+        // writeOnly: true — saving to gallery only needs WRITE, not READ.
+        // Avoids the READ_MEDIA_VIDEO Play Console policy rejection.
+        const { status } = await MediaLibrary.requestPermissionsAsync(true);
 
         if (status === "granted") {
           try {

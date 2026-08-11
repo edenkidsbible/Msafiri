@@ -84,8 +84,6 @@ module.exports = {
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_IMAGES",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_CONTACTS",
       ],

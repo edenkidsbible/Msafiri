@@ -45,15 +45,10 @@ export default function PersonalInformationScreen() {
 
   const pickPhoto = async () => {
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(
-          "Photo Library Access Required",
-          "Msafiri needs photo library access to set your profile photo and to attach evidence photos in the Crash Assistant.\n\nTo enable: Settings → Privacy & Security → Photos → Msafiri → select \"All Photos\" or \"Selected Photos\".",
-          [{ text: "OK" }]
-        );
-        return;
-      }
+      // On Android 13+ the system photo picker requires no READ_MEDIA permission —
+      // launching it directly is the Google-recommended approach and avoids the
+      // READ_MEDIA_IMAGES policy rejection in Play Console.
+      // On iOS the OS presents its own permission dialog at pick time.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
