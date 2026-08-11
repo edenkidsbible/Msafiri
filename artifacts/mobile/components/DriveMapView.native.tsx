@@ -319,8 +319,8 @@ function speedToLatDelta(kmh: number): number {
 
 // Low-pass filter for compass heading, handling the 360°/0° wraparound so
 // the camera never spins the long way round when crossing north.
-// alpha = 0.20 → heading tracks changes smoothly across ~5–8 GPS fixes.
-function smoothHeading(current: number | null, target: number, alpha = 0.20): number {
+// Default alpha is 0.06 (slow) — see the three-band logic in the GPS effect.
+function smoothHeading(current: number | null, target: number, alpha = 0.06): number {
   if (current == null) return target;
   let diff = target - current;
   if (diff >  180) diff -= 360;
@@ -446,10 +446,19 @@ const DriveMapView = forwardRef(function DriveMapView(
   // null = not yet initialised (use raw target on first fix).
   const camHeadingRef = useRef<number | null>(null);
 
-  // The heading value most recently passed to the iOS heading-only interval
-  // animateCamera call (see below).  Used to suppress calls when heading has
-  // not changed enough to bother MapKit.
+  // Minimum heading change (degrees) that triggers a map rotation animation.
+  // Raising this well above GPS noise (~5–10°) ensures the map stays still on
+  // straight roads and only rotates when the driver genuinely turns.
+  const HEADING_DEAD_BAND = 7;
+
+  // The heading value most recently passed to any animateCamera({ heading })
+  // call.  Compared against camHeadingRef to enforce the dead-band gate.
   const lastAnimatedHeadingRef = useRef<number | null>(null);
+
+  // Timestamp of the last heading animation sent to Android Google Maps.
+  // Used to rate-limit heading updates to once per ~800 ms so rapid GPS bearing
+  // noise on straight roads cannot drive continuous micro-rotations.
+  const lastHdgAnimTimeRef = useRef<number | null>(null);
 
   // iOS-only: interval ID for the dedicated heading channel.  On iOS, Apple
   // Maps (MapKit) crashes when `heading` is combined with `center` in a single
@@ -512,17 +521,18 @@ const DriveMapView = forwardRef(function DriveMapView(
       if (!mountedRef.current || mapDriftedRef.current) return;
       const hdg = camHeadingRef.current;
       if (hdg == null) return;
-      // Suppress if heading hasn't changed enough to be visible on screen.
+      // Only rotate when the heading has moved past the dead-band.  GPS bearing
+      // on a straight road fluctuates ≤ 5° — the 7° gate absorbs all of that.
       const prev  = lastAnimatedHeadingRef.current;
       const delta = prev == null
         ? 360
         : Math.abs(((hdg - prev) + 540) % 360 - 180);
-      if (delta < 1.5) return;
+      if (delta < 7) return;
       lastAnimatedHeadingRef.current = hdg;
-      // 950 ms duration vs 1000 ms interval — animations overlap so the
-      // compass rotates continuously rather than ticking in 1-second steps.
-      mapRef.current?.animateCamera({ heading: hdg }, { duration: 950 });
-    }, 1000);
+      // 1400 ms duration vs 1500 ms interval — consecutive animations slightly
+      // overlap so the compass rotates continuously rather than ticking.
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: 1400 });
+    }, 1500);
 
     return () => {
       if (headingIntervalRef.current) {
@@ -741,106 +751,125 @@ const DriveMapView = forwardRef(function DriveMapView(
   const STATIONARY_SPEED_KMH = 3.0;   // m/s × 3.6 — below this, apply freeze
   const STATIONARY_MOVE_M    = 5;     // metres — ignore smaller position jitter
 
-  // Steps 2 & 4 — navigation camera + post-nav restore.
+  // ── GPS camera follow ─────────────────────────────────────────────────────
   //
-  // Design principles:
-  //   • Stationary freeze  — when speed < 3 km/h and position hasn't moved
-  //     more than STATIONARY_MOVE_M since the last camera update, skip the
-  //     pan entirely so a parked map is rock-steady.
-  //   • Low-pass heading   — smooth heading through smoothHeading() so the map
-  //     rotates gracefully instead of snap-jumping on noisy GPS bearing fixes.
-  //   • Unified animation  — a single animateCamera({center, heading}) per fix
-  //     supersedes the previous animation instead of stacking overlapping ones.
-  //     We deliberately avoid passing zoom/altitude to animateCamera because on
-  //     iOS Apple Maps that parameter drifts the altitude on every call; zoom
-  //     changes go through animateToRegion (latitudeDelta) instead.
-  //   • Zoom hysteresis    — the target zoom band must be sustained for
-  //     ZOOM_SUSTAIN_MS before the camera zooms, so a single noisy speed spike
-  //     never pulses the camera.
-  // ── GPS camera follow (browsing + navigation) ──────────────────────────────
-  // Keeps the driver's position centered on screen in heading-up orientation.
-  // Active in both plain drive mode and planned-route navigation — the initial
-  // fitToCoordinates (route preview) fires once on route-set, after which this
-  // effect takes over and follows every GPS fix smoothly.
-  // Pauses when the driver manually pans/zooms (drift flag); resumes on Recenter.
+  // Keeps the driver centred on screen in a stable heading-up orientation.
+  // Active in both plain drive mode and planned-route navigation.
+  // Pauses while the driver manually pans/zooms (drift flag); resumes on Recenter.
+  //
+  // Stability design:
+  //
+  //  1. Stationary freeze — speed < 3 km/h AND position < 5 m: skip the entire
+  //     update.  GPS bearing at near-zero speed is random noise; updating
+  //     camHeadingRef from it would make the map spin while parked.
+  //
+  //  2. Three-band alpha — smoothing rate adapts to how much the raw bearing
+  //     actually changed, not just a single fixed alpha:
+  //       raw Δ < 20°  → α = 0.06  straight road; aggressively filters GPS jitter
+  //       raw Δ 20–60° → α = 0.18  gradual curve / lane change
+  //       raw Δ > 60°  → α = 0.50  sharp turn / intersection — respond promptly
+  //
+  //  3. Dead-band gate — only schedule a heading animation when the smoothed
+  //     heading has moved ≥ HEADING_DEAD_BAND (7°) from the last animated value.
+  //     Typical GPS bearing noise is ≤ 5° so the gate absorbs all of it.
+  //
+  //  4. Android rate limit — even past the dead-band, heading animations are
+  //     capped to one per 800 ms on straight roads (< 30° change) to prevent
+  //     every 1 Hz GPS tick from issuing a rotation animation.
+  //
+  //  5. iOS separation — heading is sent exclusively through the 1500 ms interval
+  //     above; the position channel never carries heading on iOS (MapKit crashes
+  //     on combined pan+rotation at > 1 Hz).
   useEffect(() => {
     if (
-      !mapDriftedRef.current &&
-      currentLat != null &&
-      currentLng != null &&
-      hasCenteredRef.current    // initial center already done — safe to animate
-    ) {
-      // Stationary freeze: skip pan when parked and GPS hasn't moved meaningfully.
-      const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
-      if (isStationary && camLatRef.current != null && camLngRef.current != null) {
-        const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
-        if (moved < STATIONARY_MOVE_M) {
-          if (driverHeading != null && driverHeading >= 0) {
-            const rawDiffStat = camHeadingRef.current != null
-              ? Math.abs((() => { let d = driverHeading - camHeadingRef.current!; if (d > 180) d -= 360; if (d < -180) d += 360; return d; })())
-              : 180;
-            const smoothedHdg = smoothHeading(camHeadingRef.current, driverHeading, rawDiffStat > 120 ? 0.75 : 0.08);
-            camHeadingRef.current = smoothedHdg;
-            if (Platform.OS !== "ios") {
-              const hdgDelta = Math.abs(smoothedHdg - (lastAnimatedHeadingRef.current ?? smoothedHdg));
-              if (hdgDelta > 1.5) {
-                lastAnimatedHeadingRef.current = smoothedHdg;
-                mapRef.current?.animateCamera({ heading: smoothedHdg }, { duration: 600 });
-              }
-            }
-          }
-          return;
-        }
-      }
-      camLatRef.current = currentLat;
-      camLngRef.current = currentLng;
+      mapDriftedRef.current  ||
+      currentLat == null     ||
+      currentLng == null     ||
+      !hasCenteredRef.current
+    ) return;
 
-      if (driverHeading != null && driverHeading >= 0) {
-        // Boost alpha when the raw heading change is large (U-turn / sharp reversal)
-        // so the map rotates promptly instead of crawling for 8+ GPS fixes.
-        const rawDiff = camHeadingRef.current != null
-          ? Math.abs((() => { let d = driverHeading - camHeadingRef.current!; if (d > 180) d -= 360; if (d < -180) d += 360; return d; })())
-          : 180;
-        const headingAlpha = rawDiff > 120 ? 0.75 : 0.20;
-        camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, headingAlpha);
-      }
-
-      const targetDelta = speedToLatDelta(currentSpeed ?? 0);
-      const now = Date.now();
-      if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
-        if (zoomBandTimestampRef.current == null) {
-          zoomBandTimestampRef.current = now;
-        } else if (now - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
-          const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
-          appliedDeltaRef.current = smoothed;
-          lastDeltaRef.current    = smoothed;
-          zoomBandTimestampRef.current = null;
-          const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, smoothed);
-          mapRef.current?.animateToRegion(
-            { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
-            500,
-          );
-          if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-            scheduleHeadingAnim(camHeadingRef.current, 150, 200);
-          }
-          return;
-        }
-      } else {
-        zoomBandTimestampRef.current = null;
-      }
-
-      const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current);
-      const driveCameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
-        center: laCenter,
-      };
-      if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-        driveCameraUpdate.heading = camHeadingRef.current;
-      }
-      // 1200 ms duration slightly exceeds the ~1 s GPS tick rate so consecutive
-      // animations always overlap — the camera glides continuously rather than
-      // stopping between fixes and snapping to the next position.
-      mapRef.current?.animateCamera(driveCameraUpdate, { duration: 1200 });
+    // ── 1. Stationary freeze ─────────────────────────────────────────────────
+    const isStationary = (currentSpeed ?? 0) < STATIONARY_SPEED_KMH;
+    if (isStationary && camLatRef.current != null && camLngRef.current != null) {
+      const moved = haversine(camLatRef.current, camLngRef.current, currentLat, currentLng);
+      if (moved < STATIONARY_MOVE_M) return; // parked — touch nothing
     }
+
+    camLatRef.current = currentLat;
+    camLngRef.current = currentLng;
+
+    // ── 2. Heading smoothing (only while moving) ─────────────────────────────
+    // Helper: wrap-safe signed angular difference a→b.
+    const wrapDiff = (a: number, b: number) => {
+      let d = b - a; if (d > 180) d -= 360; if (d < -180) d += 360; return d;
+    };
+
+    if (!isStationary && driverHeading != null && driverHeading >= 0) {
+      const rawDiff = camHeadingRef.current != null
+        ? Math.abs(wrapDiff(camHeadingRef.current, driverHeading))
+        : 180; // first fix — initialise directly
+      // Three-band alpha: slow on straight road, fast at intersections.
+      const alpha = rawDiff > 60 ? 0.50 : rawDiff > 20 ? 0.18 : 0.06;
+      camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, alpha);
+    }
+
+    // ── Zoom hysteresis (unchanged logic, kept here for locality) ───────────
+    const targetDelta = speedToLatDelta(currentSpeed ?? 0);
+    const nowMs = Date.now();
+    if (Math.abs(targetDelta - appliedDeltaRef.current) > 0.0005) {
+      if (zoomBandTimestampRef.current == null) {
+        zoomBandTimestampRef.current = nowMs;
+      } else if (nowMs - zoomBandTimestampRef.current >= ZOOM_SUSTAIN_MS) {
+        const smoothed = appliedDeltaRef.current + (targetDelta - appliedDeltaRef.current) * 0.3;
+        appliedDeltaRef.current = smoothed;
+        lastDeltaRef.current    = smoothed;
+        zoomBandTimestampRef.current = null;
+        const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, smoothed);
+        mapRef.current?.animateToRegion(
+          { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
+          500,
+        );
+        if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+          scheduleHeadingAnim(camHeadingRef.current, 150, 200);
+        }
+        return;
+      }
+    } else {
+      zoomBandTimestampRef.current = null;
+    }
+
+    // ── Camera animation ─────────────────────────────────────────────────────
+    const laCenter = lookAheadCenter(
+      currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current,
+    );
+
+    // iOS: position only — heading goes through the dedicated 1500 ms interval.
+    // Android: include heading only when it has genuinely changed (dead-band +
+    // rate-limit guard to prevent micro-rotation jitter on straight roads).
+    const driveCameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
+      center: laCenter,
+    };
+
+    if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+      const prev       = lastAnimatedHeadingRef.current ?? camHeadingRef.current;
+      const hdgDelta   = Math.abs(((camHeadingRef.current - prev) + 540) % 360 - 180);
+      // 3. Dead-band gate
+      if (hdgDelta >= HEADING_DEAD_BAND) {
+        // 4. Rate-limit small heading moves to ≤ 1 per 800 ms.
+        const isLargeTurn    = hdgDelta > 30;
+        const msSinceLastHdg = nowMs - (lastHdgAnimTimeRef.current ?? 0);
+        if (isLargeTurn || msSinceLastHdg >= 800) {
+          driveCameraUpdate.heading      = camHeadingRef.current;
+          lastAnimatedHeadingRef.current = camHeadingRef.current;
+          lastHdgAnimTimeRef.current     = nowMs;
+        }
+      }
+    }
+
+    // 1200 ms duration slightly exceeds the ~1 s GPS tick rate so consecutive
+    // animations always overlap — the camera glides continuously rather than
+    // stopping between fixes and snapping to the next position.
+    mapRef.current?.animateCamera(driveCameraUpdate, { duration: 1200 });
   }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
   // Detect when the driver manually pans/zooms the map while navigation is

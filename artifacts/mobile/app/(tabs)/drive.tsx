@@ -503,8 +503,40 @@ export default function DriveScreen() {
     }
   }, [startSharingTrip]);
 
+  // ── Refs that break circular deps between startTrip and later callbacks ───
+  // tripPausedRef mirrors tripPaused so startTrip can read it without adding
+  // it to useCallback deps (which would force re-creation on every pause tick).
+  const tripPausedRef      = useRef(tripPaused);
+  useEffect(() => { tripPausedRef.current = tripPaused; }, [tripPaused]);
+  // resumeTripRef / captureAndStopRef are wired up after those callbacks are
+  // defined (see the useEffect blocks after captureAndStop).
+  const resumeTripRef      = useRef<() => void>(() => {});
+  const captureAndStopRef  = useRef<() => void>(() => {});
+
   const startTrip = useCallback(() => {
-    if (countdownActiveRef.current || tripActive) return; // guard double-start
+    if (countdownActiveRef.current) return;
+    if (tripActive) {
+      // ── Conflict guard: alert instead of silently no-oping ────────────────
+      const isPaused = tripPausedRef.current;
+      Alert.alert(
+        "Trip already in progress",
+        isPaused
+          ? "Your trip is currently paused. Resume it or end it before starting a new one."
+          : "A trip is already running. Please end it before starting a new one.",
+        [
+          ...(isPaused
+            ? [{ text: "Resume trip", onPress: () => resumeTripRef.current() }]
+            : []),
+          {
+            text: "End trip",
+            style: "destructive",
+            onPress: () => captureAndStopRef.current(),
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
+    }
     countdownActiveRef.current = true;
     // Reset stats upfront so they read zero during the countdown
     avgSpeedSumRef.current = 0;
@@ -769,6 +801,10 @@ export default function DriveScreen() {
     driveScore, tripElapsedS, avgSpeedDisplay,
     isSharingTrip, stopTrip,
   ]);
+
+  // Wire up the refs that startTrip uses to break circular callback deps.
+  useEffect(() => { resumeTripRef.current     = resumeTrip;     }, [resumeTrip]);
+  useEffect(() => { captureAndStopRef.current = captureAndStop; }, [captureAndStop]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───
   useEffect(() => {

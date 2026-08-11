@@ -288,6 +288,7 @@ export default function MapViewScreen() {
     setMapPickerActive,
     isOffline, lastAlertDataSyncedAt,
     navTripActive,
+    navTripPaused,
   } = useApp();
   const weather = useWeather(currentLat, currentLng);
 
@@ -575,6 +576,15 @@ export default function MapViewScreen() {
     Keyboard.dismiss();
     clearPlaceSearch();
     setActiveChipCat(null); setChipResults([]); setChipError(null);
+    if (navTripActive) {
+      Alert.alert(
+        "Trip already in progress",
+        navTripPaused
+          ? "Your trip is currently paused. Resume it or end it before navigating to a new destination."
+          : "A trip is already running. End it before navigating to a new destination.",
+      );
+      return;
+    }
     setNavDestination({ name, lat, lng });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push("/pretrip-check");
@@ -979,6 +989,15 @@ export default function MapViewScreen() {
                       activeOpacity={0.72}
                       onPress={() => {
                         setActiveChipCat(null); setChipResults([]); setChipError(null);
+                        if (navTripActive) {
+                          Alert.alert(
+                            "Trip already in progress",
+                            navTripPaused
+                              ? "Your trip is currently paused. Resume it or end it before navigating to a new destination."
+                              : "A trip is already running. End it before navigating to a new destination.",
+                          );
+                          return;
+                        }
                         setNavDestination({ name: item.name, lat: item.lat, lng: item.lng });
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                         router.push("/pretrip-check");
