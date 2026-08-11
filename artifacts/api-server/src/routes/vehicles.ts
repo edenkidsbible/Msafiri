@@ -87,6 +87,22 @@ const joinByCodeLimiter = rateLimit({
   },
 });
 
+/** 5 join-request attempts per client IP per 10 minutes. */
+const joinRequestLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  max: 5,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    const retryAfter = Math.ceil(WINDOW_MS / 1000);
+    res.set("Retry-After", String(retryAfter));
+    res.status(429).json({
+      error: "Too many join requests. Please wait 10 minutes before trying again.",
+    });
+  },
+});
+
 /** 30 plate-search attempts per client IP per 10 minutes. */
 const plateSearchLimiter = rateLimit({
   windowMs: WINDOW_MS,
@@ -374,7 +390,7 @@ router.post("/vehicles/join-by-code", joinByCodeLimiter, async (req, res) => {
 
 // ── POST /vehicles/join-request ───────────────────────────────────────────────
 // Request to join a vehicle found via plate search. Owner must approve.
-router.post("/vehicles/join-request", async (req, res) => {
+router.post("/vehicles/join-request", joinRequestLimiter, async (req, res) => {
   const { deviceId, vehicleId, requesterName } = req.body as {
     deviceId: string;
     vehicleId: string;

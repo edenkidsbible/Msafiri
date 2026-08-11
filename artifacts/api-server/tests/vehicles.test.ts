@@ -400,7 +400,10 @@ describe("POST /api/vehicles/join-by-code", () => {
 // POST /vehicles/join-request
 // ────────────────────────────────────────────────────────────────────────────
 
+// Each test uses a unique RFC-5737 IP (192.0.2.x) so no two tests share a
+// rate-limit bucket and the 5-request limit never trips across tests.
 describe("POST /api/vehicles/join-request", () => {
+  const JR_IP_BASE = "192.0.2.10";  // .100–.105 reserved for this block
 
   it("creates a pending request and notifies the owner", async () => {
     queueSelects(
@@ -415,6 +418,7 @@ describe("POST /api/vehicles/join-request", () => {
 
     const res = await supertest(app)
       .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", "192.0.2.100")
       .send({ deviceId: DRIVER_DEVICE, vehicleId: VEHICLE_ID, requesterName: "John Doe" });
 
     expect(res.status).toBe(201);
@@ -430,6 +434,7 @@ describe("POST /api/vehicles/join-request", () => {
 
     const res = await supertest(app)
       .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", "192.0.2.101")
       .send({ deviceId: DRIVER_DEVICE, vehicleId: "nonexistent-id" });
 
     expect(res.status).toBe(404);
@@ -444,6 +449,7 @@ describe("POST /api/vehicles/join-request", () => {
 
     const res = await supertest(app)
       .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", "192.0.2.102")
       .send({ deviceId: DRIVER_DEVICE, vehicleId: VEHICLE_ID });
 
     expect(res.status).toBe(409);
@@ -459,6 +465,7 @@ describe("POST /api/vehicles/join-request", () => {
 
     const res = await supertest(app)
       .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", "192.0.2.103")
       .send({ deviceId: DRIVER_DEVICE, vehicleId: VEHICLE_ID });
 
     expect(res.status).toBe(409);
@@ -468,6 +475,7 @@ describe("POST /api/vehicles/join-request", () => {
   it("returns 400 when deviceId is missing", async () => {
     const res = await supertest(app)
       .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", "192.0.2.104")
       .send({ vehicleId: VEHICLE_ID });
     expect(res.status).toBe(400);
   });
@@ -475,8 +483,62 @@ describe("POST /api/vehicles/join-request", () => {
   it("returns 400 when vehicleId is missing", async () => {
     const res = await supertest(app)
       .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", "192.0.2.105")
       .send({ deviceId: DRIVER_DEVICE });
     expect(res.status).toBe(400);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Rate limiting — POST /api/vehicles/join-request
+// ────────────────────────────────────────────────────────────────────────────
+//
+// The limiter allows 5 attempts per client IP per 10 minutes.  We control
+// req.ip via X-Forwarded-For (trust proxy = 1 in app.ts).  Unique RFC-5737
+// IPs ensure no bucket is shared with any other test in this file.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("Rate limiting — POST /api/vehicles/join-request", () => {
+  const IP_LIMIT_TEST    = "192.0.2.220";
+  const IP_ROTATION_TEST = "192.0.2.221";
+
+  it("blocks the 6th attempt from the same IP with 429 and Retry-After", async () => {
+    // First 5 requests are allowed (vehicle not found → 404 is fine;
+    // the limiter counts every request including handler rejections).
+    for (let i = 0; i < 5; i++) {
+      const r = await supertest(app)
+        .post("/api/vehicles/join-request")
+        .set("X-Forwarded-For", IP_LIMIT_TEST)
+        .send({ deviceId: `rl-jr-device-${i}`, vehicleId: "nonexistent-id" });
+      expect(r.status).not.toBe(429);
+    }
+
+    const res = await supertest(app)
+      .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", IP_LIMIT_TEST)
+      .send({ deviceId: "rl-jr-device-99", vehicleId: "nonexistent-id" });
+
+    expect(res.status).toBe(429);
+    expect(res.headers["retry-after"]).toBeDefined();
+    expect(Number(res.headers["retry-after"])).toBeGreaterThan(0);
+    expect(res.body.error).toMatch(/too many join requests/i);
+  });
+
+  it("rotating deviceId does not evade the IP-based limit", async () => {
+    for (let i = 0; i < 5; i++) {
+      await supertest(app)
+        .post("/api/vehicles/join-request")
+        .set("X-Forwarded-For", IP_ROTATION_TEST)
+        .send({ deviceId: `rotate-jr-${Date.now()}-${i}`, vehicleId: "nonexistent-id" });
+    }
+
+    const res = await supertest(app)
+      .post("/api/vehicles/join-request")
+      .set("X-Forwarded-For", IP_ROTATION_TEST)
+      .send({ deviceId: "rotate-jr-brand-new", vehicleId: "nonexistent-id" });
+
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/too many join requests/i);
   });
 });
 

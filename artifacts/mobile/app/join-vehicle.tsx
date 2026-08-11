@@ -282,7 +282,9 @@ export default function JoinVehicleScreen() {
       setPlateRequested(true);
     } catch (err: any) {
       const msg = err?.message ?? "";
-      if (msg.includes("Already a co-driver")) {
+      if (err?.status === 429) {
+        Alert.alert("Too many requests", "You've sent too many join requests. Please wait 10 minutes before trying again.");
+      } else if (msg.includes("Already a co-driver")) {
         Alert.alert("Already joined", "You're already a co-driver of this vehicle.");
         setPlateAlreadyMember(true);
       } else if (msg.includes("pending request")) {
