@@ -407,8 +407,8 @@ function VehicleSlide({
               onPress={() => onShare(v)}
               activeOpacity={0.8}
             >
-              <Ionicons name="share-social-outline" size={14} color="#6366F1" />
-              <Text style={[styles.vehicleActionTxt, { color: "#6366F1" }]}>Share</Text>
+              <Ionicons name="person-add-outline" size={14} color="#6366F1" />
+              <Text style={[styles.vehicleActionTxt, { color: "#6366F1" }]}>Add Co-Driver</Text>
             </TouchableOpacity>
           )}
         </View>
