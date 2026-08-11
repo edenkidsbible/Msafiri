@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -705,62 +706,77 @@ export default function PaywallScreen() {
 
       {/* Bottom CTA */}
       <View style={[p.cta, { borderTopColor: c.tileBorder, paddingBottom: botPad }]}>
-        {/* Price context row */}
-        {!offeringsLoading && !offeringsError && chosenPriceString ? (
+        {/* Price context — stacked above the button */}
+        {!offeringsLoading && !offeringsError && chosenPriceString && (
           <View style={p.priceContext}>
             {trialEligible ? (
-              <View>
+              <>
                 <Text style={[p.ctaPriceMain, { color: c.foreground }]}>
-                  Free{" "}
-                  <Text style={{ color: c.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" }}>
-                    today
-                  </Text>
+                  Free for 3 days
                 </Text>
                 <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
-                  Then {chosenPriceString}/{periodLabel} after 3 days
+                  Then {chosenPriceString}/{periodLabel} · cancel anytime
                 </Text>
-              </View>
-            ) : (
-              <View>
-                <Text style={[p.ctaPriceMain, { color: c.foreground }]}>{chosenPriceString}</Text>
-                <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>per {periodLabel}</Text>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[p.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || !chosenPkg ? 0.55 : 1 }]}
-              onPress={handleSubscribe}
-              disabled={isPurchasing || !chosenPkg}
-              activeOpacity={0.85}
-            >
-              {isPurchasing ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Text style={p.ctaBtnTxt}>{trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#fff" />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : (
-          // No price yet — full-width button
-          <TouchableOpacity
-            style={[p.ctaBtnFull, { backgroundColor: c.primary, opacity: isPurchasing || offeringsLoading || !chosenPkg ? 0.55 : 1 }]}
-            onPress={handleSubscribe}
-            disabled={isPurchasing || offeringsLoading || !chosenPkg}
-            activeOpacity={0.85}
-          >
-            {isPurchasing || offeringsLoading ? (
-              <ActivityIndicator color="#fff" />
+              </>
             ) : (
               <>
-                <Text style={p.ctaBtnTxt}>{trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}</Text>
-                <Ionicons name="chevron-forward" size={18} color="#fff" />
+                <Text style={[p.ctaPriceMain, { color: c.foreground }]}>
+                  {chosenPriceString}
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular" }}> /{periodLabel}</Text>
+                </Text>
+                <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
+                  Cancel anytime from App Store settings
+                </Text>
               </>
             )}
-          </TouchableOpacity>
+          </View>
         )}
+
+        {/* Premium gradient CTA button */}
+        <TouchableOpacity
+          onPress={handleSubscribe}
+          disabled={isPurchasing || offeringsLoading || !chosenPkg}
+          activeOpacity={0.88}
+          style={[
+            p.ctaBtnWrap,
+            { opacity: isPurchasing || offeringsLoading || !chosenPkg ? 0.6 : 1 },
+          ]}
+        >
+          <LinearGradient
+            colors={[c.primary, c.primary + "CC"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={p.ctaBtnGradient}
+          >
+            {/* Subtle inner highlight */}
+            <View style={p.ctaBtnHighlight} />
+            {isPurchasing || offeringsLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons
+                  name={trialEligible ? "gift-outline" : "shield-checkmark-outline"}
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={p.ctaBtnTxt}>
+                  {trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}
+                </Text>
+                <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.7)" />
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Trust signal */}
+        <View style={p.trustNote}>
+          <Ionicons name="lock-closed-outline" size={12} color={c.mutedForeground} />
+          <Text style={[p.trustNoteTxt, { color: c.mutedForeground }]}>
+            {trialEligible
+              ? "No charge today · Secured by Apple"
+              : "Secured by Apple · Cancel anytime"}
+          </Text>
+        </View>
 
         {/* Restore */}
         <TouchableOpacity onPress={handleRestore} disabled={isRestoring} style={p.restoreBtn}>
@@ -856,15 +872,44 @@ const p = StyleSheet.create({
   retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 18, marginTop: 4 },
   retryTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-  cta: { paddingHorizontal: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },
+  cta: { paddingHorizontal: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, gap: 8 },
 
-  priceContext: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  ctaPriceMain: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  ctaPriceSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  priceContext: { alignItems: "center", marginBottom: 4 },
+  ctaPriceMain: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+  ctaPriceSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, textAlign: "center" },
 
-  ctaBtn: { flex: 1, borderRadius: 16, paddingVertical: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  ctaBtnFull: { borderRadius: 18, paddingVertical: 17, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  ctaBtnTxt: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  // Premium gradient CTA button
+  ctaBtnWrap: {
+    borderRadius: 20,
+    // iOS shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    // Android elevation
+    elevation: 8,
+  },
+  ctaBtnGradient: {
+    borderRadius: 20,
+    paddingVertical: 18,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 10,
+    overflow: "hidden" as const,
+  },
+  ctaBtnHighlight: {
+    position: "absolute" as const,
+    top: 0, left: 0, right: 0,
+    height: "50%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  ctaBtnTxt: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold", letterSpacing: 0.2 },
+
+  trustNote: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  trustNoteTxt: { fontSize: 11, fontFamily: "Inter_400Regular" },
 
   restoreBtn: { alignItems: "center", paddingVertical: 2 },
   restoreTxt: { fontSize: 13, fontFamily: "Inter_400Regular", textDecorationLine: "underline" },
