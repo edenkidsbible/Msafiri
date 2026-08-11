@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { and, eq, or } from "drizzle-orm";
+import { createHmac, timingSafeEqual } from "crypto";
+import { and, eq, ne, or } from "drizzle-orm";
 import { db, pushTokensTable } from "@workspace/db";
 import {
   sharedVehiclesTable,
@@ -9,6 +10,51 @@ import {
 import { sendPushNotifications } from "../lib/expoPush.js";
 
 const router = Router();
+
+// ── HMAC member-token helpers ─────────────────────────────────────────────────
+// generateMemberToken produces a short-lived server-signed credential.
+// The client receives it only via the register/join-by-code responses and
+// stores it locally. DELETE (owner-removes-member) endpoints require it in the
+// Authorization header so that knowing a vehicleId + deviceId alone is not
+// sufficient to invoke privileged operations.
+// ── HMAC secret — must be explicitly configured ──────────────────────────────
+// SESSION_SECRET must be set by the operator.  In production its absence is a
+// configuration error; in development we log a loud warning but continue.  We
+// never fall back to a hard-coded string so tokens can't be forged by a public
+// attacker who knows the code.
+const SIGNING_SECRET = process.env.SESSION_SECRET;
+if (!SIGNING_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("[vehicles] SESSION_SECRET is not set. Refusing to start in production without a signing secret.");
+  } else {
+    console.warn("[vehicles][dev] SESSION_SECRET not set — member tokens will always fail verification; set the secret to test this flow.");
+  }
+}
+
+function generateMemberToken(vehicleId: string, deviceId: string): string {
+  if (!SIGNING_SECRET) throw new Error("SESSION_SECRET not configured");
+  return createHmac("sha256", SIGNING_SECRET)
+    .update(`vehicle-member:${vehicleId}:${deviceId}`)
+    .digest("hex");
+}
+
+function verifyMemberToken(vehicleId: string, deviceId: string, token: string): boolean {
+  if (!SIGNING_SECRET) return false; // Not configured — reject all
+  try {
+    const expected = Buffer.from(generateMemberToken(vehicleId, deviceId), "hex");
+    const actual   = Buffer.from(token, "hex");
+    if (expected.length !== actual.length) return false;
+    return timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
+}
+
+/** Extract the Bearer token from an Authorization header, or return "". */
+function extractBearerToken(authHeader: string | undefined): string {
+  if (!authHeader?.startsWith("Bearer ")) return "";
+  return authHeader.slice(7).trim();
+}
 
 // ── Share code generation ─────────────────────────────────────────────────────
 // Unambiguous charset: no 0/O, 1/I/L confusion
@@ -65,10 +111,20 @@ router.post("/vehicles/register", async (req, res) => {
       .limit(1);
 
     if (existing.length > 0) {
+      // Idempotent — ensure the owner member row exists even for legacy registrations
+      // that pre-date the vehicle_members table being created with an owner row.
+      await db.insert(vehicleMembersTable).values({
+        vehicleId:      existing[0].id,
+        memberDeviceId: deviceId,
+        role:           "owner",
+        status:         "active",
+      }).onConflictDoNothing();
+
       return res.json({
-        vehicleId: existing[0].id,
-        shareCode: existing[0].shareCode,
+        vehicleId:   existing[0].id,
+        shareCode:   existing[0].shareCode,
         displayName: existing[0].displayName,
+        memberToken: generateMemberToken(existing[0].id, deviceId),
       });
     }
   }
@@ -95,9 +151,10 @@ router.post("/vehicles/register", async (req, res) => {
   }).onConflictDoNothing();
 
   return res.status(201).json({
-    vehicleId: row.id,
-    shareCode: row.shareCode,
+    vehicleId:   row.id,
+    shareCode:   row.shareCode,
     displayName: row.displayName,
+    memberToken: generateMemberToken(row.id, deviceId),
   });
 });
 
@@ -206,16 +263,37 @@ router.post("/vehicles/join-by-code", async (req, res) => {
     return res.json({ alreadyOwner: true, vehicle });
   }
 
-  // Upsert membership — idempotent
-  await db
-    .insert(vehicleMembersTable)
-    .values({
+  // Upsert membership — idempotent; restore only if the member left voluntarily.
+  // Members expelled by the owner (removalReason = "owner_removed") cannot
+  // rejoin via the share code — they need the owner to explicitly re-invite.
+  const existingMember = await db
+    .select({ id: vehicleMembersTable.id, status: vehicleMembersTable.status, removalReason: vehicleMembersTable.removalReason })
+    .from(vehicleMembersTable)
+    .where(and(eq(vehicleMembersTable.vehicleId, vehicle.id), eq(vehicleMembersTable.memberDeviceId, deviceId)))
+    .limit(1);
+
+  if (existingMember.length > 0) {
+    if (existingMember[0].status === "removed") {
+      if (existingMember[0].removalReason === "owner_removed") {
+        return res.status(403).json({
+          error: "You were removed from this vehicle by the owner and cannot rejoin using the share code. Ask the owner to re-invite you.",
+        });
+      }
+      // Voluntarily left — welcome back
+      await db.update(vehicleMembersTable)
+        .set({ status: "active", memberName: requesterName?.trim() || null, removalReason: null })
+        .where(eq(vehicleMembersTable.id, existingMember[0].id));
+    }
+    // else already active — do nothing
+  } else {
+    await db.insert(vehicleMembersTable).values({
       vehicleId:      vehicle.id,
       memberDeviceId: deviceId,
       role:           "driver",
       status:         "active",
-    })
-    .onConflictDoNothing();
+      memberName:     requesterName?.trim() || null,
+    });
+  }
 
   // Notify the owner that someone joined
   const ownerTokenRow = await db
@@ -236,7 +314,8 @@ router.post("/vehicles/join-by-code", async (req, res) => {
   }
 
   return res.json({
-    success: true,
+    success:     true,
+    memberToken: generateMemberToken(vehicle.id, deviceId),
     vehicle: {
       id:          vehicle.id,
       plateNumber: vehicle.plateNumber,
@@ -375,16 +454,29 @@ router.patch("/vehicles/join-request/:id/approve", async (req, res) => {
     .set({ status: "approved", resolvedAt: new Date() })
     .where(eq(vehicleJoinRequestsTable.id, id));
 
-  // Add to vehicle_members
-  await db
-    .insert(vehicleMembersTable)
-    .values({
+  // Add to vehicle_members. Since this is an explicit owner-approved request,
+  // owner_removed members CAN be re-admitted this way (owner is consenting).
+  const existingMember = await db
+    .select({ id: vehicleMembersTable.id, status: vehicleMembersTable.status })
+    .from(vehicleMembersTable)
+    .where(and(eq(vehicleMembersTable.vehicleId, request.vehicleId), eq(vehicleMembersTable.memberDeviceId, request.requesterDeviceId)))
+    .limit(1);
+
+  if (existingMember.length > 0) {
+    if (existingMember[0].status === "removed") {
+      await db.update(vehicleMembersTable)
+        .set({ status: "active", memberName: request.requesterName?.trim() || null, removalReason: null })
+        .where(eq(vehicleMembersTable.id, existingMember[0].id));
+    }
+  } else {
+    await db.insert(vehicleMembersTable).values({
       vehicleId:      request.vehicleId,
       memberDeviceId: request.requesterDeviceId,
       role:           "driver",
       status:         "active",
-    })
-    .onConflictDoNothing();
+      memberName:     request.requesterName?.trim() || null,
+    });
+  }
 
   // Notify the requester
   const requesterTokenRow = await db
@@ -400,7 +492,14 @@ router.patch("/vehicles/join-request/:id/approve", async (req, res) => {
       title: "Request approved! ✅",
       body:  `You're now a co-driver of ${vehicle.displayName}${plateDisplay}`,
       sound: "default",
-      data:  { type: "vehicle_request_approved", vehicleId: vehicle.id },
+      data:  {
+        type:        "vehicle_request_approved",
+        vehicleId:   vehicle.id,
+        displayName: vehicle.displayName,
+        vehicleType: vehicle.vehicleType,
+        plateNumber: vehicle.plateNumber ?? null,
+        memberToken: generateMemberToken(vehicle.id, request.requesterDeviceId),
+      },
     }]);
   }
 
@@ -486,6 +585,254 @@ router.get("/vehicles/join-requests/incoming", async (req, res) => {
       createdAt:     r.createdAt,
     })),
   });
+});
+
+// ── GET /vehicles/:vehicleId/members ─────────────────────────────────────────
+// Owner sees all active members (including themselves).
+// Co-driver sees only their own row (for status check).
+router.get("/vehicles/:vehicleId/members", async (req, res) => {
+  const { vehicleId } = req.params as { vehicleId: string };
+  const { deviceId } = req.query as { deviceId?: string };
+
+  if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+  // Check membership/ownership
+  const vehicleRows = await db
+    .select({ ownerDeviceId: sharedVehiclesTable.ownerDeviceId })
+    .from(sharedVehiclesTable)
+    .where(eq(sharedVehiclesTable.id, vehicleId))
+    .limit(1);
+
+  if (vehicleRows.length === 0) return res.status(404).json({ error: "Vehicle not found" });
+
+  const isOwner = vehicleRows[0].ownerDeviceId === deviceId;
+
+  // Non-owner: only allowed to see their own membership row
+  // Non-owners can only see their own membership row; owners see all active members.
+  const baseCondition = and(
+    eq(vehicleMembersTable.vehicleId, vehicleId),
+    eq(vehicleMembersTable.status, "active"),
+  );
+  const members = await db
+    .select({
+      id:             vehicleMembersTable.id,
+      memberDeviceId: vehicleMembersTable.memberDeviceId,
+      role:           vehicleMembersTable.role,
+      status:         vehicleMembersTable.status,
+      memberName:     vehicleMembersTable.memberName,
+      createdAt:      vehicleMembersTable.createdAt,
+    })
+    .from(vehicleMembersTable)
+    .where(
+      isOwner
+        ? baseCondition
+        : and(baseCondition, eq(vehicleMembersTable.memberDeviceId, deviceId)),
+    )
+    .orderBy(vehicleMembersTable.createdAt);
+
+  return res.json({
+    members: members.map(m => ({
+      id:             m.id,
+      role:           m.role,
+      memberName:     m.memberName,
+      isCurrentDevice: m.memberDeviceId === deviceId,
+      joinedAt:       m.createdAt.toISOString(),
+    })),
+  });
+});
+
+// ── DELETE /vehicles/:vehicleId/members/:memberDeviceId ───────────────────────
+// Owner can remove any member. Co-driver can remove themselves (leave).
+//
+// Auth model:
+//   - Self-leave (memberDeviceId === deviceId): uses the project-wide deviceId
+//     identity model. DB membership is verified to prove the device is an active
+//     member of this specific vehicle. Self-leave has no privilege-escalation
+//     risk — the worst outcome is a force-leave on a reversible membership.
+//   - Owner removal (!isSelf): requires a server-issued HMAC bearer token in the
+//     Authorization header. The token is obtained only from the register/join-by-
+//     code API responses and is stored on the device. No renewal endpoint exists
+//     so an attacker who knows only the owner's deviceId cannot mint this token.
+router.delete("/vehicles/:vehicleId/members/:memberDeviceId", async (req, res) => {
+  const { vehicleId, memberDeviceId } = req.params as { vehicleId: string; memberDeviceId: string };
+  const { deviceId } = req.body as { deviceId: string };
+
+  if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+  // Load vehicle to check ownership
+  const vehicleRows = await db
+    .select({ ownerDeviceId: sharedVehiclesTable.ownerDeviceId, displayName: sharedVehiclesTable.displayName })
+    .from(sharedVehiclesTable)
+    .where(eq(sharedVehiclesTable.id, vehicleId))
+    .limit(1);
+
+  if (vehicleRows.length === 0) return res.status(404).json({ error: "Vehicle not found" });
+
+  const vehicle = vehicleRows[0];
+  const isOwner = vehicle.ownerDeviceId === deviceId;
+  const isSelf  = memberDeviceId === deviceId;
+
+  // Permission checks
+  if (!isOwner && !isSelf) {
+    return res.status(403).json({ error: "Only the vehicle owner can remove other members" });
+  }
+  if (isOwner && memberDeviceId === vehicle.ownerDeviceId) {
+    return res.status(400).json({ error: "The owner cannot leave their own vehicle." });
+  }
+
+  // Owner-removal requires the server-issued HMAC bearer token.
+  // Self-leave relies on the DB membership check below (project-wide pattern).
+  if (!isSelf) {
+    const token = extractBearerToken(req.headers["authorization"] as string | undefined);
+    if (!token || !verifyMemberToken(vehicleId, deviceId, token)) {
+      return res.status(401).json({ error: "Invalid or missing member token. Re-open Share Vehicle to refresh." });
+    }
+  }
+
+  // DB membership check — the deviceId in the request must have an active row.
+  // This binds the operation to the vehicle: an arbitrary deviceId not found in
+  // the membership table is rejected, regardless of whether it matches the claimed identity.
+  const callerRow = await db
+    .select({ id: vehicleMembersTable.id })
+    .from(vehicleMembersTable)
+    .where(and(
+      eq(vehicleMembersTable.vehicleId, vehicleId),
+      eq(vehicleMembersTable.memberDeviceId, deviceId),
+      eq(vehicleMembersTable.status, "active"),
+    ))
+    .limit(1);
+
+  if (callerRow.length === 0) {
+    return res.status(403).json({ error: "You are not an active member of this vehicle" });
+  }
+
+  const reason = isSelf ? "left" : "owner_removed";
+  const updated = await db
+    .update(vehicleMembersTable)
+    .set({ status: "removed", removalReason: reason })
+    .where(
+      and(
+        eq(vehicleMembersTable.vehicleId, vehicleId),
+        eq(vehicleMembersTable.memberDeviceId, memberDeviceId),
+        ne(vehicleMembersTable.status, "removed"),
+      ),
+    )
+    .returning({ id: vehicleMembersTable.id });
+
+  if (updated.length === 0) return res.status(404).json({ error: "Member not found or already removed" });
+
+  // Notify the removed member (if it's not them leaving themselves)
+  if (!isSelf) {
+    const removedTokenRow = await db
+      .select({ token: pushTokensTable.token })
+      .from(pushTokensTable)
+      .where(eq(pushTokensTable.deviceId, memberDeviceId))
+      .limit(1);
+
+    if (removedTokenRow.length > 0) {
+      const { sendPushNotifications } = await import("../lib/expoPush.js");
+      await sendPushNotifications([{
+        to:    removedTokenRow[0].token,
+        title: "Removed from shared vehicle",
+        body:  `You have been removed from ${vehicle.displayName}.`,
+        sound: "default",
+        data:  { type: "vehicle_member_removed", vehicleId },
+      }]);
+    }
+  }
+
+  return res.json({ ok: true });
+});
+
+// ── DELETE /vehicles/:vehicleId/members-by-row/:rowId ────────────────────────
+// Alternate remove endpoint keyed by member-row UUID instead of deviceId,
+// used by the Share screen (which sees row IDs, not raw device IDs).
+// Caller's deviceId is validated against the DB to ensure they are the owner.
+router.delete("/vehicles/:vehicleId/members-by-row/:rowId", async (req, res) => {
+  const { vehicleId, rowId } = req.params as { vehicleId: string; rowId: string };
+  const { deviceId } = req.body as { deviceId: string };
+
+  if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+  // Load vehicle to verify requester is the owner
+  const vehicleRows = await db
+    .select({ ownerDeviceId: sharedVehiclesTable.ownerDeviceId, displayName: sharedVehiclesTable.displayName })
+    .from(sharedVehiclesTable)
+    .where(eq(sharedVehiclesTable.id, vehicleId))
+    .limit(1);
+
+  if (vehicleRows.length === 0) return res.status(404).json({ error: "Vehicle not found" });
+
+  const vehicle = vehicleRows[0];
+  // Require the caller's deviceId to exactly match the owner stored in the DB.
+  // Ownership is the only allowed action on this endpoint.
+  if (vehicle.ownerDeviceId !== deviceId) {
+    return res.status(403).json({ error: "Only the vehicle owner can remove members" });
+  }
+
+  // Verify caller holds a valid server-issued HMAC token — this is owner-only
+  // so the HMAC is always required here.
+  const rowToken = extractBearerToken(req.headers["authorization"] as string | undefined);
+  if (!rowToken || !verifyMemberToken(vehicleId, deviceId, rowToken)) {
+    return res.status(401).json({ error: "Invalid or missing member token. Re-open Share Vehicle to refresh." });
+  }
+
+  // Verify caller has an active owner-role member row.
+  const ownerMemberRow = await db
+    .select({ id: vehicleMembersTable.id })
+    .from(vehicleMembersTable)
+    .where(and(
+      eq(vehicleMembersTable.vehicleId, vehicleId),
+      eq(vehicleMembersTable.memberDeviceId, deviceId),
+      eq(vehicleMembersTable.role, "owner"),
+      eq(vehicleMembersTable.status, "active"),
+    ))
+    .limit(1);
+
+  if (ownerMemberRow.length === 0) {
+    return res.status(403).json({ error: "Ownership could not be verified" });
+  }
+
+  // Look up the row to get the member's deviceId (needed for push notification)
+  const memberRows = await db
+    .select({ memberDeviceId: vehicleMembersTable.memberDeviceId, status: vehicleMembersTable.status })
+    .from(vehicleMembersTable)
+    .where(and(eq(vehicleMembersTable.id, rowId), eq(vehicleMembersTable.vehicleId, vehicleId)))
+    .limit(1);
+
+  if (memberRows.length === 0) return res.status(404).json({ error: "Member not found" });
+
+  const member = memberRows[0];
+  if (member.memberDeviceId === vehicle.ownerDeviceId) {
+    return res.status(400).json({ error: "Cannot remove the owner" });
+  }
+
+  if (member.status === "removed") return res.status(404).json({ error: "Member already removed" });
+
+  await db
+    .update(vehicleMembersTable)
+    .set({ status: "removed", removalReason: "owner_removed" })
+    .where(eq(vehicleMembersTable.id, rowId));
+
+  // Notify the removed member
+  const tokenRow = await db
+    .select({ token: pushTokensTable.token })
+    .from(pushTokensTable)
+    .where(eq(pushTokensTable.deviceId, member.memberDeviceId))
+    .limit(1);
+
+  if (tokenRow.length > 0) {
+    const { sendPushNotifications } = await import("../lib/expoPush.js");
+    await sendPushNotifications([{
+      to:    tokenRow[0].token,
+      title: "Removed from shared vehicle",
+      body:  `You have been removed from ${vehicle.displayName}.`,
+      sound: "default",
+      data:  { type: "vehicle_member_removed", vehicleId },
+    }]);
+  }
+
+  return res.json({ ok: true });
 });
 
 export default router;

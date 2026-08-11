@@ -33,7 +33,7 @@ import {
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import CarLogoImage from "@/components/CarLogoImage";
-import { API_BASE, apiGet, apiPost, apiPatch } from "@/utils/apiClient";
+import { API_BASE, apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 import {
   loadVehicleCareData,
   saveVehicleCareData,
@@ -51,6 +51,8 @@ import {
   setPendingSlot,
   setDefaultVehicle,
   removeVehicle,
+  removeSharedVehicle,
+  setSharedVehicleId,
   updateVehicleDetails,
   normalizePlate,
   type VehicleDetails,
@@ -274,6 +276,7 @@ interface VehicleSlideProps {
   onRemove: (id: string) => void;
   onEdit: (v: SavedVehicle) => void;
   onShare: (v: SavedVehicle) => void;
+  onLeave: (v: SavedVehicle) => void;
 }
 
 // Image fills the card width minus horizontal padding
@@ -283,7 +286,7 @@ const IMG_H = 140; // Compact, intentional — leaves room for info below
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
   odometerKm, cardBg, borderCol, subText, primary, foreground,
-  totalVehicles, onSetDefault, onRemove, onEdit, onShare,
+  totalVehicles, onSetDefault, onRemove, onEdit, onShare, onLeave,
 }: VehicleSlideProps) {
   const trackColor = cardBg === "#151917" || cardBg.startsWith("#0") ? "#2A3530" : "#DDE6DA";
   const fuelLabel = v.fuelType ?? "Petrol";
@@ -385,14 +388,27 @@ function VehicleSlide({
             <Ionicons name="pencil-outline" size={14} color="#22C55E" />
             <Text style={[styles.vehicleActionTxt, { color: "#22C55E" }]}>Edit Details</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.vehicleActionBtn, { backgroundColor: "#6366F114", borderColor: "#6366F135" }]}
-            onPress={() => onShare(v)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="share-social-outline" size={14} color="#6366F1" />
-            <Text style={[styles.vehicleActionTxt, { color: "#6366F1" }]}>Share</Text>
-          </TouchableOpacity>
+          {v.sharedVehicleRole === "driver" ? (
+            // Co-driver: show Leave button instead of Share
+            <TouchableOpacity
+              style={[styles.vehicleActionBtn, { backgroundColor: "#EF444414", borderColor: "#EF444435" }]}
+              onPress={() => onLeave(v)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="exit-outline" size={14} color="#EF4444" />
+              <Text style={[styles.vehicleActionTxt, { color: "#EF4444" }]}>Leave</Text>
+            </TouchableOpacity>
+          ) : (
+            // Owner or unshared vehicle: show Share button
+            <TouchableOpacity
+              style={[styles.vehicleActionBtn, { backgroundColor: "#6366F114", borderColor: "#6366F135" }]}
+              onPress={() => onShare(v)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="share-social-outline" size={14} color="#6366F1" />
+              <Text style={[styles.vehicleActionTxt, { color: "#6366F1" }]}>Share</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -938,7 +954,7 @@ export default function GarageScreen() {
     if (!deviceId) return;
     const displayName = vehicleDisplayName(v);
     try {
-      const result = await apiPost<{ vehicleId: string; shareCode: string; displayName: string }>(
+      const result = await apiPost<{ vehicleId: string; shareCode: string; displayName: string; memberToken?: string }>(
         "/vehicles/register",
         {
           deviceId,
@@ -947,17 +963,65 @@ export default function GarageScreen() {
           vehicleType: v.vehicleType,
         },
       );
+      // Persist sharedVehicleId (and server-issued member token) on the local
+      // vehicle so the Share screen can fetch the member list.
+      if (!v.sharedVehicleId || result.memberToken) {
+        await setSharedVehicleId(v.id, result.vehicleId, "owner", result.memberToken);
+        await refreshVehicles();
+      }
       router.push({
         pathname: "/vehicle-share-code" as any,
         params: {
+          vehicleId:   result.vehicleId,
           shareCode:   result.shareCode,
           vehicleName: displayName,
           plateNumber: v.plateNumber ?? "",
+          deviceId:    deviceId ?? "",
+          memberToken: result.memberToken ?? v.memberToken ?? "",
         },
       });
     } catch (err: any) {
       Alert.alert("Couldn't generate code", err?.message || "Check your connection and try again.");
     }
+  }
+
+  async function handleLeaveVehicle(v: SavedVehicle) {
+    if (!deviceId || !v.sharedVehicleId) return;
+    Alert.alert(
+      "Leave Shared Vehicle",
+      `You'll stop being a co-driver of ${vehicleDisplayName(v)}. Your private trip history stays on your device. Continue?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Self-leave uses the project-wide deviceId identity model.
+              // No HMAC token is required — self-leave has no privilege-escalation
+              // risk (worst case: a force-leave on a reversible co-driver membership).
+              await apiDelete(
+                `/vehicles/${v.sharedVehicleId}/members/${deviceId}`,
+                { deviceId },
+              );
+              // Only remove locally after the server confirms the leave.
+              const updated = await removeSharedVehicle(v.sharedVehicleId!);
+              const newSlide = Math.max(0, Math.min(slideIndex, updated.length - 1));
+              setSlideIndex(newSlide);
+              const newActive = updated[newSlide];
+              if (newActive) setActiveVehicle(newActive.id);
+              await refreshVehicles();
+            } catch (err: any) {
+              // Server rejection — keep the vehicle in local garage.
+              Alert.alert(
+                "Couldn't Leave",
+                err?.message || "Failed to leave the shared vehicle. Check your connection and try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
   }
 
   async function handleSetDefault(id: string) {
@@ -1118,6 +1182,7 @@ export default function GarageScreen() {
         onRemove={handleRemoveVehicle}
         onEdit={handleEditVehicle}
         onShare={handleShareVehicle}
+        onLeave={handleLeaveVehicle}
       />
     );
   }

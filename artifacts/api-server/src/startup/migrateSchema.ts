@@ -336,6 +336,30 @@ export async function migrateSchema(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS vehicle_members_vehicle_device_uniq
         ON vehicle_members (vehicle_id, member_device_id)
     `);
+    // member_name added after initial rollout — backfill column idempotently.
+    await db.execute(sql`
+      ALTER TABLE vehicle_members ADD COLUMN IF NOT EXISTS member_name TEXT
+    `);
+    // removal_reason distinguishes voluntary leave from owner expulsion.
+    // "left" = may rejoin; "owner_removed" = blocked until owner re-invites.
+    await db.execute(sql`
+      ALTER TABLE vehicle_members ADD COLUMN IF NOT EXISTS removal_reason TEXT
+    `);
+    // Backfill owner member rows for any shared_vehicles that pre-date the
+    // vehicle_members table or whose owner row was missed (e.g. early-return
+    // path in register that skipped the INSERT).  Idempotent via ON CONFLICT.
+    await db.execute(sql`
+      INSERT INTO vehicle_members (vehicle_id, member_device_id, role, status)
+      SELECT sv.id, sv.owner_device_id, 'owner', 'active'
+      FROM   shared_vehicles sv
+      WHERE  NOT EXISTS (
+        SELECT 1 FROM vehicle_members vm
+        WHERE  vm.vehicle_id       = sv.id
+          AND  vm.member_device_id = sv.owner_device_id
+          AND  vm.role             = 'owner'
+      )
+      ON CONFLICT DO NOTHING
+    `);
 
     // vehicle_join_requests — pending requests submitted via plate search.
     // The owner approves or declines; joining via share code bypasses this table.

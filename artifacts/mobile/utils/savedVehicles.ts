@@ -30,6 +30,12 @@ export interface SavedVehicle {
   transmission?: "Automatic" | "Manual";
   odometerKm?: number;
   plateNumber?: string;
+  // Shared-vehicle metadata — set when a vehicle is registered for sharing
+  // (role="owner") or joined as a co-driver (role="driver").
+  sharedVehicleId?:   string;               // ID in shared_vehicles table
+  sharedVehicleRole?: "owner" | "driver";
+  /** Server-issued HMAC token — required to authorize owner-level actions (removing members). */
+  memberToken?:       string;
 }
 
 export interface VehicleDetails {
@@ -221,6 +227,72 @@ export async function applyPendingSlot(params: {
 export async function setDefaultVehicle(id: string): Promise<SavedVehicle[]> {
   const list = await loadVehicles();
   const updated = list.map(v => ({ ...v, isDefault: v.id === id }));
+  await saveVehicles(updated);
+  return updated;
+}
+
+/**
+ * Persist the sharedVehicleId (and role) on an existing local vehicle after
+ * the owner successfully registers it for sharing.
+ */
+export async function setSharedVehicleId(
+  localVehicleId: string,
+  sharedVehicleId: string,
+  role: "owner" | "driver",
+  memberToken?: string,
+): Promise<void> {
+  const list = await loadVehicles();
+  const updated = list.map(v =>
+    v.id === localVehicleId
+      ? { ...v, sharedVehicleId, sharedVehicleRole: role, ...(memberToken ? { memberToken } : {}) }
+      : v,
+  );
+  await saveVehicles(updated);
+}
+
+/**
+ * Create a new local SavedVehicle entry for a shared vehicle the user just
+ * joined as a co-driver. Idempotent — no-ops if the sharedVehicleId is
+ * already in the list.
+ */
+export async function addSharedVehicle(params: {
+  sharedVehicleId: string;
+  displayName:     string;
+  vehicleType:     string;
+  plateNumber?:    string;
+  memberToken?:    string;
+}): Promise<SavedVehicle[]> {
+  const list = await loadVehicles();
+
+  // Idempotent — skip if already joined (e.g. user tapped Join twice)
+  if (list.some(v => v.sharedVehicleId === params.sharedVehicleId)) return list;
+
+  const newVehicle: SavedVehicle = {
+    id:              `shared-${params.sharedVehicleId}`,
+    makeId:          null,
+    modelId:         null,
+    customMakeName:  params.displayName,
+    customModelName: null,
+    vehicleType:     (params.vehicleType as any) ?? "car",
+    isDefault:       false,
+    plateNumber:     params.plateNumber ?? undefined,
+    sharedVehicleId: params.sharedVehicleId,
+    sharedVehicleRole: "driver",
+    ...(params.memberToken ? { memberToken: params.memberToken } : {}),
+  };
+
+  const updated = [...list, newVehicle];
+  await saveVehicles(updated);
+  return updated;
+}
+
+/**
+ * Remove a joined shared vehicle from the local list by its sharedVehicleId.
+ * Called after a co-driver successfully leaves via the API.
+ */
+export async function removeSharedVehicle(sharedVehicleId: string): Promise<SavedVehicle[]> {
+  const list = await loadVehicles();
+  const updated = list.filter(v => v.sharedVehicleId !== sharedVehicleId);
   await saveVehicles(updated);
   return updated;
 }

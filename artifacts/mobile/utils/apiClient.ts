@@ -66,11 +66,16 @@ async function parseMaybeEmpty<T>(res: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-export async function apiDelete<T>(path: string, body: unknown, timeoutMs = 10000): Promise<T> {
+export async function apiDelete<T>(
+  path: string,
+  body: unknown,
+  timeoutMs = 10000,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   if (!API_BASE) throw new Error("API_BASE not configured");
   const res = await fetchWithTimeout(`${API_BASE}${path}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
   }, timeoutMs);
   if (!res.ok) return throwApiError(res);

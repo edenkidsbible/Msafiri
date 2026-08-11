@@ -31,8 +31,16 @@ export const vehicleMembersTable = pgTable("vehicle_members", {
   id:             uuid("id").primaryKey().defaultRandom(),
   vehicleId:      uuid("vehicle_id").notNull().references(() => sharedVehiclesTable.id, { onDelete: "cascade" }),
   memberDeviceId: text("member_device_id").notNull(),
-  role:           text("role").notNull().default("driver"), // "owner" | "driver"
+  role:           text("role").notNull().default("driver"),   // "owner" | "driver"
   status:         text("status").notNull().default("active"), // "active" | "removed"
+  memberName:     text("member_name"),
+  /**
+   * Why this membership ended:
+   *   null          — still active
+   *   "left"        — co-driver voluntarily left; may rejoin with the share code
+   *   "owner_removed" — owner expelled them; blocked from auto-rejoin until owner re-invites
+   */
+  removalReason:  text("removal_reason"),
   createdAt:      timestamp("created_at").notNull().defaultNow(),
 }, (t) => ({
   /** One row per (vehicle, device) — backs the onConflictDoNothing() in join flows. */

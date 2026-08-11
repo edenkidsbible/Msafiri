@@ -5,6 +5,7 @@ import Constants from "expo-constants";
 import { useRouter, useRootNavigationState } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiGet } from "@/utils/apiClient";
+import { addSharedVehicle } from "@/utils/savedVehicles";
 import { useApp, CommunityReport } from "@/context/AppContext";
 
 // Resolved at build time from app.json → extra.eas.projectId.
@@ -336,6 +337,26 @@ export function usePushNotifications() {
                 });
             }
           }
+        } else if (type === "vehicle_request_approved") {
+          // Owner approved our plate-based join request. Persist the shared
+          // vehicle locally so it appears in the Garage without requiring a
+          // manual re-join.  All needed data is in the push payload.
+          const vehicleId   = data?.vehicleId   as string | undefined;
+          const displayName = data?.displayName as string | undefined;
+          const vehicleType = data?.vehicleType as string | undefined;
+          const plateNumber = data?.plateNumber as string | undefined;
+          const memberToken = data?.memberToken as string | undefined;
+          if (vehicleId && displayName) {
+            addSharedVehicle({
+              sharedVehicleId: vehicleId,
+              displayName,
+              vehicleType:     vehicleType ?? "car",
+              plateNumber:     plateNumber ?? undefined,
+              memberToken:     memberToken ?? undefined,
+            }).catch(() => {});
+          }
+          // Navigate to garage so the user sees their new shared vehicle
+          safePush("/(tabs)/garage" as any);
         } else if (type === "dashcam_review_reminder") {
           // Driver tapped the 4-hour review reminder — take them to the drive
           // tab where the review banner lives (noAutoStart prevents trip auto-start)

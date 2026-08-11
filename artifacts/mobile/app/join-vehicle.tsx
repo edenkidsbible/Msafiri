@@ -18,7 +18,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { apiPost, apiGet } from "@/utils/apiClient";
-import { normalizePlate } from "@/utils/savedVehicles";
+import { normalizePlate, addSharedVehicle } from "@/utils/savedVehicles";
 
 type Tab = "code" | "plate";
 
@@ -181,7 +181,7 @@ export default function JoinVehicleScreen() {
       const result = await apiPost<{
         success?: boolean;
         alreadyOwner?: boolean;
-        vehicle?: FoundVehicle;
+        vehicle?: FoundVehicle & { memberToken?: string };
         error?: string;
       }>("/vehicles/join-by-code", {
         deviceId,
@@ -196,12 +196,24 @@ export default function JoinVehicleScreen() {
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const v     = result.vehicle;
-      const name  = v?.displayName ?? "the vehicle";
+      const v    = result.vehicle;
+      const name = v?.displayName ?? "the vehicle";
       const plate = v?.plateNumber ? ` (${v.plateNumber})` : "";
+
+      // Persist a local vehicle entry so the co-driver sees it in their garage
+      if (v?.id) {
+        await addSharedVehicle({
+          sharedVehicleId: v.id,
+          displayName:     v.displayName,
+          vehicleType:     v.vehicleType ?? "car",
+          plateNumber:     v.plateNumber ?? undefined,
+          memberToken:     (result as any).memberToken ?? v?.memberToken ?? undefined,
+        });
+      }
+
       Alert.alert(
         "Joined! 🎉",
-        `You're now a co-driver of ${name}${plate}. Stats will be combined going forward.`,
+        `You're now a co-driver of ${name}${plate}. It's in your Garage — stats will be combined going forward.`,
         [{ text: "Done", onPress: () => router.back() }],
       );
     } catch (err: any) {

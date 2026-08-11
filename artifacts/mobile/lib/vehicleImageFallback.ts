@@ -30,7 +30,10 @@ export const VEHICLE_FALLBACK_IMAGES: Record<string, ReturnType<typeof require>>
 
 const DEFAULT_FALLBACK = require("@/assets/images/vehicle-car.png");
 
-/** Returns the local PNG asset that best matches the vehicle type. */
-export function getVehicleFallbackImage(vehicleType: string): ReturnType<typeof require> {
-  return VEHICLE_FALLBACK_IMAGES[vehicleType] ?? DEFAULT_FALLBACK;
+/**
+ * Returns the local PNG asset number that best matches the vehicle type.
+ * React Native require() returns a number (registered asset ID) at runtime.
+ */
+export function getVehicleFallbackImage(vehicleType: string): number {
+  return (VEHICLE_FALLBACK_IMAGES[vehicleType] ?? DEFAULT_FALLBACK) as number;
 }
