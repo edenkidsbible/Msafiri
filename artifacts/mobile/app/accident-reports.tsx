@@ -287,18 +287,44 @@ export default function AccidentReportsScreen() {
   const handleDownloadPdf = useCallback(async (r: AccidentRecord) => {
     if (!deviceId) return;
     try {
-      const url = `${API_BASE}/accidents/${r.id}/report?deviceId=${deviceId}`;
-      await Linking.openURL(url);
+      // 1. Ask the server to generate (or return cached) PDF — response is JSON
+      //    { url: "<presigned-R2-URL>", cached: boolean }.
+      const { url: presignedUrl } = await apiGet<{ url: string }>(
+        `/accidents/${r.id}/report?deviceId=${deviceId}`,
+      );
+      // 2. Download the actual PDF bytes from R2 to a local cache file.
+      const dest = `${FileSystem.cacheDirectory}accident-report-${r.id}.pdf`;
+      const dl = await FileSystem.downloadAsync(presignedUrl, dest);
+      if (dl.status !== 200) {
+        Alert.alert("Error", "Could not download the PDF. Please try again.");
+        return;
+      }
+      // 3. Open the native share sheet with the local file so the OS treats it
+      //    as a PDF (not a webpage / JSON blob).
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(dest, {
+          mimeType: "application/pdf",
+          dialogTitle: "Accident Report",
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        // Fallback: open the presigned URL directly (will download in browser).
+        await Linking.openURL(presignedUrl);
+      }
     } catch {
-      Alert.alert("Error", "Could not open the PDF report.");
+      Alert.alert("Error", "Could not download the PDF report.");
     }
   }, [deviceId]);
 
   const handleSharePdf = useCallback(async (r: AccidentRecord) => {
     if (!deviceId) return;
     try {
-      const url = `${API_BASE}/accidents/${r.id}/report?deviceId=${deviceId}`;
-      await Share.share({ title: `Accident Report – ${deriveTitle(r)}`, url });
+      // Use the public /report/view URL — it redirects to the presigned R2 PDF
+      // and is safe to share with insurers, police, or lawyers without exposing
+      // the deviceId or short-lived presigned tokens.
+      const shareUrl = `${API_BASE}/accidents/${r.id}/report/view`;
+      await Share.share({ title: `Accident Report – ${deriveTitle(r)}`, url: shareUrl });
     } catch { /* dismissed */ }
   }, [deviceId]);
 
@@ -314,7 +340,7 @@ export default function AccidentReportsScreen() {
       options.push("Continue Draft");
       actions.push(() => router.push(`/crash-assistant/${r.id}` as any));
     } else {
-      options.push("View Report");
+      options.push("Edit Report");
       actions.push(() => router.push(`/crash-assistant/${r.id}` as any));
     }
 
@@ -417,8 +443,8 @@ export default function AccidentReportsScreen() {
     const isArchived = r.status === "archived";
     const items: { label: string; icon: keyof typeof Ionicons.glyphMap; color?: string; action: () => void }[] = [];
     items.push({
-      label: isDraft ? "Continue Draft" : "View Report",
-      icon: isDraft ? "create-outline" : "eye-outline",
+      label: isDraft ? "Continue Draft" : "Edit Report",
+      icon: "create-outline",
       action: () => { setMenuRecord(null); router.push(`/crash-assistant/${r.id}` as any); },
     });
     if (r.hasPdf) {
