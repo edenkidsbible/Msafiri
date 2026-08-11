@@ -12,6 +12,7 @@ import ReportModal from "@/components/ReportModal";
 import ReportUndoToast, { UndoableReport } from "@/components/ReportUndoToast";
 import { snapToRoad } from "@/utils/snapToRoad";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
+import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -53,6 +54,7 @@ export default function MapViewScreen() {
     activeRoute, altRoutes, selectRoute,
     navDestination, setNavDestination, showTraffic, setShowTraffic,
     vehicleType, routeTrafficDelayS, allZones,
+    isOffline, lastAlertDataSyncedAt,
   } = useApp();
   const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
@@ -292,6 +294,17 @@ export default function MapViewScreen() {
         onUndo={undoLastReport}
         onDismiss={() => setUndoReport(null)}
       />
+
+      {/* Offline pill — floats above the web tab bar when the device has no
+          connection; compact variant keeps it slim so it doesn't obscure the
+          zone list. bottomOffset=84 matches the web tab-bar height. */}
+      {isOffline && (
+        <OfflineAlertBanner
+          lastSyncedAt={lastAlertDataSyncedAt}
+          compact
+          bottomOffset={84}
+        />
+      )}
 
       <ReportModal
         visible={showReport}

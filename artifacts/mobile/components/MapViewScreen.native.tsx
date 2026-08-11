@@ -183,7 +183,7 @@ function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
     // Anchor the cluster at the most-confirmed member's location so the marker
     // sits on the most-verified sighting rather than the first submission.
     const lead = group.members.reduce(
-      (best, m) => m.confirmCount > best.confirmCount ? m : best,
+      (best, m) => (m.confirmCount ?? 0) > (best.confirmCount ?? 0) ? m : best,
       group.members[0],
     );
     group.lat = lead.lat;
@@ -1693,16 +1693,20 @@ export default function MapViewScreen() {
         </Modal>
       )}
 
-      {/* ── Offline indicator — floats above map controls ──────────────────── */}
+      {/* ── Offline pill — centered above the map controls; compact variant so it
+          doesn't fight the weather chip (left) or zoom controls (right).
+          bottomOffset is set above TAB_H + controls to avoid overlap. */}
       {isOffline && (
         <OfflineAlertBanner
           lastSyncedAt={lastAlertDataSyncedAt}
-          bottomOffset={16}
+          compact
+          bottomOffset={insets.bottom + TAB_H + 72}
         />
       )}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   focusMarkerWrap: {

@@ -67,22 +67,23 @@ function Row({
 
 interface Props {
   lastSyncedAt: Date | null;
-  /**
-   * Distance above the safe-area bottom edge where the pill sits.
-   * Drive screen: 90 (clears the tab bar).
-   * Map screen: 16 (no tab bar visible).
-   * @default 90
-   */
+  /** Compact mode: smaller text, tighter padding. Use on the map screen where
+   *  vertical space is shared with map controls. The info sheet is unchanged. */
+  compact?: boolean;
+  /** Override the absolute bottom offset (defaults to insets.bottom + 90 for
+   *  the drive screen; map screen passes its own offset to avoid UI overlap). */
   bottomOffset?: number;
 }
 
-export default function OfflineAlertBanner({ lastSyncedAt, bottomOffset = 90 }: Props) {
+export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bottomOffset }: Props) {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
   const syncAge = formatSyncAge(lastSyncedAt);
   const hasSynced = lastSyncedAt !== null;
+
+  const resolvedBottom = bottomOffset ?? insets.bottom + 90;
 
   const openSettings = useCallback(() => {
     if (Platform.OS === "ios") {
@@ -102,21 +103,22 @@ export default function OfflineAlertBanner({ lastSyncedAt, bottomOffset = 90 }: 
         activeOpacity={0.8}
         style={[
           sheet.pill,
+          compact && sheet.pillCompact,
           {
             backgroundColor: "#7C3AED18",
             borderColor: "#7C3AED40",
-            bottom: insets.bottom + bottomOffset,
+            bottom: resolvedBottom,
           },
         ]}
         accessibilityLabel="Offline mode — tap for details"
         accessibilityRole="button"
       >
-        <Ionicons name="cloud-offline-outline" size={14} color="#7C3AED" />
-        <Text style={[sheet.pillTxt, { color: "#7C3AED" }]}>
+        <Ionicons name="cloud-offline-outline" size={compact ? 12 : 14} color="#7C3AED" />
+        <Text style={[sheet.pillTxt, compact && sheet.pillTxtCompact, { color: "#7C3AED" }]}>
           Offline
-          {hasSynced ? ` · data from ${syncAge}` : " · no alert data yet"}
+          {hasSynced ? ` · data from ${syncAge}` : " · no data yet"}
         </Text>
-        <Ionicons name="information-circle-outline" size={13} color="#7C3AED" />
+        <Ionicons name="information-circle-outline" size={compact ? 11 : 13} color="#7C3AED" />
       </TouchableOpacity>
 
       {/* ── Info sheet ────────────────────────────────────────────────── */}
@@ -252,9 +254,17 @@ const sheet = StyleSheet.create({
     borderWidth:       1,
     zIndex:            800,
   },
+  pillCompact: {
+    paddingVertical:   4,
+    paddingHorizontal: 10,
+    gap:               4,
+  },
   pillTxt: {
     fontSize:   12,
     fontFamily: "Inter_600SemiBold",
+  },
+  pillTxtCompact: {
+    fontSize: 11,
   },
 
   // Sheet

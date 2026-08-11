@@ -3558,7 +3558,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#000" },
 
 
-
   // ── Search bar + results ─────────────────────────────────────────────────
   searchArea: {
     position: "absolute", left: 12, right: 12, zIndex: 18, gap: 6,
