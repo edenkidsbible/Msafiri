@@ -72,6 +72,7 @@ import { recordSession } from "@/utils/vehicleSessionMap";
 import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
+import BackOnlinePill from "@/components/BackOnlinePill";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1542,6 +1543,11 @@ export default function DriveScreen() {
       {/* ── Offline mode pill — shown whenever device has no internet ──────── */}
       {isOffline && Platform.OS !== "web" && (
         <OfflineAlertBanner lastSyncedAt={lastAlertDataSyncedAt} />
+      )}
+
+      {/* ── Back-online confirmation — brief green pill when connectivity resumes */}
+      {Platform.OS !== "web" && (
+        <BackOnlinePill bottomOffset={bottomInset + tabBarH + 20} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════

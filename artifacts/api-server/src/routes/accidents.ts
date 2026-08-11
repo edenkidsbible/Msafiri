@@ -118,8 +118,7 @@ async function generatePdf(
 ): Promise<Buffer> {
   // Pre-fetch scene photo buffers before opening the PDF stream so that async
   // downloads don't conflict with PDFKit's synchronous writing model.
-  const scenePhotos  = photos.filter((p) => p.category !== "audio_statement" && p.fileKey);
-  const audioPresent = photos.some((p) => p.category === "audio_statement");
+  const scenePhotos  = photos.filter((p) => p.fileKey);
 
   // Download up to 6 photos — silently skip any that fail.
   const photoBuffers: { label: string; buf: Buffer }[] = [];
@@ -378,14 +377,6 @@ async function generatePdf(
       doc.moveDown(0.3);
     }
 
-    // ── Audio Statement note ──────────────────────────────────────────────────
-    if (audioPresent) {
-      sectionTitle("Audio Statement");
-      doc.fontSize(10).font("Helvetica").fillColor(MUTED)
-        .text("An audio statement was recorded at the scene. Open Accident Reports in Msafiri Kenya to listen.", MARGIN, doc.y, { width: W });
-      doc.moveDown(0.3);
-    }
-
     // ── Embedded Scene Photos ─────────────────────────────────────────────────
     if (photoBuffers.length > 0) {
       sectionTitle(`Scene Photos (${photoBuffers.length})`);
@@ -611,7 +602,6 @@ router.get("/accidents/:id", async (req: Request, res: Response) => {
       weather, otherDriver, police,
       driverStatement: r.driverStatement,
       hasPdf: !!r.pdfUrl,
-      hasAudioStatement: photos.some((p) => p.category === "audio_statement"),
       photos: photos.map((p) => ({
         id: p.id, category: p.category,
         url: p.fileKey ? `/accidents/${id}/photos/${p.id}/url` : null,
@@ -702,13 +692,10 @@ router.post("/accidents/:id/photos/request-upload", async (req: Request, res: Re
     // Allowlist of MIME types the mobile client may send for accident media.
     const ALLOWED_TYPES = new Set([
       "image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif",
-      "image/webp", "audio/m4a", "audio/mp4", "audio/aac",
+      "image/webp",
     ]);
-    // Client should supply contentType matching what it will PUT; fall back by
-    // category so legacy clients that omit the field still work correctly.
-    const fallback = category === "audio_statement" ? "audio/m4a" : "image/jpeg";
     const signedContentType =
-      rawContentType && ALLOWED_TYPES.has(rawContentType) ? rawContentType : fallback;
+      rawContentType && ALLOWED_TYPES.has(rawContentType) ? rawContentType : "image/jpeg";
 
     if (!r2.isR2Configured()) {
       return res.status(503).json({ error: "Object storage not configured" });

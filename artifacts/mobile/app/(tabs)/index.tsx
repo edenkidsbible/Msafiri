@@ -48,6 +48,7 @@ import {
 } from "@/utils/driveSessionApi";
 import { useVehicle } from "@/context/VehicleContext";
 import { QUICK_START_KEY } from "@/app/pretrip-check";
+import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ export default function HomeScreen() {
     navTripActive,
     navTripPaused,
     profilePhotoUri,
+    isOffline,
+    lastAlertDataSyncedAt,
   } = useApp();
   const { activeVehicle, activeVehicleId } = useVehicle();
 
@@ -923,6 +926,16 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Offline pill — shown near the top of the home tab so drivers know
+          before they open the map that nearby alert data may be stale. */}
+      {isOffline && Platform.OS !== "web" && (
+        <OfflineAlertBanner
+          lastSyncedAt={lastAlertDataSyncedAt}
+          compact
+          topOffset={insets.top + 68}
+        />
+      )}
     </View>
   );
 }

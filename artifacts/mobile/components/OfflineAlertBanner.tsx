@@ -73,9 +73,12 @@ interface Props {
   /** Override the absolute bottom offset (defaults to insets.bottom + 90 for
    *  the drive screen; map screen passes its own offset to avoid UI overlap). */
   bottomOffset?: number;
+  /** When provided the pill anchors to the TOP of its container instead of the
+   *  bottom. Pass insets.top + header height so it sits just below the header. */
+  topOffset?: number;
 }
 
-export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bottomOffset }: Props) {
+export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bottomOffset, topOffset }: Props) {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
@@ -107,7 +110,9 @@ export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bott
           {
             backgroundColor: "#7C3AED18",
             borderColor: "#7C3AED40",
-            bottom: resolvedBottom,
+            ...(topOffset !== undefined
+              ? { top: topOffset }
+              : { bottom: resolvedBottom }),
           },
         ]}
         accessibilityLabel="Offline mode — tap for details"

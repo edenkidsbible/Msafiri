@@ -9,6 +9,7 @@ import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
+import BackOnlinePill from "@/components/BackOnlinePill";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
 import { CrosshairPickerModal } from "@/components/CrosshairPicker";
@@ -1703,6 +1704,9 @@ export default function MapViewScreen() {
           bottomOffset={insets.bottom + TAB_H + 72}
         />
       )}
+
+      {/* ── Back-online confirmation — brief green pill when connectivity resumes */}
+      <BackOnlinePill bottomOffset={insets.bottom + TAB_H + 72} />
     </View>
   );
 }
