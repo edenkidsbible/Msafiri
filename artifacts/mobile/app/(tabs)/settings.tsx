@@ -53,7 +53,9 @@ export default function SettingsScreen() {
     profilePhotoUri,
   } = useApp();
 
-  const { isSubscribed } = useSubscription();
+  const { isSubscribed, offerings } = useSubscription();
+  const weeklyPkg = offerings?.current?.availablePackages.find((p) => p.identifier === "$rc_weekly");
+  const weeklyPriceString = weeklyPkg?.product.priceString ?? "";
   const {
     settings: dashcamSettings,
     updateSettings: updateDashcam,
@@ -332,7 +334,7 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Subscribe to Msafiri</Text>
             <Text style={[styles.proBannerSub, { color: c.primaryForeground + "CC" }]}>
-              From KES 100/week · 3-day free trial
+              {weeklyPriceString ? `From ${weeklyPriceString}/week · 3-day free trial` : "3-day free trial · cancel anytime"}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.primaryForeground + "CC"} />
