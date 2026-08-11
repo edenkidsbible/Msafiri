@@ -580,8 +580,15 @@ export default function MapViewScreen() {
       Alert.alert(
         "Trip already in progress",
         navTripPaused
-          ? "Your trip is currently paused. Resume it or end it before navigating to a new destination."
-          : "A trip is already running. End it before navigating to a new destination.",
+          ? "Your trip is currently paused. Go to the Drive screen to resume or end it."
+          : "A trip is already running. Go to the Drive screen to end it.",
+        [
+          {
+            text: "Go to Drive",
+            onPress: () => router.replace("/(tabs)/drive" as any),
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
       );
       return;
     }
@@ -993,8 +1000,15 @@ export default function MapViewScreen() {
                           Alert.alert(
                             "Trip already in progress",
                             navTripPaused
-                              ? "Your trip is currently paused. Resume it or end it before navigating to a new destination."
-                              : "A trip is already running. End it before navigating to a new destination.",
+                              ? "Your trip is currently paused. Go to the Drive screen to resume or end it."
+                              : "A trip is already running. Go to the Drive screen to end it.",
+                            [
+                              {
+                                text: "Go to Drive",
+                                onPress: () => router.replace("/(tabs)/drive" as any),
+                              },
+                              { text: "Cancel", style: "cancel" },
+                            ],
                           );
                           return;
                         }
