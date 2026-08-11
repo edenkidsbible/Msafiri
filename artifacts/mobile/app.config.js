@@ -169,6 +169,7 @@ module.exports = {
       "./plugins/withDisableUnusedAudioServices.js",
       "./plugins/withR8Optimization.js",
       "./plugins/withGeoIntentFilter.js",
+      "./plugins/withNoReadMediaPermissions.js",
     ],
     updates: {
       url: "https://u.expo.dev/35b79893-fc03-4518-bfcd-31ac65c262f4",
