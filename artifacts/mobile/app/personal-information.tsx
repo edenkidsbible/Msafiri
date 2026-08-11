@@ -118,8 +118,16 @@ export default function PersonalInformationScreen() {
   const vehicleLabel = getVehicleTypeDef(vehicleType).label;
   const initials = name ? name.substring(0, 2).toUpperCase() : "DR";
 
+  /** Strip anything that isn't a plain letter, then capitalise the first letter */
+  const normalizeName = (raw: string) => {
+    const letters = raw.replace(/[^a-zA-Z]/g, "");
+    return letters.length === 0 ? "" : letters[0].toUpperCase() + letters.slice(1).toLowerCase();
+  };
+
   const handleSave = async () => {
-    setDriverName(name);
+    const normalized = normalizeName(name);
+    setDriverName(normalized);
+    setName(normalized);
     await AsyncStorage.setItem("profile_email", email);
     await AsyncStorage.setItem("profile_phone", phone);
     Alert.alert("Saved!", "Your personal information has been updated.");
@@ -154,13 +162,16 @@ export default function PersonalInformationScreen() {
 
         <View style={[styles.formCard, { backgroundColor: c.card }]}>
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: c.mutedForeground }]}>Full Name</Text>
+            <Text style={[styles.label, { color: c.mutedForeground }]}>First Name</Text>
             <TextInput
               style={[styles.input, { backgroundColor: c.muted, color: c.foreground }]}
               value={name}
-              onChangeText={setName}
-              placeholder="Your name"
+              onChangeText={(t) => setName(t.replace(/[^a-zA-Z]/g, ""))}
+              placeholder="Your first name"
               placeholderTextColor={c.mutedForeground}
+              autoCorrect={false}
+              autoCapitalize="none"
+              maxLength={30}
             />
           </View>
 

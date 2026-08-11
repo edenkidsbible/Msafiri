@@ -304,7 +304,8 @@ export default function OnboardingScreen() {
     completeOnboarding();
     await requestLocationPermission();
     await requestNotificationPermission();
-    router.replace("/paywall");
+    // Name screen comes before paywall so we always know who the user is
+    router.replace("/onboarding-name");
   };
 
   const safeIdx = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));

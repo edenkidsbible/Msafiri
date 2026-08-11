@@ -230,7 +230,9 @@ function parseNavigationUrl(url: string): { name: string; lat: number; lng: numb
 }
 
 function RootLayoutNav() {
-  const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination } = useApp();
+  const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination, driverName } = useApp();
+  // Prevent the name-prompt from firing more than once per app session
+  const namePromptShown = useRef(false);
   const { isSubscribed, isLoading: subLoading, trialExpiredUnpaid } = useSubscription();
   const c = useColors();
   const router = useRouter();
@@ -312,6 +314,12 @@ function RootLayoutNav() {
       router.replace(trialExpiredUnpaid ? "/trial-ended" : "/paywall");
     } else {
       requestLocationPermission().catch(() => {});
+      // Soft prompt for existing users who never provided a name — shown once
+      // per app session so it isn't intrusive, but keeps nudging until they fill it in.
+      if (!driverName && !namePromptShown.current) {
+        namePromptShown.current = true;
+        router.replace({ pathname: "/onboarding-name", params: { mode: "existing" } } as any);
+      }
     }
   }, [hydrated, navReady, onboardingComplete, isSubscribed, subLoading, versionCheck]);
 
@@ -423,6 +431,10 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="onboarding"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="onboarding-name"
           options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen
