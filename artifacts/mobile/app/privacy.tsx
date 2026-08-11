@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
@@ -6,6 +6,11 @@ import { useColors } from "@/hooks/useColors";
 export default function PrivacyScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
 
   const B = ({ children }: { children: string }) => (
     <Text style={[s.bold, { color: c.foreground }]}>{children}</Text>
@@ -21,12 +26,13 @@ export default function PrivacyScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={[s.screen, { backgroundColor: c.background }]}
       contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, paddingTop: 16 }}
       showsVerticalScrollIndicator={false}
     >
       <Text style={[s.effectiveDate, { color: c.mutedForeground }]}>
-        Effective: July 28, 2026 · Last updated: July 28, 2026
+        Effective: July 28, 2026 · Last updated: August 11, 2026
       </Text>
 
       <Text style={[s.intro, { color: c.mutedForeground }]}>
@@ -135,6 +141,59 @@ export default function PrivacyScreen() {
       <Text style={[s.h3, { color: c.primary }]}>1.9 Server and API Logs</Text>
       <Li>{"API request logs (server-side): IP address, endpoint, and timestamp — retained for up to 30 days for security monitoring."}</Li>
 
+      <Text style={[s.h3, { color: c.primary }]}>1.10 Co-Driver & Garage Sharing</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        When you use the vehicle sharing feature to add a co-driver to your vehicle, we collect and
+        process the following:
+      </Text>
+      <Li><B>Share code</B>{" — a short alphanumeric code generated for each sharing invitation. Codes are single-use and expire after the invitation is accepted or declined."}</Li>
+      <Li><B>Join requests</B>{" — when another device requests to join your vehicle using a plate number or share code, we log the requesting device ID, timestamp, and request status (pending, approved, declined)."}</Li>
+      <Li><B>Member name</B>{" — an optional display name you or a co-driver enters. Visible only to the vehicle owner and other members."}</Li>
+      <Li><B>Member token</B>{" — a cryptographic token issued when a co-driver is approved. Used to authenticate member-specific actions (such as leaving the vehicle) without requiring a full account. Never exposed to other members."}</Li>
+      <Li><B>Removal reason</B>{" — when a co-driver leaves or is removed by the owner, the reason (\"left\" or \"owner_removed\") is stored internally to prevent immediate re-joining via the same share code after removal."}</Li>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        Co-driver relationships are visible to both the vehicle owner and the co-driver within their
+        respective garage views. Device IDs are never exposed between members.
+      </Text>
+
+      <Text style={[s.h3, { color: c.primary }]}>1.11 Dashcam and Video Recording</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        When you use the built-in dashcam feature, we collect and store:
+      </Text>
+      <Li><B>Video recordings</B>{" — dashcam clips are recorded locally on your device and organised per vehicle. You choose which clips to lock (protect from auto-deletion) and which to discard."}</Li>
+      <Li><B>Cloud backup</B>{" — if you enable cloud backup, locked clips are uploaded to our secure cloud storage (Cloudflare R2) over Wi-Fi. Clips are stored linked to your device ID and the vehicle they belong to. You can delete cloud-backed clips at any time."}</Li>
+      <Li><B>Recording metadata</B>{" — timestamp, duration, and vehicle association are stored alongside each clip for organisation purposes."}</Li>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        Video recordings are your property. We do not analyse, process, or share dashcam footage beyond
+        providing the storage service. Cloud-backed footage is encrypted in transit via TLS and stored
+        in encrypted object storage.
+      </Text>
+
+      <Text style={[s.h3, { color: c.primary }]}>1.12 Crash / Accident Assistant</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        When you use the Crash / Accident Assistant, we collect:
+      </Text>
+      <Li><B>Scene photographs</B>{" — photos you take during the accident documentation flow are uploaded to our secure cloud storage. They are linked to your device ID and the incident report. You can delete them at any time."}</Li>
+      <Li><B>Incident details</B>{" — information you enter during the guided steps (date, time, location, other parties involved, witness details, description). This is stored on our servers to generate the PDF export."}</Li>
+      <Li><B>PDF accident report</B>{" — a generated document containing the information you entered, which you can download, print, or share with your insurer. The PDF is not transmitted to any third party by Msafiri."}</Li>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        Accident reports and associated photos are stored for as long as you retain them in the app.
+        You may request deletion at any time by contacting privacy@msafirikenya.com.
+      </Text>
+
+      <Text style={[s.h3, { color: c.primary }]}>1.13 Backup & Data Recovery</Text>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        Msafiri provides a device backup feature so you can recover your data if you change phones:
+      </Text>
+      <Li><B>Backup code</B>{" — a 5-character recovery code generated when you create a backup. Store this safely — it is the primary key to your backup and cannot be recovered if lost."}</Li>
+      <Li><B>Vehicle plate number</B>{" — used as a second verification factor when restoring a backup, alongside the 5-character code."}</Li>
+      <Li><B>Backed-up data</B>{" — your saved vehicles, settings preferences, emergency contacts, and app configuration. Location history and dashcam footage are not included in the automatic backup."}</Li>
+      <Text style={[s.p, { color: c.mutedForeground }]}>
+        Backup data is stored on our servers linked to your backup code. We do not store your plate
+        number in plaintext for verification — it is used only during the restore process and is not
+        exposed to other users or services.
+      </Text>
+
       {/* 2 */}
       <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>2. How We Use Your Information</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>We use the information we collect for the following purposes:</Text>
@@ -170,6 +229,8 @@ export default function PrivacyScreen() {
       <Li><B>Google Maps Routes API</B>{" — route calculation. Your origin and destination GPS coordinates are sent to the Google Maps platform to calculate driving routes. No personal information included. Privacy: policies.google.com/privacy."}</Li>
       <Li><B>OpenStreetMap / Nominatim / Photon</B>{" — reverse geocoding and place search. Queries do not include your device ID. Privacy: openstreetmap.org/privacy."}</Li>
       <Li><B>Overpass API</B>{" — Search Along Route POI queries. A route bounding box is sent; no device ID or personal data included."}</Li>
+      <Li><B>SMSLeopard</B>{" — SMS delivery provider used to send one-time passcodes (OTPs) for device verification. When OTP delivery is triggered, your phone number is transmitted to SMSLeopard to deliver the message. SMSLeopard does not receive any other personal data or location information. Privacy: smsleopard.com."}</Li>
+      <Li><B>Cloudflare R2</B>{" — secure object storage for dashcam cloud backups and crash assistant photos. Data is stored in encrypted form and accessible only via authenticated requests from our API. Privacy: cloudflare.com/privacypolicy."}</Li>
       <Li><B>Hosting and infrastructure providers</B>{" — cloud hosting with access to server logs; contractually restricted from using data for other purposes."}</Li>
 
       <Text style={[s.h3, { color: c.primary }]}>3.3 For Legal Reasons</Text>
@@ -201,7 +262,7 @@ export default function PrivacyScreen() {
         We take the security of your data seriously. Our security measures include:
       </Text>
       <Li>{"All data transmitted between the App and our servers is encrypted using "}<B>TLS (Transport Layer Security)</B>{"."}</Li>
-      <Li>{"Our API servers are protected by authentication middleware; public endpoints are rate-limited to prevent abuse."}</Li>
+      <Li>{"Our API servers are protected by authentication middleware; public endpoints are "}<B>rate-limited</B>{" — join requests, plate searches, and OTP delivery endpoints enforce per-IP request limits to prevent abuse and protect users from spam."}</Li>
       <Li>{"Access to our production database is restricted to authorised personnel only, protected by role-based access controls."}</Li>
       <Li>{"Admin panel access requires strong password authentication and is protected with time-limited JWT tokens."}</Li>
       <Li>{"We do not store payment card data on our servers; all payment processing is handled by Apple, Google, and RevenueCat."}</Li>
