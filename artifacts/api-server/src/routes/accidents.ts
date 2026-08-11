@@ -116,138 +116,230 @@ async function generatePdf(
   witnesses: (typeof accidentWitnessesTable.$inferSelect)[],
   timeline: (typeof accidentTimelineEventsTable.$inferSelect)[],
 ): Promise<Buffer> {
+  // Pre-fetch scene photo buffers before opening the PDF stream so that async
+  // downloads don't conflict with PDFKit's synchronous writing model.
+  const scenePhotos  = photos.filter((p) => p.category !== "audio_statement" && p.fileKey);
+  const audioPresent = photos.some((p) => p.category === "audio_statement");
+
+  // Download up to 6 photos — silently skip any that fail.
+  const photoBuffers: { label: string; buf: Buffer }[] = [];
+  for (const photo of scenePhotos.slice(0, 6)) {
+    try {
+      const url  = await signedDownloadUrl(photo.fileKey!, 900);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) continue;
+      const ab   = await resp.arrayBuffer();
+      const label = photo.category.replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      photoBuffers.push({ label, buf: Buffer.from(ab) });
+    } catch { /* skip — don't abort PDF */ }
+  }
+
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margins: { top: 55, bottom: 55, left: 55, right: 55 } });
+    const doc = new PDFDocument({
+      size: "A4",
+      margins: { top: 0, bottom: 50, left: 50, right: 50 },
+      autoFirstPage: true,
+    });
     const chunks: Buffer[] = [];
     doc.on("data", (c: Buffer) => chunks.push(c));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("end",  () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
     const incidentId = `MSF-${record.createdAt.getFullYear()}-${record.id.slice(-6).toUpperCase()}`;
-    const W = doc.page.width - 110;
-    const primary = "#C0392B";
-    const muted = "#666666";
+    const PAGE_W   = doc.page.width;
+    const MARGIN   = 50;
+    const W        = PAGE_W - MARGIN * 2;
+    const GREEN    = "#16A34A";
+    const DARK_GRN = "#052E16";
+    const MUTED    = "#6B7280";
+    const LINE_CLR = "#D1FAE5";
 
-    // ── Cover header ─────────────────────────────────────────────────────────
-    doc.rect(0, 0, doc.page.width, 80).fill(primary);
-    doc.fillColor("#fff").fontSize(22).font("Helvetica-Bold").text("Crash Assistant", 55, 22, { width: W });
-    doc.fontSize(10).font("Helvetica").fillColor("rgba(255,255,255,0.8)").text("Msafiri Kenya — Accident Report", 55, 50);
-    doc.fillColor("#000").moveDown(3);
+    // ── Branded header bar ────────────────────────────────────────────────────
+    doc.rect(0, 0, PAGE_W, 90).fill(DARK_GRN);
 
+    // Msafiri wordmark — left block
+    doc.fillColor("#FFFFFF")
+      .fontSize(24).font("Helvetica-Bold")
+      .text("MSAFIRI", MARGIN, 20, { lineBreak: false });
+    doc.fillColor(GREEN)
+      .fontSize(24).font("Helvetica-Bold")
+      .text(" KENYA", { lineBreak: false });
+
+    doc.fillColor("rgba(255,255,255,0.55)")
+      .fontSize(9).font("Helvetica")
+      .text("Crash Assistant · Official Accident Report", MARGIN, 52);
+
+    // Incident ID pill — right side
+    const pillX = PAGE_W - MARGIN - 140;
+    doc.roundedRect(pillX, 22, 140, 26, 6).fill(GREEN);
+    doc.fillColor("#FFFFFF").fontSize(10).font("Helvetica-Bold")
+      .text(incidentId, pillX, 30, { width: 140, align: "center" });
+
+    // Date line
+    const dateStr = record.detectedAt.toLocaleString("en-KE", {
+      timeZone: "Africa/Nairobi", dateStyle: "long", timeStyle: "short",
+    });
+    doc.fillColor("rgba(255,255,255,0.65)").fontSize(8).font("Helvetica")
+      .text(dateStr, pillX, 54, { width: 140, align: "center" });
+
+    doc.fillColor("#111111").moveDown(0);
+    doc.y = 110; // start content below header
+
+    // ── Helper: section title ─────────────────────────────────────────────────
     function sectionTitle(title: string) {
-      doc.moveDown(0.5)
-        .fontSize(11).font("Helvetica-Bold").fillColor(primary).text(title.toUpperCase())
-        .moveDown(0.15)
-        .moveTo(55, doc.y).lineTo(55 + W, doc.y).strokeColor(primary).lineWidth(1).stroke()
-        .moveDown(0.4);
-      doc.fillColor("#000").font("Helvetica").fontSize(10);
+      // Ensure there's room for at least one row; add page if needed
+      if (doc.y > doc.page.height - 120) { doc.addPage(); doc.y = MARGIN; }
+      doc.moveDown(0.6);
+      doc.rect(MARGIN, doc.y, W, 18).fill(GREEN + "18");
+      doc.fillColor(GREEN).fontSize(9).font("Helvetica-Bold")
+        .text(title.toUpperCase(), MARGIN + 6, doc.y + 4, { width: W - 12 });
+      doc.y += 22;
+      doc.fillColor("#111111").font("Helvetica").fontSize(10);
     }
 
+    // ── Helper: label-value row ───────────────────────────────────────────────
     function row(label: string, value: string | null | undefined) {
       if (!value) return;
-      doc.fontSize(10).font("Helvetica-Bold").fillColor(muted).text(label, { continued: true, width: 150 });
-      doc.font("Helvetica").fillColor("#111").text(value);
+      if (doc.y > doc.page.height - 80) { doc.addPage(); doc.y = MARGIN; }
+      const rowY = doc.y;
+      doc.fontSize(9).font("Helvetica-Bold").fillColor(MUTED)
+        .text(label, MARGIN, rowY, { width: 145, lineBreak: false });
+      doc.font("Helvetica").fillColor("#111111")
+        .text(value, MARGIN + 150, rowY, { width: W - 150 });
+      doc.y = Math.max(doc.y, rowY + 14);
+      // Subtle row separator
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + W, doc.y)
+        .strokeColor(LINE_CLR).lineWidth(0.5).stroke();
+      doc.y += 4;
     }
 
-    // ── Incident Summary ─────────────────────────────────────────────────────
+    // ── Incident Summary ──────────────────────────────────────────────────────
     sectionTitle("Incident Summary");
-    row("Report ID",     incidentId);
-    row("Date & Time",  record.detectedAt.toLocaleString("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "long", timeStyle: "short" }));
-    row("Report Type",  record.isManual ? "Manually created" : "Auto-detected (crash sensor)");
-    row("Status",       record.status === "complete" ? "Complete" : "Draft (in progress)");
+    row("Report ID",    incidentId);
+    row("Date & Time",  dateStr);
+    row("Type",         record.isManual ? "Manually created" : "Auto-detected (crash sensor)");
+    row("Status",       record.status === "complete" ? "Complete" : "Draft — in progress");
 
-    // ── Location ─────────────────────────────────────────────────────────────
-    sectionTitle("Location");
-    row("Road",         record.roadName);
-    row("Nearby",       record.nearbyLandmark);
-    row("County",       record.county);
-    row("Coordinates",  record.lat && record.lng ? `${Number(record.lat).toFixed(5)}, ${Number(record.lng).toFixed(5)}` : null);
-    row("Maps Link",    record.lat && record.lng ? `https://maps.google.com/?q=${record.lat},${record.lng}` : null);
+    // ── My Vehicle ───────────────────────────────────────────────────────────
+    if (record.myVehicleJson) {
+      try {
+        const mv = JSON.parse(record.myVehicleJson) as {
+          make?: string; model?: string; type?: string;
+          plate?: string; fuelType?: string; transmission?: string;
+        };
+        if (mv.make || mv.plate) {
+          sectionTitle("My Vehicle");
+          const name = [mv.make, mv.model].filter(Boolean).join(" ");
+          if (name)          row("Vehicle",      name);
+          if (mv.plate)      row("Registration", mv.plate.toUpperCase());
+          if (mv.type)       row("Type",         mv.type.replace(/\b\w/g, (c) => c.toUpperCase()));
+          if (mv.fuelType)   row("Fuel Type",    mv.fuelType);
+          if (mv.transmission) row("Transmission", mv.transmission);
+        }
+      } catch { /* malformed */ }
+    }
 
-    // ── Speed & Motion ───────────────────────────────────────────────────────
-    sectionTitle("Vehicle Data");
-    row("Speed Before Impact", record.speedBeforeKmh ? `${Math.round(Number(record.speedBeforeKmh))} km/h` : null);
-    row("Speed at Impact",     record.speedAtImpactKmh ? `${Math.round(Number(record.speedAtImpactKmh))} km/h` : null);
-    row("Direction",           record.directionLabel);
-    if (record.headingDeg) row("Heading", `${Math.round(Number(record.headingDeg))}°`);
+    // ── Location ──────────────────────────────────────────────────────────────
+    const hasLocation = record.roadName || record.county || record.lat;
+    if (hasLocation) {
+      sectionTitle("Location");
+      row("Road",         record.roadName);
+      row("Nearby",       record.nearbyLandmark);
+      row("County",       record.county);
+      row("Coordinates",  record.lat && record.lng
+        ? `${Number(record.lat).toFixed(5)}, ${Number(record.lng).toFixed(5)}` : null);
+      if (record.lat && record.lng) {
+        row("Google Maps", `https://maps.google.com/?q=${record.lat},${record.lng}`);
+      }
+    }
 
-    // ── Journey Info ─────────────────────────────────────────────────────────
+    // ── Vehicle Data (speed & motion) ─────────────────────────────────────────
+    if (record.speedBeforeKmh || record.speedAtImpactKmh || record.directionLabel) {
+      sectionTitle("Vehicle Data at Impact");
+      row("Speed Before Impact", record.speedBeforeKmh ? `${Math.round(Number(record.speedBeforeKmh))} km/h` : null);
+      row("Speed at Impact",     record.speedAtImpactKmh ? `${Math.round(Number(record.speedAtImpactKmh))} km/h` : null);
+      row("Direction",           record.directionLabel);
+      if (record.headingDeg)     row("Heading", `${Math.round(Number(record.headingDeg))}°`);
+    }
+
+    // ── Journey ───────────────────────────────────────────────────────────────
     if (record.tripStartAt || record.distanceM) {
       sectionTitle("Journey");
       if (record.tripStartAt) row("Trip Started", record.tripStartAt.toLocaleString("en-KE", { timeZone: "Africa/Nairobi", timeStyle: "short", dateStyle: "short" }));
       if (record.destinationName) row("Destination", record.destinationName);
       if (record.distanceM) row("Distance Travelled", `${(Number(record.distanceM) / 1000).toFixed(1)} km`);
-      if (record.durationS) {
-        const mins = Math.round(Number(record.durationS) / 60);
-        row("Duration", `${mins} min`);
-      }
+      if (record.durationS) row("Duration", `${Math.round(Number(record.durationS) / 60)} min`);
     }
 
-    // ── Weather ──────────────────────────────────────────────────────────────
+    // ── Weather ───────────────────────────────────────────────────────────────
     if (record.weatherJson) {
       try {
-        const w = JSON.parse(record.weatherJson) as { description?: string; tempC?: number; windspeedKmh?: number; roadCondition?: string };
+        const w = JSON.parse(record.weatherJson) as {
+          description?: string; tempC?: number; windspeedKmh?: number; roadCondition?: string;
+        };
         sectionTitle("Weather at Time of Incident");
-        if (w.description)    row("Conditions",     w.description);
-        if (w.tempC != null)  row("Temperature",    `${w.tempC}°C`);
-        if (w.windspeedKmh)   row("Wind Speed",     `${w.windspeedKmh} km/h`);
-        if (w.roadCondition)  row("Road Condition", w.roadCondition);
-      } catch { /* malformed JSON */ }
+        if (w.description)   row("Conditions",    w.description);
+        if (w.tempC != null) row("Temperature",   `${w.tempC}°C`);
+        if (w.windspeedKmh)  row("Wind Speed",    `${w.windspeedKmh} km/h`);
+        if (w.roadCondition) row("Road Condition", w.roadCondition);
+      } catch { /* skip */ }
     }
 
-    // ── Timeline ─────────────────────────────────────────────────────────────
+    // ── Timeline ──────────────────────────────────────────────────────────────
     if (timeline.length > 0) {
       sectionTitle("Event Timeline");
       for (const evt of timeline) {
+        if (doc.y > doc.page.height - 80) { doc.addPage(); doc.y = MARGIN; }
         const time = evt.occurredAt.toLocaleTimeString("en-KE", { timeZone: "Africa/Nairobi", timeStyle: "short" });
-        doc.fontSize(10).font("Helvetica-Bold").fillColor("#111").text(`${time}  `, { continued: true });
-        doc.font("Helvetica").fillColor(muted).text(evt.description ?? evt.eventType);
+        const rowY = doc.y;
+        doc.fontSize(9).font("Helvetica-Bold").fillColor(GREEN)
+          .text(time, MARGIN, rowY, { width: 60, lineBreak: false });
+        doc.font("Helvetica").fillColor("#333333")
+          .text(evt.description ?? evt.eventType, MARGIN + 65, rowY, { width: W - 65 });
+        doc.y = Math.max(doc.y, rowY + 14);
+        doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + W, doc.y).strokeColor(LINE_CLR).lineWidth(0.5).stroke();
+        doc.y += 4;
       }
     }
 
-    // ── Witnesses ────────────────────────────────────────────────────────────
+    // ── Witnesses ─────────────────────────────────────────────────────────────
     if (witnesses.length > 0) {
       sectionTitle("Witnesses");
       for (const w of witnesses) {
-        doc.fontSize(10).font("Helvetica-Bold").fillColor("#111").text(w.name);
-        if (w.phone) doc.font("Helvetica").fillColor(muted).fontSize(9).text(`Phone: ${w.phone}`);
-        if (w.notes) doc.font("Helvetica").fillColor(muted).fontSize(9).text(w.notes);
-        doc.moveDown(0.3);
+        if (doc.y > doc.page.height - 80) { doc.addPage(); doc.y = MARGIN; }
+        doc.fontSize(10).font("Helvetica-Bold").fillColor("#111111").text(w.name, MARGIN);
+        if (w.phone) doc.font("Helvetica").fillColor(MUTED).fontSize(9).text(`Phone: ${w.phone}`, MARGIN);
+        if (w.notes) doc.font("Helvetica").fillColor(MUTED).fontSize(9).text(w.notes, MARGIN);
+        doc.moveDown(0.4);
       }
     }
 
-    // ── Other Party ──────────────────────────────────────────────────────────
+    // ── Other Party ───────────────────────────────────────────────────────────
     if (record.otherDriverJson) {
       try {
         const od = JSON.parse(record.otherDriverJson) as {
           type?: string;
-          // vehicle
           vehicleType?: string; vehicleReg?: string; name?: string; phone?: string;
           insuranceCompany?: string; policyNumber?: string;
-          // pedestrian/cyclist
-          injuries?: string;
-          // solo
-          cause?: string;
-          notes?: string;
+          injuries?: string; cause?: string; notes?: string;
         };
         const hasContent = od.name || od.vehicleReg || od.cause || od.injuries || od.type;
         if (hasContent) {
           const secLabel =
-            od.type === "solo"               ? "Incident Cause (Solo — No Other Party)" :
-            od.type === "pedestrian_cyclist" ? "Other Party — Pedestrian / Cyclist"     :
-            /* vehicle or unset */             "Other Party — Vehicle";
+            od.type === "solo"               ? "Incident Cause (No Other Party)" :
+            od.type === "pedestrian_cyclist" ? "Other Party — Pedestrian / Cyclist" :
+            "Other Party — Vehicle";
           sectionTitle(secLabel);
 
           if (od.type === "solo") {
-            row("Cause",  od.cause);
-            row("Notes",  od.notes);
+            row("Cause", od.cause); row("Notes", od.notes);
           } else if (od.type === "pedestrian_cyclist") {
-            row("Name (if known)",       od.name);
-            row("Phone (if known)",      od.phone);
-            row("Injuries / Condition",  od.injuries);
-            row("Notes",                 od.notes);
+            row("Name (if known)",      od.name);
+            row("Phone (if known)",     od.phone);
+            row("Injuries / Condition", od.injuries);
+            row("Notes",                od.notes);
           } else {
-            // vehicle collision (explicit or legacy)
             row("Vehicle Type",      od.vehicleType);
             row("Registration",      od.vehicleReg);
             row("Driver Name",       od.name);
@@ -256,10 +348,10 @@ async function generatePdf(
             row("Policy Number",     od.policyNumber);
           }
         }
-      } catch { /* malformed JSON — skip */ }
+      } catch { /* skip */ }
     }
 
-    // ── Police ───────────────────────────────────────────────────────────────
+    // ── Police ────────────────────────────────────────────────────────────────
     if (record.policeJson) {
       try {
         const p = JSON.parse(record.policeJson) as {
@@ -267,40 +359,88 @@ async function generatePdf(
         };
         if (p.station || p.obNumber) {
           sectionTitle("Police Information");
-          row("Station",      p.station);
-          row("Officer",      p.officerName);
-          row("OB Number",    p.obNumber);
-          row("Reference",    p.reference);
+          row("Station",   p.station);
+          row("Officer",   p.officerName);
+          row("OB Number", p.obNumber);
+          row("Reference", p.reference);
         }
-      } catch { /* malformed */ }
+      } catch { /* skip */ }
     }
 
-    // ── Driver Statement ─────────────────────────────────────────────────────
+    // ── Driver Statement ──────────────────────────────────────────────────────
     if (record.driverStatement) {
       sectionTitle("Driver Statement");
-      doc.fontSize(10).font("Helvetica").fillColor("#111").text(record.driverStatement, { width: W, lineGap: 4 });
+      if (doc.y > doc.page.height - 100) { doc.addPage(); doc.y = MARGIN; }
+      doc.rect(MARGIN, doc.y, W, 1).fill(LINE_CLR);
+      doc.y += 6;
+      doc.fontSize(10).font("Helvetica").fillColor("#222222")
+        .text(record.driverStatement, MARGIN, doc.y, { width: W, lineGap: 4 });
+      doc.moveDown(0.3);
     }
 
-    // ── Audio Statement ───────────────────────────────────────────────────────
-    const audioPhotos = photos.filter((p) => p.category === "audio_statement");
-    if (audioPhotos.length > 0) {
+    // ── Audio Statement note ──────────────────────────────────────────────────
+    if (audioPresent) {
       sectionTitle("Audio Statement");
-      doc.fontSize(10).font("Helvetica").fillColor(muted)
-        .text("An audio statement was recorded at the scene. Open Accident Reports in Msafiri Kenya to listen to the recording.");
+      doc.fontSize(10).font("Helvetica").fillColor(MUTED)
+        .text("An audio statement was recorded at the scene. Open Accident Reports in Msafiri Kenya to listen.", MARGIN, doc.y, { width: W });
+      doc.moveDown(0.3);
     }
 
-    // ── Scene Photos note ─────────────────────────────────────────────────────
-    const scenePhotos = photos.filter((p) => p.category !== "audio_statement");
-    if (scenePhotos.length > 0) {
-      sectionTitle("Attached Scene Photos");
-      doc.fontSize(10).font("Helvetica").fillColor(muted)
-        .text(`${scenePhotos.length} photo(s) were captured at the scene. View the full accident record in Msafiri Kenya for embedded images.`);
+    // ── Embedded Scene Photos ─────────────────────────────────────────────────
+    if (photoBuffers.length > 0) {
+      sectionTitle(`Scene Photos (${photoBuffers.length})`);
+
+      const PHOTO_W = (W - 12) / 2;  // two columns, 12 px gap
+      const PHOTO_H = PHOTO_W * 0.7; // landscape aspect
+      let col = 0;
+      let rowStartY = doc.y;
+
+      for (const { label, buf } of photoBuffers) {
+        if (col === 0 && doc.y + PHOTO_H + 24 > doc.page.height - 60) {
+          doc.addPage();
+          doc.y = MARGIN;
+          rowStartY = doc.y;
+        }
+
+        const x = col === 0 ? MARGIN : MARGIN + PHOTO_W + 12;
+        if (col === 1) doc.y = rowStartY; // align second column to row start
+
+        try {
+          doc.image(buf, x, doc.y, { width: PHOTO_W, height: PHOTO_H, fit: [PHOTO_W, PHOTO_H], align: "center", valign: "center" });
+        } catch { /* skip unreadable image */ }
+
+        // Caption
+        const captionY = rowStartY + PHOTO_H + 3;
+        doc.fontSize(8).font("Helvetica").fillColor(MUTED)
+          .text(label, x, captionY, { width: PHOTO_W, align: "center" });
+
+        col++;
+        if (col === 2) {
+          col = 0;
+          doc.y = rowStartY + PHOTO_H + 18;
+          rowStartY = doc.y;
+        }
+      }
+
+      // If we ended mid-row, advance past that row
+      if (col === 1) doc.y = rowStartY + PHOTO_H + 18;
+      doc.moveDown(0.5);
+    } else if (scenePhotos.length > 0) {
+      // Photos exist but couldn't be fetched (offline / expired URLs)
+      sectionTitle(`Scene Photos (${scenePhotos.length})`);
+      doc.fontSize(10).font("Helvetica").fillColor(MUTED)
+        .text(`${scenePhotos.length} photo(s) are attached to this report. Open Accident Reports in Msafiri Kenya to view them.`, MARGIN, doc.y, { width: W });
+      doc.moveDown(0.3);
     }
 
-    // ── Footer ───────────────────────────────────────────────────────────────
-    doc.moveDown(2)
-      .fontSize(8).font("Helvetica").fillColor(muted)
-      .text(`Report generated by Crash Assistant · Msafiri Kenya · ${incidentId}`, { align: "center" });
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const footerY = doc.page.height - 38;
+    doc.rect(0, footerY - 1, PAGE_W, 39).fill(DARK_GRN + "CC");
+    doc.fillColor("rgba(255,255,255,0.55)").fontSize(7.5).font("Helvetica")
+      .text(
+        `Generated by Msafiri Kenya Crash Assistant · ${incidentId} · For insurance and legal use`,
+        MARGIN, footerY + 8, { width: W, align: "center" },
+      );
 
     doc.end();
   });
@@ -496,9 +636,10 @@ router.get("/accidents/:id", async (req: Request, res: Response) => {
 router.patch("/accidents/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
-    const { deviceId, roadName, county, nearbyLandmark, otherDriver, police, driverStatement, status } = req.body as {
+    const { deviceId, roadName, county, nearbyLandmark, otherDriver, police, driverStatement, status, myVehicle } = req.body as {
       deviceId: string; roadName?: string; county?: string; nearbyLandmark?: string;
       otherDriver?: object; police?: object; driverStatement?: string; status?: string;
+      myVehicle?: object;
     };
     if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
 
@@ -512,6 +653,7 @@ router.patch("/accidents/:id", async (req: Request, res: Response) => {
       ...(otherDriver !== undefined ? { otherDriverJson: JSON.stringify(otherDriver) } : {}),
       ...(police !== undefined     ? { policeJson: JSON.stringify(police) }          : {}),
       ...(driverStatement !== undefined ? { driverStatement }                        : {}),
+      ...(myVehicle !== undefined ? { myVehicleJson: JSON.stringify(myVehicle) }     : {}),
       ...(status === "complete"    ? { status: "complete" as const }                  : {}),
       ...(status === "archived"    ? { status: "archived" as const }                  : {}),
       updatedAt: new Date(),

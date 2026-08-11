@@ -1,0 +1,41 @@
+Let families share one car and see accurate combined stats
+
+What & Why
+
+When multiple family members drive the same car and each has Msafiri installed, their mileage, sessions, and service intervals are siloed in separate accounts — making odometer tracking, oil change reminders, and total-distance stats inaccurate for everyone. A shared vehicle system pools the car's data across all co-drivers while keeping personal trip routes and driving behaviour private.
+
+Done looks like
+
+Vehicle sharing flows
+
+Each vehicle in the garage has a Share button that generates a persistent short code (e.g. MSF-7K3P); sharing this code via WhatsApp/SMS lets the recipient join instantly with no approval step needed
+A "Join a Shared Vehicle" entry in the garage lets users search by plate number; if the plate is found, they see the make/model/colour (not the owner's identity) and can tap "Request to join"
+Owner receives a push notification: "[First name] wants to join your KDA 123A" with [Approve] / [Decline] actions
+On approval the requester is added as a co-driver automatically; on decline they are notified
+Privacy disclosure
+
+Before confirming a join (both code and request paths), show a clear screen explaining what is shared (combined odometer, total sessions, service intervals) vs. what stays private (individual trip routes, speed scores, fine records, crash reports, personal info)
+Lead with "what stays private" since that is what users worry about
+Data aggregation
+
+Drive sessions from all co-drivers contribute to one vehicle record server-side
+Stats display total (vehicle-level) AND per-driver breakdown visible only to the owner
+Service reminders fire based on combined real mileage
+Plate validation (prerequisite for plate search)
+
+Auto-format plate input as user types (capitalise, insert space after 3 chars, block non-alphanumeric)
+Regex validation against Kenya standard format (KXX 000X) with real-time feedback
+Normalise on save so kda123a and KDA 123A resolve to the same canonical form
+Near-match duplicate detection (1-char Levenshtein) suggests corrections
+Optional camera scan using ML Kit text recognition to eliminate manual entry
+New DB tables needed
+
+vehicle_members (vehicleId, userId, role: owner/driver, status: pending/active)
+vehicle_join_requests (vehicleId, requesterId, status, createdAt)
+Share code column on vehicles table
+Relevant files
+
+artifacts/mobile/app/(tabs)/garage.tsx — add Share button + "Join a Shared Vehicle" entry
+artifacts/mobile/utils/savedVehicles.ts — vehicle data layer
+artifacts/api-server/src/routes/ — new /vehicles/search, /vehicles/join-request, /vehicles/approve endpoints
+artifacts/mobile/context/AppContext.tsx — vehicle state and co-driver awareness

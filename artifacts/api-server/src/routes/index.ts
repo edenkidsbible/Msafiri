@@ -31,6 +31,7 @@ import customVehiclesRouter from "./customVehicles.js";
 import geocodeRouter from "./geocode.js";
 import backupRouter from "./backup.js";
 import otpRouter from "./otp.js";
+import vehiclesRouter from "./vehicles.js";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(customVehiclesRouter);
 router.use(geocodeRouter);
 router.use(backupRouter);
 router.use(otpRouter);
+router.use(vehiclesRouter);
 
 export default router;

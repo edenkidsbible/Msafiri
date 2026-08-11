@@ -428,10 +428,21 @@ export default function CrashAssistantScreen() {
       // Best-effort save — don't let a save failure block report generation.
       // The report is generated from whatever data is already on the server.
       try {
+        // Build a compact vehicle snapshot for the PDF
+        const vehicleSnapshot = myVehicle ? {
+          make:         myVehicle.customMakeName ?? getMakeById(myVehicle.makeId ?? "")?.name ?? myVehicle.makeId ?? null,
+          model:        myVehicle.customModelName ?? getModelById(myVehicle.makeId ?? "", myVehicle.modelId ?? "")?.name ?? myVehicle.modelId ?? null,
+          type:         myVehicle.vehicleType ?? null,
+          plate:        myVehicle.plateNumber ?? null,
+          fuelType:     myVehicle.fuelType ?? null,
+          transmission: myVehicle.transmission ?? null,
+        } : undefined;
+
         await apiPatch(`/accidents/${id}`, {
           deviceId,
           driverStatement: statement || undefined,
           otherDriver: Object.keys(otherParty).length > 0 ? otherParty : undefined,
+          myVehicle: vehicleSnapshot,
           status: "complete",
         });
       } catch { /* proceed anyway */ }
@@ -1247,11 +1258,14 @@ function StatementStep({
 
   const stopRecording = useCallback(async () => {
     try {
-      await recorder.stop();
-      // Give a brief moment for the URI to be set
-      await new Promise<void>((r) => setTimeout(r, 200));
-      const uri = recorder.uri;
-      if (uri) setRecordingUri(uri);
+      // recorder.stop() returns a RecordingResult with the URI in expo-audio
+      const result = await recorder.stop();
+      const uri = (result as any)?.uri ?? recorder.uri;
+      if (uri) {
+        setRecordingUri(uri);
+      } else {
+        Alert.alert("Recording Error", "Could not save the recording. Please try again.");
+      }
     } catch {
       Alert.alert("Error", "Could not stop recording.");
     }

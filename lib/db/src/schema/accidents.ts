@@ -46,6 +46,9 @@ export const accidentRecordsTable = pgTable("accident_records", {
   // Driver's written statement
   driverStatement:  text("driver_statement"),
 
+  // Driver's own vehicle (JSON snapshot of SavedVehicle at time of incident)
+  myVehicleJson:    text("my_vehicle_json"),
+
   // Generated PDF report
   pdfUrl:           text("pdf_url"),
   pdfFileKey:       text("pdf_file_key"),

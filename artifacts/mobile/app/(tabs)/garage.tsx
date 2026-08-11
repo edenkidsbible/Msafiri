@@ -33,7 +33,7 @@ import {
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import CarLogoImage from "@/components/CarLogoImage";
-import { API_BASE } from "@/utils/apiClient";
+import { API_BASE, apiGet, apiPost } from "@/utils/apiClient";
 import {
   loadVehicleCareData,
   saveVehicleCareData,
@@ -273,6 +273,7 @@ interface VehicleSlideProps {
   onSetDefault: (id: string) => void;
   onRemove: (id: string) => void;
   onEdit: (v: SavedVehicle) => void;
+  onShare: (v: SavedVehicle) => void;
 }
 
 // Image fills the card width minus horizontal padding
@@ -282,7 +283,7 @@ const IMG_H = 140; // Compact, intentional — leaves room for info below
 function VehicleSlide({
   v, index, healthScore, healthLabel, healthColor,
   odometerKm, cardBg, borderCol, subText, primary, foreground,
-  totalVehicles, onSetDefault, onRemove, onEdit,
+  totalVehicles, onSetDefault, onRemove, onEdit, onShare,
 }: VehicleSlideProps) {
   const trackColor = cardBg === "#151917" || cardBg.startsWith("#0") ? "#2A3530" : "#DDE6DA";
   const fuelLabel = v.fuelType ?? "Petrol";
@@ -383,6 +384,14 @@ function VehicleSlide({
           >
             <Ionicons name="pencil-outline" size={14} color="#22C55E" />
             <Text style={[styles.vehicleActionTxt, { color: "#22C55E" }]}>Edit Details</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.vehicleActionBtn, { backgroundColor: "#6366F114", borderColor: "#6366F135" }]}
+            onPress={() => onShare(v)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="share-social-outline" size={14} color="#6366F1" />
+            <Text style={[styles.vehicleActionTxt, { color: "#6366F1" }]}>Share</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -653,10 +662,10 @@ function EditVehicleModal({
 // ── "Add Vehicle" slide ───────────────────────────────────────────────────────
 
 function AddVehicleSlide({
-  cardBg, borderCol, primary, foreground, subText, onAdd,
-}: { cardBg: string; borderCol: string; primary: string; foreground: string; subText: string; onAdd: () => void }) {
+  cardBg, borderCol, primary, foreground, subText, onAdd, onJoin,
+}: { cardBg: string; borderCol: string; primary: string; foreground: string; subText: string; onAdd: () => void; onJoin: () => void }) {
   return (
-    <View style={{ width: CARD_W }}>
+    <View style={{ width: CARD_W, gap: 10 }}>
       <TouchableOpacity
         style={[styles.card, styles.addVehicleCard, { backgroundColor: cardBg, borderColor: primary + "40", borderStyle: "dashed" }]}
         onPress={onAdd}
@@ -668,6 +677,19 @@ function AddVehicleSlide({
         <Text style={[styles.addVehicleTitle, { color: foreground }]}>Add Another Vehicle</Text>
         <Text style={[styles.addVehicleSub, { color: subText }]}>
           Track maintenance and details for all your vehicles
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.card, styles.addVehicleCard, { backgroundColor: "#6366F108", borderColor: "#6366F135", borderStyle: "dashed" }]}
+        onPress={onJoin}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.addVehicleIcon, { backgroundColor: "#6366F120" }]}>
+          <Ionicons name="people-outline" size={24} color="#6366F1" />
+        </View>
+        <Text style={[styles.addVehicleTitle, { color: foreground }]}>Join a Shared Vehicle</Text>
+        <Text style={[styles.addVehicleSub, { color: subText }]}>
+          Already in a shared car? Join using a code or plate number
         </Text>
       </TouchableOpacity>
     </View>
@@ -698,6 +720,47 @@ export default function GarageScreen() {
   // Edit vehicle details modal
   const [editTarget, setEditTarget] = useState<SavedVehicle | null>(null);
   const [editVisible, setEditVisible] = useState(false);
+
+  // Pending join requests (for the notification bell badge)
+  const [pendingRequests, setPendingRequests] = useState<Array<{
+    id: string; vehicleId: string; vehicleName: string; vehiclePlate: string | null; requesterName: string | null; createdAt: string;
+  }>>([]);
+  const [requestsVisible, setRequestsVisible]     = useState(false);
+  const [respondingId,    setRespondingId]         = useState<string | null>(null);
+
+  // Fetch pending join requests on every focus
+  useFocusEffect(useCallback(() => {
+    if (!deviceId) return;
+    apiGet<{ requests: typeof pendingRequests }>(`/vehicles/join-requests/incoming?deviceId=${deviceId}`)
+      .then(r => setPendingRequests(r.requests ?? []))
+      .catch(() => {});
+  }, [deviceId]));
+
+  async function handleApproveRequest(requestId: string) {
+    if (!deviceId) return;
+    setRespondingId(requestId);
+    try {
+      await apiPost(`/vehicles/join-request/${requestId}/approve`, { deviceId });
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Could not approve. Try again.");
+    } finally {
+      setRespondingId(null);
+    }
+  }
+
+  async function handleDeclineRequest(requestId: string) {
+    if (!deviceId) return;
+    setRespondingId(requestId);
+    try {
+      await apiPost(`/vehicles/join-request/${requestId}/decline`, { deviceId });
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Could not decline. Try again.");
+    } finally {
+      setRespondingId(null);
+    }
+  }
 
   function handleEditVehicle(v: SavedVehicle) {
     setEditTarget(v);
@@ -871,6 +934,32 @@ export default function GarageScreen() {
     router.push("/car-picker" as any);
   }
 
+  async function handleShareVehicle(v: SavedVehicle) {
+    if (!deviceId) return;
+    const displayName = vehicleDisplayName(v);
+    try {
+      const result = await apiPost<{ vehicleId: string; shareCode: string; displayName: string }>(
+        "/vehicles/register",
+        {
+          deviceId,
+          plateNumber: v.plateNumber ?? undefined,
+          displayName,
+          vehicleType: v.vehicleType,
+        },
+      );
+      router.push({
+        pathname: "/vehicle-share-code" as any,
+        params: {
+          shareCode:   result.shareCode,
+          vehicleName: displayName,
+          plateNumber: v.plateNumber ?? "",
+        },
+      });
+    } catch (err: any) {
+      Alert.alert("Couldn't generate code", err?.message || "Check your connection and try again.");
+    }
+  }
+
   async function handleSetDefault(id: string) {
     // ── 1. Migrate vehicle care data BEFORE flipping isDefault flags ───────────
     // getCareStorageKey returns the legacy STORAGE_KEY for the default vehicle
@@ -1013,6 +1102,7 @@ export default function GarageScreen() {
           cardBg={cardBg} borderCol={borderCol} primary={c.primary}
           foreground={c.foreground} subText={subText}
           onAdd={handleAddVehicle}
+          onJoin={() => router.push("/join-vehicle" as any)}
         />
       );
     }
@@ -1027,6 +1117,7 @@ export default function GarageScreen() {
         onSetDefault={handleSetDefault}
         onRemove={handleRemoveVehicle}
         onEdit={handleEditVehicle}
+        onShare={handleShareVehicle}
       />
     );
   }
@@ -1060,10 +1151,12 @@ export default function GarageScreen() {
           <View style={{ flexDirection: "row", gap: 10 }}>
             <TouchableOpacity
               style={[styles.headerIconBtn, { backgroundColor: cardBg, borderColor: borderCol }]}
-              onPress={() => {}}
+              onPress={() => setRequestsVisible(true)}
             >
               <Ionicons name="notifications-outline" size={20} color={c.foreground} />
-              <View style={styles.notifDot} />
+              {pendingRequests.length > 0 && (
+                <View style={[styles.notifDot, { backgroundColor: "#EF4444" }]} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerIconBtn, { backgroundColor: cardBg, borderColor: borderCol }]}
@@ -1366,6 +1459,70 @@ export default function GarageScreen() {
         foreground={c.foreground}
         subText={subText}
       />
+
+      {/* ── Pending join requests modal ── */}
+      <Modal
+        visible={requestsVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setRequestsVisible(false)}
+      >
+        <View style={[{ flex: 1, backgroundColor: c.background }]}>
+          {/* Sheet header */}
+          <View style={[styles.sheetHeader, { borderBottomColor: borderCol }]}>
+            <View style={{ width: 40 }} />
+            <Text style={[styles.sheetTitle, { color: c.foreground }]}>Join Requests</Text>
+            <TouchableOpacity style={{ width: 40, alignItems: "flex-end" }} onPress={() => setRequestsVisible(false)}>
+              <Ionicons name="close" size={22} color={c.foreground} />
+            </TouchableOpacity>
+          </View>
+
+          {pendingRequests.length === 0 ? (
+            <View style={styles.sheetEmpty}>
+              <Ionicons name="people-outline" size={48} color={subText} />
+              <Text style={[styles.sheetEmptyTitle, { color: c.foreground }]}>No pending requests</Text>
+              <Text style={[styles.sheetEmptySub, { color: subText }]}>
+                When someone asks to join your shared vehicle, they'll appear here.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              {pendingRequests.map(req => (
+                <View key={req.id} style={[styles.requestCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[styles.requestName, { color: c.foreground }]} numberOfLines={1}>
+                      {req.requesterName ?? "Unknown driver"}
+                    </Text>
+                    <Text style={[styles.requestVehicle, { color: subText }]} numberOfLines={1}>
+                      wants to join {req.vehicleName}{req.vehiclePlate ? ` · ${req.vehiclePlate}` : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.requestActions}>
+                    <TouchableOpacity
+                      style={[styles.requestBtn, { backgroundColor: "#EF444414", borderColor: "#EF444440" }]}
+                      onPress={() => handleDeclineRequest(req.id)}
+                      disabled={respondingId === req.id}
+                    >
+                      {respondingId === req.id
+                        ? <ActivityIndicator size="small" color="#EF4444" />
+                        : <Ionicons name="close-outline" size={18} color="#EF4444" />}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.requestBtn, { backgroundColor: "#22C55E14", borderColor: "#22C55E40" }]}
+                      onPress={() => handleApproveRequest(req.id)}
+                      disabled={respondingId === req.id}
+                    >
+                      {respondingId === req.id
+                        ? <ActivityIndicator size="small" color="#22C55E" />
+                        : <Ionicons name="checkmark-outline" size={18} color="#22C55E" />}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1415,6 +1572,27 @@ const styles = StyleSheet.create({
   notifDot: {
     position: "absolute", top: 7, right: 7,
     width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444",
+  },
+
+  // Pending requests sheet
+  sheetHeader: {
+    flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const,
+    paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 1,
+  },
+  sheetTitle:      { fontSize: 17, fontFamily: "Inter_700Bold" },
+  sheetEmpty:      { flex: 1, alignItems: "center" as const, justifyContent: "center" as const, padding: 32, gap: 12 },
+  sheetEmptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  sheetEmptySub:   { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" as const, lineHeight: 20 },
+  requestCard: {
+    flexDirection: "row" as const, alignItems: "center" as const, gap: 12,
+    padding: 16, borderRadius: 16, borderWidth: 1,
+  },
+  requestName:    { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  requestVehicle: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  requestActions: { flexDirection: "row" as const, gap: 8 },
+  requestBtn: {
+    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
+    alignItems: "center" as const, justifyContent: "center" as const,
   },
 
   card: { borderRadius: 18, borderWidth: 1, padding: 16 },

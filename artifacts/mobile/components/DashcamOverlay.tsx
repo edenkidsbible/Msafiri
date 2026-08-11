@@ -109,6 +109,15 @@ export default function DashcamOverlay() {
   // This ref lets us start recording immediately if the camera is already warm.
   const cameraReadyRef = useRef(false);
 
+  // Mirror backgroundRecordPending in a ref so onCameraReady (which runs once
+  // as a stale closure captured at mount) can still read the CURRENT value.
+  // Without this, slow devices like iPhone 13 Pro Max where the camera finishes
+  // initialising AFTER auto-start is triggered will never kick off recording.
+  const backgroundRecordPendingRef = useRef(backgroundRecordPending);
+  useEffect(() => {
+    backgroundRecordPendingRef.current = backgroundRecordPending;
+  }, [backgroundRecordPending]);
+
   // Total recording elapsed time (not per-segment)
   const [totalDuration, setTotalDuration] = useState(0);
   const totalStartRef = useRef<number>(0);
@@ -512,8 +521,9 @@ export default function DashcamOverlay() {
           onCameraReady={() => {
             cameraReadyRef.current = true;
             // Fallback: if backgroundRecordPending was set before the camera
-            // finished warming up (e.g. very first launch), start now.
-            if (backgroundRecordPending) {
+            // finished warming up (slow device / very first launch), start now.
+            // Read from ref — the JSX closure captures a stale false value.
+            if (backgroundRecordPendingRef.current) {
               startDashcam();
               clearBackgroundRecordPending();
             }

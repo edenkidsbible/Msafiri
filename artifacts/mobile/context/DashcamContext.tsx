@@ -994,7 +994,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
    */
   const dismissTripReview = useCallback(async () => {
     const toDelete = segmentsRef.current.filter((s) => s.savedForReview && !s.locked);
-    await Promise.all(
+    // allSettled instead of all — a single file-deletion failure must NOT abort
+    // the state update; the UI should clear even if a clip's file is already gone.
+    await Promise.allSettled(
       toDelete.map((s) => FileSystem.deleteAsync(s.uri, { idempotent: true }))
     );
     const deleteIds = new Set(toDelete.map((s) => s.id));

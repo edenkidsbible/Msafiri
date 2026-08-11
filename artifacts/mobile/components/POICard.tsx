@@ -72,7 +72,7 @@ export default function POICard({
 
   const navigateInApp = () => {
     setNavDestination({ name: poi.name, lat: poi.lat, lng: poi.lng, poiType: poi.type });
-    router.push("/");
+    router.push("/pretrip-check");
   };
 
   return (
