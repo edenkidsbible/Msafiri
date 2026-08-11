@@ -1250,9 +1250,10 @@ export default function DriveScreen() {
     setShowResults(false);
     setSearchError(false);
     setShowRoutePreviewMode(false);
-    // Do NOT reset autoStartedRef here — cancel should return the driver to the
-    // pre-trip idle screen, not silently fire a no-destination auto-start.
-    // autoStartedRef is only reset when tripActive goes false (trip-end effect).
+    // Mark auto-start as already fired so that clearing the destination (cancel)
+    // does not re-trigger the auto-start useFocusEffect that watches navDestination.
+    // The guard is reset by the trip-end effect when tripActive goes false.
+    autoStartedRef.current = true;
   };
 
   const bottomBase = bottomInset + tabBarH + 10;
@@ -1376,31 +1377,130 @@ export default function DriveScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              /* No destination — show "Where to?" button */
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row", alignItems: "center", gap: 10,
-                  width: "100%", backgroundColor: isDark ? "#1A1A1AEE" : "#FFFFFFEE",
-                  borderRadius: 18, paddingHorizontal: 16, paddingVertical: 16,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: isDark ? "#333" : "#DDD",
-                  shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity: 0.10, shadowRadius: 8, elevation: 5,
-                }}
-                onPress={() => {
-                  setSearchText("");
-                  setGeoResults([]);
-                  setShowResults(false);
-                  setShowDestPicker(true);
-                }}
-                activeOpacity={0.82}
-              >
-                <Ionicons name="search-outline" size={19} color={c.mutedForeground} />
-                <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>
-                  Where to?
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
-              </TouchableOpacity>
+              /* No destination — show "Where to?" + Home/Work quick chips */
+              <>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 10,
+                    width: "100%", backgroundColor: isDark ? "#1A1A1AEE" : "#FFFFFFEE",
+                    borderRadius: 18, paddingHorizontal: 16, paddingVertical: 16,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark ? "#333" : "#DDD",
+                    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+                    shadowOpacity: 0.10, shadowRadius: 8, elevation: 5,
+                  }}
+                  onPress={() => {
+                    setSearchText("");
+                    setGeoResults([]);
+                    setShowResults(false);
+                    setShowDestPicker(true);
+                  }}
+                  activeOpacity={0.82}
+                >
+                  <Ionicons name="search-outline" size={19} color={c.mutedForeground} />
+                  <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: c.mutedForeground }}>
+                    Where to?
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
+                </TouchableOpacity>
+
+                {/* Home & Work quick chips */}
+                <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+                  {/* Home */}
+                  {(() => {
+                    const home = savedPlaces.find(p => p.kind === "home");
+                    return (
+                      <TouchableOpacity
+                        style={{
+                          flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
+                          backgroundColor: isDark ? "#1A1A1AEE" : "#FFFFFFEE",
+                          borderRadius: 14, paddingHorizontal: 12, paddingVertical: 12,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: home ? "#22C55E55" : (isDark ? "#333" : "#DDD"),
+                          shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+                        }}
+                        onPress={() => {
+                          if (home) {
+                            navigateToSavedPlace(home);
+                          } else {
+                            Alert.alert(
+                              "Set up Home location",
+                              "Save your home address to navigate there with one tap. Head to Trips → Saved Places to add it.",
+                              [
+                                { text: "Set up now", onPress: () => router.push("/(tabs)/trips?initialTab=places" as any) },
+                                { text: "Not now", style: "cancel" },
+                              ]
+                            );
+                          }
+                        }}
+                        activeOpacity={0.78}
+                      >
+                        <View style={{
+                          width: 28, height: 28, borderRadius: 8,
+                          backgroundColor: home ? "#22C55E18" : (isDark ? "#222" : "#F5F5F5"),
+                          alignItems: "center", justifyContent: "center",
+                        }}>
+                          <Ionicons name="home" size={14} color={home ? "#22C55E" : c.mutedForeground} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: c.foreground }}>Home</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: home ? c.mutedForeground : c.primary }} numberOfLines={1}>
+                            {home ? (home.address ?? home.label) : "Tap to set up"}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })()}
+
+                  {/* Work */}
+                  {(() => {
+                    const work = savedPlaces.find(p => p.kind === "work");
+                    return (
+                      <TouchableOpacity
+                        style={{
+                          flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
+                          backgroundColor: isDark ? "#1A1A1AEE" : "#FFFFFFEE",
+                          borderRadius: 14, paddingHorizontal: 12, paddingVertical: 12,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: work ? "#1565C055" : (isDark ? "#333" : "#DDD"),
+                          shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+                        }}
+                        onPress={() => {
+                          if (work) {
+                            navigateToSavedPlace(work);
+                          } else {
+                            Alert.alert(
+                              "Set up Work location",
+                              "Save your work address to navigate there with one tap. Head to Trips → Saved Places to add it.",
+                              [
+                                { text: "Set up now", onPress: () => router.push("/(tabs)/trips?initialTab=places" as any) },
+                                { text: "Not now", style: "cancel" },
+                              ]
+                            );
+                          }
+                        }}
+                        activeOpacity={0.78}
+                      >
+                        <View style={{
+                          width: 28, height: 28, borderRadius: 8,
+                          backgroundColor: work ? "#1565C018" : (isDark ? "#222" : "#F5F5F5"),
+                          alignItems: "center", justifyContent: "center",
+                        }}>
+                          <Ionicons name="briefcase" size={14} color={work ? "#1565C0" : c.mutedForeground} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: c.foreground }}>Work</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: work ? c.mutedForeground : c.primary }} numberOfLines={1}>
+                            {work ? (work.address ?? work.label) : "Tap to set up"}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })()}
+                </View>
+              </>
             )}
           </View>
         </View>
@@ -1739,7 +1839,16 @@ export default function DriveScreen() {
                     onPress={() =>
                       home
                         ? navigateToSavedPlace(home)
-                        : router.push("/(tabs)/trips?initialTab=planned")
+                        : (() => {
+                            Alert.alert(
+                              "Set up Home location",
+                              "Save your home address to navigate there with one tap.",
+                              [
+                                { text: "Set up now", onPress: () => router.push("/(tabs)/trips?initialTab=places" as any) },
+                                { text: "Not now", style: "cancel" },
+                              ]
+                            );
+                          })()
                     }
                     activeOpacity={0.72}
                   >
@@ -1766,7 +1875,16 @@ export default function DriveScreen() {
                     onPress={() =>
                       work
                         ? navigateToSavedPlace(work)
-                        : router.push("/(tabs)/trips?initialTab=planned")
+                        : (() => {
+                            Alert.alert(
+                              "Set up Work location",
+                              "Save your work address to navigate there with one tap.",
+                              [
+                                { text: "Set up now", onPress: () => router.push("/(tabs)/trips?initialTab=places" as any) },
+                                { text: "Not now", style: "cancel" },
+                              ]
+                            );
+                          })()
                     }
                     activeOpacity={0.72}
                   >
@@ -2534,7 +2652,13 @@ export default function DriveScreen() {
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.cancelBtn, { backgroundColor: isDark ? "#222" : "#EFEFEF" }]}
-              onPress={() => { clearDestination(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+              onPress={() => {
+                clearDestination();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                // Take user back to the Map tab — keeps them in context and
+                // avoids the auto-start re-trigger inside the drive screen.
+                router.replace("/(tabs)/map" as any);
+              }}
             >
               <Ionicons name="close" size={16} color={fgMain} />
               <Text style={[styles.cancelBtnTxt, { color: fgMain }]}>Cancel</Text>

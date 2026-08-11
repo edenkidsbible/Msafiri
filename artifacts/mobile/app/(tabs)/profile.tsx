@@ -377,8 +377,23 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Danger Zone */}
+        <View style={[styles.section, { marginHorizontal: 16 }]}>
+          <Text style={[styles.sectionTitle, { color: "#EF4444" }]}>Danger Zone</Text>
+          <View style={[styles.sectionGroup, { backgroundColor: c.card, borderColor: "#EF444430" }]}>
+            <SettingsRow
+              icon="trash-outline"
+              iconColor="#EF4444"
+              title="Delete My Data"
+              sub="Permanently erase all your Msafiri data"
+              onPress={() => router.push("/delete-data" as any)}
+              isLast
+            />
+          </View>
+        </View>
+
         {/* Log Out */}
-        <View style={{ marginHorizontal: 16, marginTop: 10 }}>
+        <View style={{ marginHorizontal: 16, marginTop: 4 }}>
           <TouchableOpacity 
             style={[styles.logoutBtn, { backgroundColor: c.destructive + "18", borderColor: c.destructive + "44" }]}
             onPress={handleLogout}

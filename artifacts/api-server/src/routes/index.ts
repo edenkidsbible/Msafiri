@@ -32,6 +32,7 @@ import geocodeRouter from "./geocode.js";
 import backupRouter from "./backup.js";
 import otpRouter from "./otp.js";
 import vehiclesRouter from "./vehicles.js";
+import accountRouter from "./account.js";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(geocodeRouter);
 router.use(backupRouter);
 router.use(otpRouter);
 router.use(vehiclesRouter);
+router.use(accountRouter);
 
 export default router;
