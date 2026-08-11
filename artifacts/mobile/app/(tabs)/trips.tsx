@@ -49,6 +49,16 @@ import {
   deletePlannedTrip,
 } from "@/utils/tripsApi";
 import {
+  loadCache,
+  saveCache,
+  enqueueWrite,
+  loadQueue,
+  flushQueue,
+  cancelQueuedCreate,
+  mergeIntoQueuedCreate,
+} from "@/utils/offlineTripCache";
+import OfflineSyncBanner from "@/components/OfflineSyncBanner";
+import {
   DriveSession,
   listDriveSessions,
   scoreColor,
@@ -91,6 +101,7 @@ export default function TripsScreen() {
     deviceId, tripHistory, clearTripHistory, currentTrip,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
     driverName, currentLat, currentLng,
+    isOffline,
   } = useApp();
   const { activeVehicle, activeVehicleId, primaryVehicleId } = useVehicle();
 
@@ -142,6 +153,10 @@ export default function TripsScreen() {
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [trips, setTrips] = useState<PlannedTrip[]>([]);
   const [loading, setLoading] = useState(true);
+  // Number of offline-queued mutations waiting to sync
+  const [pendingOps, setPendingOps] = useState(0);
+  // Ref so reconnect effect can read without re-registering on every change
+  const isOfflineRef = useRef(isOffline);
 
   // ── Drive History (Live Trip completed sessions) ───────────────────────────
   const [driveHistory, setDriveHistory]         = useState<DriveSession[]>([]);
@@ -289,25 +304,81 @@ export default function TripsScreen() {
     setShowBgDisclosure(false);
   }, []);
 
+  // Keep isOfflineRef in sync so the reconnect effect always reads the latest value
+  useEffect(() => { isOfflineRef.current = isOffline; }, [isOffline]);
+
+  // Refresh pending-ops count from the queue (called after any queue mutation)
+  const refreshPendingOps = useCallback(async () => {
+    if (!deviceId) return;
+    const queue = await loadQueue();
+    setPendingOps(queue.filter((op) => op.deviceId === deviceId).length);
+  }, [deviceId]);
+
   // Route check modal (road conditions for a saved place / planned trip)
   const [routeCheck, setRouteCheck] = useState<{ label: string; lat: number; lng: number } | null>(null);
 
-  const load = useCallback(async () => {
+  // ── Stale-while-revalidate load ──────────────────────────────────────────
+  // 1. Read from AsyncStorage immediately (fast path — zero latency)
+  // 2. If online and the queue has pending ops, flush them first so the
+  //    subsequent fetch returns authoritative server state.
+  //    This also covers the "app launched already-online with leftover writes"
+  //    case, which would otherwise never trigger the reconnect effect.
+  // 3. Fetch fresh data from the API
+  // 4. On success → update state + persist fresh cache
+  // 5. On failure → keep cached data; just clear the loading spinner
+  const load = useCallback(async (flushFirst = false) => {
     if (!deviceId) return;
+
+    // Step 1: populate from cache instantly so the UI is never empty on mount
+    const cached = await loadCache(deviceId);
+    if (cached.places.length > 0 || cached.trips.length > 0) {
+      setPlaces(cached.places);
+      setTrips(cached.trips);
+      setLoading(false); // cache hit → hide spinner immediately
+    }
+
+    // Refresh pending-ops count so the banner stays accurate
+    await refreshPendingOps();
+
+    // Step 2: if requested (online with leftover writes), flush queue first
+    if (flushFirst) {
+      await flushQueue(deviceId);
+      await refreshPendingOps();
+    }
+
+    // Step 3 & 4: fetch fresh data from the API
     try {
       const [p, t] = await Promise.all([listSavedPlaces(deviceId), listPlannedTrips(deviceId)]);
       setPlaces(p);
       setTrips(t);
+      // Persist fresh cache
+      await saveCache(deviceId, p, t);
     } catch {
-      // silently ignore — offline or server unreachable
+      // Step 5: API failed — keep cached data (already set above), just hide spinner
     } finally {
       setLoading(false);
     }
-  }, [deviceId]);
+  }, [deviceId, refreshPendingOps]);
 
   useEffect(() => {
-    load();
+    // On mount: if the device is already online, flush any pending writes that
+    // accumulated in a prior offline session before fetching fresh data.
+    // isOfflineRef.current is always current because its sync effect runs
+    // before this effect fires (same render cycle, effects run in order).
+    load(!isOfflineRef.current);
   }, [load]);
+
+  // ── Sync queue on reconnect ─────────────────────────────────────────────
+  // Watch isOffline transition true → false and replay any queued mutations.
+  const prevOfflineRef = useRef(isOffline);
+  useEffect(() => {
+    const wasOffline = prevOfflineRef.current;
+    prevOfflineRef.current = isOffline;
+    if (wasOffline && !isOffline && deviceId) {
+      // Reconnected — load(true) flushes the queue then fetches fresh data
+      load(true);
+    }
+  }, [isOffline, deviceId, load]);
 
   // ── Saved place modal helpers ──────────────────────────────────────────
 
@@ -360,23 +431,75 @@ export default function TripsScreen() {
     setPlaceSaving(true);
     try {
       if (editingPlace) {
-        const updated = await updateSavedPlace(deviceId, editingPlace.id, {
+        const patch = {
           label: placeLabel.trim(),
           kind: placeKind,
           address: placeSelected.display,
           lat: placeSelected.lat,
           lng: placeSelected.lng,
-        });
-        setPlaces((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+        };
+        if (isOfflineRef.current) {
+          // Optimistic update
+          const optimistic: SavedPlace = { ...editingPlace, ...patch };
+          const next = places.map((p) => (p.id === editingPlace.id ? optimistic : p));
+          setPlaces(next);
+          await saveCache(deviceId, next, trips);
+          if (editingPlace.id.startsWith("offline-")) {
+            // Item was created offline — merge edits into its queued create so we
+            // replay one coalesced create (not create + update with a stale temp ID)
+            await mergeIntoQueuedCreate(editingPlace.id, deviceId, editingPlace.id, patch);
+          } else {
+            // Normal server-side item — queue a regular update
+            await enqueueWrite({
+              id: `${Date.now()}-${Math.random()}`,
+              type: "update_place",
+              deviceId,
+              placeId: editingPlace.id,
+              payload: patch,
+            });
+          }
+          await refreshPendingOps();
+        } else {
+          const updated = await updateSavedPlace(deviceId, editingPlace.id, patch);
+          const next = places.map((p) => (p.id === updated.id ? updated : p));
+          setPlaces(next);
+          await saveCache(deviceId, next, trips);
+        }
       } else {
-        const created = await createSavedPlace(deviceId, {
+        const payload = {
           label: placeLabel.trim(),
           kind: placeKind,
           address: placeSelected.display,
           lat: placeSelected.lat,
           lng: placeSelected.lng,
-        });
-        setPlaces((prev) => [...prev, created]);
+        };
+        if (isOfflineRef.current) {
+          // Optimistic create with a temporary ID
+          const tempId = `offline-${Date.now()}-${Math.random()}`;
+          const optimistic: SavedPlace = {
+            id: tempId,
+            ...payload,
+            usualTimeMinutes: null,
+            createdAt: Date.now(),
+          };
+          const next = [...places, optimistic];
+          setPlaces(next);
+          await saveCache(deviceId, next, trips);
+          // tempId stored in the op so edits/deletes while still offline can coalesce
+          await enqueueWrite({
+            id: `${Date.now()}-${Math.random()}`,
+            type: "create_place",
+            deviceId,
+            tempId,
+            payload,
+          });
+          await refreshPendingOps();
+        } else {
+          const created = await createSavedPlace(deviceId, payload);
+          const next = [...places, created];
+          setPlaces(next);
+          await saveCache(deviceId, next, trips);
+        }
       }
       setPlaceModal(false);
       Keyboard.dismiss();
@@ -395,11 +518,43 @@ export default function TripsScreen() {
         style: "destructive",
         onPress: async () => {
           if (!deviceId) return;
-          setPlaces((prev) => prev.filter((x) => x.id !== p.id));
-          try {
-            await deleteSavedPlace(deviceId, p.id);
-          } catch {
-            load();
+          const nextPlaces = places.filter((x) => x.id !== p.id);
+          setPlaces(nextPlaces);
+
+          if (isOfflineRef.current) {
+            if (p.id.startsWith("offline-")) {
+              // Item was only created locally — cancel its queued create. The helper
+              // also cancels any trip-create ops that referenced this place's temp ID
+              // and returns their tempIds so we can remove them from local state too,
+              // keeping the cache consistent: trips that were never sent to the server
+              // must not appear as saved locally either.
+              const { cancelledTripTempIds } = await cancelQueuedCreate(p.id, deviceId);
+              if (cancelledTripTempIds.length > 0) {
+                // Remove the now-cancelled trips from state and persist the full tidy state
+                const nextTrips = trips.filter((t) => !cancelledTripTempIds.includes(t.id));
+                setTrips(nextTrips);
+                await saveCache(deviceId, nextPlaces, nextTrips);
+              } else {
+                await saveCache(deviceId, nextPlaces, trips);
+              }
+            } else {
+              // Normal server-side item — queue a delete
+              await saveCache(deviceId, nextPlaces, trips);
+              await enqueueWrite({
+                id: `${Date.now()}-${Math.random()}`,
+                type: "delete_place",
+                deviceId,
+                placeId: p.id,
+              });
+            }
+            await refreshPendingOps();
+          } else {
+            await saveCache(deviceId, nextPlaces, trips);
+            try {
+              await deleteSavedPlace(deviceId, p.id);
+            } catch {
+              load();
+            }
           }
         },
       },
@@ -465,14 +620,41 @@ export default function TripsScreen() {
     if (!deviceId || !tripDest) return;
     setTripSaving(true);
     try {
-      const created = await createPlannedTrip(deviceId, {
+      const payload = {
         savedPlaceId: tripDest.savedPlaceId ?? null,
         label: tripDest.label,
         destLat: tripDest.lat,
         destLng: tripDest.lng,
         plannedAt: tripDate.getTime(),
-      });
-      setTrips((prev) => [...prev, created].sort((a, b) => a.plannedAt - b.plannedAt));
+      };
+      if (isOfflineRef.current) {
+        // Optimistic create with a temporary ID
+        const tempId = `offline-trip-${Date.now()}-${Math.random()}`;
+        const optimistic: PlannedTrip = {
+          id: tempId,
+          ...payload,
+          status: "upcoming",
+          notifiedAt: null,
+          createdAt: Date.now(),
+        };
+        const next = [...trips, optimistic].sort((a, b) => a.plannedAt - b.plannedAt);
+        setTrips(next);
+        await saveCache(deviceId, places, next);
+        // tempId stored in the op so cancelTrip while still offline can coalesce
+        await enqueueWrite({
+          id: `${Date.now()}-${Math.random()}`,
+          type: "create_trip",
+          deviceId,
+          tempId,
+          payload,
+        });
+        await refreshPendingOps();
+      } else {
+        const created = await createPlannedTrip(deviceId, payload);
+        const next = [...trips, created].sort((a, b) => a.plannedAt - b.plannedAt);
+        setTrips(next);
+        await saveCache(deviceId, places, next);
+      }
       setTripModal(false);
       Keyboard.dismiss();
     } catch {
@@ -490,11 +672,30 @@ export default function TripsScreen() {
         style: "destructive",
         onPress: async () => {
           if (!deviceId) return;
-          setTrips((prev) => prev.filter((x) => x.id !== t.id));
-          try {
-            await deletePlannedTrip(deviceId, t.id);
-          } catch {
-            load();
+          const next = trips.filter((x) => x.id !== t.id);
+          setTrips(next);
+          await saveCache(deviceId, places, next);
+          if (isOfflineRef.current) {
+            if (t.id.startsWith("offline-trip-")) {
+              // Trip was only created locally — cancel its queued create so it's
+              // never sent to the server
+              await cancelQueuedCreate(t.id, deviceId);
+            } else {
+              // Normal server-side trip — queue a cancel
+              await enqueueWrite({
+                id: `${Date.now()}-${Math.random()}`,
+                type: "cancel_trip",
+                deviceId,
+                tripId: t.id,
+              });
+            }
+            await refreshPendingOps();
+          } else {
+            try {
+              await deletePlannedTrip(deviceId, t.id);
+            } catch {
+              load();
+            }
           }
         },
       },
@@ -690,6 +891,9 @@ export default function TripsScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <>
+              {/* Offline / pending-sync notice */}
+              <OfflineSyncBanner isOffline={isOffline} pendingCount={pendingOps} />
+
               {/* Saved places */}
               <View style={styles.sectionHead}>
                 <Text style={[styles.sectionTitle, { color: c.foreground }]}>Saved Places</Text>

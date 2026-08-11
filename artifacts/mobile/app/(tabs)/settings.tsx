@@ -32,6 +32,7 @@ import { resolveIncidentType } from "@/constants/incidentTypes";
 import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import { formatTimeAgo as timeAgo } from "@/lib/timeAgo";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
+import { loadCachedPlaces, cachePlaces } from "@/utils/offlineTripCache";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/utils/apiClient";
 import { syncBackup } from "@/utils/backupSync";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -149,10 +150,19 @@ export default function SettingsScreen() {
     finally { setSendingTest(false); }
   };
 
-  // Load saved places so we can show current Home / Work addresses
+  // Load saved places so we can show current Home / Work addresses.
+  // Cache-first: serve from AsyncStorage immediately, then refresh from API.
   useEffect(() => {
     if (!deviceId) return;
-    listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
+    loadCachedPlaces(deviceId).then((cached) => {
+      if (cached.length > 0) setSavedPlaces(cached);
+    });
+    listSavedPlaces(deviceId)
+      .then((fresh) => {
+        setSavedPlaces(fresh);
+        cachePlaces(deviceId, fresh);
+      })
+      .catch(() => {});
   }, [deviceId]);
 
   const saveContact = () => {

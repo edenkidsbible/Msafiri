@@ -62,6 +62,7 @@ import {
   SavedPlace,
   updatePlannedTrip,
 } from "@/utils/tripsApi";
+import { loadCache, saveCache, enqueueWrite, cancelQueuedCreate } from "@/utils/offlineTripCache";
 import {
   TripLocationMap,
   loadTripLocationCache,
@@ -270,11 +271,14 @@ interface AddTripModalProps {
   editing: PlannedTrip | null;
   savedPlaces: SavedPlace[];
   deviceId: string;
+  isOffline: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  /** Online: called with no args → triggers full reload.
+   *  Offline: called with an optimistic update so the caller can update local state. */
+  onSaved: (optimistic?: { newTrip: PlannedTrip; removedTripId?: string }) => void;
 }
 
-function AddTripModal({ visible, editing, savedPlaces, deviceId, onClose, onSaved }: AddTripModalProps) {
+function AddTripModal({ visible, editing, savedPlaces, deviceId, isOffline, onClose, onSaved }: AddTripModalProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const cardBg    = c.isDark ? "#151917" : "#fff";
@@ -314,25 +318,41 @@ function AddTripModal({ visible, editing, savedPlaces, deviceId, onClose, onSave
     try {
       const plannedAt = tripDate.getTime();
       const dest = destPlace ?? { lat: -1.286389, lng: 36.817223 }; // Nairobi centre fallback
+      const payload = {
+        savedPlaceId: destPlace?.id ?? null,
+        label: label.trim(),
+        destLat: dest.lat,
+        destLng: dest.lng,
+        plannedAt,
+      };
+
+      if (isOffline) {
+        // Queue the mutation and apply it optimistically so the UI updates immediately
+        const tempId = `offline-trip-${Date.now()}-${Math.random()}`;
+        const opId   = `${Date.now()}-${Math.random()}`;
+        if (editing) {
+          // Queue removal of old + creation of new
+          await enqueueWrite({ id: `${opId}-del`, type: "cancel_trip", deviceId, tripId: editing.id });
+        }
+        await enqueueWrite({ id: opId, type: "create_trip", deviceId, tempId, payload });
+        // Build an optimistic local trip so the caller can update the list without an API call
+        const optimisticTrip = {
+          id: tempId,
+          deviceId,
+          status: "upcoming" as const,
+          ...payload,
+        } as unknown as PlannedTrip;
+        onSaved({ newTrip: optimisticTrip, removedTripId: editing?.id });
+        onClose();
+        return;
+      }
 
       if (editing) {
         // Delete old + recreate so we can update the label (API only patches status/plannedAt)
         await deletePlannedTrip(deviceId, editing.id);
-        await createPlannedTrip(deviceId, {
-          savedPlaceId: destPlace?.id ?? null,
-          label: label.trim(),
-          destLat: dest.lat,
-          destLng: dest.lng,
-          plannedAt,
-        });
+        await createPlannedTrip(deviceId, payload);
       } else {
-        await createPlannedTrip(deviceId, {
-          savedPlaceId: destPlace?.id ?? null,
-          label: label.trim(),
-          destLat: dest.lat,
-          destLng: dest.lng,
-          plannedAt,
-        });
+        await createPlannedTrip(deviceId, payload);
       }
 
       onSaved();
@@ -454,7 +474,7 @@ type Tab = "all" | "upcoming" | "past" | "shared";
 export default function TripHistoryScreen() {
   const c       = useColors();
   const insets  = useSafeAreaInsets();
-  const { deviceId } = useApp();
+  const { deviceId, isOffline } = useApp();
   // Global active vehicle — used to initialise this screen's local selection
   // and to react when the user swipes to a different car in the garage.
   const { activeVehicle: ctxActiveVehicle, primaryVehicleId } = useVehicle();
@@ -544,6 +564,17 @@ export default function TripHistoryScreen() {
         }, SESSION_RETRY_MS);
       };
 
+      // Seed places/trips from cache immediately so the UI is non-empty on first
+      // render even before the API calls below complete. We do this in parallel
+      // with the full Promise.all so the cache read doesn't add latency.
+      if (deviceId) {
+        loadCache(deviceId).then(({ places: cp, trips: ct }) => {
+          if (!alive) return;
+          if (cp.length > 0) setSavedPlaces(cp);
+          if (ct.length > 0) setPlannedTrips(ct);
+        });
+      }
+
       Promise.all([
         loadVehicles(),
         deviceId ? listPlannedTrips(deviceId)       : Promise.resolve([] as PlannedTrip[]),
@@ -580,6 +611,8 @@ export default function TripHistoryScreen() {
         setHiddenIds(hidden);
         setPlannedTrips(trips);
         setSavedPlaces(places);
+        // Persist fresh data to cache so the screen loads instantly offline next time
+        if (deviceId) saveCache(deviceId, places, trips).catch(() => {});
         setLocationCache(locCache);
         setSharedSessions(shared.sessions ?? []);
 
@@ -780,11 +813,30 @@ export default function TripHistoryScreen() {
         text: "Cancel Trip",
         style: "destructive",
         onPress: async () => {
-          try {
-            await updatePlannedTrip(deviceId!, t.id, { status: "cancelled" });
-            setPlannedTrips(prev => prev.filter(p => p.id !== t.id));
-          } catch {
-            Alert.alert("Error", "Could not cancel trip.");
+          // Optimistically remove from local state and cache first
+          const nextTrips = plannedTrips.filter((p) => p.id !== t.id);
+          setPlannedTrips(nextTrips);
+          if (deviceId) await saveCache(deviceId, savedPlaces, nextTrips);
+
+          if (isOffline) {
+            if (t.id.startsWith("offline-")) {
+              // Was only created locally — cancel its queued create
+              await cancelQueuedCreate(t.id, deviceId!);
+            } else {
+              // Queue the removal (server-side cancel is effectively a delete for offline purposes)
+              await enqueueWrite({
+                id: `${Date.now()}-${Math.random()}`,
+                type: "cancel_trip",
+                deviceId: deviceId!,
+                tripId: t.id,
+              });
+            }
+          } else {
+            try {
+              await updatePlannedTrip(deviceId!, t.id, { status: "cancelled" });
+            } catch {
+              // Best-effort; state already updated optimistically
+            }
           }
         },
       },
@@ -798,11 +850,30 @@ export default function TripHistoryScreen() {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          try {
-            await deletePlannedTrip(deviceId!, t.id);
-            setPlannedTrips(prev => prev.filter(p => p.id !== t.id));
-          } catch {
-            Alert.alert("Error", "Could not delete trip.");
+          // Optimistically remove from local state and cache first
+          const nextTrips = plannedTrips.filter((p) => p.id !== t.id);
+          setPlannedTrips(nextTrips);
+          if (deviceId) await saveCache(deviceId, savedPlaces, nextTrips);
+
+          if (isOffline) {
+            if (t.id.startsWith("offline-")) {
+              // Was only created locally — cancel its queued create
+              await cancelQueuedCreate(t.id, deviceId!);
+            } else {
+              // Queue the deletion
+              await enqueueWrite({
+                id: `${Date.now()}-${Math.random()}`,
+                type: "cancel_trip",
+                deviceId: deviceId!,
+                tripId: t.id,
+              });
+            }
+          } else {
+            try {
+              await deletePlannedTrip(deviceId!, t.id);
+            } catch {
+              // Best-effort; state already updated optimistically
+            }
           }
         },
       },
@@ -1268,8 +1339,24 @@ export default function TripHistoryScreen() {
         editing={editingTrip}
         savedPlaces={savedPlaces}
         deviceId={deviceId ?? ""}
+        isOffline={isOffline}
         onClose={() => { setShowAddTrip(false); setEditingTrip(null); }}
-        onSaved={reloadTrips}
+        onSaved={(optimistic) => {
+          if (optimistic) {
+            // Offline optimistic update — patch local state and cache
+            setPlannedTrips((prev) => {
+              const next = [
+                ...prev.filter((t) => t.id !== optimistic.removedTripId),
+                optimistic.newTrip,
+              ].sort((a, b) => a.plannedAt - b.plannedAt);
+              if (deviceId) saveCache(deviceId, savedPlaces, next).catch(() => {});
+              return next;
+            });
+          } else {
+            // Online — reload from API
+            reloadTrips();
+          }
+        }}
       />
     </View>
   );

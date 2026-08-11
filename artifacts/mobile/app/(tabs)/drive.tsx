@@ -50,6 +50,7 @@ import { useIncidentConfirmationPrompt } from "@/hooks/useIncidentConfirmationPr
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { DASHCAM_AUTOSTART_KEY } from "@/app/pretrip-check";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
+import { loadCachedPlaces, cachePlaces } from "@/utils/offlineTripCache";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
   loadRecentSearches,
@@ -396,15 +397,33 @@ export default function DriveScreen() {
     loadRecentSearches().then(setRecentSearches).catch(() => {});
   }, []);
 
-  // Load saved places (Home / Work / custom) — reload when search is focused
-  // so changes made in the Trips tab are immediately reflected here.
+  // Load saved places (Home / Work / custom) — cache-first, then fetch live.
+  // Reload when search is focused so changes in the Trips tab show immediately.
   useEffect(() => {
     if (!deviceId) return;
-    listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
+    // Serve from cache immediately, then update with fresh API data
+    loadCachedPlaces(deviceId).then((cached) => {
+      if (cached.length > 0) setSavedPlaces(cached);
+    });
+    listSavedPlaces(deviceId)
+      .then((fresh) => {
+        setSavedPlaces(fresh);
+        cachePlaces(deviceId, fresh);
+      })
+      .catch(() => {});
   }, [deviceId]);
   useEffect(() => {
     if (!searchInputFocused || !deviceId) return;
-    listSavedPlaces(deviceId).then(setSavedPlaces).catch(() => {});
+    // On focus, read cache first for instant display, then refresh
+    loadCachedPlaces(deviceId).then((cached) => {
+      if (cached.length > 0) setSavedPlaces(cached);
+    });
+    listSavedPlaces(deviceId)
+      .then((fresh) => {
+        setSavedPlaces(fresh);
+        cachePlaces(deviceId, fresh);
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInputFocused]);
 
