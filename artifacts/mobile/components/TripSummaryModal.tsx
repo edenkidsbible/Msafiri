@@ -467,6 +467,22 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidde
             </TouchableOpacity>
           )}
 
+          {/* ── Report a road incident ────────────────────────────────────── */}
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { borderColor: "#F59E0B", backgroundColor: "#F59E0B12" }]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              dismiss();
+              setTimeout(() => router.push("/(tabs)/report" as any), 180);
+            }}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="warning-outline" size={16} color="#F59E0B" />
+            <Text style={[styles.secondaryBtnTxt, { color: "#F59E0B" }]}>
+              Report a road incident
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.secondaryBtn, { borderColor: sepColor }]}
             onPress={goHistory}

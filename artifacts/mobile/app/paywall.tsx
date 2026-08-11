@@ -142,7 +142,12 @@ function SuccessScreen({
   }, [checkLinkedPhone]);
 
   return (
-    <View style={[ss.root, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: c.background }}
+      contentContainerStyle={[ss.root, { paddingTop: topPad, paddingBottom: botPad }]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Glow badge */}
       <View style={ss.badgeWrap}>
         <View style={[ss.glowBig,  { backgroundColor: c.primary + "18" }]} />
@@ -235,7 +240,7 @@ function SuccessScreen({
         activeOpacity={0.85}
       >
         <Text style={[ss.ctaTxt, linkedPhone === null && { color: c.mutedForeground }]}>
-          {linkedPhone === null ? "Skip, start driving" : "Start Driving"}
+          {linkedPhone === null ? "Skip for Later" : "Start Driving"}
         </Text>
         <Ionicons
           name="arrow-forward"
@@ -243,11 +248,11 @@ function SuccessScreen({
           color={linkedPhone === null ? c.mutedForeground : "#fff"}
         />
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 const ss = StyleSheet.create({
-  root:       { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, gap: 20 },
+  root:       { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, gap: 20 },
   badgeWrap:  { width: 120, height: 120, alignItems: "center", justifyContent: "center" },
   glowBig:    { position: "absolute", width: 120, height: 120, borderRadius: 60 },
   glowMid:    { position: "absolute", width: 90, height: 90, borderRadius: 45 },

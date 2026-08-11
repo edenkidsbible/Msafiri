@@ -1,47 +1,71 @@
 /**
  * Daily backup job — runs once per day at 23:00 EAT (20:00 UTC).
  *
- * Exports:
- *  1. All live community reports as CSV  → directly importable via Admin → Reports → Import
- *  2. Full JSON snapshot (reports + DB speed-zone overrides) → disaster-recovery restore
+ * buildBackupSnapshot() — queries every important table and returns the full
+ *   data object. Shared between the scheduled job and the on-demand admin API.
  *
- * Both are emailed to BACKUP_EMAIL_ADDRESS as attachments.
- * If the env var is not set the job logs a warning and skips the send.
+ * runDailyBackup() — calls buildBackupSnapshot, builds a reports CSV (for
+ *   direct admin import), and emails both files to BACKUP_EMAIL_ADDRESS.
  */
 
-import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
-import { ne, inArray } from "drizzle-orm";
+import { db } from "@workspace/db";
+import {
+  communityReportsTable,
+  speedZonesTable,
+  savedPlacesTable,
+  plannedTripsTable,
+  deviceBackupsTable,
+  sharedVehiclesTable,
+  vehicleMembersTable,
+  vehicleJoinRequestsTable,
+  emergencyContactsTable,
+  pushTokensTable,
+  courseChaptersTable,
+  courseLessonsTable,
+  courseQuizQuestionsTable,
+  userCourseProgressTable,
+  userCourseBookmarksTable,
+  poisTable,
+  appSettingsTable,
+  adminUsersTable,
+  blogPostsTable,
+  appReleasesTable,
+  creatorApplicationsTable,
+  promoCodesTable,
+  accidentRecordsTable,
+  accidentPhotosTable,
+  accidentWitnessesTable,
+  accidentTimelineEventsTable,
+  dashcamClipsTable,
+  brakingEventsTable,
+  hazardClustersTable,
+  pushCampaignsTable,
+  blockedDevicesTable,
+  customVehiclesTable,
+} from "@workspace/db";
 import { sendDailyBackupEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
 
 // Target hour in UTC — 20:00 UTC = 23:00 EAT
 const TARGET_UTC_HOUR = 20;
 
-// CSV header must match the existing admin import endpoint's expected columns.
+// ── Report CSV (matches admin import format) ───────────────────────────────────
+
 const CSV_HEADER = "id,type,status,roadName,lat,lng,speedLimit,adminVerified,confirmCount,denyCount,createdAt,expiresAt";
 
 function escapeCsv(v: unknown): string {
   if (v == null) return "";
   const s = String(v);
-  // Wrap in quotes if the value contains a comma, quote, or newline.
   if (s.includes(",") || s.includes('"') || s.includes("\n")) {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
 }
 
-function rowToCsvLine(r: Record<string, unknown>): string {
+function reportToCsvLine(r: Record<string, unknown>): string {
   return [
-    r.id,
-    r.type,
-    r.status,
-    r.roadName,
-    r.lat,
-    r.lng,
-    r.speedLimit,
-    r.adminVerified,
-    r.confirmCount,
-    r.denyCount,
+    r.id, r.type, r.status, r.roadName, r.lat, r.lng, r.speedLimit,
+    r.adminVerified, r.confirmCount, r.denyCount,
     r.createdAt instanceof Date ? r.createdAt.toISOString() : (r.createdAt ?? ""),
     r.expiresAt instanceof Date ? r.expiresAt.toISOString() : (r.expiresAt ?? ""),
   ].map(escapeCsv).join(",");
@@ -54,6 +78,162 @@ function eatDateString(): string {
   return eat.toISOString().slice(0, 10);
 }
 
+// ── Snapshot ───────────────────────────────────────────────────────────────────
+
+export interface BackupSnapshot {
+  version:    number;
+  exportedAt: string;
+  stats:      Record<string, number>;
+  tables:     Record<string, unknown[]>;
+}
+
+/**
+ * Queries every important table and returns the full backup snapshot.
+ * This is the single source of truth — used by both the scheduled email job
+ * and the on-demand admin export/run endpoints.
+ *
+ * Tables deliberately excluded:
+ *   • audit_logs             — very large event log, not worth restoring
+ *   • sharing_sessions       — ephemeral real-time sessions
+ *   • dashcam_enrollment_*   — transient OTPs
+ *   • dashcam_upload_intents — transient upload tokens
+ *   • dashcam_reg_ratelimit  — ephemeral rate-limit buckets
+ *   • crash_trigger_events   — raw sensor event log, very large
+ *   • emergency_alerts_log   — historical event log
+ *   • admin_notifications    — ephemeral inbox items
+ *   • dashcam_devices        — device auth (secrets are hashed; restored via OTP flow)
+ *
+ * Binary assets (dashcam clips, accident photos, PDFs, TTS audio, car images)
+ * live in Cloudflare R2 and are NOT included — they are already persistent and
+ * survive restarts independently. The backup includes the Postgres *metadata*
+ * rows (fileKey references) so R2 objects remain accessible after a restore.
+ */
+export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
+  const fetch = async <T>(label: string, query: () => Promise<T[]>): Promise<T[]> => {
+    try {
+      return await query();
+    } catch (err) {
+      logger.warn({ err }, `[dailyBackup] Failed to query ${label} — omitted from snapshot`);
+      return [];
+    }
+  };
+
+  const [
+    communityReports,
+    speedZones,
+    savedPlaces,
+    plannedTrips,
+    deviceBackups,
+    sharedVehicles,
+    vehicleMembers,
+    vehicleJoinRequests,
+    emergencyContacts,
+    pushTokens,
+    courseChapters,
+    courseLessons,
+    courseQuizQuestions,
+    userCourseProgress,
+    userCourseBookmarks,
+    pois,
+    appSettings,
+    adminUsers,
+    blogPosts,
+    appReleases,
+    creatorApplications,
+    promoCodes,
+    accidentRecords,
+    accidentPhotos,
+    accidentWitnesses,
+    accidentTimelineEvents,
+    dashcamClips,
+    brakingEvents,
+    hazardClusters,
+    pushCampaigns,
+    blockedDevices,
+    customVehicles,
+  ] = await Promise.all([
+    fetch("community_reports",        () => db.select().from(communityReportsTable).orderBy(communityReportsTable.createdAt)),
+    fetch("speed_zones",              () => db.select().from(speedZonesTable).orderBy(speedZonesTable.createdAt)),
+    fetch("saved_places",             () => db.select().from(savedPlacesTable).orderBy(savedPlacesTable.createdAt)),
+    fetch("planned_trips",            () => db.select().from(plannedTripsTable).orderBy(plannedTripsTable.createdAt)),
+    fetch("device_backups",           () => db.select().from(deviceBackupsTable)),
+    fetch("shared_vehicles",          () => db.select().from(sharedVehiclesTable).orderBy(sharedVehiclesTable.createdAt)),
+    fetch("vehicle_members",          () => db.select().from(vehicleMembersTable).orderBy(vehicleMembersTable.createdAt)),
+    fetch("vehicle_join_requests",    () => db.select().from(vehicleJoinRequestsTable).orderBy(vehicleJoinRequestsTable.createdAt)),
+    fetch("emergency_contacts",       () => db.select().from(emergencyContactsTable).orderBy(emergencyContactsTable.createdAt)),
+    fetch("push_tokens",              () => db.select().from(pushTokensTable).orderBy(pushTokensTable.createdAt)),
+    fetch("course_chapters",          () => db.select().from(courseChaptersTable).orderBy(courseChaptersTable.order)),
+    fetch("course_lessons",           () => db.select().from(courseLessonsTable).orderBy(courseLessonsTable.order)),
+    fetch("course_quiz_questions",    () => db.select().from(courseQuizQuestionsTable)),
+    fetch("user_course_progress",     () => db.select().from(userCourseProgressTable)),
+    fetch("user_course_bookmarks",    () => db.select().from(userCourseBookmarksTable)),
+    fetch("pois",                     () => db.select().from(poisTable).orderBy(poisTable.createdAt)),
+    fetch("app_settings",             () => db.select().from(appSettingsTable)),
+    fetch("admin_users",              () => db.select().from(adminUsersTable).orderBy(adminUsersTable.createdAt)),
+    fetch("blog_posts",               () => db.select().from(blogPostsTable).orderBy(blogPostsTable.createdAt)),
+    fetch("app_releases",             () => db.select().from(appReleasesTable).orderBy(appReleasesTable.createdAt)),
+    fetch("creator_applications",     () => db.select().from(creatorApplicationsTable).orderBy(creatorApplicationsTable.createdAt)),
+    fetch("promo_codes",              () => db.select().from(promoCodesTable).orderBy(promoCodesTable.createdAt)),
+    fetch("accident_records",         () => db.select().from(accidentRecordsTable).orderBy(accidentRecordsTable.createdAt)),
+    fetch("accident_photos",          () => db.select().from(accidentPhotosTable).orderBy(accidentPhotosTable.createdAt)),
+    fetch("accident_witnesses",       () => db.select().from(accidentWitnessesTable).orderBy(accidentWitnessesTable.createdAt)),
+    fetch("accident_timeline_events", () => db.select().from(accidentTimelineEventsTable).orderBy(accidentTimelineEventsTable.occurredAt)),
+    fetch("dashcam_clips",            () => db.select().from(dashcamClipsTable).orderBy(dashcamClipsTable.createdAt)),
+    fetch("braking_events",           () => db.select().from(brakingEventsTable).orderBy(brakingEventsTable.createdAt)),
+    fetch("hazard_clusters",          () => db.select().from(hazardClustersTable).orderBy(hazardClustersTable.createdAt)),
+    fetch("push_campaigns",           () => db.select().from(pushCampaignsTable).orderBy(pushCampaignsTable.createdAt)),
+    fetch("blocked_devices",          () => db.select().from(blockedDevicesTable).orderBy(blockedDevicesTable.createdAt)),
+    fetch("custom_vehicles",          () => db.select().from(customVehiclesTable).orderBy(customVehiclesTable.createdAt)),
+  ]);
+
+  const tables = {
+    communityReports,
+    speedZones,
+    savedPlaces,
+    plannedTrips,
+    deviceBackups,
+    sharedVehicles,
+    vehicleMembers,
+    vehicleJoinRequests,
+    emergencyContacts,
+    pushTokens,
+    courseChapters,
+    courseLessons,
+    courseQuizQuestions,
+    userCourseProgress,
+    userCourseBookmarks,
+    pois,
+    appSettings,
+    adminUsers,
+    blogPosts,
+    appReleases,
+    creatorApplications,
+    promoCodes,
+    accidentRecords,
+    accidentPhotos,
+    accidentWitnesses,
+    accidentTimelineEvents,
+    dashcamClips,
+    brakingEvents,
+    hazardClusters,
+    pushCampaigns,
+    blockedDevices,
+    customVehicles,
+  } as Record<string, unknown[]>;
+
+  const stats: Record<string, number> = {};
+  for (const [k, v] of Object.entries(tables)) stats[k] = v.length;
+
+  return {
+    version:    2,
+    exportedAt: new Date().toISOString(),
+    stats,
+    tables,
+  };
+}
+
+// ── Scheduled job ──────────────────────────────────────────────────────────────
+
 async function runDailyBackup(): Promise<void> {
   const toEmail = process.env["BACKUP_EMAIL_ADDRESS"];
   if (!toEmail) {
@@ -63,99 +243,43 @@ async function runDailyBackup(): Promise<void> {
 
   logger.info("[dailyBackup] Starting daily backup export…");
 
-  // ── 1. Fetch all non-permanently-deleted reports ──────────────────────────
-  // Exclude nothing — even expired/denied rows are included so a restore
-  // brings back the full history.  The admin import will re-activate or skip
-  // them as appropriate based on their status column.
-  let reports: Array<Record<string, unknown>> = [];
-  try {
-    reports = await db
-      .select({
-        id:           communityReportsTable.id,
-        type:         communityReportsTable.type,
-        status:       communityReportsTable.status,
-        roadName:     communityReportsTable.roadName,
-        lat:          communityReportsTable.lat,
-        lng:          communityReportsTable.lng,
-        speedLimit:   communityReportsTable.speedLimit,
-        adminVerified:communityReportsTable.adminVerified,
-        confirmCount: communityReportsTable.confirmCount,
-        denyCount:    communityReportsTable.denyCount,
-        createdAt:    communityReportsTable.createdAt,
-        expiresAt:    communityReportsTable.expiresAt,
-      })
-      .from(communityReportsTable)
-      // Exclude permanently moderation-removed rows (status = 'denied' older
-      // than 30 days) to keep the attachment size reasonable.  Everything else
-      // — including expired, pending_review, flagged — is included.
-      .orderBy(communityReportsTable.createdAt);
-  } catch (err) {
-    logger.error({ err }, "[dailyBackup] Failed to query community reports");
-    return;
-  }
+  const snapshot = await buildBackupSnapshot();
+  const { tables, stats } = snapshot;
 
-  // ── 2. Fetch DB speed-zone overrides ─────────────────────────────────────
-  let zones: Array<Record<string, unknown>> = [];
-  try {
-    zones = await db
-      .select()
-      .from(speedZonesTable)
-      .orderBy(speedZonesTable.createdAt);
-  } catch (err) {
-    logger.warn({ err }, "[dailyBackup] Failed to query speed zones — zones omitted from backup");
-  }
-
-  // ── 3. Build CSV (reports only — matches admin import format) ─────────────
-  const csvLines = [CSV_HEADER, ...reports.map(rowToCsvLine)];
+  // Build reports CSV for direct admin import
+  const reports = tables.communityReports as Array<Record<string, unknown>>;
+  const csvLines = [CSV_HEADER, ...reports.map(reportToCsvLine)];
   const csvContent = csvLines.join("\n");
-
-  // ── 4. Build JSON (full snapshot, both tables) ────────────────────────────
-  const snapshot = {
-    exportedAt:    new Date().toISOString(),
-    reportCount:   reports.length,
-    zoneCount:     zones.length,
-    reports,
-    speedZones:    zones,
-  };
   const jsonContent = JSON.stringify(snapshot, null, 2);
 
-  // ── 5. Send email ─────────────────────────────────────────────────────────
   const date = eatDateString();
   const ok = await sendDailyBackupEmail({
     toEmail,
     date,
-    reportCount: reports.length,
-    zoneCount:   zones.length,
+    stats,
     csvContent,
     jsonContent,
   });
 
   if (ok) {
-    logger.info(
-      { reportCount: reports.length, zoneCount: zones.length, toEmail },
-      `[dailyBackup] Backup email sent successfully for ${date}`,
-    );
+    logger.info({ stats, toEmail }, `[dailyBackup] Backup email sent for ${date}`);
   } else {
-    logger.error("[dailyBackup] Backup email send failed — check RESEND_API_KEY and BACKUP_EMAIL_ADDRESS");
+    logger.error("[dailyBackup] Backup email failed — check RESEND_API_KEY and BACKUP_EMAIL_ADDRESS");
   }
 }
 
 // ── Scheduler ─────────────────────────────────────────────────────────────────
-// Fires the job once when the target UTC hour is first reached each day.
-// Uses a simple "already ran today" flag keyed by date string so even if the
-// server restarts mid-day the job doesn't re-send.
 
 let lastRanDate = "";
 
 export function startDailyBackupJob(): void {
-  // Run a check every 60 seconds.
   setInterval(() => {
     const now = new Date();
-    const utcHour = now.getUTCHours();
+    const utcHour  = now.getUTCHours();
     const todayDate = now.toISOString().slice(0, 10);
 
     if (utcHour === TARGET_UTC_HOUR && lastRanDate !== todayDate) {
-      lastRanDate = todayDate; // set before async to prevent double-fire
+      lastRanDate = todayDate;
       runDailyBackup().catch((err) =>
         logger.error({ err }, "[dailyBackup] Unhandled error in runDailyBackup"),
       );
@@ -164,3 +288,6 @@ export function startDailyBackupJob(): void {
 
   logger.info(`[dailyBackup] Scheduled — will run daily at ${TARGET_UTC_HOUR}:00 UTC (23:00 EAT)`);
 }
+
+// Re-export so admin routes can trigger a backup on demand
+export { runDailyBackup };

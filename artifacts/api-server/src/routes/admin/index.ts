@@ -18,6 +18,7 @@ import poisAdminRouter from "./pois.js";
 import settingsRouter from "./settings.js";
 import jobsRouter from "./jobs.js";
 import dashcamAdminRouter from "./dashcam.js";
+import systemRouter from "./system.js";
 
 const router = Router();
 
@@ -84,5 +85,6 @@ router.use(scopedFeature("/settings", "app_settings"), settingsRouter);
 // Jobs router is mounted at an explicit path so /:jobName resolves correctly.
 router.use("/jobs", requireFeature("app_settings"), jobsRouter);
 router.use(scopedFeature("/dashcam", "dashboard"), dashcamAdminRouter);
+router.use(scopedFeature("/system",  "app_settings"), systemRouter);
 
 export default router;

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/dashcam-devices",  label: "Dashcam Storage",  icon: HardDrive,       feature: "dashboard" },
     { href: "/users",            label: "Team Members",     icon: Users,           feature: "team" },
     { href: "/app-settings",     label: "App Settings",     icon: Settings2,       feature: "app_settings" },
+    { href: "/system-backup",    label: "System Backup",    icon: DatabaseBackup,  feature: "app_settings" },
   ];
   const adminOnlyNav = adminOnlyNavAll.filter((item) => can(item.feature));
 
