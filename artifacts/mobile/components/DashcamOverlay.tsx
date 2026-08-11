@@ -494,7 +494,14 @@ export default function DashcamOverlay() {
   // is background-only. The CameraView is rendered at full size with normal
   // opacity (compositor allocates a real surface), recording continues, and
   // nothing is visible to the driver. translateY does NOT affect compositing.
-  const isBackgroundOnly = !showUI && !showAnglePreview;
+  // Gate background-translate on isRecording, NOT on backgroundRecordPending.
+  // When backgroundRecordPending is first set, showAnglePreview is still false
+  // for one render cycle (the effect that sets it runs asynchronously). If we
+  // included !backgroundRecordPending here the overlay would translate to -6000y
+  // on that first render, preventing the OS from giving the CameraView a real
+  // surface — causing onCameraReady to never fire and leaving autostart stuck
+  // in "Starting". Only translate off-screen once recording is actually live.
+  const isBackgroundOnly = isRecording && !showUI && !showAnglePreview;
   const overlayZIndex    = showUI ? 9999 : showAnglePreview ? 500 : 2;
 
   return (

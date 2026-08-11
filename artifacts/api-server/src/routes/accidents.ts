@@ -783,6 +783,12 @@ router.post("/accidents/:id/photos/:photoId/confirm", async (req: Request, res: 
       await tx.update(accidentPhotosTable)
         .set({ storageUrl: "confirmed" })
         .where(and(eq(accidentPhotosTable.id, photoId), eq(accidentPhotosTable.accidentId, id)));
+      // Invalidate any cached PDF so the next report request re-generates with
+      // the newly confirmed photo included. Without this, the cached PDF (which
+      // was generated before this photo was uploaded) is served indefinitely.
+      await tx.update(accidentRecordsTable)
+        .set({ pdfUrl: null, pdfFileKey: null })
+        .where(eq(accidentRecordsTable.id, id));
     });
     if (notFound) return res.status(404).json({ error: "Not found" });
 

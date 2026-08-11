@@ -43,7 +43,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 1 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>1. Acknowledgement</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>1. Acknowledgement</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"This agreement is between you and Msafiri Kenya — "}<B>not</B>{' with Apple Inc. ("Apple") or Google LLC ("Google"). Msafiri Kenya, not Apple or Google, is solely responsible for the App and all content, functionality, and services provided through it.'}
       </Text>
@@ -59,7 +59,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 2 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>2. Eligibility</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>2. Eligibility</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"You must be at least "}<B>13 years old</B>{" to use Msafiri (or 16 in certain jurisdictions where required by applicable law, including the EU). By using the App, you represent and warrant that you meet the applicable age requirement."}
       </Text>
@@ -70,7 +70,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 3 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>3. License Grant</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>3. License Grant</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Subject to these Terms, Msafiri Kenya grants you a "}<B>limited, non-exclusive, non-transferable, revocable licence</B>{" to download and use the App on a device that you own or control, solely for your personal, non-commercial use."}
       </Text>
@@ -82,7 +82,7 @@ export default function TermsScreen() {
       <Li>{"Use automated scripts, bots, or scraping tools to access the App or our API."}</Li>
 
       {/* 4 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>4. Acceptable Use</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>4. Acceptable Use</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>{"You agree to use the App only for lawful purposes. You must not use the App to:"}</Text>
       <Li>{"Submit false, misleading, or fabricated road reports."}</Li>
       <Li>{"Deliberately flood our system with spam reports (\"report spamming\") to disrupt service for other users."}</Li>
@@ -100,9 +100,9 @@ export default function TermsScreen() {
       </Text>
 
       {/* 5 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>5. Msafiri Pro Subscription</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>5. Msafiri Pro Subscription</Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>5.1 Subscription Plans</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>5.1 Subscription Plans</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Msafiri offers a premium subscription tier, "}<B>Msafiri Pro</B>{", which unlocks additional features. Current pricing is:"}
       </Text>
@@ -114,12 +114,12 @@ export default function TermsScreen() {
         takes effect.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>5.2 Free Trial</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>5.2 Free Trial</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"New subscribers may be eligible for a "}<B>3-day free trial</B>{". The free trial automatically converts to a paid subscription at the end of the trial period unless you cancel before the trial ends. Free trial eligibility is determined by Apple or Google and is generally limited to one trial per account — reinstalling the App does not grant an additional trial."}
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>5.3 Billing and Renewal</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>5.3 Billing and Renewal</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Subscriptions are billed through the "}<B>Apple App Store</B>{" or "}<B>Google Play Store</B>{" and managed via RevenueCat. Your subscription automatically renews at the end of each billing period unless you cancel at least 24 hours before the renewal date."}
       </Text>
@@ -127,7 +127,7 @@ export default function TermsScreen() {
       <Li>{"Renewal charges occur within 24 hours prior to the end of the current period."}</Li>
       <Li>{"You can manage and cancel your subscription in your App Store or Google Play account settings."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>5.4 Cancellation and Refunds</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>5.4 Cancellation and Refunds</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You may cancel your Msafiri Pro subscription at any time. Cancellation stops future billing;
         you retain Pro access until the end of the current billing period. We do not provide partial
@@ -139,7 +139,7 @@ export default function TermsScreen() {
         at play.google.com/store/account. We cannot process refunds on behalf of Apple or Google.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>5.5 Changes to Pro Features</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>5.5 Changes to Pro Features</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We reserve the right to modify, add, or remove features included in Msafiri Pro at any time.
         Material reductions in Pro features will be communicated in advance. If a material feature you
@@ -148,7 +148,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 6 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>6. Community Road Reports</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>6. Community Road Reports</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"By submitting a community road report through the App, you grant Msafiri Kenya a "}<B>worldwide, royalty-free, non-exclusive licence</B>{" to use, aggregate, display, and distribute that report (in anonymised form) to other users of the App for road safety purposes."}
       </Text>
@@ -163,7 +163,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 7 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>7. Navigation and Route Guidance</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>7. Navigation and Route Guidance</Text>
       <View style={[s.warning, { backgroundColor: c.primary + "14", borderColor: c.primary + "4D" }]}>
         <Text style={[s.p, { color: c.foreground, marginBottom: 0 }]}>
           <B>Turn-by-turn navigation in Msafiri is a supplemental driving aid only.</B>{" Always follow official road signs, traffic signals, and the instructions of traffic officers. Do not follow in-app navigation directions if they appear to conflict with posted signage or road conditions."}
@@ -176,7 +176,7 @@ export default function TermsScreen() {
       <Li>{"We are not responsible for any consequences — including fines, accidents, fuel costs, or delays — arising from following in-app navigation directions."}</Li>
 
       {/* 8 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>8. Live Trip Sharing</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>8. Live Trip Sharing</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri allows you to share a live trip link so trusted contacts can follow your journey in
         real time.
@@ -188,24 +188,24 @@ export default function TermsScreen() {
       <Li>{"We are not responsible for any consequences arising from sharing a trip link with an unintended party."}</Li>
 
       {/* 9 — NEW */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>9. Co-Driver & Garage Sharing</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>9. Co-Driver & Garage Sharing</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri allows vehicle owners to share access to a registered vehicle with one or more co-drivers
         using a secure share code or a plate-based join request.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>9.1 Owner Responsibilities</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>9.1 Owner Responsibilities</Text>
       <Li>{"As a vehicle owner, you are responsible for who you invite to access your vehicle. Share codes and join-request approvals are your authorisation of another user's access."}</Li>
       <Li>{"You may remove a co-driver at any time from within the App. Removal revokes the co-driver's access to that vehicle immediately."}</Li>
       <Li>{"Once removed, a co-driver cannot rejoin using the same share code. A new share code must be generated by the owner before re-inviting a previously removed member."}</Li>
       <Li>{"Do not share your vehicle's share code publicly or with people you do not intend to grant access to."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>9.2 Co-Driver Responsibilities</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>9.2 Co-Driver Responsibilities</Text>
       <Li>{"As a co-driver, you may access data for the shared vehicle in your garage — including trip history and driving statistics associated with that vehicle."}</Li>
       <Li>{"You may leave a shared vehicle at any time from within the App. Leaving removes the vehicle from your garage immediately."}</Li>
       <Li>{"You must not attempt to re-join a vehicle from which you have been removed by the owner without the owner's explicit invitation."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>9.3 Rate Limits and Security</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>9.3 Rate Limits and Security</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Share code join attempts and plate-based join requests are rate-limited per IP address to prevent
         abuse and protect vehicle owners from spam. Deliberately circumventing these limits (for example,
@@ -214,7 +214,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 10 — NEW */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>10. Dashcam and Video Recording</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>10. Dashcam and Video Recording</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri includes a built-in dashcam that records continuously in the background while you drive.
         Footage is stored locally on your device and organised per vehicle.
@@ -226,7 +226,7 @@ export default function TermsScreen() {
       <Li>{"Msafiri does not transmit dashcam footage to any third party, law enforcement agency, or insurer on your behalf without your explicit instruction."}</Li>
 
       {/* 11 — NEW */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>11. Crash / Accident Assistant</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>11. Crash / Accident Assistant</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"The Msafiri Crash / Accident Assistant provides a guided "}<B>7-step</B>{" workflow to help you document an accident scene, capture evidence, and generate a PDF report for insurance or legal purposes."}
       </Text>
@@ -241,7 +241,7 @@ export default function TermsScreen() {
       <Li>{"We are not responsible for the outcome of any insurance claim, legal proceeding, or dispute in which Msafiri-generated documentation is used."}</Li>
 
       {/* 12 — NEW */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>12. Backup & Data Recovery</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>12. Backup & Data Recovery</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri provides a device backup feature that allows you to back up your app data (vehicles,
         settings, emergency contacts) and restore it on a new or replaced device using a 5-character
@@ -253,7 +253,7 @@ export default function TermsScreen() {
       <Li>{"We retain backup data for as long as your backup is active. You may delete your backup at any time from within the App settings."}</Li>
 
       {/* 13 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>13. Driver Safety Course</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>13. Driver Safety Course</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Msafiri includes an in-app "}<B>Driver Safety Course</B>{" covering Kenyan road rules, NTSA speed regulations, and safe driving practices."}
       </Text>
@@ -263,7 +263,7 @@ export default function TermsScreen() {
       <Li>{"Course progress is stored locally on your device. We do not transmit or store your course completion status on our servers."}</Li>
 
       {/* 14 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>14. SOS Emergency Feature</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>14. SOS Emergency Feature</Text>
       <View style={[s.warning, { backgroundColor: c.primary + "14", borderColor: c.primary + "4D" }]}>
         <Text style={[s.p, { color: c.foreground, marginBottom: 0 }]}>
           <B>The SOS feature is intended for genuine emergencies only.</B>{" Misuse of this feature — including sending false emergency messages — may constitute a criminal offence under Kenyan law and could result in termination of your access to the App."}
@@ -283,7 +283,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 15 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>15. Road Safety Disclaimer</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>15. Road Safety Disclaimer</Text>
       <View style={[s.warning, { backgroundColor: c.primary + "14", borderColor: c.primary + "4D" }]}>
         <Text style={[s.p, { color: c.foreground, marginBottom: 8 }]}>
           <B>Msafiri is a supplemental driving awareness tool. It is not a substitute for safe driving practices, attention to road conditions, or compliance with Kenyan traffic laws and regulations.</B>
@@ -301,7 +301,7 @@ export default function TermsScreen() {
       <Li>{"Msafiri is not responsible for any fines, penalties, accidents, injuries, or other consequences arising from reliance on App data or navigation instructions."}</Li>
 
       {/* 16 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>16. Intellectual Property</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>16. Intellectual Property</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The App and all its content — including but not limited to the Msafiri name, logo, design,
         software code, text, graphics, map overlays, and audio alerts — are the exclusive property of
@@ -318,9 +318,9 @@ export default function TermsScreen() {
       </Text>
 
       {/* 17 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>17. Disclaimers and Limitation of Liability</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>17. Disclaimers and Limitation of Liability</Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>17.1 Disclaimer of Warranties</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>17.1 Disclaimer of Warranties</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         THE APP IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS
         OR IMPLIED. TO THE FULLEST EXTENT PERMITTED BY LAW, MSAFIRI KENYA DISCLAIMS ALL WARRANTIES,
@@ -330,7 +330,7 @@ export default function TermsScreen() {
       <Li>{"Any warranty that the App will be error-free, uninterrupted, or free of viruses or other harmful components."}</Li>
       <Li>{"Any warranty regarding the accuracy, reliability, or timeliness of road data, speed camera locations, checkpoint data, navigation directions, dashcam recordings, or any other user-generated content."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>17.2 Limitation of Liability</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>17.2 Limitation of Liability</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, MSAFIRI KENYA AND ITS OFFICERS, DIRECTORS,
         EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
@@ -351,7 +351,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 18 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>18. Indemnification</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>18. Indemnification</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You agree to indemnify, defend, and hold harmless Msafiri Kenya and its officers, directors,
         employees, agents, and licensors from and against any and all claims, damages, losses, costs,
@@ -366,7 +366,7 @@ export default function TermsScreen() {
       <Li>{"Your violation of any applicable law or third-party rights."}</Li>
 
       {/* 19 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>19. Termination</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>19. Termination</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We may suspend or terminate your access to the App at any time, with or without cause, including
         for violations of these Terms. Upon termination:
@@ -381,13 +381,13 @@ export default function TermsScreen() {
       </Text>
 
       {/* 20 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>20. Governing Law</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>20. Governing Law</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"These Terms are governed by and construed in accordance with the laws of the "}<B>Republic of Kenya</B>{", without regard to its conflict-of-law provisions. You agree that any dispute arising out of or relating to these Terms or the App shall be subject to the exclusive jurisdiction of the courts of Kenya, unless otherwise required by applicable law in your country of residence."}
       </Text>
 
       {/* 21 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>21. Dispute Resolution</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>21. Dispute Resolution</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Before initiating any formal legal proceedings, you agree to first contact us at
         legal@msafirikenya.com to attempt to resolve the dispute informally. We will try to resolve
@@ -400,7 +400,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 22 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>22. Third-Party Services and App Stores</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>22. Third-Party Services and App Stores</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The App integrates with third-party services including:
       </Text>
@@ -421,7 +421,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 23 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>23. Modifications to These Terms</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>23. Modifications to These Terms</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We reserve the right to modify these Terms at any time. When we make material changes, we will:
       </Text>
@@ -435,7 +435,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 24 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>24. Severability and Entire Agreement</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>24. Severability and Entire Agreement</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If any provision of these Terms is held to be invalid or unenforceable, that provision will be
         modified to the minimum extent necessary to make it enforceable, and the remaining provisions will
@@ -445,7 +445,7 @@ export default function TermsScreen() {
       </Text>
 
       {/* 25 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>25. Contact Us</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>25. Contact Us</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If you have any questions about these Terms, please contact us:
       </Text>
@@ -469,6 +469,7 @@ const s = StyleSheet.create({
     paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   h3: { fontSize: 14, fontFamily: "Inter_700Bold", marginTop: 18, marginBottom: 6 },
+
   p: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, marginBottom: 10 },
   bold: { fontFamily: "Inter_600SemiBold" },
   listRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 6, paddingRight: 8 },

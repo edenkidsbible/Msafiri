@@ -182,8 +182,10 @@ const MAX_MANUAL_LOCKS_LOCAL  = 5;
 const MAX_AUTO_LOCKS_LOCAL    = 20;
 
 const DEFAULT_SETTINGS: DashcamSettings = {
+  // audioEnabled intentionally defaults to true — users expect audio in clips.
+  // The individual dashcam settings panel lets them disable it if needed.
   quality: "1080p",
-  audioEnabled: false,
+  audioEnabled: true,
   wifiOnlyUpload: true,
 };
 

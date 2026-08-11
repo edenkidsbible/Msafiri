@@ -47,10 +47,10 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 1 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>1. Information We Collect</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>1. Information We Collect</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>We collect the following categories of information:</Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.1 Precise Location Data</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.1 Precise Location Data</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Location data is the core function of Msafiri. With your permission, we collect:
       </Text>
@@ -64,7 +64,7 @@ export default function PrivacyScreen() {
         </Text>
       </View>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.2 Speed and Motion Data</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.2 Speed and Motion Data</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri calculates your driving speed entirely from GPS coordinates — we do not access your
         device's accelerometer, gyroscope, barometer, or any other motion or fitness sensor. No motion
@@ -74,14 +74,14 @@ export default function PrivacyScreen() {
       <Li><B>GPS-derived speed</B>{" — computed from successive location fixes; used only for on-screen display and alert triggering. Never stored."}</Li>
       <Li><B>Heading (direction of travel)</B>{" — derived from GPS; used locally to determine whether a hazard is ahead of you. Never stored."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.3 Device and Technical Information</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.3 Device and Technical Information</Text>
       <Li><B>Device identifier (device ID)</B>{" — a unique anonymous identifier assigned to your device. Msafiri does not require account registration; your device ID is used in place of a user account."}</Li>
       <Li><B>Operating system and version</B>{" — iOS or Android version for compatibility and bug-fix purposes."}</Li>
       <Li><B>App version</B>{" — to ensure you receive feature-compatible responses from our API."}</Li>
       <Li><B>Network type</B>{" — Wi-Fi or mobile data, used solely for optimising data usage."}</Li>
       <Li><B>Push notification token</B>{" — a device-specific token issued by Apple (APNs) or Google (FCM) to deliver safety alerts and trip notifications. Stored on our servers linked to your device ID. You can revoke notification permission at any time in your device Settings."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.4 Community Road Reports</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.4 Community Road Reports</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         When you submit a road report (e.g., speed camera, police checkpoint, speed zone, road hazard), we collect:
       </Text>
@@ -95,7 +95,7 @@ export default function PrivacyScreen() {
         your name, phone number, or any personally identifiable information to community reports.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.5 Live Trip Sharing</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.5 Live Trip Sharing</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         When you activate Live Trip Sharing, we collect and transmit:
       </Text>
@@ -107,7 +107,7 @@ export default function PrivacyScreen() {
         of your journeys.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.6 Payment and Subscription Information (Msafiri Pro)</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.6 Payment and Subscription Information (Msafiri Pro)</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri Pro subscriptions are processed by <B>RevenueCat</B> and billed through the Apple App
         Store or Google Play Store. We do not directly handle, store, or have access to your payment
@@ -117,7 +117,7 @@ export default function PrivacyScreen() {
       <Li>{"Apple and Google handle all payment processing under their own privacy policies."}</Li>
       <Li>{"We retain subscription status data for as long as your account is active, plus a reasonable period for billing dispute resolution."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.7 SOS Emergency Data</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.7 SOS Emergency Data</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If you use the SOS emergency feature, the App composes an emergency message with your GPS
         location and opens your device's native SMS app for you to review and send. The message includes:
@@ -129,7 +129,7 @@ export default function PrivacyScreen() {
         recipients' phone numbers. Your device's carrier may retain this data under its own privacy policy.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.8 Voice Guidance and Audio</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.8 Voice Guidance and Audio</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri provides voice-guided navigation and hazard alerts using bundled audio clips and, for
         dynamic phrases such as road names and speed limit announcements, on-demand text-to-speech via
@@ -138,10 +138,10 @@ export default function PrivacyScreen() {
       <Li>{"When on-demand TTS is used, a "}<B>short text phrase</B>{" (e.g., \"Turn right onto Ngong Road\") is sent to ElevenLabs' API servers to generate an audio clip. No location data, device ID, or personal information is included in these requests."}</Li>
       <Li>{"Generated audio clips are "}<B>cached on your device for up to 90 days</B>{" to minimise repeated network requests."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.9 Server and API Logs</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.9 Server and API Logs</Text>
       <Li>{"API request logs (server-side): IP address, endpoint, and timestamp — retained for up to 30 days for security monitoring."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.10 Co-Driver & Garage Sharing</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.10 Co-Driver & Garage Sharing</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         When you use the vehicle sharing feature to add a co-driver to your vehicle, we collect and
         process the following:
@@ -156,7 +156,7 @@ export default function PrivacyScreen() {
         respective garage views. Device IDs are never exposed between members.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.11 Dashcam and Video Recording</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.11 Dashcam and Video Recording</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         When you use the built-in dashcam feature, we collect and store:
       </Text>
@@ -169,7 +169,7 @@ export default function PrivacyScreen() {
         in encrypted object storage.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.12 Crash / Accident Assistant</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.12 Crash / Accident Assistant</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         When you use the Crash / Accident Assistant, we collect:
       </Text>
@@ -181,7 +181,7 @@ export default function PrivacyScreen() {
         You may request deletion at any time by contacting privacy@msafirikenya.com.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>1.13 Backup & Data Recovery</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>1.13 Backup & Data Recovery</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri provides a device backup feature so you can recover your data if you change phones:
       </Text>
@@ -195,7 +195,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 2 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>2. How We Use Your Information</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>2. How We Use Your Information</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>We use the information we collect for the following purposes:</Text>
       <Li><B>Core app functionality</B>{" — providing real-time speed awareness, road alert notifications, and displaying community reports on the in-app map."}</Li>
       <Li><B>Turn-by-turn navigation</B>{" — calculating driving routes, step-by-step directions, and announcing upcoming hazards along your route."}</Li>
@@ -212,17 +212,17 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 3 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>3. How We Share Your Information</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>3. How We Share Your Information</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>We share your information only in the following limited circumstances:</Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>3.1 With Other Msafiri Users</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>3.1 With Other Msafiri Users</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Community road reports you submit are shared with other users in anonymised form (report type,
         location, and timestamp only). Your device ID is never exposed to other users. Live Trip Sharing
         data is visible only to people who have your specific trip link.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>3.2 With Service Providers</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>3.2 With Service Providers</Text>
       <Li><B>RevenueCat</B>{" — subscription management. Receives your device ID and subscription events. Privacy: revenuecat.com/privacy."}</Li>
       <Li><B>ElevenLabs</B>{" — on-demand voice guidance synthesis. Receives short text phrases only (no location or personal data). Privacy: elevenlabs.io/privacy."}</Li>
       <Li><B>Google Maps SDK</B>{" — map rendering on Android and iOS. Privacy: policies.google.com/privacy."}</Li>
@@ -233,14 +233,14 @@ export default function PrivacyScreen() {
       <Li><B>Cloudflare R2</B>{" — secure object storage for dashcam cloud backups and crash assistant photos. Data is stored in encrypted form and accessible only via authenticated requests from our API. Privacy: cloudflare.com/privacypolicy."}</Li>
       <Li><B>Hosting and infrastructure providers</B>{" — cloud hosting with access to server logs; contractually restricted from using data for other purposes."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>3.3 For Legal Reasons</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>3.3 For Legal Reasons</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We may disclose your information if required to do so by law, court order, or governmental
         authority, or if we believe in good faith that such disclosure is necessary to protect our rights,
         protect your safety or the safety of others, or investigate fraud.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>3.4 Business Transfers</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>3.4 Business Transfers</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If Msafiri Kenya is involved in a merger, acquisition, or sale of assets, your information may be
         transferred as part of that transaction. We will notify you via the App or our website before your
@@ -248,7 +248,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 4 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>4. Data Retention</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>4. Data Retention</Text>
       <Li><B>Community reports</B>{" — active reports are automatically expired (typically 24–48 hours for most types). Expired reports are retained for up to 90 days for abuse analysis, then permanently deleted."}</Li>
       <Li><B>Live trip sharing data</B>{" — GPS pings deleted immediately when the session expires (after 24 hours or when you stop sharing). No journey history is retained."}</Li>
       <Li><B>Device ID and push notification token</B>{" — retained for up to 12 months of inactivity, then permanently deleted or anonymised."}</Li>
@@ -257,7 +257,7 @@ export default function PrivacyScreen() {
       <Li><B>Cached voice audio</B>{" — stored locally on your device for up to 90 days; clearing the App's storage removes these files."}</Li>
 
       {/* 5 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>5. Data Security</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>5. Data Security</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We take the security of your data seriously. Our security measures include:
       </Text>
@@ -273,9 +273,9 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 6 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>6. Your Rights and Choices</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>6. Your Rights and Choices</Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>6.1 Location Permissions</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>6.1 Location Permissions</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You control location access through your device Settings at any time:
       </Text>
@@ -286,7 +286,7 @@ export default function PrivacyScreen() {
         navigation) from working, but will not affect your subscription status.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>6.2 Notification Permissions</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>6.2 Notification Permissions</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You can revoke push notification permission at any time:
       </Text>
@@ -297,7 +297,7 @@ export default function PrivacyScreen() {
         notifications while the app is in the background, or admin messages.
       </Text>
 
-      <Text style={[s.h3, { color: c.primary }]}>6.3 Deleting Your Data</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>6.3 Deleting Your Data</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Because Msafiri does not require account registration, your data is linked only to your device ID.
         To request deletion of all data associated with your device:
@@ -305,7 +305,7 @@ export default function PrivacyScreen() {
       <Li>{"Email us at "}<B>privacy@msafirikenya.com</B>{" with the subject line \"Data Deletion Request.\""}</Li>
       <Li>{"We will delete all data tied to your device ID within "}<B>30 days</B>{" of receiving your request, except where retention is required by law or for legitimate security purposes."}</Li>
 
-      <Text style={[s.h3, { color: c.primary }]}>6.4 Subscription Cancellation</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>6.4 Subscription Cancellation</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         You may cancel your Msafiri Pro subscription at any time through the App Store or Google Play
         Store. Cancellation stops future billing; you retain Pro access until the end of the current
@@ -313,7 +313,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 7 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>7. Location Data — Specific Disclosures</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>7. Location Data — Specific Disclosures</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         In compliance with Apple App Store and Google Play Store requirements:
       </Text>
@@ -324,7 +324,7 @@ export default function PrivacyScreen() {
       <Li><B>Data minimisation:</B>{" We do not collect location when the App is closed and background mode is disabled."}</Li>
 
       {/* 8 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>8. SMS Permissions</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>8. SMS Permissions</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The SOS emergency feature composes an emergency message with your location and opens your
         device's native SMS app for you to review and send. Msafiri does not request the restricted
@@ -336,7 +336,7 @@ export default function PrivacyScreen() {
       <Li>{"Transmit the content of any SMS to our servers."}</Li>
 
       {/* 9 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>9. Children's Privacy</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>9. Children's Privacy</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri is not directed to children under the age of 13. We do not knowingly collect personal
         information from children under 13. If you are a parent or guardian and believe your child has
@@ -349,7 +349,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 10 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>10. Third-Party Services</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>10. Third-Party Services</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         The App integrates with the following third-party services. We encourage you to review their
         respective privacy policies:
@@ -367,7 +367,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 11 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>11. International Data Transfers</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>11. International Data Transfers</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Msafiri Kenya is based in Kenya. Your data may be processed on servers located outside Kenya,
         including in the European Union and the United States, by our infrastructure and service providers
@@ -377,7 +377,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 12 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>12. Changes to This Privacy Policy</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>12. Changes to This Privacy Policy</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         We may update this Privacy Policy from time to time. When we do, we will:
       </Text>
@@ -390,7 +390,7 @@ export default function PrivacyScreen() {
       </Text>
 
       {/* 13 */}
-      <Text style={[s.h2, { color: c.primary, borderBottomColor: c.border }]}>13. Contact Us</Text>
+      <Text style={[s.h2, { color: c.foreground, borderBottomColor: c.border }]}>13. Contact Us</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         If you have any questions, concerns, or requests regarding this Privacy Policy, please contact us:
       </Text>
@@ -415,6 +415,7 @@ const s = StyleSheet.create({
     marginTop: 28, marginBottom: 10,
     paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  h2Text: { fontSize: 15, fontFamily: "Inter_700Bold" },
   h3: { fontSize: 14, fontFamily: "Inter_700Bold", marginTop: 18, marginBottom: 6 },
   p: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, marginBottom: 10 },
   bold: { fontFamily: "Inter_600SemiBold" },
