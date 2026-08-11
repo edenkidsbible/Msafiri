@@ -33,7 +33,7 @@ import {
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
 import CarLogoImage from "@/components/CarLogoImage";
-import { API_BASE, apiGet, apiPost } from "@/utils/apiClient";
+import { API_BASE, apiGet, apiPost, apiPatch } from "@/utils/apiClient";
 import {
   loadVehicleCareData,
   saveVehicleCareData,
@@ -740,7 +740,7 @@ export default function GarageScreen() {
     if (!deviceId) return;
     setRespondingId(requestId);
     try {
-      await apiPost(`/vehicles/join-request/${requestId}/approve`, { deviceId });
+      await apiPatch(`/vehicles/join-request/${requestId}/approve`, { deviceId });
       setPendingRequests(prev => prev.filter(r => r.id !== requestId));
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Could not approve. Try again.");
@@ -753,7 +753,7 @@ export default function GarageScreen() {
     if (!deviceId) return;
     setRespondingId(requestId);
     try {
-      await apiPost(`/vehicles/join-request/${requestId}/decline`, { deviceId });
+      await apiPatch(`/vehicles/join-request/${requestId}/decline`, { deviceId });
       setPendingRequests(prev => prev.filter(r => r.id !== requestId));
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Could not decline. Try again.");

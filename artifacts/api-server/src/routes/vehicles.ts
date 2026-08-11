@@ -182,7 +182,12 @@ router.post("/vehicles/join-by-code", async (req, res) => {
     return res.status(400).json({ error: "deviceId and shareCode are required" });
   }
 
-  const normalizedCode = shareCode.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  // Strip the optional "MSF" prefix (displayed as "MSF-XXXXX" on-screen) then
+  // remove all non-alphanumeric chars so both "MSF-AB3C2" and "AB3C2" work.
+  const normalizedCode = shareCode
+    .toUpperCase()
+    .replace(/^MSF[-\s]?/, "")
+    .replace(/[^A-Z0-9]/g, "");
 
   const rows = await db
     .select()

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * shared_vehicles — server-side vehicle registry for the sharing feature.
@@ -34,7 +34,10 @@ export const vehicleMembersTable = pgTable("vehicle_members", {
   role:           text("role").notNull().default("driver"), // "owner" | "driver"
   status:         text("status").notNull().default("active"), // "active" | "removed"
   createdAt:      timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  /** One row per (vehicle, device) — backs the onConflictDoNothing() in join flows. */
+  uniqMember: uniqueIndex("vehicle_members_vehicle_device_uniq").on(t.vehicleId, t.memberDeviceId),
+}));
 
 /**
  * vehicle_join_requests — pending "request to join" submitted via plate search.

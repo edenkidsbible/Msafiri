@@ -296,6 +296,73 @@ export async function migrateSchema(): Promise<void> {
         WHERE phone_number IS NOT NULL
     `);
 
+    // ── Shared vehicle tables ─────────────────────────────────────────────────
+    // shared_vehicles — owner-registered vehicles available for co-driver joining.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS shared_vehicles (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_device_id  TEXT NOT NULL,
+        plate_number     TEXT,
+        display_name     TEXT NOT NULL,
+        vehicle_type     TEXT NOT NULL DEFAULT 'car',
+        share_code       TEXT NOT NULL UNIQUE,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS shared_vehicles_owner_idx
+        ON shared_vehicles (owner_device_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS shared_vehicles_plate_idx
+        ON shared_vehicles (plate_number)
+        WHERE plate_number IS NOT NULL
+    `);
+
+    // vehicle_members — tracks co-driver membership for each shared vehicle.
+    // Unique on (vehicle_id, member_device_id) so onConflictDoNothing() is idempotent.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS vehicle_members (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        vehicle_id       UUID NOT NULL REFERENCES shared_vehicles(id) ON DELETE CASCADE,
+        member_device_id TEXT NOT NULL,
+        role             TEXT NOT NULL DEFAULT 'driver',
+        status           TEXT NOT NULL DEFAULT 'active',
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS vehicle_members_vehicle_device_uniq
+        ON vehicle_members (vehicle_id, member_device_id)
+    `);
+
+    // vehicle_join_requests — pending requests submitted via plate search.
+    // The owner approves or declines; joining via share code bypasses this table.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS vehicle_join_requests (
+        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        vehicle_id           UUID NOT NULL REFERENCES shared_vehicles(id) ON DELETE CASCADE,
+        requester_device_id  TEXT NOT NULL,
+        requester_name       TEXT,
+        status               TEXT NOT NULL DEFAULT 'pending',
+        created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+        resolved_at          TIMESTAMP
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS vehicle_join_requests_vehicle_idx
+        ON vehicle_join_requests (vehicle_id, status)
+    `);
+
+    // ── accident_records.my_vehicle_json ─────────────────────────────────────
+    // Nullable JSON column storing the owner's vehicle details at crash time
+    // (make, model, plate). Populated on the PATCH /accidents/:id/complete step.
+    await db.execute(sql`
+      ALTER TABLE accident_records
+      ADD COLUMN IF NOT EXISTS my_vehicle_json TEXT
+    `);
+
     // ── intent + requesting_device_id on phone_verifications ─────────────────
     // intent: locks each OTP to the intent it was created for (link | restore),
     // so a link OTP cannot be replayed as a restore OTP and vice-versa.
