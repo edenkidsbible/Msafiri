@@ -273,6 +273,7 @@ describe("POST /api/vehicles/join-by-code", () => {
   it("valid code → 200, member row inserted, owner notified", async () => {
     queueSelects(
       [vehicleRow()],                                   // vehicle lookup by shareCode
+      [],                                               // existingMember check (new member)
       [{ token: OWNER_TOKEN }],                         // owner push token
     );
 
@@ -485,6 +486,7 @@ describe("PATCH /api/vehicles/join-request/:id/approve", () => {
     queueSelects(
       [requestRow()],                        // join request found
       [vehicleRow()],                        // vehicle found (owner check passes)
+      [],                                    // existingMember check (new member)
       [{ token: REQUESTER_TOKEN }],          // requester push token
     );
 
@@ -548,5 +550,67 @@ describe("PATCH /api/vehicles/join-request/:id/approve", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(mockPush.sendPushNotifications).not.toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Rate limiting — POST /api/vehicles/join-by-code
+// ────────────────────────────────────────────────────────────────────────────
+//
+// The limiter is keyed by client IP (via ipKeyGenerator) so that caller-supplied
+// deviceId cannot be rotated to bypass the limit.  We control req.ip by setting
+// X-Forwarded-For on each request; app.ts already sets trust proxy = 1.
+//
+// Dedicated test IPs in the documentation range (RFC 5737 / 192.0.2.0/24) are
+// used so these tests do not share a bucket with any other test in this file.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("Rate limiting — POST /api/vehicles/join-by-code", () => {
+  // Each IP is unique to this describe block — no cross-test interference.
+  const IP_LIMIT_TEST    = "192.0.2.201";
+  const IP_ROTATION_TEST = "192.0.2.202";
+
+  it("blocks the 11th attempt from the same IP with 429 and Retry-After", async () => {
+    // The first 10 requests are allowed (vehicle not found → 404 is fine; the
+    // rate limiter counts all requests, including ones the route rejects).
+    // No DB mocks needed for the 11th — the limiter fires before the handler.
+    for (let i = 0; i < 10; i++) {
+      const r = await supertest(app)
+        .post("/api/vehicles/join-by-code")
+        .set("X-Forwarded-For", IP_LIMIT_TEST)
+        .send({ deviceId: `rl-device-${i}`, shareCode: "ZZZZZ" });
+      expect(r.status).not.toBe(429);
+    }
+
+    const res = await supertest(app)
+      .post("/api/vehicles/join-by-code")
+      .set("X-Forwarded-For", IP_LIMIT_TEST)
+      .send({ deviceId: "rl-device-99", shareCode: "ZZZZZ" });
+
+    expect(res.status).toBe(429);
+    // Retry-After must be present so callers know when to retry
+    expect(res.headers["retry-after"]).toBeDefined();
+    expect(Number(res.headers["retry-after"])).toBeGreaterThan(0);
+    expect(res.body.error).toMatch(/too many join attempts/i);
+  });
+
+  it("rotating deviceId in the request body does not evade the IP-based limit", async () => {
+    // Send 10 requests each with a distinct deviceId — simulating an attacker
+    // who changes their claimed identity to get a fresh bucket.  The limiter
+    // must still block the 11th because the key is IP, not deviceId.
+    for (let i = 0; i < 10; i++) {
+      await supertest(app)
+        .post("/api/vehicles/join-by-code")
+        .set("X-Forwarded-For", IP_ROTATION_TEST)
+        .send({ deviceId: `rotate-${Date.now()}-${i}`, shareCode: "ZZZZZ" });
+    }
+
+    const res = await supertest(app)
+      .post("/api/vehicles/join-by-code")
+      .set("X-Forwarded-For", IP_ROTATION_TEST)
+      .send({ deviceId: "rotate-brand-new-never-seen", shareCode: "ZZZZZ" });
+
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/too many join attempts/i);
   });
 });

@@ -1,5 +1,6 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { and, eq, ne, or } from "drizzle-orm";
 import { db, pushTokensTable } from "@workspace/db";
 import {
@@ -55,6 +56,52 @@ function extractBearerToken(authHeader: string | undefined): string {
   if (!authHeader?.startsWith("Bearer ")) return "";
   return authHeader.slice(7).trim();
 }
+
+// ── Rate limiters ─────────────────────────────────────────────────────────────
+// Both limiters are keyed on deviceId (body / query) so legitimate users share
+// a bucket rather than colliding with other devices behind the same NAT IP.
+// Falls back to req.ip when no deviceId is present so unauthenticated probes
+// are still bounded.
+
+const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+// Key by normalized client IP — attacker-uncontrolled, unlike deviceId which is
+// caller-supplied and can be rotated arbitrarily to defeat per-device limits.
+// ipKeyGenerator normalizes IPv6 to a /64 subnet so a single host can't evade
+// limits by cycling through addresses in their allocated block.
+// trust proxy is set to 1 in app.ts so req.ip reflects the real client address.
+
+/** 10 join-by-code attempts per client IP per 10 minutes. */
+const joinByCodeLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  max: 10,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    const retryAfter = Math.ceil(WINDOW_MS / 1000);
+    res.set("Retry-After", String(retryAfter));
+    res.status(429).json({
+      error: "Too many join attempts. Please wait 10 minutes before trying again.",
+    });
+  },
+});
+
+/** 30 plate-search attempts per client IP per 10 minutes. */
+const plateSearchLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  max: 30,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    const retryAfter = Math.ceil(WINDOW_MS / 1000);
+    res.set("Retry-After", String(retryAfter));
+    res.status(429).json({
+      error: "Too many plate searches. Please wait 10 minutes before trying again.",
+    });
+  },
+});
 
 // ── Share code generation ─────────────────────────────────────────────────────
 // Unambiguous charset: no 0/O, 1/I/L confusion
@@ -160,7 +207,7 @@ router.post("/vehicles/register", async (req, res) => {
 
 // ── GET /vehicles/search?plate= ───────────────────────────────────────────────
 // Search for a shared vehicle by plate. Returns make/model/type — NOT owner identity.
-router.get("/vehicles/search", async (req, res) => {
+router.get("/vehicles/search", plateSearchLimiter, async (req, res) => {
   const { plate, deviceId } = req.query as { plate?: string; deviceId?: string };
 
   if (!plate) {
@@ -228,7 +275,7 @@ router.get("/vehicles/search", async (req, res) => {
 
 // ── POST /vehicles/join-by-code ───────────────────────────────────────────────
 // Instant join using a share code — no approval needed.
-router.post("/vehicles/join-by-code", async (req, res) => {
+router.post("/vehicles/join-by-code", joinByCodeLimiter, async (req, res) => {
   const { deviceId, shareCode, requesterName } = req.body as {
     deviceId: string;
     shareCode: string;
