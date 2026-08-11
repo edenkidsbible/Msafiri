@@ -84,6 +84,7 @@ const { mockDb, mockPush } = vi.hoisted(() => {
     _selectQueue: [] as any[],
     _insertQueue: [] as any[],
     _updateQueue: [] as any[],
+    _lastUpdate:  null as any,
     makeSelectBuilder,
     makeInsertBuilder,
     makeUpdateBuilder,
@@ -97,7 +98,9 @@ const { mockDb, mockPush } = vi.hoisted(() => {
       return builder;
     },
     update(table: any) {
-      return makeUpdateBuilder();
+      const builder = makeUpdateBuilder();
+      mockDb._lastUpdate = builder;
+      return builder;
     },
   };
 
@@ -175,6 +178,7 @@ beforeEach(() => {
   mockDb._selectQueue.length = 0;
   mockDb._insertQueue.length = 0;
   mockDb._updateQueue.length = 0;
+  mockDb._lastUpdate = null;
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -273,7 +277,7 @@ describe("POST /api/vehicles/join-by-code", () => {
   it("valid code → 200, member row inserted, owner notified", async () => {
     queueSelects(
       [vehicleRow()],                                   // vehicle lookup by shareCode
-      [],                                               // existingMember check (new member)
+      [],                                               // existingMember check — no prior membership
       [{ token: OWNER_TOKEN }],                         // owner push token
     );
 
@@ -486,7 +490,7 @@ describe("PATCH /api/vehicles/join-request/:id/approve", () => {
     queueSelects(
       [requestRow()],                        // join request found
       [vehicleRow()],                        // vehicle found (owner check passes)
-      [],                                    // existingMember check (new member)
+      [],                                    // existingMember check — no prior membership
       [{ token: REQUESTER_TOKEN }],          // requester push token
     );
 
@@ -612,5 +616,135 @@ describe("Rate limiting — POST /api/vehicles/join-by-code", () => {
 
     expect(res.status).toBe(429);
     expect(res.body.error).toMatch(/too many join attempts/i);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PATCH /vehicles/join-request/:id/decline
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/vehicles/join-request/:id/decline", () => {
+
+  it("owner declines a pending request → 200, DB updated to declined", async () => {
+    queueSelects(
+      [requestRow()],   // join request found
+      [vehicleRow()],   // vehicle found — ownerDeviceId matches caller
+    );
+
+    const res = await supertest(app)
+      .patch(`/api/vehicles/join-request/${REQUEST_ID}/decline`)
+      .send({ deviceId: OWNER_DEVICE });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // Verify the join request was actually marked declined in the database.
+    // Without this, removing the db.update call would still pass the response check.
+    expect(mockDb._lastUpdate).not.toBeNull();
+    expect(mockDb._lastUpdate.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "declined", resolvedAt: expect.any(Date) }),
+    );
+
+    // Decline never sends a push notification
+    expect(mockPush.sendPushNotifications).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the caller is not the vehicle owner", async () => {
+    queueSelects(
+      [requestRow()],   // join request found
+      [vehicleRow()],   // vehicle found — ownerDeviceId is OWNER_DEVICE, not DRIVER_DEVICE
+    );
+
+    const res = await supertest(app)
+      .patch(`/api/vehicles/join-request/${REQUEST_ID}/decline`)
+      .send({ deviceId: DRIVER_DEVICE }); // wrong caller
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/owner/i);
+    expect(mockPush.sendPushNotifications).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the request id does not exist", async () => {
+    queueSelects([]); // request not found
+
+    const res = await supertest(app)
+      .patch(`/api/vehicles/join-request/nonexistent-id/decline`)
+      .send({ deviceId: OWNER_DEVICE });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/not found/i);
+  });
+
+  it("returns 400 when deviceId is missing", async () => {
+    const res = await supertest(app)
+      .patch(`/api/vehicles/join-request/${REQUEST_ID}/decline`)
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /vehicles/join-requests/incoming
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/vehicles/join-requests/incoming", () => {
+
+  it("returns empty array when the owner has no registered vehicles", async () => {
+    queueSelects([]); // no owned vehicles
+
+    const res = await supertest(app)
+      .get("/api/vehicles/join-requests/incoming")
+      .query({ deviceId: OWNER_DEVICE });
+
+    expect(res.status).toBe(200);
+    expect(res.body.requests).toEqual([]);
+  });
+
+  it("returns pending requests enriched with vehicleName and vehiclePlate", async () => {
+    const vehicle = vehicleRow();
+    const request = requestRow();
+
+    queueSelects(
+      [vehicle],    // owned vehicles
+      [request],    // pending requests for those vehicles
+    );
+
+    const res = await supertest(app)
+      .get("/api/vehicles/join-requests/incoming")
+      .query({ deviceId: OWNER_DEVICE });
+
+    expect(res.status).toBe(200);
+    expect(res.body.requests).toHaveLength(1);
+
+    const enriched = res.body.requests[0];
+    expect(enriched.id).toBe(REQUEST_ID);
+    expect(enriched.vehicleId).toBe(VEHICLE_ID);
+    expect(enriched.vehicleName).toBe(vehicle.displayName);
+    expect(enriched.vehiclePlate).toBe(vehicle.plateNumber);
+    expect(enriched.requesterName).toBe(request.requesterName);
+  });
+
+  it("returns empty requests array when owner has vehicles but none have pending requests", async () => {
+    queueSelects(
+      [vehicleRow()],  // one owned vehicle
+      [],              // no pending requests
+    );
+
+    const res = await supertest(app)
+      .get("/api/vehicles/join-requests/incoming")
+      .query({ deviceId: OWNER_DEVICE });
+
+    expect(res.status).toBe(200);
+    expect(res.body.requests).toEqual([]);
+  });
+
+  it("returns 400 when deviceId is missing", async () => {
+    const res = await supertest(app)
+      .get("/api/vehicles/join-requests/incoming");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeTruthy();
   });
 });
