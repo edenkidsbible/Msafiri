@@ -379,6 +379,20 @@ export async function migrateSchema(): Promise<void> {
         ON vehicle_join_requests (vehicle_id, status)
     `);
 
+    // ── shared_vehicle_id on live_trips ──────────────────────────────────────
+    // Nullable FK-style column (stored as TEXT to avoid cross-schema FK issues)
+    // pointing to shared_vehicles.id.  Set at session-start when the driver's
+    // active vehicle is registered as a shared vehicle so Garage Overview can
+    // aggregate distance/time/trips across all co-drivers of the same vehicle.
+    await db.execute(sql`
+      ALTER TABLE live_trips ADD COLUMN IF NOT EXISTS shared_vehicle_id TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS live_trips_shared_vehicle_id_idx
+        ON live_trips (shared_vehicle_id, ended_at)
+        WHERE shared_vehicle_id IS NOT NULL
+    `);
+
     // ── accident_records.my_vehicle_json ─────────────────────────────────────
     // Nullable JSON column storing the owner's vehicle details at crash time
     // (make, model, plate). Populated on the PATCH /accidents/:id/complete step.

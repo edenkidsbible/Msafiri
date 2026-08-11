@@ -71,16 +71,18 @@ export function formatDuration(s: number): string {
  * Returns the session ID or null on failure.
  */
 export async function startDriveSession(
-  deviceId:  string,
-  startLat?: number | null,
-  startLng?: number | null,
-  vehicleId?: string | null,
+  deviceId:        string,
+  startLat?:       number | null,
+  startLng?:       number | null,
+  vehicleId?:      string | null,
+  sharedVehicleId?: string | null,
 ): Promise<string> {
   const { id } = await apiPost<{ id: string }>("/drive-sessions", {
     deviceId,
-    startLat:  startLat  ?? null,
-    startLng:  startLng  ?? null,
-    vehicleId: vehicleId ?? null,
+    startLat:        startLat        ?? null,
+    startLng:        startLng        ?? null,
+    vehicleId:       vehicleId       ?? null,
+    sharedVehicleId: sharedVehicleId ?? null,
   });
   return id;
 }
@@ -146,6 +148,19 @@ export async function getDriveSession(
 ): Promise<DriveSession> {
   return apiGet<DriveSession>(
     `/drive-sessions/${encodeURIComponent(sessionId)}?deviceId=${encodeURIComponent(deviceId)}`,
+  );
+}
+
+/**
+ * Fetch aggregate stats (distance, duration, trip count) across ALL co-drivers
+ * of a shared vehicle. Only totals are returned — per-session details and
+ * individual driving scores are never surfaced to other members.
+ */
+export async function getSharedVehicleStats(
+  sharedVehicleId: string,
+): Promise<{ totalDistM: number; totalDurS: number; totalTrips: number }> {
+  return apiGet<{ totalDistM: number; totalDurS: number; totalTrips: number }>(
+    `/drive-sessions/shared-stats?sharedVehicleId=${encodeURIComponent(sharedVehicleId)}`,
   );
 }
 

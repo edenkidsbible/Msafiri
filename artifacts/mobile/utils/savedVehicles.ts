@@ -372,3 +372,21 @@ export async function updateVehicleDetails(
   await saveVehicles(updated);
   return updated;
 }
+
+/**
+ * Persist the shared_vehicles UUID on a local SavedVehicle after the owner
+ * successfully registers the vehicle for sharing (/vehicles/register).
+ * This enables session tagging so Garage Overview aggregates stats across
+ * all co-drivers.
+ */
+export async function setVehicleSharedId(
+  localVehicleId: string,
+  sharedVehicleId: string,
+): Promise<SavedVehicle[]> {
+  const list = await loadVehicles();
+  const updated = list.map(v =>
+    v.id === localVehicleId ? { ...v, sharedVehicleId } : v,
+  );
+  await saveVehicles(updated);
+  return updated;
+}

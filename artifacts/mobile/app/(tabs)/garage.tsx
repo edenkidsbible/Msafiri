@@ -29,6 +29,7 @@ import {
   listDriveSessions,
   scoreColor,
   formatDuration,
+  getSharedVehicleStats,
 } from "@/utils/driveSessionApi";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
@@ -55,6 +56,7 @@ import {
   setSharedVehicleId,
   updateVehicleDetails,
   normalizePlate,
+  setVehicleSharedId,
   type VehicleDetails,
 } from "@/utils/savedVehicles";
 // vehicleSessionMap removed — sessions are now filtered server-side via vehicleId param
@@ -733,6 +735,12 @@ export default function GarageScreen() {
   const [focusTick, setFocusTick] = useState(0);
   const flatRef = useRef<FlatList>(null);
 
+  // Aggregated stats fetched from the server when the active vehicle is a
+  // shared vehicle — covers ALL co-drivers, not just the current device.
+  const [sharedStats, setSharedStats] = useState<{
+    totalDistM: number; totalDurS: number; totalTrips: number;
+  } | null>(null);
+
   // Edit vehicle details modal
   const [editTarget, setEditTarget] = useState<SavedVehicle | null>(null);
   const [editVisible, setEditVisible] = useState(false);
@@ -875,6 +883,21 @@ export default function GarageScreen() {
     }, [deviceId, vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType])
   );
 
+  // ── Shared vehicle aggregate stats ───────────────────────────────────────────
+  // When the active slide is a shared vehicle, fetch summed distance/time/trips
+  // across ALL co-drivers (server-side). Only totals — no per-session data.
+  useEffect(() => {
+    const activeVehicle = vehicles[clampedSlideIndex] ?? vehicles[0];
+    const sharedId = activeVehicle?.sharedVehicleId;
+    if (!sharedId) {
+      setSharedStats(null);
+      return;
+    }
+    getSharedVehicleStats(sharedId)
+      .then(stats => setSharedStats(stats))
+      .catch(() => setSharedStats(null));
+  }, [vehicles, clampedSlideIndex, focusTick]);
+
   // ── Per-vehicle session fetch ────────────────────────────────────────────────
   // Fetch sessions from the server scoped to the vehicle currently shown on the
   // garage slide. focusTick re-triggers on every screen focus so new sessions
@@ -925,10 +948,18 @@ export default function GarageScreen() {
 
   // ── Computed stats ──────────────────────────────────────────────────────────
 
-  const completed   = filteredSessions.filter(s => s.endedAt != null);
-  const totalDistKm = completed.reduce((a, s) => a + s.distanceM, 0) / 1000;
-  const totalDurS   = completed.reduce((a, s) => a + (s.durationS ?? 0), 0);
-  const totalTrips  = completed.length;
+  const completed = filteredSessions.filter(s => s.endedAt != null);
+  // For shared vehicles, use server-aggregated totals that cover ALL co-drivers.
+  // For personal vehicles, sum the current device's own completed sessions only.
+  const totalDistKm = sharedStats
+    ? sharedStats.totalDistM / 1000
+    : completed.reduce((a, s) => a + s.distanceM, 0) / 1000;
+  const totalDurS = sharedStats
+    ? sharedStats.totalDurS
+    : completed.reduce((a, s) => a + (s.durationS ?? 0), 0);
+  const totalTrips = sharedStats
+    ? sharedStats.totalTrips
+    : completed.length;
   const recentTrips = completed.slice(0, 3);
 
   const healthScore = careStats?.healthScore ?? 92;
@@ -1591,7 +1622,6 @@ export default function GarageScreen() {
     </View>
   );
 }
-
 // ── Garage Tools config ───────────────────────────────────────────────────────
 
 const TOOLS = [

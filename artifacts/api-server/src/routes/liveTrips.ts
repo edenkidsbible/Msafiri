@@ -39,11 +39,12 @@ function computeScore(stats: {
 
 router.post("/drive-sessions", async (req: Request, res: Response) => {
   try {
-    const { deviceId, startLat, startLng, vehicleId } = req.body as {
+    const { deviceId, startLat, startLng, vehicleId, sharedVehicleId } = req.body as {
       deviceId?: string;
       startLat?: number | null;
       startLng?: number | null;
       vehicleId?: string | null;
+      sharedVehicleId?: string | null;
     };
 
     if (!deviceId?.trim()) {
@@ -51,10 +52,11 @@ router.post("/drive-sessions", async (req: Request, res: Response) => {
     }
 
     const result = await db.execute<{ id: string; started_at: string }>(sql`
-      INSERT INTO live_trips (device_id, vehicle_id, start_lat, start_lng, started_at)
+      INSERT INTO live_trips (device_id, vehicle_id, shared_vehicle_id, start_lat, start_lng, started_at)
       VALUES (
         ${deviceId.trim()},
         ${vehicleId?.trim() || null},
+        ${sharedVehicleId?.trim() || null},
         ${typeof startLat === "number" ? startLat : null},
         ${typeof startLng === "number" ? startLng : null},
         NOW()
@@ -163,6 +165,46 @@ router.post("/drive-sessions/:id/end", async (req: Request, res: Response) => {
     return res.json({ id, score, endedAt: new Date().toISOString() });
   } catch (err) {
     console.error("POST /drive-sessions/:id/end error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /drive-sessions/shared-stats — aggregate stats across all co-drivers ──
+// Returns only summed totals (distance, duration, trip count) — no per-session
+// detail — so individual driving scores and routes stay private.
+// IMPORTANT: this route MUST be defined before /drive-sessions/:id so Express
+// does not interpret "shared-stats" as an :id param.
+
+router.get("/drive-sessions/shared-stats", async (req: Request, res: Response) => {
+  try {
+    const { sharedVehicleId } = req.query as Record<string, string>;
+
+    if (!sharedVehicleId?.trim()) {
+      return res.status(400).json({ error: "sharedVehicleId is required" });
+    }
+
+    const result = await db.execute<{
+      total_dist_m: string;
+      total_dur_s: string;
+      total_trips: string;
+    }>(sql`
+      SELECT
+        COALESCE(SUM(distance_m), 0)  AS total_dist_m,
+        COALESCE(SUM(duration_s), 0)  AS total_dur_s,
+        COUNT(*)                      AS total_trips
+      FROM live_trips
+      WHERE shared_vehicle_id = ${sharedVehicleId.trim()}
+        AND ended_at IS NOT NULL
+    `);
+
+    const row = result.rows[0];
+    return res.json({
+      totalDistM: parseInt(row?.total_dist_m ?? "0", 10),
+      totalDurS:  parseInt(row?.total_dur_s  ?? "0", 10),
+      totalTrips: parseInt(row?.total_trips  ?? "0", 10),
+    });
+  } catch (err) {
+    console.error("GET /drive-sessions/shared-stats error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
