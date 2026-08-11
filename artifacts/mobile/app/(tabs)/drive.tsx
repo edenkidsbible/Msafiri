@@ -2819,8 +2819,8 @@ export default function DriveScreen() {
               addReport(type, currentLat, currentLng, speedLimit);
             }
           }
-          // Play confirmation audio after the report is submitted
-          playSound("confirm").catch(() => {});
+          // Play spoken confirmation — single audio call avoids racing two
+          // players through the audio-session setup on first use.
           speakAlert("report_submitted").catch(() => {});
         }}
       />

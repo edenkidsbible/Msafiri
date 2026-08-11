@@ -552,40 +552,52 @@ export default function ReportModal({
                 <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>
                   WHEN DID YOU SEE THIS?
                 </Text>
-                <View style={{ gap: 8 }}>
-                  {WHEN_SEEN_OPTIONS.map((opt) => {
-                    const active = whenSeen === opt.value;
-                    return (
+
+                {whenSeen ? (
+                  /* ── Compact summary — tap to change ─────────────────────── */
+                  <>
+                    <TouchableOpacity
+                      style={[styles.pickedSummary, { backgroundColor: c.primary + "12", borderColor: c.primary + "44" }]}
+                      onPress={() => { bumpIdleTimer(); setWhenSeen(null); Haptics.selectionAsync(); }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.whenSeenEmoji}>
+                        {WHEN_SEEN_OPTIONS.find((o) => o.value === whenSeen)?.icon}
+                      </Text>
+                      <Text style={[styles.pickedSummaryTxt, { color: c.foreground }]}>
+                        {WHEN_SEEN_OPTIONS.find((o) => o.value === whenSeen)?.label}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: c.primary, fontFamily: "Inter_600SemiBold" }}>Change</Text>
+                    </TouchableOpacity>
+                    {/* Community-tip notice — only shown after a non-fresh selection */}
+                    {(whenSeen === "today" || whenSeen === "earlier") && (
+                      <View style={[styles.communityTipNotice, { backgroundColor: "#FF980012", borderColor: "#FF980040" }]}>
+                        <Ionicons name="information-circle-outline" size={14} color="#FF9800" style={{ marginTop: 1 }} />
+                        <Text style={{ fontSize: 12, color: "#FF9800", flex: 1, lineHeight: 18, fontFamily: "Inter_400Regular" }}>
+                          Your report will be labelled{" "}
+                          <Text style={{ fontFamily: "Inter_600SemiBold" }}>Community tip</Text>
+                          {" "}so other drivers know it's not a live observation. Still valuable — especially for potholes, roadworks, and cameras.
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  /* ── Full option list ────────────────────────────────────── */
+                  <View style={{ gap: 8 }}>
+                    {WHEN_SEEN_OPTIONS.map((opt) => (
                       <TouchableOpacity
                         key={opt.value}
                         style={[
                           styles.whenSeenRow,
-                          {
-                            backgroundColor: active ? c.primary + "14" : c.muted,
-                            borderColor: active ? c.primary : c.border,
-                          },
+                          { backgroundColor: c.muted, borderColor: c.border },
                         ]}
                         onPress={() => { bumpIdleTimer(); setWhenSeen(opt.value); Haptics.selectionAsync(); }}
                         activeOpacity={0.8}
                       >
                         <Text style={styles.whenSeenEmoji}>{opt.icon}</Text>
-                        <Text style={[styles.whenSeenLabel, { color: active ? c.primary : c.foreground }]}>
-                          {opt.label}
-                        </Text>
-                        {active && <Ionicons name="checkmark-circle" size={18} color={c.primary} />}
+                        <Text style={[styles.whenSeenLabel, { color: c.foreground }]}>{opt.label}</Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                {/* Community-tip notice — shown when observation context is not fresh */}
-                {(whenSeen === "today" || whenSeen === "earlier") && (
-                  <View style={[styles.communityTipNotice, { backgroundColor: "#FF980012", borderColor: "#FF980040" }]}>
-                    <Ionicons name="information-circle-outline" size={14} color="#FF9800" style={{ marginTop: 1 }} />
-                    <Text style={{ fontSize: 12, color: "#FF9800", flex: 1, lineHeight: 18, fontFamily: "Inter_400Regular" }}>
-                      Your report will be labelled{" "}
-                      <Text style={{ fontFamily: "Inter_600SemiBold" }}>Community tip</Text>
-                      {" "}so other drivers know it's not a live observation. It's still valuable — especially for potholes, roadworks, and cameras.
-                    </Text>
+                    ))}
                   </View>
                 )}
               </View>
