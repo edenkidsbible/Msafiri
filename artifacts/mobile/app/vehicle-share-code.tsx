@@ -158,6 +158,12 @@ export default function VehicleShareCodeScreen() {
           </Text>
         </View>
 
+        {/* Purpose description */}
+        <Text style={[styles.purpose, { color: c.mutedForeground }]}>
+          Add other drivers who use this vehicle. Their trips will automatically update the
+          vehicle's mileage and help keep service reminders accurate.
+        </Text>
+
         {/* Code card */}
         <View style={[styles.codeCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.codeLabel, { color: c.mutedForeground }]}>Share Code</Text>
@@ -303,6 +309,14 @@ const styles = StyleSheet.create({
     borderWidth:       1,
   },
   vehicleChipTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", maxWidth: 260 },
+
+  purpose: {
+    fontSize:    14,
+    fontFamily:  "Inter_400Regular",
+    lineHeight:  21,
+    textAlign:   "center",
+    paddingHorizontal: 8,
+  },
 
   codeCard: {
     alignItems:        "center",
