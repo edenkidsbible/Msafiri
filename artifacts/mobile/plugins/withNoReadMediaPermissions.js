@@ -1,23 +1,21 @@
 /**
  * withNoReadMediaPermissions
  *
- * expo-media-library unconditionally injects READ_MEDIA_IMAGES and
- * READ_MEDIA_VIDEO into the AndroidManifest even when the app only uses
- * saveToLibraryAsync (write-only).  On Android 13+ (API 33+) Google Play
- * rejects apps that declare these broad storage permissions unless they can
- * prove a photo/video picker is technically insufficient.
+ * expo-media-library's Android AAR declares READ_MEDIA_IMAGES and
+ * READ_MEDIA_VIDEO in its own bundled AndroidManifest.xml. Simply removing
+ * them from the app-level manifest is not enough — Gradle's manifest merger
+ * re-adds them from the library's manifest at build time.
  *
- * Our app only ever WRITES to the gallery (dashcam clip export).  The system
- * photo picker (used by expo-image-picker) and MediaLibrary.saveToLibraryAsync
- * with writeOnly:true do not need read access at all.
+ * The correct approach is to add override entries with tools:node="remove",
+ * which instructs the manifest merger to drop those permissions from the
+ * final merged manifest regardless of where they came from.
  *
- * This plugin runs after all other plugins and removes the two offending
- * <uses-permission> entries from the manifest.
+ * Reference: https://developer.android.com/studio/build/manifest-merge#node_markers
  */
 
 const { withAndroidManifest } = require("expo/config-plugins");
 
-const BANNED = [
+const REMOVE_PERMISSIONS = [
   "android.permission.READ_MEDIA_IMAGES",
   "android.permission.READ_MEDIA_VIDEO",
 ];
@@ -25,13 +23,30 @@ const BANNED = [
 /** @param {import("expo/config-plugins").ExpoConfig} config */
 module.exports = function withNoReadMediaPermissions(config) {
   return withAndroidManifest(config, (mod) => {
-    const manifest = mod.modResults;
-    const permissions = manifest.manifest["uses-permission"] ?? [];
+    const manifest = mod.modResults.manifest;
 
-    manifest.manifest["uses-permission"] = permissions.filter((perm) => {
-      const name = perm.$?.["android:name"] ?? "";
-      return !BANNED.includes(name);
-    });
+    // 1. Ensure the tools namespace is declared on the root <manifest> element
+    //    so tools:node="remove" is a valid attribute.
+    manifest.$ = manifest.$ ?? {};
+    manifest.$["xmlns:tools"] =
+      manifest.$["xmlns:tools"] ?? "http://schemas.android.com/tools";
+
+    // 2. Remove any existing <uses-permission> entries for these permissions
+    //    (in case they were added by a plugin before us).
+    manifest["uses-permission"] = (manifest["uses-permission"] ?? []).filter(
+      (perm) => !REMOVE_PERMISSIONS.includes(perm.$?.["android:name"] ?? "")
+    );
+
+    // 3. Add override entries with tools:node="remove" so Gradle's manifest
+    //    merger strips these permissions even if a library AAR re-adds them.
+    for (const permission of REMOVE_PERMISSIONS) {
+      manifest["uses-permission"].push({
+        $: {
+          "android:name": permission,
+          "tools:node": "remove",
+        },
+      });
+    }
 
     return mod;
   });
