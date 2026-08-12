@@ -154,6 +154,7 @@ export const MAP_CHIPS: Array<{ cat: QueryCategory; label: string; icon: string 
   { cat: "fuel",     label: "Fuel",     icon: "flame-outline" },
   { cat: "food",     label: "Food",     icon: "restaurant-outline" },
   { cat: "hospital", label: "Hospital", icon: "medkit-outline" },
+  { cat: "police",   label: "Police",   icon: "shield-outline" },
   { cat: "pharmacy", label: "Pharmacy", icon: "medical-outline" },
   { cat: "bank_atm", label: "ATM/Bank", icon: "card-outline" },
   { cat: "shopping", label: "Shopping", icon: "bag-handle-outline" },
