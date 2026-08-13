@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes";
 import clipRedirectRouter from "./routes/clipRedirect.js";
+import inboundEmailRouter from "./routes/inbound-email.js";
 import { logger } from "./lib/logger";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -36,6 +37,16 @@ app.use(
   }),
 );
 app.use(cors());
+
+// Inbound email webhook must receive the raw body for Svix signature verification —
+// mount it BEFORE express.json() consumes the stream, using express.raw() for
+// this path only.
+app.use(
+  "/api/webhooks/email-inbound",
+  express.raw({ type: "application/json" }),
+  inboundEmailRouter,
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
