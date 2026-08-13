@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup, ExternalLink } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -177,6 +177,27 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 </SidebarGroupContent>
               </SidebarGroup>
             )}
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
+                Founder
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem className="px-2">
+                    <SidebarMenuButton asChild tooltip="Operations Site" className="h-10">
+                      <a
+                        href="https://operations.msafirikenya.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        <span className="font-medium text-sm">Operations Site</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t border-sidebar-border">
             <div className="flex items-center justify-between">
