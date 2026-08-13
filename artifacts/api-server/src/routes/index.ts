@@ -33,6 +33,7 @@ import backupRouter from "./backup.js";
 import otpRouter from "./otp.js";
 import vehiclesRouter from "./vehicles.js";
 import accountRouter from "./account.js";
+import inboundEmailRouter from "./inbound-email.js";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(backupRouter);
 router.use(otpRouter);
 router.use(vehiclesRouter);
 router.use(accountRouter);
+router.use(inboundEmailRouter);
 
 export default router;

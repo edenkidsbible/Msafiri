@@ -17,6 +17,7 @@ const ROUTE_FEATURE_PRIORITY: Array<{ feature: FeatureKey; href: string }> = [
   { feature: "blog", href: "/blog" },
   { feature: "creators", href: "/creators" },
   { feature: "team", href: "/users" },
+  { feature: "inbox", href: "/inbox" },
 ];
 
 /**

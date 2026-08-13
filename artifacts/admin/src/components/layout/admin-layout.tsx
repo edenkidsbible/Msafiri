@@ -1,6 +1,11 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup, ExternalLink } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup, ExternalLink, Inbox } from "lucide-react";
+import { getToken } from "@/lib/auth";
+
+function authFetch(url: string) {
+  return fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
+}
 import logo from "@/assets/logo.png";
 import { clearToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -53,6 +58,20 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   const unreadCount = notifData?.unreadCount ?? 0;
 
+  const [inboxUnread, setInboxUnread] = useState(0);
+  useEffect(() => {
+    if (!can("inbox")) return;
+    const fetchInboxStats = () => {
+      authFetch("/api/admin/inbox/stats")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setInboxUnread(d.unreadCount ?? 0))
+        .catch(() => {});
+    };
+    fetchInboxStats();
+    const id = setInterval(fetchInboxStats, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleLogout = () => {
     clearToken();
     setLocation("/login");
@@ -67,6 +86,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const coreNav = coreNavAll.filter((item) => can(item.feature));
 
   const moderatorNavAll: Array<{ href: string; label: string; icon: typeof Bell; feature: FeatureKey }> = [
+    { href: "/inbox",          label: "Inbox",            icon: Inbox,         feature: "inbox" },
     { href: "/notifications",  label: "Notifications",    icon: Bell,          feature: "notifications" },
     { href: "/push-campaigns", label: "Push Campaigns",   icon: Megaphone,     feature: "push_campaigns" },
     { href: "/releases",       label: "App Releases",     icon: Rocket,        feature: "releases" },
@@ -166,6 +186,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                               {item.href === "/notifications" && unreadCount > 0 && (
                                 <span className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center shrink-0">
                                   {unreadCount > 9 ? "9+" : unreadCount}
+                                </span>
+                              )}
+                              {item.href === "/inbox" && inboxUnread > 0 && (
+                                <span className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center shrink-0">
+                                  {inboxUnread > 9 ? "9+" : inboxUnread}
                                 </span>
                               )}
                             </Link>

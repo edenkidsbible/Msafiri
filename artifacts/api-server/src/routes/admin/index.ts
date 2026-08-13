@@ -19,6 +19,7 @@ import settingsRouter from "./settings.js";
 import jobsRouter from "./jobs.js";
 import dashcamAdminRouter from "./dashcam.js";
 import systemRouter from "./system.js";
+import inboxRouter from "./inbox.js";
 
 const router = Router();
 
@@ -86,5 +87,6 @@ router.use(scopedFeature("/settings", "app_settings"), settingsRouter);
 router.use("/jobs", requireFeature("app_settings"), jobsRouter);
 router.use(scopedFeature("/dashcam", "dashboard"), dashcamAdminRouter);
 router.use(scopedFeature("/system",  "app_settings"), systemRouter);
+router.use(scopedFeature("/inbox", "inbox"), inboxRouter);
 
 export default router;

@@ -34,6 +34,7 @@ export const FEATURE_GROUPS = [
       { key: "dashboard", label: "Analytics Dashboard" },
       { key: "team", label: "Team Member Management" },
       { key: "app_settings", label: "App Settings" },
+      { key: "inbox", label: "Email Inbox" },
     ],
   },
 ] as const;
@@ -57,6 +58,7 @@ export const ROLE_DEFAULTS: Record<AdminRole, FeatureKey[]> = {
     "notifications",
     "subscribers",
     "audit_log",
+    "inbox",
   ],
   staff: ["reports", "speed_zones", "pois"],
 };

@@ -29,6 +29,7 @@ import Pois from "@/pages/pois";
 import AppSettings from "@/pages/app-settings";
 import DashcamDevices from "@/pages/dashcam-devices";
 import SystemBackup from "@/pages/system-backup";
+import InboxPage from "@/pages/inbox";
 
 const queryClient = new QueryClient();
 
@@ -122,6 +123,7 @@ function Router() {
       <Route path="/app-settings"><ProtectedRoute component={AppSettings} feature="app_settings" /></Route>
       <Route path="/dashcam-devices"><ProtectedRoute component={DashcamDevices} feature="dashboard" /></Route>
       <Route path="/system-backup"><ProtectedRoute component={SystemBackup} feature="app_settings" /></Route>
+      <Route path="/inbox"><ProtectedRoute component={InboxPage} feature="inbox" /></Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -40,6 +40,8 @@ tags:
     description: Public app feature settings
   - name: admin-settings
     description: Admin app settings management
+  - name: admin-inbox
+    description: Admin email inbox
 paths:
   /app-settings:
     get:
@@ -1505,6 +1507,148 @@ paths:
         "404":
           description: Not found
 
+  /admin/inbox/stats:
+    get:
+      operationId: adminGetInboxStats
+      tags: [admin-inbox]
+      summary: Get unread email count
+      responses:
+        "200":
+          description: Inbox stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboxStats"
+        "401":
+          description: Unauthorized
+
+  /admin/inbox:
+    get:
+      operationId: adminListEmails
+      tags: [admin-inbox]
+      summary: List inbox emails
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: filter
+          schema: { type: string, enum: [unread, replied] }
+      responses:
+        "200":
+          description: Email list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboxEmailList"
+        "401":
+          description: Unauthorized
+
+  /admin/inbox/{id}:
+    get:
+      operationId: adminGetEmail
+      tags: [admin-inbox]
+      summary: Get a single email (marks as read)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Email detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboxEmail"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: adminDeleteEmail
+      tags: [admin-inbox]
+      summary: Delete an email
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /admin/inbox/{id}/read:
+    patch:
+      operationId: adminToggleEmailRead
+      tags: [admin-inbox]
+      summary: Toggle email read/unread
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isRead]
+              properties:
+                isRead: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboxEmail"
+        "401":
+          description: Unauthorized
+
+  /admin/inbox/{id}/reply:
+    post:
+      operationId: adminReplyToEmail
+      tags: [admin-inbox]
+      summary: Send a reply via Resend
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboxReplyInput"
+      responses:
+        "200":
+          description: Reply sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -2281,6 +2425,53 @@ components:
         address: { type: string }
         hours:   { type: string, nullable: true }
         status:  { type: string }
+
+    InboxEmail:
+      type: object
+      required: [id, fromEmail, toEmail, subject, isRead, isReplied, replyCount, receivedAt, createdAt]
+      properties:
+        id:          { type: string }
+        messageId:   { type: string, nullable: true }
+        fromEmail:   { type: string }
+        fromName:    { type: string, nullable: true }
+        toEmail:     { type: string }
+        subject:     { type: string }
+        bodyHtml:    { type: string, nullable: true }
+        bodyText:    { type: string, nullable: true }
+        isRead:      { type: boolean }
+        isReplied:   { type: boolean }
+        repliedAt:   { type: string, nullable: true }
+        replyCount:  { type: integer }
+        inReplyTo:   { type: string, nullable: true }
+        spamScore:   { type: string, nullable: true }
+        receivedAt:  { type: string }
+        createdAt:   { type: string }
+
+    InboxEmailList:
+      type: object
+      required: [emails, total, page, limit, pages]
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/InboxEmail"
+        total: { type: integer }
+        page:  { type: integer }
+        limit: { type: integer }
+        pages: { type: integer }
+
+    InboxStats:
+      type: object
+      required: [unreadCount]
+      properties:
+        unreadCount: { type: integer }
+
+    InboxReplyInput:
+      type: object
+      required: [body]
+      properties:
+        subject: { type: string }
+        body:    { type: string }
 
     BlogStats:
       type: object
