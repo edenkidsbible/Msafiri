@@ -183,8 +183,8 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-primary/20 blur-[120px] rounded-full" />
             <img
-              src={`${import.meta.env.BASE_URL}images/mockup-nav.png`}
-              alt="Msafiri Kenya navigation screen with speed alerts"
+              src={`${import.meta.env.BASE_URL}images/mockup-home.png`}
+              alt="Msafiri Kenya home screen with live alerts and dashcam"
               className="relative z-10 w-full max-w-[340px] mx-auto drop-shadow-[0_60px_80px_rgba(0,0,0,0.9)]"
             />
           </motion.div>
@@ -435,13 +435,13 @@ export default function Home() {
             style={{ scrollbarWidth: "none" }}
           >
             {[
-              { src: "mockup-nav.png",             label: "Navigation" },
-              { src: "mockup-route-incidents.png", label: "Route Safety" },
-              { src: "mockup-map.png",             label: "Hazard Map" },
-              { src: "mockup-browse.png",          label: "Nearby Places" },
-              { src: "mockup-fines.png",           label: "NTSA Fines" },
-              { src: "mockup-report.png",          label: "Report Incident" },
-              { src: "mockup-settings.png",        label: "Emergency SOS" },
+              { src: "mockup-home.png",       label: "Home" },
+              { src: "mockup-drive-live.png", label: "Live Drive" },
+              { src: "mockup-garage.png",     label: "My Garage" },
+              { src: "mockup-trips.png",      label: "Trip History" },
+              { src: "mockup-accident.png",   label: "Accident Reports" },
+              { src: "mockup-learn.png",      label: "Driving Course" },
+              { src: "mockup-report-new.png", label: "Report Incident" },
             ].map((shot, i) => (
               <motion.div
                 key={i}
@@ -747,8 +747,8 @@ export default function Home() {
 
           <div className="relative flex justify-center md:justify-end">
             <img
-              src={`${import.meta.env.BASE_URL}images/mockup-route-incidents.png`}
-              alt="Msafiri route hazards and incidents"
+              src={`${import.meta.env.BASE_URL}images/mockup-drive-live.png`}
+              alt="Msafiri live drive screen with speed zones and incident alerts"
               className="w-full max-w-[300px] drop-shadow-[0_40px_80px_rgba(0,0,0,0.7)]"
             />
           </div>
