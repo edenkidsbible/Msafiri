@@ -74,7 +74,7 @@ const TIPS = [
 ];
 
 // ── Timing ────────────────────────────────────────────────────────────────────
-const SLIDE_HOLD_MS  = 3000; // ms each slide is fully visible
+const SLIDE_HOLD_MS  = 7000; // ms each slide is fully visible
 const FADE_DURATION  = 350;  // image + tip crossfade
 const BREATHE_IN_MS  = 2000; // showroom scale-up
 const BREATHE_OUT_MS = 2000; // showroom scale-down
