@@ -144,8 +144,9 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
       const nextIdx = (idx + 1) % n;
       const myExit  = exitX(s.flipX);
 
-      // Position the incoming car at its entry point (same side as our exit)
-      incomingPos.setValue(myExit);
+      // Incoming car always enters from the LEFT — uniform left→right flow.
+      // Both cars move rightward: new one pushes current out to the right.
+      incomingPos.setValue(-OFFSCREEN);
 
       breathScale.stopAnimation();
       breathScale.setValue(1);
