@@ -48,11 +48,11 @@ interface SlideAngle {
 // ── Angle variants (5 showroom poses) ────────────────────────────────────────
 // Applied to both the user's car and the generic vehicle images.
 const ANGLES: Pick<SlideAngle, "flipX" | "rotate">[] = [
-  { flipX: false, rotate: "0deg"  },   // 0 — straight on, right-facing
-  { flipX: true,  rotate: "0deg"  },   // 1 — mirrored  → left-facing
-  { flipX: false, rotate: "4deg"  },   // 2 — nose-up tilt (low angle)
-  { flipX: true,  rotate: "-4deg" },   // 3 — mirrored + nose-up the other way
-  { flipX: false, rotate: "-3deg" },   // 4 — slight elevated rear-view tilt
+  { flipX: false, rotate: "0deg"   },  // 0 — straight on, right-facing
+  { flipX: true,  rotate: "0deg"   },  // 1 — mirrored, left-facing
+  { flipX: false, rotate: "60deg"  },  // 2 — steep nose-up tilt
+  { flipX: true,  rotate: "-60deg" },  // 3 — mirrored steep tilt
+  { flipX: false, rotate: "-60deg" },  // 4 — steep reverse tilt
 ];
 
 // ── Generic vehicle images (used when no vehicle is set) ──────────────────────
