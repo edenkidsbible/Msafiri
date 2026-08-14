@@ -68,12 +68,14 @@ export const vehicleJoinRequestsTable = pgTable("vehicle_join_requests", {
  * Reviewed by Msafiri support; no automated action is taken.
  */
 export const vehicleClaimsTable = pgTable("vehicle_claims", {
-  id:              uuid("id").primaryKey().defaultRandom(),
-  vehicleId:       uuid("vehicle_id").notNull().references(() => sharedVehiclesTable.id, { onDelete: "cascade" }),
+  id:               uuid("id").primaryKey().defaultRandom(),
+  vehicleId:        uuid("vehicle_id").notNull().references(() => sharedVehiclesTable.id, { onDelete: "cascade" }),
   claimantDeviceId: text("claimant_device_id").notNull(),
-  claimNote:       text("claim_note"),
-  status:          text("status").notNull().default("pending"), // "pending" | "reviewed" | "resolved"
-  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  claimNote:        text("claim_note"),
+  /** Admin investigation notes — logbook details, contact history, decision rationale. */
+  adminNote:        text("admin_note"),
+  status:           text("status").notNull().default("pending"), // "pending" | "reviewed" | "resolved"
+  createdAt:        timestamp("created_at").notNull().defaultNow(),
 });
 
 export type SharedVehicleRow      = typeof sharedVehiclesTable.$inferSelect;

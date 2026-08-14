@@ -432,6 +432,14 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS requesting_device_id TEXT
     `);
 
+    // ── vehicle_claims.admin_note ─────────────────────────────────────────────
+    // Allows admins to record investigation notes (logbook details, contact
+    // history, decision rationale) directly on a claim row.
+    await db.execute(sql`
+      ALTER TABLE vehicle_claims
+      ADD COLUMN IF NOT EXISTS admin_note TEXT
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
