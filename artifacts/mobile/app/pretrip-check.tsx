@@ -343,34 +343,21 @@ export default function PretripCheckScreen() {
 
   const requestCamera = useCallback(async () => {
     setLoadingPerm("camera");
-    if (!camPermission?.canAskAgain && !camPermission?.granted) {
-      // Permission permanently denied — send user to Settings.
-      // AppState "active" will fire on return and refreshPermissions() will
-      // call getCamPerm() to pick up the new status immediately.
-      Linking.openSettings();
-      setLoadingPerm(null);
-      return;
-    }
     try {
-      // Call the hook's own request so it updates its internal state.
+      // Always invoke the system dialog — on devices where it was previously
+      // denied, the OS may show it again (especially on Android before
+      // "Don't ask again" is ticked). If it doesn't appear nothing bad happens.
       await requestCamPerm();
-      // Also run dashcam-level init (camera context setup etc.)
       await requestDashcamPermissions();
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestDashcamPermissions, camPermission, requestCamPerm]);
+  }, [requestDashcamPermissions, requestCamPerm]);
 
   const requestMic = useCallback(async () => {
     setLoadingPerm("mic");
-    if (!micPermission?.canAskAgain && !micPermission?.granted) {
-      // Permission permanently denied — send user to Settings.
-      Linking.openSettings();
-      setLoadingPerm(null);
-      return;
-    }
     try { await requestMicPerm(); } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestMicPerm, micPermission]);
+  }, [requestMicPerm]);
 
   const openSettings = useCallback(() => {
     Linking.openSettings();
@@ -507,7 +494,7 @@ export default function PretripCheckScreen() {
             icon="videocam"
             label="Camera"
             status={cameraStatus}
-            canAskAgain={camPermission?.canAskAgain ?? true}
+            canAskAgain={true}
             loading={loadingPerm === "camera"}
             onEnable={requestCamera}
             colors={c}
@@ -516,7 +503,7 @@ export default function PretripCheckScreen() {
             icon="mic"
             label="Microphone"
             status={micStatus}
-            canAskAgain={micPermission?.canAskAgain ?? true}
+            canAskAgain={true}
             loading={loadingPerm === "mic"}
             onEnable={requestMic}
             colors={c}
