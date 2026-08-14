@@ -734,7 +734,7 @@ export default function GarageScreen() {
     vehicleType, deviceId, vehicleMakeId, vehicleModelId,
     vehicleCustomMakeName, vehicleCustomModelName,
     setVehicleModel, setCustomVehicle, setVehicleType,
-    isOffline,
+    isOffline, tripHistory,
   } = useApp();
 
   // ── Offline session / stats cache keys ───────────────────────────────────────
@@ -1040,7 +1040,7 @@ export default function GarageScreen() {
       setCareStats(computeVehicleCareStats(data));
       setOdometerKm(estimatedOdometerKm(data));
     }).catch(() => {});
-  }, [vehicles, clampedSlideIndex, focusTick]);
+  }, [vehicles, clampedSlideIndex, focusTick, tripHistory.length]);
 
   // ── Computed stats ──────────────────────────────────────────────────────────
 
