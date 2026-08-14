@@ -1,70 +1,62 @@
 /**
  * HeroCarousel
  *
- * Renders the idle-state content inside the home screen's green hero card.
+ * Each car drives INTO the frame from the direction it faces:
+ *   · right-facing car → enters from the left edge, exits to the right
+ *   · left-facing car  → enters from the right edge, exits to the left
  *
- * TWO modes, chosen automatically:
+ * The NEXT car enters from the SAME side the current one exits, creating
+ * the "new car pushes old car out of the way" showroom effect.
  *
- *   HAS VEHICLE  — all 5 slides show the user's own car, each from a slightly
- *                  different showroom "angle" (normal, mirrored, tilted, etc.)
- *                  via transform: scaleX + rotate on the wrapping view.
+ * While stationary, each car breathes (gentle scale pulse) under a
+ * spotlight feel.  Tip text fades in after arrival and out before exit.
  *
- *   NO VEHICLE   — slides cycle through the generic vehicle-type PNGs
- *                  (car → motorcycle → truck → bus → tractor), each also
- *                  shown from a slightly different angle.
+ * Timing (≈ 7 s per slide):
+ *   Drive in  900 ms  — ease-out (braking into position)
+ *   Tip fade  350 ms  — parallel with breathe start
+ *   Breathe   3600 ms — one full in/out cycle
+ *   Rest      1300 ms — stationary pause
+ *   Tip out    200 ms
+ *   Push out   900 ms — current exits + next enters simultaneously (ease-in/out)
  *
- * Each slide breathes with a gentle scale pulse (showroom spotlight feel).
- * Slides advance every 3 seconds with a 350 ms crossfade.
- * Dot indicators at the bottom-left of the image column track the position.
+ * Two modes, chosen by whether activeVehicle is set:
+ *   HAS VEHICLE  — all 5 slides show the user's own car (via DefaultVehicleImage),
+ *                  alternating between right-facing and left-facing poses.
+ *   NO VEHICLE   — slides cycle through generic vehicle-type PNGs.
  *
- * Used by: app/(tabs)/index.tsx (idle hero-card state only).
- * Active-trip and paused-trip states remain untouched in index.tsx.
+ * Used by: app/(tabs)/index.tsx — idle hero-card state only.
  */
 
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Easing,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
 import { SavedVehicle } from "@/utils/savedVehicles";
 
+// ── Timing ────────────────────────────────────────────────────────────────────
+
+const DRIVE_IN_MS   = 900;   // entry animation (ease-out, braking feel)
+const BREATHE_MS    = 1800;  // one half of breathing cycle
+const HOLD_EXTRA_MS = 1300;  // additional rest after breathing
+const TIP_FADE_MS   = 350;   // tip text fade in
+const TIP_OUT_MS    = 200;   // tip text fade out (before exit)
+const DRIVE_OUT_MS  = 900;   // exit + simultaneous next-entry animation
+
+// Off-screen distance (px) — large enough to fully clear the card edges
+const OFFSCREEN     = 230;
+const SCALE_MAX     = 1.06;  // max scale during breathing
+
 // ── Slide types ───────────────────────────────────────────────────────────────
 
-interface SlideAngle {
-  /** null = render user's vehicle via DefaultVehicleImage */
-  image: ReturnType<typeof require> | null;
-  /** Mirror the image along the X axis to show the "other side". */
-  flipX?: boolean;
-  /** Subtle fixed tilt — e.g. '4deg' for a low-angle dramatic look. */
-  rotate?: string;
+interface Slide {
+  image: ReturnType<typeof require> | null; // null → DefaultVehicleImage
+  flipX: boolean;                           // mirror for left-facing pose
+  tip: string;
 }
 
-// ── Angle variants (5 showroom poses) ────────────────────────────────────────
-// Applied to both the user's car and the generic vehicle images.
-const ANGLES: Pick<SlideAngle, "flipX" | "rotate">[] = [
-  { flipX: false, rotate: "0deg"   },  // 0 — straight on, right-facing
-  { flipX: true,  rotate: "0deg"   },  // 1 — mirrored, left-facing
-  { flipX: false, rotate: "60deg"  },  // 2 — steep nose-up tilt
-  { flipX: true,  rotate: "-60deg" },  // 3 — mirrored steep tilt
-  { flipX: false, rotate: "-60deg" },  // 4 — steep reverse tilt
-];
+// ── Tips ──────────────────────────────────────────────────────────────────────
 
-// ── Generic vehicle images (used when no vehicle is set) ──────────────────────
-const GENERIC_IMAGES: ReturnType<typeof require>[] = [
-  require("@/assets/images/vehicle-car.png"),
-  require("@/assets/images/vehicle-motorcycle.png"),
-  require("@/assets/images/vehicle-truck.png"),
-  require("@/assets/images/vehicle-bus.png"),
-  require("@/assets/images/vehicle-tractor.png"),
-];
-
-// ── Tips (one per slide, same in both modes) ──────────────────────────────────
 const TIPS = [
   "Tap the dashcam icon on the drive screen to start recording your journey automatically.",
   "Disable dashcam audio to record with your car music on — no mic interruptions.",
@@ -73,142 +65,232 @@ const TIPS = [
   "Community hazard reports update live — see what other drivers spotted just ahead.",
 ];
 
-// ── Timing ────────────────────────────────────────────────────────────────────
-const SLIDE_HOLD_MS  = 7000; // ms each slide is fully visible
-const FADE_DURATION  = 350;  // image + tip crossfade
-const BREATHE_IN_MS  = 2000; // showroom scale-up
-const BREATHE_OUT_MS = 2000; // showroom scale-down
-const SCALE_MAX      = 1.07; // max scale during breathing
+// ── Generic vehicle images (no-vehicle mode) ──────────────────────────────────
+
+const GENERIC_IMAGES = [
+  require("@/assets/images/vehicle-car.png"),
+  require("@/assets/images/vehicle-motorcycle.png"),
+  require("@/assets/images/vehicle-truck.png"),
+  require("@/assets/images/vehicle-bus.png"),
+  require("@/assets/images/vehicle-tractor.png"),
+];
+
+// Alternating pose pattern: right-facing → left-facing → right → …
+const FLIP_PATTERN = [false, true, false, true, false];
+
+// ── Position helpers ──────────────────────────────────────────────────────────
+
+/** Starting X when a car drives in:
+ *  right-facing → enters from the LEFT (negative X)
+ *  left-facing  → enters from the RIGHT (positive X) */
+function entryX(flipX: boolean) { return flipX ? OFFSCREEN : -OFFSCREEN; }
+
+/** Exit X:  right-facing → exits RIGHT, left-facing → exits LEFT */
+function exitX(flipX: boolean)  { return flipX ? -OFFSCREEN : OFFSCREEN; }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  /** Active vehicle from VehicleContext — shown in all slides when non-null. */
   activeVehicle?: SavedVehicle | null;
-  /** Show the "Hold to open checklist" micro-hint when quick-start is ready. */
   showLongPressHint?: boolean;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Car image sub-component ───────────────────────────────────────────────────
+
+function CarImage({ slide, vehicle }: { slide: Slide; vehicle?: SavedVehicle | null }) {
+  if (slide.image === null) {
+    return <DefaultVehicleImage width={185} height={148} vehicle={vehicle} />;
+  }
+  return (
+    <Image source={slide.image} style={styles.vehicleImg} contentFit="contain" />
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
-  const [index, setIndex] = useState(0);
-
-  const fadeAnim  = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const breatheRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  // Whether we have a real user vehicle to show across all slides
   const hasVehicle = !!activeVehicle;
 
-  // Build the 5 slides based on mode
-  const slides: SlideAngle[] = ANGLES.map((angle, i) => ({
+  const slides: Slide[] = TIPS.map((tip, i) => ({
     image: hasVehicle ? null : GENERIC_IMAGES[i],
-    ...angle,
+    flipX: FLIP_PATTERN[i],
+    tip,
   }));
 
-  // ── Breathing loop ────────────────────────────────────────────────────────
-  function startBreathe() {
-    breatheRef.current?.stop();
-    breatheRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: SCALE_MAX,
-          duration: BREATHE_IN_MS,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: BREATHE_OUT_MS,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    breatheRef.current.start();
-  }
+  // ── Render state ────────────────────────────────────────────────────────
+  const [curIdx, setCurIdx] = useState(0);           // which slide is "current"
+  const [incIdx, setIncIdx] = useState<number | null>(null); // incoming during push
 
+  // ── Animated values ─────────────────────────────────────────────────────
+  const currentPos  = useRef(new Animated.Value(entryX(FLIP_PATTERN[0]))).current;
+  const incomingPos = useRef(new Animated.Value(0)).current;
+  const tipOpacity  = useRef(new Animated.Value(0)).current;
+  const breathScale = useRef(new Animated.Value(1)).current;
+
+  // ── Animation refs ───────────────────────────────────────────────────────
+  const cancelRef  = useRef(false);
+  const slidesRef  = useRef(slides);
+  slidesRef.current = slides; // always fresh even after prop changes
+
+  // ── Animation chain ───────────────────────────────────────────────────────
   useEffect(() => {
-    startBreathe();
-    return () => breatheRef.current?.stop();
-  }, []);
+    cancelRef.current = false;
+    const n = slidesRef.current.length;
 
-  // ── Slide advance ─────────────────────────────────────────────────────────
-  const indexRef = useRef(0);
+    // --- STEP 3: exit current car while pushing in the next ----------------
+    function doExit(idx: number, onDone: () => void) {
+      if (cancelRef.current) return;
+      const s       = slidesRef.current[idx];
+      const nextIdx = (idx + 1) % n;
+      const myExit  = exitX(s.flipX);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      // Fade out image + tip together
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: FADE_DURATION,
-        useNativeDriver: true,
+      // Position the incoming car at its entry point (same side as our exit)
+      incomingPos.setValue(myExit);
+
+      breathScale.stopAnimation();
+      breathScale.setValue(1);
+
+      // Fade out tip, then start the push
+      Animated.timing(tipOpacity, {
+        toValue: 0, duration: TIP_OUT_MS, useNativeDriver: true,
       }).start(() => {
-        const next = (indexRef.current + 1) % slides.length;
-        indexRef.current = next;
-        setIndex(next);
+        if (cancelRef.current) return;
 
-        // Restart breathe from scale 1 so every slide starts the same way
-        scaleAnim.setValue(1);
-        startBreathe();
+        // Show incoming car (it's currently off-screen at incomingPos)
+        setIncIdx(nextIdx);
 
-        // Fade back in
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: FADE_DURATION,
-          useNativeDriver: true,
-        }).start();
+        // Give React one frame to mount the incoming car before animating it
+        requestAnimationFrame(() => {
+          if (cancelRef.current) return;
+
+          Animated.parallel([
+            Animated.timing(currentPos, {
+              toValue: myExit, duration: DRIVE_OUT_MS,
+              easing: Easing.in(Easing.cubic), useNativeDriver: true,
+            }),
+            Animated.timing(incomingPos, {
+              toValue: 0, duration: DRIVE_OUT_MS,
+              easing: Easing.out(Easing.cubic), useNativeDriver: true,
+            }),
+          ]).start(({ finished }) => {
+            if (!finished || cancelRef.current) return;
+
+            // Swap: set currentPos to 0 BEFORE state update so the re-render
+            // immediately shows the new current car at center (no flash).
+            currentPos.setValue(0);
+            tipOpacity.setValue(0);
+            breathScale.setValue(1);
+
+            setCurIdx(nextIdx);
+            setIncIdx(null);
+
+            requestAnimationFrame(() => onDone());
+          });
+        });
       });
-    }, SLIDE_HOLD_MS);
+    }
 
-    return () => clearInterval(timer);
-  }, [slides.length]);
+    // --- STEP 2: breathe + tip while stationary ----------------------------
+    function doHold(idx: number) {
+      if (cancelRef.current) return;
+      breathScale.setValue(1);
 
-  // ── Current slide ─────────────────────────────────────────────────────────
-  const slide = slides[index];
-  const flipX  = slide.flipX  ? -1 : 1;
-  const rotate = slide.rotate ?? "0deg";
+      Animated.parallel([
+        // Tip fades in
+        Animated.timing(tipOpacity, {
+          toValue: 1, duration: TIP_FADE_MS, useNativeDriver: true,
+        }),
+        // One breathing cycle + rest
+        Animated.sequence([
+          Animated.timing(breathScale, {
+            toValue: SCALE_MAX, duration: BREATHE_MS,
+            easing: Easing.inOut(Easing.sin), useNativeDriver: true,
+          }),
+          Animated.timing(breathScale, {
+            toValue: 1, duration: BREATHE_MS,
+            easing: Easing.inOut(Easing.sin), useNativeDriver: true,
+          }),
+          Animated.delay(HOLD_EXTRA_MS),
+        ]),
+      ]).start(({ finished }) => {
+        if (!finished || cancelRef.current) return;
+        doExit(idx, () => doHold((idx + 1) % n));
+      });
+    }
+
+    // --- STEP 1: drive car in from off-screen ------------------------------
+    function doEntry(idx: number) {
+      if (cancelRef.current) return;
+      const s = slidesRef.current[idx];
+      currentPos.setValue(entryX(s.flipX));
+      tipOpacity.setValue(0);
+      breathScale.setValue(1);
+
+      Animated.timing(currentPos, {
+        toValue: 0, duration: DRIVE_IN_MS,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || cancelRef.current) return;
+        doHold(idx);
+      });
+    }
+
+    doEntry(0);
+
+    return () => { cancelRef.current = true; };
+  }, []); // runs once on mount
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const curSlide = slides[curIdx];
+  const incSlide = incIdx !== null ? slides[incIdx] : null;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Left: animated vehicle image ─────────────────────────────────── */}
+      {/* ── Left: animated image column ──────────────────────────────────── */}
       <View style={styles.imgWrap}>
+
+        {/* Current car — position + breathe scale + facing flip */}
         <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [
-              { scaleX: flipX },
-              { rotate },
-              { scale: scaleAnim },
-            ],
-          }}
+          style={[
+            styles.carSlot,
+            {
+              transform: [
+                { translateX: currentPos },
+                { scaleX: curSlide.flipX ? -1 : 1 },
+                { scale: breathScale },
+              ],
+            },
+          ]}
         >
-          {slide.image === null ? (
-            // User's own car — rendered via the same 3-phase fallback as Garage
-            <DefaultVehicleImage
-              width={185}
-              height={148}
-              vehicle={activeVehicle}
-            />
-          ) : (
-            <Image
-              source={slide.image}
-              style={styles.vehicleImg}
-              contentFit="contain"
-            />
-          )}
+          <CarImage slide={curSlide} vehicle={activeVehicle} />
         </Animated.View>
 
-        {/* Dot indicators */}
+        {/* Incoming car — only mounted during the push transition */}
+        {incSlide && (
+          <Animated.View
+            style={[
+              styles.carSlot,
+              {
+                transform: [
+                  { translateX: incomingPos },
+                  { scaleX: incSlide.flipX ? -1 : 1 },
+                ],
+              },
+            ]}
+          >
+            <CarImage slide={incSlide} vehicle={activeVehicle} />
+          </Animated.View>
+        )}
+
+        {/* Dot indicator strip */}
         <View style={styles.dotsRow}>
           {slides.map((_, i) => (
             <View
               key={i}
               style={[
                 styles.dot,
-                i === index ? styles.dotActive : styles.dotInactive,
+                i === curIdx ? styles.dotActive : styles.dotInactive,
               ]}
             />
           ))}
@@ -219,8 +301,8 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
       <View style={styles.textCol}>
         <Text style={styles.title}>Start Driving</Text>
 
-        <Animated.Text style={[styles.tip, { opacity: fadeAnim }]}>
-          {TIPS[index]}
+        <Animated.Text style={[styles.tip, { opacity: tipOpacity }]}>
+          {curSlide.tip}
         </Animated.Text>
 
         {showLongPressHint && (
@@ -242,6 +324,16 @@ const styles = StyleSheet.create({
     width: 175,
     alignItems: "flex-end",
     justifyContent: "flex-end",
+    overflow: "hidden", // clips cars that are off-screen left/right
+  },
+  // Both current and incoming cars sit at the same origin; translateX moves them
+  carSlot: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
   },
   vehicleImg: {
     width: 185,
@@ -260,14 +352,8 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 3,
   },
-  dotActive: {
-    width: 14,
-    backgroundColor: "#FFFFFF",
-  },
-  dotInactive: {
-    width: 5,
-    backgroundColor: "#FFFFFF55",
-  },
+  dotActive:   { width: 14, backgroundColor: "#FFFFFF" },
+  dotInactive: { width: 5,  backgroundColor: "#FFFFFF55" },
 
   textCol: {
     flex: 1,
