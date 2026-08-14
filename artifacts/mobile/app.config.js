@@ -70,7 +70,10 @@ module.exports = {
       package: "com.msafirikenya.app",
       // 92 is the seed value. EAS autoIncrement bumps this to 93 on next build.
       versionCode: 33,
-      googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
+      // Written at EAS build time by eas-hooks/eas-build-pre-install.sh from
+      // the GOOGLE_SERVICES_JSON_BASE64 EAS secret. For local builds, place
+      // the file at artifacts/mobile/google-services.json (gitignored).
+      googleServicesFile: "./google-services.json",
       permissions: [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
