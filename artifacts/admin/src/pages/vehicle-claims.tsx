@@ -18,6 +18,7 @@ import { AlertTriangle, Flag, Car, CheckCircle2, Eye, Filter, ArrowRightLeft, Tr
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
+import { PageGuide } from "@/components/page-guide";
 import { useToast } from "@/hooks/use-toast";
 
 interface Claim {
@@ -343,18 +344,15 @@ export default function VehicleClaims() {
           </p>
         </div>
 
-        {/* How to investigate — guidance card */}
-        <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-blue-700 dark:text-blue-400">How to investigate a claim</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-blue-700/80 dark:text-blue-300/80 space-y-1.5">
-            <p><strong>1. Request a logbook photo</strong> — ask the claimant to send a photo of their Kenya motor vehicle log book (blue book). Compare the name, plate, and chassis number against what's registered.</p>
-            <p><strong>2. Check the registered account's history</strong> — a legitimate owner has trips, sessions, and possibly a linked phone number. An account with none is a red flag.</p>
-            <p><strong>3. Record your findings</strong> — use the Notes field on the claim row to log what you found. This is visible to all admins.</p>
-            <p><strong>4. Act</strong> — if the claimant is the real owner, use <em>Transfer Ownership</em>. If the registered account is clearly fraudulent and the real owner prefers a clean start, use <em>Delete Vehicle</em> so they can re-register.</p>
-          </CardContent>
-        </Card>
+        <PageGuide
+          title="How to investigate a claim"
+          steps={[
+            { label: "Request a logbook photo", detail: "ask the claimant to send a photo of their Kenya motor vehicle log book (blue book). Compare the name, plate, and chassis number against what's registered." },
+            { label: "Check the registered account's history", detail: "a legitimate owner has trips, sessions, and possibly a linked phone number. An account with none is a red flag." },
+            { label: "Record your findings", detail: "use the Notes field on the claim row to log what you found. This is visible to all admins." },
+            { label: "Act", detail: <>if the claimant is the real owner, use <em>Transfer Ownership</em>. If the registered account is clearly fraudulent and the real owner prefers a clean start, use <em>Delete Vehicle</em> so they can re-register.</> },
+          ]}
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

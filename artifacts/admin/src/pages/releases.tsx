@@ -43,6 +43,7 @@ import {
   Rocket, Plus, MoreVertical, CheckCircle2, Clock, AlertTriangle,
   XCircle, Smartphone, Zap, Globe, Apple, Bell, CalendarClock,
 } from "lucide-react";
+import { PageGuide } from "@/components/page-guide";
 
 const API_BASE = "/api";
 
@@ -555,6 +556,15 @@ export default function Releases() {
             New Release
           </Button>
         </div>
+
+        <PageGuide
+          title="Publishing app releases"
+          steps={[
+            { label: "What's New", detail: "add a release to notify users of a new version in the What's New sheet inside the app." },
+            { label: "Version must match", detail: "version must match the build version exactly (e.g. 2.4.1)." },
+            { label: "Force Update", detail: <>mark the release <em>Required</em> only when the old version will stop working; users are forced to update.</> },
+          ]}
+        />
 
         {/* ── Draft force-update releases with missing store URLs ─────────────── */}
         {draftForceWarnings.map((r) => {

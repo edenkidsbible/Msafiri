@@ -344,20 +344,29 @@ export default function PretripCheckScreen() {
   const requestCamera = useCallback(async () => {
     setLoadingPerm("camera");
     try {
-      // Always invoke the system dialog — on devices where it was previously
-      // denied, the OS may show it again (especially on Android before
-      // "Don't ask again" is ticked). If it doesn't appear nothing bad happens.
-      await requestCamPerm();
-      await requestDashcamPermissions();
+      if (camPermission?.canAskAgain === false) {
+        // Permanently denied — the OS will not show a dialog again.
+        // Send the user to the device Settings screen to unblock manually.
+        Linking.openSettings();
+      } else {
+        await requestCamPerm();
+        await requestDashcamPermissions();
+      }
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestDashcamPermissions, requestCamPerm]);
+  }, [requestDashcamPermissions, requestCamPerm, camPermission]);
 
   const requestMic = useCallback(async () => {
     setLoadingPerm("mic");
-    try { await requestMicPerm(); } catch { /* ignore */ }
+    try {
+      if (micPermission?.canAskAgain === false) {
+        Linking.openSettings();
+      } else {
+        await requestMicPerm();
+      }
+    } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestMicPerm]);
+  }, [requestMicPerm, micPermission]);
 
   const openSettings = useCallback(() => {
     Linking.openSettings();
@@ -494,7 +503,7 @@ export default function PretripCheckScreen() {
             icon="videocam"
             label="Camera"
             status={cameraStatus}
-            canAskAgain={true}
+            canAskAgain={camPermission?.canAskAgain !== false}
             loading={loadingPerm === "camera"}
             onEnable={requestCamera}
             colors={c}
@@ -503,7 +512,7 @@ export default function PretripCheckScreen() {
             icon="mic"
             label="Microphone"
             status={micStatus}
-            canAskAgain={true}
+            canAskAgain={micPermission?.canAskAgain !== false}
             loading={loadingPerm === "mic"}
             onEnable={requestMic}
             colors={c}

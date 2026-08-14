@@ -41,8 +41,14 @@ export interface KeyboardInputModalProps {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
-  /** Called when user taps Done OR the backdrop — commit draft before calling */
+  /** Called when user taps the Done button or submits via keyboard — commit the draft */
   onDone: () => void;
+  /**
+   * Called when the user dismisses without confirming (backdrop tap or Android
+   * back button). Falls back to `onDone` when not provided so existing callers
+   * that treat dismiss and done identically are unaffected.
+   */
+  onCancel?: () => void;
   placeholder?: string;
   multiline?: boolean;
   /** Override default input height (default 52, multiline 120) */
@@ -57,12 +63,14 @@ export function KeyboardInputModal({
   value,
   onChangeText,
   onDone,
+  onCancel,
   placeholder,
   multiline,
   inputHeight,
   keyboardType,
   autoCapitalize,
 }: KeyboardInputModalProps) {
+  const handleDismiss = onCancel ?? onDone;
   const c = useColors();
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput>(null);
@@ -82,15 +90,15 @@ export function KeyboardInputModal({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onDone}
+      onRequestClose={handleDismiss}
       statusBarTranslucent
     >
       <KeyboardAvoidingView
         style={styles.kavContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Semi-transparent backdrop — tap = Done */}
-        <TouchableWithoutFeedback onPress={onDone}>
+        {/* Semi-transparent backdrop — tap = dismiss (cancel if onCancel provided) */}
+        <TouchableWithoutFeedback onPress={handleDismiss}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
 

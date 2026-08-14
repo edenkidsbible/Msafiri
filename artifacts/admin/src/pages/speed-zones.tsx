@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import {
   useAdminListSpeedZones,
   useAdminDeleteSpeedZone,
@@ -524,6 +525,16 @@ export default function SpeedZones() {
             </Dialog>
           </div>
         </div>
+
+        <PageGuide
+          title="Managing speed zones"
+          steps={[
+            { label: "Zone rows", detail: "each row is a stretch of road with a posted speed limit." },
+            { label: "Map picker", detail: "use the map picker to draw the zone; set the limit and road name before saving." },
+            { label: "Stretch zones", detail: "zones spanning a road (e.g. Nairobi–Mombasa) need two entries — one for each direction of travel." },
+            { label: "Deletion is immediate", detail: "deleted zones vanish from the app straight away; there is no undo." },
+          ]}
+        />
 
         <div className="flex flex-col sm:flex-row gap-3 bg-muted/20 p-3 rounded-lg border">
           <div className="relative flex-1">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,15 @@ export default function AppSettings() {
             picks up the new settings on its next foreground refresh.
           </p>
         </div>
+
+        <PageGuide
+          title="Configuring app settings"
+          steps={[
+            { label: "Changes are immediate", detail: "changes here take effect for all users immediately — test on a staging device first when possible." },
+            { label: "Feature flags", detail: "feature flags let you enable or disable sections of the app without a release." },
+            { label: "Quick revert", detail: "revert a bad setting quickly; the app polls settings on each launch." },
+          ]}
+        />
 
         {/* Navigation Feature */}
         <Card>

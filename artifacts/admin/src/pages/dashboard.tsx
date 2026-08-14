@@ -1,4 +1,5 @@
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, AlertTriangle, CheckCircle2, AlertCircle, Timer, BarChart3, PieChart, TrendingUp, Download, Cpu, Zap, MapPin } from "lucide-react";
 import { useAdminGetStats } from "@workspace/api-client-react";
@@ -122,6 +123,15 @@ export default function Dashboard() {
             Export Reports CSV
           </Button>
         </div>
+
+        <PageGuide
+          title="Reading the dashboard"
+          steps={[
+            { label: "Live metrics", detail: "all numbers refresh automatically every 30 s — no manual refresh needed." },
+            { label: "Stat cards are read-only", detail: "the four count tiles (Active, Today, Resolved, All Time) display numbers only — they are not clickable links." },
+            { label: "Hotspot map links", detail: "the Auto Hazard Detection section lists top hotspots; tap the pin icon next to a hotspot to open that location in Google Maps." },
+          ]}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <Card className="shadow-sm">

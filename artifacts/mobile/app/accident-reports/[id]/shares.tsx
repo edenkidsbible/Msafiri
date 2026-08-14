@@ -150,6 +150,7 @@ export default function AccidentSharesScreen() {
           setShowLabelModal(false);
           createShare(newLabel);
         }}
+        onCancel={() => setShowLabelModal(false)}
         placeholder="e.g. For insurer, For police"
         autoCapitalize="sentences"
       />

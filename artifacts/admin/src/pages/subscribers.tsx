@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { useAdminListSubscribers } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,15 @@ export default function Subscribers() {
             {data?.projectName ? <span className="ml-1.5 text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-md">{data.projectName}</span> : null}
           </p>
         </div>
+
+        <PageGuide
+          title="Managing subscribers"
+          steps={[
+            { label: "Who appears here", detail: "subscribers are users with an active Msafiri Pro or Creator plan." },
+            { label: "Lookup", detail: <>use <em>Lookup</em> to search by RevenueCat user ID (phone UID).</> },
+            { label: "Billing disputes", detail: "contact RevenueCat directly for billing disputes or refunds — this panel is read-only." },
+          ]}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="shadow-sm">

@@ -4,6 +4,16 @@ import { db, adminUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getEffectivePermissions, parseStoredPermissions, type FeatureKey } from "@workspace/permissions";
 
+// Augment Express's Request so middlewares can attach the resolved admin user
+// without requiring `(req as any)` casts at every call site.
+declare global {
+  namespace Express {
+    interface Request {
+      adminUser?: AdminJwtPayload;
+    }
+  }
+}
+
 function requireJwtSecret(): string {
   const secret = process.env.ADMIN_JWT_SECRET;
   if (!secret) {

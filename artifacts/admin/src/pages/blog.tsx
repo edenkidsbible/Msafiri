@@ -52,6 +52,7 @@ import {
   FileText, Plus, MoreVertical, Eye, BookOpen,
   Edit2, Trash2, TrendingUp, Globe, FileEdit, Download, Upload, Loader2,
 } from "lucide-react";
+import { PageGuide } from "@/components/page-guide";
 
 const API_BASE = "/api";
 
@@ -284,6 +285,16 @@ export default function Blog() {
           </Button>
         </div>
       </div>
+
+      <PageGuide
+        title="Writing blog posts"
+        steps={[
+          { label: "Where posts appear", detail: "published posts appear in the app's News section and on the marketing site." },
+          { label: "Draft first", detail: "save as Draft while writing; publish only when the post is final." },
+          { label: "Cover image", detail: "the cover image is shown in the post list — use a wide (16:9) image for best display." },
+          { label: "Deleting is immediate", detail: "deleting a published post removes it from the app immediately." },
+        ]}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
