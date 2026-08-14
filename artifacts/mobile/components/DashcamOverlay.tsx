@@ -424,7 +424,16 @@ export default function DashcamOverlay() {
   // rendering the full dashcam UI is misleading. Show a dedicated
   // permission-request state instead — controls and preview only mount once
   // the permission is actually granted.
-  if (!permission?.granted) {
+  //
+  // IMPORTANT: skip this gate when backgroundRecordPending is true.
+  // DashcamContext.startBackgroundRecording() already called requestCameraPermission()
+  // and verified the grant before setting backgroundRecordPending. The Overlay's own
+  // useCameraPermissions() hook instance may not have re-synced with the OS yet on
+  // first mount (separate hook state), so permission?.granted can transiently read
+  // false even though permission was just granted. Blocking here returns null,
+  // prevents the CameraView from mounting, and leaves the dashcam stuck in
+  // "Starting…" indefinitely because onCameraReady never fires.
+  if (!permission?.granted && !backgroundRecordPending) {
     if (!isDashcamOpen) return null; // background start already handles denial
     return (
       <View style={[StyleSheet.absoluteFill, styles.permScreen]}>
