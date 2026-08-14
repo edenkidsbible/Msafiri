@@ -28,6 +28,7 @@ import { sendOtp, restoreViaPhone } from "@/utils/backupSync";
 import { saveVehicles, setPrimaryVehicleIdIfUnset } from "@/utils/savedVehicles";
 import { normalizeKenyaPhone, displayKenyaPhone } from "@/utils/phoneUtils";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 
 export default function RestoreDataScreen() {
   const c = useColors();
@@ -40,6 +41,8 @@ export default function RestoreDataScreen() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState("");
 
   const bg      = c.isDark ? "#0D1611" : "#F6FAF7";
   const cardBg  = c.isDark ? "#131F17" : "#fff";
@@ -188,15 +191,25 @@ export default function RestoreDataScreen() {
             <>
               <View style={[s.card, { backgroundColor: cardBg, borderColor: border }]}>
                 <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>RECOVERY PHONE NUMBER</Text>
-                <TextInput
-                  value={rawPhone}
-                  onChangeText={setRawPhone}
+                <KeyboardInputModal
+                  visible={phoneModalVisible}
+                  label="Recovery Phone Number"
+                  value={phoneDraft}
+                  onChangeText={setPhoneDraft}
+                  onDone={() => { setRawPhone(phoneDraft); setPhoneModalVisible(false); }}
                   placeholder="+254 7XX XXX XXX"
-                  placeholderTextColor={c.mutedForeground + "88"}
                   keyboardType="phone-pad"
-                  style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
-                  autoFocus
+                  autoCapitalize="none"
                 />
+                <TouchableOpacity
+                  style={[s.input, { backgroundColor: inputBg, borderColor: border, justifyContent: "center" }]}
+                  onPress={() => { setPhoneDraft(rawPhone); setPhoneModalVisible(true); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: rawPhone ? c.foreground : c.mutedForeground + "88", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                    {rawPhone || "+254 7XX XXX XXX"}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={[s.hint, { color: c.mutedForeground }]}>
                   Enter the phone number you linked to your Msafiri account on your previous device.
                 </Text>

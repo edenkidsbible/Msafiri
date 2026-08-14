@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import {
   ActivityIndicator,
   Linking,
@@ -6,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -68,6 +68,8 @@ export default function CreatorProgramScreen() {
   );
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [error, setError]             = useState<string | null>(null);
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [draft, setDraft]             = useState("");
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((val) => {
@@ -181,28 +183,43 @@ export default function CreatorProgramScreen() {
           <View style={[styles.section, { backgroundColor: c.card, borderColor: c.border }]}>
             <Text style={[styles.sectionTitle, { color: c.foreground }]}>Apply to join</Text>
 
-            <Text style={[styles.label, { color: c.mutedForeground }]}>Name (optional)</Text>
-            <TextInput
-              style={[styles.input, { borderColor: c.border, color: c.foreground, backgroundColor: c.background }]}
-              placeholder="Your name"
-              placeholderTextColor={c.mutedForeground}
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
-              returnKeyType="next"
+            <KeyboardInputModal
+              visible={activeField !== null}
+              label={activeField === "name" ? "Name (optional)" : activeField === "email" ? "Email" : "Why do you want to be a creator?"}
+              value={draft}
+              onChangeText={setDraft}
+              onDone={() => {
+                if (activeField === "name") setName(draft);
+                else if (activeField === "email") setEmail(draft);
+                else if (activeField === "reason") setReason(draft);
+                setActiveField(null);
+              }}
+              placeholder={activeField === "name" ? "Your name" : activeField === "email" ? "you@example.com" : "Tell us a bit about yourself and where you drive..."}
+              keyboardType={activeField === "email" ? "email-address" : "default"}
+              autoCapitalize={activeField === "email" ? "none" : activeField === "name" ? "words" : "sentences"}
+              multiline={activeField === "reason"}
             />
+            <Text style={[styles.label, { color: c.mutedForeground }]}>Name (optional)</Text>
+            <TouchableOpacity
+              style={[styles.input, { borderColor: c.border, backgroundColor: c.background, justifyContent: "center" }]}
+              onPress={() => { setDraft(name); setActiveField("name"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: name ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                {name || "Your name"}
+              </Text>
+            </TouchableOpacity>
 
             <Text style={[styles.label, { color: c.mutedForeground }]}>Email *</Text>
-            <TextInput
-              style={[styles.input, { borderColor: c.border, color: c.foreground, backgroundColor: c.background }]}
-              placeholder="you@example.com"
-              placeholderTextColor={c.mutedForeground}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              returnKeyType="next"
-            />
+            <TouchableOpacity
+              style={[styles.input, { borderColor: c.border, backgroundColor: c.background, justifyContent: "center" }]}
+              onPress={() => { setDraft(email); setActiveField("email"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: email ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                {email || "you@example.com"}
+              </Text>
+            </TouchableOpacity>
             <Text style={[styles.inputHint, { color: c.mutedForeground }]}>
               We'll send your promo code here if approved.
             </Text>
@@ -246,16 +263,15 @@ export default function CreatorProgramScreen() {
             </View>
 
             <Text style={[styles.label, { color: c.mutedForeground }]}>Why do you want to be a creator? (optional)</Text>
-            <TextInput
-              style={[styles.input, styles.textarea, { borderColor: c.border, color: c.foreground, backgroundColor: c.background }]}
-              placeholder="Tell us a bit about yourself and where you drive..."
-              placeholderTextColor={c.mutedForeground}
-              value={reason}
-              onChangeText={setReason}
-              multiline
-              numberOfLines={3}
-              returnKeyType="done"
-            />
+            <TouchableOpacity
+              style={[styles.input, styles.textarea, { borderColor: c.border, backgroundColor: c.background, justifyContent: "flex-start", paddingTop: 12 }]}
+              onPress={() => { setDraft(reason); setActiveField("reason"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: reason ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20 }}>
+                {reason || "Tell us a bit about yourself and where you drive..."}
+              </Text>
+            </TouchableOpacity>
 
             {error && <Text style={styles.errorText}>{error}</Text>}
 

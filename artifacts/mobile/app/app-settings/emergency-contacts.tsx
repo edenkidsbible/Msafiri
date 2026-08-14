@@ -7,10 +7,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,6 +35,8 @@ export default function EmergencyContactsScreen() {
   const [ecSaving, setEcSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [pickingContact, setPickingContact] = useState(false);
+  const [activeField, setActiveField] = useState<"name" | "phone" | null>(null);
+  const [ecDraft, setEcDraft] = useState("");
 
   // Derived: preview of the normalised E.164 number as the user types
   const normalised = normalizeKenyaPhone(ecPhone);
@@ -295,31 +297,46 @@ export default function EmergencyContactsScreen() {
               </View>
             )}
 
-            {/* Name */}
-            <TextInput
-              style={[styles.input, { backgroundColor: c.muted, color: c.foreground }]}
-              placeholder="Contact name"
-              placeholderTextColor={c.mutedForeground}
-              value={ecName}
-              onChangeText={setEcName}
-              returnKeyType="next"
+            <KeyboardInputModal
+              visible={activeField !== null}
+              label={activeField === "name" ? "Contact Name" : "Phone Number"}
+              value={ecDraft}
+              onChangeText={setEcDraft}
+              onDone={() => {
+                if (activeField === "name") setEcName(ecDraft);
+                else if (activeField === "phone") setEcPhone(ecDraft);
+                setActiveField(null);
+              }}
+              placeholder={activeField === "name" ? "Contact name" : "07XX XXX XXX  or  +254 7XX XXX XXX"}
+              keyboardType={activeField === "phone" ? "phone-pad" : "default"}
+              autoCapitalize={activeField === "phone" ? "none" : "words"}
             />
+            {/* Name */}
+            <TouchableOpacity
+              style={[styles.input, { backgroundColor: c.muted, justifyContent: "center" }]}
+              onPress={() => { setEcDraft(ecName); setActiveField("name"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: ecName ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                {ecName || "Contact name"}
+              </Text>
+            </TouchableOpacity>
 
             {/* Phone with live E.164 preview */}
             <View>
-              <TextInput
+              <TouchableOpacity
                 style={[
                   styles.input,
-                  { backgroundColor: c.muted, color: c.foreground },
+                  { backgroundColor: c.muted, justifyContent: "center" },
                   ecPhone.length > 0 && !phoneValid && { borderWidth: 1, borderColor: "#EF4444" },
                 ]}
-                placeholder="07XX XXX XXX  or  +254 7XX XXX XXX"
-                placeholderTextColor={c.mutedForeground}
-                value={ecPhone}
-                onChangeText={setEcPhone}
-                keyboardType="phone-pad"
-                returnKeyType="done"
-              />
+                onPress={() => { setEcDraft(ecPhone); setActiveField("phone"); }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: ecPhone ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                  {ecPhone || "07XX XXX XXX  or  +254 7XX XXX XXX"}
+                </Text>
+              </TouchableOpacity>
               {ecPhone.length > 0 && (
                 <Text style={[
                   styles.phoneHint,

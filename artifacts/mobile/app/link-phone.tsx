@@ -1,5 +1,6 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useState } from "react";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import {
   ActivityIndicator,
   Alert,
@@ -32,6 +33,8 @@ export default function LinkPhoneScreen() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState("");
 
   const bg      = c.isDark ? "#0D1611" : "#F6FAF7";
   const cardBg  = c.isDark ? "#131F17" : "#fff";
@@ -183,16 +186,25 @@ export default function LinkPhoneScreen() {
             <>
               <View style={[s.card, { backgroundColor: cardBg, borderColor: border }]}>
                 <Text style={[s.fieldLabel, { color: c.mutedForeground }]}>PHONE NUMBER</Text>
-                <TextInput
-                  value={rawPhone}
-                  onChangeText={setRawPhone}
+                <KeyboardInputModal
+                  visible={phoneModalVisible}
+                  label="Phone Number"
+                  value={phoneDraft}
+                  onChangeText={setPhoneDraft}
+                  onDone={() => { setRawPhone(phoneDraft); setPhoneModalVisible(false); }}
                   placeholder="+254 7XX XXX XXX"
-                  placeholderTextColor={c.mutedForeground + "88"}
                   keyboardType="phone-pad"
-                  returnKeyType="done"
-                  style={[s.input, { backgroundColor: inputBg, borderColor: border, color: c.foreground }]}
-                  autoFocus
+                  autoCapitalize="none"
                 />
+                <TouchableOpacity
+                  style={[s.input, { backgroundColor: inputBg, borderColor: border, justifyContent: "center" }]}
+                  onPress={() => { setPhoneDraft(rawPhone); setPhoneModalVisible(true); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: rawPhone ? c.foreground : c.mutedForeground + "88", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                    {rawPhone || "+254 7XX XXX XXX"}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={[s.hint, { color: c.mutedForeground }]}>
                   Safaricom, Airtel, and Telkom numbers supported.
                 </Text>

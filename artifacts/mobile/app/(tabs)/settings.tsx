@@ -3,6 +3,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
@@ -13,7 +14,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -83,6 +83,12 @@ export default function SettingsScreen() {
   const [ecPhone, setEcPhone] = useState("");
   const [ecSaving, setEcSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [driverNameModal, setDriverNameModal]   = useState(false);
+  const [driverNameDraft, setDriverNameDraft]   = useState("");
+  const [ecModalField, setEcModalField]         = useState<"name" | "phone" | null>(null);
+  const [ecDraft, setEcDraft]                   = useState("");
+  const [speedModal, setSpeedModal]             = useState(false);
+  const [speedDraft, setSpeedDraft]             = useState("");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -102,6 +108,11 @@ export default function SettingsScreen() {
   }, [deviceId]);
 
   useEffect(() => { loadEmergencyContacts(); }, [loadEmergencyContacts]);
+
+  // Auto-open speed modal when user taps Edit on a camera report (replaces autoFocus on TextInput)
+  useEffect(() => {
+    if (editingId !== null) { setSpeedDraft(""); setSpeedModal(true); }
+  }, [editingId]);
 
   const addEmergencyContact = async () => {
     if (!ecName.trim() || !ecPhone.trim()) {
@@ -281,6 +292,52 @@ export default function SettingsScreen() {
 
   return (
     <>
+    {/* ── Keyboard input modals ────────────────────────────────────────────── */}
+    <KeyboardInputModal
+      visible={driverNameModal}
+      label="Display Name"
+      value={driverNameDraft}
+      onChangeText={setDriverNameDraft}
+      onDone={() => { setDriverNameInput(driverNameDraft); setDriverNameModal(false); }}
+      placeholder="Your first name (optional)"
+      autoCapitalize="words"
+    />
+    <KeyboardInputModal
+      visible={ecModalField !== null}
+      label={ecModalField === "name" ? "Contact Name" : "Phone Number"}
+      value={ecDraft}
+      onChangeText={setEcDraft}
+      onDone={() => {
+        if (ecModalField === "name") setEcName(ecDraft);
+        else if (ecModalField === "phone") setEcPhone(ecDraft);
+        setEcModalField(null);
+      }}
+      placeholder={ecModalField === "name" ? "Contact name" : "+254 7XX XXX XXX"}
+      keyboardType={ecModalField === "phone" ? "phone-pad" : "default"}
+      autoCapitalize={ecModalField === "phone" ? "none" : "words"}
+    />
+    <KeyboardInputModal
+      visible={speedModal}
+      label="Correct Speed Limit (km/h)"
+      value={speedDraft}
+      onChangeText={setSpeedDraft}
+      onDone={() => {
+        const val = speedDraft.trim();
+        setEditSpeed(val);
+        setSpeedModal(false);
+        if (val) {
+          const n = parseInt(val, 10);
+          if (!isNaN(n) && n >= 10 && n <= 200) {
+            const target = communityReports.find(r => r.id === editingId);
+            if (target) { updateReport(target.id, n); setEditingId(null); setEditSpeed(""); }
+          } else {
+            Alert.alert("Invalid", "Enter a speed limit between 10 and 200 km/h.");
+          }
+        }
+      }}
+      placeholder="e.g. 60"
+      keyboardType="number-pad"
+    />
     <KeyboardAwareScrollViewCompat
       {...SCROLL_PROPS}
       style={[styles.screen, { backgroundColor: c.background }]}
@@ -485,18 +542,16 @@ export default function SettingsScreen() {
           <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
             Your name shown to people you share your live location with — e.g. "John is sharing their location".
           </Text>
-          <View style={[styles.inputRow, { borderColor: c.border }]}>
+          <TouchableOpacity
+            style={[styles.inputRow, { borderColor: c.border }]}
+            onPress={() => { setDriverNameDraft(driverNameInput); setDriverNameModal(true); }}
+            activeOpacity={0.7}
+          >
             <Ionicons name="person-circle-outline" size={18} color={c.mutedForeground} />
-            <TextInput
-              style={[styles.input, { color: c.foreground }]}
-              placeholder="Your first name (optional)"
-              placeholderTextColor={c.mutedForeground}
-              value={driverNameInput}
-              onChangeText={setDriverNameInput}
-              returnKeyType="done"
-              maxLength={40}
-            />
-          </View>
+            <Text style={[styles.input, { color: driverNameInput ? c.foreground : c.mutedForeground, lineHeight: 20 }]}>
+              {driverNameInput || "Your first name (optional)"}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: driverNameSaved ? c.speedSafe : c.primary }]}
             onPress={() => {
@@ -552,29 +607,26 @@ export default function SettingsScreen() {
           {/* Add contact form (shown only if fewer than 5) */}
           {ecContacts.length < 5 && (
             <>
-              <View style={[styles.inputRow, { borderColor: c.border, marginTop: ecContacts.length > 0 ? 0 : 4 }]}>
+              <TouchableOpacity
+                style={[styles.inputRow, { borderColor: c.border, marginTop: ecContacts.length > 0 ? 0 : 4 }]}
+                onPress={() => { setEcDraft(ecName); setEcModalField("name"); }}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="person-outline" size={18} color={c.mutedForeground} />
-                <TextInput
-                  style={[styles.input, { color: c.foreground }]}
-                  placeholder="Contact name"
-                  placeholderTextColor={c.mutedForeground}
-                  value={ecName}
-                  onChangeText={setEcName}
-                  returnKeyType="next"
-                />
-              </View>
-              <View style={[styles.inputRow, { borderColor: c.border }]}>
+                <Text style={[styles.input, { color: ecName ? c.foreground : c.mutedForeground, lineHeight: 20 }]}>
+                  {ecName || "Contact name"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.inputRow, { borderColor: c.border }]}
+                onPress={() => { setEcDraft(ecPhone); setEcModalField("phone"); }}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="call-outline" size={18} color={c.mutedForeground} />
-                <TextInput
-                  style={[styles.input, { color: c.foreground }]}
-                  placeholder="+254 7XX XXX XXX"
-                  placeholderTextColor={c.mutedForeground}
-                  value={ecPhone}
-                  onChangeText={setEcPhone}
-                  keyboardType="phone-pad"
-                  returnKeyType="done"
-                />
-              </View>
+                <Text style={[styles.input, { color: ecPhone ? c.foreground : c.mutedForeground, lineHeight: 20 }]}>
+                  {ecPhone || "+254 7XX XXX XXX"}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveBtn, { backgroundColor: c.primary, opacity: ecSaving ? 0.6 : 1 }]}
                 onPress={addEmergencyContact}
@@ -755,17 +807,15 @@ export default function SettingsScreen() {
                         Correct speed limit (km/h):
                       </Text>
                       <View style={styles.speedEditorRow}>
-                        <TextInput
-                          style={[styles.speedEditorInput, { borderColor: c.border, color: c.foreground, backgroundColor: c.card }]}
-                          value={editSpeed}
-                          onChangeText={setEditSpeed}
-                          keyboardType="number-pad"
-                          placeholder="e.g. 60"
-                          placeholderTextColor={c.mutedForeground}
-                          autoFocus
-                          returnKeyType="done"
-                          onSubmitEditing={() => saveSpeedEdit(report)}
-                        />
+                        <TouchableOpacity
+                          style={[styles.speedEditorInput, { borderColor: c.border, backgroundColor: c.card, justifyContent: "center" }]}
+                          onPress={() => { setSpeedDraft(editSpeed); setSpeedModal(true); }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ color: editSpeed ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                            {editSpeed || "e.g. 60"}
+                          </Text>
+                        </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.speedSaveBtn, { backgroundColor: c.primary }]}
                           onPress={() => saveSpeedEdit(report)}
