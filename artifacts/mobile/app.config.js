@@ -3,7 +3,7 @@ module.exports = {
     name: "Msafiri",
     slug: "msafiri-kenya",
     owner: "alfrex-labs",
-    version: "2.0.0",
+    version: "2.0.1",
     // "default" allows all orientations at the native level.
     // expo-screen-orientation locks to portrait at startup (via _layout.tsx)
     // and temporarily unlocks to LANDSCAPE_LEFT during the drive screen when
@@ -22,7 +22,7 @@ module.exports = {
       bundleIdentifier: "com.msafirikenya.app",
       // 92 is the seed value. EAS autoIncrement (production profile) bumps
       // this to 93 before the next build artifact is produced.
-      buildNumber: "93",
+      buildNumber: "94",
       supportsTablet: false,
       config: {
         googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
@@ -69,7 +69,7 @@ module.exports = {
     android: {
       package: "com.msafirikenya.app",
       // 92 is the seed value. EAS autoIncrement bumps this to 93 on next build.
-      versionCode: 33,
+      versionCode: 34,
       // Written at EAS build time by eas-hooks/eas-build-pre-install.sh from
       // the GOOGLE_SERVICES_JSON_BASE64 EAS secret. For local builds, place
       // the file at artifacts/mobile/google-services.json (gitignored).
