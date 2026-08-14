@@ -48,7 +48,6 @@ import {
 } from "@/utils/driveSessionApi";
 import { useVehicle } from "@/context/VehicleContext";
 import { QUICK_START_KEY } from "@/app/pretrip-check";
-import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -458,6 +457,36 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* ── Offline banner — inline, sits between greeting and hero card ── */}
+        {isOffline && Platform.OS !== "web" && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => {/* OfflineAlertBanner handles its own modal on map/drive screens;
+                              here we just show a quick inline strip — no modal needed */}}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 7,
+              backgroundColor: "#F59E0B18",
+              borderWidth: 1,
+              borderColor: "#F59E0B50",
+              borderRadius: 12,
+              paddingVertical: 9,
+              paddingHorizontal: 14,
+              marginBottom: 14,
+            }}
+          >
+            <Ionicons name="cloud-offline-outline" size={15} color="#D97706" />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#D97706" }}>
+              You're offline
+              {lastAlertDataSyncedAt
+                ? ` · alert data from ${Math.floor((Date.now() - lastAlertDataSyncedAt.getTime()) / 60000)}m ago`
+                : " · no alert data synced yet"}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color="#D97706" />
+          </TouchableOpacity>
+        )}
 
         {/* ── Start / Resume / View Driving hero card (state-aware) ──────── */}
         <Pressable
@@ -927,15 +956,6 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* ── Offline pill — shown near the top of the home tab so drivers know
-          before they open the map that nearby alert data may be stale. */}
-      {isOffline && Platform.OS !== "web" && (
-        <OfflineAlertBanner
-          lastSyncedAt={lastAlertDataSyncedAt}
-          compact
-          topOffset={insets.top + 68}
-        />
-      )}
     </View>
   );
 }
