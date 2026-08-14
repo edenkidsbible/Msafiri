@@ -20,11 +20,11 @@ import {
   Share,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -1267,23 +1267,39 @@ function StatementStep({
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  const handleOpen = () => { setDraft(value); setModalVisible(true); };
+  const handleDone = () => { onChange(draft); setModalVisible(false); };
+
   return (
     <View>
+      <KeyboardInputModal
+        visible={modalVisible}
+        label="Your Statement"
+        value={draft}
+        onChangeText={setDraft}
+        onDone={handleDone}
+        placeholder="Describe the sequence of events, road conditions, visibility, speed, what you saw…"
+        multiline
+        inputHeight={200}
+      />
       <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>
         Describe what happened in your own words. You can also use your keyboard's built-in dictation button to speak your statement.
       </Text>
-      <View style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <TextInput
-          style={[styles.statementInput, { color: colors.text }]}
-          value={value}
-          onChangeText={onChange}
-          placeholder="Describe the sequence of events, road conditions, visibility, speed, what you saw, and anything else relevant to the incident…"
-          placeholderTextColor={colors.mutedForeground}
-          multiline
-          textAlignVertical="top"
-          returnKeyType="default"
-        />
-      </View>
+      <TouchableOpacity
+        style={[styles.statementBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={handleOpen}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[styles.statementInput, { color: value ? colors.text : colors.mutedForeground }]}
+          numberOfLines={12}
+        >
+          {value || "Tap to write your statement…"}
+        </Text>
+      </TouchableOpacity>
       <Text style={[styles.charCount, { color: colors.mutedForeground }]}>{value.length} characters</Text>
     </View>
   );
@@ -1561,21 +1577,47 @@ function FormInput({ label, value, onChangeText, placeholder, keyboardType, mult
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  const handleOpen = () => { setDraft(value); setModalVisible(true); };
+  const handleDone = () => { onChangeText(draft); setModalVisible(false); };
+
   return (
-    <View style={styles.formField}>
-      <Text style={[styles.formLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <TextInput
-        style={[styles.formInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, ...(multiline ? { height: 80, textAlignVertical: "top" } : {}) }]}
-        value={value}
-        onChangeText={onChangeText}
+    <>
+      <KeyboardInputModal
+        visible={modalVisible}
+        label={label}
+        value={draft}
+        onChangeText={setDraft}
+        onDone={handleDone}
         placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground}
-        keyboardType={keyboardType ?? "default"}
         multiline={multiline}
+        inputHeight={multiline ? 130 : 52}
+        keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
-        returnKeyType={multiline ? "default" : "next"}
       />
-    </View>
+      <View style={styles.formField}>
+        <Text style={[styles.formLabel, { color: colors.mutedForeground }]}>{label}</Text>
+        <TouchableOpacity
+          style={[styles.formInput, {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            justifyContent: "center",
+            ...(multiline ? { height: 80 } : { height: 48 }),
+          }]}
+          onPress={handleOpen}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: value ? colors.text : colors.mutedForeground }}
+            numberOfLines={multiline ? 3 : 1}
+          >
+            {value || placeholder || ""}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </>
   );
 }
 
@@ -1699,14 +1741,14 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     photoCatLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
     photoCatCount: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
     addPhotoBtn: {
-      flexDirection: "row", alignItems: "center", gap: 4,
-      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
+      flexDirection: "row", alignItems: "center", gap: 6,
+      paddingHorizontal: 16, paddingVertical: 11, borderRadius: 12, borderWidth: 1,
     },
-    addPhotoBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-    photoList: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+    addPhotoBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    photoList: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
     photoChip: {
-      flexDirection: "row", alignItems: "center", gap: 4,
-      paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1,
+      flexDirection: "row", alignItems: "center", gap: 6,
+      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
     },
     photoChipText: { fontSize: 12, fontFamily: "Inter_400Regular" },
 

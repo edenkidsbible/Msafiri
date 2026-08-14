@@ -7,19 +7,19 @@
  *
  * Route: /accident-reports/:id/shares
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Share,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   FlatList,
   Clipboard,
 } from "react-native";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -47,9 +47,8 @@ export default function AccidentSharesScreen() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newLabel, setNewLabel] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
-  const labelRef = useRef<TextInput>(null);
 
   const load = useCallback(async () => {
     if (!deviceId || !id) return;
@@ -65,23 +64,22 @@ export default function AccidentSharesScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const createShare = useCallback(async () => {
+  const createShare = useCallback(async (label: string) => {
     if (!deviceId || !id) return;
     setCreating(true);
     try {
       await apiPost(`/accidents/${id}/shares`, {
         deviceId,
-        label: newLabel.trim() || undefined,
+        label: label.trim() || undefined,
       });
       setNewLabel("");
-      setShowForm(false);
       await load();
     } catch {
       Alert.alert("Error", "Could not create share link.");
     } finally {
       setCreating(false);
     }
-  }, [deviceId, id, newLabel, load]);
+  }, [deviceId, id, load]);
 
   const copyLink = useCallback((token: string) => {
     const url = `${SHARE_BASE}/${token}`;
@@ -142,53 +140,37 @@ export default function AccidentSharesScreen() {
         </View>
       </View>
 
+      {/* Label input modal — slides up above the keyboard */}
+      <KeyboardInputModal
+        visible={showLabelModal}
+        label="Link label (optional)"
+        value={newLabel}
+        onChangeText={setNewLabel}
+        onDone={() => {
+          setShowLabelModal(false);
+          createShare(newLabel);
+        }}
+        placeholder="e.g. For insurer, For police"
+        autoCapitalize="sentences"
+      />
+
       <FlatList
         data={[]}
         ListHeaderComponent={
           <View style={styles.inner}>
             {/* Create new link */}
-            {!showForm ? (
-              <TouchableOpacity
-                style={[styles.createBtn, { backgroundColor: colors.primary }]}
-                onPress={() => { setShowForm(true); setTimeout(() => labelRef.current?.focus(), 100); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                <Text style={styles.createBtnText}>Create New Share Link</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.formLabel, { color: colors.text }]}>Link label (optional)</Text>
-                <TextInput
-                  ref={labelRef}
-                  style={[styles.formInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                  value={newLabel}
-                  onChangeText={setNewLabel}
-                  placeholder="e.g. For insurer, For police"
-                  placeholderTextColor={colors.mutedForeground}
-                  returnKeyType="done"
-                  onSubmitEditing={createShare}
-                />
-                <View style={styles.formBtns}>
-                  <TouchableOpacity
-                    style={[styles.cancelBtn, { borderColor: colors.border }]}
-                    onPress={() => { setShowForm(false); setNewLabel(""); }}
-                  >
-                    <Text style={[styles.cancelBtnText, { color: colors.text }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-                    onPress={createShare}
-                    disabled={creating}
-                  >
-                    {creating
-                      ? <ActivityIndicator size="small" color="#fff" />
-                      : <Text style={styles.saveBtnText}>Create Link</Text>
-                    }
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+            <TouchableOpacity
+              style={[styles.createBtn, { backgroundColor: colors.primary, opacity: creating ? 0.7 : 1 }]}
+              onPress={() => { setNewLabel(""); setShowLabelModal(true); }}
+              activeOpacity={0.85}
+              disabled={creating}
+            >
+              {creating
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="add-circle-outline" size={20} color="#fff" />
+              }
+              <Text style={styles.createBtnText}>{creating ? "Creating…" : "Create New Share Link"}</Text>
+            </TouchableOpacity>
 
             {/* Loading */}
             {loading && (
@@ -359,8 +341,8 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     activeBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
     cardActions: { flexDirection: "row", gap: 8 },
-    actionBtn:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
-    actionBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+    actionBtn:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 13, borderRadius: 12, borderWidth: 1 },
+    actionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
     center:      { paddingVertical: 40, alignItems: "center" },
     empty:       { alignItems: "center", padding: 36, borderRadius: 16, borderWidth: 1, borderStyle: "dashed", gap: 12, marginTop: 8 },
