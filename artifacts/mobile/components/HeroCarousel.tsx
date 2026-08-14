@@ -80,8 +80,9 @@ interface Props {
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
   const slides: Slide[] = TIPS.map((tip, i) => ({
     image:  !!activeVehicle ? null : GENERIC_SLIDES[i].image,
-    // Generic images: mirror if facing left. User's own vehicle: assumed right-facing.
-    flipX: !!activeVehicle ? false : GENERIC_SLIDES[i].flipX,
+    // Generic images: mirror if facing left. User's own vehicle images are also
+    // conventionally left-facing (web/Wikipedia car photos), so mirror those too.
+    flipX: !!activeVehicle ? true : GENERIC_SLIDES[i].flipX,
     tip,
   }));
 
