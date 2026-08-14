@@ -225,7 +225,7 @@ router.post("/system/backup/restore", async (req: Request, res: Response) => {
   }
 
   logger.info({ counts, totalRows }, "[system/restore] Restore complete");
-  res.json({ ok: true, restoredRows: totalRows, counts });
+  return res.json({ ok: true, restoredRows: totalRows, counts });
 });
 
 export default router;

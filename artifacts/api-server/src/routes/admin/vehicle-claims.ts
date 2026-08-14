@@ -73,7 +73,7 @@ router.patch("/vehicle-claims/:id", requireFeature("reports"), async (req, res) 
 
   if (status) {
     await logAudit({
-      actor:      { id: req.adminUser?.id ?? "unknown", name: req.adminUser?.name ?? "Admin", role: req.adminUser?.role ?? "admin" },
+      actor:      { id: (req as any).adminUser?.id ?? "unknown", name: (req as any).adminUser?.name ?? "Admin", role: (req as any).adminUser?.role ?? "admin" },
       action:     `vehicle_claim.${status}`,
       targetType: "vehicle_claim",
       targetId:   id,
@@ -159,13 +159,13 @@ router.post("/vehicle-claims/:id/transfer-owner", requireFeature("reports"), asy
       .update(vehicleClaimsTable)
       .set({
         status:    "resolved",
-        adminNote: `Ownership transferred to claimant (${claimantDeviceId.slice(0, 12)}…) by ${req.adminUser?.name ?? "admin"} on ${new Date().toISOString().slice(0, 10)}.`,
+        adminNote: `Ownership transferred to claimant (${claimantDeviceId.slice(0, 12)}…) by ${(req as any).adminUser?.name ?? "admin"} on ${new Date().toISOString().slice(0, 10)}.`,
       })
       .where(eq(vehicleClaimsTable.id, id));
   });
 
   await logAudit({
-    actor:      { id: req.adminUser?.id ?? "unknown", name: req.adminUser?.name ?? "Admin", role: req.adminUser?.role ?? "admin" },
+    actor:      { id: (req as any).adminUser?.id ?? "unknown", name: (req as any).adminUser?.name ?? "Admin", role: (req as any).adminUser?.role ?? "admin" },
     action:     "vehicle.ownership_transferred",
     targetType: "shared_vehicle",
     targetId:   vehicleId,
@@ -206,7 +206,7 @@ router.delete("/vehicle-claims/:id/vehicle", requireFeature("reports"), async (r
     .where(eq(sharedVehiclesTable.id, claim.vehicleId));
 
   await logAudit({
-    actor:      { id: req.adminUser?.id ?? "unknown", name: req.adminUser?.name ?? "Admin", role: req.adminUser?.role ?? "admin" },
+    actor:      { id: (req as any).adminUser?.id ?? "unknown", name: (req as any).adminUser?.name ?? "Admin", role: (req as any).adminUser?.role ?? "admin" },
     action:     "vehicle.deleted_by_admin",
     targetType: "shared_vehicle",
     targetId:   claim.vehicleId,
