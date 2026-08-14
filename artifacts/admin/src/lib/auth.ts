@@ -31,3 +31,15 @@ export function setupApiClient() {
   setBaseUrl(null);
   setAuthTokenGetter(() => getToken());
 }
+
+export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  const token = getToken();
+  return fetch(path, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+  });
+}
