@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import {
   ActivityIndicator,
   Alert,
@@ -7,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -124,6 +124,7 @@ export default function JoinVehicleScreen() {
 
   // ── Code tab state ───────────────────────────────────────────────────────────
   const [codeInput,   setCodeInput]   = useState("");
+  const [codeModalVisible, setCodeModalVisible] = useState(false);
   const [codeVehicle, setCodeVehicle] = useState<FoundVehicle | null>(null);
   const [codeJoining, setCodeJoining] = useState(false);
 
@@ -136,6 +137,7 @@ export default function JoinVehicleScreen() {
 
   // ── Plate tab state ──────────────────────────────────────────────────────────
   const [plateInput,         setPlateInput]         = useState("");
+  const [plateModalVisible, setPlateModalVisible] = useState(false);
   const [plateSearching,     setPlateSearching]     = useState(false);
   const [plateFound,         setPlateFound]         = useState<FoundVehicle | null>(null);
   const [plateAlreadyMember, setPlateAlreadyMember] = useState(false);
@@ -358,21 +360,25 @@ export default function JoinVehicleScreen() {
               <Text style={[styles.hint, { color: c.mutedForeground }]}>
                 Ask the vehicle owner to open their Garage, tap Share on their vehicle, and send you the code.
               </Text>
-              <View style={[styles.inputRow, { backgroundColor: cardBg, borderColor: c.border }]}>
+              <KeyboardInputModal
+                visible={codeModalVisible}
+                label="Share Code"
+                value={codeInput}
+                onChangeText={t => setCodeInput(t.replace(/[^A-Z0-9a-z\-]/g, "").toUpperCase().slice(0, 9))}
+                onDone={() => setCodeModalVisible(false)}
+                placeholder="MSF-AB3C2"
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={[styles.inputRow, { backgroundColor: cardBg, borderColor: c.border }]}
+                onPress={() => setCodeModalVisible(true)}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="key-outline" size={18} color={c.mutedForeground} style={{ marginLeft: 14 }} />
-                <TextInput
-                  style={[styles.input, { color: c.foreground }]}
-                  value={codeInput}
-                  onChangeText={t => setCodeInput(t.replace(/[^A-Z0-9a-z\-]/g, "").toUpperCase().slice(0, 9))}
-                  placeholder="MSF-AB3C2"
-                  placeholderTextColor={c.mutedForeground}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  maxLength={9}
-                  returnKeyType="done"
-                  onSubmitEditing={handleShowCodeDisclosure}
-                />
-              </View>
+                <Text style={[styles.input, { color: codeInput ? c.foreground : c.mutedForeground, lineHeight: 20 }]}>
+                  {codeInput || "MSF-AB3C2"}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { backgroundColor: c.primary, opacity: extractCode(codeInput).length < 4 ? 0.5 : 1 }]}
                 onPress={handleShowCodeDisclosure}
@@ -402,21 +408,25 @@ export default function JoinVehicleScreen() {
               <Text style={[styles.hint, { color: c.mutedForeground }]}>
                 Enter the car's number plate. If the owner has registered it on Msafiri, you can request to join.
               </Text>
-              <View style={[styles.inputRow, { backgroundColor: cardBg, borderColor: c.border }]}>
+              <KeyboardInputModal
+                visible={plateModalVisible}
+                label="Number Plate"
+                value={plateInput}
+                onChangeText={t => setPlateInput(formatPlateInput(t))}
+                onDone={() => setPlateModalVisible(false)}
+                placeholder="KDA 123A"
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={[styles.inputRow, { backgroundColor: cardBg, borderColor: c.border }]}
+                onPress={() => setPlateModalVisible(true)}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="card-outline" size={18} color={c.mutedForeground} style={{ marginLeft: 14 }} />
-                <TextInput
-                  style={[styles.input, { color: c.foreground }]}
-                  value={plateInput}
-                  onChangeText={t => setPlateInput(formatPlateInput(t))}
-                  placeholder="KDA 123A"
-                  placeholderTextColor={c.mutedForeground}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  maxLength={8}
-                  returnKeyType="search"
-                  onSubmitEditing={handleSearchPlate}
-                />
-              </View>
+                <Text style={[styles.input, { color: plateInput ? c.foreground : c.mutedForeground, lineHeight: 20 }]}>
+                  {plateInput || "KDA 123A"}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { backgroundColor: c.primary, opacity: plateInput.length < 5 ? 0.5 : 1 }]}
                 onPress={handleSearchPlate}

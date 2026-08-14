@@ -1,6 +1,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
@@ -31,6 +32,8 @@ export default function PersonalInformationScreen() {
   const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [showVehiclePicker, setShowVehiclePicker] = useState(false);
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
@@ -139,6 +142,21 @@ export default function PersonalInformationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      <KeyboardInputModal
+        visible={activeField !== null}
+        label={activeField === "name" ? "First Name" : activeField === "email" ? "Email Address" : "Contact Phone"}
+        value={draft}
+        onChangeText={setDraft}
+        onDone={() => {
+          if (activeField === "name") setName(draft.replace(/[^a-zA-Z]/g, ""));
+          else if (activeField === "email") setEmail(draft);
+          else if (activeField === "phone") setPhone(draft);
+          setActiveField(null);
+        }}
+        placeholder={activeField === "name" ? "Your first name" : activeField === "email" ? "e.g. peter@email.com" : "+254 7XX XXX XXX"}
+        keyboardType={activeField === "phone" ? "phone-pad" : activeField === "email" ? "email-address" : "default"}
+        autoCapitalize={activeField === "name" ? "words" : "none"}
+      />
       <KeyboardAwareScrollViewCompat style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={handleChangePhoto} activeOpacity={0.75}>
@@ -158,41 +176,41 @@ export default function PersonalInformationScreen() {
         <View style={[styles.formCard, { backgroundColor: c.card }]}>
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: c.mutedForeground }]}>First Name</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: c.muted, color: c.foreground }]}
-              value={name}
-              onChangeText={(t) => setName(t.replace(/[^a-zA-Z]/g, ""))}
-              placeholder="Your first name"
-              placeholderTextColor={c.mutedForeground}
-              autoCorrect={false}
-              autoCapitalize="none"
-              maxLength={30}
-            />
+            <TouchableOpacity
+              style={[styles.input, { backgroundColor: c.muted, justifyContent: "center" }]}
+              onPress={() => { setDraft(name); setActiveField("name"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: name ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                {name || "Your first name"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: c.mutedForeground }]}>Email Address</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: c.muted, color: c.foreground }]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="e.g. peter@email.com"
-              placeholderTextColor={c.mutedForeground}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            <TouchableOpacity
+              style={[styles.input, { backgroundColor: c.muted, justifyContent: "center" }]}
+              onPress={() => { setDraft(email); setActiveField("email"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: email ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                {email || "e.g. peter@email.com"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: c.mutedForeground }]}>Contact Phone</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: c.muted, color: c.foreground }]}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="+254 7XX XXX XXX"
-              placeholderTextColor={c.mutedForeground}
-              keyboardType="phone-pad"
-            />
+            <TouchableOpacity
+              style={[styles.input, { backgroundColor: c.muted, justifyContent: "center" }]}
+              onPress={() => { setDraft(phone); setActiveField("phone"); }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: phone ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                {phone || "+254 7XX XXX XXX"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Recovery phone — OTP-verified, read-only */}

@@ -1,5 +1,6 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 import React, { useCallback, useState, useRef, useMemo, useEffect } from "react";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Image, ActivityIndicator, Platform, ScrollView,
@@ -108,6 +109,15 @@ export default function CarPickerScreen() {
   const [fuelType, setFuelType] = useState<FuelType>("Petrol");
   const [transmission, setTransmission] = useState<TransmissionType>("Automatic");
   const [odometerInput, setOdometerInput] = useState("");
+  const [makeModalVisible,  setMakeModalVisible]  = useState(false);
+  const [modelModalVisible, setModelModalVisible] = useState(false);
+  const [odoModalVisible,   setOdoModalVisible]   = useState(false);
+
+  // Auto-open the text modal when entering custom make/model steps (replaces autoFocus)
+  useEffect(() => {
+    if (step === "custom-make")  { setCustomMakeName("");  setMakeModalVisible(true); }
+    if (step === "custom-model") { setCustomModelName(""); setModelModalVisible(true); }
+  }, [step]);
 
   // Custom vehicles fetched from API (already-submitted community makes/models)
   const [customVehicles, setCustomVehicles] = useState<CustomVehicleRecord[]>([]);
@@ -455,18 +465,24 @@ export default function CarPickerScreen() {
             <Text style={[styles.customSub, { color: c.mutedForeground }]}>
               Type the brand name of your vehicle (e.g. Haima, Foton, BAIC…)
             </Text>
-            <TextInput
-              style={[styles.customInput, { backgroundColor: c.muted, color: c.foreground }]}
-              placeholder="e.g. Haima"
-              placeholderTextColor={c.mutedForeground}
+            <KeyboardInputModal
+              visible={makeModalVisible}
+              label="Vehicle Make"
               value={customMakeName}
               onChangeText={setCustomMakeName}
+              onDone={() => setMakeModalVisible(false)}
+              placeholder="e.g. Haima"
               autoCapitalize="words"
-              autoCorrect={false}
-              autoFocus
-              returnKeyType="next"
-              onSubmitEditing={handleCustomMakeNext}
             />
+            <TouchableOpacity
+              style={[styles.customInput, { backgroundColor: c.muted, justifyContent: "center" }]}
+              onPress={() => setMakeModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: customMakeName ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center" }}>
+                {customMakeName || "e.g. Haima"}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.confirmBtn,
@@ -510,18 +526,24 @@ export default function CarPickerScreen() {
             <Text style={[styles.customSub, { color: c.mutedForeground }]}>
               Type the specific model name (e.g. S5, M3 Pro, Truck 4×4…)
             </Text>
-            <TextInput
-              style={[styles.customInput, { backgroundColor: c.muted, color: c.foreground }]}
-              placeholder="e.g. S5"
-              placeholderTextColor={c.mutedForeground}
+            <KeyboardInputModal
+              visible={modelModalVisible}
+              label="Vehicle Model"
               value={customModelName}
               onChangeText={setCustomModelName}
+              onDone={() => setModelModalVisible(false)}
+              placeholder="e.g. S5"
               autoCapitalize="words"
-              autoCorrect={false}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleCustomModelConfirm}
             />
+            <TouchableOpacity
+              style={[styles.customInput, { backgroundColor: c.muted, justifyContent: "center" }]}
+              onPress={() => setModelModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: customModelName ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center" }}>
+                {customModelName || "e.g. S5"}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.confirmBtn,
@@ -614,15 +636,24 @@ export default function CarPickerScreen() {
               {/* Current odometer */}
               <View style={styles.detailSection}>
                 <Text style={[styles.detailLabel, { color: c.mutedForeground }]}>Current Odometer (km)</Text>
-                <TextInput
-                  style={[styles.customInput, { backgroundColor: c.muted, color: c.foreground }]}
-                  placeholder="e.g. 45000"
-                  placeholderTextColor={c.mutedForeground}
+                <KeyboardInputModal
+                  visible={odoModalVisible}
+                  label="Current Odometer (km)"
                   value={odometerInput}
                   onChangeText={t => setOdometerInput(t.replace(/[^0-9.]/g, ""))}
+                  onDone={() => setOdoModalVisible(false)}
+                  placeholder="e.g. 45000"
                   keyboardType="numeric"
-                  returnKeyType="done"
                 />
+                <TouchableOpacity
+                  style={[styles.customInput, { backgroundColor: c.muted, justifyContent: "center" }]}
+                  onPress={() => setOdoModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: odometerInput ? c.foreground : c.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center" }}>
+                    {odometerInput || "e.g. 45000"}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={[styles.detailHint, { color: c.mutedForeground }]}>
                   Used to calculate when maintenance is due. Leave blank if unsure.
                 </Text>
