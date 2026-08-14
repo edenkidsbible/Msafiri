@@ -471,7 +471,7 @@ export default function JoinVehicleScreen() {
               <Text style={[styles.successSub, { color: c.mutedForeground }]}>
                 The owner has been notified. You'll get a push notification when they approve or decline.
               </Text>
-              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: c.primary }]} onPress={() => router.back()}>
+              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: c.primary, alignSelf: "stretch" }]} onPress={() => router.back()}>
                 <Text style={styles.primaryBtnTxt}>Done</Text>
               </TouchableOpacity>
             </View>
