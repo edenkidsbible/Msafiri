@@ -257,8 +257,8 @@ function VehicleThumb({ v, size = 60 }: { v: SavedVehicle; size?: number }) {
   return (
     <View style={{ width: size, height: size * 0.65, borderRadius: 8, overflow: "hidden", backgroundColor: "#1A2020", alignItems: "center", justifyContent: "center" }}>
       {url
-        ? <Image source={{ uri: url }} style={{ width: size, height: size * 0.65 }} resizeMode="cover" onError={() => setFailed(true)} />
-        : <Image source={getVehicleFallbackImage(v.vehicleType)} style={{ width: size * 0.85, height: size * 0.55 }} resizeMode="contain" />
+        ? <Image source={{ uri: url }} style={{ width: size, height: size * 0.65, transform: [{ scaleX: -1 }] }} resizeMode="cover" onError={() => setFailed(true)} />
+        : <Image source={getVehicleFallbackImage(v.vehicleType)} style={{ width: size * 0.85, height: size * 0.55, transform: [{ scaleX: -1 }] }} resizeMode="contain" />
       }
     </View>
   );

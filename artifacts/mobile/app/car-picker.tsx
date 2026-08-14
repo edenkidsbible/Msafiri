@@ -70,7 +70,7 @@ function CarImage({
   return (
     <Image
       source={{ uri }}
-      style={{ width: size, height: size * 0.65 }}
+      style={{ width: size, height: size * 0.65, transform: [{ scaleX: -1 }] }}
       resizeMode="contain"
       onError={() => {
         if (!tryDefault && isCustom) setTryDefault(true);

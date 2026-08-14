@@ -22,6 +22,10 @@ import { slugify } from "@/lib/vehicleImageFallback";
 import { loadVehicles, SavedVehicle } from "@/utils/savedVehicles";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
+// All car images (R2 fetched + local PNGs) are left-facing by convention.
+// This constant flips every render so vehicles always face RIGHT.
+const FACE_RIGHT = { transform: [{ scaleX: -1 }] } as const;
+
 // ── Local fallback images (generated transparent PNGs) ───────────────────────
 const VEHICLE_IMAGES: Record<string, ReturnType<typeof require>> = {
   car:        require("@/assets/images/vehicle-car.png"),
@@ -85,7 +89,7 @@ export function DefaultVehicleImage({ width, height, vehicle: vehicleProp, refre
     return (
       <Image
         source={src}
-        style={[{ width, height }, style]}
+        style={[{ width, height }, style, FACE_RIGHT]}
         contentFit="contain"
       />
     );
@@ -144,7 +148,7 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
     return (
       <Image
         source={src}
-        style={[{ width, height }, style]}
+        style={[{ width, height }, style, FACE_RIGHT]}
         contentFit="contain"
       />
     );
@@ -180,7 +184,7 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
       return (
         <Image
           source={src}
-          style={[{ width, height }, style]}
+          style={[{ width, height }, style, FACE_RIGHT]}
           contentFit="contain"
         />
       );
@@ -212,7 +216,7 @@ function VehicleImagePhased({ vehicle, width, height, style, loaded, onLoaded }:
       <Image
         key={`${uri}-${retryCount.current}`}
         source={{ uri }}
-        style={[{ width, height }, style]}
+        style={[{ width, height }, style, FACE_RIGHT]}
         contentFit="contain"
         cachePolicy="disk"
         onLoad={onLoaded}

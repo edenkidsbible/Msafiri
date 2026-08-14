@@ -140,7 +140,7 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
       <Image
         key={`${uri}-${retryCount.current}`}
         source={{ uri }}
-        style={{ width, height }}
+        style={{ width, height, transform: [{ scaleX: -1 }] }}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
         onError={handleError}

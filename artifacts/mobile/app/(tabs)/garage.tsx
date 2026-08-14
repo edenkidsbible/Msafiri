@@ -183,7 +183,7 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
     return (
       <ExpoImage
         source={getVehicleFallbackImage(v.vehicleType)}
-        style={{ width, height }}
+        style={{ width, height, transform: [{ scaleX: -1 }] }}
         contentFit="contain"
       />
     );
@@ -212,7 +212,7 @@ function VehicleImage({ v, width, height }: { v: SavedVehicle; width: number; he
       <ExpoImage
         key={`${uri}-${retryCount.current}`}
         source={{ uri }}
-        style={{ width, height }}
+        style={{ width, height, transform: [{ scaleX: -1 }] }}
         contentFit="contain"
         cachePolicy="disk"
         onLoad={() => setLoading(false)}

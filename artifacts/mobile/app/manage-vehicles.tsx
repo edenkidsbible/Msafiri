@@ -124,7 +124,7 @@ function VehicleThumb({ v, width, height }: { v: SavedVehicle; width: number; he
     return (
       <Image
         source={getVehicleFallbackImage(v.vehicleType)}
-        style={{ width, height }}
+        style={{ width, height, transform: [{ scaleX: -1 }] }}
         resizeMode="contain"
       />
     );
@@ -133,7 +133,7 @@ function VehicleThumb({ v, width, height }: { v: SavedVehicle; width: number; he
   return (
     <Image
       source={{ uri }}
-      style={{ width, height }}
+      style={{ width, height, transform: [{ scaleX: -1 }] }}
       resizeMode="contain"
       onError={() => setPhase(p => p + 1)}
     />
