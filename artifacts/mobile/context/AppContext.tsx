@@ -380,6 +380,11 @@ interface AppContextValue {
    *  currently recording, so the accelerometer subscription can be enabled
    *  even when navigation is inactive. */
   setDashcamActive: (v: boolean) => void;
+  /** Ref holding the epoch-ms timestamp of the most recent accepted GPS fix.
+   *  Updated on every handleLocation invocation — not rate-limited like
+   *  currentSpeed — so consumers can check GPS freshness independently of
+   *  whether the displayed speed integer changed. */
+  gpsLastFixAtRef: React.MutableRefObject<number>;
   /** URI of the driver's profile photo, or null when no photo has been set.
    *  Single source of truth — updated by PersonalInformation; all avatar
    *  consumers read from here instead of polling AsyncStorage independently. */
@@ -1187,6 +1192,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const routeRef = useRef<AppRoute | null>(null);
   const lastLocationAtRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
+  /** Epoch ms of the most recent accepted GPS fix, updated on every handleLocation
+   *  invocation (not rate-limited like setCurrentSpeed). Exposed via context so
+   *  consumers such as DashcamContext can check GPS freshness independently of
+   *  whether the rounded speed integer happened to change. */
+  const gpsLastFixAtRef = useRef<number>(0);
   const speedHistoryRef = useRef<number[]>([]);
   const stationaryStreakRef = useRef(0);
   // Counts consecutive GPS fixes with speed ≥ 3 km/h. We only exit the
@@ -1515,6 +1525,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     lastFixRef.current = { lat, lng, t: now };
+    gpsLastFixAtRef.current = now;
 
     let rawKmh =
       deviceKmh != null && deviceKmh > 1 && !isLowAccuracy
@@ -4267,6 +4278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       crashDetected, clearCrash, crashAssistantId,
       crashSensitivity, setCrashSensitivity,
       setDashcamActive,
+      gpsLastFixAtRef,
       profilePhotoUri, setProfilePhotoUri,
       navTripActive, navTripPaused,
       setNavTripActive: setNavTripActive as (v: boolean) => void,
