@@ -1163,6 +1163,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastSpeedingWarnRef = useRef<number>(0);
   const tripRef = useRef<Partial<TripData> | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── 20 m warm-up gate for trip tracking ──────────────────────────────────
+  // Mirrors the useDriveScore warm-up: accumulates GPS distance on every fix
+  // regardless of speed, and only starts the tripRef once the driver has moved
+  // ≥ 20 m total. This prevents GPS noise on app open from creating a spurious
+  // trip even if the kmh > 5 speed guard were removed.
+  //
+  // tripWarmupPrevLat/Lng track the previous fix position during the warm-up
+  // phase. We cannot reuse lastFixRef here because it is updated to the current
+  // fix before the trip-tracking block runs.
+  const tripWarmupDistRef    = useRef(0);     // metres accumulated during warm-up
+  const tripWarmupDoneRef    = useRef(false);
+  const tripWarmupPrevLatRef = useRef<number | null>(null);
+  const tripWarmupPrevLngRef = useRef<number | null>(null);
   const notifGranted = useRef(false);
   const routeRef = useRef<AppRoute | null>(null);
   const lastLocationAtRef = useRef(0);
@@ -2296,8 +2309,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 
     // Trip tracking
-    if (kmh > 5) {
-      if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
+    //
+    // 20 m warm-up gate: accumulate GPS distance on every fix regardless of
+    // speed. Only once the driver has demonstrably moved ≥ 20 m total do we
+    // open the gate and begin recording the trip. This prevents stationary GPS
+    // noise (sub-20 m total drift while the phone is parked or app just opened)
+    // from ever starting a trip, even if the brief kmh > 5 spikes occur.
+    //
+    // Once the gate is open, positions and distance are added on every fix —
+    // slow speeds (parking lots, traffic queues, speed bumps) are fully counted.
+    // The stop-timer is still triggered when kmh drops to ≤ 5, preserving the
+    // existing "wait 3 minutes of stillness before saving" behaviour.
+    if (!tripWarmupDoneRef.current) {
+      // Accumulate warmup distance from consecutive fixes
+      const prevWLat = tripWarmupPrevLatRef.current;
+      const prevWLng = tripWarmupPrevLngRef.current;
+      if (prevWLat != null && prevWLng != null) {
+        const d = haversine(prevWLat, prevWLng, lat, lng);
+        // Apply 500 m jump filter (same as the within-trip filter) to avoid
+        // a single bad GPS fix instantly satisfying the warm-up threshold.
+        if (d > 0 && d < 500) {
+          tripWarmupDistRef.current += d;
+          if (tripWarmupDistRef.current >= 20) {
+            tripWarmupDoneRef.current = true;
+          }
+        }
+      }
+      tripWarmupPrevLatRef.current = lat;
+      tripWarmupPrevLngRef.current = lng;
+    } else {
+      // Warm-up satisfied — record the trip regardless of speed.
+      // Cancel the stop-timer whenever the vehicle is moving.
+      if (kmh > 5 && stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
+
       if (!tripRef.current) {
         const t: Partial<TripData> = { id: genId(), startTime: Date.now(), distance: 0, maxSpeed: kmh, avgSpeed: kmh, alertsCount: 0, positions: [{ lat, lng, speed: kmh, time: Date.now() }] };
         tripRef.current = t;
@@ -2306,7 +2350,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const t = tripRef.current;
         const positions = t.positions ?? [];
         const last = positions[positions.length - 1];
-        const added = last ? haversine(last.lat, last.lng, lat, lng) : 0;
+        const rawAdded = last ? haversine(last.lat, last.lng, lat, lng) : 0;
+        // Ignore GPS jumps > 500 m (signal-loss artefacts)
+        const added = (rawAdded > 0 && rawAdded < 500) ? rawAdded : 0;
         const newPos = [...positions, { lat, lng, speed: kmh, time: Date.now() }];
         const trimmed = newPos.length > 300 ? newPos.slice(-150) : newPos;
         const updated: Partial<TripData> = { ...t, distance: (t.distance ?? 0) + added, maxSpeed: Math.max(t.maxSpeed ?? 0, kmh), avgSpeed: trimmed.length > 0 ? trimmed.reduce((s, p) => s + p.speed, 0) / trimmed.length : (t.avgSpeed ?? 0), positions: trimmed };
@@ -2319,8 +2365,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCurrentTrip({ ...updated });
         }
       }
-    } else if (tripRef.current) {
-      if (!stopTimer.current) {
+
+      // Start the stop-timer when speed drops to ≤ 5; the trip saves after
+      // STOP_TIMEOUT_MS of continued stillness.
+      if (kmh <= 5 && tripRef.current && !stopTimer.current) {
         stopTimer.current = setTimeout(() => {
           const t = tripRef.current;
           if (t && (t.distance ?? 0) >= MIN_TRIP_DIST) {
@@ -2333,7 +2381,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               updateTripOdometer(done.distance / 1000, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
             }).catch(() => {});
           }
+          // Reset trip state and warm-up so the next journey starts fresh
           tripRef.current = null; setCurrentTrip(null); stopTimer.current = null;
+          tripWarmupDistRef.current    = 0;
+          tripWarmupDoneRef.current    = false;
+          tripWarmupPrevLatRef.current = null;
+          tripWarmupPrevLngRef.current = null;
         }, STOP_TIMEOUT_MS);
       }
     }

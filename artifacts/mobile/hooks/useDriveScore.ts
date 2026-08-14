@@ -257,6 +257,14 @@ export function useDriveScore({
   const gpsHistoryRef    = useRef<GpsPoint[]>([]);
   const pendingEventsRef = useRef<PendingEvent[]>([]);
 
+  // ── 20 m warm-up gate ─────────────────────────────────────────────────────
+  // Accumulates raw GPS distance before crediting any distance to distanceRef.
+  // This prevents stationary GPS noise (sub-20 m total drift) from inflating
+  // the odometer, while still counting low-speed movement once the driver has
+  // demonstrably moved ≥ 20 m.
+  const warmupDoneRef = useRef(false);
+  const warmupDistRef = useRef(0); // metres accumulated during warm-up phase
+
   // ── Score recompute ───────────────────────────────────────────────────────
   const recompute = useCallback(() => {
     const s = computeLiveScore({
@@ -291,6 +299,8 @@ export function useDriveScore({
       smoothSecsRef.current      = 0;
       gpsHistoryRef.current      = [];
       pendingEventsRef.current   = [];
+      warmupDoneRef.current      = false;
+      warmupDistRef.current      = 0;
 
       setScore(100);
       setHarshBrakes(0);
@@ -515,11 +525,22 @@ export function useDriveScore({
 
     if (prevLat != null && prevLng != null) {
       const d = haversineM(prevLat, prevLng, currentLat, currentLng);
-      // Ignore GPS jumps > 500 m (signal-loss artefacts);
-      // only accumulate when the vehicle is moving (≥ 10 km/h)
-      if (d > 0 && d < 500 && currentSpeed >= 10) {
-        distanceRef.current += d;
-        setDistanceM(Math.round(distanceRef.current));
+      // Ignore GPS jumps > 500 m (signal-loss artefacts)
+      if (d > 0 && d < 500) {
+        if (!warmupDoneRef.current) {
+          // 20 m warm-up gate: accumulate distance but don't credit it yet.
+          // This prevents stationary GPS noise from inflating the odometer.
+          // Once the driver has demonstrably moved ≥ 20 m the gate opens and
+          // all subsequent movement is counted regardless of reported speed.
+          warmupDistRef.current += d;
+          if (warmupDistRef.current >= 20) {
+            warmupDoneRef.current = true;
+          }
+        } else {
+          // Warm-up satisfied — count every movement, even at low/zero speed
+          distanceRef.current += d;
+          setDistanceM(Math.round(distanceRef.current));
+        }
       }
     }
 
