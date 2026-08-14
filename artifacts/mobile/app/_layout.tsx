@@ -53,7 +53,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AppState, AppStateStatus, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -70,8 +70,10 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
 import { prewarmAlertAudio } from "@/utils/alertTts";
+import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 
 try {
   initializeRevenueCat();
@@ -251,6 +253,33 @@ function RootLayoutNav() {
   if (isSubscribed) wasSubscribed.current = true;
   usePushNotifications();
   const versionCheck = useAppVersion();
+
+  // ── Keep-awake: prevent screen dim/sleep while the app is in the foreground ──
+  // Activated immediately on mount and whenever the app returns to the foreground.
+  // Deactivated whenever the app backgrounds so the OS can dim/sleep normally.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const tag = "msafiri-app";
+
+    // Activate immediately (app is in foreground when this mounts)
+    activateKeepAwakeAsync(tag).catch(() => {});
+
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === "active") {
+        activateKeepAwakeAsync(tag).catch(() => {});
+      } else if (nextState === "background" || nextState === "inactive") {
+        deactivateKeepAwake(tag);
+      }
+    };
+
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => {
+      sub.remove();
+      deactivateKeepAwake(tag);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Soft-update banner: dismissed once per session, not blocking
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
 
@@ -410,6 +439,9 @@ function RootLayoutNav() {
         </View>
       )}
       <RouteIncidentsPanel />
+      {/* Global alert chip — floats above all tab content on every screen
+          except the Drive tab, which renders its own full DriveAlertOverlay. */}
+      <GlobalAlertOverlay />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: c.card },
