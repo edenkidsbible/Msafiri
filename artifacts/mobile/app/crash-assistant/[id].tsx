@@ -35,6 +35,7 @@ import { ApiError, apiDelete, apiGet, apiPatch, apiPost, API_BASE } from "@/util
 import { useColors } from "@/hooks/useColors";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { CAR_MAKES, getMakeById, getModelById } from "@/data/carModels";
+import { useDashcam, type DashcamSegment } from "@/context/DashcamContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ interface AccidentRecord {
   driverStatement?: string | null;
   hasPdf: boolean;
   dashcamClipId?: string | null;
+  dashcamClipKey?: string | null;
   photos: Photo[];
   witnesses: Witness[];
   timeline: TimelineEvent[];
@@ -172,6 +174,7 @@ const PHOTO_CATEGORIES = [
 export default function CrashAssistantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { deviceId } = useApp();
+  const { segments } = useDashcam();
   const colors = useColors();
 
   const [record, setRecord] = useState<AccidentRecord | null>(null);
@@ -193,6 +196,10 @@ export default function CrashAssistantScreen() {
   // Report step
   const [generating, setGenerating] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [shareCount, setShareCount] = useState(0);
+  const [attachingClip, setAttachingClip] = useState(false);
+  const [creatingShare, setCreatingShare] = useState(false);
+  const [showClipPicker, setShowClipPicker] = useState(false);
 
   // My vehicle — pre-populated from saved vehicles, auto-fills report details
   const [myVehicle, setMyVehicle] = useState<SavedVehicle | null>(null);
@@ -211,13 +218,17 @@ export default function CrashAssistantScreen() {
   const loadRecord = useCallback(async () => {
     if (!deviceId || !id) return;
     try {
-      const data: AccidentRecord = await apiGet(`/accidents/${id}?deviceId=${deviceId}`);
+      const [data, sharesData] = await Promise.all([
+        apiGet(`/accidents/${id}?deviceId=${deviceId}`) as Promise<AccidentRecord>,
+        apiGet(`/accidents/${id}/shares?deviceId=${deviceId}`) as Promise<{ shares: Array<{ revokedAt: string | null }> }>,
+      ]);
       setRecord(data);
       // Pre-populate form state from saved record
       if (data.otherDriver) setOtherParty(data.otherDriver);
       if (data.police) setPolice(data.police);
       if (data.driverStatement) setStatement(data.driverStatement);
       if (data.hasPdf) setPdfUrl(`report-ready`);
+      setShareCount(sharesData.shares.filter((s) => !s.revokedAt).length);
     } catch {
       Alert.alert("Error", "Could not load accident record.");
     } finally {
@@ -455,6 +466,53 @@ export default function CrashAssistantScreen() {
     }
   }, [id, record]);
 
+  // ── Share Links ────────────────────────────────────────────────────────────
+
+  const createQuickShare = useCallback(async () => {
+    if (!deviceId || !id) return;
+    setCreatingShare(true);
+    try {
+      await apiPost(`/accidents/${id}/shares`, { deviceId });
+      // Refresh share count and navigate to the management screen
+      const sharesData = await apiGet(`/accidents/${id}/shares?deviceId=${deviceId}`) as { shares: Array<{ revokedAt: string | null }> };
+      setShareCount(sharesData.shares.filter((s) => !s.revokedAt).length);
+      router.push(`/accident-reports/${id}/shares`);
+    } catch {
+      Alert.alert("Error", "Could not create share link.");
+    } finally {
+      setCreatingShare(false);
+    }
+  }, [deviceId, id]);
+
+  // ── Dashcam Clip Attachment ────────────────────────────────────────────────
+
+  const attachClip = useCallback(async (seg: DashcamSegment) => {
+    if (!deviceId || !id || !seg.serverId) return;
+    setAttachingClip(true);
+    setShowClipPicker(false);
+    try {
+      await apiPost(`/accidents/${id}/attach-clip`, { deviceId, clipServerId: seg.serverId });
+      await loadRecord();
+    } catch {
+      Alert.alert("Error", "Could not attach dashcam clip. Make sure the clip is locked and uploaded.");
+    } finally {
+      setAttachingClip(false);
+    }
+  }, [deviceId, id, loadRecord]);
+
+  const detachClip = useCallback(async () => {
+    if (!deviceId || !id) return;
+    setAttachingClip(true);
+    try {
+      await apiDelete(`/accidents/${id}/clip`, { deviceId });
+      await loadRecord();
+    } catch {
+      Alert.alert("Error", "Could not remove clip.");
+    } finally {
+      setAttachingClip(false);
+    }
+  }, [deviceId, id, loadRecord]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const styles = makeStyles(colors);
@@ -635,6 +693,16 @@ export default function CrashAssistantScreen() {
               pdfUrl={pdfUrl !== "report-ready" ? pdfUrl : null}
               onGenerate={generateReport}
               onShare={shareReport}
+              shareCount={shareCount}
+              creatingShare={creatingShare}
+              onCreateShare={createQuickShare}
+              onManageShares={() => router.push(`/accident-reports/${id}/shares`)}
+              attachingClip={attachingClip}
+              showClipPicker={showClipPicker}
+              onToggleClipPicker={() => setShowClipPicker((v) => !v)}
+              availableClips={segments.filter((s) => s.locked && s.uploadStatus === "uploaded" && !!s.serverId)}
+              onAttachClip={attachClip}
+              onDetachClip={detachClip}
               colors={colors}
               styles={styles}
             />
@@ -1221,16 +1289,33 @@ function StatementStep({
   );
 }
 
-function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onShare, colors, styles }: {
+function ReportStep({
+  record, hasPdfReady, generating, pdfUrl, onGenerate, onShare,
+  shareCount, creatingShare, onCreateShare, onManageShares,
+  attachingClip, showClipPicker, onToggleClipPicker, availableClips, onAttachClip, onDetachClip,
+  colors, styles,
+}: {
   record: AccidentRecord;
   hasPdfReady: boolean;
   generating: boolean;
   pdfUrl: string | null;
   onGenerate: () => void;
   onShare: () => void;
+  shareCount: number;
+  creatingShare: boolean;
+  onCreateShare: () => void;
+  onManageShares: () => void;
+  attachingClip: boolean;
+  showClipPicker: boolean;
+  onToggleClipPicker: () => void;
+  availableClips: DashcamSegment[];
+  onAttachClip: (seg: DashcamSegment) => void;
+  onDetachClip: () => void;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const hasAttachedClip = !!record.dashcamClipKey;
+
   return (
     <View>
       {/* Timeline */}
@@ -1258,31 +1343,159 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
         <Text style={[styles.stepIntro, { color: colors.mutedForeground }]}>No timeline events recorded.</Text>
       )}
 
-      {/* Report Generation */}
+      {/* ── Dashcam Clip ──────────────────────────────────────────────────── */}
+      <SectionHeader title="Dashcam Footage" icon="videocam-outline" colors={colors} />
+      <View style={[styles.reportCard, { backgroundColor: colors.card, borderColor: hasAttachedClip ? colors.primary + "60" : colors.border }]}>
+        {hasAttachedClip ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="videocam" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.reportCardTitle, { color: colors.text, marginBottom: 2 }]}>Clip Attached</Text>
+              <Text style={[styles.reportCardSub, { color: colors.mutedForeground, marginBottom: 0 }]}>
+                This clip will appear on the share page.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onDetachClip}
+              disabled={attachingClip}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              {attachingClip
+                ? <ActivityIndicator size="small" color={colors.mutedForeground} />
+                : <Ionicons name="close-circle" size={22} color={colors.mutedForeground} />
+              }
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.reportCardSub, { color: colors.mutedForeground }]}>
+              Attach a locked & uploaded dashcam clip so viewers can play the footage directly in the share page.
+            </Text>
+            {availableClips.length === 0 ? (
+              <View style={{ flexDirection: "row", gap: 8, padding: 12, borderRadius: 12, backgroundColor: colors.muted + "18", alignItems: "flex-start" }}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.mutedForeground} style={{ marginTop: 1 }} />
+                <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
+                  No uploaded clips available. Lock and pin a clip from the dashcam screen first.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.generateBtn, { backgroundColor: showClipPicker ? colors.border : colors.primary + "18", marginBottom: showClipPicker ? 12 : 0 }]}
+                  onPress={onToggleClipPicker}
+                  disabled={attachingClip}
+                  activeOpacity={0.8}
+                >
+                  {attachingClip
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <>
+                        <Ionicons name="film-outline" size={18} color={colors.primary} />
+                        <Text style={[styles.generateBtnText, { color: colors.primary }]}>
+                          {showClipPicker ? "Hide Clips" : `Choose from ${availableClips.length} clip${availableClips.length !== 1 ? "s" : ""}`}
+                        </Text>
+                      </>
+                  }
+                </TouchableOpacity>
+                {showClipPicker && availableClips.map((seg) => (
+                  <TouchableOpacity
+                    key={seg.id}
+                    style={[styles.reportCard, { backgroundColor: colors.background, borderColor: colors.border, marginBottom: 8, marginTop: 0 }]}
+                    onPress={() => onAttachClip(seg)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Ionicons name="videocam-outline" size={18} color={colors.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.reportCardTitle, { color: colors.text, fontSize: 14, marginBottom: 2 }]}>
+                          {format(new Date(seg.startedAt), "d MMM · h:mm a")}
+                        </Text>
+                        <Text style={[styles.reportCardSub, { color: colors.mutedForeground, marginBottom: 0 }]}>
+                          {Math.round(seg.durationS)}s · {seg.lockType === "manual" ? "Manual lock" : "Auto lock"}
+                          {seg.pinned ? " · Pinned" : ""}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* ── Share Links ────────────────────────────────────────────────────── */}
+      <SectionHeader title="Share Links" icon="link-outline" colors={colors} />
+      <View style={[styles.reportCard, { backgroundColor: colors.card, borderColor: shareCount > 0 ? "#16A34A60" : colors.border }]}>
+        <View style={styles.reportReadyRow}>
+          <View style={[styles.reportReadyIcon, { backgroundColor: shareCount > 0 ? "#16A34A18" : colors.primary + "18" }]}>
+            <Ionicons name={shareCount > 0 ? "link" : "link-outline"} size={28} color={shareCount > 0 ? "#16A34A" : colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.reportReadyTitle, { color: colors.text }]}>
+              {shareCount > 0 ? `${shareCount} Active Link${shareCount !== 1 ? "s" : ""}` : "Share via Link"}
+            </Text>
+            <Text style={[styles.reportReadySub, { color: colors.mutedForeground }]}>
+              {shareCount > 0
+                ? "Anyone with a link can view evidence, photos & footage."
+                : "Create a private link to share with insurers, police, or lawyers."}
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <TouchableOpacity
+            style={[styles.shareBtn, { flex: 1, backgroundColor: colors.primary }]}
+            onPress={onCreateShare}
+            disabled={creatingShare}
+          >
+            {creatingShare
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <>
+                  <Ionicons name="add-outline" size={18} color="#fff" />
+                  <Text style={styles.shareBtnText}>New Link</Text>
+                </>
+            }
+          </TouchableOpacity>
+          {shareCount > 0 && (
+            <TouchableOpacity
+              style={[styles.shareBtn, { flex: 1, backgroundColor: colors.muted + "30", borderWidth: 1, borderColor: colors.border }]}
+              onPress={onManageShares}
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.text} />
+              <Text style={[styles.shareBtnText, { color: colors.text }]}>Manage</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* ── PDF Report (secondary option) ─────────────────────────────────── */}
+      <SectionHeader title="PDF Report" icon="document-text-outline" colors={colors} />
       <View style={[styles.reportCard, { backgroundColor: colors.card, borderColor: hasPdfReady ? "#34C759" : colors.border }]}>
         {hasPdfReady ? (
           <>
             <View style={styles.reportReadyRow}>
               <View style={styles.reportReadyIcon}>
-                <Ionicons name="document-text" size={32} color="#34C759" />
+                <Ionicons name="document-text" size={28} color="#34C759" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.reportReadyTitle, { color: colors.text }]}>PDF Report Ready</Text>
+                <Text style={[styles.reportReadyTitle, { color: colors.text }]}>PDF Ready</Text>
                 <Text style={[styles.reportReadySub, { color: colors.mutedForeground }]}>
-                  Your insurance-ready report has been generated.
+                  Download or send the full PDF to insurers.
                 </Text>
               </View>
             </View>
             <TouchableOpacity style={[styles.shareBtn, { backgroundColor: "#34C759" }]} onPress={onShare}>
-              <Ionicons name="share-outline" size={20} color="#fff" />
-              <Text style={styles.shareBtnText}>Share Report</Text>
+              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Text style={styles.shareBtnText}>Share PDF</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={[styles.reportCardTitle, { color: colors.text }]}>Generate PDF Report</Text>
             <Text style={[styles.reportCardSub, { color: colors.mutedForeground }]}>
-              Creates a complete insurance-ready PDF including all evidence, photos, witness statements, and your account.
+              Generate a full insurance-ready PDF including all evidence, photos, and statements.
             </Text>
             <TouchableOpacity
               style={[styles.generateBtn, { backgroundColor: colors.primary }]}
@@ -1296,8 +1509,8 @@ function ReportStep({ record, hasPdfReady, generating, pdfUrl, onGenerate, onSha
                 </>
               ) : (
                 <>
-                  <Ionicons name="document-attach-outline" size={20} color="#fff" />
-                  <Text style={styles.generateBtnText}>Generate Report</Text>
+                  <Ionicons name="document-attach-outline" size={18} color="#fff" />
+                  <Text style={styles.generateBtnText}>Generate PDF</Text>
                 </>
               )}
             </TouchableOpacity>

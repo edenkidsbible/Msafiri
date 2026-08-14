@@ -1,4 +1,4 @@
-import { pgTable, text, numeric, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, numeric, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 
 function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -53,6 +53,9 @@ export const accidentRecordsTable = pgTable("accident_records", {
   pdfUrl:           text("pdf_url"),
   pdfFileKey:       text("pdf_file_key"),
 
+  // Attached dashcam clip R2 key — set via POST /accidents/:id/attach-clip
+  dashcamClipKey:   text("dashcam_clip_key"),
+
   createdAt:        timestamp("created_at").notNull().defaultNow(),
   updatedAt:        timestamp("updated_at").notNull().defaultNow(),
 });
@@ -77,6 +80,19 @@ export const accidentWitnessesTable = pgTable("accident_witnesses", {
   notes:       text("notes"),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 });
+
+// Shareable report links — each row is a named token the owner can revoke.
+// The UUID id IS the share token (128-bit entropy, unguessable).
+export const accidentSharesTable = pgTable("accident_shares", {
+  id:          uuid("id").primaryKey().defaultRandom(),   // = share token
+  accidentId:  text("accident_id").notNull(),
+  deviceId:    text("device_id").notNull(),               // owning device
+  label:       text("label"),                             // optional friendly name
+  revokedAt:   timestamp("revoked_at"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+});
+
+export type AccidentShareRow = typeof accidentSharesTable.$inferSelect;
 
 // Chronological events — auto-inserted (crash_detected, video_saved, photo_added)
 // and driver-triggered (report_generated, statement_added).
