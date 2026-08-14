@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
@@ -118,13 +118,21 @@ export default function JoinVehicleScreen() {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   const { deviceId, driverName } = useApp();
+  const { prefillPlate } = useLocalSearchParams<{ prefillPlate?: string }>();
 
-  const [activeTab, setActiveTab] = useState<Tab>("code");
+  const [activeTab, setActiveTab] = useState<Tab>(prefillPlate ? "plate" : "code");
 
   // ── Code tab state ───────────────────────────────────────────────────────────
   const [codeInput,   setCodeInput]   = useState("");
   const [codeVehicle, setCodeVehicle] = useState<FoundVehicle | null>(null);
   const [codeJoining, setCodeJoining] = useState(false);
+
+  // ── Pre-fill plate from navigation param (from vehicle-setup duplicate flow) ─
+  useEffect(() => {
+    if (prefillPlate) {
+      setPlateInput(prefillPlate);
+    }
+  }, [prefillPlate]);
 
   // ── Plate tab state ──────────────────────────────────────────────────────────
   const [plateInput,         setPlateInput]         = useState("");

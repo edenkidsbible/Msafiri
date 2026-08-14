@@ -62,6 +62,21 @@ export const vehicleJoinRequestsTable = pgTable("vehicle_join_requests", {
   resolvedAt:          timestamp("resolved_at"),
 });
 
+/**
+ * vehicle_claims — submitted when a user believes a registered plate belongs
+ * to them but is already registered under another account.
+ * Reviewed by Msafiri support; no automated action is taken.
+ */
+export const vehicleClaimsTable = pgTable("vehicle_claims", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  vehicleId:       uuid("vehicle_id").notNull().references(() => sharedVehiclesTable.id, { onDelete: "cascade" }),
+  claimantDeviceId: text("claimant_device_id").notNull(),
+  claimNote:       text("claim_note"),
+  status:          text("status").notNull().default("pending"), // "pending" | "reviewed" | "resolved"
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+});
+
 export type SharedVehicleRow      = typeof sharedVehiclesTable.$inferSelect;
 export type VehicleMemberRow      = typeof vehicleMembersTable.$inferSelect;
 export type VehicleJoinRequestRow = typeof vehicleJoinRequestsTable.$inferSelect;
+export type VehicleClaimRow       = typeof vehicleClaimsTable.$inferSelect;
