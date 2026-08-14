@@ -13,6 +13,7 @@ export const pushTokensTable = pgTable("push_tokens", {
   welcomeSentAt:   timestamp("welcome_sent_at"),         // set once when the welcome push is delivered
   lastReengagedAt: timestamp("last_reengaged_at"),       // updated each time a re-engagement push is sent
   lastTripNotifAt: timestamp("last_trip_notif_at"),      // updated each time a post-trip nudge is sent
+  lastBgWakeupAt:  timestamp("last_bg_wakeup_at"),       // stamped when /push/location is called with source="background_task"
 });
 
 export const pushCampaignsTable = pgTable("push_campaigns", {

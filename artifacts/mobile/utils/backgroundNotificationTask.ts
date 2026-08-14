@@ -112,20 +112,32 @@ export function defineBackgroundNotificationTask(): void {
           }
         }
 
-        // ── 2. Sync last known location ─────────────────────────────────────
-        if (locationRaw) {
-          try {
-            const { lat, lng } = JSON.parse(locationRaw) as { lat: number; lng: number };
-            if (lat != null && lng != null) {
-              await fetch(`https://${domain}/api/push/location`, {
-                method:  "POST",
-                headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ deviceId, lat, lng }),
-              });
+        // ── 2. Heartbeat + optional location sync ──────────────────────────
+        // Always POST to /push/location with source="background_task" so the
+        // server stamps lastBgWakeupAt unconditionally — even if no cached
+        // location is available. This is the confirmed proof that the background
+        // task executed on this device (critical for diagnosing iOS silent pushes).
+        try {
+          const locationFields: { lat?: number; lng?: number } = {};
+          if (locationRaw) {
+            try {
+              const parsed = JSON.parse(locationRaw) as { lat?: number; lng?: number };
+              if (parsed.lat != null && parsed.lng != null) {
+                locationFields.lat = parsed.lat;
+                locationFields.lng = parsed.lng;
+              }
+            } catch {
+              // Malformed stored location — heartbeat still fires below
             }
-          } catch {
-            // Non-critical — silently swallow
           }
+
+          await fetch(`https://${domain}/api/push/location`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ deviceId, source: "background_task", ...locationFields }),
+          });
+        } catch {
+          // Non-critical — silently swallow
         }
       } catch (err) {
         console.warn("[bgNotifTask] Unhandled error:", err);

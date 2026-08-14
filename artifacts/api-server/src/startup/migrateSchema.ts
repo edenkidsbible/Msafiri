@@ -466,6 +466,15 @@ export async function migrateSchema(): Promise<void> {
         ON accident_shares (accident_id, device_id)
     `);
 
+    // ── push_tokens.last_bg_wakeup_at ─────────────────────────────────────────
+    // Stamped each time /push/location is called with source="background_task".
+    // Lets admins confirm that iOS content-available silent pushes are landing
+    // and executing the background notification task on each device.
+    await db.execute(sql`
+      ALTER TABLE push_tokens
+      ADD COLUMN IF NOT EXISTS last_bg_wakeup_at TIMESTAMP
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
