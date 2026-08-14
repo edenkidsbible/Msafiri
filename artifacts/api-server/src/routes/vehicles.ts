@@ -10,6 +10,7 @@ import {
   vehicleClaimsTable,
 } from "@workspace/db";
 import { sendPushNotifications } from "../lib/expoPush.js";
+import { createNotification } from "../lib/audit.js";
 
 const router = Router();
 
@@ -374,6 +375,13 @@ router.post("/vehicles/claim", claimLimiter, async (req, res) => {
     vehicleId,
     claimantDeviceId: deviceId,
     claimNote:        claimNote?.trim() || null,
+  });
+
+  // Notify admin team so the claim doesn't sit unnoticed
+  await createNotification({
+    title:   "New vehicle ownership claim",
+    message: `A user claims that plate ${vehicle[0].plateNumber ?? vehicleId} is theirs but registered under another account. Review it in Vehicle Claims.`,
+    type:    "warning",
   });
 
   return res.status(201).json({ success: true });
