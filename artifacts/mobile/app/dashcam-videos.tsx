@@ -299,6 +299,13 @@ function ClipRow({
                 <View style={[vs.typeDot, { backgroundColor: typeColor }]} />
                 <Text style={[vs.typeText, { color: typeColor }]}>{typeLabel}</Text>
               </View>
+              {clip.speedKmh != null && (
+                <View style={[vs.typeBadge, { backgroundColor: "#6B728022" }]}>
+                  <Text style={[vs.typeText, { color: c.mutedForeground }]}>
+                    💨 {Math.round(clip.speedKmh)} km/h
+                  </Text>
+                </View>
+              )}
               {expiryLabel && (
                 <View style={[vs.typeBadge, { backgroundColor: isPinned ? "#F59E0B22" : "#6B728022" }]}>
                   <Text style={[vs.typeText, { color: isPinned ? "#F59E0B" : c.mutedForeground }]}>
