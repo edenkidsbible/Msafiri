@@ -1012,17 +1012,17 @@ router.post("/accidents/:id/shares", async (req: Request, res: Response) => {
 
 // ── GET /accidents/:id/shares ─────────────────────────────────────────────────
 // List all share links for this accident record (active and revoked).
+// Returns { shares: [] } for brand-new accidents that have no shares yet —
+// a 404 would incorrectly prevent the crash-assistant screen from loading.
 router.get("/accidents/:id/shares", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
     const deviceId = req.query.deviceId as string;
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
-    const [rec] = await db.select({ id: accidentRecordsTable.id })
-      .from(accidentRecordsTable)
-      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
-    if (!rec) return res.status(404).json({ error: "Record not found" });
-
+    // Fetch shares filtered by both accidentId and deviceId — this implicitly
+    // enforces ownership without a separate ownership-check query that could
+    // spuriously return 404 when the record was just created.
     const shares = await db.select().from(accidentSharesTable)
       .where(and(eq(accidentSharesTable.accidentId, id), eq(accidentSharesTable.deviceId, deviceId)))
       .orderBy(desc(accidentSharesTable.createdAt));

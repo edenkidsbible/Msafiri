@@ -5,7 +5,7 @@
  * edit details, set default, or delete. Navigated to from the "Manage
  * Vehicles" link in the Garage tab.
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -30,6 +30,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useVehicle } from "@/context/VehicleContext";
 import { useApp } from "@/context/AppContext";
+import { apiGet, apiPost, ApiError } from "@/utils/apiClient";
 import {
   SavedVehicle,
   loadVehicles,
@@ -181,13 +182,84 @@ function EditSheet({
   const [plate,        setPlate]        = useState("");
   const [saving,       setSaving]       = useState(false);
 
+  // Plate duplicate-check state
+  const [plateChecking,  setPlateChecking]  = useState(false);
+  const [plateDuplicate, setPlateDuplicate] = useState<{ id: string; displayName: string } | null>(null);
+  const plateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [claimVisible,  setClaimVisible]  = useState(false);
+  const [claimNote,     setClaimNote]     = useState("");
+  const [claimSending,  setClaimSending]  = useState(false);
+  const [claimSent,     setClaimSent]     = useState(false);
+
+  const { deviceId } = useApp();
+
   useEffect(() => {
     if (!vehicle) return;
     setFuelType(vehicle.fuelType);
     setTransmission(vehicle.transmission);
     setOdoText(vehicle.odometerKm != null && vehicle.odometerKm > 0 ? String(vehicle.odometerKm) : "");
     setPlate(vehicle.plateNumber ?? "");
+    // Reset duplicate state when the modal reopens
+    setPlateDuplicate(null);
+    setClaimSent(false);
   }, [vehicle?.id, visible]);
+
+  // Debounced plate duplicate check — skips if unchanged from vehicle's own plate
+  useEffect(() => {
+    const canonical = normalizePlate(plate);
+    setPlateDuplicate(null);
+    setClaimSent(false);
+    // Don't flag their own plate
+    if (canonical === normalizePlate(vehicle?.plateNumber ?? "")) return;
+    if (canonical.length < 5) return;
+
+    if (plateTimerRef.current) clearTimeout(plateTimerRef.current);
+    plateTimerRef.current = setTimeout(async () => {
+      setPlateChecking(true);
+      try {
+        const result = await apiGet<{
+          found: boolean;
+          vehicle?: { id: string; displayName: string };
+          alreadyMember?: boolean;
+        }>(`/vehicles/search?plate=${encodeURIComponent(canonical)}&deviceId=${deviceId ?? ""}`);
+        setPlateDuplicate(
+          result.found && result.vehicle && !result.alreadyMember
+            ? result.vehicle
+            : null,
+        );
+      } catch {
+        // Silent — don't block the user on a search failure
+      } finally {
+        setPlateChecking(false);
+      }
+    }, 800);
+
+    return () => { if (plateTimerRef.current) clearTimeout(plateTimerRef.current); };
+  }, [plate, deviceId, vehicle?.plateNumber]);
+
+  async function handleSubmitClaim() {
+    if (!plateDuplicate || !deviceId) return;
+    setClaimSending(true);
+    try {
+      await apiPost("/vehicles/claim", {
+        deviceId,
+        vehicleId: plateDuplicate.id,
+        claimNote: claimNote.trim() || undefined,
+      });
+      setClaimSent(true);
+      setClaimVisible(false);
+    } catch (err: unknown) {
+      const msg = (err instanceof ApiError ? err.message : "") ?? "";
+      if (msg.includes("already have a pending claim")) {
+        setClaimSent(true);
+        setClaimVisible(false);
+      } else {
+        console.warn("Claim failed:", msg);
+      }
+    } finally {
+      setClaimSending(false);
+    }
+  }
 
   const bg      = c.isDark ? "#111714" : "#fff";
   const inputBg = c.isDark ? "#1A211C" : "#F4F6F4";
@@ -259,18 +331,81 @@ function EditSheet({
 
             {/* Plate */}
             <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.mutedForeground, marginBottom: 6 }}>Plate Number</Text>
-            <TextInput
-              value={plate}
-              onChangeText={t => setPlate(t.toUpperCase())}
-              placeholder="e.g. KCB 123A"
-              placeholderTextColor={c.mutedForeground + "88"}
-              autoCapitalize="characters"
-              style={{
-                backgroundColor: inputBg, borderRadius: 12, borderWidth: 1, borderColor: border,
-                paddingHorizontal: 14, paddingVertical: 11,
-                color: c.foreground, fontFamily: "Inter_500Medium", fontSize: 14, marginBottom: 18,
-              }}
-            />
+            <View style={{ position: "relative" }}>
+              <TextInput
+                value={plate}
+                onChangeText={t => setPlate(t.toUpperCase())}
+                placeholder="e.g. KCB 123A"
+                placeholderTextColor={c.mutedForeground + "88"}
+                autoCapitalize="characters"
+                style={{
+                  backgroundColor: inputBg, borderRadius: 12,
+                  borderWidth: plateDuplicate && !claimSent ? 1.5 : 1,
+                  borderColor: plateDuplicate && !claimSent ? "#D97706" : border,
+                  paddingHorizontal: 14, paddingVertical: 11,
+                  color: c.foreground, fontFamily: "Inter_500Medium", fontSize: 14,
+                  marginBottom: plateDuplicate ? 8 : 18,
+                }}
+              />
+              {plateChecking && (
+                <ActivityIndicator
+                  size="small"
+                  color={c.primary}
+                  style={{ position: "absolute", right: 12, top: 12 }}
+                />
+              )}
+            </View>
+
+            {/* Duplicate plate warning */}
+            {plateDuplicate && !claimSent && (
+              <View style={{
+                marginBottom: 14, padding: 12, borderRadius: 12,
+                backgroundColor: "#D9770608", borderWidth: 1.5, borderColor: "#D9770640",
+              }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <Ionicons name="warning-outline" size={15} color="#D97706" />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#D97706" }}>
+                    This plate is already registered
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>{plateDuplicate.displayName}</Text>
+                  {" "}is already on Msafiri. Pick what applies:
+                </Text>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9, backgroundColor: c.primary + "DD", marginBottom: 6 }}
+                  onPress={() => router.push("/restore-data" as any)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="refresh-circle-outline" size={14} color="#fff" />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" }}>I had this plate — restore my data</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9, backgroundColor: inputBg, marginBottom: 6 }}
+                  onPress={() => router.push({ pathname: "/join-vehicle", params: { prefillPlate: normalizePlate(plate) } } as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="people-outline" size={13} color={c.mutedForeground} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>I share this car — join as co-driver</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9 }}
+                  onPress={() => { setClaimNote(""); setClaimVisible(true); }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flag-outline" size={13} color={c.mutedForeground + "88"} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: c.mutedForeground + "88" }}>Someone else is using my plate — report a claim</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Claim sent confirmation */}
+            {plateDuplicate && claimSent && (
+              <View style={{ marginBottom: 14, padding: 10, borderRadius: 10, backgroundColor: "#22C55E10", borderWidth: 1, borderColor: "#22C55E50", flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="checkmark-circle-outline" size={15} color="#22C55E" />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#22C55E", flex: 1 }}>Claim submitted — our team will review it.</Text>
+              </View>
+            )}
 
             {/* Fuel */}
             <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: c.mutedForeground, marginBottom: 8 }}>Fuel Type</Text>
@@ -318,8 +453,8 @@ function EditSheet({
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSave}
-                disabled={saving}
-                style={{ flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: c.primary, alignItems: "center", opacity: saving ? 0.6 : 1 }}
+                disabled={saving || (!!plateDuplicate && !claimSent)}
+                style={{ flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: c.primary, alignItems: "center", opacity: saving || (!!plateDuplicate && !claimSent) ? 0.4 : 1 }}
                 activeOpacity={0.85}
               >
                 <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" }}>
@@ -330,6 +465,67 @@ function EditSheet({
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* ── Claim modal ──────────────────────────────────────────────────── */}
+      <Modal
+        visible={claimVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setClaimVisible(false)}
+        statusBarTranslucent
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <View style={{ backgroundColor: bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: border, marginBottom: 20 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <Ionicons name="flag-outline" size={20} color="#D97706" />
+              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: c.foreground }}>Claim this vehicle</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginBottom: 16, lineHeight: 19 }}>
+              Tell us why you believe{" "}
+              <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>
+                {plateDuplicate?.displayName ?? "this vehicle"}
+              </Text>
+              {" "}is yours. Our team will review and contact you.
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: inputBg, borderRadius: 12, borderWidth: 1, borderColor: border,
+                paddingHorizontal: 14, paddingVertical: 11, color: c.foreground,
+                fontFamily: "Inter_400Regular", fontSize: 14, minHeight: 100,
+                textAlignVertical: "top", marginBottom: 6,
+              }}
+              value={claimNote}
+              onChangeText={setClaimNote}
+              placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
+              placeholderTextColor={c.mutedForeground + "88"}
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+            />
+            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground + "55", alignSelf: "flex-end", marginBottom: 16 }}>
+              {claimNote.length}/500
+            </Text>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: c.primary, marginBottom: 10, opacity: claimSending ? 0.7 : 1 }}
+              onPress={handleSubmitClaim}
+              disabled={claimSending}
+              activeOpacity={0.85}
+            >
+              {claimSending
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <>
+                    <Ionicons name="send-outline" size={16} color="#fff" />
+                    <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>Submit Claim</Text>
+                  </>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setClaimVisible(false)} activeOpacity={0.8} style={{ alignItems: "center" }}>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }

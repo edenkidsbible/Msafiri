@@ -603,7 +603,7 @@ export default function AccidentReportsScreen() {
               {selectedVehicle && (() => {
                 const img = getVehicleImage(selectedVehicle);
                 return img
-                  ? <Image source={{ uri: img }} style={s.vehicleImg} contentFit="contain" />
+                  ? <Image source={{ uri: img }} style={[s.vehicleImg, { transform: [{ scaleX: -1 }] }]} contentFit="contain" />
                   : <View style={[s.vehicleImgPlaceholder, { backgroundColor: colors.muted + "20" }]}>
                       <Ionicons name="car-outline" size={28} color={colors.mutedForeground} />
                     </View>;

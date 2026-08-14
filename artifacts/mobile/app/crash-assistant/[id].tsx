@@ -218,9 +218,16 @@ export default function CrashAssistantScreen() {
   const loadRecord = useCallback(async () => {
     if (!deviceId || !id) return;
     try {
+      // Fetch shares in parallel with the record. The shares endpoint returns 404
+      // for brand-new accidents (no shares created yet) — treat that as empty, not
+      // a fatal error, so the screen still loads correctly.
       const [data, sharesData] = await Promise.all([
         apiGet(`/accidents/${id}?deviceId=${deviceId}`) as Promise<AccidentRecord>,
-        apiGet(`/accidents/${id}/shares?deviceId=${deviceId}`) as Promise<{ shares: Array<{ revokedAt: string | null }> }>,
+        (apiGet(`/accidents/${id}/shares?deviceId=${deviceId}`) as Promise<{ shares: Array<{ revokedAt: string | null }> }>)
+          .catch((e: unknown) => {
+            if (e instanceof ApiError && e.status === 404) return { shares: [] as Array<{ revokedAt: string | null }> };
+            throw e;
+          }),
       ]);
       setRecord(data);
       // Pre-populate form state from saved record

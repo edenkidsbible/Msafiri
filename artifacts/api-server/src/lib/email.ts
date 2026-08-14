@@ -150,6 +150,83 @@ export async function sendDailyBackupEmail(opts: {
   }
 }
 
+// ── Vehicle claim alert (to admin) ───────────────────────────────────────────
+
+export async function sendVehicleClaimAlert(opts: {
+  toEmail:     string;
+  plate:       string | null;
+  vehicleId:   string;
+  claimNote:   string | null;
+  claimantDeviceId: string;
+}): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+
+  const plateLabel = opts.plate ? `<strong>${opts.plate}</strong>` : `<em>ID: ${opts.vehicleId}</em>`;
+  const noteHtml   = opts.claimNote
+    ? `<blockquote style="border-left:3px solid #d97706;margin:16px 0;padding:8px 14px;color:#555;font-style:italic;">${opts.claimNote}</blockquote>`
+    : `<p style="color:#888;font-size:13px;"><em>No note provided.</em></p>`;
+
+  const adminUrl = "https://msafirikenya.com/admin/vehicle-claims";
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;color:#111;max-width:540px;margin:0 auto;padding:24px;">
+  <p style="font-size:20px;font-weight:700;margin-bottom:4px;">⚠️ New vehicle ownership claim</p>
+  <p>A user has submitted a claim for plate ${plateLabel} that is currently registered under a different account.</p>
+
+  <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
+    <tr><td style="padding:6px 0;color:#888;width:140px;">Plate</td><td style="padding:6px 0;font-weight:600;">${opts.plate ?? "—"}</td></tr>
+    <tr><td style="padding:6px 0;color:#888;">Vehicle ID</td><td style="padding:6px 0;font-family:monospace;">${opts.vehicleId}</td></tr>
+    <tr><td style="padding:6px 0;color:#888;">Claimant device</td><td style="padding:6px 0;font-family:monospace;">${opts.claimantDeviceId}</td></tr>
+  </table>
+
+  <p style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px;">Claimant's note:</p>
+  ${noteHtml}
+
+  <a href="${adminUrl}" style="display:inline-block;margin-top:8px;padding:12px 22px;background:#111;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">
+    Review claim in Admin →
+  </a>
+
+  <hr style="border:none;border-top:1px solid #eee;margin:28px 0;"/>
+  <p style="color:#888;font-size:12px;">— Msafiri Kenya system</p>
+</body>
+</html>`;
+
+  const text = [
+    "New vehicle ownership claim",
+    "",
+    `Plate:    ${opts.plate ?? "—"}`,
+    `Vehicle:  ${opts.vehicleId}`,
+    `Device:   ${opts.claimantDeviceId}`,
+    "",
+    "Note:",
+    opts.claimNote ?? "(none)",
+    "",
+    `Review at: ${adminUrl}`,
+    "",
+    "— Msafiri Kenya system",
+  ].join("\n");
+
+  try {
+    const { error } = await client.emails.send({
+      from:    FROM,
+      to:      opts.toEmail,
+      subject: `Vehicle claim: plate ${opts.plate ?? opts.vehicleId}`,
+      html,
+      text,
+    });
+    if (error) {
+      logger.error({ error }, "Resend error sending vehicle claim alert");
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.error({ err }, "Failed to send vehicle claim alert email");
+    return false;
+  }
+}
+
 export async function sendCreatorPromoCode(opts: {
   toEmail:  string;
   toName:   string | null;

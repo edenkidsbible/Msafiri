@@ -362,6 +362,10 @@ export function usePushNotifications() {
                 });
             }
           }
+        } else if (type === "vehicle_join_request") {
+          // Someone sent a join request for one of our vehicles.
+          // Navigate to the Garage where the pending-requests section is shown.
+          safePush("/(tabs)/garage" as any);
         } else if (type === "vehicle_request_approved") {
           // Owner approved our plate-based join request. Persist the shared
           // vehicle locally so it appears in the Garage without requiring a

@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { sendPushNotifications } from "../lib/expoPush.js";
 import { createNotification } from "../lib/audit.js";
+import { sendVehicleClaimAlert } from "../lib/email.js";
 
 const router = Router();
 
@@ -383,6 +384,18 @@ router.post("/vehicles/claim", claimLimiter, async (req, res) => {
     message: `A user claims that plate ${vehicle[0].plateNumber ?? vehicleId} is theirs but registered under another account. Review it in Vehicle Claims.`,
     type:    "warning",
   });
+
+  // Also email the admin so the claim isn't missed between daily backups
+  const adminEmail = process.env["BACKUP_EMAIL_ADDRESS"];
+  if (adminEmail) {
+    sendVehicleClaimAlert({
+      toEmail:          adminEmail,
+      plate:            vehicle[0].plateNumber ?? null,
+      vehicleId,
+      claimNote:        claimNote?.trim() || null,
+      claimantDeviceId: deviceId,
+    }).catch(() => {}); // non-blocking — claim still succeeds if email fails
+  }
 
   return res.status(201).json({ success: true });
 });
