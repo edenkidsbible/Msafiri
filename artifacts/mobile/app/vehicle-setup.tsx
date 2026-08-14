@@ -501,7 +501,7 @@ export default function VehicleSetup() {
               {/* ── Duplicate plate warning ─────────────────────────────── */}
               {plateDuplicate && !claimSent && (
                 <View style={cs.dupCard}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <Ionicons name="warning-outline" size={16} color="#D97706" />
                     <Text style={cs.dupTitle}>This plate is already registered</Text>
                   </View>
@@ -509,30 +509,44 @@ export default function VehicleSetup() {
                     <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>
                       {plateDuplicate.displayName}
                     </Text>
-                    {" "}is already on Msafiri under a different account.{"\n"}
-                    If you share this vehicle, request to join as a co-driver.
-                    If you believe this is your car and someone else is using its details, you can report a claim.
+                    {" "}is already on Msafiri. Pick what applies to you:
                   </Text>
+
+                  {/* Option 1 — returning owner on a new device */}
                   <TouchableOpacity
                     style={cs.dupPrimaryBtn}
+                    onPress={() => router.push("/restore-data" as any)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="refresh-circle-outline" size={15} color="#fff" />
+                    <Text style={cs.dupPrimaryBtnTxt}>I had this plate before — restore my data</Text>
+                  </TouchableOpacity>
+
+                  {/* Option 2 — co-driver of the same physical car */}
+                  <TouchableOpacity
+                    style={cs.dupSecondaryBtn}
                     onPress={() =>
                       router.push({
                         pathname: "/join-vehicle",
                         params: { prefillPlate: normalizePlate(plateNumber) },
                       } as any)
                     }
-                    activeOpacity={0.85}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="people-outline" size={15} color="#fff" />
-                    <Text style={cs.dupPrimaryBtnTxt}>Request to Join as Co-Driver</Text>
+                    <Ionicons name="people-outline" size={14} color="rgba(255,255,255,0.75)" />
+                    <Text style={cs.dupSecondaryBtnTxt}>I share this car — join as co-driver</Text>
                   </TouchableOpacity>
+
+                  {/* Option 3 — someone else is using their plate fraudulently */}
                   <TouchableOpacity
                     style={cs.dupSecondaryBtn}
                     onPress={() => { setClaimNote(""); setClaimVisible(true); }}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="flag-outline" size={14} color="rgba(255,255,255,0.6)" />
-                    <Text style={cs.dupSecondaryBtnTxt}>Claim — this vehicle is mine</Text>
+                    <Ionicons name="flag-outline" size={14} color="rgba(255,255,255,0.5)" />
+                    <Text style={[cs.dupSecondaryBtnTxt, { color: "rgba(255,255,255,0.5)" }]}>
+                      Someone else is using my plate — report a claim
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
