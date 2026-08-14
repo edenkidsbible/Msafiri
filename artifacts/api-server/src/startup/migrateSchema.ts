@@ -379,6 +379,22 @@ export async function migrateSchema(): Promise<void> {
         ON vehicle_join_requests (vehicle_id, status)
     `);
 
+    // ── vehicle_claims — user-submitted ownership disputes ────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS vehicle_claims (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        vehicle_id          UUID NOT NULL REFERENCES shared_vehicles(id) ON DELETE CASCADE,
+        claimant_device_id  TEXT NOT NULL,
+        claim_note          TEXT,
+        status              TEXT NOT NULL DEFAULT 'pending',
+        created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS vehicle_claims_vehicle_idx
+        ON vehicle_claims (vehicle_id, status)
+    `);
+
     // ── shared_vehicle_id on live_trips ──────────────────────────────────────
     // Nullable FK-style column (stored as TEXT to avoid cross-schema FK issues)
     // pointing to shared_vehicles.id.  Set at session-start when the driver's

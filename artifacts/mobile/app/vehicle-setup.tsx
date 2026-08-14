@@ -4,9 +4,11 @@
  * current odometer, then seeds the savedVehicles list and navigates to the
  * main app. All steps are optional — the user can skip at any time.
  */
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Keyboard,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,6 +25,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { saveVehicles, loadVehicles, setPrimaryVehicleIdIfUnset, normalizePlate } from "@/utils/savedVehicles";
+import { apiGet, apiPost } from "@/utils/apiClient";
 import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
 import { slugify } from "@/lib/vehicleImageFallback";
@@ -69,9 +72,15 @@ function ChipRow<T extends string>({
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
+interface DuplicateVehicle {
+  id: string;
+  displayName: string;
+  vehicleType: string;
+}
+
 export default function VehicleSetup() {
   const c = useColors();
-  const { setVehicleModel, setVehicleType: setCtxVehicleType, setCustomVehicle } = useApp();
+  const { deviceId, setVehicleModel, setVehicleType: setCtxVehicleType, setCustomVehicle } = useApp();
   const { refreshVehicles } = useVehicle();
 
   // Step 0 = type, 1 = make, 2 = model, 3 = details
@@ -90,6 +99,75 @@ export default function VehicleSetup() {
   const [odometer, setOdometer] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Plate duplicate-check state
+  const [plateChecking,   setPlateChecking]   = useState(false);
+  const [plateDuplicate,  setPlateDuplicate]  = useState<DuplicateVehicle | null>(null);
+  const plateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Claim modal state
+  const [claimVisible,  setClaimVisible]  = useState(false);
+  const [claimNote,     setClaimNote]     = useState("");
+  const [claimSending,  setClaimSending]  = useState(false);
+  const [claimSent,     setClaimSent]     = useState(false);
+
+  // ── Debounced plate search ─────────────────────────────────────────────────
+  useEffect(() => {
+    const canonical = normalizePlate(plateNumber);
+    setPlateDuplicate(null);
+    setClaimSent(false);
+    if (canonical.length < 5) return;
+
+    if (plateTimerRef.current) clearTimeout(plateTimerRef.current);
+    plateTimerRef.current = setTimeout(async () => {
+      setPlateChecking(true);
+      try {
+        const result = await apiGet<{
+          found: boolean;
+          vehicle?: DuplicateVehicle;
+          alreadyMember?: boolean;
+        }>(`/vehicles/search?plate=${encodeURIComponent(canonical)}&deviceId=${deviceId ?? ""}`);
+        // Only flag as duplicate if found AND the current user isn't already a member
+        setPlateDuplicate(
+          result.found && result.vehicle && !result.alreadyMember
+            ? result.vehicle
+            : null,
+        );
+      } catch {
+        // Silent — don't block the user on a search failure
+      } finally {
+        setPlateChecking(false);
+      }
+    }, 800);
+
+    return () => { if (plateTimerRef.current) clearTimeout(plateTimerRef.current); };
+  }, [plateNumber, deviceId]);
+
+  // ── Submit a claim ─────────────────────────────────────────────────────────
+  async function handleSubmitClaim() {
+    if (!plateDuplicate || !deviceId) return;
+    setClaimSending(true);
+    try {
+      await apiPost("/vehicles/claim", {
+        deviceId,
+        vehicleId: plateDuplicate.id,
+        claimNote: claimNote.trim() || undefined,
+      });
+      setClaimSent(true);
+      setClaimVisible(false);
+    } catch (err: any) {
+      const msg = err?.message ?? "";
+      if (msg.includes("already have a pending claim")) {
+        setClaimSent(true);
+        setClaimVisible(false);
+      } else {
+        // Show inline error — don't crash the modal
+        console.warn("Claim failed:", msg);
+      }
+    } finally {
+      setClaimSending(false);
+    }
+  }
 
   const selectedMake = useMemo(() => CAR_MAKES.find((m) => m.id === makeId), [makeId]);
 
@@ -396,17 +474,81 @@ export default function VehicleSetup() {
 
               <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Number plate</Text>
               <Text style={cs.fieldHint}>
-                Required to restore your data on a new device. Also shows on your vehicle card in Garage.
+                Required — prevents duplicate registrations and lets you restore your data on a new device.
               </Text>
-              <TextInput
-                style={cs.odometerInput}
-                value={plateNumber}
-                onChangeText={(t) => setPlateNumber(t.toUpperCase())}
-                placeholder="e.g. KCB 123A"
-                placeholderTextColor="#555"
-                autoCapitalize="characters"
-                returnKeyType="next"
-              />
+              <View style={{ position: "relative" }}>
+                <TextInput
+                  style={[
+                    cs.odometerInput,
+                    plateDuplicate && { borderColor: "#D97706", borderWidth: 1.5 },
+                  ]}
+                  value={plateNumber}
+                  onChangeText={(t) => setPlateNumber(t.toUpperCase())}
+                  placeholder="e.g. KCB 123A"
+                  placeholderTextColor="#555"
+                  autoCapitalize="characters"
+                  returnKeyType="next"
+                />
+                {plateChecking && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#00A845"
+                    style={{ position: "absolute", right: 14, top: 14 }}
+                  />
+                )}
+              </View>
+
+              {/* ── Duplicate plate warning ─────────────────────────────── */}
+              {plateDuplicate && !claimSent && (
+                <View style={cs.dupCard}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <Ionicons name="warning-outline" size={16} color="#D97706" />
+                    <Text style={cs.dupTitle}>This plate is already registered</Text>
+                  </View>
+                  <Text style={cs.dupBody}>
+                    <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>
+                      {plateDuplicate.displayName}
+                    </Text>
+                    {" "}is already on Msafiri under a different account.{"\n"}
+                    If you share this vehicle, request to join as a co-driver.
+                    If you believe this is your car and someone else is using its details, you can report a claim.
+                  </Text>
+                  <TouchableOpacity
+                    style={cs.dupPrimaryBtn}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/join-vehicle",
+                        params: { prefillPlate: normalizePlate(plateNumber) },
+                      } as any)
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="people-outline" size={15} color="#fff" />
+                    <Text style={cs.dupPrimaryBtnTxt}>Request to Join as Co-Driver</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={cs.dupSecondaryBtn}
+                    onPress={() => { setClaimNote(""); setClaimVisible(true); }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="flag-outline" size={14} color="rgba(255,255,255,0.6)" />
+                    <Text style={cs.dupSecondaryBtnTxt}>Claim — this vehicle is mine</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ── Claim sent confirmation ─────────────────────────────── */}
+              {plateDuplicate && claimSent && (
+                <View style={[cs.dupCard, { borderColor: "#22C55E50", backgroundColor: "#22C55E10" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color="#22C55E" />
+                    <Text style={[cs.dupTitle, { color: "#22C55E" }]}>Claim submitted</Text>
+                  </View>
+                  <Text style={cs.dupBody}>
+                    We've received your report. Our team will review it and follow up. In the meantime, you can still request to join as a co-driver.
+                  </Text>
+                </View>
+              )}
 
               <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Current odometer (km)</Text>
               <Text style={cs.fieldHint}>
@@ -449,20 +591,91 @@ export default function VehicleSetup() {
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={cs.nextBtn}
-            onPress={handleFinish}
-            disabled={saving}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-            <Text style={cs.nextBtnTxt}>{saving ? "Saving…" : "Set up my vehicle"}</Text>
-          </TouchableOpacity>
+          <>
+            {plateDuplicate && !claimSent && (
+              <View style={cs.dupBlockNote}>
+                <Ionicons name="lock-closed-outline" size={13} color="#D97706" />
+                <Text style={cs.dupBlockNoteTxt}>
+                  Resolve the duplicate plate above before saving.
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[cs.nextBtn, plateDuplicate && !claimSent && { opacity: 0.4 }]}
+              onPress={handleFinish}
+              disabled={saving || (!!plateDuplicate && !claimSent)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+              <Text style={cs.nextBtnTxt}>{saving ? "Saving…" : "Set up my vehicle"}</Text>
+            </TouchableOpacity>
+          </>
         )}
         <TouchableOpacity onPress={handleSkip} style={cs.skipBtnBelow}>
           <Text style={cs.skipBelowTxt}>I'll set this up later in Garage</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── Claim modal ──────────────────────────────────────────────────── */}
+      <Modal
+        visible={claimVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setClaimVisible(false)}
+        statusBarTranslucent
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <View style={cs.claimSheet}>
+            <View style={cs.claimHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <Ionicons name="flag-outline" size={20} color="#D97706" />
+              <Text style={cs.claimTitle}>Claim this vehicle</Text>
+            </View>
+            <Text style={cs.claimSub}>
+              Tell us why you believe{" "}
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>
+                {plateDuplicate?.displayName ?? "this vehicle"}
+              </Text>{" "}
+              is yours. Our team will review it and contact you.
+            </Text>
+            <TextInput
+              style={cs.claimInput}
+              value={claimNote}
+              onChangeText={setClaimNote}
+              placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
+              placeholderTextColor="#555"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular", alignSelf: "flex-end", marginBottom: 16 }}>
+              {claimNote.length}/500
+            </Text>
+            <TouchableOpacity
+              style={[cs.nextBtn, { marginBottom: 10 }]}
+              onPress={handleSubmitClaim}
+              disabled={claimSending}
+              activeOpacity={0.85}
+            >
+              {claimSending
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <>
+                    <Ionicons name="send-outline" size={16} color="#fff" />
+                    <Text style={cs.nextBtnTxt}>Submit Claim</Text>
+                  </>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={cs.skipBtnBelow}
+              onPress={() => setClaimVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={cs.skipBelowTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -537,6 +750,114 @@ const cs = StyleSheet.create({
     backgroundColor: "#1A2820", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
     borderRadius: 10, paddingHorizontal: 16, paddingVertical: 13,
     color: "#fff", fontSize: 17, fontFamily: "Inter_500Medium",
+  },
+
+  // Duplicate-plate warning card
+  dupCard: {
+    marginTop: 10,
+    backgroundColor: "#F59E0B10",
+    borderWidth: 1,
+    borderColor: "#F59E0B50",
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+  },
+  dupTitle: {
+    color: "#D97706",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    flex: 1,
+  },
+  dupBody: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
+  },
+  dupPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: "#00A845",
+    borderRadius: 10,
+    paddingVertical: 11,
+  },
+  dupPrimaryBtnTxt: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  dupSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  dupSecondaryBtnTxt: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+  },
+  dupBlockNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  dupBlockNoteTxt: {
+    color: "#D97706",
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
+
+  // Claim modal sheet
+  claimSheet: {
+    backgroundColor: "#0B1611",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
+  claimHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  claimTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontFamily: "Inter_700Bold",
+  },
+  claimSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 19,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  claimInput: {
+    backgroundColor: "#1A2820",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#fff",
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    minHeight: 110,
+    marginBottom: 6,
   },
 
   // Bottom CTA

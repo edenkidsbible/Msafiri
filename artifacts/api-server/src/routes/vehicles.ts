@@ -7,6 +7,7 @@ import {
   sharedVehiclesTable,
   vehicleMembersTable,
   vehicleJoinRequestsTable,
+  vehicleClaimsTable,
 } from "@workspace/db";
 import { sendPushNotifications } from "../lib/expoPush.js";
 
@@ -190,6 +191,31 @@ router.post("/vehicles/register", async (req, res) => {
         memberToken: generateMemberToken(existing[0].id, deviceId),
       });
     }
+
+    // Global plate uniqueness check — same plate under a DIFFERENT owner is not
+    // allowed. Return 409 with enough info for the client to offer join/claim flows.
+    const conflict = await db
+      .select({
+        id:          sharedVehiclesTable.id,
+        displayName: sharedVehiclesTable.displayName,
+        vehicleType: sharedVehiclesTable.vehicleType,
+      })
+      .from(sharedVehiclesTable)
+      .where(
+        and(
+          eq(sharedVehiclesTable.plateNumber, plateNumber),
+          ne(sharedVehiclesTable.ownerDeviceId, deviceId),
+        ),
+      )
+      .limit(1);
+
+    if (conflict.length > 0) {
+      return res.status(409).json({
+        error:     "This plate is already registered on Msafiri under a different account.",
+        duplicate: true,
+        vehicle:   conflict[0],
+      });
+    }
   }
 
   const shareCode = await uniqueShareCode();
@@ -287,6 +313,70 @@ router.get("/vehicles/search", plateSearchLimiter, async (req, res) => {
     alreadyMember,
     hasPendingRequest,
   });
+});
+
+// ── POST /vehicles/claim ──────────────────────────────────────────────────────
+// User believes a plate already registered under another account is actually
+// their vehicle. Stores the claim for Msafiri support to review.
+// Rate-limited to 3 claims per IP per 10 minutes to prevent abuse.
+const claimLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  max: 3,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.set("Retry-After", String(Math.ceil(WINDOW_MS / 1000)));
+    res.status(429).json({ error: "Too many claim requests. Please wait 10 minutes." });
+  },
+});
+
+router.post("/vehicles/claim", claimLimiter, async (req, res) => {
+  const { deviceId, vehicleId, claimNote } = req.body as {
+    deviceId: string;
+    vehicleId: string;
+    claimNote?: string;
+  };
+
+  if (!deviceId || !vehicleId) {
+    return res.status(400).json({ error: "deviceId and vehicleId are required" });
+  }
+
+  // Confirm the vehicle exists
+  const vehicle = await db
+    .select({ id: sharedVehiclesTable.id, plateNumber: sharedVehiclesTable.plateNumber })
+    .from(sharedVehiclesTable)
+    .where(eq(sharedVehiclesTable.id, vehicleId))
+    .limit(1);
+
+  if (vehicle.length === 0) {
+    return res.status(404).json({ error: "Vehicle not found" });
+  }
+
+  // One pending claim per device per vehicle is enough
+  const existing = await db
+    .select({ id: vehicleClaimsTable.id })
+    .from(vehicleClaimsTable)
+    .where(
+      and(
+        eq(vehicleClaimsTable.vehicleId, vehicleId),
+        eq(vehicleClaimsTable.claimantDeviceId, deviceId),
+        eq(vehicleClaimsTable.status, "pending"),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    return res.status(409).json({ error: "You already have a pending claim for this vehicle." });
+  }
+
+  await db.insert(vehicleClaimsTable).values({
+    vehicleId,
+    claimantDeviceId: deviceId,
+    claimNote:        claimNote?.trim() || null,
+  });
+
+  return res.status(201).json({ success: true });
 });
 
 // ── POST /vehicles/join-by-code ───────────────────────────────────────────────
