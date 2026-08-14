@@ -188,9 +188,12 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
     // Admin-confirmed camera reports use the same red camera circle as static
     // speed-camera zone markers — they are permanent infrastructure, not transient incidents.
     if (r.type === "camera") {
+      // Mobile cameras render green so drivers can distinguish them from
+      // fixed (permanent) speed cameras at a glance.
+      const camBg = r.cameraType === "mobile" ? "#00A845" : "#E53935";
       return (
         <View collapsable={false}>
-          <MarkerIcon ioniconName="camera" bg="#E53935" size={32} />
+          <MarkerIcon ioniconName="camera" bg={camBg} size={32} />
         </View>
       );
     }
@@ -1280,6 +1283,25 @@ const DriveMapView = forwardRef(function DriveMapView(
             </React.Fragment>
           );
         })}
+
+        {/* Camera halos for community-reported cameras — coloured by type so
+            drivers can see the enforcement zone at a glance.
+            Rendered before cluster markers so they sit underneath them. */}
+        {visibleReports
+          .filter((r) => r.type === "camera")
+          .map((r) => {
+            const isMobile = r.cameraType === "mobile";
+            return (
+              <Circle
+                key={`cam-halo-${r.id}`}
+                center={{ latitude: r.lat, longitude: r.lng }}
+                radius={180}
+                strokeColor={isMobile ? "#00A84555" : "#E5393555"}
+                fillColor={isMobile ? "#00A84512" : "#E5393912"}
+                strokeWidth={1.5}
+              />
+            );
+          })}
 
         {/* Community report clusters */}
         {clusters.map((group) => {

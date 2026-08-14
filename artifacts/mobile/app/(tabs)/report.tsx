@@ -297,12 +297,12 @@ export default function ReportScreen() {
           setShowReport(false);
           setTimeout(() => setCrosshairRequest({ lat: initialLat, lng: initialLng, onConfirm }), 320);
         }}
-        onSubmit={async (type, speedLimit, location, meta) => {
+        onSubmit={async (type, speedLimit, location, meta, cameraType) => {
           setShowReport(false);
           setInitialType(null);
           if (location) {
             const road = await getRoadName(location.lat, location.lng).catch(() => null);
-            addReport(type, location.lat, location.lng, speedLimit, road ?? undefined, meta);
+            addReport(type, location.lat, location.lng, speedLimit, road ?? undefined, meta, cameraType);
           } else if (currentLat !== null && currentLng !== null) {
             try {
               const routeSnap = snapToActiveRoute(currentLat, currentLng);
@@ -310,9 +310,9 @@ export default function ReportScreen() {
                 routeSnap ? Promise.resolve(routeSnap) : snapToRoad(currentLat, currentLng),
                 getRoadName(currentLat, currentLng).catch(() => null),
               ]);
-              addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined, meta);
+              addReport(type, snapped.lat, snapped.lng, speedLimit, road ?? undefined, meta, cameraType);
             } catch {
-              addReport(type, currentLat, currentLng, speedLimit, undefined, meta);
+              addReport(type, currentLat, currentLng, speedLimit, undefined, meta, cameraType);
             }
           }
           playSound("confirm").catch(() => {});

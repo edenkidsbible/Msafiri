@@ -14,6 +14,7 @@ export const communityReportsTable = pgTable("community_reports", {
   denyCount:    integer("deny_count").notNull().default(0),
   deniedBy:     jsonb("denied_by").notNull().$type<string[]>().default([]),
   speedLimit:   integer("speed_limit"),           // cameras only
+  cameraType:   text("camera_type"),              // "fixed" | "mobile" — cameras only; null for all other types
   roadName:     text("road_name"),
   createdAt:       timestamp("created_at").notNull().defaultNow(),
   expiresAt:       timestamp("expires_at"),          // null = never expires (cameras)

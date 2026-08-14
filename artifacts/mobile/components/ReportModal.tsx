@@ -68,7 +68,7 @@ export interface ReportLocation {
 interface ReportModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation, meta?: ObservationMeta) => void;
+  onSubmit: (type: ReportType, speedLimit?: number, location?: ReportLocation, meta?: ObservationMeta, cameraType?: "fixed" | "mobile") => void;
   currentLat?: number | null;
   currentLng?: number | null;
   initialType?: ReportType | null; // NEW — pre-selects this type when modal opens
@@ -114,6 +114,7 @@ export default function ReportModal({
   const { tripHistory, isAdmin } = useApp();
   const [sel, setSel] = useState<ReportType | null>(null);
   const [speedLimit, setSpeedLimit] = useState("");
+  const [cameraType, setCameraType] = useState<"fixed" | "mobile" | null>(null);
   const [whenSeen, setWhenSeen] = useState<WhenSeen | null>(null);
 
   const hasCurrentLocation = currentLat != null && currentLng != null;
@@ -159,6 +160,7 @@ export default function ReportModal({
   const reset = () => {
     setSel(null);
     setSpeedLimit("");
+    setCameraType(null);
     setLocationMode("current");
     setSearchText("");
     setSearchResults([]);
@@ -270,7 +272,8 @@ export default function ReportModal({
 
   // Always ask when the reporter observed this — applies to all location modes.
   const needsWhenSeen = true;
-  const canSubmit = !!sel && locationReady && !!whenSeen;
+  // Camera reports additionally require the Fixed / Mobile subtype to be chosen.
+  const canSubmit = !!sel && locationReady && !!whenSeen && (sel !== "camera" || !!cameraType);
 
   const doSubmit = (type: ReportType, limit?: number, location?: ReportLocation) => {
     clearIdleTimer();
@@ -283,7 +286,7 @@ export default function ReportModal({
       observedAt: observedAtMs,
       ...(proximityM != null ? { reporterProximityM: proximityM } : {}),
     };
-    onSubmit(type, limit, location, meta);
+    onSubmit(type, limit, location, meta, type === "camera" ? (cameraType ?? "fixed") : undefined);
     reset();
   };
 
@@ -616,7 +619,7 @@ export default function ReportModal({
                   {/* Back link */}
                   <TouchableOpacity
                     style={styles.changeTypeRow}
-                    onPress={() => { Haptics.selectionAsync(); bumpIdleTimer(); setSel(null); setSpeedLimit(""); }}
+                    onPress={() => { Haptics.selectionAsync(); bumpIdleTimer(); setSel(null); setSpeedLimit(""); setCameraType(null); }}
                     activeOpacity={0.7}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
@@ -636,6 +639,51 @@ export default function ReportModal({
                       </Text>
                     </View>
                     <Ionicons name="checkmark-circle" size={22} color="#E53935" />
+                  </View>
+
+                  {/* ── Fixed / Mobile camera type ──────────────────────────
+                      Large, clearly-labelled chips so a driver can tap while
+                      moving. Required before the speed section becomes visible.
+                  ─────────────────────────────────────────────────────────── */}
+                  <View style={styles.cameraTypeSectionWrap}>
+                    <Text style={[styles.cameraTypeLabel, { color: c.foreground }]}>Is this camera fixed or mobile?</Text>
+                    <View style={styles.cameraTypeRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.cameraTypeChip,
+                          cameraType === "fixed"
+                            ? { backgroundColor: "#E53935", borderColor: "#E53935" }
+                            : { backgroundColor: c.card, borderColor: "#E5393966" },
+                        ]}
+                        onPress={() => { Haptics.selectionAsync(); bumpIdleTimer(); setCameraType("fixed"); }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.cameraTypeEmoji}>🔒</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.cameraTypeTitle, { color: cameraType === "fixed" ? "#FFF" : c.foreground }]}>Fixed</Text>
+                          <Text style={[styles.cameraTypeSub, { color: cameraType === "fixed" ? "rgba(255,255,255,0.75)" : c.mutedForeground }]}>Permanent installation</Text>
+                        </View>
+                        {cameraType === "fixed" && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.cameraTypeChip,
+                          cameraType === "mobile"
+                            ? { backgroundColor: "#00A845", borderColor: "#00A845" }
+                            : { backgroundColor: c.card, borderColor: "#00A84566" },
+                        ]}
+                        onPress={() => { Haptics.selectionAsync(); bumpIdleTimer(); setCameraType("mobile"); }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.cameraTypeEmoji}>🚗</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.cameraTypeTitle, { color: cameraType === "mobile" ? "#FFF" : c.foreground }]}>Mobile</Text>
+                          <Text style={[styles.cameraTypeSub, { color: cameraType === "mobile" ? "rgba(255,255,255,0.75)" : c.mutedForeground }]}>Temporary / moving checkpoint</Text>
+                        </View>
+                        {cameraType === "mobile" && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {/* Speed limit picker — front and centre */}
@@ -736,7 +784,9 @@ export default function ReportModal({
                       ? "Tell us when you saw this"
                       : !sel
                         ? "Select an incident type above"
-                        : `Report ${selItem?.label}`}
+                        : sel === "camera" && !cameraType
+                          ? "Choose Fixed or Mobile above"
+                          : `Report ${selItem?.label}`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -875,6 +925,17 @@ const styles = StyleSheet.create({
     marginTop: 20, marginBottom: 14,
   },
   changeTypeTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  cameraTypeSectionWrap: { marginTop: 14, marginBottom: 4 },
+  cameraTypeLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 10 },
+  cameraTypeRow: { flexDirection: "row", gap: 10 },
+  cameraTypeChip: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
+    borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,
+  },
+  cameraTypeEmoji: { fontSize: 22, fontFamily: "System" },
+  cameraTypeTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  cameraTypeSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
 
   cameraCard: {
     flexDirection: "row", alignItems: "center", gap: 14,
