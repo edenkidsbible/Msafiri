@@ -90,7 +90,7 @@ export const CATEGORIES: Record<QueryCategory, CategoryDef> = {
     defaultName: "Shop",
   },
   bank_atm: {
-    label: "Bank / ATM", color: "#6A1B9A", chip: "ATM/Bank",
+    label: "Bank / ATM", color: "#0277BD", chip: "ATM/Bank",
     filters:
       `node["amenity"="bank"](around:{r},{lat},{lng});` +
       `node["amenity"="atm"](around:{r},{lat},{lng});` +
@@ -112,7 +112,7 @@ export const CATEGORIES: Record<QueryCategory, CategoryDef> = {
     defaultName: "Parking",
   },
   hotel: {
-    label: "Hotel / Lodge", color: "#4A148C", chip: "Hotel",
+    label: "Hotel / Lodge", color: "#00897B", chip: "Hotel",
     filters:
       `node["tourism"="hotel"](around:{r},{lat},{lng});` +
       `node["tourism"="guest_house"](around:{r},{lat},{lng});` +
@@ -127,7 +127,7 @@ export const CATEGORIES: Record<QueryCategory, CategoryDef> = {
     defaultName: "Toilets",
   },
   nightlife: {
-    label: "Nightlife", color: "#6A0572", chip: "Nightlife",
+    label: "Nightlife", color: "#E65100", chip: "Nightlife",
     filters:
       `node["amenity"="bar"](around:{r},{lat},{lng});` +
       `node["amenity"="nightclub"](around:{r},{lat},{lng});` +

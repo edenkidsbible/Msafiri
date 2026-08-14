@@ -108,8 +108,8 @@ export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bott
           sheet.pill,
           compact && sheet.pillCompact,
           {
-            backgroundColor: "#7C3AED18",
-            borderColor: "#7C3AED40",
+            backgroundColor: "#F59E0B18",
+            borderColor: "#F59E0B50",
             ...(topOffset !== undefined
               ? { top: topOffset }
               : { bottom: resolvedBottom }),
@@ -118,12 +118,12 @@ export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bott
         accessibilityLabel="Offline mode — tap for details"
         accessibilityRole="button"
       >
-        <Ionicons name="cloud-offline-outline" size={compact ? 12 : 14} color="#7C3AED" />
-        <Text style={[sheet.pillTxt, compact && sheet.pillTxtCompact, { color: "#7C3AED" }]}>
+        <Ionicons name="cloud-offline-outline" size={compact ? 12 : 14} color="#D97706" />
+        <Text style={[sheet.pillTxt, compact && sheet.pillTxtCompact, { color: "#D97706" }]}>
           Offline
           {hasSynced ? ` · data from ${syncAge}` : " · no data yet"}
         </Text>
-        <Ionicons name="information-circle-outline" size={compact ? 11 : 13} color="#7C3AED" />
+        <Ionicons name="information-circle-outline" size={compact ? 11 : 13} color="#D97706" />
       </TouchableOpacity>
 
       {/* ── Info sheet ────────────────────────────────────────────────── */}
@@ -145,7 +145,7 @@ export default function OfflineAlertBanner({ lastSyncedAt, compact = false, bott
             {/* Header */}
             <View style={sheet.headerRow}>
               <View style={sheet.headerIcon}>
-                <Ionicons name="cloud-offline-outline" size={22} color="#7C3AED" />
+                <Ionicons name="cloud-offline-outline" size={22} color="#D97706" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[sheet.headerTitle, { color: c.foreground }]}>Offline Mode</Text>
@@ -304,7 +304,7 @@ const sheet = StyleSheet.create({
     width:           40,
     height:          40,
     borderRadius:    12,
-    backgroundColor: "#7C3AED18",
+    backgroundColor: "#F59E0B18",
     alignItems:      "center",
     justifyContent:  "center",
   },
