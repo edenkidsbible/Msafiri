@@ -440,6 +440,32 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS admin_note TEXT
     `);
 
+    // ── accident_records.dashcam_clip_key ─────────────────────────────────────
+    // Stores the R2 file key of a locked/pinned dashcam clip that the driver
+    // has explicitly attached to this accident record for playback on the
+    // public share page.
+    await db.execute(sql`
+      ALTER TABLE accident_records
+      ADD COLUMN IF NOT EXISTS dashcam_clip_key TEXT
+    `);
+
+    // ── accident_shares ───────────────────────────────────────────────────────
+    // Each row is a named, revocable share link; the UUID id IS the share token.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS accident_shares (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        accident_id  TEXT NOT NULL,
+        device_id    TEXT NOT NULL,
+        label        TEXT,
+        revoked_at   TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS accident_shares_accident_id_idx
+        ON accident_shares (accident_id, device_id)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

@@ -27,8 +27,10 @@ import {
   accidentPhotosTable,
   accidentWitnessesTable,
   accidentTimelineEventsTable,
+  accidentSharesTable,
+  dashcamClipsTable,
 } from "@workspace/db";
-import { eq, and, desc, ne, or, isNull } from "drizzle-orm";
+import { eq, and, desc, ne, or, isNull, isNotNull } from "drizzle-orm";
 import * as r2 from "../lib/r2Storage.js";
 
 const router = Router();
@@ -598,7 +600,8 @@ router.get("/accidents/:id", async (req: Request, res: Response) => {
       destinationName: r.destinationName,
       distanceM: r.distanceM ? Number(r.distanceM) : null,
       durationS: r.durationS ? Number(r.durationS) : null,
-      dashcamClipId: r.dashcamClipId,
+      dashcamClipId:  r.dashcamClipId,
+      dashcamClipKey: r.dashcamClipKey ?? null,
       weather, otherDriver, police,
       driverStatement: r.driverStatement,
       hasPdf: !!r.pdfUrl,
@@ -976,6 +979,220 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     return res.json({ url, cached: false });
   } catch (err) {
     console.error("GET /accidents/:id/report error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /accidents/:id/shares ────────────────────────────────────────────────
+// Create a new named share link for this accident record.
+router.post("/accidents/:id/shares", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const { deviceId, label } = req.body as { deviceId?: string; label?: string };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    // Ownership check
+    const [rec] = await db.select({ id: accidentRecordsTable.id })
+      .from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+    if (!rec) return res.status(404).json({ error: "Record not found" });
+
+    const [share] = await db.insert(accidentSharesTable).values({
+      accidentId: id,
+      deviceId,
+      label: label?.trim() || null,
+    }).returning();
+
+    return res.status(201).json({ share });
+  } catch (err) {
+    console.error("POST /accidents/:id/shares error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /accidents/:id/shares ─────────────────────────────────────────────────
+// List all share links for this accident record (active and revoked).
+router.get("/accidents/:id/shares", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const deviceId = req.query.deviceId as string;
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    const [rec] = await db.select({ id: accidentRecordsTable.id })
+      .from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+    if (!rec) return res.status(404).json({ error: "Record not found" });
+
+    const shares = await db.select().from(accidentSharesTable)
+      .where(and(eq(accidentSharesTable.accidentId, id), eq(accidentSharesTable.deviceId, deviceId)))
+      .orderBy(desc(accidentSharesTable.createdAt));
+
+    return res.json({ shares });
+  } catch (err) {
+    console.error("GET /accidents/:id/shares error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── DELETE /accidents/:id/shares/:shareId ─────────────────────────────────────
+// Revoke a share link (sets revokedAt; public endpoint returns 404 after this).
+router.delete("/accidents/:id/shares/:shareId", async (req: Request, res: Response) => {
+  try {
+    const id      = req.params["id"] as string;
+    const shareId = req.params["shareId"] as string;
+    const { deviceId } = req.body as { deviceId?: string };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    const [share] = await db.select().from(accidentSharesTable)
+      .where(and(
+        eq(accidentSharesTable.id, shareId),
+        eq(accidentSharesTable.accidentId, id),
+        eq(accidentSharesTable.deviceId, deviceId),
+      ));
+    if (!share) return res.status(404).json({ error: "Share not found" });
+    if (share.revokedAt) return res.json({ ok: true }); // already revoked
+
+    await db.update(accidentSharesTable)
+      .set({ revokedAt: new Date() })
+      .where(eq(accidentSharesTable.id, shareId));
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /accidents/:id/shares/:shareId error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /accidents/:id/attach-clip ──────────────────────────────────────────
+// Attach a locked+uploaded dashcam clip to this accident record.
+// Body: { deviceId, clipServerId }  — clipServerId is the dashcam_clips UUID.
+router.post("/accidents/:id/attach-clip", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const { deviceId, clipServerId } = req.body as { deviceId?: string; clipServerId?: string };
+    if (!deviceId || !clipServerId) return res.status(400).json({ error: "deviceId and clipServerId required" });
+
+    // Verify the accident belongs to this device
+    const [rec] = await db.select({ id: accidentRecordsTable.id })
+      .from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+    if (!rec) return res.status(404).json({ error: "Record not found" });
+
+    // Verify the clip belongs to this device, is locked, and has been uploaded
+    const [clip] = await db.select({ fileKey: dashcamClipsTable.fileKey })
+      .from(dashcamClipsTable)
+      .where(and(
+        eq(dashcamClipsTable.id, clipServerId),
+        eq(dashcamClipsTable.deviceId, deviceId),
+        eq(dashcamClipsTable.locked, true),
+        isNotNull(dashcamClipsTable.uploadedAt),
+      ));
+    if (!clip) return res.status(404).json({ error: "Clip not found, not locked, or not yet uploaded" });
+
+    await db.update(accidentRecordsTable)
+      .set({ dashcamClipKey: clip.fileKey, updatedAt: new Date() })
+      .where(eq(accidentRecordsTable.id, id));
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /accidents/:id/attach-clip error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── DELETE /accidents/:id/clip ────────────────────────────────────────────────
+// Detach the dashcam clip from this accident record (clears dashcam_clip_key).
+router.delete("/accidents/:id/clip", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const { deviceId } = req.body as { deviceId?: string };
+    if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+
+    const [rec] = await db.select({ id: accidentRecordsTable.id })
+      .from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")));
+    if (!rec) return res.status(404).json({ error: "Record not found" });
+
+    await db.update(accidentRecordsTable)
+      .set({ dashcamClipKey: null, updatedAt: new Date() })
+      .where(eq(accidentRecordsTable.id, id));
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /accidents/:id/clip error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /public/accident-report/:shareToken ───────────────────────────────────
+// No auth required. Resolves the share token, checks it isn't revoked, and
+// returns the full accident record with signed photo URLs and dashcam clip URL.
+router.get("/public/accident-report/:shareToken", async (req: Request, res: Response) => {
+  try {
+    const shareToken = req.params["shareToken"] as string;
+
+    const [share] = await db.select().from(accidentSharesTable)
+      .where(eq(accidentSharesTable.id, shareToken));
+
+    if (!share) return res.status(404).json({ error: "Report not found" });
+    if (share.revokedAt) return res.status(404).json({ error: "Report not found", revoked: true });
+
+    const [record] = await db.select().from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, share.accidentId), ne(accidentRecordsTable.status, "abandoned")));
+    if (!record) return res.status(404).json({ error: "Report not found" });
+
+    const [photos, witnesses, timeline] = await Promise.all([
+      db.select().from(accidentPhotosTable).where(eq(accidentPhotosTable.accidentId, share.accidentId)),
+      db.select().from(accidentWitnessesTable).where(eq(accidentWitnessesTable.accidentId, share.accidentId)).orderBy(accidentWitnessesTable.createdAt),
+      db.select().from(accidentTimelineEventsTable).where(eq(accidentTimelineEventsTable.accidentId, share.accidentId)).orderBy(accidentTimelineEventsTable.occurredAt),
+    ]);
+
+    // Generate signed photo URLs — short 5-minute TTL so that revoking a link
+    // renders already-issued media URLs unusable within minutes rather than hours.
+    const MEDIA_TTL_S = 300; // 5 minutes
+    const photosWithUrls = await Promise.all(photos.map(async (p) => ({
+      ...p,
+      signedUrl: p.fileKey ? await signedDownloadUrl(p.fileKey, MEDIA_TTL_S).catch(() => null) : null,
+    })));
+
+    // Generate signed dashcam clip URL if attached (same short TTL)
+    let dashcamClipUrl: string | null = null;
+    if (record.dashcamClipKey) {
+      dashcamClipUrl = await signedDownloadUrl(record.dashcamClipKey, MEDIA_TTL_S).catch(() => null);
+    }
+
+    return res.json({
+      shareLabel: share.label,
+      createdAt:  share.createdAt,
+      record: {
+        id:               record.id,
+        detectedAt:       record.detectedAt,
+        status:           record.status,
+        isManual:         record.isManual,
+        lat:              record.lat,
+        lng:              record.lng,
+        roadName:         record.roadName,
+        county:           record.county,
+        nearbyLandmark:   record.nearbyLandmark,
+        speedBeforeKmh:   record.speedBeforeKmh,
+        speedAtImpactKmh: record.speedAtImpactKmh,
+        directionLabel:   record.directionLabel,
+        destinationName:  record.destinationName,
+        distanceM:        record.distanceM,
+        durationS:        record.durationS,
+        weatherJson:      record.weatherJson,
+        otherDriverJson:  record.otherDriverJson,
+        policeJson:       record.policeJson,
+        driverStatement:  record.driverStatement,
+        myVehicleJson:    record.myVehicleJson,
+      },
+      photos:        photosWithUrls,
+      witnesses,
+      timeline,
+      dashcamClipUrl,
+    });
+  } catch (err) {
+    console.error("GET /public/accident-report/:shareToken error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

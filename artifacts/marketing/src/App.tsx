@@ -12,6 +12,7 @@ import Terms from "@/pages/terms";
 import BlogList from "@/pages/blog-list";
 import BlogPost from "@/pages/blog-post";
 import LiveTracker from "@/pages/live-tracker";
+import AccidentReport from "@/pages/accident-report";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/blog" component={BlogList} />
       <Route path="/live/:token" component={LiveTracker} />
+      <Route path="/accident-report/:token" component={AccidentReport} />
       <Route component={NotFound} />
     </Switch>
   );
