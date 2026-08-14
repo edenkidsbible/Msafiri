@@ -23,6 +23,12 @@ export interface SpeedZone {
    *  (see projectOntoSegment / stretchMatch), since a point-radius match at
    *  an endpoint can't tell whether the driver is actually on that road. */
   isStretchEndpoint?: boolean;
+  /** For type === "camera" zones: whether this is a permanently-mounted (fixed)
+   *  camera or a speed trap that can be repositioned (mobile).  Controls map
+   *  marker colour — green for mobile, red for fixed — so drivers can tell at
+   *  a glance which cameras may have moved since last reported.  Absent on
+   *  non-camera zone types (police, zone). */
+  cameraType?: "fixed" | "mobile";
 }
 
 export const SPEED_ZONES: SpeedZone[] = [

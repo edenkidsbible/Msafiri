@@ -829,6 +829,7 @@ interface ApiSpeedZone {
   speedLimit: number | null;
   description: string | null;
   bearing?: number | null; // direction of traffic the camera enforces (0-359°)
+  cameraType?: "fixed" | "mobile" | null; // only meaningful when type === "camera"
   lat: number | null;
   lng: number | null;
   startLat: number | null;
@@ -843,7 +844,7 @@ interface ApiSpeedZone {
 function apiZoneToStaticZones(z: ApiSpeedZone): SpeedZone[] {
   if (z.status !== "active" || z.speedLimit == null) return [];
   const type: SpeedZone["type"] = z.type === "camera" || z.type === "police" ? z.type : "zone";
-  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "", verified: z.verified ?? false, bearing: z.bearing ?? undefined };
+  const base = { name: z.name, road: z.road ?? "", speedLimit: z.speedLimit, type, description: z.description ?? "", verified: z.verified ?? false, bearing: z.bearing ?? undefined, ...(z.cameraType ? { cameraType: z.cameraType } : {}) };
   // When this DB record overrides a static zone, use the static zone's id so that
   // all speed-matching and route logic (which knows static ids) stays consistent.
   const pointId = z.staticId ?? `db-${z.id}`;

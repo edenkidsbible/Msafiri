@@ -1254,7 +1254,12 @@ const DriveMapView = forwardRef(function DriveMapView(
             road, instead of a straight line cutting across the map. */}
         {visibleZones.map((z) => {
           if (z.lat == null || z.lng == null || isNaN(z.lat) || isNaN(z.lng)) return null;
-          const bg = z.type === "camera" ? "#E53935" : z.type === "police" ? "#1565C0" : "#E65100";
+          // Mobile cameras → green so drivers distinguish them from fixed cameras.
+          // Fixed (or untagged) cameras → red.  Police / general zones keep their own colours.
+          const isMobileCamera = z.type === "camera" && z.cameraType === "mobile";
+          const bg = z.type === "camera"
+            ? (isMobileCamera ? "#00A845" : "#E53935")
+            : z.type === "police" ? "#1565C0" : "#E65100";
           return (
             <React.Fragment key={z.id}>
               <Marker
@@ -1276,8 +1281,8 @@ const DriveMapView = forwardRef(function DriveMapView(
               <Circle
                 center={{ latitude: z.lat, longitude: z.lng }}
                 radius={180}
-                strokeColor={z.type === "camera" ? "#E5393555" : "#1565C055"}
-                fillColor={z.type === "camera" ? "#E5393912" : "#1565C012"}
+                strokeColor={z.type === "camera" ? (isMobileCamera ? "#00A84555" : "#E5393555") : "#1565C055"}
+                fillColor={z.type === "camera" ? (isMobileCamera ? "#00A84512" : "#E5393912") : "#1565C012"}
                 strokeWidth={1.5}
               />
             </React.Fragment>
