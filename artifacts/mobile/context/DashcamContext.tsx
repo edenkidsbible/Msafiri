@@ -42,6 +42,7 @@ import React, {
   useState,
 } from "react";
 import { useVehicle } from "@/context/VehicleContext";
+import { useApp } from "@/context/AppContext";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
@@ -97,6 +98,9 @@ export interface DashcamSegment {
   retryCount?: number;
   lat?: number;
   lng?: number;
+  /** Speed at the moment this segment began recording, in km/h (rounded integer).
+   *  Null/undefined for clips recorded before this field was introduced. */
+  speedKmh?: number;
 }
 
 export interface DashcamSettings {
@@ -219,6 +223,11 @@ export function useDashcam(): DashcamContextValue {
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function DashcamProvider({ children }: { children: React.ReactNode }) {
+  // ── GPS speed — read at segment-start to tag each clip with its opening speed
+  const { currentSpeed } = useApp();
+  const currentSpeedRef = useRef(currentSpeed);
+  useEffect(() => { currentSpeedRef.current = currentSpeed; }, [currentSpeed]);
+
   // ── Active vehicle ─────────────────────────────────────────────────────────
   const { activeVehicleId } = useVehicle();
   const vehicleKey = activeVehicleId ?? "default";
@@ -250,6 +259,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   // ── Segment-start snapshot refs ───────────────────────────────────────────
   const recordingSegmentDirRef      = useRef(vehicleSegmentsDir(vehicleKey));
   const recordingSegmentAsyncKeyRef = useRef(vehicleSegmentsKey(vehicleKey));
+  /** Speed snapped at the moment each segment begins — attached to the completed clip. */
+  const segmentStartSpeedRef = useRef<number | null>(null);
 
   // ── Permission refs ───────────────────────────────────────────────────────
   const [cameraPermission, requestCameraPermission] = useCameraPermissions
@@ -672,6 +683,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             startedAt:  new Date(seg.startedAt).toISOString(),
             lat:        seg.lat ?? null,
             lng:        seg.lng ?? null,
+            speedKmh:   seg.speedKmh ?? null,
             vehicleId:  activeVehicleIdRef.current ?? null,
           }),
         });
@@ -1019,6 +1031,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const onSegmentStart = useCallback(() => {
     recordingSegmentDirRef.current      = segmentsFsDirRef.current;
     recordingSegmentAsyncKeyRef.current = segmentsAsyncKeyRef.current;
+    // Snap the current GPS speed so it can be stored with the completed clip.
+    // currentSpeedRef is kept in sync via a useEffect so this always reads
+    // the latest value without a stale closure.
+    segmentStartSpeedRef.current = currentSpeedRef.current ?? null;
   }, []);
 
   const onSegmentComplete = useCallback(
@@ -1043,6 +1059,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         const info      = await FileSystem.getInfoAsync(destUri);
         const sizeBytes = (info as any).size ?? 0;
 
+        const capturedSpeedKmh = segmentStartSpeedRef.current;
+        segmentStartSpeedRef.current = null;
+
         const base = buildDashcamSegment({
           id, destUri, durationS: durationS ?? 120, sizeBytes,
           lockReason: lockReason ?? null, coords,
@@ -1052,6 +1071,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           lockType: lockReason
             ? (lockReason === "manual" ? "manual" : "auto")
             : undefined,
+          ...(capturedSpeedKmh != null
+            ? { speedKmh: Math.round(capturedSpeedKmh) }
+            : {}),
         } as DashcamSegment;
 
         if (vehicleSwitchedMidSegment) {

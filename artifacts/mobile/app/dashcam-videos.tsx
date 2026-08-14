@@ -530,6 +530,7 @@ export default function DashcamVideosScreen() {
         serverId:     s.serverId,
         lat:          s.lat,
         lng:          s.lng,
+        speedKmh:     s.speedKmh,
         pinned:       sc?.pinned,
         expiresAt:    sc?.expiresAt,
       };
