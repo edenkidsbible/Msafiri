@@ -8,11 +8,14 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "hooks": {
+        "pre_install": "./eas-hooks/eas-build-pre-install.sh"
+      },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
       }
     },
     "preview": {
@@ -21,22 +24,28 @@
       "android": {
         "buildType": "apk"
       },
+      "hooks": {
+        "pre_install": "./eas-hooks/eas-build-pre-install.sh"
+      },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_BYPASS_PAYWALL": "true",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
+      "hooks": {
+        "pre_install": "./eas-hooks/eas-build-pre-install.sh"
+      },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "msafirikenya.com",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_NpbxUUJoJudMdUxALbNRtPEVkjD",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_VyhAmjuUAnTtmpXrGBkRrmfKEWQ",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_ooNOODiUZCkYXUFSBbDimjbtSHL"
       }
     }
   },
