@@ -5,6 +5,11 @@ import Constants from "expo-constants";
 import { useRouter, useRootNavigationState } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiGet } from "@/utils/apiClient";
+import {
+  BG_NOTIFICATION_TASK,
+  TOKEN_REGISTERED_AT_KEY,
+  LAST_LOCATION_KEY,
+} from "@/utils/backgroundNotificationTask";
 import { addSharedVehicle } from "@/utils/savedVehicles";
 import { useApp, CommunityReport } from "@/context/AppContext";
 
@@ -143,6 +148,8 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
       ...(lat != null && lng != null ? { lat, lng } : {}),
     });
     await AsyncStorage.setItem(TOKEN_KEY, token);
+    // Stamp the registration time so the background task can check staleness
+    await AsyncStorage.setItem(TOKEN_REGISTERED_AT_KEY, String(Date.now()));
   } catch (err) {
     console.warn("[usePushNotifications] Failed to register token:", err);
   }
@@ -153,19 +160,26 @@ async function syncLocation(lat: number, lng: number): Promise<void> {
   try {
     const deviceId = await getOrCreateDeviceId();
     await apiPost("/push/location", { deviceId, lat, lng });
+    // Persist latest location so the background notification task can read it
+    // and forward it to the server when the app receives a silent wake-up push.
+    await AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify({ lat, lng }));
   } catch {
     // Non-critical — silently swallow
   }
 }
 
 // Configure how notifications appear when the app is in the foreground.
-// Silent background-refresh pushes (no title, no body) are suppressed entirely
-// so the driver sees no banner — the data payload is handled in the
-// addNotificationReceivedListener below, which triggers an immediate poll.
+// Silent background-refresh pushes (no title, no body) and silent_ping data
+// pushes are suppressed entirely so the driver sees no banner — the background
+// task handles them invisibly to refresh the token and location.
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const { title, body } = notification.request.content;
-    const isSilent = !title && !body;
+    const data = notification.request.content.data as Record<string, unknown>;
+    // Suppress if: (a) title+body are both absent, OR (b) the payload is an
+    // explicit silent_ping — belt-and-suspenders so future sends with an
+    // accidental empty string don't slip through either guard.
+    const isSilent = (!title && !body) || data?.type === "silent_ping";
     return {
       shouldShowAlert:  !isSilent,
       shouldPlaySound:  !isSilent,
@@ -240,6 +254,12 @@ export function usePushNotifications() {
     registerToken(currentLat, currentLng).catch((err) =>
       console.warn("[usePushNotifications] registerToken error:", err)
     );
+
+    // Register the background notification task so iOS wakes the app on
+    // content-available pushes. No-op if already registered or on web.
+    Notifications.registerTaskAsync(BG_NOTIFICATION_TASK).catch(() => {
+      // Non-fatal — may not be available in Expo Go or before native modules load
+    });
 
     // Navigate now if the navigator is mounted, otherwise queue the route so
     // the navReady effect above delivers it as soon as the Stack mounts.

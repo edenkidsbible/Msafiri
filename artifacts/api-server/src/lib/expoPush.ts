@@ -2,8 +2,11 @@ import { logger } from "./logger.js";
 
 export interface PushMessage {
   to: string;
-  title: string;
-  body: string;
+  /** Visible notifications require title. Data-only (background) pushes should
+   *  omit title and body entirely — empty strings can cause the OS to treat the
+   *  payload as a visible notification rather than a silent background delivery. */
+  title?: string;
+  body?: string;
   data?: Record<string, unknown>;
   // "default" plays the OS default tone; a filename (e.g. "alert_tone.mp3")
   // plays the custom sound bundled via the expo-notifications config plugin
@@ -20,6 +23,13 @@ export interface PushMessage {
   // the message for minutes or hours before delivering. Always "high" for user-
   // visible alerts; only use "normal" for silent background syncs.
   priority?: "default" | "normal" | "high";
+  // Expo's documented field for APNs content-available: 1 (note the underscore
+  // prefix — this is what the Expo push gateway maps to the APNs flag).
+  // Tells iOS to wake the app briefly in the background so it can refresh its
+  // push token and location. Must be paired with UIBackgroundModes:
+  // ["remote-notification"] in app.config. Omit for normal-priority silent
+  // refresh pushes — those should not burn a background execution slot.
+  _contentAvailable?: boolean;
 }
 
 interface ExpoPushTicket {
@@ -77,7 +87,9 @@ export async function sendPushNotifications(
 
   // Default every message to priority "high" so FCM delivers immediately
   // (bypasses Doze mode / batching) and APNs uses priority 10.
-  // Call sites can override by setting priority explicitly.
+  // Call sites override `priority` and `_contentAvailable` explicitly — do NOT
+  // add `_contentAvailable` as a blanket default here because Apple rejects
+  // content-available pushes sent at APNs priority 10 (should be priority 5).
   const normalized = messages.map((m) => ({ priority: "high" as const, ...m }));
 
   for (const chunk of chunkArray(normalized, CHUNK_SIZE)) {
@@ -114,6 +126,50 @@ export async function sendPushNotifications(
   }
 
   return { ok, failed };
+}
+
+/**
+ * Send a silent data-only wake-up ping to the supplied push tokens.
+ * No visible notification is shown — the client's background notification task
+ * uses the wakeup slot to refresh its push token and location on the server.
+ * Intended for dormant users who haven't opened the app in several days.
+ *
+ * Platform split is required:
+ *   iOS   → priority "normal" (APNs priority 5) — Apple rejects content-available
+ *            pushes sent at APNs priority 10 ("high") and will not invoke the task.
+ *   Android → priority "high" so FCM bypasses Doze mode and wakes the app.
+ *
+ * title/body are intentionally absent — data-only payloads must omit them;
+ * empty strings can cause the OS to treat the message as a visible notification.
+ */
+export async function sendSilentPing(
+  tokens: { token: string; platform?: string | null }[]
+): Promise<{ ok: number; failed: number }> {
+  if (tokens.length === 0) return { ok: 0, failed: 0 };
+
+  const iosTokens   = tokens.filter((t) => t.platform === "ios").map((t) => t.token);
+  const otherTokens = tokens.filter((t) => t.platform !== "ios").map((t) => t.token);
+
+  const makePing = (to: string, priority: "normal" | "high") => ({
+    to,
+    priority,
+    _contentAvailable: true as const,
+    data: { type: "silent_ping" },
+  });
+
+  const [iosResult, androidResult] = await Promise.all([
+    iosTokens.length > 0
+      ? sendPushNotifications(iosTokens.map((t) => makePing(t, "normal")))
+      : Promise.resolve({ ok: 0, failed: 0 }),
+    otherTokens.length > 0
+      ? sendPushNotifications(otherTokens.map((t) => makePing(t, "high")))
+      : Promise.resolve({ ok: 0, failed: 0 }),
+  ]);
+
+  return {
+    ok:     iosResult.ok     + androidResult.ok,
+    failed: iosResult.failed + androidResult.failed,
+  };
 }
 
 /**

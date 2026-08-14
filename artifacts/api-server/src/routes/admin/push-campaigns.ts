@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { db, pushTokensTable, pushCampaignsTable } from "@workspace/db";
 import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
-import { sendPushNotifications, flushBadTokensFromReceipts } from "../../lib/expoPush.js";
+import { sendPushNotifications, sendSilentPing, flushBadTokensFromReceipts } from "../../lib/expoPush.js";
 import { logAudit } from "../../lib/audit.js";
+import { logger } from "../../lib/logger.js";
 
 const router = Router();
 
@@ -163,6 +164,58 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("POST /admin/push/campaigns error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/push/silent-ping — send a silent wake-up to all dormant devices
+// (inactive for 3+ days). No visible notification — the client's background
+// task uses the wakeup slot to refresh its push token and location.
+router.post("/push/silent-ping", async (req: Request, res: Response) => {
+  const actor = (req as any).adminUser;
+  try {
+    const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const tokens = await db
+      .select({ token: pushTokensTable.token, platform: pushTokensTable.platform })
+      .from(pushTokensTable)
+      .where(lte(pushTokensTable.lastSeenAt, cutoff));
+
+    if (tokens.length === 0) {
+      return res.json({ sent: 0, failed: 0, dormantDevices: 0 });
+    }
+
+    // Pass platform so sendSilentPing can set APNs-5 priority for iOS and
+    // FCM high priority for Android (required to bypass Doze mode).
+    const { ok, failed } = await sendSilentPing(tokens);
+
+    // Record in campaigns table for audit trail
+    const [campaign] = await db
+      .insert(pushCampaignsTable)
+      .values({
+        title:       "(Silent wake-up ping)",
+        body:        "",
+        type:        "silent_ping",
+        status:      "sent",
+        sentAt:      new Date(),
+        sentCount:   ok,
+        failedCount: failed,
+        targetCount: tokens.length,
+        createdBy:   actor?.name ?? "admin",
+      })
+      .returning();
+
+    await logAudit({
+      actor:      { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
+      action:     "push_send",
+      targetType: "push_campaign",
+      targetId:   campaign.id,
+      details:    { message: `Silent wake-up ping to ${ok} dormant devices (${failed} failed)` },
+    });
+
+    logger.info({ dormantDevices: tokens.length, ok, failed }, "Silent wake-up ping sent");
+    return res.json({ sent: ok, failed, dormantDevices: tokens.length });
+  } catch (err) {
+    console.error("POST /admin/push/silent-ping error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
