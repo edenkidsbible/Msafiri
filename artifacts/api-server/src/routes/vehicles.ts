@@ -368,11 +368,12 @@ router.post("/vehicles/join-by-code", joinByCodeLimiter, async (req, res) => {
   if (ownerTokenRow.length > 0) {
     const joinerName = requesterName?.trim() || "Someone";
     await sendPushNotifications([{
-      to:      ownerTokenRow[0].token,
-      title:   "New co-driver joined! 🚗",
-      body:    `${joinerName} joined your ${vehicle.displayName} using the share code.`,
-      sound:   "default",
-      data:    { type: "vehicle_joined", vehicleId: vehicle.id },
+      to:        ownerTokenRow[0].token,
+      title:     "New co-driver joined! 🚗",
+      body:      `${joinerName} joined your ${vehicle.displayName} using the share code.`,
+      sound:     "default",
+      channelId: "msafiri_general",
+      data:      { type: "vehicle_joined", vehicleId: vehicle.id },
     }]);
   }
 
@@ -468,11 +469,12 @@ router.post("/vehicles/join-request", joinRequestLimiter, async (req, res) => {
     const name = requesterName?.trim() || "Someone";
     const plateDisplay = vehicle.plateNumber ? ` (${vehicle.plateNumber})` : "";
     await sendPushNotifications([{
-      to:      ownerTokenRow[0].token,
-      title:   "Co-driver request 🚗",
-      body:    `${name} wants to join your ${vehicle.displayName}${plateDisplay}`,
-      sound:   "default",
-      data:    { type: "vehicle_join_request", requestId: requestRow.id, vehicleId },
+      to:        ownerTokenRow[0].token,
+      title:     "Co-driver request 🚗",
+      body:      `${name} wants to join your ${vehicle.displayName}${plateDisplay}`,
+      sound:     "default",
+      channelId: "msafiri_general",
+      data:      { type: "vehicle_join_request", requestId: requestRow.id, vehicleId },
     }]);
   }
 
@@ -551,11 +553,12 @@ router.patch("/vehicles/join-request/:id/approve", async (req, res) => {
   if (requesterTokenRow.length > 0) {
     const plateDisplay = vehicle.plateNumber ? ` ${vehicle.plateNumber}` : "";
     await sendPushNotifications([{
-      to:    requesterTokenRow[0].token,
-      title: "Request approved! ✅",
-      body:  `You're now a co-driver of ${vehicle.displayName}${plateDisplay}`,
-      sound: "default",
-      data:  {
+      to:        requesterTokenRow[0].token,
+      title:     "Request approved! ✅",
+      body:      `You're now a co-driver of ${vehicle.displayName}${plateDisplay}`,
+      sound:     "default",
+      channelId: "msafiri_general",
+      data:      {
         type:        "vehicle_request_approved",
         vehicleId:   vehicle.id,
         displayName: vehicle.displayName,
@@ -795,11 +798,12 @@ router.delete("/vehicles/:vehicleId/members/:memberDeviceId", async (req, res) =
     if (removedTokenRow.length > 0) {
       const { sendPushNotifications } = await import("../lib/expoPush.js");
       await sendPushNotifications([{
-        to:    removedTokenRow[0].token,
-        title: "Removed from shared vehicle",
-        body:  `You have been removed from ${vehicle.displayName}.`,
-        sound: "default",
-        data:  { type: "vehicle_member_removed", vehicleId },
+        to:        removedTokenRow[0].token,
+        title:     "Removed from shared vehicle",
+        body:      `You have been removed from ${vehicle.displayName}.`,
+        sound:     "default",
+        channelId: "msafiri_general",
+        data:      { type: "vehicle_member_removed", vehicleId },
       }]);
     }
   }
@@ -887,11 +891,12 @@ router.delete("/vehicles/:vehicleId/members-by-row/:rowId", async (req, res) => 
   if (tokenRow.length > 0) {
     const { sendPushNotifications } = await import("../lib/expoPush.js");
     await sendPushNotifications([{
-      to:    tokenRow[0].token,
-      title: "Removed from shared vehicle",
-      body:  `You have been removed from ${vehicle.displayName}.`,
-      sound: "default",
-      data:  { type: "vehicle_member_removed", vehicleId },
+      to:        tokenRow[0].token,
+      title:     "Removed from shared vehicle",
+      body:      `You have been removed from ${vehicle.displayName}.`,
+      sound:     "default",
+      channelId: "msafiri_general",
+      data:      { type: "vehicle_member_removed", vehicleId },
     }]);
   }
 
