@@ -39,6 +39,7 @@ import { useColors } from "@/hooks/useColors";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
+import { HeroCarousel } from "@/components/HeroCarousel";
 import {
   DriveSession,
   listDriveSessions,
@@ -512,55 +513,54 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
           >
-            {/* Vehicle image — shows default vehicle normally; switches to the
-                last selected drive vehicle after the driver picks a car in
-                the pre-trip checklist (activeVehicle is persisted across launches). */}
-            <View style={styles.heroImgWrap}>
-              <DefaultVehicleImage
-                width={185}
-                height={148}
-                vehicle={activeVehicle}
-              />
-            </View>
+            {navTripPaused || navTripActive ? (
+              <>
+                {/* Vehicle image — static during an active/paused trip */}
+                <View style={styles.heroImgWrap}>
+                  <DefaultVehicleImage
+                    width={185}
+                    height={148}
+                    vehicle={activeVehicle}
+                  />
+                </View>
 
-            {/* Text + CTA, right-aligned */}
-            <View style={styles.heroTextCol}>
-              {navTripPaused ? (
-                <>
-                  <View style={styles.heroStatusRow}>
-                    <View style={[styles.heroStatusDot, { backgroundColor: "#FFB300" }]} />
-                    <Text style={[styles.heroStatusLabel, { color: "#FFB300" }]}>Trip Paused</Text>
-                  </View>
-                  <Text style={styles.heroActionLine}>Tap to resume driving</Text>
-                  <Text style={styles.heroLongPressHint}>Long press ▶ on drive screen to end trip</Text>
-                </>
-              ) : navTripActive ? (
-                <>
-                  <View style={styles.heroStatusRow}>
-                    <View style={[styles.heroStatusDot, { backgroundColor: "#34D399" }]} />
-                    <Text style={[styles.heroStatusLabel, { color: "#34D399" }]}>Drive Active</Text>
-                  </View>
-                  <Text style={styles.heroActionLine}>Tap to view drive screen</Text>
-                  <Text style={styles.heroLongPressHint}>Long press ⏸ on drive screen to end trip</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.heroTitle}>Start Driving</Text>
-                  <Text style={styles.heroSub}>Navigate, get alerts{"\n"}and stay protected</Text>
-                  {quickStartReady && (
-                    <Text style={styles.heroLongPressHint}>Hold to open checklist</Text>
+                {/* Text + CTA, right-aligned */}
+                <View style={styles.heroTextCol}>
+                  {navTripPaused ? (
+                    <>
+                      <View style={styles.heroStatusRow}>
+                        <View style={[styles.heroStatusDot, { backgroundColor: "#FFB300" }]} />
+                        <Text style={[styles.heroStatusLabel, { color: "#FFB300" }]}>Trip Paused</Text>
+                      </View>
+                      <Text style={styles.heroActionLine}>Tap to resume driving</Text>
+                      <Text style={styles.heroLongPressHint}>Long press ▶ on drive screen to end trip</Text>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.heroStatusRow}>
+                        <View style={[styles.heroStatusDot, { backgroundColor: "#34D399" }]} />
+                        <Text style={[styles.heroStatusLabel, { color: "#34D399" }]}>Drive Active</Text>
+                      </View>
+                      <Text style={styles.heroActionLine}>Tap to view drive screen</Text>
+                      <Text style={styles.heroLongPressHint}>Long press ⏸ on drive screen to end trip</Text>
+                    </>
                   )}
-                </>
-              )}
-
-              <View style={styles.heroChevron}>
-                <Ionicons
-                  name={navTripPaused ? "play" : navTripActive ? "radio-outline" : "chevron-forward"}
-                  size={18}
-                  color={navTripPaused ? "#FFB300" : navTripActive ? "#34D399" : "#0A7C3A"}
-                />
-              </View>
-            </View>
+                  <View style={styles.heroChevron}>
+                    <Ionicons
+                      name={navTripPaused ? "play" : "radio-outline"}
+                      size={18}
+                      color={navTripPaused ? "#FFB300" : "#34D399"}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : (
+              /* Idle state — showroom carousel with rotating tips */
+              <HeroCarousel
+                activeVehicle={activeVehicle}
+                showLongPressHint={quickStartReady}
+              />
+            )}
           </LinearGradient>
         </Pressable>
 
