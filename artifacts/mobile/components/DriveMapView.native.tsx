@@ -1507,7 +1507,9 @@ const DriveMapView = forwardRef(function DriveMapView(
                 <View style={{ flex: 1 }}>
                   <Text style={ms.sheetTitle}>
                     {selectedCluster.members.length === 1
-                      ? reportLabel(selectedCluster.members[0].type)
+                      ? selectedCluster.members[0].type === "camera"
+                        ? (selectedCluster.members[0].cameraType === "mobile" ? "Mobile Camera" : "Fixed Camera")
+                        : reportLabel(selectedCluster.members[0].type)
                       : `${selectedCluster.members.length} Incidents at this location`}
                   </Text>
                   {selectedCluster.members.length > 1 && (
@@ -1549,6 +1551,18 @@ const DriveMapView = forwardRef(function DriveMapView(
                       <View style={{ flex: 1, gap: 3 }}>
                         <View style={ms.incidentLabelRow}>
                           <Text style={ms.incidentType}>{reportLabel(r.type)}</Text>
+                          {r.type === "camera" && (() => {
+                            const isMob = r.cameraType === "mobile";
+                            const camColor = isMob ? "#00A845" : "#E53935";
+                            return (
+                              <View style={[ms.verifiedBadge, { backgroundColor: camColor + "18", borderColor: camColor + "55" }]}>
+                                <Ionicons name="camera" size={11} color={camColor} />
+                                <Text style={[ms.verifiedTxt, { color: camColor }]}>
+                                  {isMob ? "Mobile" : "Fixed"}
+                                </Text>
+                              </View>
+                            );
+                          })()}
                           {r.adminVerified && (
                             <View style={[ms.verifiedBadge, { backgroundColor: "#E3F2FD", borderColor: "#1565C030" }]}>
                               <Ionicons name="shield-checkmark" size={11} color="#1565C0" />
@@ -1571,7 +1585,9 @@ const DriveMapView = forwardRef(function DriveMapView(
                           <Text style={ms.incidentRoad}>{r.roadName}</Text>
                         ) : null}
                         <Text style={ms.incidentMeta}>
-                          {r.type === "camera" ? "Speed camera — permanent" : ageStr}
+                          {r.type === "camera"
+                            ? (r.cameraType === "mobile" ? "Mobile camera — may have moved" : "Fixed camera — permanent")
+                            : ageStr}
                           {r.type !== "camera" && !r.adminVerified && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount > 99 ? "99+" : r.confirmCount} say still here` : ""}
                           {r.type !== "camera" && r.adminVerified ? "  ·  Admin verified" : ""}
                           {r.type !== "camera" && !r.adminVerified && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
