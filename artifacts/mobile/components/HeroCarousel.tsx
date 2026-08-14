@@ -1,24 +1,28 @@
 /**
  * HeroCarousel
  *
- * Renders the idle-state content inside the home screen's green hero card:
- *   · Left  — vehicle image that cross-fades between slides with a slow
- *             "showroom spotlight" breathing-scale effect on each car.
- *   · Right — "Start Driving" title (fixed) + tip text that fades with each
- *             slide + the chevron CTA.
+ * Renders the idle-state content inside the home screen's green hero card.
  *
- * Carousel order:
- *   0  user's active vehicle  → dashcam recording tip
- *   1  generic car            → disable dashcam audio tip
- *   2  motorcycle             → speed zone alert tip
- *   3  truck                  → trip log tip
- *   4  PSV / bus              → community report tip
+ * TWO modes, chosen automatically:
+ *
+ *   HAS VEHICLE  — all 5 slides show the user's own car, each from a slightly
+ *                  different showroom "angle" (normal, mirrored, tilted, etc.)
+ *                  via transform: scaleX + rotate on the wrapping view.
+ *
+ *   NO VEHICLE   — slides cycle through the generic vehicle-type PNGs
+ *                  (car → motorcycle → truck → bus → tractor), each also
+ *                  shown from a slightly different angle.
+ *
+ * Each slide breathes with a gentle scale pulse (showroom spotlight feel).
+ * Slides advance every 3 seconds with a 350 ms crossfade.
+ * Dot indicators at the bottom-left of the image column track the position.
  *
  * Used by: app/(tabs)/index.tsx (idle hero-card state only).
  * Active-trip and paused-trip states remain untouched in index.tsx.
  */
 
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -27,45 +31,59 @@ import {
   Text,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
 import { SavedVehicle } from "@/utils/savedVehicles";
 
-// ── Slide definitions ─────────────────────────────────────────────────────────
+// ── Slide types ───────────────────────────────────────────────────────────────
 
-const SLIDES: { image: ReturnType<typeof require> | null; tip: string }[] = [
-  {
-    image: null, // slot 0 → renders user's active vehicle via DefaultVehicleImage
-    tip: "Tap the dashcam icon on the drive screen to start recording your journey automatically.",
-  },
-  {
-    image: require("@/assets/images/vehicle-car.png"),
-    tip: "Disable dashcam audio to record with your car music on — no mic interruptions.",
-  },
-  {
-    image: require("@/assets/images/vehicle-motorcycle.png"),
-    tip: "Speed zone alerts fire before you reach a camera — stay fine-free on every road.",
-  },
-  {
-    image: require("@/assets/images/vehicle-truck.png"),
-    tip: "Every trip is saved to your garage — review routes and past events any time.",
-  },
-  {
-    image: require("@/assets/images/vehicle-bus.png"),
-    tip: "Community hazard reports update live — see what other drivers spotted just ahead.",
-  },
+interface SlideAngle {
+  /** null = render user's vehicle via DefaultVehicleImage */
+  image: ReturnType<typeof require> | null;
+  /** Mirror the image along the X axis to show the "other side". */
+  flipX?: boolean;
+  /** Subtle fixed tilt — e.g. '4deg' for a low-angle dramatic look. */
+  rotate?: string;
+}
+
+// ── Angle variants (5 showroom poses) ────────────────────────────────────────
+// Applied to both the user's car and the generic vehicle images.
+const ANGLES: Pick<SlideAngle, "flipX" | "rotate">[] = [
+  { flipX: false, rotate: "0deg"  },   // 0 — straight on, right-facing
+  { flipX: true,  rotate: "0deg"  },   // 1 — mirrored  → left-facing
+  { flipX: false, rotate: "4deg"  },   // 2 — nose-up tilt (low angle)
+  { flipX: true,  rotate: "-4deg" },   // 3 — mirrored + nose-up the other way
+  { flipX: false, rotate: "-3deg" },   // 4 — slight elevated rear-view tilt
 ];
 
-const SLIDE_HOLD_MS  = 4000; // how long each slide is fully visible
+// ── Generic vehicle images (used when no vehicle is set) ──────────────────────
+const GENERIC_IMAGES: ReturnType<typeof require>[] = [
+  require("@/assets/images/vehicle-car.png"),
+  require("@/assets/images/vehicle-motorcycle.png"),
+  require("@/assets/images/vehicle-truck.png"),
+  require("@/assets/images/vehicle-bus.png"),
+  require("@/assets/images/vehicle-tractor.png"),
+];
+
+// ── Tips (one per slide, same in both modes) ──────────────────────────────────
+const TIPS = [
+  "Tap the dashcam icon on the drive screen to start recording your journey automatically.",
+  "Disable dashcam audio to record with your car music on — no mic interruptions.",
+  "Speed zone alerts fire before you reach a camera — stay fine-free on every road.",
+  "Every trip is saved to your garage — review routes and past events any time.",
+  "Community hazard reports update live — see what other drivers spotted just ahead.",
+];
+
+// ── Timing ────────────────────────────────────────────────────────────────────
+const SLIDE_HOLD_MS  = 3000; // ms each slide is fully visible
 const FADE_DURATION  = 350;  // image + tip crossfade
-const BREATHE_IN_MS  = 2000; // showroom scale-up duration
-const BREATHE_OUT_MS = 2000; // showroom scale-down duration
+const BREATHE_IN_MS  = 2000; // showroom scale-up
+const BREATHE_OUT_MS = 2000; // showroom scale-down
 const SCALE_MAX      = 1.07; // max scale during breathing
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  /** Active vehicle from VehicleContext — shown on slide 0. */
+  /** Active vehicle from VehicleContext — shown in all slides when non-null. */
   activeVehicle?: SavedVehicle | null;
   /** Show the "Hold to open checklist" micro-hint when quick-start is ready. */
   showLongPressHint?: boolean;
@@ -76,15 +94,22 @@ interface Props {
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
   const [index, setIndex] = useState(0);
 
-  // Fade shared by image + tip so they always move together
   const fadeAnim  = useRef(new Animated.Value(1)).current;
-  // Breathing scale — loops continuously
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
   const breatheRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // ── Breathing loop (runs once, loops forever) ─────────────────────────────
+  // Whether we have a real user vehicle to show across all slides
+  const hasVehicle = !!activeVehicle;
+
+  // Build the 5 slides based on mode
+  const slides: SlideAngle[] = ANGLES.map((angle, i) => ({
+    image: hasVehicle ? null : GENERIC_IMAGES[i],
+    ...angle,
+  }));
+
+  // ── Breathing loop ────────────────────────────────────────────────────────
   function startBreathe() {
+    breatheRef.current?.stop();
     breatheRef.current = Animated.loop(
       Animated.sequence([
         Animated.timing(scaleAnim, {
@@ -109,25 +134,26 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
     return () => breatheRef.current?.stop();
   }, []);
 
-  // ── Slide advance interval ────────────────────────────────────────────────
+  // ── Slide advance ─────────────────────────────────────────────────────────
   const indexRef = useRef(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      // Fade out
+      // Fade out image + tip together
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: FADE_DURATION,
         useNativeDriver: true,
       }).start(() => {
-        // Swap slide + reset breathe from the beginning
-        const next = (indexRef.current + 1) % SLIDES.length;
+        const next = (indexRef.current + 1) % slides.length;
         indexRef.current = next;
         setIndex(next);
+
+        // Restart breathe from scale 1 so every slide starts the same way
         scaleAnim.setValue(1);
         startBreathe();
 
-        // Fade in
+        // Fade back in
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: FADE_DURATION,
@@ -137,12 +163,14 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
     }, SLIDE_HOLD_MS);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
+
+  // ── Current slide ─────────────────────────────────────────────────────────
+  const slide = slides[index];
+  const flipX  = slide.flipX  ? -1 : 1;
+  const rotate = slide.rotate ?? "0deg";
 
   // ── Render ────────────────────────────────────────────────────────────────
-
-  const slide = SLIDES[index];
-
   return (
     <>
       {/* ── Left: animated vehicle image ─────────────────────────────────── */}
@@ -150,10 +178,15 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
         <Animated.View
           style={{
             opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
+            transform: [
+              { scaleX: flipX },
+              { rotate },
+              { scale: scaleAnim },
+            ],
           }}
         >
           {slide.image === null ? (
+            // User's own car — rendered via the same 3-phase fallback as Garage
             <DefaultVehicleImage
               width={185}
               height={148}
@@ -168,9 +201,9 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
           )}
         </Animated.View>
 
-        {/* Carousel dot indicators */}
+        {/* Dot indicators */}
         <View style={styles.dotsRow}>
-          {SLIDES.map((_, i) => (
+          {slides.map((_, i) => (
             <View
               key={i}
               style={[
@@ -187,7 +220,7 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
         <Text style={styles.title}>Start Driving</Text>
 
         <Animated.Text style={[styles.tip, { opacity: fadeAnim }]}>
-          {slide.tip}
+          {TIPS[index]}
         </Animated.Text>
 
         {showLongPressHint && (
@@ -215,28 +248,27 @@ const styles = StyleSheet.create({
     height: 148,
   },
 
-  // Dot strip sits at the bottom-left of the image column
   dotsRow: {
     position: "absolute",
     bottom: 10,
     left: 10,
     flexDirection: "row",
     gap: 5,
+    alignItems: "center",
   },
   dot: {
-    width: 5,
     height: 5,
     borderRadius: 3,
   },
   dotActive: {
+    width: 14,
     backgroundColor: "#FFFFFF",
-    width: 14, // elongated pill for the active dot
   },
   dotInactive: {
+    width: 5,
     backgroundColor: "#FFFFFF55",
   },
 
-  // Text column (mirrors heroTextCol in index.tsx)
   textCol: {
     flex: 1,
     paddingVertical: 20,
