@@ -224,9 +224,12 @@ export function useDashcam(): DashcamContextValue {
 
 export function DashcamProvider({ children }: { children: React.ReactNode }) {
   // ── GPS speed — read at segment-start to tag each clip with its opening speed
-  const { currentSpeed } = useApp();
+  const { currentSpeed, locationGranted, gpsLastFixAtRef } = useApp();
   const currentSpeedRef = useRef(currentSpeed);
+  const locationGrantedRef = useRef(locationGranted);
+
   useEffect(() => { currentSpeedRef.current = currentSpeed; }, [currentSpeed]);
+  useEffect(() => { locationGrantedRef.current = locationGranted; }, [locationGranted]);
 
   // ── Active vehicle ─────────────────────────────────────────────────────────
   const { activeVehicleId } = useVehicle();
@@ -1031,11 +1034,23 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const onSegmentStart = useCallback(() => {
     recordingSegmentDirRef.current      = segmentsFsDirRef.current;
     recordingSegmentAsyncKeyRef.current = segmentsAsyncKeyRef.current;
-    // Snap the current GPS speed so it can be stored with the completed clip.
-    // currentSpeedRef is kept in sync via a useEffect so this always reads
-    // the latest value without a stale closure.
-    segmentStartSpeedRef.current = currentSpeedRef.current ?? null;
-  }, []);
+    // Only store the speed when there is a valid, recent GPS fix:
+    //  • locationGranted     — the OS is actively supplying position updates
+    //  • speed > 0           — at least one real moving fix has been received
+    //  • gpsLastFixAt < 10 s — a GPS fix was accepted within the freshness window
+    //
+    // gpsLastFixAtRef is stamped on every accepted handleLocation invocation in
+    // AppContext — not rate-limited like setCurrentSpeed — so it reliably detects
+    // a stalled GPS feed regardless of whether the displayed speed integer changed.
+    // Any condition failing means we have no trustworthy reading; store null so
+    // the watermark / player label is omitted rather than showing a misleading value.
+    const speed = currentSpeedRef.current;
+    const hasRecentFix =
+      locationGrantedRef.current &&
+      speed > 0 &&
+      Date.now() - gpsLastFixAtRef.current < 10_000;
+    segmentStartSpeedRef.current = hasRecentFix ? speed : null;
+  }, [gpsLastFixAtRef]);
 
   const onSegmentComplete = useCallback(
     async (tempUri: string, durationS?: number, coords?: { lat: number; lng: number }) => {
