@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, pushTokensTable, pushCampaignsTable } from "@workspace/db";
-import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
+import { desc, eq, and, gte, lte, sql, isNotNull } from "drizzle-orm";
 import { sendPushNotifications, sendSilentPing, flushBadTokensFromReceipts } from "../../lib/expoPush.js";
 import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
@@ -10,23 +10,90 @@ const router = Router();
 // GET /admin/push/devices — device stats
 router.get("/push/devices", async (_req: Request, res: Response) => {
   try {
-    const rows = await db
-      .select({
-        platform: pushTokensTable.platform,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(pushTokensTable)
-      .groupBy(pushTokensTable.platform);
+    const [platformRows, bgRows] = await Promise.all([
+      db
+        .select({
+          platform: pushTokensTable.platform,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(pushTokensTable)
+        .groupBy(pushTokensTable.platform),
+      db
+        .select({
+          platform: pushTokensTable.platform,
+          bgWakeupCount: sql<number>`count(*)::int`,
+          lastBgWakeupAt: sql<string | null>`max(last_bg_wakeup_at)`,
+        })
+        .from(pushTokensTable)
+        .where(sql`last_bg_wakeup_at is not null`)
+        .groupBy(pushTokensTable.platform),
+    ]);
 
-    const total = rows.reduce((sum, r) => sum + r.count, 0);
+    const total = platformRows.reduce((sum, r) => sum + r.count, 0);
     const byPlatform: Record<string, number> = {};
-    for (const r of rows) {
+    for (const r of platformRows) {
       byPlatform[r.platform] = r.count;
     }
 
-    return res.json({ total, byPlatform });
+    const bgWakeupByPlatform: Record<string, number> = {};
+    let bgWakeupTotal = 0;
+    let lastBgWakeupAt: string | null = null;
+    for (const r of bgRows) {
+      bgWakeupByPlatform[r.platform] = r.bgWakeupCount;
+      bgWakeupTotal += r.bgWakeupCount;
+      if (r.lastBgWakeupAt && (!lastBgWakeupAt || r.lastBgWakeupAt > lastBgWakeupAt)) {
+        lastBgWakeupAt = r.lastBgWakeupAt;
+      }
+    }
+
+    return res.json({ total, byPlatform, bgWakeupTotal, bgWakeupByPlatform, lastBgWakeupAt });
   } catch (err) {
     console.error("GET /admin/push/devices error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /admin/push/devices/list — per-device rows for the admin wakeup table.
+// Supports pagination via ?page=1&limit=100. Returns total so the UI can show
+// all devices without a silent truncation.
+router.get("/push/devices/list", async (req: Request, res: Response) => {
+  try {
+    const page  = Math.max(1, parseInt((req.query["page"]  as string) ?? "1",  10) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt((req.query["limit"] as string) ?? "100", 10) || 100));
+    const offset = (page - 1) * limit;
+
+    const [rows, countRows] = await Promise.all([
+      db
+        .select({
+          deviceId:       pushTokensTable.deviceId,
+          platform:       pushTokensTable.platform,
+          lastSeenAt:     pushTokensTable.lastSeenAt,
+          lastBgWakeupAt: pushTokensTable.lastBgWakeupAt,
+        })
+        .from(pushTokensTable)
+        .orderBy(desc(pushTokensTable.lastSeenAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(pushTokensTable),
+    ]);
+
+    const total = countRows[0]?.total ?? 0;
+
+    return res.json({
+      total,
+      page,
+      limit,
+      devices: rows.map((r) => ({
+        deviceId:       r.deviceId,
+        platform:       r.platform,
+        lastSeenAt:     r.lastSeenAt?.toISOString() ?? null,
+        lastBgWakeupAt: r.lastBgWakeupAt?.toISOString() ?? null,
+      })),
+    });
+  } catch (err) {
+    console.error("GET /admin/push/devices/list error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

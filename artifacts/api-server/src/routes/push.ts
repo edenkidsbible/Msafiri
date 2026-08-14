@@ -58,25 +58,40 @@ router.post("/push/register", async (req: Request, res: Response) => {
   }
 });
 
-// POST /push/location — update the last-known position for a registered device
+// POST /push/location — update the last-known position for a registered device.
+// When source="background_task" the lat/lng fields are optional: the server
+// stamps lastBgWakeupAt unconditionally so even devices without a cached
+// location still produce a confirmed background-task heartbeat.
 router.post("/push/location", async (req: Request, res: Response) => {
   if (!req.body || typeof req.body !== "object") {
     return res.status(400).json({ error: "Invalid request body" });
   }
-  const { deviceId, lat, lng } = req.body as {
+  const { deviceId, lat, lng, source } = req.body as {
     deviceId: string;
-    lat: number;
-    lng: number;
+    lat?: number;
+    lng?: number;
+    source?: string;
   };
 
-  if (!deviceId || lat == null || lng == null) {
+  const isBgTask = source === "background_task";
+
+  if (!deviceId) {
+    return res.status(400).json({ error: "deviceId is required" });
+  }
+  // For non-background calls (regular location updates) lat+lng are still required
+  if (!isBgTask && (lat == null || lng == null)) {
     return res.status(400).json({ error: "deviceId, lat, and lng are required" });
   }
 
   try {
+    const now = new Date();
     await db
       .update(pushTokensTable)
-      .set({ lastLat: lat, lastLng: lng, lastSeenAt: new Date() })
+      .set({
+        ...(lat != null && lng != null ? { lastLat: lat, lastLng: lng } : {}),
+        lastSeenAt: now,
+        ...(isBgTask ? { lastBgWakeupAt: now } : {}),
+      })
       .where(eq(pushTokensTable.deviceId, deviceId));
     return res.json({ success: true });
   } catch (err) {

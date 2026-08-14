@@ -36,6 +36,7 @@ import {
   AlertCircle,
   RotateCcw,
   Zap,
+  WifiOff,
 } from "lucide-react";
 import { PageGuide } from "@/components/page-guide";
 
@@ -54,6 +55,23 @@ async function authFetch(path: string, init?: RequestInit) {
 interface DeviceStats {
   total: number;
   byPlatform: Record<string, number>;
+  bgWakeupTotal: number;
+  bgWakeupByPlatform: Record<string, number>;
+  lastBgWakeupAt: string | null;
+}
+
+interface DeviceRow {
+  deviceId: string;
+  platform: string;
+  lastSeenAt: string | null;
+  lastBgWakeupAt: string | null;
+}
+
+interface DeviceListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  devices: DeviceRow[];
 }
 
 interface Campaign {
@@ -285,6 +303,16 @@ export default function PushCampaigns() {
     refetchInterval: 30000,
   });
 
+  const [showDeviceList, setShowDeviceList] = useState(false);
+  const [devicePage, setDevicePage] = useState(1);
+  const devicePageSize = 100;
+  const { data: deviceListData, isLoading: devicesLoading } = useQuery<DeviceListResponse>({
+    queryKey: ["/api/admin/push/devices/list", devicePage],
+    queryFn: () => authFetch(`/admin/push/devices/list?page=${devicePage}&limit=${devicePageSize}`),
+    enabled: showDeviceList,
+    refetchInterval: showDeviceList ? 60000 : false,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
       authFetch(`/admin/push/campaigns/${id}`, { method: "DELETE" }),
@@ -300,9 +328,13 @@ export default function PushCampaigns() {
   };
 
   const campaigns = campaignData?.campaigns ?? [];
-  const ios     = deviceStats?.byPlatform?.ios ?? 0;
-  const android = deviceStats?.byPlatform?.android ?? 0;
-  const other   = (deviceStats?.total ?? 0) - ios - android;
+  const ios          = deviceStats?.byPlatform?.ios ?? 0;
+  const android      = deviceStats?.byPlatform?.android ?? 0;
+  const other        = (deviceStats?.total ?? 0) - ios - android;
+  const bgWakeupTotal = deviceStats?.bgWakeupTotal ?? 0;
+  const lastBgWakeup  = deviceStats?.lastBgWakeupAt
+    ? new Date(deviceStats.lastBgWakeupAt).toLocaleString("en-KE", { dateStyle: "short", timeStyle: "short" })
+    : null;
 
   return (
     <AdminLayout>
@@ -331,7 +363,7 @@ export default function PushCampaigns() {
         />
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6 pb-5">
               <div className="flex items-center justify-between">
@@ -371,7 +403,139 @@ export default function PushCampaigns() {
               </div>
             </CardContent>
           </Card>
+          <Card>
+            <CardContent className="pt-6 pb-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">BG Wakeups</p>
+                  <p className="text-3xl font-bold mt-1">{bgWakeupTotal}</p>
+                  {lastBgWakeup ? (
+                    <p className="text-xs text-muted-foreground mt-1" title="Most recent background task execution">
+                      Last: {lastBgWakeup}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">No wakeups yet</p>
+                  )}
+                </div>
+                <div className="bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 rounded-full p-3">
+                  <WifiOff className="h-5 w-5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Background wakeup device list */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <WifiOff className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  Background Wakeup Log
+                  {showDeviceList && deviceListData && (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      — {deviceListData.total} device{deviceListData.total !== 1 ? "s" : ""} total
+                    </span>
+                  )}
+                </CardTitle>
+                <CardDescription className="mt-0.5">
+                  Per-device record of when each device last confirmed a background task execution
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setShowDeviceList((v) => !v); setDevicePage(1); }}
+              >
+                {showDeviceList ? "Hide" : "Show devices"}
+              </Button>
+            </div>
+          </CardHeader>
+          {showDeviceList && (
+            <CardContent className="p-0">
+              {devicesLoading ? (
+                <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+                  Loading devices…
+                </div>
+              ) : !deviceListData?.devices.length ? (
+                <div className="flex flex-col items-center justify-center h-24 gap-2 text-muted-foreground">
+                  <WifiOff className="h-7 w-7 opacity-30" />
+                  <p className="text-sm">No registered devices yet.</p>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Device ID</TableHead>
+                        <TableHead>Platform</TableHead>
+                        <TableHead>Last Seen</TableHead>
+                        <TableHead>Last BG Wakeup</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deviceListData.devices.map((d) => (
+                        <TableRow key={d.deviceId}>
+                          <TableCell className="font-mono text-xs text-muted-foreground max-w-[140px] truncate" title={d.deviceId}>
+                            {d.deviceId.slice(0, 12)}…
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs font-normal capitalize">
+                              {d.platform}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {d.lastSeenAt
+                              ? new Date(d.lastSeenAt).toLocaleString("en-KE", { dateStyle: "short", timeStyle: "short" })
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {d.lastBgWakeupAt ? (
+                              <span className="text-green-700 dark:text-green-400 font-medium">
+                                {new Date(d.lastBgWakeupAt).toLocaleString("en-KE", { dateStyle: "short", timeStyle: "short" })}
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400">Never</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {/* Pagination */}
+                  {deviceListData.total > devicePageSize && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t text-xs text-muted-foreground">
+                      <span>
+                        Page {devicePage} of {Math.ceil(deviceListData.total / devicePageSize)} ({deviceListData.total} devices)
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={devicePage <= 1}
+                          onClick={() => setDevicePage((p) => p - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={devicePage >= Math.ceil(deviceListData.total / devicePageSize)}
+                          onClick={() => setDevicePage((p) => p + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {/* Automatic schedule info */}
         <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
