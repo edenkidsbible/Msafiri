@@ -37,6 +37,8 @@ const ZOOM_SCALE   = 1.09;  // scale at the "spotlight" moment
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Slide {
   image: ReturnType<typeof require> | null;
+  /** true = mirror the image so it faces RIGHT (for left-facing source images) */
+  flipX: boolean;
   tip: string;
 }
 
@@ -49,19 +51,23 @@ const TIPS = [
   "Community hazard reports update live — see what other drivers spotted just ahead.",
 ];
 
-const GENERIC_IMAGES = [
-  require("@/assets/images/vehicle-car.png"),
-  require("@/assets/images/vehicle-motorcycle.png"),
-  require("@/assets/images/vehicle-truck.png"),
-  require("@/assets/images/vehicle-bus.png"),
-  require("@/assets/images/vehicle-tractor.png"),
+// flipX = true means the source image faces LEFT and must be mirrored to face RIGHT.
+// car ✗ left, motorcycle ✓ right, truck ✗ left, bus ✗ left, tractor ✗ left
+const GENERIC_SLIDES: { image: ReturnType<typeof require>; flipX: boolean }[] = [
+  { image: require("@/assets/images/vehicle-car.png"),        flipX: true  },
+  { image: require("@/assets/images/vehicle-motorcycle.png"), flipX: false },
+  { image: require("@/assets/images/vehicle-truck.png"),      flipX: true  },
+  { image: require("@/assets/images/vehicle-bus.png"),        flipX: true  },
+  { image: require("@/assets/images/vehicle-tractor.png"),    flipX: true  },
 ];
 
 // ── Sub-component: car image ──────────────────────────────────────────────────
 function CarImage({ slide, vehicle }: { slide: Slide; vehicle?: SavedVehicle | null }) {
+  // scaleX: -1 mirrors left-facing images so every car faces RIGHT
+  const flip = slide.flipX ? [{ scaleX: -1 }] : undefined;
   return slide.image === null
-    ? <DefaultVehicleImage width={185} height={148} vehicle={vehicle} />
-    : <Image source={slide.image} style={styles.vehicleImg} contentFit="contain" />;
+    ? <DefaultVehicleImage width={185} height={148} vehicle={vehicle} style={flip ? { transform: flip } : undefined} />
+    : <Image source={slide.image} style={[styles.vehicleImg, flip ? { transform: flip } : undefined]} contentFit="contain" />;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -73,7 +79,9 @@ interface Props {
 // ── Component ─────────────────────────────────────────────────────────────────
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
   const slides: Slide[] = TIPS.map((tip, i) => ({
-    image: !!activeVehicle ? null : GENERIC_IMAGES[i],
+    image:  !!activeVehicle ? null : GENERIC_SLIDES[i].image,
+    // Generic images: mirror if facing left. User's own vehicle: assumed right-facing.
+    flipX: !!activeVehicle ? false : GENERIC_SLIDES[i].flipX,
     tip,
   }));
 
