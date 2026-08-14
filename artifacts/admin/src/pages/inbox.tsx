@@ -18,6 +18,7 @@ function authFetch(url: string, opts: RequestInit = {}) {
   });
 }
 import { format, formatDistanceToNow } from "date-fns";
+import { PageGuide } from "@/components/page-guide";
 
 interface Email {
   id: string;
@@ -82,7 +83,7 @@ export default function InboxPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   async function fetchEmails(p = 1, q = search, f = filter) {
     setLoading(true);
@@ -247,6 +248,17 @@ export default function InboxPage() {
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         </div>
+      </div>
+
+      <div className="px-4 md:px-6 py-3 border-b bg-background shrink-0">
+        <PageGuide
+          title="Handling user messages"
+          steps={[
+            { label: "Message source", detail: "messages arrive as inbound emails sent to the Msafiri support address." },
+            { label: "Replying", detail: "reply here to send an email back to the sender — replies are delivered via the email provider, not push notifications." },
+            { label: "Triage filters", detail: "use the All / Unread / Replied filter to work through the queue; mark items read or delete them once actioned." },
+          ]}
+        />
       </div>
 
       {/* Two-panel layout */}

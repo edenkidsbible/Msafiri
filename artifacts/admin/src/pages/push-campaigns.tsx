@@ -36,6 +36,7 @@ import {
   AlertCircle,
   RotateCcw,
 } from "lucide-react";
+import { PageGuide } from "@/components/page-guide";
 
 const API_BASE = "/api";
 
@@ -246,6 +247,16 @@ export default function PushCampaigns() {
           </div>
           <ComposeDialog onSent={refresh} />
         </div>
+
+        <PageGuide
+          title="Sending push campaigns"
+          steps={[
+            { label: "Targeting", detail: "a campaign targets all users, a segment, or a single user ID." },
+            { label: "Content", detail: "write the title (shown as notification header) and body (the preview line)." },
+            { label: "Test first", detail: "preview on a test device before sending to all — there is no recall." },
+            { label: "Delivery time", detail: "large sends are queued; delivery may take a few minutes." },
+          ]}
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

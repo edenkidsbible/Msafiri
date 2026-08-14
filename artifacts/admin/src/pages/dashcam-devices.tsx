@@ -1,4 +1,5 @@
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle2, HardDrive, RefreshCw, XCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -99,6 +100,15 @@ export default function DashcamDevices() {
             </Button>
           </div>
         </div>
+
+        <PageGuide
+          title="Reading dashcam storage"
+          steps={[
+            { label: "Quota per device", detail: "each row shows how many clips a device has stored against its per-device quota limit." },
+            { label: "Locked vs unlocked clips", detail: "locked clips (user-protected) are never auto-evicted; when a device hits its quota, the oldest unlocked clips are removed automatically." },
+            { label: "Monitoring only", detail: "this view is read-only — use it to spot devices at or near their quota; clip management happens on the device itself." },
+          ]}
+        />
 
         {/* Summary cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

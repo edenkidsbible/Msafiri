@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { useAdminListReports, useAdminDeleteReport, useAdminCreateReport, useAdminUpdateReport, useAdminBulkReports, useAdminImportReports, useAdminListBlockedDevices, useAdminBlockDevice, useAdminUnblockDevice, useAdminGetModerationQueue, useAdminApproveCameraRemoval, useAdminRejectCameraRemoval } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -640,6 +641,15 @@ export default function Reports() {
             </Dialog>
           </div>
         </div>
+
+        <PageGuide
+          title="Handling incident reports"
+          steps={[
+            { label: "Filter first", detail: "filter by type or status before acting to narrow down the list." },
+            { label: "Verify or Deny", detail: <>use <em>Verify</em> to confirm a report is accurate; use <em>Deny</em> to remove it from the public map.</> },
+            { label: "Relocation", detail: "drag the pin to fix a GPS-off placement; save before leaving." },
+          ]}
+        />
 
         {/* Camera Removal Review */}
         {cameraRemovalQueue.length > 0 && (

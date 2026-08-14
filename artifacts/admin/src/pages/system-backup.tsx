@@ -8,6 +8,7 @@ import {
   Download, Upload, Play, Database, CheckCircle2,
   AlertCircle, Loader2, FileJson, Mail, RefreshCw,
 } from "lucide-react";
+import { PageGuide } from "@/components/page-guide";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -204,6 +205,15 @@ export default function SystemBackup() {
             lose them.
           </p>
         </div>
+
+        <PageGuide
+          title="Using system backup"
+          steps={[
+            { label: "What's backed up", detail: "a full JSON snapshot of all 32 Postgres tables — reports, zones, vehicles, admin users, blog posts, and more. Binary assets (dashcam clips, photos, audio) live in R2 and are not included." },
+            { label: "Export or run now", detail: <>use <em>Download JSON snapshot</em> to save a dated file locally; use <em>Run Now</em> to trigger the nightly email backup immediately.</> },
+            { label: "Restore", detail: "upload a previously downloaded snapshot to upsert its rows back into the database — useful after data loss or a migration." },
+          ]}
+        />
 
         {/* ── What's in the backup ─────────────────────────────────────────── */}
         <div className="rounded-lg border bg-card p-5 space-y-3">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { useAdminListAuditLogs } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +75,15 @@ export default function AuditLog() {
             </Select>
           </div>
         </div>
+
+        <PageGuide
+          title="Reading the activity log"
+          steps={[
+            { label: "What's recorded", detail: "every admin action is recorded here with actor, timestamp, and target." },
+            { label: "Filtering", detail: "filter by admin email or action type to trace a specific change." },
+            { label: "Immutable records", detail: "log entries are immutable — they cannot be deleted." },
+          ]}
+        />
 
         <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
           <Table>

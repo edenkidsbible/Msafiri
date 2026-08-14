@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import {
   useAdminGetModerationQueue,
   useAdminApproveReport,
@@ -264,6 +265,15 @@ export default function ModerationQueue() {
             Refresh
           </Button>
         </div>
+
+        <PageGuide
+          title="Working the moderation queue"
+          steps={[
+            { label: "Pending items", detail: "items here are community-submitted reports awaiting first review." },
+            { label: "Approve or Reject", detail: <>Approve publishes to the live map. Reject discards silently; the submitter is not notified.</> },
+            { label: "Review carefully", detail: "check the attached photo/location before acting — rejecting legitimate reports lowers community trust." },
+          ]}
+        />
 
         <Card>
           <CardHeader>

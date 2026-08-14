@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearch } from "wouter";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { useAdminListUsers, useAdminCreateUser, useAdminDeleteUser, useAdminUpdateUser } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -350,6 +351,15 @@ export default function Users() {
             </Dialog>
           </div>
         </div>
+
+        <PageGuide
+          title="Managing admin team members"
+          steps={[
+            { label: "Who can add admins", detail: "only Founders can add or remove admins." },
+            { label: "Role permissions", detail: "each role has a fixed permission set — check the role descriptions before assigning." },
+            { label: "Removal is immediate", detail: "removing an admin immediately revokes their session; they are logged out on next action." },
+          ]}
+        />
 
         {showPermissions && (
           <Card className="shadow-sm border-border/60">

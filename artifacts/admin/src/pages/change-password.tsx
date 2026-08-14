@@ -9,6 +9,7 @@ import { setToken, getToken, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageGuide } from "@/components/page-guide";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo.png";
@@ -81,6 +82,15 @@ export default function ChangePassword() {
               : "Update your account password."}
           </p>
         </div>
+
+        <PageGuide
+          title="Changing your admin password"
+          steps={[
+            { label: "Minimum length", detail: "your new password must be at least 8 characters." },
+            { label: "Existing sessions stay active", detail: "after saving, all current sessions (including this one) remain logged in — there is no automatic logout of other devices." },
+            { label: "Forgotten password", detail: "if you forget your password, ask another Founder admin to reset it from Team Members." },
+          ]}
+        />
 
         <Card className="border-border/60 shadow-lg bg-card">
           <CardHeader className="space-y-1.5 pb-6">

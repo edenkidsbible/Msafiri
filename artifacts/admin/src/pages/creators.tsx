@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -407,6 +408,15 @@ export default function Creators() {
             Manage creator program applications. Approving sends a promo code automatically from the pool below.
           </p>
         </div>
+
+        <PageGuide
+          title="Managing Msafiri Creators"
+          steps={[
+            { label: "Who are Creators", detail: "creators are verified contributors who can publish content." },
+            { label: "Grant or revoke", detail: "grant creator status from the user's profile row; revoke by toggling the same switch." },
+            { label: "Analytics", detail: "creators can see their own analytics in the app; this panel shows the same data for admin oversight." },
+          ]}
+        />
 
         {/* Application stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

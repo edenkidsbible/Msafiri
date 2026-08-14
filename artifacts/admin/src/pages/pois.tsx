@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
+import { PageGuide } from "@/components/page-guide";
 import {
   useAdminListPois,
   useAdminCreatePoi,
@@ -7,7 +8,7 @@ import {
   useAdminDeletePoi,
   getAdminListPoisQueryKey,
 } from "@workspace/api-client-react";
-import type { AdminPoi, AdminPoiInput } from "@workspace/api-client-react";
+import type { AdminPoi, CreatePoiInput } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,9 +98,9 @@ export default function Pois() {
   };
 
   const handleCreate = (values: PoiFormValues) => {
-    const input: AdminPoiInput = {
+    const input: CreatePoiInput = {
       ...values,
-      hours: values.hours || null,
+      hours: values.hours || undefined,
     };
     createPoi({ data: input }, {
       onSuccess: () => {
@@ -138,7 +139,7 @@ export default function Pois() {
 
   const handleHardDelete = () => {
     if (!deleteId) return;
-    deletePoi({ id: deleteId, hard: true }, {
+    deletePoi({ id: deleteId, params: { hard: '1' } }, {
       onSuccess: () => {
         toast({ title: "POI permanently deleted" });
         setDeleteId(null);
@@ -171,6 +172,15 @@ export default function Pois() {
             <Plus className="h-4 w-4 mr-2" /> Add POI
           </Button>
         </div>
+
+        <PageGuide
+          title="Managing points of interest"
+          steps={[
+            { label: "POIs in the app", detail: "POIs appear as landmarks in navigation and search." },
+            { label: "Category matters", detail: "set the correct category — it determines the icon shown on the map." },
+            { label: "Crosshair picker", detail: "use the crosshair picker to place the pin precisely; a POI placed off-road may confuse routing." },
+          ]}
+        />
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
