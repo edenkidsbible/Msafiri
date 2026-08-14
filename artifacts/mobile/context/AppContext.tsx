@@ -1748,10 +1748,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       !drivingStartCoordRef.current ||
       haversine(lat, lng, drivingStartCoordRef.current.lat, drivingStartCoordRef.current.lng) > 200;
 
-    // Suppress alerts when the GPS fix is too inaccurate to trust road position.
-    // Indoors and low-signal positions often report 50-100 m accuracy; at that
-    // level we cannot confidently say the driver is on any particular road.
-    const alertAccuracyOk = accuracyM == null || accuracyM <= 40;
+    // Suppress alerts only when the GPS fix is so inaccurate that road position
+    // is genuinely untrustworthy (≥ 100 m horizontal error, e.g. indoors or
+    // in deep urban canyons where position jumps by an entire block).
+    // 40 m was too strict: Expo's Balanced mode is documented at ~100 m, so a
+    // 40 m gate silently blocked ALL alerts on many devices/fixes.  100 m is the
+    // practical ceiling for usable road-position estimates on a moving vehicle.
+    const alertAccuracyOk = accuracyM == null || accuracyM <= 100;
 
     // (1) Zone candidate — closest in-range zone on the driver's current road.
     //     All zone/camera types appear regardless of current speed so the driver
@@ -2443,10 +2446,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastLocationAtRef.current = Date.now();
       try {
         if (Platform.OS !== "web") {
-          // Balanced accuracy at 5 s intervals — distanceInterval must stay 0
-          // so a stationary or slow-moving user still gets fixes without
-          // triggering the 8 s watchdog / endless resubscribe loop.
-          const gpsOptions = { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 0 };
+          // High accuracy (GPS satellites) at 5 s intervals. distanceInterval
+          // must stay 0 so a stationary/slow-moving user still gets regular
+          // fixes without triggering the watchdog / endless resubscribe loop.
+          // High accuracy is required for reliable driving alerts: Balanced
+          // mode uses cell-tower / Wi-Fi positioning (~100 m reported accuracy)
+          // which exceeds the alertAccuracyOk threshold on many urban fixes and
+          // silently blocks all zone/camera/report alerts. The extra battery
+          // cost is acceptable for an active driving session.
+          const gpsOptions = { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 };
 
           const sub = await Location.watchPositionAsync(
             gpsOptions,

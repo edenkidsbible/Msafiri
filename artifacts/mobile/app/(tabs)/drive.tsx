@@ -1618,10 +1618,13 @@ export default function DriveScreen() {
            speed/zone/hazard alerts. Do NOT add a parallel alert component here.
            To add a new alert type, extend the DriveAlert union in AppContext and
            add the rendering logic inside DriveAlertOverlay itself.           ── */}
-      {/* Auto-hide once the driver has clearly passed the alert (>30 m behind
-          on the route). AppContext will eventually clear it, but this filter
-          gives an immediate visual response instead of showing "Behind you". */}
-      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -30) && (
+      {/* Auto-hide once the driver has clearly passed the alert (>100 m behind).
+          AppContext will eventually clear via the shouldDismiss path, but this
+          filter gives an immediate visual response. The threshold is –100 m
+          (not –30 m) because at 100 km/h the GPS fires every 5 s (~140 m/tick):
+          a –30 m cutoff collapses the visible window to sub-tick, so the overlay
+          never renders before the next fix already shows it as "passed". */}
+      {activeAlert && !(activeAlert.alongTrackM != null && activeAlert.alongTrackM < -100) && (
         <DriveAlertOverlay
           alert={activeAlert}
           extraAlerts={activeAlertExtras}
