@@ -75,8 +75,8 @@ const GENERIC_IMAGES = [
   require("@/assets/images/vehicle-tractor.png"),
 ];
 
-// Alternating pose pattern: right-facing → left-facing → right → …
-const FLIP_PATTERN = [false, true, false, true, false];
+// All cars face right for a uniform showroom look
+const FLIP_PATTERN = [false, false, false, false, false];
 
 // ── Position helpers ──────────────────────────────────────────────────────────
 
