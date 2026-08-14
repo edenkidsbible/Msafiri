@@ -37,8 +37,9 @@ yarn-error.*
 # local env files
 .env*.local
 
-# Firebase — contains API keys, never commit
-google-services.json
+# Firebase — GoogleService-Info.plist (iOS) is gitignored; google-services.json
+# (Android) is intentionally tracked because this is a private repo and EAS
+# cloud builds need it at build time without a custom hook.
 GoogleService-Info.plist
 
 # typescript
