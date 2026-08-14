@@ -72,6 +72,7 @@ import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
+import { defineBackgroundNotificationTask } from "@/utils/backgroundNotificationTask";
 import { prewarmAlertAudio } from "@/utils/alertTts";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 
@@ -85,6 +86,10 @@ try {
 // expo-task-manager requires tasks to be defined synchronously at module
 // load time — defining them inside a component or effect is too late.
 defineShareBackgroundTask();
+// Background notification task: wakes the app when a content-available push
+// arrives (iOS) or a high-priority FCM arrives (Android) to refresh the
+// push token and sync the device's last known location to the server.
+defineBackgroundNotificationTask();
 
 // Every @expo/vector-icons component (Ionicons, MaterialCommunityIcons,
 // Feather — the three families this app uses) calls `Font.loadAsync()` for

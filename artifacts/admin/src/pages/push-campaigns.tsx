@@ -35,6 +35,7 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCcw,
+  Zap,
 } from "lucide-react";
 import { PageGuide } from "@/components/page-guide";
 
@@ -86,6 +87,7 @@ const TYPE_LABELS: Record<string, string> = {
   engagement:     "Engagement",
   incident:       "Incident Alert",
   incident_check: "Incident Check",
+  silent_ping:    "Silent Wake-up Ping",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -200,6 +202,73 @@ function ComposeDialog({ onSent }: { onSent: () => void }) {
   );
 }
 
+function SilentPingDialog({ onSent }: { onSent: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ sent: number; dormantDevices: number } | null>(null);
+  const { toast } = useToast();
+
+  const handlePing = async () => {
+    setLoading(true);
+    try {
+      const data = await authFetch("/admin/push/silent-ping", { method: "POST" });
+      setResult({ sent: data.sent, dormantDevices: data.dormantDevices });
+      toast({
+        title: "Silent ping sent",
+        description: `Woke up ${data.sent} of ${data.dormantDevices} dormant device(s). No visible notification shown.`,
+      });
+      onSent();
+    } catch {
+      toast({ title: "Failed", description: "Could not send silent ping. Try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setResult(null); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Zap className="h-4 w-4" />
+          Silent Wake-up Ping
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Silent Wake-up Ping</DialogTitle>
+          <DialogDescription>
+            Sends a silent (invisible) push to all devices that haven't opened the app in 3+ days.
+            No banner or sound is shown — the app wakes briefly in the background to refresh its
+            push token and location so future notifications can reach it.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
+            <p>✅ No visible notification is shown to users</p>
+            <p>✅ Refreshes stale push tokens automatically</p>
+            <p>✅ Updates device location for better targeting</p>
+            <p>⚠️ Targets dormant users only (3+ days inactive)</p>
+          </div>
+          {result && (
+            <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900 p-3 text-sm">
+              <p className="font-medium text-green-800 dark:text-green-400">
+                Ping sent to {result.sent} of {result.dormantDevices} dormant device(s)
+              </p>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+            <Button onClick={handlePing} disabled={loading} className="gap-2">
+              {loading ? <RotateCcw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {loading ? "Sending…" : "Send Ping"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PushCampaigns() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -245,7 +314,10 @@ export default function PushCampaigns() {
               Broadcast messages, reminders, and alerts to all registered devices.
             </p>
           </div>
-          <ComposeDialog onSent={refresh} />
+          <div className="flex gap-2">
+            <SilentPingDialog onSent={refresh} />
+            <ComposeDialog onSent={refresh} />
+          </div>
         </div>
 
         <PageGuide

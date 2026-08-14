@@ -62,7 +62,7 @@ module.exports = {
         NSPhotoLibraryAddUsageDescription:
           "Save dashcam clips to your phone's video library so you can keep important footage after a trip ends.",
 
-        UIBackgroundModes: ["location"],
+        UIBackgroundModes: ["location", "remote-notification"],
         ITSAppUsesNonExemptEncryption: false,
       },
     },
