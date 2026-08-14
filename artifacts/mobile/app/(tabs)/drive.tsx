@@ -29,6 +29,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
+import { requestBackgroundLocationPermission } from "@/utils/backgroundShare";
 import { useColors } from "@/hooks/useColors";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useApp } from "@/context/AppContext";
@@ -588,6 +590,32 @@ export default function DriveScreen() {
       setNavTripPaused(false);
       setTripStartTime(now);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // Request background ("Always") location permission so the bg alert task
+      // can fire lock-screen notifications while the driver is in the car.
+      // We request eagerly here — while the user just tapped "Start Trip" and
+      // the rationale is clear — rather than unexpectedly later. Non-blocking:
+      // if the driver declines, foreground alerting continues normally and the
+      // bg task simply doesn't start when the app is backgrounded.
+      if (Platform.OS !== "web") {
+        (async () => {
+          try {
+            const bgPerm = await Location.getBackgroundPermissionsAsync();
+            if (bgPerm.status !== "granted") {
+              if (bgPerm.status === "undetermined") {
+                await new Promise<void>((resolve) =>
+                  Alert.alert(
+                    "Background Drive Alerts",
+                    "To alert you to speed cameras and hazards when your screen is locked or you switch apps, Msafiri needs \"Always Allow\" location access.\n\nYour location is only used for real-time safety alerts — never for advertising or tracking.",
+                    [{ text: "Continue", onPress: () => resolve() }],
+                    { cancelable: false },
+                  )
+                );
+              }
+              requestBackgroundLocationPermission().catch(() => {});
+            }
+          } catch { /* non-blocking — trip continues regardless */ }
+        })();
+      }
       // Create server-side session (fire-and-forget — trip works offline too)
       if (deviceId) {
         const drivingVehicle       = driveVehicleRef.current ?? null;

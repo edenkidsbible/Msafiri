@@ -73,6 +73,11 @@ import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAY
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
 import { defineBackgroundNotificationTask } from "@/utils/backgroundNotificationTask";
+import {
+  defineBackgroundDriveAlertsTask,
+  startBgDriveAlertsTask,
+  stopBgDriveAlertsTask,
+} from "@/utils/backgroundDriveAlerts";
 import { prewarmAlertAudio } from "@/utils/alertTts";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 
@@ -90,6 +95,10 @@ defineShareBackgroundTask();
 // arrives (iOS) or a high-priority FCM arrives (Android) to refresh the
 // push token and sync the device's last known location to the server.
 defineBackgroundNotificationTask();
+// Background drive-alert task: evaluates incoming GPS fixes against cached
+// speed zones/reports and fires audible lock-screen notifications while the
+// driver has an active trip and the screen is off.
+defineBackgroundDriveAlertsTask();
 
 // Every @expo/vector-icons component (Ionicons, MaterialCommunityIcons,
 // Feather — the three families this app uses) calls `Font.loadAsync()` for
@@ -237,7 +246,7 @@ function parseNavigationUrl(url: string): { name: string; lat: number; lng: numb
 }
 
 function RootLayoutNav() {
-  const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination, driverName } = useApp();
+  const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination, driverName, navTripActive } = useApp();
   // Prevent the name-prompt from firing more than once per app session
   const namePromptShown = useRef(false);
   const { isSubscribed, isLoading: subLoading, trialExpiredUnpaid } = useSubscription();
@@ -285,6 +294,39 @@ function RootLayoutNav() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Background drive-alert task lifecycle ─────────────────────────────────
+  // Start the bg alert task when the driver has an active trip and the app is
+  // backgrounded; stop it when the app foregrounds (in-app overlay resumes)
+  // or the trip ends. A ref tracks the current AppState so the navTripActive
+  // effect can read it without stale-closure issues.
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = next;
+      if (next === "background" || next === "inactive") {
+        // App backgrounded — start task if trip is active
+        if (navTripActive) {
+          startBgDriveAlertsTask().catch(() => {});
+        }
+      } else if (next === "active" && (prev === "background" || prev === "inactive")) {
+        // App foregrounded — always stop task so in-app overlay takes over
+        stopBgDriveAlertsTask().catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [navTripActive]);
+
+  // When the trip ends while the app is already backgrounded, stop the task.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!navTripActive) {
+      stopBgDriveAlertsTask().catch(() => {});
+    }
+  }, [navTripActive]);
+
   // Soft-update banner: dismissed once per session, not blocking
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
 

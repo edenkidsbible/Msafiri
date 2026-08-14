@@ -23,6 +23,14 @@ import {
   stopBackgroundShareTask,
   requestBackgroundLocationPermission,
 } from "@/utils/backgroundShare";
+import {
+  BG_DRIVE_ACTIVE_KEY,
+  BG_SESSION_ID_KEY,
+  BG_ZONES_CACHE_KEY,
+  BG_REPORTS_CACHE_KEY,
+  type BgZoneEntry,
+  type BgReportEntry,
+} from "@/utils/backgroundDriveAlerts";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { playSound } from "@/utils/sound";
@@ -1071,7 +1079,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [profilePhotoUri, setProfilePhotoUriState] = useState<string | null>(null);
   // ── Drive tab trip state (surfaced so Home tab can show dynamic button) ───
-  const [navTripActive, setNavTripActive] = useState(false);
+  const [navTripActive, setNavTripActiveState] = useState(false);
   const [navTripPaused, setNavTripPaused] = useState(false);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [driverName, setDriverNameState] = useState<string>("");
@@ -3246,6 +3254,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.removeItem("profile_photo_uri").catch(() => {});
     }
   }, []);
+
+  // ── Background drive-alert persistence ────────────────────────────────────
+  // The background location task cannot access React state. It reads a set of
+  // AsyncStorage keys instead:
+  //   • bgDriveActive  — gates all background notifications to active trips only
+  //   • bgSessionId    — scopes the per-session dedup map; reset on each new trip
+  //   • bgZonesCache   — compact speed-zone list evaluated against GPS fixes
+  //   • bgReportsCache — compact community-report list evaluated against GPS fixes
+  //
+  // On each 50 m GPS wakeup the task evaluates these caches against the fresh
+  // coordinates, finds the closest alertable zone, and fires a notification if
+  // it hasn't been notified for that zone within the last 5 minutes.
+
+  /** Wrapped setter: writes the drive-active flag and a fresh session ID so
+   *  the background task's per-session dedup map is always scoped to the
+   *  current trip and never suppresses alerts from a new drive. */
+  const setNavTripActive = useCallback((v: boolean) => {
+    setNavTripActiveState(v);
+    AsyncStorage.setItem(BG_DRIVE_ACTIVE_KEY, v ? "true" : "false").catch(() => {});
+    if (v) {
+      // Generate a new session ID so the dedup map from any previous drive is
+      // discarded on the first background task invocation of this session.
+      const sessionId =
+        Date.now().toString(36) + Math.random().toString(36).slice(2);
+      AsyncStorage.setItem(BG_SESSION_ID_KEY, sessionId).catch(() => {});
+    }
+  }, []);
+
+  // Persist a compact zone list whenever allZones changes so the background
+  // task can evaluate GPS fixes without hitting the API or importing large data.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const compact: BgZoneEntry[] = allZones.map((z) => ({
+      id:         z.id,
+      lat:        z.lat,
+      lng:        z.lng,
+      type:       z.type,
+      speedLimit: z.speedLimit,
+      name:       z.name,
+    }));
+    AsyncStorage.setItem(BG_ZONES_CACHE_KEY, JSON.stringify(compact)).catch(() => {});
+  }, [allZones]);
+
+  // Persist a compact active-report list whenever community reports change so
+  // the background task can check for nearby hazards the driver reported.
+  // Applies the same eligibility rules as the foreground alert handler so
+  // the background task never fires for stale or non-hazard reports:
+  //   • exclude type "clear" — "road is clear" reports are not hazards
+  //   • exclude denied / expired / admin_review status
+  //   • exclude reports older than 24 h (matches pruneReportCache hard cap)
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const now = Date.now();
+    const compact: BgReportEntry[] = communityReports
+      .filter((r) => {
+        if (r.type === "clear") return false;
+        if (r.status === "denied" || r.status === "expired" || r.status === "admin_review") return false;
+        // Hard 24-hour age cap — matches pruneReportCache in AppContext
+        if (now - r.timestamp > 86_400_000) return false;
+        return true;
+      })
+      .map((r) => ({
+        id:         r.id,
+        lat:        r.lat,
+        lng:        r.lng,
+        type:       r.type,
+        speedLimit: r.speedLimit,
+      }));
+    AsyncStorage.setItem(BG_REPORTS_CACHE_KEY, JSON.stringify(compact)).catch(() => {});
+  }, [communityReports]);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setThemeOverride = useCallback((v: "system" | "light" | "dark") => {
     setThemeOverrideState(v);
@@ -4182,7 +4260,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       crashSensitivity, setCrashSensitivity,
       setDashcamActive,
       profilePhotoUri, setProfilePhotoUri,
-      navTripActive, navTripPaused, setNavTripActive, setNavTripPaused,
+      navTripActive, navTripPaused,
+      setNavTripActive: setNavTripActive as (v: boolean) => void,
+      setNavTripPaused,
     }}>
       {children}
     </AppContext.Provider>

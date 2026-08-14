@@ -169,23 +169,28 @@ async function syncLocation(lat: number, lng: number): Promise<void> {
 }
 
 // Configure how notifications appear when the app is in the foreground.
-// Silent background-refresh pushes (no title, no body) and silent_ping data
-// pushes are suppressed entirely so the driver sees no banner — the background
-// task handles them invisibly to refresh the token and location.
+// Three categories are suppressed:
+//   (a) Silent background-refresh pushes (no title, no body) — data payload
+//       is handled by addNotificationReceivedListener to trigger an immediate
+//       report poll; the driver sees no banner.
+//   (b) Explicit silent_ping payloads — belt-and-suspenders so a future send
+//       with an accidental non-empty title doesn't slip through guard (a).
+//   (c) Background drive-alert notifications (source: "bg_drive_alert") fired
+//       by the bg location task — the in-app DriveAlertOverlay already handles
+//       alerting when foregrounded, so showing a banner too would double-alert.
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const { title, body } = notification.request.content;
-    const data = notification.request.content.data as Record<string, unknown>;
-    // Suppress if: (a) title+body are both absent, OR (b) the payload is an
-    // explicit silent_ping — belt-and-suspenders so future sends with an
-    // accidental empty string don't slip through either guard.
+    const data = notification.request.content.data as Record<string, unknown> | undefined;
     const isSilent = (!title && !body) || data?.type === "silent_ping";
+    const isBgDriveAlert = data?.source === "bg_drive_alert";
+    const suppress = isSilent || isBgDriveAlert;
     return {
-      shouldShowAlert:  !isSilent,
-      shouldPlaySound:  !isSilent,
+      shouldShowAlert:  !suppress,
+      shouldPlaySound:  !suppress,
       shouldSetBadge:   false,
-      shouldShowBanner: !isSilent,
-      shouldShowList:   !isSilent,
+      shouldShowBanner: !suppress,
+      shouldShowList:   !suppress,
     };
   },
 });
