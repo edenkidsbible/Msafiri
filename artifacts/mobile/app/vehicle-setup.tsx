@@ -7,7 +7,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Keyboard,
   Modal,
   Platform,
   ScrollView,
@@ -16,8 +15,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  type TextInput as TextInputType,
 } from "react-native";
+import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -111,6 +110,12 @@ export default function VehicleSetup() {
   const [claimSending,  setClaimSending]  = useState(false);
   const [claimSent,     setClaimSent]     = useState(false);
 
+  // Keyboard input modals (replaces TextInput + revealInput refs pattern)
+  const [makeModalVisible,  setMakeModalVisible]  = useState(false);
+  const [modelModalVisible, setModelModalVisible] = useState(false);
+  const [plateModalVisible, setPlateModalVisible] = useState(false);
+  const [odoModalVisible,   setOdoModalVisible]   = useState(false);
+
   // ── Debounced plate search ─────────────────────────────────────────────────
   useEffect(() => {
     const canonical = normalizePlate(plateNumber);
@@ -171,30 +176,8 @@ export default function VehicleSetup() {
 
   const selectedMake = useMemo(() => CAR_MAKES.find((m) => m.id === makeId), [makeId]);
 
-  // Refs for auto-scroll + auto-focus when "Other" is selected
+  // Ref for scroll-to-end on step change
   const scrollViewRef = useRef<ScrollView>(null);
-  const customMakeInputRef = useRef<TextInputType>(null);
-  const customModelInputRef = useRef<TextInputType>(null);
-
-  /** Scroll to bottom then focus the given input after state has rendered. */
-  function revealInput(inputRef: React.RefObject<TextInputType | null>) {
-    // Two-frame delay: first frame lets React render the new input,
-    // second frame lets the ScrollView measure the new content height.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-        inputRef.current?.focus();
-      });
-    });
-
-    // The keyboard animation takes ~250–300 ms. After it fully opens the
-    // KeyboardAvoidingView shrinks, so we scroll once more to ensure the
-    // input stays above the keyboard and is visible to the user.
-    const sub = Keyboard.addListener("keyboardDidShow", () => {
-      sub.remove();
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    });
-  }
 
   const handleFinish = async () => {
     setSaving(true);
@@ -369,7 +352,7 @@ export default function VehicleSetup() {
                     cs.makeCard,
                     isCustomMake ? { borderColor: "#00A845", backgroundColor: "#00A84515" } : { borderColor: "rgba(255,255,255,0.1)" },
                   ]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomMake(true); setMakeId(null); setIsCustomModel(true); revealInput(customMakeInputRef); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomMake(true); setMakeId(null); setIsCustomModel(true); setMakeModalVisible(true); }}
                   activeOpacity={0.8}
                 >
                   <Text style={cs.makeEmoji}>🚗</Text>
@@ -378,29 +361,44 @@ export default function VehicleSetup() {
               </View>
               {isCustomMake && (
                 <View style={cs.customInputGroup}>
-                  <Text style={cs.customLabel}>Make name</Text>
-                  <TextInput
-                    ref={customMakeInputRef}
-                    style={cs.customInput}
+                  <KeyboardInputModal
+                    visible={makeModalVisible}
+                    label="Make name"
                     value={customMakeName}
                     onChangeText={setCustomMakeName}
+                    onDone={() => setMakeModalVisible(false)}
                     placeholder="e.g. Foton, JAC, King Long…"
-                    placeholderTextColor="#555"
-                    autoCorrect={false}
-                    returnKeyType="next"
-                    onSubmitEditing={() => customModelInputRef.current?.focus()}
+                    autoCapitalize="words"
                   />
-                  <Text style={[cs.customLabel, { marginTop: 12 }]}>Model name</Text>
-                  <TextInput
-                    ref={customModelInputRef}
-                    style={cs.customInput}
+                  <KeyboardInputModal
+                    visible={modelModalVisible}
+                    label="Model name"
                     value={customModelName}
                     onChangeText={setCustomModelName}
+                    onDone={() => setModelModalVisible(false)}
                     placeholder="e.g. Tunland, S5…"
-                    placeholderTextColor="#555"
-                    autoCorrect={false}
-                    returnKeyType="done"
+                    autoCapitalize="words"
                   />
+                  <Text style={cs.customLabel}>Make name</Text>
+                  <TouchableOpacity
+                    style={cs.customInput}
+                    onPress={() => setMakeModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: customMakeName ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                      {customMakeName || "e.g. Foton, JAC, King Long…"}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={[cs.customLabel, { marginTop: 12 }]}>Model name</Text>
+                  <TouchableOpacity
+                    style={cs.customInput}
+                    onPress={() => setModelModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: customModelName ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                      {customModelName || "e.g. Tunland, S5…"}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </>
@@ -435,7 +433,7 @@ export default function VehicleSetup() {
                     cs.modelRow,
                     { borderColor: isCustomModel ? "#00A845" : "rgba(255,255,255,0.08)", backgroundColor: isCustomModel ? "#00A84510" : "transparent" },
                   ]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomModel(true); setModelId(null); revealInput(customModelInputRef); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCustomModel(true); setModelId(null); setModelModalVisible(true); }}
                   activeOpacity={0.8}
                 >
                   <Text style={[cs.modelName, { color: isCustomModel ? "#00A845" : "#ddd" }]}>Other / Variant</Text>
@@ -444,17 +442,25 @@ export default function VehicleSetup() {
               </View>
               {isCustomModel && (
                 <View style={cs.customInputGroup}>
-                  <Text style={cs.customLabel}>Model name</Text>
-                  <TextInput
-                    ref={customModelInputRef}
-                    style={cs.customInput}
+                  <KeyboardInputModal
+                    visible={modelModalVisible}
+                    label="Model name"
                     value={customModelName}
                     onChangeText={setCustomModelName}
+                    onDone={() => setModelModalVisible(false)}
                     placeholder="e.g. GX Super, LX Special…"
-                    placeholderTextColor="#555"
-                    autoCorrect={false}
-                    returnKeyType="done"
+                    autoCapitalize="words"
                   />
+                  <Text style={cs.customLabel}>Model name</Text>
+                  <TouchableOpacity
+                    style={cs.customInput}
+                    onPress={() => setModelModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: customModelName ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                      {customModelName || "e.g. GX Super, LX Special…"}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </>
@@ -477,18 +483,27 @@ export default function VehicleSetup() {
                 Required — prevents duplicate registrations and lets you restore your data on a new device.
               </Text>
               <View style={{ position: "relative" }}>
-                <TextInput
+                <KeyboardInputModal
+                  visible={plateModalVisible}
+                  label="Number Plate"
+                  value={plateNumber}
+                  onChangeText={t => setPlateNumber(t.toUpperCase())}
+                  onDone={() => setPlateModalVisible(false)}
+                  placeholder="e.g. KCB 123A"
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity
                   style={[
                     cs.odometerInput,
                     plateDuplicate && { borderColor: "#D97706", borderWidth: 1.5 },
                   ]}
-                  value={plateNumber}
-                  onChangeText={(t) => setPlateNumber(t.toUpperCase())}
-                  placeholder="e.g. KCB 123A"
-                  placeholderTextColor="#555"
-                  autoCapitalize="characters"
-                  returnKeyType="next"
-                />
+                  onPress={() => setPlateModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: plateNumber ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                    {plateNumber || "e.g. KCB 123A"}
+                  </Text>
+                </TouchableOpacity>
                 {plateChecking && (
                   <ActivityIndicator
                     size="small"
@@ -568,15 +583,24 @@ export default function VehicleSetup() {
               <Text style={cs.fieldHint}>
                 Used to estimate service intervals and track your mileage in the Garage section.
               </Text>
-              <TextInput
-                style={cs.odometerInput}
+              <KeyboardInputModal
+                visible={odoModalVisible}
+                label="Current Odometer (km)"
                 value={odometer}
-                onChangeText={setOdometer}
+                onChangeText={t => setOdometer(t.replace(/[^0-9]/g, ""))}
+                onDone={() => setOdoModalVisible(false)}
                 placeholder="e.g. 54000"
-                placeholderTextColor="#555"
                 keyboardType="number-pad"
-                returnKeyType="done"
               />
+              <TouchableOpacity
+                style={cs.odometerInput}
+                onPress={() => setOdoModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: odometer ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                  {odometer || "e.g. 54000"}
+                </Text>
+              </TouchableOpacity>
             </>
           )}
       </KeyboardAwareScrollViewCompat>
