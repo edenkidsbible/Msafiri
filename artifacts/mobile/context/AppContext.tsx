@@ -54,6 +54,9 @@ export interface CommunityReport {
   speedLimit?: number;
   roadName?: string;
   adminVerified?: boolean;
+  /** Camera subtype: "fixed" = permanently installed, "mobile" = temporary/moving checkpoint.
+   *  Null/undefined for non-camera types and legacy camera reports (treat as "fixed"). */
+  cameraType?: "fixed" | "mobile";
   /** How directly the reporter witnessed this incident:
    *  - on_location   — GPS was near the pin at submission (eyewitness)
    *  - recent_nearby — reporter was in the area within the last hour
@@ -236,7 +239,7 @@ interface AppContextValue {
    *  cycle. Called by usePushNotifications when a silent "reports_refresh" push
    *  arrives so new pins appear within ~2 s of the original submission. */
   refreshReports: () => Promise<void>;
-  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }) => string;
+  addReport: (type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }, cameraType?: "fixed" | "mobile") => string;
   confirmReport: (id: string) => Promise<void>;
   denyReport: (id: string) => Promise<{ ok: boolean; message?: string }>;
   deleteReport: (id: string) => Promise<void>;
@@ -2542,6 +2545,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isOwn: false,
         observationContext: (r as any).observationContext as CommunityReport["observationContext"] ?? "on_location",
         observedAt: (r as any).observedAt ?? undefined,
+        ...(r.type === "camera" && (r as any).cameraType
+          ? { cameraType: (r as any).cameraType as "fixed" | "mobile" }
+          : {}),
       }));
       
 
@@ -3456,9 +3462,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setSosContact = useCallback((c: SOSContact | null) => { setSosContactState(c); c ? AsyncStorage.setItem(KEYS.SOS, JSON.stringify(c)) : AsyncStorage.removeItem(KEYS.SOS); }, []);
   // Posts a locally-created (not-yet-synced) report to the API. Shared by
   // addReport's initial attempt and the reconnect-triggered retry sweep below.
-  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }) => {
+  const syncReportToServer = useCallback((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }, cameraType?: "fixed" | "mobile") => {
     apiPost<{ id: string; status: string; confirmCount: number; action: string; clearedCount?: number; roadName?: string | null }>(
-      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit, roadName, ...meta }
+      "/reports", { type, lat, lng, deviceId: deviceIdRef.current, speedLimit, roadName, ...meta, ...(cameraType ? { cameraType } : {}) }
     ).then((result) => {
       setCommunityReports((prev) => {
         let u: CommunityReport[];
@@ -3511,21 +3517,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
   useEffect(() => { syncReportToServerRef.current = syncReportToServer; }, [syncReportToServer]);
 
-  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }) => {
+  const addReport = useCallback((type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number, roadName?: string, meta?: { observationContext?: CommunityReport["observationContext"]; observedAt?: number; reporterProximityM?: number }, cameraType?: "fixed" | "mobile") => {
     // ── Duplicate-prevention pre-check ───────────────────────────────────────
     // Before creating an optimistic local report, scan the in-memory cache for
-    // an existing active/confirmed report of the same type within 50 m.
-    // If found: confirm the existing report instead of adding a duplicate.
-    // This prevents the confusing "report flashes on map then disappears" UX
-    // that happens when the server clusters the submission.  The server's own
-    // 50-m deduplication (POST /reports) handles any race conditions or reports
-    // not yet in the local cache.
-    const nearbyExisting = communityReportsRef.current.find((r) =>
-      r.type === type &&
-      !r.isOwn && // can't confirm own report
-      (r.status === "active" || r.status === "confirmed" || r.status === "admin_review") &&
-      haversine(lat, lng, r.lat, r.lng) < 50
-    );
+    // an existing active/confirmed report of the same type within range.
+    // Cameras use 100 m (wider, permanent) and must match cameraType.
+    // Other types use 50 m. If found: confirm instead of duplicating.
+    const dedupRadius = type === "camera" ? 100 : 50;
+    const nearbyExisting = communityReportsRef.current.find((r) => {
+      if (r.type !== type) return false;
+      if (r.isOwn) return false; // can't confirm own report
+      if (r.status !== "active" && r.status !== "confirmed" && r.status !== "admin_review") return false;
+      if (haversine(lat, lng, r.lat, r.lng) >= dedupRadius) return false;
+      // Fixed and mobile cameras must not merge — different enforcement types
+      if (type === "camera") {
+        const existingCameraType = r.cameraType ?? "fixed";
+        const incomingCameraType = cameraType ?? "fixed";
+        if (existingCameraType !== incomingCameraType) return false;
+      }
+      return true;
+    });
     if (nearbyExisting) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (!isOfflineRef.current && deviceIdRef.current && nearbyExisting.serverId) {
@@ -3552,6 +3563,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       id: localId, type, lat, lng, timestamp: Date.now(), confirmed: 1,
       status: "active", confirmCount: 1, denyCount: 0, isOwn: true,
       speedLimit,
+      ...(cameraType ? { cameraType } : {}),
       ...(roadName ? { roadName } : {}),
       ...(meta?.observationContext ? { observationContext: meta.observationContext } : {}),
       ...(meta?.observedAt ? { observedAt: meta.observedAt } : {}),
@@ -3561,7 +3573,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Submit to API; keep local copy as offline fallback (retried on reconnect)
     if (!isOfflineRef.current && deviceIdRef.current) {
-      syncReportToServer(localId, type, lat, lng, speedLimit, roadName, meta);
+      syncReportToServer(localId, type, lat, lng, speedLimit, roadName, meta, cameraType);
     }
     return localId;
   }, [syncReportToServer]);

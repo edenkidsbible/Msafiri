@@ -62,9 +62,14 @@ export const TTL_SECONDS: Record<string, number | null> = {
   clear:     INCIDENT_TTL,   // 12 h — ephemeral clearance signal
 };
 
-// Camera cluster radius in degrees (~50 m at equatorial latitudes)
+// Cluster radius for non-camera report types (~50 m at equatorial latitudes)
 const CLUSTER_LAT = 0.00045;
 const CLUSTER_LNG = 0.00060;
+// Camera-specific dedup radius — wider (100 m) because cameras persist forever
+// and two reports within 100 m of the same camera type are almost certainly
+// the same physical unit. Different cameraTypes (fixed vs mobile) never merge.
+const CAMERA_CLUSTER_LAT = 0.0009;
+const CAMERA_CLUSTER_LNG = 0.0012;
 
 // Shared TTL extension for driver confirm votes (explicit /confirm endpoint AND
 // the cluster-dedup path in POST /reports). Both represent the same signal —
@@ -220,6 +225,7 @@ router.get("/reports", async (req: Request, res: Response) => {
       speedLimit: r.speedLimit,
       roadName: r.roadName,
       adminVerified: r.adminVerified ?? false,
+      cameraType: r.cameraType ?? null,
       // Guard against a non-Date value arriving from the DB driver — e.g. a
       // string timestamp on a misconfigured connection — so serialisation never
       // throws an uncaught TypeError.
@@ -274,10 +280,11 @@ router.get("/reports", async (req: Request, res: Response) => {
 router.post("/reports", async (req: Request, res: Response) => {
   try {
     const { type, lat, lng, deviceId, speedLimit, roadName,
-            observationContext, observedAt, reporterProximityM } = req.body as {
+            observationContext, observedAt, reporterProximityM, cameraType } = req.body as {
       type: string; lat: number; lng: number;
       deviceId: string; speedLimit?: number; roadName?: string;
       observationContext?: string; observedAt?: number; reporterProximityM?: number;
+      cameraType?: string; // "fixed" | "mobile" — cameras only
     };
 
     if (!type || lat == null || lng == null || !deviceId) {
@@ -291,8 +298,15 @@ router.post("/reports", async (req: Request, res: Response) => {
     const ttl = TTL_SECONDS[type] ?? null;
     const expiresAt = ttl ? new Date(Date.now() + ttl * 1000) : null;
 
-    // ── Deduplication: find an existing active report of the same type within 50 m ──
+    // ── Deduplication: find an existing active report of the same type ──────────
+    // Cameras use a wider 100 m radius (they're permanent, same-spot reports are
+    // the same physical unit) but only merge with the same cameraType.
     {
+      const isCamera = type === "camera";
+      const clLat = isCamera ? CAMERA_CLUSTER_LAT : CLUSTER_LAT;
+      const clLng = isCamera ? CAMERA_CLUSTER_LNG : CLUSTER_LNG;
+      const clRadius = isCamera ? 100 : 50;
+
       const nearby = await db
         .select()
         .from(communityReportsTable)
@@ -300,16 +314,23 @@ router.post("/reports", async (req: Request, res: Response) => {
           and(
             eq(communityReportsTable.type, type),
             isActive(),
-            gte(communityReportsTable.lat, lat - CLUSTER_LAT),
-            sql`${communityReportsTable.lat} <= ${lat + CLUSTER_LAT}`,
-            gte(communityReportsTable.lng, lng - CLUSTER_LNG),
-            sql`${communityReportsTable.lng} <= ${lng + CLUSTER_LNG}`
+            gte(communityReportsTable.lat, lat - clLat),
+            sql`${communityReportsTable.lat} <= ${lat + clLat}`,
+            gte(communityReportsTable.lng, lng - clLng),
+            sql`${communityReportsTable.lng} <= ${lng + clLng}`
           )
         );
 
-      const cluster = nearby.find(
-        (r) => haversine(lat, lng, r.lat, r.lng) < 50
-      );
+      const cluster = nearby.find((r) => {
+        if (haversine(lat, lng, r.lat, r.lng) >= clRadius) return false;
+        // Fixed and mobile cameras never merge — they're distinct enforcement types
+        if (isCamera) {
+          const existingType = r.cameraType ?? "fixed";
+          const incomingType = cameraType ?? "fixed";
+          return existingType === incomingType;
+        }
+        return true;
+      });
 
       if (cluster) {
         // Original creator OR device that already confirmed → no-op, return existing report
@@ -364,6 +385,7 @@ router.post("/reports", async (req: Request, res: Response) => {
       .insert(communityReportsTable)
       .values({
         type, lat, lng, deviceId, speedLimit, roadName, expiresAt,
+        ...(cameraType ? { cameraType } : {}),
         status: needsModeration ? "pending_review" : "active",
         observationContext: safeContext,
         observedAt: observedAtDate,
