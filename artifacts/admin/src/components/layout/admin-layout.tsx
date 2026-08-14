@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup, ExternalLink, Inbox } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup, ExternalLink, Inbox, Flag } from "lucide-react";
 import { getToken } from "@/lib/auth";
 
 function authFetch(url: string) {
@@ -80,6 +80,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const coreNavAll: Array<{ href: string; label: string; icon: typeof AlertCircle; feature: FeatureKey }> = [
     { href: "/reports",            label: "Incident Reports",  icon: AlertCircle,  feature: "reports" },
     { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck,  feature: "reports" },
+    { href: "/vehicle-claims",     label: "Vehicle Claims",    icon: Flag,         feature: "reports" },
     { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge,        feature: "speed_zones" },
     { href: "/pois",               label: "Points of Interest",icon: MapPin,       feature: "pois" },
   ];
