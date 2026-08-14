@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "828356937233",
+    "project_id": "msafiri-notifications",
+    "storage_bucket": "msafiri-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828356937233:android:b7bdc749021fd0825253b0",
+        "android_client_info": {
+          "package_name": "com.msafirikenya.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbq-ZhvNDWXqjC4CU90nBbsdC_K_89Ruw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
