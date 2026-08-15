@@ -720,47 +720,60 @@ export default function ReportModal({
                     </View>
                   </View>
                 </>
+              ) : sel ? (
+                /* ── Compact selected-type summary ─────────────────────────────
+                   When the user pre-selected a type from the report page (or
+                   already tapped one inside the modal), collapse the full grid
+                   to a single chip so they aren't asked to pick the type twice.
+                   Tapping "Change" expands the full grid.
+                ──────────────────────────────────────────────────────────────── */
+                <>
+                  <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 22 }]}>WHAT DO YOU SEE?</Text>
+                  {(() => {
+                    const t = TYPES.find((x) => x.type === sel)!;
+                    return (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.pickedSummary, { backgroundColor: t.color + "12", borderColor: t.color + "66" }]}
+                          onPress={() => { Haptics.selectionAsync(); bumpIdleTimer(); setSel(null); }}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.chipEmoji}>{t.emoji}</Text>
+                          <Text style={[styles.pickedSummaryTxt, { color: c.foreground }]}>{t.label}</Text>
+                          <Text style={{ fontSize: 12, color: t.color, fontFamily: "Inter_600SemiBold" }}>Change</Text>
+                        </TouchableOpacity>
+                      </>
+                    );
+                  })()}
+                </>
               ) : (
-                /* ── Normal incident grid ──────────────────────────────────── */
+                /* ── Full incident grid — shown when no type is selected yet ── */
                 <>
                   <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 22 }]}>WHAT DO YOU SEE?</Text>
                   <View style={styles.grid}>
-                    {TYPES.map((t) => {
-                      const active = sel === t.type;
-                      return (
-                        <TouchableOpacity
-                          key={t.type}
-                          style={[
-                            styles.chip,
-                            {
-                              backgroundColor: active ? t.color + "18" : c.muted,
-                              borderColor: active ? t.color : c.border,
-                            },
-                          ]}
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            bumpIdleTimer();
-                            setSel(t.type);
-                            setSpeedLimit("");
-                          }}
-                          activeOpacity={0.75}
-                        >
-                          <View style={[styles.chipIconWrap, { backgroundColor: t.color + (active ? "30" : "18") }]}>
-                            <Text style={styles.chipEmoji}>{t.emoji}</Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.chipLabel,
-                              { color: active ? t.color : c.foreground },
-                              active && { fontFamily: "Inter_600SemiBold" },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {t.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    {TYPES.map((t) => (
+                      <TouchableOpacity
+                        key={t.type}
+                        style={[
+                          styles.chip,
+                          { backgroundColor: c.muted, borderColor: c.border },
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          bumpIdleTimer();
+                          setSel(t.type);
+                          setSpeedLimit("");
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <View style={[styles.chipIconWrap, { backgroundColor: t.color + "18" }]}>
+                          <Text style={styles.chipEmoji}>{t.emoji}</Text>
+                        </View>
+                        <Text style={[styles.chipLabel, { color: c.foreground }]} numberOfLines={1}>
+                          {t.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </>
               )
