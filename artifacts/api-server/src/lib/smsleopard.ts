@@ -78,6 +78,12 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
     body: JSON.stringify(body),
   });
 
+  if (!res.ok) {
+    const rawBody = await res.text();
+    console.error(`[smsleopard] HTTP ${res.status} from API — body: ${rawBody} | senderId: ${senderId} | to: ${to} (${carrier})`);
+    throw new Error(`SMSLeopard HTTP ${res.status}: ${rawBody.slice(0, 300)}`);
+  }
+
   const json = await res.json() as {
     success: boolean;
     message: string;
@@ -86,7 +92,7 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
 
   if (!json.success) {
     const recipientStatus = json.recipients?.[0]?.status ?? "";
-    console.error(`[smsleopard] send failed to ${to} (${carrier}) — message: ${json.message} | recipient status: ${recipientStatus || "(none)"} | senderId: ${senderId}`);
+    console.error(`[smsleopard] send failed to ${to} (${carrier}) — HTTP ${res.status} | message: ${json.message} | recipient status: ${recipientStatus || "(none)"} | senderId: ${senderId}`);
     if (recipientStatus === "restricted_send_time") {
       throw new SmsRestrictedTimeError();
     }
