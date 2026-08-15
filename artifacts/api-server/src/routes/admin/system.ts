@@ -76,10 +76,24 @@ async function upsertRows(
     updateSet[jsKey] = sql.raw(`excluded."${dbColName}"`);
   }
 
+  // Backup JSON has ISO timestamp strings; Drizzle's PgTimestamp.mapToDriverValue()
+  // requires Date objects — convert them before handing rows to Drizzle.
+  function coerceRow(row: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...row };
+    for (const [jsKey, colDef] of Object.entries(cols)) {
+      const cType = (colDef as any).columnType as string | undefined;
+      if (cType === "PgTimestamp" || cType === "PgTimestampString") {
+        const v = out[jsKey];
+        if (typeof v === "string" && v) out[jsKey] = new Date(v);
+      }
+    }
+    return out;
+  }
+
   const CHUNK = 50;
   let total   = 0;
   for (let i = 0; i < rows.length; i += CHUNK) {
-    const batch = rows.slice(i, i + CHUNK);
+    const batch = rows.slice(i, i + CHUNK).map(coerceRow);
     try {
       await (db.insert(table) as any)
         .values(batch)

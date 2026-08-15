@@ -47,8 +47,8 @@ app.use(
   inboundEmailRouter,
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Course-image PNGs rendered from the PDF — served directly (not under /api/
 // because they are static assets, but proxied by the same domain).
