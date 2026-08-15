@@ -49,6 +49,10 @@ import {
 } from "@/utils/driveSessionApi";
 import { useVehicle } from "@/context/VehicleContext";
 import { QUICK_START_KEY } from "@/app/pretrip-check";
+import { getLinkedPhone } from "@/utils/backupSync";
+
+const PHONE_LINK_BANNER_DISMISSED_KEY = "phoneLinkBannerDismissedAt";
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -283,6 +287,38 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => { setHour(new Date().getHours()); }, []));
   const firstName = driverName ? driverName.split(" ")[0] : "driver";
 
+  // ── Phone-link nudge banner ────────────────────────────────────────────────
+  // Shown for up to 7 days after onboarding when no recovery phone is linked
+  // and the banner hasn't been permanently dismissed.
+  const [showPhoneLinkBanner, setShowPhoneLinkBanner] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        try {
+          const [phone, dismissedAt, completedAt] = await Promise.all([
+            getLinkedPhone().catch(() => null),
+            AsyncStorage.getItem(PHONE_LINK_BANNER_DISMISSED_KEY),
+            AsyncStorage.getItem("onboardingCompletedAt"),
+          ]);
+          if (!alive) return;
+          if (phone) { setShowPhoneLinkBanner(false); return; }
+          if (dismissedAt) { setShowPhoneLinkBanner(false); return; }
+          // Only show for users who went through the new onboarding flow
+          // (onboardingCompletedAt written by finish()). Missing key = pre-update
+          // user → no banner so they aren't nagged indefinitely.
+          if (!completedAt) { setShowPhoneLinkBanner(false); return; }
+          const elapsed = Date.now() - parseInt(completedAt, 10);
+          if (isNaN(elapsed) || elapsed > SEVEN_DAYS_MS) { setShowPhoneLinkBanner(false); return; }
+          setShowPhoneLinkBanner(true);
+        } catch {
+          setShowPhoneLinkBanner(false);
+        }
+      })();
+      return () => { alive = false; };
+    }, []),
+  );
+
   // ── Status tiles data ──────────────────────────────────────────────────────
   type Tile = {
     key: string;
@@ -486,6 +522,37 @@ export default function HomeScreen() {
                 : " · no alert data synced yet"}
             </Text>
             <Ionicons name="chevron-forward" size={14} color="#D97706" />
+          </TouchableOpacity>
+        )}
+
+        {/* ── Phone-link nudge banner ────────────────────────────────────── */}
+        {showPhoneLinkBanner && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push("/link-phone" as any)}
+            style={[styles.phoneLinkBanner, { backgroundColor: c.card, borderColor: c.primary + "44" }]}
+          >
+            <View style={[styles.phoneLinkIcon, { backgroundColor: c.primary + "18" }]}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={c.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.phoneLinkTitle, { color: c.foreground }]}>
+                Secure your account
+              </Text>
+              <Text style={[styles.phoneLinkSub, { color: c.mutedForeground }]}>
+                Link a phone number to restore your data on any new device.
+              </Text>
+            </View>
+            <TouchableOpacity
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
+              onPress={async (e) => {
+                e.stopPropagation();
+                await AsyncStorage.setItem(PHONE_LINK_BANNER_DISMISSED_KEY, Date.now().toString()).catch(() => {});
+                setShowPhoneLinkBanner(false);
+              }}
+            >
+              <Ionicons name="close" size={16} color={c.mutedForeground} />
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
 
@@ -1189,4 +1256,25 @@ const styles = StyleSheet.create({
   disclaimerBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
   disclaimerBtnTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   disclaimerCancelTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
+  // ── Phone-link nudge banner ────────────────────────────────────────────────
+  phoneLinkBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  phoneLinkIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  phoneLinkTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  phoneLinkSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
 });

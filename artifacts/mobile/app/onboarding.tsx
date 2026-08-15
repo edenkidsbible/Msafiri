@@ -1,12 +1,14 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Platform,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ViewToken,
@@ -15,19 +17,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/context/AppContext";
 import { VEHICLE_TYPES, VehicleTypeId } from "@/data/vehicleTypes";
 
-
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
 // ── Brand palette ─────────────────────────────────────────────────────────────
 const GREEN       = "#00A845";
 const GREEN_DARK  = "#006B3C";
-const FLAG_RED    = "#BB0000";   // Kenya flag red — badge colours & brand name only
-const SCREEN_BG   = "#EDF7F2";   // light green tint — matches app-wide background
-const SURFACE     = "#DDEEE6";   // slightly deeper tint for card surfaces
-const BORDER      = "#C8E6D5";   // green-tinted border
+const FLAG_RED    = "#BB0000";
+const SCREEN_BG   = "#EDF7F2";
+const SURFACE     = "#DDEEE6";
+const BORDER      = "#C8E6D5";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type AlertBadge = { emoji: string; label: string; color: string };
@@ -41,121 +43,57 @@ type BaseSlide = {
   sub: string;
 };
 
-type GridSlide   = BaseSlide & { kind: "grid";   badges: AlertBadge[] };
-type FeatureSlide= BaseSlide & { kind: "feature"; features: { emoji: string; text: string }[] };
-type PickerSlide = BaseSlide & { kind: "picker" };
-type Slide = GridSlide | FeatureSlide | PickerSlide;
+type FeatureSlide = BaseSlide & { kind: "feature"; features: { emoji: string; text: string }[] };
+type PickerSlide  = BaseSlide & { kind: "picker" };
+type Slide = FeatureSlide | PickerSlide;
 
-// ── Slide data ────────────────────────────────────────────────────────────────
+// ── Slide data — 3 slides ─────────────────────────────────────────────────────
 const SLIDES: Slide[] = [
   {
     id:         "1",
-    kind:       "grid",
+    kind:       "feature",
     accentColor: GREEN,
-    chip:       "ALERTS",
-    heroEmoji:  "📡",
+    chip:       "SAFETY",
+    heroEmoji:  "🛡️",
     headline:   "Every Threat.\nDetected.",
-    sub:        "Speed cameras, alcoblow, police & roadblocks — all reported live.",
-    badges: [
-      { emoji: "📷", label: "Speed Camera",  color: FLAG_RED    },
-      { emoji: "🍺", label: "Alcoblow",       color: "#E65100"  },
-      { emoji: "👮", label: "Police",          color: "#1565C0"  },
-      { emoji: "🚧", label: "Roadblock",       color: "#F57C00"  },
-      { emoji: "🚦", label: "Traffic Jam",     color: GREEN_DARK },
-      { emoji: "⚠️", label: "Hazards",         color: "#795548"  },
+    sub:        "Speed cameras, alcoblow, police, roadblocks — all reported live.",
+    features: [
+      { emoji: "📷", text: "Speed cameras & alcoblow alerts" },
+      { emoji: "👮", text: "Police & roadblock notifications" },
+      { emoji: "🎥", text: "Built-in dashcam & crash detection" },
+      { emoji: "📋", text: "Instant insurance-ready reports" },
     ],
   },
   {
     id:         "2",
     kind:       "feature",
     accentColor: GREEN,
-    chip:       "DASHCAM & SAFETY",
-    heroEmoji:  "🎥",
-    headline:   "Record Every\nJourney.",
-    sub:        "Built-in dashcam. Automatic crash detection. Instant reports.",
-    features: [
-      { emoji: "📹", text: "Auto dashcam recording" },
-      { emoji: "🆘", text: "Crash detection & SOS" },
-      { emoji: "📋", text: "Insurance-ready reports" },
-    ],
-  },
-  {
-    id:         "3",
-    kind:       "feature",
-    accentColor: GREEN,
-    chip:       "NAVIGATION",
+    chip:       "DRIVE SMART",
     heroEmoji:  "🗺️",
     headline:   "Drive Smart.\nArrive Safe.",
-    sub:        "Camera-aware routing, live ETA, and real-time trip sharing.",
+    sub:        "Camera-aware routing, live ETA, audio driving lessons and quizzes.",
     features: [
-      { emoji: "📍", text: "Share live location" },
-      { emoji: "🛡️", text: "Camera-aware routes" },
-      { emoji: "⏱️", text: "Live ETA with delays" },
-    ],
-  },
-  {
-    id:         "4",
-    kind:       "feature",
-    accentColor: GREEN,
-    chip:       "LEARN",
-    heroEmoji:  "🎓",
-    headline:   "Pass Your Test.\nDrive Better.",
-    sub:        "Official NTSA driving course with audio lessons and quizzes.",
-    features: [
-      { emoji: "📖", text: "Full NTSA course content" },
-      { emoji: "🔊", text: "Audio lessons to listen along" },
+      { emoji: "📍", text: "Share your live location with family" },
+      { emoji: "🛡️", text: "Camera-aware routes & live ETA" },
+      { emoji: "📖", text: "Full NTSA audio driving course" },
       { emoji: "✅", text: "Progress-tracked quizzes" },
     ],
   },
   {
-    id:         "5",
+    id:         "3",
     kind:       "picker",
     accentColor: GREEN,
-    chip:       "YOUR VEHICLE",
+    chip:       "YOUR VEHICLE & NAME",
     heroEmoji:  "🚗",
-    headline:   "Your Vehicle,\nYour Limit.",
-    sub:        "Speed limits differ by class in Kenya. Set yours once — we handle the rest.",
+    headline:   "Personalise\nYour Experience.",
+    sub:        "Speed limits differ by vehicle class. Set yours once — we handle the rest.",
   },
 ];
 
-// ── Alert badge grid ──────────────────────────────────────────────────────────
-function AlertGrid({ badges }: { badges: AlertBadge[] }) {
-  const cellW = (width - 48 - 12) / 3;
-  return (
-    <View style={g.grid}>
-      {badges.map((b, i) => (
-        <View key={i} style={[g.cell, { width: cellW, backgroundColor: b.color + "10", borderColor: b.color + "30" }]}>
-          <Text style={g.emoji}>{b.emoji}</Text>
-          <Text style={[g.label, { color: b.color }]}>{b.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const g = StyleSheet.create({
-  grid: {
-    flexDirection:  "row",
-    flexWrap:       "wrap",
-    gap:            8,
-    width:          "100%",
-    justifyContent: "center",
-  },
-  cell: {
-    borderRadius:    16,
-    borderWidth:     1,
-    paddingVertical: 14,
-    alignItems:      "center",
-    gap:             6,
-  },
-  emoji: { fontSize: 26 },
-  label: {
-    fontSize:   11,
-    fontFamily: "Inter_600SemiBold",
-    textAlign:  "center",
-    lineHeight: 14,
-  },
-});
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const lettersOnly = (s: string) => s.replace(/[^a-zA-Z]/g, "");
+const capitalize  = (s: string) =>
+  s.length === 0 ? s : s[0].toUpperCase() + s.slice(1).toLowerCase();
 
 // ── Feature list ──────────────────────────────────────────────────────────────
 function FeatureList({ features, accent }: { features: { emoji: string; text: string }[]; accent: string }) {
@@ -177,35 +115,35 @@ function FeatureList({ features, accent }: { features: { emoji: string; text: st
 }
 
 const f = StyleSheet.create({
-  list:    { width: "100%", gap: 10 },
+  list:    { width: "100%", gap: 8 },
   row: {
     flexDirection:     "row",
     alignItems:        "center",
-    gap:               14,
-    paddingVertical:   14,
-    paddingHorizontal: 16,
-    borderRadius:      18,
+    gap:               12,
+    paddingVertical:   12,
+    paddingHorizontal: 14,
+    borderRadius:      16,
     borderWidth:       1,
   },
   emojiBox: {
-    width:          44,
-    height:         44,
+    width:          40,
+    height:         40,
     borderRadius:   12,
     alignItems:     "center",
     justifyContent: "center",
   },
-  emoji:   { fontSize: 22 },
+  emoji:   { fontSize: 20 },
   text: {
     flex:       1,
-    fontSize:   15,
+    fontSize:   14,
     fontFamily: "Inter_600SemiBold",
     color:      "#0C120E",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   check: {
-    width:          24,
-    height:         24,
-    borderRadius:   12,
+    width:          22,
+    height:         22,
+    borderRadius:   11,
     alignItems:     "center",
     justifyContent: "center",
   },
@@ -239,7 +177,7 @@ function VehiclePicker({ accent, vehicleType, setVehicleType }: {
             onPress={() => { setVehicleType(vt.id as VehicleTypeId); Haptics.selectionAsync(); }}
             activeOpacity={0.8}
           >
-            <IconComp name={vt.icon as any} size={28} color={sel ? accent : "#8A9E8A"} />
+            <IconComp name={vt.icon as any} size={26} color={sel ? accent : "#8A9E8A"} />
             <Text style={[v.vehicleLabel, { color: sel ? accent : "#555" }]}>{vt.shortLabel}</Text>
           </TouchableOpacity>
         );
@@ -253,21 +191,90 @@ const v = StyleSheet.create({
     flexDirection:  "row",
     flexWrap:       "wrap",
     justifyContent: "center",
-    gap:            10,
+    gap:            8,
     width:          "100%",
   },
   vehicleCard: {
-    paddingVertical: 14,
-    borderRadius:    18,
+    paddingVertical: 12,
+    borderRadius:    16,
     borderWidth:     1.5,
     alignItems:      "center",
-    gap:             7,
+    gap:             6,
   },
   vehicleLabel: {
     fontSize:   11,
     fontFamily: "Inter_600SemiBold",
     textAlign:  "center",
   },
+});
+
+// ── Inline name input for slide 3 ─────────────────────────────────────────────
+function NameInput({
+  value,
+  onChange,
+  showNudge,
+  accent,
+}: {
+  value: string;
+  onChange: (t: string) => void;
+  showNudge: boolean;
+  accent: string;
+}) {
+  const isValid = value.length >= 2;
+  return (
+    <View style={ni.wrap}>
+      <Text style={[ni.label, { color: accent }]}>Your first name</Text>
+      <TextInput
+        style={[
+          ni.input,
+          isValid && { borderColor: accent, shadowColor: accent, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 4, elevation: 2 },
+        ]}
+        value={value}
+        onChangeText={(t) => onChange(lettersOnly(t))}
+        placeholder="e.g. Peter"
+        placeholderTextColor="#A0B5A0"
+        autoCorrect={false}
+        autoCapitalize="none"
+        maxLength={30}
+        returnKeyType="done"
+      />
+      {isValid && (
+        <View style={ni.hint}>
+          <Ionicons name="checkmark-circle" size={13} color={accent} />
+          <Text style={[ni.hintTxt, { color: accent }]}>
+            Saved as <Text style={{ fontFamily: "Inter_700Bold" }}>{capitalize(value)}</Text>
+          </Text>
+        </View>
+      )}
+      {showNudge && value.length > 0 && !isValid && (
+        <View style={ni.hint}>
+          <Ionicons name="information-circle-outline" size={13} color="#9AAA9A" />
+          <Text style={[ni.hintTxt, { color: "#9AAA9A" }]}>Enter at least 2 letters</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const ni = StyleSheet.create({
+  wrap:  { width: "100%", gap: 6, marginBottom: 14 },
+  label: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
+  input: {
+    width:             "100%",
+    backgroundColor:   "#FFFFFF",
+    borderRadius:      14,
+    borderWidth:       1.5,
+    borderColor:       BORDER,
+    paddingHorizontal: 16,
+    paddingVertical:   12,
+    fontSize:          18,
+    fontFamily:        "Inter_600SemiBold",
+    color:             "#0C120E",
+    textAlign:         "center",
+    letterSpacing:     0.5,
+  },
+  hint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  hintTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -279,9 +286,12 @@ export default function OnboardingScreen() {
     requestNotificationPermission,
     vehicleType,
     setVehicleType,
+    setDriverName,
   } = useApp();
 
   const [activeIdx, setActiveIdx] = useState(0);
+  const [name, setName] = useState("");
+  const [showNameNudge, setShowNameNudge] = useState(false);
   const flatRef = useRef<FlatList<Slide>>(null);
 
   const topInset    = Platform.OS === "web" ? 44 : insets.top;
@@ -291,29 +301,46 @@ export default function OnboardingScreen() {
     if (viewableItems[0]) setActiveIdx(viewableItems[0].index ?? 0);
   });
 
-  const next = () => {
-    if (activeIdx < SLIDES.length - 1) {
-      flatRef.current?.scrollToIndex({ index: activeIdx + 1 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      finish();
-    }
-  };
+  const isLast   = activeIdx === SLIDES.length - 1;
+  const safeIdx  = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
+  const accent   = SLIDES[safeIdx].accentColor;
 
-  const finish = async () => {
+  const finish = async (skipName = false) => {
+    // Persist name if valid
+    if (!skipName && name.length >= 2) {
+      setDriverName(capitalize(name));
+    }
     completeOnboarding();
+    // Record when onboarding completed so home screen can gate the 7-day phone-link banner
+    await AsyncStorage.setItem("onboardingCompletedAt", Date.now().toString()).catch(() => {});
     await requestLocationPermission();
     await requestNotificationPermission();
-    // Name screen comes before paywall so we always know who the user is
-    router.replace("/onboarding-name");
+    router.replace("/paywall");
   };
 
-  const safeIdx = Math.max(0, Math.min(activeIdx, SLIDES.length - 1));
-  const accent  = SLIDES[safeIdx].accentColor;
-  const isLast  = activeIdx === SLIDES.length - 1;
+  const next = () => {
+    if (!isLast) {
+      flatRef.current?.scrollToIndex({ index: activeIdx + 1 });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      return;
+    }
+    // Last slide — validate name nudge if partially typed
+    if (name.length > 0 && name.length < 2) {
+      setShowNameNudge(true);
+      return;
+    }
+    void finish(name.length === 0);
+  };
+
+  const skip = () => {
+    void finish(true); // Skip always ignores name
+  };
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <StatusBar barStyle="dark-content" />
 
       {/* ── Header ── */}
@@ -326,7 +353,7 @@ export default function OnboardingScreen() {
           </Text>
         </View>
         <View style={[styles.headerSide, { alignItems: "flex-end" }]}>
-          <TouchableOpacity onPress={finish} hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}>
+          <TouchableOpacity onPress={skip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}>
             <Text style={styles.skipTxt}>Skip</Text>
           </TouchableOpacity>
         </View>
@@ -359,14 +386,24 @@ export default function OnboardingScreen() {
 
             {/* Content area */}
             <View style={styles.contentArea}>
-              {item.kind === "grid"    && <AlertGrid   badges={item.badges}   />}
-              {item.kind === "feature" && <FeatureList features={item.features} accent={item.accentColor} />}
-              {item.kind === "picker"  && (
-                <VehiclePicker
-                  accent={item.accentColor}
-                  vehicleType={vehicleType}
-                  setVehicleType={setVehicleType}
-                />
+              {item.kind === "feature" && (
+                <FeatureList features={item.features} accent={item.accentColor} />
+              )}
+              {item.kind === "picker" && (
+                <>
+                  <NameInput
+                    value={name}
+                    onChange={(t) => { setName(t); if (showNameNudge) setShowNameNudge(false); }}
+                    showNudge={showNameNudge}
+                    accent={item.accentColor}
+                  />
+                  <Text style={[styles.vehicleLabel, { color: item.accentColor }]}>Vehicle type</Text>
+                  <VehiclePicker
+                    accent={item.accentColor}
+                    vehicleType={vehicleType}
+                    setVehicleType={setVehicleType}
+                  />
+                </>
               )}
             </View>
 
@@ -413,7 +450,7 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       </View>
 
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -442,10 +479,10 @@ const styles = StyleSheet.create({
   },
   brandKenya: { color: FLAG_RED },
   skipTxt: {
-    fontSize:        13,
-    fontFamily:      "Inter_500Medium",
-    color:           "#9AAA9A",
-    paddingVertical: 4,
+    fontSize:          13,
+    fontFamily:        "Inter_500Medium",
+    color:             "#9AAA9A",
+    paddingVertical:   4,
     paddingHorizontal: 8,
   },
 
@@ -453,9 +490,9 @@ const styles = StyleSheet.create({
   slide: {
     alignItems:        "center",
     paddingHorizontal: 24,
-    paddingTop:        6,
+    paddingTop:        4,
     paddingBottom:     4,
-    gap:               16,
+    gap:               12,
   },
 
   // Chip
@@ -474,62 +511,69 @@ const styles = StyleSheet.create({
 
   // Hero emoji
   heroWrap: {
-    width:          96,
-    height:         96,
-    borderRadius:   28,
+    width:          80,
+    height:         80,
+    borderRadius:   24,
     alignItems:     "center",
     justifyContent: "center",
   },
-  heroEmoji: { fontSize: 52, lineHeight: 60 },
+  heroEmoji: { fontSize: 44, lineHeight: 52 },
 
-  // Content area (grid / feature list / picker)
+  // Content area
   contentArea: {
     width: "100%",
+  },
+
+  vehicleLabel: {
+    fontSize:      12,
+    fontFamily:    "Inter_600SemiBold",
+    letterSpacing: 0.5,
+    marginBottom:  8,
   },
 
   // Text block
   textBlock: {
     width:      "100%",
     alignItems: "center",
-    gap:        8,
-    paddingTop: 4,
+    gap:        6,
   },
   headline: {
-    fontSize:      34,
+    fontSize:      28,
     fontFamily:    "Inter_700Bold",
     textAlign:     "center",
-    lineHeight:    42,
+    lineHeight:    36,
     letterSpacing: -0.5,
   },
   sub: {
-    fontSize:   15,
+    fontSize:   14,
     fontFamily: "Inter_400Regular",
     color:      "#5F6B62",
     textAlign:  "center",
-    lineHeight: 22,
+    lineHeight: 20,
     maxWidth:   300,
   },
 
   // Dots
   dots: {
-    flexDirection:  "row",
-    justifyContent: "center",
-    alignItems:     "center",
-    gap:            6,
-    paddingVertical: 10,
+    flexDirection:   "row",
+    justifyContent:  "center",
+    alignItems:      "center",
+    gap:             6,
+    paddingVertical: 8,
   },
-  dot: { height: 8, borderRadius: 4, transition: "width 0.2s" } as any,
+  dot: {
+    height:      8,
+    borderRadius: 4,
+  },
 
   // CTA
-  actions: {
-    paddingHorizontal: 24,
-  },
+  actions:    { paddingHorizontal: 24 },
   ctaBtn: {
     flexDirection:   "row",
     alignItems:      "center",
     justifyContent:  "center",
     gap:             10,
-    paddingVertical: 18,
+    paddingVertical: 17,
     borderRadius:    20,
     shadowOffset:    { width: 0, height: 6 },
     shadowOpacity:   0.25,
@@ -537,9 +581,9 @@ const styles = StyleSheet.create({
     elevation:       8,
   },
   ctaTxt: {
-    fontSize:   17,
-    fontFamily: "Inter_700Bold",
-    color:      "#FFF",
+    fontSize:      17,
+    fontFamily:    "Inter_700Bold",
+    color:         "#FFF",
     letterSpacing: 0.2,
   },
 });

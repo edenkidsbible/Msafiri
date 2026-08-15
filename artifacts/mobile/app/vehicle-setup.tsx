@@ -28,7 +28,6 @@ import { apiGet, apiPost } from "@/utils/apiClient";
 import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
 import { slugify } from "@/lib/vehicleImageFallback";
-import { VEHICLE_TYPES } from "@/data/vehicleTypes";
 import CarLogoImage from "@/components/CarLogoImage";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
@@ -79,14 +78,13 @@ interface DuplicateVehicle {
 
 export default function VehicleSetup() {
   const c = useColors();
-  const { deviceId, setVehicleModel, setVehicleType: setCtxVehicleType, setCustomVehicle } = useApp();
+  const { deviceId, setVehicleModel, setVehicleType: setCtxVehicleType, setCustomVehicle, vehicleType: ctxVehicleType } = useApp();
   const { refreshVehicles } = useVehicle();
 
-  // Step 0 = type, 1 = make, 2 = model, 3 = details
-  const [step, setStep] = useState(0);
+  // Step 1 = make, 2 = model, 3 = details (vehicle type already set in onboarding)
+  const [step, setStep] = useState(1);
 
-  // Form state
-  const [vehicleType, setVehicleType] = useState<string>("car");
+  // Form state (vehicleType sourced from AppContext — set during onboarding slide 3)
   const [makeId, setMakeId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
   const [isCustomMake, setIsCustomMake] = useState(false);
@@ -95,7 +93,7 @@ export default function VehicleSetup() {
   const [customModelName, setCustomModelName] = useState("");
   const [transmission, setTransmission] = useState<Transmission | null>(null);
   const [fuelType, setFuelType] = useState<FuelType | null>(null);
-  const [odometer, setOdometer] = useState("");
+
   const [plateNumber, setPlateNumber] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -114,7 +112,6 @@ export default function VehicleSetup() {
   const [makeModalVisible,  setMakeModalVisible]  = useState(false);
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [plateModalVisible, setPlateModalVisible] = useState(false);
-  const [odoModalVisible,   setOdoModalVisible]   = useState(false);
 
   // ── Debounced plate search ─────────────────────────────────────────────────
   useEffect(() => {
@@ -183,7 +180,6 @@ export default function VehicleSetup() {
     setSaving(true);
     try {
       const existing = await loadVehicles();
-      const odo = parseInt(odometer, 10);
       // Use slug-based IDs (not timestamps) so image URL resolution via
       // slugify(customModelName) always matches what the server writes to R2.
       const resolvedMakeId = isCustomMake ? `custom-${slugify(customMakeName)}` : (makeId ?? null);
@@ -206,7 +202,7 @@ export default function VehicleSetup() {
           resolvedCustomModel ?? "",
         );
       }
-      setCtxVehicleType(vehicleType as any);
+      setCtxVehicleType((ctxVehicleType ?? "car") as any);
 
       const newVehicle = {
         id: existing.length === 0 ? "v0" : `v${Date.now()}`,
@@ -214,11 +210,10 @@ export default function VehicleSetup() {
         modelId: resolvedModelId,
         customMakeName: resolvedCustomMake,
         customModelName: resolvedCustomModel,
-        vehicleType: vehicleType as any,
+        vehicleType: (ctxVehicleType ?? "car") as any,
         isDefault: true,
         fuelType: fuelType ?? undefined,
         transmission: transmission ?? undefined,
-        odometerKm: isNaN(odo) ? undefined : odo,
         plateNumber: normalizePlate(plateNumber) || undefined,
       };
 
@@ -255,13 +250,13 @@ export default function VehicleSetup() {
     <SafeAreaView style={[cs.screen, { backgroundColor: "#0B1611" }]}>
       {/* Header */}
       <View style={cs.header}>
-        {step > 0 ? (
+        {step > 1 ? (
           <TouchableOpacity onPress={back} style={cs.backBtn}>
             <Ionicons name="arrow-back" size={22} color="#fff" />
           </TouchableOpacity>
         ) : <View style={{ width: 36 }} />}
         <View style={cs.progressRow}>
-          {[0, 1, 2, 3].map((i) => (
+          {[1, 2, 3].map((i) => (
             <View
               key={i}
               style={[
@@ -289,40 +284,6 @@ export default function VehicleSetup() {
         contentContainerStyle={cs.content}
         showsVerticalScrollIndicator={false}
       >
-          {/* ── Step 0: Vehicle type ───────────────────────────────────────── */}
-          {step === 0 && (
-            <>
-              <Text style={cs.stepTitle}>What do you drive?</Text>
-              <Text style={cs.stepSub}>Select the type of vehicle you use most.</Text>
-              <View style={cs.typeGrid}>
-                {VEHICLE_TYPES.map((vt) => {
-                  const emoji =
-                    vt.id === "motorcycle" ? "🏍️" :
-                    vt.id === "bus"        ? "🚌" :
-                    vt.id === "psv"        ? "🚐" :
-                    vt.id === "truck"      ? "🚛" :
-                    vt.id === "tractor"   ? "🚜" : "🚗";
-                  const selected = vehicleType === vt.id;
-                  return (
-                    <TouchableOpacity
-                      key={vt.id}
-                      style={[
-                        cs.typeCard,
-                        selected ? { borderColor: "#00A845", backgroundColor: "#00A84515" } : { borderColor: "rgba(255,255,255,0.12)" },
-                      ]}
-                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setVehicleType(vt.id); }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={cs.typeEmoji}>{emoji}</Text>
-                      <Text style={[cs.typeLabel, { color: selected ? "#00A845" : "#ccc" }]}>{vt.label}</Text>
-                      {selected && <Ionicons name="checkmark-circle" size={16} color="#00A845" />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </>
-          )}
-
           {/* ── Step 1: Make ───────────────────────────────────────────────── */}
           {step === 1 && (
             <>
@@ -469,16 +430,9 @@ export default function VehicleSetup() {
           {/* ── Step 3: Details ────────────────────────────────────────────── */}
           {step === 3 && (
             <>
-              <Text style={cs.stepTitle}>A few more details</Text>
-              <Text style={cs.stepSub}>Optional — you can always update these in Garage.</Text>
+              <Text style={cs.stepTitle}>Nearly there!</Text>
 
-              <Text style={cs.fieldLabel}>Transmission</Text>
-              <ChipRow options={TRANSMISSIONS} value={transmission} onSelect={setTransmission} color="#00A845" />
-
-              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Fuel type</Text>
-              <ChipRow options={FUEL_TYPES} value={fuelType} onSelect={setFuelType} color="#00A845" />
-
-              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Number plate</Text>
+              <Text style={cs.fieldLabel}>Number plate</Text>
               <Text style={cs.fieldHint}>
                 Required — prevents duplicate registrations and lets you restore your data on a new device.
               </Text>
@@ -579,28 +533,17 @@ export default function VehicleSetup() {
                 </View>
               )}
 
-              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>Current odometer (km)</Text>
-              <Text style={cs.fieldHint}>
-                Used to estimate service intervals and track your mileage in the Garage section.
+              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>
+                Fuel type{" "}
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Inter_400Regular", fontSize: 11 }}>Optional</Text>
               </Text>
-              <KeyboardInputModal
-                visible={odoModalVisible}
-                label="Current Odometer (km)"
-                value={odometer}
-                onChangeText={t => setOdometer(t.replace(/[^0-9]/g, ""))}
-                onDone={() => setOdoModalVisible(false)}
-                placeholder="e.g. 54000"
-                keyboardType="number-pad"
-              />
-              <TouchableOpacity
-                style={cs.odometerInput}
-                onPress={() => setOdoModalVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={{ color: odometer ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
-                  {odometer || "e.g. 54000"}
-                </Text>
-              </TouchableOpacity>
+              <ChipRow options={FUEL_TYPES} value={fuelType} onSelect={setFuelType} color="#00A845" />
+
+              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>
+                Transmission{" "}
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Inter_400Regular", fontSize: 11 }}>Optional</Text>
+              </Text>
+              <ChipRow options={TRANSMISSIONS} value={transmission} onSelect={setTransmission} color="#00A845" />
             </>
           )}
       </KeyboardAwareScrollViewCompat>

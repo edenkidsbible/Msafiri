@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  AppState,
   BackHandler,
   Platform,
   ScrollView,
@@ -14,14 +13,12 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { useSubscription, REVENUECAT_ENTITLEMENT_IDENTIFIER } from "@/lib/revenuecat";
 import { loadVehicles } from "@/utils/savedVehicles";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { AdminPinModal } from "@/components/AdminPinModal";
-import { getLinkedPhone } from "@/utils/backupSync";
-import { displayKenyaPhone } from "@/utils/phoneUtils";
 
 type Result = "success" | "restored" | "error" | null;
 
@@ -119,28 +116,6 @@ function SuccessScreen({
   topPad: number;
   botPad: number;
 }) {
-  const [linkedPhone, setLinkedPhone] = useState<string | null | "loading">("loading");
-
-  const checkLinkedPhone = useCallback(() => {
-    getLinkedPhone()
-      .then((p) => setLinkedPhone(p))
-      .catch(() => setLinkedPhone(null));
-  }, []);
-
-  // Initial check
-  useEffect(() => { checkLinkedPhone(); }, [checkLinkedPhone]);
-
-  // Re-check when screen regains focus (e.g. returning from /link-phone within the app)
-  useFocusEffect(useCallback(() => { checkLinkedPhone(); }, [checkLinkedPhone]));
-
-  // Re-check when app returns from background (e.g. after user checks SMS in another app)
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") checkLinkedPhone();
-    });
-    return () => sub.remove();
-  }, [checkLinkedPhone]);
-
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.background }}
@@ -197,56 +172,14 @@ function SuccessScreen({
         Manage or cancel anytime in your App Store or Google Play account settings.
       </Text>
 
-      {/* Recovery phone — prominent when not yet linked */}
-      {linkedPhone === null && (
-        <View style={[ss.phonePrompt, { backgroundColor: c.card, borderColor: c.primary + "50" }]}>
-          <View style={[ss.phonePromptIcon, { backgroundColor: c.primary + "18" }]}>
-            <Ionicons name="shield-checkmark-outline" size={26} color={c.primary} />
-          </View>
-          <Text style={[ss.phonePromptTitle, { color: c.foreground }]}>
-            Secure your Premium account
-          </Text>
-          <Text style={[ss.phonePromptBody, { color: c.mutedForeground }]}>
-            Link your phone number so you can restore all your data on any new device — with just an SMS code.
-          </Text>
-          <TouchableOpacity
-            style={[ss.phonePromptBtn, { backgroundColor: c.primary }]}
-            onPress={() => router.push("/link-phone" as any)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="phone-portrait-outline" size={17} color="#fff" />
-            <Text style={ss.phonePromptBtnTxt}>Link Phone Number</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {linkedPhone && linkedPhone !== "loading" && (
-        <View style={[ss.phoneCard, { backgroundColor: "#22C55E10", borderColor: "#22C55E44" }]}>
-          <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
-          <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: c.foreground }}>
-            Recovery phone linked · {displayKenyaPhone(linkedPhone)}
-          </Text>
-        </View>
-      )}
-
-      {/* Start Driving — secondary when phone prompt is shown, primary otherwise */}
+      {/* Start Driving CTA */}
       <TouchableOpacity
-        style={[
-          ss.cta,
-          linkedPhone === null
-            ? { backgroundColor: "transparent", borderWidth: 1.5, borderColor: c.border }
-            : { backgroundColor: c.primary },
-        ]}
+        style={[ss.cta, { backgroundColor: c.primary }]}
         onPress={onEnter}
         activeOpacity={0.85}
       >
-        <Text style={[ss.ctaTxt, linkedPhone === null && { color: c.mutedForeground }]}>
-          {linkedPhone === null ? "Skip for Later" : "Start Driving"}
-        </Text>
-        <Ionicons
-          name="arrow-forward"
-          size={20}
-          color={linkedPhone === null ? c.mutedForeground : "#fff"}
-        />
+        <Text style={ss.ctaTxt}>Start Driving</Text>
+        <Ionicons name="arrow-forward" size={20} color="#fff" />
       </TouchableOpacity>
     </ScrollView>
   );
