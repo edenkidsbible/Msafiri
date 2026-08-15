@@ -17,31 +17,40 @@ const SOURCES = {
 export type SoundKey = keyof typeof SOURCES;
 
 const players: Partial<Record<SoundKey, AudioPlayer>> = {};
-let audioModeReady    = false;
 // Set to true while the dashcam is actively recording with audio so that
 // ensureAudioMode() doesn't override back to allowsRecording:false mid-clip.
 let dashcamAudioActive = false;
 
-/** Set the global audio session mode once. Exported so alertTts.ts shares the
- *  same flag — ensures setAudioModeAsync is only ever called once, preventing
- *  the rapid double-call that briefly resets the session and stops background music.
+// Promise singleton for the audio-mode setup.  Using a boolean "ready" flag
+// had a race condition: the flag was set to true BEFORE the async
+// setAudioModeAsync call completed, so a second concurrent caller would see
+// the flag and skip the await — then immediately start playing before the
+// session was actually configured.  A promise lets every concurrent caller
+// await the *same* setup, so the first one performs the work and all others
+// just join the wait.
+let audioModePromise: Promise<void> | null = null;
+
+/** Configure the iOS/Android audio session for alert playback.
+ *  Idempotent — all concurrent callers await the same promise.
  *  No-ops while dashcam audio is active (dashcam owns the session then). */
 export async function ensureAudioMode() {
-  if (audioModeReady || Platform.OS === "web" || dashcamAudioActive) return;
-  audioModeReady = true;
-  try {
-    // Play alerts even if the phone's ringer is silenced (like nav apps do),
-    // and mix with anything else already playing (e.g. music/podcasts).
-    await setAudioModeAsync({
+  if (Platform.OS === "web" || dashcamAudioActive) return;
+  if (!audioModePromise) {
+    audioModePromise = setAudioModeAsync({
+      // Play alerts even if the phone's ringer is silenced (like nav apps do).
       playsInSilentMode: true,
+      // Duck music/podcasts while the alert plays, then restore volume.
       interruptionMode: "duckOthers",
       allowsRecording: false,
       shouldPlayInBackground: true,
       shouldRouteThroughEarpiece: false,
+    }).catch(() => {
+      // On failure reset so the next call retries rather than permanently
+      // blocking on a rejected promise.
+      audioModePromise = null;
     });
-  } catch {
-    // Non-critical — sounds still work with default audio mode
   }
+  await audioModePromise;
 }
 
 /**
@@ -64,6 +73,10 @@ export async function setDashcamAudioMode(recording: boolean): Promise<void> {
   dashcamAudioActive = recording;
   try {
     if (recording) {
+      // While the dashcam is rolling, reset the alert-mode promise so that
+      // when recording stops and ensureAudioMode() is called again it will
+      // actually re-run setAudioModeAsync (the dashcam may have overwritten it).
+      audioModePromise = null;
       await setAudioModeAsync({
         playsInSilentMode:          true,
         // mixWithOthers: don't interrupt other apps' audio output (BT music).
@@ -82,8 +95,9 @@ export async function setDashcamAudioMode(recording: boolean): Promise<void> {
         shouldPlayInBackground:     true,
         shouldRouteThroughEarpiece: false,
       });
-      // Mode is now clean; mark ready so ensureAudioMode() skips a redundant call.
-      audioModeReady = true;
+      // Mode is now set to duckOthers; cache a resolved promise so that
+      // ensureAudioMode() becomes a no-op until the dashcam overrides it again.
+      audioModePromise = Promise.resolve();
     }
   } catch {
     // Non-critical — recording continues, music may be briefly interrupted

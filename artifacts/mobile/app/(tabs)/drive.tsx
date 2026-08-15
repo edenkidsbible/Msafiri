@@ -1130,11 +1130,17 @@ export default function DriveScreen() {
     }
 
     if (candidates.length === 0) return null;
-    // Speed-camera priority: within the candidate radius a speed camera /
-    // speed zone outranks other alert types even when they are nearer.
-    // Everything else stays reachable via the nearby-alerts list.
     candidates.sort((a, b) => a.distanceM - b.distanceM);
-    return candidates.find(c => c.isSpeedCam) ?? candidates[0];
+    // Within 1000 m show ALL alert types so police checkpoints, hazards, and
+    // HERE incidents surface in the strip — not just speed cameras.  Prefer a
+    // speed cam within the window (highest driver impact). Beyond 1 km only
+    // show speed cameras as a distant lookahead cue; community reports and
+    // HERE incidents beyond that range are too uncertain to show.
+    const within1000 = candidates.filter(c => c.distanceM <= 1000);
+    if (within1000.length > 0) {
+      return within1000.find(c => c.isSpeedCam) ?? within1000[0];
+    }
+    return candidates.find(c => c.isSpeedCam) ?? null;
   }, [activeRoute, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
 
   // ── Alert overlay heartbeat pulse ────────────────────────────────────────
@@ -1673,7 +1679,10 @@ export default function DriveScreen() {
       {/* Drive Mode header removed — share moved to stats row, audio moved to bottom panel */}
 
       {/* ── Drive Mode top alert banner — e.g. "Speed camera ahead · 200 m" ──── */}
-      {tripActive && primaryAlert && (
+      {/* Hide when the active alert has been passed (alongTrackM < -100 m) so
+          the banner doesn't keep showing a stale "ahead" distance as the driver
+          moves away from a passed anchor. */}
+      {tripActive && primaryAlert && ((activeAlert?.alongTrackM ?? 0) >= -100) && (
         <AnimatedTouchable
           activeOpacity={0.85}
           onPress={() => { if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true); }}
@@ -2301,7 +2310,12 @@ export default function DriveScreen() {
               whose speed / depth scale with proximity).
               Border colour shifts RED → ORANGE → AMBER → alert-colour as
               distance grows. SOS (zIndex 10) always floats on top. */}
-          {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert!.distanceM <= 1000 && (() => {
+          {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert!.distanceM <= 1000
+            // Hide when the driver has passed the alert — haversine distance
+            // would otherwise keep increasing behind them, making it look like
+            // the alert is receding rather than passed.
+            && ((activeAlert?.alongTrackM ?? 0) >= -100)
+            && (() => {
             // Non-null assertion: the `primaryAlert &&` guard above already
             // guarantees this branch only executes when primaryAlert is non-null.
             // The IIFE boundary prevents TypeScript from propagating the &&

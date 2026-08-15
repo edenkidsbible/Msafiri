@@ -1,12 +1,16 @@
 /**
- * GlobalAlertOverlay — slim top-bar alert chip shown on every screen
- * ──────────────────────────────────────────────────────────────────
- * Reads activeAlert / activeAlertExtras from AppContext and fires the
- * same sound + voice as DriveAlertOverlay. Suppresses itself entirely
- * when the Drive tab is active (the Drive tab's full overlay handles it).
+ * GlobalAlertOverlay — prominent alert banner shown on every non-drive screen
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Reads activeAlert / activeAlertExtras from AppContext and fires the same
+ * sound + voice as DriveAlertOverlay. Suppresses itself on the Drive tab where
+ * DriveAlertOverlay handles it.
  *
- * Rendered as an absolute-positioned chip that floats above all tab
- * content without disrupting navigation layout.
+ * Slides down from the top as a full-width card that mirrors the style of the
+ * drive-screen's top alert banner: large emoji, type name, distance chip, and
+ * urgency-coloured border. Also ducks car music via the DuckOthers audio mode
+ * already configured in ensureAudioMode().
+ *
+ * Rendered as an absolute-positioned banner that floats above all tab content.
  */
 
 import React, { useEffect, useRef } from "react";
@@ -51,31 +55,27 @@ export default function GlobalAlertOverlay() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  // Slide-down animation: chip starts off-screen above, slides in when alert fires.
-  const slideY = useRef(new Animated.Value(-120)).current;
+  // Slide-down animation: banner starts off-screen above, slides in when active.
+  const slideY = useRef(new Animated.Value(-180)).current;
   const prevAlertId = useRef<string | null>(null);
 
-  // Suppress on the Drive tab — its own full DriveAlertOverlay handles it there.
-  // usePathname() returns "/" for the (tabs)/index screen; the drive tab is "/drive".
+  // Suppress on the Drive tab — DriveAlertOverlay handles it there.
   const isOnDriveTab = pathname === "/drive" || pathname === "/(tabs)/drive";
-
   const visible = !isOnDriveTab && activeAlert != null;
 
   // ── Animate in/out and trigger sound + voice on new alert ─────────────────
   useEffect(() => {
     if (!activeAlert) {
-      // No active alert — slide chip back up off-screen.
       Animated.timing(slideY, {
-        toValue: -120,
-        duration: 240,
+        toValue: -180,
+        duration: 260,
         useNativeDriver: true,
       }).start();
       return;
     }
 
     if (isOnDriveTab) {
-      // Drive tab is showing its own overlay — keep chip hidden, no sound.
-      Animated.timing(slideY, { toValue: -120, duration: 0, useNativeDriver: true }).start();
+      Animated.timing(slideY, { toValue: -180, duration: 0, useNativeDriver: true }).start();
       return;
     }
 
@@ -86,11 +86,11 @@ export default function GlobalAlertOverlay() {
     Animated.spring(slideY, {
       toValue: 0,
       useNativeDriver: true,
-      tension: 60,
-      friction: 12,
+      tension: 55,
+      friction: 11,
     }).start();
 
-    // Sound + voice only for new alert IDs (not on subsequent distance updates)
+    // Sound + voice only for new alert IDs
     if (isNew) {
       if (!getSoundsMuted()) {
         playSound("alert").catch(() => {});
@@ -107,10 +107,10 @@ export default function GlobalAlertOverlay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAlert?.id, isOnDriveTab, activeAlertExtras.length]);
 
-  // When Drive tab becomes active while chip is shown, hide immediately.
+  // Hide immediately when switching to the Drive tab
   useEffect(() => {
     if (isOnDriveTab) {
-      Animated.timing(slideY, { toValue: -120, duration: 160, useNativeDriver: true }).start();
+      Animated.timing(slideY, { toValue: -180, duration: 160, useNativeDriver: true }).start();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnDriveTab]);
@@ -119,9 +119,9 @@ export default function GlobalAlertOverlay() {
 
   const alert = activeAlert!;
   const resolved = resolveIncidentType(alert.type);
-  const emoji = alert.source !== "zone" ? resolved.emoji : null;
   const accentColor = urgencyColor(alert.distance, colors);
   const hasExtras = activeAlertExtras.length > 0;
+  const isDark = colors.isDark;
 
   const distText = alert.alongTrackM != null && alert.alongTrackM < 50
     ? "Passing now"
@@ -132,25 +132,23 @@ export default function GlobalAlertOverlay() {
       style={[
         styles.container,
         {
-          top: insets.top + 6,
-          borderColor: accentColor + "88",
-          backgroundColor: colors.isDark ? "#0C1610F2" : "#F0FBF4F2",
+          top: insets.top + 8,
+          backgroundColor: isDark ? "#101613F5" : "#FFFFFFF5",
+          borderColor: accentColor + "99",
+          borderLeftColor: accentColor,
           transform: [{ translateY: slideY }],
         },
       ]}
       pointerEvents="box-none"
     >
+      {/* Coloured left-edge accent bar */}
+      <View style={[styles.leftBar, { backgroundColor: accentColor }]} />
+
       {/* Alert icon / emoji */}
-      <View style={[styles.iconWrap, { backgroundColor: accentColor + "22" }]}>
-        {emoji ? (
-          <Text style={[styles.emoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{emoji}</Text>
-        ) : (
-          <Ionicons
-            name={resolved.icon as React.ComponentProps<typeof Ionicons>["name"]}
-            size={14}
-            color={accentColor}
-          />
-        )}
+      <View style={[styles.iconWrap, { backgroundColor: accentColor + "20" }]}>
+        <Text style={[styles.emoji, { fontFamily: EMOJI_FONT_FAMILY }]}>
+          {resolved.emoji}
+        </Text>
       </View>
 
       {/* Label + distance */}
@@ -159,18 +157,25 @@ export default function GlobalAlertOverlay() {
           {resolved.label}
           {hasExtras ? ` +${activeAlertExtras.length}` : ""}
         </Text>
-        <Text style={[styles.distLabel, { color: colors.mutedForeground }]} numberOfLines={1}>
-          {distText}
-        </Text>
+        <View style={styles.distRow}>
+          <Text style={[styles.distValue, { color: accentColor }]}>
+            {distText}
+          </Text>
+          {alert.speedLimit != null && (
+            <View style={[styles.limitBadge, { backgroundColor: accentColor + "20", borderColor: accentColor + "60" }]}>
+              <Text style={[styles.limitTxt, { color: accentColor }]}>{alert.speedLimit} km/h</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Dismiss */}
       <TouchableOpacity
         onPress={dismissAlert}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        style={[styles.closeBtn, { backgroundColor: colors.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)" }]}
+        hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+        style={[styles.closeBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.07)" }]}
       >
-        <Ionicons name="close" size={14} color={colors.foreground} />
+        <Ionicons name="close" size={15} color={colors.foreground} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -179,54 +184,79 @@ export default function GlobalAlertOverlay() {
 const styles = StyleSheet.create({
   container: {
     position:        "absolute",
-    left:            16,
-    right:           16,
+    left:            12,
+    right:           12,
     flexDirection:   "row",
     alignItems:      "center",
-    borderRadius:    28,
+    borderRadius:    16,
     borderWidth:     1,
-    paddingVertical: 7,
-    paddingLeft:     8,
-    paddingRight:    10,
-    gap:             8,
+    borderLeftWidth: 4,
+    overflow:        "hidden",
+    paddingVertical: 11,
+    paddingLeft:     10,
+    paddingRight:    12,
+    gap:             10,
     zIndex:          9990,
     // Shadow
     shadowColor:     "#000",
-    shadowOffset:    { width: 0, height: 3 },
-    shadowOpacity:   0.22,
-    shadowRadius:    8,
-    elevation:       12,
+    shadowOffset:    { width: 0, height: 4 },
+    shadowOpacity:   0.25,
+    shadowRadius:    10,
+    elevation:       14,
+  },
+  leftBar: {
+    position:     "absolute",
+    left:         0,
+    top:          0,
+    bottom:       0,
+    width:        4,
   },
   iconWrap: {
-    width:           28,
-    height:          28,
-    borderRadius:    14,
+    width:           46,
+    height:          46,
+    borderRadius:    13,
     alignItems:      "center",
     justifyContent:  "center",
     flexShrink:      0,
   },
   emoji: {
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize:   24,
+    lineHeight: 28,
   },
   textCol: {
-    flex:    1,
-    gap:     1,
+    flex: 1,
+    gap:  3,
   },
   typeLabel: {
-    fontSize:   13,
+    fontSize:   15,
     fontFamily: "Inter_600SemiBold",
-    lineHeight: 16,
+    lineHeight: 18,
   },
-  distLabel: {
+  distRow: {
+    flexDirection: "row",
+    alignItems:    "center",
+    gap:           6,
+    flexWrap:      "wrap",
+  },
+  distValue: {
+    fontSize:   12,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 15,
+  },
+  limitBadge: {
+    borderRadius:    6,
+    borderWidth:     1,
+    paddingHorizontal: 6,
+    paddingVertical:   1,
+  },
+  limitTxt: {
     fontSize:   11,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 14,
+    fontFamily: "Inter_600SemiBold",
   },
   closeBtn: {
-    width:          24,
-    height:         24,
-    borderRadius:   12,
+    width:          28,
+    height:         28,
+    borderRadius:   14,
     alignItems:     "center",
     justifyContent: "center",
     flexShrink:     0,

@@ -43,7 +43,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { DriveAlert } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-import { playSound } from "@/utils/sound";
+// Note: alert chime (playSound) is now fired from AppContext alongside
+// speakAlert so both sounds are triggered from a single call site, preventing
+// the race condition where overlay and AppContext played sounds independently.
 import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { MarqueeText } from "@/components/MarqueeText";
@@ -186,7 +188,6 @@ export default function DriveAlertOverlay({
           toValue: 0, useNativeDriver: true,
           tension: 58, friction: 10,
         }).start();
-        void playSound("alert");
       }
     }
   }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps

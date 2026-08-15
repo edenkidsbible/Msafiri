@@ -79,9 +79,9 @@ const PANEL_HEIGHT   = 340; // px — settings sheet height
 
 export default function DashcamOverlay() {
   const {
-    isRecording, isDashcamOpen, backgroundRecordPending, recordingEpoch,
+    isRecording, isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
     settings, storageUsedBytes, segments,
-    startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked,
+    startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked, stopAndSaveDashcam,
     closeDashcam, clearBackgroundRecordPending, setCameraRef,
     onSegmentStart, onSegmentComplete,
   } = useDashcam();
@@ -100,7 +100,8 @@ export default function DashcamOverlay() {
   const insets = useSafeAreaInsets();
 
   const localCameraRef  = useRef<any>(null);
-  const loopCancelRef   = useRef(false);
+  const loopCancelRef     = useRef(false);
+  const restartCountRef   = useRef(0);
   const segmentStartRef = useRef(Date.now());
 
   // Track whether the CameraView has already fired onCameraReady. The view is
@@ -331,10 +332,13 @@ export default function DashcamOverlay() {
       // `break` the loop instantly, so a camera that wasn't quite ready yet
       // (common when auto-started from the drive screen right after
       // onCameraReady) left the REC indicator on while saving zero clips.
-      // Instead: back off briefly and retry; only give up after several
+      // Instead: back off briefly and retry; only give up after many
       // consecutive failures. Reset on every successful segment.
+      // MAX_FAILURES is deliberately high (20) so transient interruptions
+      // caused by alert sounds, notification banners, or iOS audio-session
+      // switches don't prematurely stop the dashcam.
       let consecutiveFailures = 0;
-      const MAX_FAILURES = 6;
+      const MAX_FAILURES = 20;
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
       // Camera warm-up: onCameraReady fires slightly before the hardware is
@@ -349,7 +353,7 @@ export default function DashcamOverlay() {
           // Camera ref not attached yet — wait instead of aborting.
           consecutiveFailures++;
           if (consecutiveFailures >= MAX_FAILURES) break;
-          await sleep(500);
+          await sleep(1000);
           continue;
         }
         try {
@@ -373,26 +377,38 @@ export default function DashcamOverlay() {
             // Resolved with no file (camera interrupted / not ready) — retry.
             consecutiveFailures++;
             if (consecutiveFailures >= MAX_FAILURES) break;
-            await sleep(700);
+            await sleep(1500);
           }
         } catch (err) {
           if (loopCancelRef.current) break;
           console.warn("[Dashcam] recordAsync failed, retrying:", err);
           consecutiveFailures++;
           if (consecutiveFailures >= MAX_FAILURES) break;
-          await sleep(700);
+          await sleep(1500);
         }
       }
     }
 
     loop().then(() => {
-      // If the loop exited because MAX_FAILURES was hit (not because stop was
-      // requested), loopCancelRef is still false — the REC indicator would stay
-      // on forever because stopAndSaveDashcam defers setIsRecording(false) to
-      // onSegmentComplete, which never fires when every recordAsync fails.
-      // Call stopDashcam() here to reset isRecording immediately.
       if (!loopCancelRef.current) {
-        stopDashcam();
+        // The loop exited due to consecutive MAX_FAILURES (not an explicit stop).
+        // Try to auto-recover by bumping the recording epoch (restarts the loop
+        // without toggling isRecording off) — this handles transient camera
+        // interruptions caused by alert sounds or iOS audio-session changes.
+        // A restart counter caps recovery at 3 attempts; if the camera is
+        // genuinely broken we stop cleanly after the 3rd failed restart.
+        restartCountRef.current += 1;
+        if (restartCountRef.current <= 3) {
+          console.warn(`[Dashcam] MAX_FAILURES hit — auto-restarting (attempt ${restartCountRef.current})`);
+          bumpRecordingEpoch();
+        } else {
+          console.warn("[Dashcam] MAX_FAILURES hit 3× — stopping dashcam");
+          restartCountRef.current = 0;
+          stopDashcam();
+        }
+      } else {
+        // Normal explicit stop — reset the restart counter for the next session.
+        restartCountRef.current = 0;
       }
     });
     return () => {

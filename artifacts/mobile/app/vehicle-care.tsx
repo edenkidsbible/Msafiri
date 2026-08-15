@@ -288,8 +288,13 @@ function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClos
       if (shouldReAnchor) {
         data = reAnchorServiceRecords(data, km);
       }
-      data.initialOdometerKm = km;
-      data.tripAccumulatedKm = 0;
+      // The user entered the TOTAL odometer reading (what their car says right
+      // now). Preserve already-accumulated trip km so we don't lose history;
+      // back-calculate initialOdometerKm so that initial + accumulated = km.
+      const accumulated = data.tripAccumulatedKm ?? 0;
+      data.initialOdometerKm = km - accumulated;
+      // tripAccumulatedKm is intentionally NOT reset — keeping it lets the
+      // odometer grow smoothly from this new baseline without a jarring jump.
       await saveVehicleCareData(data, storageKey);
 
       // Also update the matching saved vehicle so the garage slide reflects it

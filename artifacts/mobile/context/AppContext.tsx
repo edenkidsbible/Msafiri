@@ -33,7 +33,7 @@ import {
 } from "@/utils/backgroundDriveAlerts";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
-import { playSound } from "@/utils/sound";
+import { playSound, getSoundsMuted } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { syncBackup } from "@/utils/backupSync";
 import { loadVehicles } from "@/utils/savedVehicles";
@@ -1248,6 +1248,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // the render cascade during navigation (currentTrip isn't used for live
   // speed display — that's currentSpeed — so slower state updates are safe).
   const lastTripStateAtRef = useRef<number>(0);
+  // ── Continuous-odometer tracking ─────────────────────────────────────────
+  // Accumulates GPS movement OUTSIDE active trips so casual/short drives
+  // (< MIN_TRIP_DIST) still count toward the vehicle odometer.  When a trip IS
+  // active the trip tracker handles accumulation, so we skip this path to avoid
+  // double-counting.  Flushes to AsyncStorage every 100 m (by distance) or
+  // every 60 s (by time) to minimise write frequency.
+  const odoContPrevLatRef  = useRef<number | null>(null);
+  const odoContPrevLngRef  = useRef<number | null>(null);
+  const odoContPendingMRef = useRef(0);   // accumulated metres awaiting flush
+  const odoContFlushAtRef  = useRef(0);   // epoch-ms of last flush
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
   const syncReportToServerRef = useRef<((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void) | null>(null);
@@ -2271,6 +2281,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertApproachRoadRef.current  = currentRoadRef.current;
         alertBearingDivCountRef.current = 0;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        // Fire chime tone + voice from AppContext so both play in sequence
+        // from a single call site, eliminating the previous race where the
+        // overlay fired the chime independently on its own render cycle.
+        if (!getSoundsMuted()) playSound("alert").catch(() => {});
         if (extraCandidates.length > 0) {
           // Multi-alert cluster: set geo-anchor and play bundled multi phrase
           alertAnchorLatRef.current = lat;
@@ -2388,6 +2402,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // While a trip is active keep the continuous-odometer position pointer
+      // current so there is no position jump when the trip ends.
+      odoContPrevLatRef.current = lat;
+      odoContPrevLngRef.current = lng;
+
       // Start the stop-timer when speed drops to ≤ 5; the trip saves after
       // STOP_TIMEOUT_MS of continued stillness.
       if (kmh <= 5 && tripRef.current && !stopTimer.current) {
@@ -2402,6 +2421,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (!active) return;
               updateTripOdometer(done.distance / 1000, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
             }).catch(() => {});
+          } else if (t && (t.distance ?? 0) > 0.01) {
+            // Short trip below the save threshold (< MIN_TRIP_DIST km) — we don't
+            // record it as a trip entry but we still credit the distance to the
+            // vehicle odometer so casual/errand driving isn't silently missed.
+            const shortKm = (t.distance ?? 0) / 1000;
+            loadVehicles().then(vs => {
+              const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
+              if (!active) return;
+              updateTripOdometer(shortKm, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+            }).catch(() => {});
           }
           // Reset trip state and warm-up so the next journey starts fresh
           tripRef.current = null; setCurrentTrip(null); stopTimer.current = null;
@@ -2411,6 +2440,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           tripWarmupPrevLngRef.current = null;
         }, STOP_TIMEOUT_MS);
       }
+    }
+
+    // ── Continuous odometer (outside active trips) ────────────────────────────
+    // Accumulates GPS movement while NO trip is active so warmup movement,
+    // very short drives, and any time the app is open without a trip all
+    // count toward the vehicle odometer. Flushes every 100 m or 60 s to
+    // keep AsyncStorage write frequency low. While a trip IS active the
+    // trip tracker accumulates every fix and the else branch above keeps the
+    // position pointer current, so there is no gap when the trip ends.
+    if (!tripRef.current) {
+      const prevOdoLat = odoContPrevLatRef.current;
+      const prevOdoLng = odoContPrevLngRef.current;
+      if (prevOdoLat != null && prevOdoLng != null) {
+        const d = haversine(prevOdoLat, prevOdoLng, lat, lng);
+        if (d > 0 && d < 500) {
+          odoContPendingMRef.current += d;
+          const now = Date.now();
+          const flushByDist = odoContPendingMRef.current >= 100;
+          const flushByTime = (now - odoContFlushAtRef.current) > 60_000 && odoContPendingMRef.current > 0;
+          if (flushByDist || flushByTime) {
+            const pendingKm = odoContPendingMRef.current / 1000;
+            odoContPendingMRef.current = 0;
+            odoContFlushAtRef.current  = now;
+            loadVehicles().then(vs => {
+              const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
+              if (!active) return;
+              updateTripOdometer(pendingKm, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+            }).catch(() => {});
+          }
+        }
+      }
+      odoContPrevLatRef.current = lat;
+      odoContPrevLngRef.current = lng;
     }
   }, []);
 

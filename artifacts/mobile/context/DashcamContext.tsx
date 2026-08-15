@@ -155,6 +155,12 @@ interface DashcamContextValue {
   pinSegment: (id: string) => Promise<void>;
   /** Unpin a cloud clip (restores standard 30-day / 24-hour retention). */
   unpinSegment: (id: string) => Promise<void>;
+  /**
+   * Restart the recording loop without stopping isRecording.
+   * Called by DashcamOverlay when the loop exits due to consecutive failures
+   * so the dashcam auto-recovers instead of silently turning off.
+   */
+  bumpRecordingEpoch: () => void;
   // Internal — called by DashcamOverlay
   setCameraRef: (ref: CameraView | null) => void;
   onSegmentStart: () => void;
@@ -1312,6 +1318,8 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pushDeviceId]);
 
+  const bumpRecordingEpoch = useCallback(() => setRecordingEpoch((e) => e + 1), []);
+
   const value = useMemo<DashcamContextValue>(
     () => ({
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
@@ -1322,6 +1330,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       lockCurrentClip, lockSavedClip, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,
+      bumpRecordingEpoch,
       setCameraRef, onSegmentStart, onSegmentComplete,
     }),
     [
@@ -1333,6 +1342,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       lockCurrentClip, lockSavedClip, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,
+      bumpRecordingEpoch,
       setCameraRef, onSegmentStart, onSegmentComplete,
     ]
   );
