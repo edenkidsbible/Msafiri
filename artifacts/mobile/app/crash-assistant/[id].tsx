@@ -95,7 +95,7 @@ interface TimelineEvent {
 
 interface AccidentRecord {
   id: string;
-  status: "draft" | "complete";
+  status: "draft" | "complete" | "archived";
   isManual: boolean;
   detectedAt: string;
   lat?: number | null;

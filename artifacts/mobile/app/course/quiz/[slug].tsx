@@ -570,6 +570,12 @@ export default function QuizScreen() {
 
   // ── Question / Feedback ─────────────────────────────────────────────────────
   const showResult = phase === "feedback";
+  // Guard: saved progress index could exceed current question count after a
+  // course update. Reset to last valid question rather than crashing.
+  if (!currentQ) {
+    setCurrentIndex(Math.max(0, questions.length - 1));
+    return null;
+  }
   const isCorrect = selectedIndex === currentQ.correctIndex;
   const isLast = currentIndex === questions.length - 1;
 

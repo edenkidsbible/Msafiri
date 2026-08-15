@@ -224,7 +224,7 @@ export default function BrowseScreen() {
   useEffect(() => {
     AsyncStorage.getItem(DISCLAIMER_KEY).then((val) => {
       if (!val) setShowDisclaimer(true);
-    });
+    }).catch(() => {});
   }, []);
 
   const dismissDisclaimer = async () => {

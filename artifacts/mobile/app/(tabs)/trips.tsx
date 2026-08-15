@@ -391,7 +391,7 @@ export default function TripsScreen() {
     setPlaceSearchFocused(false);
     setPlaceSelected(null);
     setPlaceLocMode("search");
-    loadRecentSearches().then(setRecentSearches);
+    loadRecentSearches().then(setRecentSearches).catch(() => {});
     setPlaceModal(true);
   };
 
@@ -593,7 +593,7 @@ export default function TripsScreen() {
     setTripResults([]);
     setTripSearchFocused(false);
     setTripDate(new Date(Date.now() + 60 * 60 * 1000));
-    loadRecentSearches().then(setRecentSearches);
+    loadRecentSearches().then(setRecentSearches).catch(() => {});
     setTripModal(true);
   };
 
@@ -1284,7 +1284,7 @@ export default function TripsScreen() {
                             <Text style={[styles.resultText, { color: c.foreground, flex: 1 }]} numberOfLines={1}>{r.display}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => removeRecentSearch(r).then(setRecentSearches)}
+                            onPress={() => removeRecentSearch(r).then(setRecentSearches).catch(() => {})}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                           >
                             <Ionicons name="close-circle" size={17} color={c.mutedForeground} />
@@ -1300,7 +1300,7 @@ export default function TripsScreen() {
                           key={`${r.lat}-${r.lng}-${idx}`}
                           style={styles.resultRow}
                           onPress={() => {
-                            saveRecentSearch(r).then(setRecentSearches);
+                            saveRecentSearch(r).then(setRecentSearches).catch(() => {});
                             setPlaceSelected(r);
                             setPlaceSearch(r.short);
                             setPlaceResults([]);
@@ -1401,7 +1401,7 @@ export default function TripsScreen() {
                       key={`${r.lat}-${r.lng}-${idx}`}
                       style={styles.resultRow}
                       onPress={() => {
-                        saveRecentSearch(r).then(setRecentSearches);
+                        saveRecentSearch(r).then(setRecentSearches).catch(() => {});
                         setTripDest({ label: r.short, lat: r.lat, lng: r.lng });
                         setTripSearch(r.short);
                         setTripResults([]);
@@ -1435,7 +1435,7 @@ export default function TripsScreen() {
                         <Text style={[styles.resultText, { color: c.foreground, flex: 1 }]} numberOfLines={1}>{r.display}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={() => removeRecentSearch(r).then(setRecentSearches)}
+                        onPress={() => removeRecentSearch(r).then(setRecentSearches).catch(() => {})}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <Ionicons name="close-circle" size={17} color={c.mutedForeground} />

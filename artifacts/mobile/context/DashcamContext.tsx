@@ -320,23 +320,34 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         pushDeviceIdRef.current = pid;
         setPushDeviceId(pid);
 
-        // 3. Load settings
-        const rawSettings = await AsyncStorage.getItem(SETTINGS_KEY);
-        if (rawSettings) {
-          const s = { ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) };
-          setSettings(s);
-          settingsRef.current = s;
+        // 3. Load settings — isolated try/catch so a corrupt value doesn't
+        //    abort the rest of hydration (segments, device state).
+        try {
+          const rawSettings = await AsyncStorage.getItem(SETTINGS_KEY);
+          if (rawSettings) {
+            const s = { ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) };
+            setSettings(s);
+            settingsRef.current = s;
+          }
+        } catch {
+          console.warn("[Dashcam] corrupt settings — using defaults");
         }
 
-        // 4. Load + verify segments
-        let rawSegsStr = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
-        if (!rawSegsStr) {
-          const legacy = await AsyncStorage.getItem(LEGACY_SEGMENTS_KEY);
-          if (legacy) {
-            rawSegsStr = legacy;
-            AsyncStorage.setItem(segmentsAsyncKeyRef.current, legacy).catch(() => {});
-            AsyncStorage.removeItem(LEGACY_SEGMENTS_KEY).catch(() => {});
+        // 4. Load + verify segments — also isolated so a bad cache doesn't
+        //    prevent the rest of the context from becoming usable.
+        let rawSegsStr: string | null = null;
+        try {
+          rawSegsStr = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
+          if (!rawSegsStr) {
+            const legacy = await AsyncStorage.getItem(LEGACY_SEGMENTS_KEY);
+            if (legacy) {
+              rawSegsStr = legacy;
+              AsyncStorage.setItem(segmentsAsyncKeyRef.current, legacy).catch(() => {});
+              AsyncStorage.removeItem(LEGACY_SEGMENTS_KEY).catch(() => {});
+            }
           }
+        } catch {
+          console.warn("[Dashcam] error reading segments cache — starting empty");
         }
 
         if (rawSegsStr) {
@@ -414,39 +425,49 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     segmentsFsDirRef.current    = vehicleSegmentsDir(vehicleKey);
 
     (async () => {
-      await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true }).catch(() => {});
-      const raw = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
-      const loaded: DashcamSegment[] = raw ? JSON.parse(raw) : [];
-      const verified = await Promise.all(
-        loaded.map(async (s) => {
-          if (s.uploadStatus === "uploaded" || s.uploadStatus === "lost") return s;
-          try {
-            const info = await FileSystem.getInfoAsync(s.uri);
-            if (info.exists) return s;
-            if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
-            return null;
-          } catch {
-            if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
-            return null;
-          }
-        })
-      );
-      const live = verified.filter(Boolean) as DashcamSegment[];
-      setSegments(live);
-      segmentsRef.current = live;
+      try {
+        await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true }).catch(() => {});
+        const raw = await AsyncStorage.getItem(segmentsAsyncKeyRef.current);
+        let loaded: DashcamSegment[] = [];
+        if (raw) {
+          try { loaded = JSON.parse(raw); } catch { /* corrupt cache — start empty */ }
+        }
+        const verified = await Promise.all(
+          loaded.map(async (s) => {
+            if (s.uploadStatus === "uploaded" || s.uploadStatus === "lost") return s;
+            try {
+              const info = await FileSystem.getInfoAsync(s.uri);
+              if (info.exists) return s;
+              if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
+              return null;
+            } catch {
+              if (s.locked || s.savedForReview) return { ...s, uploadStatus: "lost" as const };
+              return null;
+            }
+          })
+        );
+        const live = verified.filter(Boolean) as DashcamSegment[];
+        setSegments(live);
+        segmentsRef.current = live;
 
-      if (live.some((s) => s.savedForReview)) {
-        setPendingTripReview(true);
-      } else {
-        setPendingTripReview(false);
+        if (live.some((s) => s.savedForReview)) {
+          setPendingTripReview(true);
+        } else {
+          setPendingTripReview(false);
+        }
+
+        const toUpload = live
+          .filter((s) => s.uploadStatus === "pending" || (s.uploadStatus === "failed" && (s.retryCount ?? 0) < MAX_UPLOAD_RETRIES))
+          .sort((a, b) => a.startedAt - b.startedAt)
+          .map((s) => s.id);
+        uploadQueueRef.current = toUpload;
+        if (toUpload.length > 0) processUploadQueue();
+      } catch (err) {
+        console.warn("[Dashcam] vehicle-change hydration error:", err);
+        // Leave state as empty — safer than an unhandled rejection
+        setSegments([]);
+        segmentsRef.current = [];
       }
-
-      const toUpload = live
-        .filter((s) => s.uploadStatus === "pending" || (s.uploadStatus === "failed" && (s.retryCount ?? 0) < MAX_UPLOAD_RETRIES))
-        .sort((a, b) => a.startedAt - b.startedAt)
-        .map((s) => s.id);
-      uploadQueueRef.current = toUpload;
-      if (toUpload.length > 0) processUploadQueue();
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleKey]);

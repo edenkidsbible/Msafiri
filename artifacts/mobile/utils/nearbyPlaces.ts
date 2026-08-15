@@ -210,6 +210,9 @@ export function projectAhead(
   pointLat: number,
   pointLng: number,
 ): number {
+  // Guard: can't project onto an empty polyline
+  if (coords.length === 0) return 0;
+
   const cumDist: number[] = [0];
   for (let i = 0; i < coords.length - 1; i++) {
     cumDist.push(cumDist[i] + hav(coords[i].latitude, coords[i].longitude, coords[i + 1].latitude, coords[i + 1].longitude));
