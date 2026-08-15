@@ -68,6 +68,19 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+function tripLabel(s: { startedAt: string; distanceM: number }): string {
+  const h = new Date(s.startedAt).getHours();
+  const tod = h < 5 ? "Night" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Night";
+  return `${tod} drive`;
+}
+
+function tripMetaLine(s: { distanceM: number; durationS: number | null; avgSpeedKmh: number | null }): string {
+  const parts: string[] = [distStr(s.distanceM)];
+  if (s.durationS != null) parts.push(formatDuration(s.durationS));
+  if (s.avgSpeedKmh != null) parts.push(`Avg ${Math.round(s.avgSpeedKmh)} km/h`);
+  return parts.join(" · ");
+}
+
 function distStr(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
@@ -881,39 +894,36 @@ export default function HomeScreen() {
             onPress={() => router.push(`/trip-detail/${lastSession.id}`)}
             style={[styles.tripCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}
           >
-            <View style={[styles.tripThumb, { backgroundColor: c.primary + "16" }]}>
-              <Ionicons name="map-outline" size={24} color={c.primary} />
+            {/* Route thumbnail — dark square with diagonal line */}
+            <View style={styles.tripThumb}>
+              <View style={styles.routeLine} />
+              <View style={styles.routeDotStart} />
+              <View style={styles.routeDotEnd} />
             </View>
+
+            {/* Middle: timestamp · title · stats */}
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.tripDate, { color: c.mutedForeground }]} numberOfLines={1}>
                 {tripDateLabel(lastSession.startedAt)}
               </Text>
-              {lastSession.score != null ? (
-                <View style={styles.tripStatsRow}>
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: scoreColor(lastSession.score) }} />
-                  <Text style={[styles.tripStat, { color: c.foreground }]}>
-                    Score {lastSession.score} · {scoreLabel(lastSession.score)}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.tripStatsRow}>
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.primary }} />
-                  <Text style={[styles.tripStat, { color: c.foreground }]}>Completed trip</Text>
-                </View>
-              )}
+              <Text style={[styles.tripTitle, { color: c.foreground }]} numberOfLines={1}>
+                {tripLabel(lastSession)}
+              </Text>
+              <Text style={[styles.tripMeta, { color: c.mutedForeground }]} numberOfLines={1}>
+                {tripMetaLine(lastSession)}
+              </Text>
             </View>
-            <View style={{ alignItems: "flex-end", gap: 6 }}>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.tripStat, { color: c.foreground }]}>{distStr(lastSession.distanceM)}</Text>
-                <Text style={[styles.tripStatLbl, { color: c.mutedForeground }]}>Distance</Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.tripStat, { color: c.foreground }]}>
-                  {lastSession.durationS != null ? formatDuration(lastSession.durationS) : "—"}
+
+            {/* Score ring */}
+            {lastSession.score != null && (
+              <View style={[styles.scoreRing, { borderColor: scoreColor(lastSession.score) }]}>
+                <Text style={[styles.scoreRingTxt, { color: scoreColor(lastSession.score) }]}>
+                  {lastSession.score}
                 </Text>
-                <Text style={[styles.tripStatLbl, { color: c.mutedForeground }]}>Duration</Text>
               </View>
-            </View>
+            )}
+
+            <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
           </TouchableOpacity>
         ) : (
           <View style={[styles.emptyCard, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
@@ -1166,11 +1176,45 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12,
     borderRadius: 16, borderWidth: 1, padding: 12,
   },
-  tripThumb: { width: 52, height: 52, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  tripDate: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  // Route thumbnail
+  tripThumb: {
+    width: 62, height: 62, borderRadius: 14,
+    backgroundColor: "#0F1A12",
+    overflow: "hidden", position: "relative",
+  },
+  routeLine: {
+    position: "absolute",
+    width: 44, height: 2.5,
+    backgroundColor: "#22C55E",
+    top: 29, left: 9,
+    transform: [{ rotate: "-40deg" }],
+  },
+  routeDotStart: {
+    position: "absolute", bottom: 10, left: 7,
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5, borderColor: "#0F1A12",
+  },
+  routeDotEnd: {
+    position: "absolute", top: 8, right: 7,
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: "#22C55E",
+    borderWidth: 1.5, borderColor: "#0F1A12",
+  },
+  // Text
+  tripDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  tripTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginTop: 1 },
+  tripMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   tripStatsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
   tripStat: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   tripStatLbl: { fontSize: 10.5, fontFamily: "Inter_400Regular", marginTop: 1 },
+  // Score ring
+  scoreRing: {
+    width: 50, height: 50, borderRadius: 25,
+    borderWidth: 3,
+    alignItems: "center", justifyContent: "center",
+  },
+  scoreRingTxt: { fontSize: 15, fontFamily: "Inter_700Bold" },
 
   // ── Course promo — full card (0 alerts) ────────────────────────────────────
   courseFull: { borderRadius: 20, borderWidth: 1.5, marginTop: 18, overflow: "hidden" },
