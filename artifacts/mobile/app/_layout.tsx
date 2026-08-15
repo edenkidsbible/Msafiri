@@ -78,6 +78,7 @@ import {
   startBgDriveAlertsTask,
   stopBgDriveAlertsTask,
 } from "@/utils/backgroundDriveAlerts";
+import { defineBackgroundOdometerTask } from "@/utils/backgroundOdometer";
 import { prewarmAlertAudio } from "@/utils/alertTts";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 
@@ -99,6 +100,9 @@ defineBackgroundNotificationTask();
 // speed zones/reports and fires audible lock-screen notifications while the
 // driver has an active trip and the screen is off.
 defineBackgroundDriveAlertsTask();
+// Background odometer task: accumulates driving distance while the app is
+// backgrounded (no active trip) so the vehicle-care odometer doesn't drift low.
+defineBackgroundOdometerTask();
 
 // Every @expo/vector-icons component (Ionicons, MaterialCommunityIcons,
 // Feather — the three families this app uses) calls `Font.loadAsync()` for

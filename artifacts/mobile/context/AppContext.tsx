@@ -31,6 +31,11 @@ import {
   type BgZoneEntry,
   type BgReportEntry,
 } from "@/utils/backgroundDriveAlerts";
+import {
+  startBackgroundOdometerTask,
+  stopBackgroundOdometerTask,
+  consumeBackgroundOdometer,
+} from "@/utils/backgroundOdometer";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
 import { playSound, getSoundsMuted } from "@/utils/sound";
@@ -1258,6 +1263,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const odoContPrevLngRef  = useRef<number | null>(null);
   const odoContPendingMRef = useRef(0);   // accumulated metres awaiting flush
   const odoContFlushAtRef  = useRef(0);   // epoch-ms of last flush
+  // True while the background odometer task is running and owns distance
+  // accounting. Gates the foreground trip/odometer accumulators so a fix
+  // delivered to the (possibly still-alive) foreground watch while
+  // backgrounded is never counted on top of the background task's tally.
+  const bgOdoActiveRef = useRef(false);
+  // Desired-state flag + serialized op chain for the background odometer task.
+  // AppState changes only flip the desired state and enqueue a reconcile op on
+  // the chain; ops run strictly one at a time, so a start resolving late can
+  // never race a newer stop (and vice versa) and the shared task/AsyncStorage
+  // state is never touched by two transitions concurrently.
+  const bgOdoDesiredRef = useRef(false);
+  const bgOdoChainRef = useRef<Promise<void>>(Promise.resolve());
   // Forwards to syncReportToServer (defined later, alongside addReport) so
   // the reconnect-retry sweep above can call it without an ordering issue.
   const syncReportToServerRef = useRef<((localId: string, type: CommunityReport["type"], lat: number, lng: number, speedLimit?: number) => void) | null>(null);
@@ -2387,8 +2404,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const positions = t.positions ?? [];
         const last = positions[positions.length - 1];
         const rawAdded = last ? haversine(last.lat, last.lng, lat, lng) : 0;
-        // Ignore GPS jumps > 500 m (signal-loss artefacts)
-        const added = (rawAdded > 0 && rawAdded < 500) ? rawAdded : 0;
+        // Ignore GPS jumps > 500 m (signal-loss artefacts). While the
+        // background odometer task is running it owns distance accounting
+        // (its pending metres are folded into the trip on resume), so a fix
+        // that still reaches this foreground handler must not also count.
+        const added = (!bgOdoActiveRef.current && rawAdded > 0 && rawAdded < 500) ? rawAdded : 0;
         const newPos = [...positions, { lat, lng, speed: kmh, time: Date.now() }];
         const trimmed = newPos.length > 300 ? newPos.slice(-150) : newPos;
         const updated: Partial<TripData> = { ...t, distance: (t.distance ?? 0) + added, maxSpeed: Math.max(t.maxSpeed ?? 0, kmh), avgSpeed: trimmed.length > 0 ? trimmed.reduce((s, p) => s + p.speed, 0) / trimmed.length : (t.avgSpeed ?? 0), positions: trimmed };
@@ -2454,7 +2474,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const prevOdoLng = odoContPrevLngRef.current;
       if (prevOdoLat != null && prevOdoLng != null) {
         const d = haversine(prevOdoLat, prevOdoLng, lat, lng);
-        if (d > 0 && d < 500) {
+        // Skip accumulation while the background odometer task owns distance
+        // (bgOdoActiveRef) — its pending pot is merged back on resume.
+        if (!bgOdoActiveRef.current && d > 0 && d < 500) {
           odoContPendingMRef.current += d;
           const now = Date.now();
           const flushByDist = odoContPendingMRef.current >= 100;
@@ -3260,6 +3282,136 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const sub = AppState.addEventListener("change", handleAppStateChange);
     return () => sub.remove();
   // shareTokenRef is a ref — stable; no deps needed beyond mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Background odometer lifecycle ─────────────────────────────────────────
+  // Keeps driving distance accumulating while the app is backgrounded or the
+  // screen is locked, for BOTH active trips and the continuous odometer. While
+  // the background task is live it is the SOLE owner of distance: foreground
+  // accumulation is gated off via bgOdoActiveRef (in case the OS keeps the
+  // foreground watch alive), and the task itself never writes to vehicle-care
+  // storage. On foreground resume the pending metres are routed to exactly one
+  // destination — the active trip's distance (so the single trip-end credit
+  // includes the background segment) or the continuous-odometer pending pot —
+  // and the position pointers jump to the last background fix so the same
+  // stretch is never re-measured.
+  //
+  // Transitions are serialized through a desired-state reconciler: AppState
+  // changes only flip bgOdoDesiredRef and enqueue a reconcile op on a promise
+  // chain that runs strictly one op at a time. Each op reads the CURRENT
+  // desired state when it executes, so rapid active → inactive → background
+  // flaps collapse to the correct final state, a late-resolving start can
+  // never be killed by a stale stop, and the shared task/AsyncStorage state
+  // is never mutated by two transitions concurrently. `inactive → background`
+  // is a no-op (desired state unchanged), so the task is neither restarted
+  // nor reseeded mid-stint.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    // Durably credit recovered kilometres to the active vehicle's care
+    // odometer — same path as the foreground flush. Used for the no-trip
+    // route so recovered distance survives an immediate app kill instead of
+    // waiting in memory for a future GPS fix to flush it.
+    const creditOdometerKm = (km: number) => {
+      loadVehicles().then(vs => {
+        const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
+        if (!active) return;
+        updateTripOdometer(km, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+      }).catch(() => {});
+    };
+
+    const consumeIntoForeground = ({ pendingM, lastFix }: { pendingM: number; lastFix: { lat: number; lng: number } | null }) => {
+      if (pendingM > 0) {
+        const trip = tripRef.current;
+        if (trip) {
+          // Active trip — fold the background segment into the trip so the
+          // trip-end odometer credit counts it exactly once. Also append the
+          // last background fix as a position so the next foreground fix
+          // measures from there rather than the pre-background point.
+          trip.distance = (trip.distance ?? 0) + pendingM;
+          if (lastFix) {
+            trip.positions = [
+              ...(trip.positions ?? []),
+              { lat: lastFix.lat, lng: lastFix.lng, speed: 0, time: Date.now() },
+            ];
+          }
+          setCurrentTrip({ ...trip });
+        } else {
+          // No trip — credit the vehicle-care odometer immediately (durable)
+          // rather than parking metres in the in-memory pending pot, which
+          // would be lost if the app is killed before the next GPS fix.
+          creditOdometerKm(pendingM / 1000);
+          odoContFlushAtRef.current = Date.now();
+        }
+      }
+      if (lastFix) {
+        odoContPrevLatRef.current = lastFix.lat;
+        odoContPrevLngRef.current = lastFix.lng;
+      }
+    };
+
+    // Run one reconcile op at a time on the shared chain. Errors are swallowed
+    // per-op so a failed transition never wedges the chain.
+    const enqueueReconcile = () => {
+      bgOdoChainRef.current = bgOdoChainRef.current.then(async () => {
+        // Read desired state at EXECUTION time, not enqueue time — collapses
+        // rapid flaps to the final state and makes intermediate ops no-ops.
+        const desired = bgOdoDesiredRef.current;
+        if (desired === bgOdoActiveRef.current) return; // already reconciled
+        if (desired) {
+          // Seed with the foreground odometer's last position so the gap
+          // between the last foreground fix and the first background fix
+          // still counts. Requires background permission — the start
+          // silently no-ops (returns false) when it hasn't been granted,
+          // in which case the foreground accumulators stay un-gated.
+          const seedLat = odoContPrevLatRef.current;
+          const seedLng = odoContPrevLngRef.current;
+          const started = await startBackgroundOdometerTask(
+            seedLat != null && seedLng != null ? { lat: seedLat, lng: seedLng } : null,
+          );
+          bgOdoActiveRef.current = started;
+          // If desired flipped while starting, the AppState handler already
+          // enqueued a follow-up op behind this one; it will stop + consume.
+        } else {
+          await stopBackgroundOdometerTask();
+          const result = await consumeBackgroundOdometer();
+          consumeIntoForeground(result);
+          // Re-enable foreground accumulation only after the handoff, so
+          // fixes arriving mid-consume can't overlap the background pot.
+          bgOdoActiveRef.current = false;
+        }
+      }).catch((e) => {
+        console.warn("[bgOdometer] reconcile failed:", e);
+        // Conservative fallback: never leave foreground accumulation gated
+        // off when the task state is unknown and the app wants foreground.
+        if (!bgOdoDesiredRef.current) bgOdoActiveRef.current = false;
+      });
+    };
+
+    const handleOdoAppState = (nextState: AppStateStatus) => {
+      const wantBackground = nextState === "background" || nextState === "inactive";
+      if (wantBackground === bgOdoDesiredRef.current) return; // e.g. inactive → background
+      bgOdoDesiredRef.current = wantBackground;
+      enqueueReconcile();
+    };
+
+    const sub = AppState.addEventListener("change", handleOdoAppState);
+    // Defensive: if a previous session was killed mid-background, consume any
+    // leftover pending metres on launch so that distance isn't lost. Runs on
+    // the same chain, ahead of any AppState-driven op. There is no live trip
+    // at this point, so it credits the continuous odometer.
+    bgOdoChainRef.current = bgOdoChainRef.current.then(async () => {
+      await stopBackgroundOdometerTask();
+      const { pendingM, lastFix } = await consumeBackgroundOdometer();
+      if (pendingM > 0) creditOdometerKm(pendingM / 1000);
+      if (lastFix && odoContPrevLatRef.current == null) {
+        odoContPrevLatRef.current = lastFix.lat;
+        odoContPrevLngRef.current = lastFix.lng;
+      }
+    }).catch(() => {});
+    return () => sub.remove();
+  // refs only — stable; no deps needed beyond mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

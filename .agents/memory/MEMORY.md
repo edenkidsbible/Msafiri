@@ -78,3 +78,4 @@
 - [Per-vehicle data isolation architecture](per-vehicle-data-isolation.md) — all data (dashcam, sessions, accidents) vehicle-scoped; VehicleContext drives it; garage swipe calls setActiveVehicle; default vehicle gets legacy NULL rows.
 - [Route polyline gating rule](route-polyline-gating.md) — polylines only render when trip is active; gated on navTripActive (MapViewScreen) and tripMode (DriveMapView); alt routes hidden during trip; no preview polyline.
 - [Garage offline caching pattern](garage-offline-caching.md) — sessions + shared stats cached per vehicleId in AsyncStorage; stale-while-revalidate; isOffline in effect deps triggers re-fetch on reconnect; offline banner shown.
+- [Background odometer ownership](background-odometer-ownership.md) — bg location task solely owns distance while backgrounded; never write care storage from the task; route pending once on resume (trip vs continuous), gate fg accumulators.
