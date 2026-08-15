@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
 import {
   Download, Upload, Play, Database, CheckCircle2,
-  AlertCircle, Loader2, FileJson, Mail, RefreshCw,
+  AlertCircle, Loader2, FileJson, Mail, RefreshCw, HardDrive, ShieldCheck,
 } from "lucide-react";
 import { PageGuide } from "@/components/page-guide";
 
@@ -87,6 +87,15 @@ export default function SystemBackup() {
     toEmail: string | null;
   } | null>(null);
 
+  // pg-dump state
+  const [pgDumpLoading, setPgDumpLoading] = useState(false);
+  const [pgDumpResult,  setPgDumpResult]  = useState<{
+    key: string;
+    sizeBytes: number;
+    durationMs: number;
+  } | null>(null);
+  const [pgDumpError, setPgDumpError] = useState<string | null>(null);
+
   // Restore state
   const fileRef              = useRef<HTMLInputElement>(null);
   const [restoreLoading,  setRestoreLoading]  = useState(false);
@@ -98,6 +107,28 @@ export default function SystemBackup() {
   } | null>(null);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+
+  const handlePgDump = async () => {
+    setPgDumpLoading(true);
+    setPgDumpResult(null);
+    setPgDumpError(null);
+    try {
+      const res  = await fetch("/api/admin/system/backup/pg-dump", {
+        method:  "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setPgDumpResult({ key: data.key, sizeBytes: data.sizeBytes, durationMs: data.durationMs });
+      toast({ title: "Database snapshot created", description: `Saved to R2: ${data.key}` });
+    } catch (err) {
+      const msg = String(err).replace(/^Error:\s*/, "");
+      setPgDumpError(msg);
+      toast({ title: "Snapshot failed", description: msg, variant: "destructive" });
+    } finally {
+      setPgDumpLoading(false);
+    }
+  };
 
   const handleDownload = async () => {
     setExportLoading(true);
@@ -209,6 +240,7 @@ export default function SystemBackup() {
         <PageGuide
           title="Using system backup"
           steps={[
+            { label: "Before publishing", detail: <>click <em>Create database snapshot</em> to run pg_dump and save a binary backup to R2. Takes 10–30 s — do this every time before deploying a new release.</> },
             { label: "What's backed up", detail: "a full JSON snapshot of all 32 Postgres tables — reports, zones, vehicles, admin users, blog posts, and more. Binary assets (dashcam clips, photos, audio) live in R2 and are not included." },
             { label: "Export or run now", detail: <>use <em>Download JSON snapshot</em> to save a dated file locally; use <em>Run Now</em> to trigger the nightly email backup immediately.</> },
             { label: "Restore", detail: "upload a previously downloaded snapshot to upsert its rows back into the database — useful after data loss or a migration." },
@@ -235,6 +267,69 @@ export default function SystemBackup() {
               <Badge key={t} variant="outline">{t}</Badge>
             ))}
           </div>
+        </div>
+
+        {/* ── Database snapshot (pg-dump → R2) ─────────────────────────────── */}
+        <div className="rounded-lg border-2 border-primary/30 bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold text-lg">Create database snapshot</h2>
+            <Badge className="ml-auto text-xs" variant="secondary">Before publishing</Badge>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            Runs <code className="text-xs bg-muted px-1 rounded">pg_dump</code> and uploads
+            a binary snapshot of the full Postgres database to Cloudflare R2.
+            Do this <strong>before every publish</strong> so you have a point-in-time restore
+            point if a deploy goes wrong. Takes 10–30 s.
+          </p>
+
+          <Button
+            onClick={handlePgDump}
+            disabled={pgDumpLoading}
+            size="lg"
+            className="w-full sm:w-auto"
+          >
+            {pgDumpLoading
+              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creating snapshot…</>
+              : <><HardDrive className="h-4 w-4 mr-2" />Create database snapshot</>}
+          </Button>
+
+          {pgDumpResult && (
+            <div className="rounded-md border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                <CheckCircle2 className="h-4 w-4" />
+                Snapshot saved to R2
+              </div>
+              <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm mt-1">
+                <div>
+                  <dt className="text-xs text-muted-foreground">R2 key</dt>
+                  <dd className="font-mono text-xs break-all">{pgDumpResult.key}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Size</dt>
+                  <dd className="font-mono">{(pgDumpResult.sizeBytes / 1024).toFixed(1)} KB</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Duration</dt>
+                  <dd className="font-mono">{(pgDumpResult.durationMs / 1000).toFixed(1)} s</dd>
+                </div>
+              </dl>
+              <p className="text-xs text-muted-foreground pt-1">
+                To restore: download the <code>.dump</code> file from R2 and run{" "}
+                <code className="bg-muted px-1 rounded text-[11px]">
+                  pg_restore --clean --if-exists -d $DATABASE_URL &lt;file&gt;.dump
+                </code>
+              </p>
+            </div>
+          )}
+
+          {pgDumpError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive">{pgDumpError}</p>
+            </div>
+          )}
         </div>
 
         {/* ── Export & Run ─────────────────────────────────────────────────── */}
