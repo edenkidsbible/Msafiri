@@ -219,12 +219,9 @@ export default function RestoreDataScreen() {
               <View style={[s.windowBanner, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
                 <Ionicons name="time-outline" size={15} color="#F59E0B" />
                 <Text style={[s.windowBannerTxt, { color: c.mutedForeground }]}>
-                  <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>Safaricom</Text>
-                  {" "}numbers: codes sent{" "}
+                  {"SMS codes are sent between "}
                   <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>8 AM – 6 PM EAT</Text>
-                  {" "}only.{" "}
-                  <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>Airtel & Telkom</Text>
-                  {": any time."}
+                  {" for all networks. Link your recovery phone during these hours to avoid delays."}
                 </Text>
               </View>
             </>

@@ -135,9 +135,8 @@ router.post("/auth/send-otp", async (req, res) => {
     ).catch(() => {});
 
     if (sendErr instanceof SmsRestrictedTimeError) {
-      // Carrier-level time restriction — only Safaricom numbers are affected.
-      // Airtel and Telkom go through at any hour so we only show this when
-      // SMSLeopard explicitly tells us the number is restricted right now.
+      // Carrier-level time restriction — all carriers and sender IDs on this
+      // SMSLeopard account are subject to the 8 AM – 6 PM EAT send window.
       return res.status(403).json({
         error: "SMS codes for this number can only be sent between 8:00 AM and 6:00 PM EAT. Please try again during those hours.",
         code: "OUTSIDE_SEND_WINDOW",
