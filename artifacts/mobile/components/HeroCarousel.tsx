@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
     width: 175,
     alignItems: "flex-end",
     justifyContent: "flex-end",
-    overflow: "hidden",
   },
   carSlot: {
     position: "absolute",
