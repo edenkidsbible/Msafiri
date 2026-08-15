@@ -87,7 +87,7 @@ router.post("/auth/send-otp", async (req, res) => {
     sql`INSERT INTO phone_verifications
           (email, otp_hash, expires_at, attempts, verified, intent, requesting_device_id)
         VALUES
-          (${email}, ${hashed}, NOW() + INTERVAL '10 minutes', 0, FALSE,
+          (${email}, ${hashed}, NOW() + INTERVAL '15 minutes', 0, FALSE,
            ${intent}, ${deviceId ?? null})`
   );
 
@@ -97,14 +97,11 @@ router.post("/auth/send-otp", async (req, res) => {
 
   const sent = await sendRecoveryOtpEmail({ toEmail: email, otp, intent: intent as "link" | "restore" });
   if (!sent) {
-    // Roll back the record so the user can retry immediately
-    await db.execute(
-      sql`DELETE FROM phone_verifications WHERE email = ${email} AND otp_hash = ${hashed}`
-    ).catch(() => {});
-
-    logger.error({ email }, "[OTP] Email send failed");
+    // Do NOT delete the row — the OTP is valid; only the delivery failed.
+    // Keeping the row means the user can retry the send without needing a new code.
+    logger.error({ email }, "[OTP] Email send failed — row kept so user can retry");
     const detail = isDev ? " (check RESEND_API_KEY and server logs)" : "";
-    return res.status(502).json({ error: `Failed to send email. Try again.${detail}` });
+    return res.status(502).json({ error: `Failed to send the email. Please try again.${detail}` });
   }
 
   return res.json({ ok: true, ...(isDev ? { devOtp: otp } : {}) });
@@ -150,7 +147,8 @@ router.post("/auth/verify-otp", async (req, res) => {
   const records = recordsResult.rows as any[];
 
   if (records.length === 0) {
-    return res.status(401).json({ error: "OTP expired or not found. Request a new one." });
+    logger.info({ email, intent }, "[OTP] Verify — no active record found for email");
+    return res.status(401).json({ error: "Code expired. Go back and request a new one." });
   }
 
   const record = records[0];
@@ -171,7 +169,8 @@ router.post("/auth/verify-otp", async (req, res) => {
     await db.execute(
       sql`UPDATE phone_verifications SET attempts = attempts + 1 WHERE id = ${record.id}`
     );
-    return res.status(401).json({ error: "Invalid OTP" });
+    logger.info({ email, intent, attemptsAfter: record.attempts + 1 }, "[OTP] Verify — wrong code");
+    return res.status(401).json({ error: "Wrong code. Check the digits and try again." });
   }
 
   // ── Mark as verified ──────────────────────────────────────────────────────

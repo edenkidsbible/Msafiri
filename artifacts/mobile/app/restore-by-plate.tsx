@@ -250,8 +250,10 @@ export default function RestoreByPlateScreen() {
       );
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("Invalid") || msg.includes("expired")) {
-        Alert.alert("Wrong or expired code", "Check the code and try again, or go back to request a new one.");
+      if (msg.includes("Code expired") || msg.includes("expired") || msg.includes("not found")) {
+        Alert.alert("Code expired", "This code is no longer valid. Go back and request a new one.");
+      } else if (msg.includes("Wrong code") || msg.includes("Invalid")) {
+        Alert.alert("Wrong code", "That code doesn't match. Double-check the digits and try again.");
       } else if (msg.includes("Too many") || msg.includes("locked")) {
         Alert.alert("Too many attempts", "This code is locked. Go back and request a new one.");
       } else {
