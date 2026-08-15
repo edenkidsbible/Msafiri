@@ -367,9 +367,19 @@ export default function ProfileScreen() {
               title="Help Center" sub="Contact us and get support" 
               onPress={() => router.push("/contact" as any)} 
             />
+            <SettingsRow
+              icon="shield-checkmark-outline" iconColor="#6B7280"
+              title="Privacy Policy" sub="How we handle your data"
+              onPress={() => router.push("/privacy" as any)}
+            />
+            <SettingsRow
+              icon="document-text-outline" iconColor="#6B7280"
+              title="Terms of Service" sub="App usage terms"
+              onPress={() => router.push("/terms" as any)}
+            />
             <SettingsRow 
               icon="information-circle-outline" iconColor="#6B7280" 
-              title="About Msafiri" sub="App info, terms and privacy" 
+              title="About Msafiri" sub="App version & credits" 
               badge={`v${version}`}
               onPress={() => router.push("/about" as any)} 
               isLast

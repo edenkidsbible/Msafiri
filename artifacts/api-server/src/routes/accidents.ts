@@ -97,6 +97,50 @@ async function fetchWeather(lat: number, lng: number): Promise<object | null> {
   }
 }
 
+/**
+ * Resolve the best available human-readable location description for an
+ * accident record.  Priority: stored roadName (if not "unknown") →
+ * nearbyLandmark → Photon reverse-geocode (road → ward/town) → county.
+ * Returns null only if truly nothing is available.
+ */
+async function resolveIncidentLocation(
+  roadName: string | null,
+  nearbyLandmark: string | null,
+  county: string | null,
+  lat: string | null,
+  lng: string | null,
+): Promise<string | null> {
+  // Strip stored values that indicate the road was unresolved
+  const UNKNOWN_PATTERNS = /^unknown\s*road$/i;
+  const cleanRoad = roadName?.trim() && !UNKNOWN_PATTERNS.test(roadName.trim())
+    ? roadName.trim() : null;
+
+  if (cleanRoad) return cleanRoad;
+  if (nearbyLandmark?.trim()) return nearbyLandmark.trim();
+
+  // Attempt a server-side reverse geocode from coordinates
+  if (lat && lng) {
+    try {
+      const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
+      const res  = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      const data = await res.json() as { features?: { properties?: Record<string, unknown> }[] };
+      const p    = data.features?.[0]?.properties ?? {};
+
+      // Prefer a named road/street, then administrative names in descending order
+      const road    = (p["name"] as string) ?? (p["street"] as string) ?? null;
+      const ward    = (p["suburb"] as string) ?? (p["locality"] as string) ?? null;
+      const town    = (p["city"] as string) ?? (p["town"] as string) ?? (p["village"] as string) ??
+                      (p["hamlet"] as string) ?? null;
+      const district = (p["district"] as string) ?? null;
+      // Pick best available: road → ward → town → district
+      const resolved = road ?? ward ?? town ?? district ?? null;
+      if (resolved) return resolved;
+    } catch { /* fall through */ }
+  }
+
+  return county?.trim() || null;
+}
+
 async function getFullRecord(id: string, deviceId: string) {
   const [record] = await db
     .select().from(accidentRecordsTable)
@@ -118,8 +162,12 @@ async function generatePdf(
   witnesses: (typeof accidentWitnessesTable.$inferSelect)[],
   timeline: (typeof accidentTimelineEventsTable.$inferSelect)[],
 ): Promise<Buffer> {
-  // Pre-fetch scene photo buffers before opening the PDF stream so that async
-  // downloads don't conflict with PDFKit's synchronous writing model.
+  // Resolve location & pre-fetch photos before opening the PDF stream so that
+  // async work doesn't conflict with PDFKit's synchronous writing model.
+  const resolvedLocation = await resolveIncidentLocation(
+    record.roadName, record.nearbyLandmark, record.county, record.lat, record.lng,
+  );
+
   const scenePhotos  = photos.filter((p) => p.fileKey);
 
   // Download up to 6 photos — silently skip any that fail.
@@ -242,16 +290,15 @@ async function generatePdf(
     }
 
     // ── Location ──────────────────────────────────────────────────────────────
-    const hasLocation = record.roadName || record.county || record.lat;
+    const hasLocation = resolvedLocation || record.lat;
     if (hasLocation) {
       sectionTitle("Location");
-      row("Road",         record.roadName);
-      row("Nearby",       record.nearbyLandmark);
-      row("County",       record.county);
-      row("Coordinates",  record.lat && record.lng
-        ? `${Number(record.lat).toFixed(5)}, ${Number(record.lng).toFixed(5)}` : null);
+      // Show the single best available description (road / ward / town / landmark)
+      if (resolvedLocation) row("Location", resolvedLocation);
+      // Always show coordinates when available
       if (record.lat && record.lng) {
-        row("Google Maps", `https://maps.google.com/?q=${record.lat},${record.lng}`);
+        row("Coordinates", `${Number(record.lat).toFixed(5)}, ${Number(record.lng).toFixed(5)}`);
+        row("Google Maps",  `https://maps.google.com/?q=${record.lat},${record.lng}`);
       }
     }
 
@@ -959,8 +1006,10 @@ router.get("/accidents/:id/report", async (req: Request, res: Response) => {
     // has not yet abandoned this record.  Zero returning rows means the sweep
     // won the race; skip the timeline insert and surface a conflict error so
     // the client knows the report is available but the record is abandoned.
+    // Preserve "archived" status — generating a PDF must not silently un-archive.
+    const nextStatus = record.status === "archived" ? "archived" : "complete";
     const updatedRows = await db.update(accidentRecordsTable)
-      .set({ pdfUrl: url, pdfFileKey: fileKey, status: "complete", updatedAt: new Date() })
+      .set({ pdfUrl: url, pdfFileKey: fileKey, status: nextStatus as "complete" | "archived", updatedAt: new Date() })
       .where(and(eq(accidentRecordsTable.id, id), eq(accidentRecordsTable.deviceId, deviceId), ne(accidentRecordsTable.status, "abandoned")))
       .returning({ id: accidentRecordsTable.id });
 
@@ -1193,6 +1242,26 @@ router.get("/public/accident-report/:shareToken", async (req: Request, res: Resp
     });
   } catch (err) {
     console.error("GET /public/accident-report/:shareToken error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /r/:id ────────────────────────────────────────────────────────────────
+// Short branded alias → same as /accidents/:id/report/view.
+// e.g. msafirikenya.com/api/r/<uuid>  (shared with insurers / police)
+router.get("/r/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params["id"] as string;
+    const [record] = await db.select({ pdfFileKey: accidentRecordsTable.pdfFileKey })
+      .from(accidentRecordsTable)
+      .where(and(eq(accidentRecordsTable.id, id), ne(accidentRecordsTable.status, "abandoned")));
+
+    if (!record?.pdfFileKey) return res.status(404).json({ error: "Report not found or not yet generated" });
+
+    const url = await signedDownloadUrl(record.pdfFileKey, 3600 * 6);
+    return res.redirect(302, url);
+  } catch (err) {
+    console.error("GET /r/:id error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

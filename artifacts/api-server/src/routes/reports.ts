@@ -168,10 +168,10 @@ async function expireStale() {
 // ── Report milestone gamification notifications ───────────────────────────────
 
 const MILESTONE_MESSAGES: Record<number, { title: string; body: string }> = {
-  10:  { title: "📍 10 reports filed!", body: "You're starting to make a real difference on Kenyan roads. Keep it up!" },
-  50:  { title: "🏆 50 reports — impressive!", body: "You're a trusted road guardian. Drivers around you are safer because of you." },
-  100: { title: "⭐ Road Hero! 100 reports", body: "You've reached 100 reports. You've earned the Road Hero badge — thank you!" },
-  500: { title: "🎖️ 500 reports — legend.", body: "You're one of Msafiri Kenya's most valuable contributors. Incredible dedication!" },
+  10:  { title: "10 reports! 📍", body: "You're making a real difference on Kenyan roads. Keep it up!" },
+  50:  { title: "50 reports! 🏆", body: "You're a trusted road guardian. Drivers around you are safer." },
+  100: { title: "Road Hero! ⭐", body: "100 reports — you've earned the Road Hero badge. Thank you!" },
+  500: { title: "Legend! 🎖️", body: "500 reports — one of our most valuable contributors. Incredible!" },
 };
 
 async function checkReportMilestone(deviceId: string): Promise<void> {

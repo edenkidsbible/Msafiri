@@ -480,8 +480,8 @@ router.post("/vehicles/join-by-code", joinByCodeLimiter, async (req, res) => {
     const joinerName = requesterName?.trim() || "Someone";
     await sendPushNotifications([{
       to:        ownerTokenRow[0].token,
-      title:     "New co-driver joined! 🚗",
-      body:      `${joinerName} joined your ${vehicle.displayName} using the share code.`,
+      title:     "Co-driver joined! 🚗",
+      body:      `${joinerName} joined ${vehicle.displayName} via share code.`,
       sound:     "default",
       channelId: "msafiri_general",
       data:      { type: "vehicle_joined", vehicleId: vehicle.id },
@@ -581,8 +581,8 @@ router.post("/vehicles/join-request", joinRequestLimiter, async (req, res) => {
     const plateDisplay = vehicle.plateNumber ? ` (${vehicle.plateNumber})` : "";
     await sendPushNotifications([{
       to:        ownerTokenRow[0].token,
-      title:     "Co-driver request 🚗",
-      body:      `${name} wants to join your ${vehicle.displayName}${plateDisplay}`,
+      title:     "Join request 🚗",
+      body:      `${name} wants to join ${vehicle.displayName}${plateDisplay}`,
       sound:     "default",
       channelId: "msafiri_general",
       data:      { type: "vehicle_join_request", requestId: requestRow.id, vehicleId },
@@ -665,8 +665,8 @@ router.patch("/vehicles/join-request/:id/approve", async (req, res) => {
     const plateDisplay = vehicle.plateNumber ? ` ${vehicle.plateNumber}` : "";
     await sendPushNotifications([{
       to:        requesterTokenRow[0].token,
-      title:     "Request approved! ✅",
-      body:      `You're now a co-driver of ${vehicle.displayName}${plateDisplay}`,
+      title:     "Request approved ✅",
+      body:      `You're now on ${vehicle.displayName}${plateDisplay}`,
       sound:     "default",
       channelId: "msafiri_general",
       data:      {
@@ -910,8 +910,8 @@ router.delete("/vehicles/:vehicleId/members/:memberDeviceId", async (req, res) =
       const { sendPushNotifications } = await import("../lib/expoPush.js");
       await sendPushNotifications([{
         to:        removedTokenRow[0].token,
-        title:     "Removed from shared vehicle",
-        body:      `You have been removed from ${vehicle.displayName}.`,
+        title:     "Removed as co-driver",
+        body:      `You've been removed from ${vehicle.displayName}.`,
         sound:     "default",
         channelId: "msafiri_general",
         data:      { type: "vehicle_member_removed", vehicleId },
@@ -1003,8 +1003,8 @@ router.delete("/vehicles/:vehicleId/members-by-row/:rowId", async (req, res) => 
     const { sendPushNotifications } = await import("../lib/expoPush.js");
     await sendPushNotifications([{
       to:        tokenRow[0].token,
-      title:     "Removed from shared vehicle",
-      body:      `You have been removed from ${vehicle.displayName}.`,
+      title:     "Removed as co-driver",
+      body:      `You've been removed from ${vehicle.displayName}.`,
       sound:     "default",
       channelId: "msafiri_general",
       data:      { type: "vehicle_member_removed", vehicleId },

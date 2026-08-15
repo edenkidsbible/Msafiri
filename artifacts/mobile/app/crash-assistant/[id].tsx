@@ -36,6 +36,7 @@ import { useColors } from "@/hooks/useColors";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { CAR_MAKES, getMakeById, getModelById } from "@/data/carModels";
 import { useDashcam, type DashcamSegment } from "@/context/DashcamContext";
+import AccidentLocationMap from "@/components/AccidentLocationMap";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -446,7 +447,8 @@ export default function CrashAssistantScreen() {
           driverStatement: statement || undefined,
           otherDriver: Object.keys(otherParty).length > 0 ? otherParty : undefined,
           myVehicle: vehicleSnapshot,
-          status: "complete",
+          // Don't downgrade an archived record — keep its status as-is.
+          ...(record?.status !== "archived" ? { status: "complete" } : {}),
         });
       } catch { /* proceed anyway */ }
 
@@ -465,7 +467,7 @@ export default function CrashAssistantScreen() {
     // Use the short branded URL that redirects server-side to the signed PDF.
     // This avoids sharing long presigned R2 URLs with insurers / authorities.
     const dateStr = record ? format(new Date(record.detectedAt), "d MMM yyyy") : "";
-    const shortUrl = `${API_BASE}/accidents/${id}/report/view`;
+    const shortUrl = `${API_BASE}/r/${id}`;
     try {
       await Share.share({ url: shortUrl, message: `Crash Report — ${dateStr}` });
     } catch {
@@ -890,6 +892,10 @@ function EvidenceStep({ record, colors, styles }: { record: AccidentRecord; colo
       {locationRows.length > 0 && (
         <>
           <SectionHeader title="Location" icon="location-outline" colors={colors} />
+          {/* Mini map pinned at the incident coordinates */}
+          {record.lat != null && record.lng != null && (
+            <AccidentLocationMap lat={record.lat} lng={record.lng} />
+          )}
           <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {locationRows.map((row, i) => (
               <View
