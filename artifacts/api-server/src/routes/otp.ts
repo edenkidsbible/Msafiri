@@ -1,20 +1,20 @@
 /**
- * OTP routes — phone-based account recovery
+ * OTP routes — email-based account recovery
  *
- * POST /auth/send-otp    — send a 6-digit OTP via SMS
+ * POST /auth/send-otp    — send a 6-digit OTP via email
  * POST /auth/verify-otp  — verify OTP; intent = "link" | "restore"
  *
- * Tables used (created by migrateSchema):
- *   phone_verifications  — hashed OTPs with TTL + attempt counter
- *   device_backups       — phone_number column (added by migrateSchema)
+ * Tables used (created/altered by migrateSchema):
+ *   phone_verifications  — hashed OTPs with TTL + attempt counter (email column)
+ *   device_backups       — recovery_email column (added by migrateSchema)
+ *
+ * SMS is NOT used here. SMS remains exclusively for emergency/SOS contacts.
  */
 import { Router } from "express";
 import { createHash, randomInt } from "crypto";
-import { db, deviceBackupsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { sendOtpSms } from "../lib/smsSender.js";
-import { SmsRestrictedTimeError } from "../lib/smsleopard.js";
+import { sendRecoveryOtpEmail } from "../lib/email.js";
 import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -31,44 +31,22 @@ function generateOtp(): string {
   return String(randomInt(100000, 999999));
 }
 
-/**
- * Normalise any Kenyan phone format → E.164 (+254XXXXXXXXX).
- *
- * Accepted inputs (spaces/dashes/dots stripped first):
- *   +254712345678   already E.164
- *   254712345678    no leading +
- *   0712345678      leading 0 (Safaricom / Airtel 07xx or 01xx)
- *   712345678       9-digit local (assume 7xx)
- *   0112345678      Airtel 01xx local
- *   112345678       9-digit Airtel (assume 1xx → 01xx)
- */
-function normalisePhone(raw: string): string | null {
-  // Strip whitespace, dashes, dots, parentheses
-  const s = raw.trim().replace(/[\s\-.()+]/g, "").replace(/^00/, "");
-
-  // Already valid E.164 (after stripping the +)
-  if (/^254\d{9}$/.test(s)) return "+" + s;
-
-  // 07XXXXXXXX or 01XXXXXXXX (10 digits, leading 0)
-  if (/^0[71]\d{8}$/.test(s)) return "+254" + s.slice(1);
-
-  // 7XXXXXXXX or 1XXXXXXXX (9 digits, no leading 0)
-  if (/^[71]\d{8}$/.test(s)) return "+254" + s;
-
-  return null;
+function normaliseEmail(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase();
+  // Basic RFC-5322 sanity check — not exhaustive, but catches obvious typos
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
+  return trimmed;
 }
 
 // ── POST /auth/send-otp ───────────────────────────────────────────────────────
-// Body: { phone, intent, deviceId? }
-// For link intent, deviceId is required — the OTP is bound to that device so
-// only the same device can verify it. This prevents a code intercepted via
-// iOS proximity sharing / iCloud from being usable on a different device.
+// Body: { email, intent, deviceId? }
+// For link intent, deviceId is required — the OTP is bound to that device.
 router.post("/auth/send-otp", async (req, res) => {
-  const { phone: rawPhone, intent, deviceId } =
-    req.body as { phone?: string; intent?: string; deviceId?: string };
+  const { email: rawEmail, intent, deviceId } =
+    req.body as { email?: string; intent?: string; deviceId?: string };
 
-  if (!rawPhone || !intent || !["link", "restore"].includes(intent)) {
-    return res.status(400).json({ error: "phone and intent (link|restore) are required" });
+  if (!rawEmail || !intent || !["link", "restore"].includes(intent)) {
+    return res.status(400).json({ error: "email and intent (link|restore) are required" });
   }
 
   // For link intent a deviceId is required so we can bind the OTP to the requester.
@@ -76,25 +54,25 @@ router.post("/auth/send-otp", async (req, res) => {
     return res.status(400).json({ error: "deviceId is required for link intent" });
   }
 
-  const phone = normalisePhone(rawPhone);
-  if (!phone) {
-    return res.status(400).json({ error: "Invalid phone number — use E.164 or Kenyan local format" });
+  const email = normaliseEmail(rawEmail);
+  if (!email) {
+    return res.status(400).json({ error: "Invalid email address" });
   }
 
-  // For restore intent: confirm a backup exists for this phone before sending
+  // For restore intent: confirm a backup exists for this email before sending
   if (intent === "restore") {
     const rows = await db.execute(
-      sql`SELECT id FROM device_backups WHERE phone_number = ${phone} LIMIT 1`
+      sql`SELECT id FROM device_backups WHERE recovery_email = ${email} LIMIT 1`
     );
     if ((rows.rows as any[]).length === 0) {
-      return res.status(404).json({ error: "No account found for this phone number" });
+      return res.status(404).json({ error: "No account found for this email address" });
     }
   }
 
   // Rate-limit: reject if an active (non-expired, <5 attempts) OTP already exists
   const existing = await db.execute(
     sql`SELECT id FROM phone_verifications
-        WHERE phone = ${phone} AND expires_at > NOW() AND attempts < 5
+        WHERE email = ${email} AND expires_at > NOW() AND attempts < 5
         LIMIT 1`
   );
   if ((existing.rows as any[]).length > 0) {
@@ -107,84 +85,65 @@ router.post("/auth/send-otp", async (req, res) => {
   // Store intent and requesting device so verify can enforce binding
   await db.execute(
     sql`INSERT INTO phone_verifications
-          (phone, otp_hash, expires_at, attempts, verified, intent, requesting_device_id)
+          (email, otp_hash, expires_at, attempts, verified, intent, requesting_device_id)
         VALUES
-          (${phone}, ${hashed}, NOW() + INTERVAL '10 minutes', 0, FALSE,
+          (${email}, ${hashed}, NOW() + INTERVAL '10 minutes', 0, FALSE,
            ${intent}, ${deviceId ?? null})`
   );
 
   if (isDev) {
-    logger.info({ phone, otp, intent }, "[OTP-DEV] Generated OTP — check this log to verify");
+    logger.info({ email, otp, intent }, "[OTP-DEV] Generated OTP — check this log to verify");
   }
 
-  // Intent-specific SMS text
-  const smsMessage = intent === "restore"
-    ? `Msafiri Kenya data recovery code: ${otp}. Expires in 10 min. ` +
-      `Enter this in the app to restore your account. ` +
-      `Do NOT share this code — Msafiri staff will never ask for it.`
-    : `Msafiri Kenya security code: ${otp}. Expires in 10 min. ` +
-      `Use this in the app to link your phone for account recovery. ` +
-      `If you did not request this, ignore this message.`;
-
-  try {
-    await sendOtpSms(phone, smsMessage);
-  } catch (sendErr: any) {
+  const sent = await sendRecoveryOtpEmail({ toEmail: email, otp, intent: intent as "link" | "restore" });
+  if (!sent) {
     // Roll back the record so the user can retry immediately
     await db.execute(
-      sql`DELETE FROM phone_verifications WHERE phone = ${phone} AND otp_hash = ${hashed}`
+      sql`DELETE FROM phone_verifications WHERE email = ${email} AND otp_hash = ${hashed}`
     ).catch(() => {});
 
-    if (sendErr instanceof SmsRestrictedTimeError) {
-      // Carrier-level time restriction — all carriers and sender IDs on this
-      // SMSLeopard account are subject to the 8 AM – 6 PM EAT send window.
-      return res.status(403).json({
-        error: "SMS codes for this number can only be sent between 8:00 AM and 6:00 PM EAT. Please try again during those hours.",
-        code: "OUTSIDE_SEND_WINDOW",
-      });
-    }
-
-    logger.error({ err: sendErr?.message }, "[OTP] SMS send failed");
-    const detail = isDev ? ` (${sendErr?.message ?? "unknown"})` : "";
-    return res.status(502).json({ error: `Failed to send SMS. Try again.${detail}` });
+    logger.error({ email }, "[OTP] Email send failed");
+    const detail = isDev ? " (check RESEND_API_KEY and server logs)" : "";
+    return res.status(502).json({ error: `Failed to send email. Try again.${detail}` });
   }
 
   return res.json({ ok: true, ...(isDev ? { devOtp: otp } : {}) });
 });
 
 // ── POST /auth/verify-otp ─────────────────────────────────────────────────────
-// Body: { phone, otp, intent, deviceId? (for link), newDeviceId? (for restore) }
+// Body: { email, otp, intent, deviceId? (for link), newDeviceId? (for restore) }
 router.post("/auth/verify-otp", async (req, res) => {
   const {
-    phone: rawPhone,
+    email: rawEmail,
     otp,
     intent,
     deviceId,
     newDeviceId,
   } = req.body as {
-    phone?:       string;
+    email?:       string;
     otp?:         string;
     intent?:      string;
     deviceId?:    string;
     newDeviceId?: string;
   };
 
-  if (!rawPhone || !otp || !intent) {
-    return res.status(400).json({ error: "phone, otp, and intent are required" });
+  if (!rawEmail || !otp || !intent) {
+    return res.status(400).json({ error: "email, otp, and intent are required" });
   }
   if (!["link", "restore"].includes(intent)) {
     return res.status(400).json({ error: "intent must be 'link' or 'restore'" });
   }
 
-  const phone = normalisePhone(rawPhone);
-  if (!phone) {
-    return res.status(400).json({ error: "Invalid phone number" });
+  const email = normaliseEmail(rawEmail);
+  if (!email) {
+    return res.status(400).json({ error: "Invalid email address" });
   }
 
-  // Find the most-recent active record for this phone
+  // Find the most-recent active record for this email
   const recordsResult = await db.execute(
     sql`SELECT id, otp_hash, attempts, intent AS stored_intent, requesting_device_id
         FROM phone_verifications
-        WHERE phone = ${phone} AND expires_at > NOW()
+        WHERE email = ${email} AND expires_at > NOW()
         ORDER BY expires_at DESC
         LIMIT 1`
   );
@@ -227,25 +186,22 @@ router.post("/auth/verify-otp", async (req, res) => {
     }
 
     // Device binding: if the OTP was created with a requesting_device_id, the
-    // verifying device must match. This blocks a code intercepted on another
-    // Apple device (via iCloud proximity / Handoff) from being used to claim
-    // a phone number on a different device.
+    // verifying device must match.
     if (record.requesting_device_id && record.requesting_device_id !== deviceId) {
-      logger.warn({ phone, requestingDevice: record.requesting_device_id, verifyingDevice: deviceId },
+      logger.warn({ email, requestingDevice: record.requesting_device_id, verifyingDevice: deviceId },
         "[OTP] Link rejected — verifying device does not match requesting device");
       return res.status(403).json({
         error: "This code was sent to a different device. Request a new code on this device.",
       });
     }
 
-    // Upsert: if the device has never synced a backup yet there is no row to
-    // UPDATE — use INSERT … ON CONFLICT so the phone number is always persisted.
+    // Upsert: persist recovery_email onto this device's backup record
     await db.execute(
-      sql`INSERT INTO device_backups (device_id, phone_number, vehicles_json, settings_json)
-          VALUES (${deviceId}, ${phone}, '[]', '{}')
-          ON CONFLICT (device_id) DO UPDATE SET phone_number = EXCLUDED.phone_number`
+      sql`INSERT INTO device_backups (device_id, recovery_email, vehicles_json, settings_json)
+          VALUES (${deviceId}, ${email}, '[]', '{}')
+          ON CONFLICT (device_id) DO UPDATE SET recovery_email = EXCLUDED.recovery_email`
     );
-    return res.json({ ok: true, phone });
+    return res.json({ ok: true, email });
   }
 
   // ── Intent: restore ───────────────────────────────────────────────────────
@@ -255,21 +211,21 @@ router.post("/auth/verify-otp", async (req, res) => {
 
   const backupsResult = await db.execute(
     sql`SELECT vehicles_json, settings_json FROM device_backups
-        WHERE phone_number = ${phone}
+        WHERE recovery_email = ${email}
         ORDER BY last_backup_at DESC
         LIMIT 1`
   );
   const backups = backupsResult.rows as any[];
 
   if (backups.length === 0) {
-    return res.status(404).json({ error: "No backup found for this phone number" });
+    return res.status(404).json({ error: "No backup found for this email address" });
   }
 
   const backup = backups[0];
 
-  // Migrate device ID to the new device
+  // Migrate device ID to the new device; keep recovery_email
   await db.execute(
-    sql`UPDATE device_backups SET device_id = ${newDeviceId} WHERE phone_number = ${phone}`
+    sql`UPDATE device_backups SET device_id = ${newDeviceId} WHERE recovery_email = ${email}`
   );
 
   let vehicles: unknown[] = [];

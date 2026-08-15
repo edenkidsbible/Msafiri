@@ -1012,16 +1012,16 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>DATA &amp; RECOVERY</Text>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.cardLabel, { color: c.mutedForeground }]}>
-            Link a phone number to recover your vehicles and settings on a new device via SMS verification.
+            Link an email address to recover your vehicles and settings on a new device via email verification.
           </Text>
 
           <TouchableOpacity
             style={[styles.deleteDataBtn, { borderColor: c.primary + "50", backgroundColor: c.primary + "0D" }]}
             activeOpacity={0.75}
-            onPress={() => router.push("/link-phone" as any)}
+            onPress={() => router.push("/link-email" as any)}
           >
-            <Ionicons name="phone-portrait-outline" size={16} color={c.primary} />
-            <Text style={[styles.deleteDataBtnText, { color: c.primary }]}>Link Recovery Phone</Text>
+            <Ionicons name="mail-outline" size={16} color={c.primary} />
+            <Text style={[styles.deleteDataBtnText, { color: c.primary }]}>Link Recovery Email</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

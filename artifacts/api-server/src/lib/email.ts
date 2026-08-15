@@ -227,6 +227,89 @@ export async function sendVehicleClaimAlert(opts: {
   }
 }
 
+// ── Recovery OTP email ────────────────────────────────────────────────────────
+
+export async function sendRecoveryOtpEmail(opts: {
+  toEmail: string;
+  otp:     string;
+  intent:  "link" | "restore";
+}): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+
+  const isRestore = opts.intent === "restore";
+  const subject   = isRestore
+    ? `Your Msafiri data recovery code: ${opts.otp}`
+    : `Your Msafiri account security code: ${opts.otp}`;
+
+  const actionLine = isRestore
+    ? "Enter this code in the Msafiri app to restore your vehicles and settings on your new device."
+    : "Enter this code in the Msafiri app to link your email for account recovery.";
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;color:#111;max-width:520px;margin:0 auto;padding:24px;">
+  <div style="margin-bottom:20px;">
+    <span style="font-size:26px;font-weight:700;color:#1a7a3c;">Msafiri</span>
+    <span style="font-size:13px;color:#666;margin-left:8px;">Kenya</span>
+  </div>
+
+  <p style="font-size:20px;font-weight:700;margin-bottom:6px;">
+    ${isRestore ? "🔐 Data Recovery Code" : "🔑 Security Verification Code"}
+  </p>
+
+  <p style="color:#444;font-size:14px;line-height:1.6;">
+    ${actionLine}
+  </p>
+
+  <div style="background:#f0faf3;border:2px solid #22c55e;border-radius:12px;padding:24px;margin:24px 0;text-align:center;">
+    <p style="font-size:12px;color:#666;margin:0 0 8px;letter-spacing:.08em;text-transform:uppercase;">Your one-time code</p>
+    <span style="font-size:40px;font-weight:700;letter-spacing:10px;color:#1a7a3c;">${opts.otp}</span>
+    <p style="font-size:12px;color:#888;margin:10px 0 0;">Expires in 10 minutes</p>
+  </div>
+
+  <p style="font-size:13px;color:#888;line-height:1.6;">
+    <strong>Never share this code.</strong> Msafiri staff will never ask for it.
+    If you did not request this, you can safely ignore this email — your data is not at risk.
+  </p>
+
+  <hr style="border:none;border-top:1px solid #eee;margin:28px 0;"/>
+  <p style="color:#aaa;font-size:12px;">— The Msafiri Kenya Team</p>
+</body>
+</html>`;
+
+  const text = [
+    isRestore ? "Msafiri Data Recovery Code" : "Msafiri Security Verification Code",
+    "",
+    actionLine,
+    "",
+    `Code: ${opts.otp}`,
+    "",
+    "This code expires in 10 minutes.",
+    "Never share this code — Msafiri staff will never ask for it.",
+    "",
+    "— The Msafiri Kenya Team",
+  ].join("\n");
+
+  try {
+    const { error } = await client.emails.send({
+      from:    FROM,
+      to:      opts.toEmail,
+      subject,
+      html,
+      text,
+    });
+    if (error) {
+      logger.error({ error }, "Resend error sending recovery OTP email");
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.error({ err }, "Failed to send recovery OTP email");
+    return false;
+  }
+}
+
 export async function sendCreatorPromoCode(opts: {
   toEmail:  string;
   toName:   string | null;

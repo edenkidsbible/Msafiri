@@ -10,8 +10,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { apiGet } from "@/utils/apiClient";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import Constants from "expo-constants";
-import { getLinkedPhone } from "@/utils/backupSync";
-import { displayKenyaPhone } from "@/utils/phoneUtils";
+import { getLinkedEmail } from "@/utils/backupSync";
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 
@@ -68,7 +67,7 @@ export default function ProfileScreen() {
   // Personal Information screen show up immediately when returning here.
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
-  const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
+  const [linkedEmail, setLinkedEmail] = useState<string | null>(null);
   const [emergencyContactCount, setEmergencyContactCount] = useState<number | null>(null);
 
   useFocusEffect(
@@ -77,12 +76,12 @@ export default function ProfileScreen() {
       Promise.all([
         AsyncStorage.getItem("profile_email"),
         AsyncStorage.getItem("profile_phone"),
-        getLinkedPhone(),
+        getLinkedEmail(),
       ]).then(([email, phone, linked]) => {
         if (!active) return;
         setProfileEmail(email ?? "");
         setProfilePhone(phone ?? "");
-        setLinkedPhone(linked);
+        setLinkedEmail(linked);
       }).catch(() => {});
 
       // Fetch real emergency contact count
@@ -322,19 +321,19 @@ export default function ProfileScreen() {
           <Text style={[styles.sectionTitle, { color: c.foreground, marginHorizontal: 16 }]}>Data & Recovery</Text>
           <View style={[styles.sectionGroup, { backgroundColor: c.card, borderColor: c.tileBorder, marginHorizontal: 16 }]}>
             <SettingsRow
-              icon="phone-portrait-outline"
+              icon="mail-outline"
               iconColor="#22C55E"
-              title="Recovery Phone"
-              sub={linkedPhone ? displayKenyaPhone(linkedPhone) : "Tap to link your phone number"}
-              badge={linkedPhone ? "Update" : "Link"}
-              badgeColor={linkedPhone ? c.mutedForeground : c.primary}
-              onPress={() => router.push("/link-phone" as any)}
+              title="Recovery Email"
+              sub={linkedEmail ? linkedEmail : "Tap to link your email address"}
+              badge={linkedEmail ? "Update" : "Link"}
+              badgeColor={linkedEmail ? c.mutedForeground : c.primary}
+              onPress={() => router.push("/link-email" as any)}
             />
             <SettingsRow
               icon="refresh-circle-outline"
               iconColor="#3B82F6"
               title="Restore / Recover Data"
-              sub="Recover your vehicles and settings via SMS"
+              sub="Recover your vehicles and settings via email"
               onPress={() => router.push("/restore-data" as any)}
               isLast
             />

@@ -3,7 +3,9 @@
  *
  * Responsibilities:
  *  • Upload a fresh vehicle + settings snapshot whenever data changes
- *  • OTP-based phone linking and restore
+ *  • OTP-based email linking and restore
+ *
+ * SMS is NOT used here. SMS is exclusively for emergency/SOS contacts.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,7 +15,7 @@ import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 // ── AsyncStorage keys ─────────────────────────────────────────────────────────
 
 const LAST_SYNC_KEY    = "msafiri_backup_last_sync_v1";
-const LINKED_PHONE_KEY = "msafiri_linked_phone_v1";
+const LINKED_EMAIL_KEY = "msafiri_linked_email_v1";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,60 +53,63 @@ export async function syncBackup(
   }
 }
 
-// ── Phone OTP helpers ─────────────────────────────────────────────────────────
+// ── Email OTP helpers ─────────────────────────────────────────────────────────
 
-/** Returns the OTP-verified recovery phone number, or null if not linked. */
-export async function getLinkedPhone(): Promise<string | null> {
-  return AsyncStorage.getItem(LINKED_PHONE_KEY).catch(() => null);
+/** Returns the OTP-verified recovery email address, or null if not linked. */
+export async function getLinkedEmail(): Promise<string | null> {
+  return AsyncStorage.getItem(LINKED_EMAIL_KEY).catch(() => null);
 }
 
 /**
- * Sends an OTP to the given E.164 phone number.
- * intent: "link"    → link this phone to the current device's backup.
- *                     deviceId is required: the OTP is bound to this device
- *                     so only the same device can verify it (prevents a code
- *                     intercepted on another Apple device from being used).
- *         "restore" → look up a backup by phone and send restore OTP
+ * Sends an OTP to the given email address.
+ * intent: "link"    → link this email to the current device's backup.
+ *                     deviceId is required: the OTP is bound to this device.
+ *         "restore" → look up a backup by email and send restore OTP.
  */
 export async function sendOtp(
-  phone: string,
+  email: string,
   intent: "link" | "restore",
   deviceId?: string,
 ): Promise<{ ok: boolean; devOtp?: string }> {
   return apiPost<{ ok: boolean; devOtp?: string }>("/auth/send-otp", {
-    phone,
+    email,
     intent,
     ...(deviceId ? { deviceId } : {}),
   });
 }
 
 /**
- * Verifies an OTP and links the phone to this device's backup record.
- * Saves the phone locally on success.
+ * Verifies an OTP and links the email to this device's backup record.
+ * Saves the email locally on success.
  */
-export async function verifyAndLinkPhone(
-  phone: string,
+export async function verifyAndLinkEmail(
+  email: string,
   otp: string,
   deviceId: string,
 ): Promise<void> {
-  await apiPost("/auth/verify-otp", { phone, otp, intent: "link", deviceId });
-  await AsyncStorage.setItem(LINKED_PHONE_KEY, phone).catch(() => {});
+  await apiPost("/auth/verify-otp", { email, otp, intent: "link", deviceId });
+  await AsyncStorage.setItem(LINKED_EMAIL_KEY, email).catch(() => {});
 }
 
 /**
- * Verifies an OTP and restores backup data for the given phone number.
+ * Verifies an OTP and restores backup data for the given email address.
  * Returns vehicles and settings on success, throws on failure.
  */
-export async function restoreViaPhone(
-  phone: string,
+export async function restoreViaEmail(
+  email: string,
   otp: string,
   newDeviceId: string,
 ): Promise<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }> {
   const result = await apiPost<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }>(
     "/auth/verify-otp",
-    { phone, otp, intent: "restore", newDeviceId },
+    { email, otp, intent: "restore", newDeviceId },
   );
-  await AsyncStorage.setItem(LINKED_PHONE_KEY, phone).catch(() => {});
+  await AsyncStorage.setItem(LINKED_EMAIL_KEY, email).catch(() => {});
   return result;
 }
 
+// ── Legacy compat — getLinkedPhone was used by several screens; keep an alias
+// so any file not yet updated continues to compile. Remove once all callers
+// have been migrated to getLinkedEmail.
+/** @deprecated Use getLinkedEmail instead */
+export const getLinkedPhone = getLinkedEmail;

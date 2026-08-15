@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
-import { getLinkedPhone } from "@/utils/backupSync";
+import { getLinkedEmail } from "@/utils/backupSync";
 import { useColors } from "@/hooks/useColors";
 import { getVehicleTypeDef, VEHICLE_TYPES } from "@/data/vehicleTypes";
 import type { VehicleTypeId } from "@/data/vehicleTypes";
@@ -29,7 +29,7 @@ export default function PersonalInformationScreen() {
   const [name, setName] = useState(driverName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
+  const [linkedEmail, setLinkedEmail] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [showVehiclePicker, setShowVehiclePicker] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
@@ -41,9 +41,9 @@ export default function PersonalInformationScreen() {
     AsyncStorage.getItem("profile_photo_uri").then(val => { if (val) setPhotoUri(val); });
   }, []);
 
-  // Re-check linked phone whenever this screen gains focus (e.g. returning from /link-phone)
+  // Re-check linked email whenever this screen gains focus (e.g. returning from /link-email)
   useFocusEffect(useCallback(() => {
-    getLinkedPhone().then(linked => setLinkedPhone(linked)).catch(() => {});
+    getLinkedEmail().then(linked => setLinkedEmail(linked)).catch(() => {});
   }, []));
 
   const pickPhoto = async () => {
@@ -213,19 +213,19 @@ export default function PersonalInformationScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Recovery phone — OTP-verified, read-only */}
+          {/* Recovery email — OTP-verified, read-only */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: c.mutedForeground }]}>Recovery Phone</Text>
-            {linkedPhone ? (
+            <Text style={[styles.label, { color: c.mutedForeground }]}>Recovery Email</Text>
+            {linkedEmail ? (
               <TouchableOpacity
                 style={[styles.input, styles.readOnlyRow, { backgroundColor: c.muted }]}
-                onPress={() => router.push("/link-phone" as any)}
+                onPress={() => router.push("/link-email" as any)}
                 activeOpacity={0.75}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
                   <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
-                  <Text style={{ color: c.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }}>
-                    {linkedPhone.replace(/(\+254)(\d{3})(\d{3})(\d{3})/, "$1 $2 $3 $4")}
+                  <Text style={{ color: c.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }} numberOfLines={1}>
+                    {linkedEmail}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: c.primary }}>Change</Text>
@@ -235,18 +235,18 @@ export default function PersonalInformationScreen() {
                 style={[styles.input, { backgroundColor: c.primary + "10", borderWidth: 1,
                   borderColor: c.primary + "40", borderRadius: 10, flexDirection: "row",
                   alignItems: "center", gap: 8 }]}
-                onPress={() => router.push("/link-phone" as any)}
+                onPress={() => router.push("/link-email" as any)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="phone-portrait-outline" size={16} color={c.primary} />
+                <Ionicons name="mail-outline" size={16} color={c.primary} />
                 <Text style={{ color: c.primary, fontFamily: "Inter_500Medium", fontSize: 14, flex: 1 }}>
-                  Link recovery phone
+                  Link recovery email
                 </Text>
                 <Ionicons name="chevron-forward" size={14} color={c.primary} />
               </TouchableOpacity>
             )}
             <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginTop: 4, lineHeight: 15 }}>
-              Used to restore your data via SMS if you lose your phone.
+              Used to restore your data via email if you change devices.
             </Text>
           </View>
 

@@ -49,9 +49,9 @@ import {
 } from "@/utils/driveSessionApi";
 import { useVehicle } from "@/context/VehicleContext";
 import { QUICK_START_KEY } from "@/app/pretrip-check";
-import { getLinkedPhone } from "@/utils/backupSync";
+import { getLinkedEmail } from "@/utils/backupSync";
 
-const PHONE_LINK_BANNER_DISMISSED_KEY = "phoneLinkBannerDismissedAt";
+const EMAIL_LINK_BANNER_DISMISSED_KEY = "emailLinkBannerDismissedAt";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -290,32 +290,32 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => { setHour(new Date().getHours()); }, []));
   const firstName = driverName ? driverName.split(" ")[0] : "driver";
 
-  // ── Phone-link nudge banner ────────────────────────────────────────────────
-  // Shown for up to 7 days after onboarding when no recovery phone is linked
+  // ── Email-link nudge banner ────────────────────────────────────────────────
+  // Shown for up to 7 days after onboarding when no recovery email is linked
   // and the banner hasn't been permanently dismissed.
-  const [showPhoneLinkBanner, setShowPhoneLinkBanner] = useState(false);
+  const [showEmailLinkBanner, setShowEmailLinkBanner] = useState(false);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       (async () => {
         try {
-          const [phone, dismissedAt, completedAt] = await Promise.all([
-            getLinkedPhone().catch(() => null),
-            AsyncStorage.getItem(PHONE_LINK_BANNER_DISMISSED_KEY),
+          const [linkedEmail, dismissedAt, completedAt] = await Promise.all([
+            getLinkedEmail().catch(() => null),
+            AsyncStorage.getItem(EMAIL_LINK_BANNER_DISMISSED_KEY),
             AsyncStorage.getItem("onboardingCompletedAt"),
           ]);
           if (!alive) return;
-          if (phone) { setShowPhoneLinkBanner(false); return; }
-          if (dismissedAt) { setShowPhoneLinkBanner(false); return; }
+          if (linkedEmail) { setShowEmailLinkBanner(false); return; }
+          if (dismissedAt) { setShowEmailLinkBanner(false); return; }
           // Only show for users who went through the new onboarding flow
           // (onboardingCompletedAt written by finish()). Missing key = pre-update
           // user → no banner so they aren't nagged indefinitely.
-          if (!completedAt) { setShowPhoneLinkBanner(false); return; }
+          if (!completedAt) { setShowEmailLinkBanner(false); return; }
           const elapsed = Date.now() - parseInt(completedAt, 10);
-          if (isNaN(elapsed) || elapsed > SEVEN_DAYS_MS) { setShowPhoneLinkBanner(false); return; }
-          setShowPhoneLinkBanner(true);
+          if (isNaN(elapsed) || elapsed > SEVEN_DAYS_MS) { setShowEmailLinkBanner(false); return; }
+          setShowEmailLinkBanner(true);
         } catch {
-          setShowPhoneLinkBanner(false);
+          setShowEmailLinkBanner(false);
         }
       })();
       return () => { alive = false; };
@@ -528,11 +528,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Phone-link nudge banner ────────────────────────────────────── */}
-        {showPhoneLinkBanner && (
+        {/* ── Email-link nudge banner ────────────────────────────────────── */}
+        {showEmailLinkBanner && (
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => router.push("/link-phone" as any)}
+            onPress={() => router.push("/link-email" as any)}
             style={[styles.phoneLinkBanner, { backgroundColor: c.card, borderColor: c.primary + "44" }]}
           >
             <View style={[styles.phoneLinkIcon, { backgroundColor: c.primary + "18" }]}>
@@ -543,15 +543,15 @@ export default function HomeScreen() {
                 Secure your account
               </Text>
               <Text style={[styles.phoneLinkSub, { color: c.mutedForeground }]}>
-                Link a phone number to restore your data on any new device.
+                Link an email address to restore your data on any new device.
               </Text>
             </View>
             <TouchableOpacity
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
               onPress={async (e) => {
                 e.stopPropagation();
-                await AsyncStorage.setItem(PHONE_LINK_BANNER_DISMISSED_KEY, Date.now().toString()).catch(() => {});
-                setShowPhoneLinkBanner(false);
+                await AsyncStorage.setItem(EMAIL_LINK_BANNER_DISMISSED_KEY, Date.now().toString()).catch(() => {});
+                setShowEmailLinkBanner(false);
               }}
             >
               <Ionicons name="close" size={16} color={c.mutedForeground} />

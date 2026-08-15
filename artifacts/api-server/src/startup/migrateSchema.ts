@@ -475,6 +475,41 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS last_bg_wakeup_at TIMESTAMP
     `);
 
+    // ── Email-based OTP recovery (replaces phone/SMS) ─────────────────────────
+    // phone_verifications: add email column; make phone nullable so new email-
+    // based OTPs don't require a phone number.
+    await db.execute(sql`
+      ALTER TABLE phone_verifications
+      ADD COLUMN IF NOT EXISTS email TEXT
+    `);
+    await db.execute(sql`
+      ALTER TABLE phone_verifications
+      ADD COLUMN IF NOT EXISTS intent TEXT
+    `);
+    await db.execute(sql`
+      ALTER TABLE phone_verifications
+      ADD COLUMN IF NOT EXISTS requesting_device_id TEXT
+    `);
+    await db.execute(sql`
+      ALTER TABLE phone_verifications
+      ALTER COLUMN phone DROP NOT NULL
+    `).catch(() => {/* already nullable */});
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS phone_verif_email_expires_idx
+        ON phone_verifications (email, expires_at)
+        WHERE email IS NOT NULL
+    `);
+    // device_backups: add recovery_email column for email-based restore
+    await db.execute(sql`
+      ALTER TABLE device_backups
+      ADD COLUMN IF NOT EXISTS recovery_email TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS device_backups_recovery_email_idx
+        ON device_backups (recovery_email)
+        WHERE recovery_email IS NOT NULL
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
