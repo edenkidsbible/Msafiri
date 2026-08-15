@@ -63,10 +63,16 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
 
   const token = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
 
+  // SMSLeopard requires the number WITHOUT the leading '+'.
+  // Passing '+254...' causes a "no valid recipients / status:failed" rejection
+  // even though the number is structurally valid. Strip the '+' so the
+  // destination is in the '254XXXXXXXXX' format the API actually accepts.
+  const normalizedTo = to.replace(/^\+/, "");
+
   const body = {
     source:      senderId,
     message,
-    destination: [{ number: to }],
+    destination: [{ number: normalizedTo }],
   };
 
   const res = await fetch(ENDPOINT, {
