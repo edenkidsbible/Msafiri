@@ -108,6 +108,28 @@ export async function restoreViaEmail(
   return result;
 }
 
+/**
+ * Plate-based recovery for accounts that have no recovery email on file.
+ *
+ * The user supplies their plate + vehicle details; the server verifies them
+ * against the stored backup and returns {vehicles, settings} if they match.
+ *
+ * After a successful restore the caller MUST prompt the user to link a
+ * recovery email (via sendOtp + verifyAndLinkEmail) to prevent future lockout.
+ */
+export async function restoreByPlate(
+  plateNumber:  string,
+  vehicleType:  string,
+  fuelType:     string | undefined,
+  transmission: string | undefined,
+  newDeviceId:  string,
+): Promise<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }> {
+  return apiPost<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }>(
+    "/backup/restore-by-plate",
+    { plateNumber, vehicleType, fuelType, transmission, newDeviceId },
+  );
+}
+
 // ── Legacy compat — getLinkedPhone was used by several screens; keep an alias
 // so any file not yet updated continues to compile. Remove once all callers
 // have been migrated to getLinkedEmail.

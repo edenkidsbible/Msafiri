@@ -238,6 +238,20 @@ export default function RestoreDataScreen() {
           </View>
         )}
 
+        {/* No-email fallback link — shown only on step 1 */}
+        {step === 1 && (
+          <TouchableOpacity
+            onPress={() => router.push("/restore-by-plate")}
+            activeOpacity={0.7}
+            style={s.altLink}
+          >
+            <Ionicons name="car-outline" size={14} color={c.mutedForeground} />
+            <Text style={[s.altLinkTxt, { color: c.mutedForeground }]}>
+              Never linked an email? Recover with your plate number
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* CTA */}
         <TouchableOpacity
           style={[s.cta, {
@@ -288,4 +302,6 @@ const s = StyleSheet.create({
   emailChipTxt: { fontSize: 12, fontFamily: "Inter_700Bold", flexShrink: 1 },
   cta:          { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16 },
   ctaTxt:       { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+  altLink:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4 },
+  altLinkTxt:   { fontSize: 13, fontFamily: "Inter_400Regular", textDecorationLine: "underline" },
 });
