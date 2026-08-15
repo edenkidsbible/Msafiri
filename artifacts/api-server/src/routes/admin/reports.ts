@@ -460,10 +460,10 @@ router.get("/reports/export", requireFeature("reports_export"), async (req: Requ
 // POST /admin/reports
 router.post("/reports", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
-    const { type, lat, lng, deviceId, status, speedLimit, roadName } = req.body as {
+    const { type, lat, lng, deviceId, status, speedLimit, roadName, cameraType } = req.body as {
       type: string; lat: number; lng: number;
       deviceId?: string; status?: string;
-      speedLimit?: number; roadName?: string;
+      speedLimit?: number; roadName?: string; cameraType?: string | null;
     };
 
     if (!type || lat == null || lng == null) {
@@ -480,6 +480,7 @@ router.post("/reports", requireFeature("reports"), async (req: Request, res: Res
         status: status ?? "active",
         speedLimit: speedLimit ?? null,
         roadName: roadName ?? null,
+        cameraType: type === "camera" ? (cameraType ?? null) : null,
       })
       .returning();
 
@@ -917,10 +918,10 @@ router.post("/reports/bulk", requireFeature("reports_bulk"), async (req: Request
 router.patch("/reports/:id", requireFeature("reports"), async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
-    const { type, lat, lng, status, speedLimit, roadName, confirmCount, denyCount } = req.body as {
+    const { type, lat, lng, status, speedLimit, roadName, confirmCount, denyCount, cameraType } = req.body as {
       type?: string; lat?: number; lng?: number; status?: string;
       speedLimit?: number | null; roadName?: string | null;
-      confirmCount?: number; denyCount?: number;
+      confirmCount?: number; denyCount?: number; cameraType?: string | null;
     };
 
     const [existing] = await db
@@ -939,6 +940,7 @@ router.patch("/reports/:id", requireFeature("reports"), async (req: Request, res
     if (roadName     !== undefined) updates["roadName"]     = roadName;
     if (confirmCount !== undefined) updates["confirmCount"] = confirmCount;
     if (denyCount    !== undefined) updates["denyCount"]    = denyCount;
+    if (cameraType   !== undefined) updates["cameraType"]   = (type ?? existing.type) === "camera" ? (cameraType ?? null) : null;
 
     const [updated] = await db
       .update(communityReportsTable)

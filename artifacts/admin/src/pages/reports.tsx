@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw, Camera, ChevronDown, ChevronUp, Cpu, ExternalLink } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, CheckCircle2, XCircle, Download, Upload, ShieldOff, ShieldAlert, RefreshCw, Camera, ChevronDown, ChevronUp, Cpu, ExternalLink, Target, X } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -60,6 +60,7 @@ const reportSchema = z.object({
   status:     z.string().min(1, "Status is required"),
   roadName:   z.string().optional().nullable(),
   speedLimit: z.coerce.number().optional().nullable(),
+  cameraType: z.string().optional().nullable(),
 });
 
 function handleExportCsv(type?: string, status?: string) {
@@ -106,6 +107,7 @@ export default function Reports() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
+  const [dropPinMode, setDropPinMode] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<AdminReport | null>(null);
@@ -344,7 +346,7 @@ export default function Reports() {
 
   const createForm = useForm<z.infer<typeof reportSchema>>({
     resolver: zodResolver(reportSchema),
-    defaultValues: { type: "hazard", lat: 0, lng: 0, status: "active", roadName: "", speedLimit: 0 },
+    defaultValues: { type: "hazard", lat: 0, lng: 0, status: "active", roadName: "", speedLimit: 0, cameraType: null },
   });
 
   const editForm = useForm<z.infer<typeof reportSchema>>({ resolver: zodResolver(reportSchema) });
@@ -362,7 +364,7 @@ export default function Reports() {
   };
 
   const openEditDialog = (report: AdminReport) => {
-    editForm.reset({ type: report.type, lat: report.lat, lng: report.lng, status: report.status, roadName: report.roadName || "", speedLimit: report.speedLimit || 0 });
+    editForm.reset({ type: report.type, lat: report.lat, lng: report.lng, status: report.status, roadName: report.roadName || "", speedLimit: report.speedLimit || 0, cameraType: (report as any).cameraType ?? null });
     setEditingReport(report);
   };
 
@@ -380,7 +382,7 @@ export default function Reports() {
 
   const handleMapClick = (lat: number, lng: number) => {
     setPendingCoords({ lat, lng });
-    createForm.reset({ type: "hazard", lat, lng, status: "active", roadName: "", speedLimit: 0 });
+    createForm.reset({ type: "camera", lat, lng, status: "active", roadName: "", speedLimit: 50, cameraType: null });
     setIsAddOpen(true);
   };
 
@@ -509,13 +511,24 @@ export default function Reports() {
             </Button>
 
             <div className="flex bg-muted/50 p-1 rounded-lg">
-              <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" className="h-8 gap-2 px-3 shadow-none" onClick={() => setViewMode("table")} data-testid="btn-view-table">
+              <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" className="h-8 gap-2 px-3 shadow-none" onClick={() => { setViewMode("table"); setDropPinMode(false); }} data-testid="btn-view-table">
                 <List className="h-4 w-4" /> Table
               </Button>
               <Button variant={viewMode === "map" ? "secondary" : "ghost"} size="sm" className="h-8 gap-2 px-3 shadow-none" onClick={() => setViewMode("map")} data-testid="btn-view-map">
                 <Map className="h-4 w-4" /> Map
               </Button>
             </div>
+
+            <Button
+              variant={dropPinMode ? "default" : "outline"}
+              size="sm"
+              className="gap-2 shadow-none"
+              onClick={() => { setViewMode("map"); setDropPinMode((v) => !v); if (dropPinMode) setPendingCoords(null); }}
+              data-testid="btn-drop-pin"
+            >
+              <Target className="h-4 w-4" />
+              {dropPinMode ? "Pinning…" : "Drop Pin"}
+            </Button>
 
             <Dialog open={isAddOpen} onOpenChange={(open) => {
               setIsAddOpen(open);
@@ -616,6 +629,22 @@ export default function Reports() {
                           </Select><FormMessage /></FormItem>
                       )} />
                     </div>
+
+                    {createForm.watch("type") === "camera" && (
+                      <FormField control={createForm.control} name="cameraType" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Camera Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger></FormControl>
+                            <SelectContent className="z-[99999]">
+                              <SelectItem value="fixed">Fixed — stationary camera</SelectItem>
+                              <SelectItem value="mobile">Mobile — roaming enforcement</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    )}
 
                     <div className="grid grid-cols-2 gap-3">
                       <FormField control={createForm.control} name="roadName" render={({ field }) => (
@@ -905,14 +934,25 @@ export default function Reports() {
             </div>
           ) : (
             <div className="space-y-3">
+              {dropPinMode && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-primary/10 border border-primary/30 rounded-lg text-sm">
+                  <div className="flex items-center gap-2 text-primary font-medium">
+                    <Target className="h-4 w-4 shrink-0" />
+                    Click anywhere on the map to drop a pin and log a new incident.
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs shrink-0" onClick={() => { setDropPinMode(false); setPendingCoords(null); }}>
+                    <X className="h-3.5 w-3.5" /> Exit
+                  </Button>
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm">
                 {data && data.reports.length > 0 && (
                   <span className="text-muted-foreground">Displaying {data.reports.length} of {data.total} incidents</span>
                 )}
-                <span className="text-muted-foreground ml-auto">Tip: Click anywhere on the map to add an incident.</span>
+                {!dropPinMode && <span className="text-muted-foreground ml-auto">Tip: Click anywhere on the map to add an incident.</span>}
               </div>
               <div className="rounded-xl overflow-hidden border shadow-sm">
-                <ReportsMap reports={data?.reports ?? []} onEdit={openEditDialog} onDelete={(id) => setReportToDelete(id)} onMapClick={handleMapClick} pendingCoords={pendingCoords} />
+                <ReportsMap reports={data?.reports ?? []} onEdit={openEditDialog} onDelete={(id) => setReportToDelete(id)} onMapClick={handleMapClick} pendingCoords={pendingCoords} dropPinMode={dropPinMode} />
               </div>
             </div>
           )
@@ -1104,6 +1144,21 @@ export default function Reports() {
                   <FormItem><FormLabel>Longitude</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>
                 )} />
               </div>
+              {editForm.watch("type") === "camera" && (
+                <FormField control={editForm.control} name="cameraType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Camera Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger></FormControl>
+                      <SelectContent className="z-[99999]">
+                        <SelectItem value="fixed">Fixed — stationary camera</SelectItem>
+                        <SelectItem value="mobile">Mobile — roaming enforcement</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
               <FormField control={editForm.control} name="roadName" render={({ field }) => (
                 <FormItem><FormLabel>Road Name</FormLabel><FormControl><Input value={field.value || ""} onChange={field.onChange} /></FormControl></FormItem>
               )} />

@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, Navigation2, ShieldCheck, EyeOff } from "lucide-react";
+import { Trash2, Edit, AlertCircle, MapPin, Search, Plus, Map, List, Gauge, Loader2, ArrowLeft, ArrowRight, MoreHorizontal, Navigation2, ShieldCheck, EyeOff, Target, X } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -60,6 +60,7 @@ const zoneSchema = z.object({
   description: z.string().optional().nullable(),
   speedLimit: z.coerce.number().optional().nullable(),
   bearing: z.coerce.number().int().min(0).max(359).optional().nullable(),
+  cameraType: z.enum(["fixed", "mobile"]).optional().nullable(),
   lat: z.coerce.number().optional().nullable(),
   lng: z.coerce.number().optional().nullable(),
   startLat: z.coerce.number().optional().nullable(),
@@ -90,6 +91,7 @@ export default function SpeedZones() {
   const [editingZone, setEditingZone] = useState<AdminSpeedZone | null>(null);
   const [pendingCoords, setPendingCoords] = useState<PendingZoneCoords | null>(null);
   const [isSnapping, setIsSnapping] = useState(false);
+  const [dropPinMode, setDropPinMode] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -179,6 +181,7 @@ export default function SpeedZones() {
     description: "",
     speedLimit: 0,
     bearing: null,
+    cameraType: null,
     lat: 0,
     lng: 0,
     startLat: 0,
@@ -211,6 +214,7 @@ export default function SpeedZones() {
     description: values.description || null,
     speedLimit: values.speedLimit || null,
     bearing: values.bearing ?? null,
+    cameraType: values.type === "camera" ? (values.cameraType ?? null) : null,
     lat: values.mode === "point" ? values.lat ?? null : null,
     lng: values.mode === "point" ? values.lng ?? null : null,
     startLat: values.mode === "stretch" ? values.startLat ?? null : null,
@@ -239,6 +243,7 @@ export default function SpeedZones() {
       description: zone.description || "",
       speedLimit: zone.speedLimit || 0,
       bearing: (zone as any).bearing ?? null,
+      cameraType: (zone as any).cameraType ?? null,
       lat: zone.lat ?? 0,
       lng: zone.lng ?? 0,
       startLat: zone.startLat ?? 0,
@@ -344,7 +349,7 @@ export default function SpeedZones() {
                 variant={viewMode === "table" ? "secondary" : "ghost"}
                 size="sm"
                 className="h-8 gap-2 px-3 shadow-none"
-                onClick={() => setViewMode("table")}
+                onClick={() => { setViewMode("table"); setDropPinMode(false); }}
                 data-testid="btn-view-table"
               >
                 <List className="h-4 w-4" /> Table
@@ -359,6 +364,17 @@ export default function SpeedZones() {
                 <Map className="h-4 w-4" /> Map
               </Button>
             </div>
+
+            <Button
+              variant={dropPinMode ? "default" : "outline"}
+              size="sm"
+              className="gap-2 shadow-none"
+              onClick={() => { setViewMode("map"); setDropPinMode((v) => !v); if (dropPinMode) setPendingCoords(null); }}
+              data-testid="btn-drop-pin"
+            >
+              <Target className="h-4 w-4" />
+              {dropPinMode ? "Pinning…" : "Drop Pin"}
+            </Button>
 
             <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setPendingCoords(null); }}>
               <DialogTrigger asChild>
@@ -420,6 +436,21 @@ export default function SpeedZones() {
                         )}
                       />
                     </div>
+                    {createForm.watch("type") === "camera" && (
+                      <FormField control={createForm.control} name="cameraType" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Camera Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="fixed">Fixed — stationary camera</SelectItem>
+                              <SelectItem value="mobile">Mobile — roaming enforcement</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    )}
                     {createForm.watch("mode") === "point" ? (
                       <div className="grid grid-cols-2 gap-4">
                         <FormField control={createForm.control} name="lat" render={({ field }) => (
@@ -579,6 +610,17 @@ export default function SpeedZones() {
             </div>
           ) : (
             <div className="space-y-3">
+              {dropPinMode && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-primary/10 border border-primary/30 rounded-lg text-sm">
+                  <div className="flex items-center gap-2 text-primary font-medium">
+                    <Target className="h-4 w-4 shrink-0" />
+                    Click the map to place a speed zone pin. The form will open immediately.
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs shrink-0" onClick={() => { setDropPinMode(false); setPendingCoords(null); }}>
+                    <X className="h-3.5 w-3.5" /> Exit
+                  </Button>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground font-medium">Creation mode:</span>
@@ -624,6 +666,7 @@ export default function SpeedZones() {
                   onDelete={(id) => setZoneToDelete(id)}
                   onMapClick={handleMapClick}
                   pendingCoords={pendingCoords}
+                  dropPinMode={dropPinMode}
                 />
               </div>
             </div>
@@ -824,6 +867,21 @@ export default function SpeedZones() {
                   )}
                 />
               </div>
+              {editForm.watch("type") === "camera" && (
+                <FormField control={editForm.control} name="cameraType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Camera Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed — stationary camera</SelectItem>
+                        <SelectItem value="mobile">Mobile — roaming enforcement</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
               {editForm.watch("mode") === "point" ? (
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={editForm.control} name="lat" render={({ field }) => (

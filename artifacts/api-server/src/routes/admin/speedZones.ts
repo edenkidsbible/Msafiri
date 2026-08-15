@@ -17,6 +17,7 @@ function toClient(z: typeof speedZonesTable.$inferSelect) {
     speedLimit: z.speedLimit,
     description: z.description,
     bearing: z.bearing,
+    cameraType: z.cameraType,
     lat: z.lat,
     lng: z.lng,
     startLat: z.startLat,
@@ -84,11 +85,12 @@ router.get("/speed-zones", async (req: Request, res: Response) => {
 router.post("/speed-zones", async (req: Request, res: Response) => {
   try {
     const {
-      name, road, type, mode, speedLimit, description, bearing,
+      name, road, type, mode, speedLimit, description, bearing, cameraType,
       lat, lng, startLat, startLng, endLat, endLng,
     } = req.body as {
       name: string; road?: string; type: string; mode?: string;
       speedLimit?: number; description?: string; bearing?: number | null;
+      cameraType?: string | null;
       lat?: number; lng?: number;
       startLat?: number; startLng?: number; endLat?: number; endLng?: number;
     };
@@ -122,6 +124,7 @@ router.post("/speed-zones", async (req: Request, res: Response) => {
         speedLimit: speedLimit ?? null,
         description: description ?? null,
         bearing: bearing != null ? Math.round(bearing) : null,
+        cameraType: type === "camera" ? (cameraType ?? null) : null,
         lat: zoneMode === "point" ? lat : null,
         lng: zoneMode === "point" ? lng : null,
         startLat: zoneMode === "stretch" ? startLat : null,
@@ -144,12 +147,12 @@ router.patch("/speed-zones/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
     const {
-      name, road, type, mode, speedLimit, description, bearing, status,
+      name, road, type, mode, speedLimit, description, bearing, cameraType, status,
       lat, lng, startLat, startLng, endLat, endLng,
     } = req.body as {
       name?: string; road?: string | null; type?: string; mode?: string;
       speedLimit?: number | null; description?: string | null;
-      bearing?: number | null; status?: string;
+      bearing?: number | null; cameraType?: string | null; status?: string;
       lat?: number | null; lng?: number | null;
       startLat?: number | null; startLng?: number | null; endLat?: number | null; endLng?: number | null;
     };
@@ -179,6 +182,7 @@ router.patch("/speed-zones/:id", async (req: Request, res: Response) => {
     if (speedLimit  !== undefined) updates["speedLimit"] = speedLimit;
     if (description !== undefined) updates["description"] = description;
     if (bearing     !== undefined) updates["bearing"] = bearing != null ? Math.round(bearing) : null;
+    if (cameraType  !== undefined) updates["cameraType"] = (type ?? existing.type) === "camera" ? (cameraType ?? null) : null;
     if (status      !== undefined) updates["status"] = status;
     if ((req.body as any).verified !== undefined) updates["verified"] = (req.body as any).verified;
     if (lat         !== undefined) updates["lat"] = lat;

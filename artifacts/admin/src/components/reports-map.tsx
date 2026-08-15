@@ -86,6 +86,7 @@ interface ReportsMapProps {
   onDelete: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
   pendingCoords?: { lat: number; lng: number } | null;
+  dropPinMode?: boolean;
 }
 
 const KENYA_CENTER: [number, number] = [-1.286389, 36.817223];
@@ -99,7 +100,7 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
   return null;
 }
 
-export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoords }: ReportsMapProps) {
+export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoords, dropPinMode }: ReportsMapProps) {
   const { resolvedTheme } = useTheme();
   const tileUrl = resolvedTheme === "dark"
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -123,7 +124,7 @@ export function ReportsMap({ reports, onEdit, onDelete, onMapClick, pendingCoord
       <MapContainer
         center={center}
         zoom={validReports.length > 0 ? 10 : 7}
-        style={{ height: "100%", width: "100%", background: mapBg }}
+        style={{ height: "100%", width: "100%", background: mapBg, cursor: dropPinMode ? "crosshair" : undefined }}
         scrollWheelZoom={true}
       >
         <TileLayer

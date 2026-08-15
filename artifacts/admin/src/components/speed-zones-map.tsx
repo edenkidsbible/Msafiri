@@ -54,6 +54,7 @@ interface SpeedZonesMapProps {
   onDelete: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
   pendingCoords?: PendingZoneCoords | null;
+  dropPinMode?: boolean;
 }
 
 const KENYA_CENTER: [number, number] = [-1.286389, 36.817223];
@@ -67,7 +68,7 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
   return null;
 }
 
-export function SpeedZonesMap({ zones, onEdit, onDelete, onMapClick, pendingCoords }: SpeedZonesMapProps) {
+export function SpeedZonesMap({ zones, onEdit, onDelete, onMapClick, pendingCoords, dropPinMode }: SpeedZonesMapProps) {
   const { resolvedTheme } = useTheme();
   const tileUrl = resolvedTheme === "dark"
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -98,7 +99,7 @@ export function SpeedZonesMap({ zones, onEdit, onDelete, onMapClick, pendingCoor
       <MapContainer
         center={center}
         zoom={allCoords.length > 0 ? 10 : 7}
-        style={{ height: "100%", width: "100%", background: mapBg }}
+        style={{ height: "100%", width: "100%", background: mapBg, cursor: dropPinMode ? "crosshair" : undefined }}
         scrollWheelZoom={true}
       >
         <TileLayer
