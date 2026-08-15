@@ -3771,6 +3771,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const localId = genId();
+    // Suppress the alert system from treating this report as a new alert for
+    // the submitting driver. Without this, the GPS poll (≤ 1 s later) detects
+    // the fresh report within the alert radius, fires isNewAlert, and calls
+    // speakAlert(type) — which calls stopAlertVoice() and cancels the
+    // "report_submitted" confirmation voice mid-play. A 10 s cooldown gives
+    // the confirmation audio plenty of time to finish before the system
+    // re-evaluates this report ID (by which point cooldown has expired and
+    // normal alert behaviour resumes).
+    alertDismissCooldownRef.current.set(localId, { expiry: Date.now() + 10_000, peakDistM: 0 });
     const r: CommunityReport = {
       id: localId, type, lat, lng, timestamp: Date.now(), confirmed: 1,
       status: "active", confirmCount: 1, denyCount: 0, isOwn: true,

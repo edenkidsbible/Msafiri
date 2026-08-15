@@ -1,15 +1,15 @@
 /**
  * GlobalAlertOverlay — prominent alert banner shown on every non-drive screen
  * ─────────────────────────────────────────────────────────────────────────────
- * Reads activeAlert / activeAlertExtras from AppContext and fires the same
- * sound + voice as DriveAlertOverlay. Suppresses itself on the Drive tab where
- * DriveAlertOverlay handles it.
+ * Reads activeAlert / activeAlertExtras from AppContext and displays a card
+ * matching the drive-screen top banner style: large emoji, type name, distance
+ * chip, and urgency-coloured border.
  *
- * Slides down from the top as a full-width card that mirrors the style of the
- * drive-screen's top alert banner: large emoji, type name, distance chip, and
- * urgency-coloured border. Also ducks car music via the DuckOthers audio mode
- * already configured in ensureAudioMode().
+ * Audio (chime + voice) is intentionally NOT fired here. AppContext's
+ * isNewAlert block fires playSound("alert") + speakAlert(type) for every
+ * screen — duplicating audio here would cause double-play.
  *
+ * Suppresses itself on the Drive tab where DriveAlertOverlay handles display.
  * Rendered as an absolute-positioned banner that floats above all tab content.
  */
 
@@ -28,8 +28,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-import { playSound, getSoundsMuted } from "@/utils/sound";
-import { speakAlert, speakAlertMulti, getAlertVoiceDisabled } from "@/utils/alertTts";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 
 // ── Distance formatter ────────────────────────────────────────────────────────
@@ -63,49 +61,29 @@ export default function GlobalAlertOverlay() {
   const isOnDriveTab = pathname === "/drive" || pathname === "/(tabs)/drive";
   const visible = !isOnDriveTab && activeAlert != null;
 
-  // ── Animate in/out and trigger sound + voice on new alert ─────────────────
+  // ── Animate in/out ────────────────────────────────────────────────────────
+  // Audio is handled entirely by AppContext (isNewAlert block). This effect
+  // is responsible only for sliding the banner in and out.
   useEffect(() => {
-    if (!activeAlert) {
+    if (!activeAlert || isOnDriveTab) {
       Animated.timing(slideY, {
         toValue: -180,
-        duration: 260,
+        duration: activeAlert ? 0 : 260,
         useNativeDriver: true,
       }).start();
       return;
     }
 
-    if (isOnDriveTab) {
-      Animated.timing(slideY, { toValue: -180, duration: 0, useNativeDriver: true }).start();
-      return;
-    }
-
-    const isNew = activeAlert.id !== prevAlertId.current;
     prevAlertId.current = activeAlert.id;
 
-    // Slide in
     Animated.spring(slideY, {
       toValue: 0,
       useNativeDriver: true,
       tension: 55,
       friction: 11,
     }).start();
-
-    // Sound + voice only for new alert IDs
-    if (isNew) {
-      if (!getSoundsMuted()) {
-        playSound("alert").catch(() => {});
-      }
-      if (!getAlertVoiceDisabled()) {
-        const hasExtras = activeAlertExtras.length > 0;
-        if (hasExtras) {
-          speakAlertMulti(activeAlert.type).catch(() => {});
-        } else {
-          speakAlert(activeAlert.type).catch(() => {});
-        }
-      }
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAlert?.id, isOnDriveTab, activeAlertExtras.length]);
+  }, [activeAlert?.id, isOnDriveTab]);
 
   // Hide immediately when switching to the Drive tab
   useEffect(() => {
