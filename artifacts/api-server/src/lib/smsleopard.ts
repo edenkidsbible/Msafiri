@@ -28,21 +28,21 @@ export class SmsRestrictedTimeError extends Error {
  * Detect the Kenyan carrier from a phone number (E.164 +254… or local 07…/01…).
  * Ranges sourced from the Communications Authority of Kenya number allocations.
  *
- * Safaricom : 070x–072x, 0740–0743, 011x
- * Airtel    : 073x, 0744–075x, 010x
- * Telkom    : 077x
+ * Safaricom : 070x–072x, 0740–0743, 079x, 011x
+ * Airtel    : 073x, 0744–075x, 078x, 010x
+ * Telkom    : 076x, 077x
  *
  * Exported for unit-testing; not part of the public module API.
  */
 export function detectCarrier(number: string): string {
   // Normalise to local 10-digit form regardless of whether +254 or 0 prefix is used.
   const local = number.replace(/^\+254/, "0").replace(/^254/, "0");
-  // Safaricom: 070x, 071x, 072x, 0740–0743, 011x
-  if (/^0(7[012]\d|74[0-3]|11\d)/.test(local)) return "Safaricom";
-  // Airtel: 073x, 0744–0749, 075x, 010x
-  if (/^0(73\d|74[4-9]|75\d|10\d)/.test(local)) return "Airtel";
-  // Telkom: 077x
-  if (/^077\d/.test(local)) return "Telkom";
+  // Safaricom: 070x, 071x, 072x, 0740–0743, 079x, 011x
+  if (/^0(7[012]\d|74[0-3]|79\d|11\d)/.test(local)) return "Safaricom";
+  // Airtel: 073x, 0744–0749, 075x, 078x, 010x
+  if (/^0(73\d|74[4-9]|75\d|78\d|10\d)/.test(local)) return "Airtel";
+  // Telkom: 076x, 077x
+  if (/^07[67]\d/.test(local)) return "Telkom";
   return "unknown carrier";
 }
 

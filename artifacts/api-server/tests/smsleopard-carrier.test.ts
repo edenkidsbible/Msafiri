@@ -13,6 +13,8 @@ describe("detectCarrier", () => {
       "+254720123456", "+254725123456", "+254729123456",
       // 0740–0743 (Safaricom share of 074x)
       "+254740123456", "+254741123456", "+254742123456", "+254743123456",
+      // 079x
+      "+254790123456", "+254795123456", "+254799123456",
       // 011x
       "+254110123456", "+254115123456", "+254119123456",
     ])("classifies %s as Safaricom", (num) => {
@@ -38,6 +40,8 @@ describe("detectCarrier", () => {
       "+254744123456", "+254746123456", "+254749123456",
       // Full 075x range
       "+254750123456", "+254755123456", "+254759123456",
+      // 078x
+      "+254780123456", "+254785123456", "+254789123456",
       // 010x
       "+254100123456", "+254105123456", "+254109123456",
     ])("classifies %s as Airtel", (num) => {
@@ -52,10 +56,17 @@ describe("detectCarrier", () => {
   // ── Telkom ───────────────────────────────────────────────────────────────────
   describe("Telkom", () => {
     it.each([
+      // 076x
+      "+254760123456", "+254763123456", "+254769123456",
+      // 077x
       "+254770123456", "+254773123456",
       "+254776123456", "+254779123456",
     ])("classifies %s as Telkom", (num) => {
       expect(detectCarrier(num)).toBe("Telkom");
+    });
+
+    it("handles local 076x format", () => {
+      expect(detectCarrier("0768123456")).toBe("Telkom");
     });
 
     it("handles local 077x format", () => {
@@ -79,9 +90,6 @@ describe("detectCarrier", () => {
 
   // ── Unallocated / non-Kenyan ─────────────────────────────────────────────────
   describe("unknown carrier", () => {
-    it("returns 'unknown carrier' for unallocated 076x", () => {
-      expect(detectCarrier("+254760123456")).toBe("unknown carrier");
-    });
     it("returns 'unknown carrier' for non-Kenyan number", () => {
       expect(detectCarrier("+12025550100")).toBe("unknown carrier");
     });
