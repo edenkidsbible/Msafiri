@@ -6,9 +6,9 @@ import { logger } from "../lib/logger.js";
 // ─── Rotating daily messages ─────────────────────────────────────────────────
 
 const MORNING_MESSAGES = [
-  { title: "🚨 Roads are already changing", body: "Incidents reported overnight near you. Other drivers know what's on your route — do you?" },
-  { title: "📸 Speed cameras don't warn you. We do.", body: "Live camera and checkpoint alerts updated for your morning commute. Tap before you drive." },
-  { title: "⚠️ Don't leave without checking this", body: "Fresh hazards, potholes, and roadblocks flagged near you since last night. Open Msafiri." },
+  { title: "🚨 Roads already changing", body: "Incidents reported overnight near you. Other drivers know what's on your route — do you?" },
+  { title: "📸 Cameras don't warn you. We do.", body: "Live camera and checkpoint alerts updated for your morning commute. Tap before you drive." },
+  { title: "⚠️ Check this before you leave", body: "Fresh hazards, potholes, and roadblocks flagged near you since last night. Open Msafiri." },
   { title: "🚔 Police out early today?", body: "Drivers near you are already reporting checkpoints. See exactly where before you hit the road." },
   { title: "🗺️ Your route has new reports", body: "Things move fast on Kenyan roads. Check live alerts before your morning drive — takes 5 seconds." },
   { title: "📍 Other drivers are ahead of you", body: "Hazards, cameras, and roadblocks already reported this morning. Don't drive blind — check now." },
@@ -18,7 +18,7 @@ const MORNING_MESSAGES = [
 // Weekend mornings skew toward errands/road-trip framing instead of "commute".
 const MORNING_MESSAGES_WEEKEND = [
   { title: "🛣️ Roads are busy already", body: "Incidents and checkpoints reported near you this morning. Check before you head out — your weekend depends on it." },
-  { title: "📸 Cameras and cops are out on weekends too", body: "Live speed camera and checkpoint alerts for your area. See what's waiting on your route." },
+  { title: "📸 Cameras & cops out weekends too", body: "Live speed camera and checkpoint alerts for your area. See what's waiting on your route." },
   { title: "🚨 Don't start your weekend blind", body: "Potholes, roadblocks, and hazards flagged near you. Takes 10 seconds to check — could save your whole day." },
   { title: "🧭 Know what's on your route today", body: "Community reports just updated. See exactly what other drivers are seeing right now on your roads." },
   { title: "⚠️ Fresh hazards near you this morning", body: "Weekend traffic brings weekend surprises. See what's been reported near you before you leave." },
@@ -28,17 +28,17 @@ const EVENING_MESSAGES = [
   { title: "🚔 Checkpoints going up now", body: "Police setting up for the evening rush. Drivers near you are already reporting locations — check before you leave." },
   { title: "⚠️ Evening reports spiking near you", body: "Accidents and congestion being logged right now. Plan your route home before you're stuck in it." },
   { title: "📸 Speed cameras active on your route?", body: "Evening enforcement is real. Live camera and checkpoint alerts updated — don't get caught off-guard." },
-  { title: "🚧 Roads have changed since this morning", body: "Fresh incidents, roadblocks, and hazards reported near you. Check before your drive home." },
-  { title: "🌆 Rush hour casualties are happening now", body: "Accidents and breakdowns already reported on your routes. See what's blocking the way home." },
+  { title: "🚧 Roads changed since this morning", body: "Fresh incidents, roadblocks, and hazards reported near you. Check before your drive home." },
+  { title: "🌆 Accidents spiking on your route", body: "Accidents and breakdowns already reported on your routes. See what's blocking the way home." },
   { title: "🛑 Don't guess your route home", body: "Live hazard and checkpoint reports from drivers already on the road. See what's waiting for you." },
   { title: "🚨 Evening danger is real", body: "Visibility dropping, police out, incidents rising. Drivers who check Msafiri now get home faster — and safer." },
 ];
 
 // Weekend evenings skew toward "heading out" rather than "rush hour home".
 const EVENING_MESSAGES_WEEKEND = [
-  { title: "🚔 Checkpoints up for the weekend night", body: "Police are out in force. Live alcoblow and roadblock locations reported near you right now." },
+  { title: "🚔 Checkpoints up for the weekend", body: "Police are out in force. Live alcoblow and roadblock locations reported near you right now." },
   { title: "⚠️ Heading out? Check this first.", body: "Hazards and checkpoints already reported on your routes tonight. Know before you go." },
-  { title: "📍 Other drivers are already reporting near you", body: "Weekend evenings are when incidents spike. See live reports before your evening plans take you out." },
+  { title: "📍 Reports coming in near you now", body: "Weekend evenings are when incidents spike. See live reports before your evening plans take you out." },
   { title: "🌆 The roads look different tonight", body: "Fresh evening reports near you. Check what's out there before you leave — takes seconds." },
 ];
 
@@ -47,10 +47,10 @@ const EVENING_MESSAGES_WEEKEND = [
 // harder to spot after dark.
 const WEEKEND_NIGHT_MESSAGES = [
   { title: "🚨 Alcoblow checkpoints active near you", body: "Police are set up tonight. Live community reports show exactly where — check before you drive." },
-  { title: "🔦 Night driving is the most dangerous time", body: "Unlit debris, hidden potholes, surprise roadblocks — all reported live by Msafiri drivers near you. Check now." },
+  { title: "🔦 Night driving is the most dangerous", body: "Unlit debris, hidden potholes, surprise roadblocks — all reported live by Msafiri drivers near you. Check now." },
   { title: "🚔 Police out in force tonight", body: "Checkpoint reports coming in near you. Every Msafiri driver near you knows where they are. Do you?" },
-  { title: "⚠️ Don't drive tonight without checking this", body: "Late-night incidents are harder to avoid when you don't know where they are. Live reports near you now." },
-  { title: "🛑 Alcoblow and roadblocks — both active tonight", body: "Drivers near you have already reported locations. See the live map before you leave." },
+  { title: "⚠️ Check before you drive tonight", body: "Late-night incidents are harder to avoid when you don't know where they are. Live reports near you now." },
+  { title: "🛑 Alcoblow & roadblocks active tonight", body: "Drivers near you have already reported locations. See the live map before you leave." },
 ];
 
 // New midday slot — the third daily notification.
@@ -70,10 +70,10 @@ const MIDDAY_MESSAGES_WEEKEND = [
 // ─── Weekly engagement nudge (active users only) ─────────────────────────────
 
 const ENGAGEMENT_MESSAGES = [
-  { title: "👀 Thousands of drivers rely on reports like yours", body: "Spot a camera, pothole, or checkpoint? Report it in 10 seconds and keep the community sharp." },
-  { title: "📍 You drive these roads. You know what's on them.", body: "Add a report and give drivers behind you an edge. Takes less time than a traffic light." },
-  { title: "🚨 The map is only as good as what we report", body: "Fresh eyes on the road right now. See something? Say something — your report could save someone's fine or their life." },
-  { title: "🏆 You've seen things other drivers haven't yet", body: "Pothole? Checkpoint? Camera? Report it. Your community is counting on people like you." },
+  { title: "👀 Thousands rely on reports like yours", body: "Spot a camera, pothole, or checkpoint? Report it in 10 seconds and keep the community sharp." },
+  { title: "📍 You know what's on these roads", body: "Add a report and give drivers behind you an edge. Takes less time than a traffic light." },
+  { title: "🚨 The map is only as good as we report", body: "Fresh eyes on the road right now. See something? Say something — your report could save someone's fine or their life." },
+  { title: "🏆 Other drivers need your reports", body: "Pothole? Checkpoint? Camera? Report it. Your community is counting on people like you." },
 ];
 
 // ─── Feature marketing catalog ────────────────────────────────────────────────
@@ -93,15 +93,15 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Record your drive automatically — no extra device, no extra cost. Tap to activate in Msafiri.",
     },
     t2: {
-      title: "📹 Dashcam apps charge Ksh 5,000+. Yours is free.",
+      title: "📹 Other dashcam apps cost Ksh 5,000+",
       body: "Msafiri records your drive in the background. Evidence is everything in an accident. You're not using it.",
     },
     t3: {
-      title: "📹 Without footage, it's your word against theirs",
+      title: "📹 No footage = your word against theirs",
       body: "Every unrecorded drive is a risk. Msafiri's dashcam is already on your phone — you just haven't turned it on.",
     },
     t4: {
-      title: "📹 How do you prove what happened without footage?",
+      title: "📹 How do you prove what happened?",
       body: "Thousands of Msafiri drivers record every trip. Insurance claims, police disputes, hit-and-runs — footage wins every time. Still not recording?",
     },
   },
@@ -120,7 +120,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Real-time speed camera alerts from drivers on your exact road, right now. You're driving blind without us.",
     },
     t4: {
-      title: "📸 You've paid fines that Msafiri could've prevented",
+      title: "📸 Msafiri could've prevented those fines",
       body: "Speed cameras, alcoblow checkpoints, police traps — all reported by real drivers in real time. Still driving without us?",
     },
   },
@@ -131,7 +131,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Msafiri drivers report checkpoints in real time. Know what's on your route before you encounter it.",
     },
     t2: {
-      title: "🍺 Checkpoint reports near you — updated by the minute",
+      title: "🍺 Checkpoint reports near you, live",
       body: "Community-reported alcoblow checkpoints, roadblocks, and police traps. Not on any other Kenyan app like this.",
     },
     t3: {
@@ -139,7 +139,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Msafiri's alcoblow alerts come from actual drivers on your road. Live. Not yesterday's data. Not a guess.",
     },
     t4: {
-      title: "🍺 You've been driving without a checkpoint warning system",
+      title: "🍺 No checkpoint warning system yet?",
       body: "Police checkpoints, alcoblow traps, surprise roadblocks — Msafiri drivers see them first. Come back and drive with eyes open.",
     },
   },
@@ -158,7 +158,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Send a live trip share before you drive. If something happens, someone will know exactly where you are.",
     },
     t4: {
-      title: "🛡️ Nobody knew where you were on your last drive",
+      title: "🛡️ Nobody tracked your last drive",
       body: "Msafiri trip sharing is the closest thing to a safety net on Kenyan roads. It takes 10 seconds. Still not using it?",
     },
   },
@@ -169,15 +169,15 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "From photos to police reports — the Crash Assistant walks you through everything at the scene.",
     },
     t2: {
-      title: "🚨 Most accident claims fail due to missing evidence",
+      title: "🚨 Most claims fail — missing evidence",
       body: "Msafiri's Crash Assistant documents everything at the scene — photos, location, statements, insurance details. All in one app.",
     },
     t3: {
-      title: "🚨 Other apps show you the map. We help you survive the aftermath.",
+      title: "🚨 We help you survive the aftermath",
       body: "Crash Assistant, dashcam footage, and accident documentation — all in one Kenyan app. Nothing else comes close.",
     },
     t4: {
-      title: "🚨 If you were in an accident today, would you know what to do?",
+      title: "🚨 Would you know what to do after a crash?",
       body: "Step-by-step guidance, auto-documentation, dashcam clips, insurance submission — Msafiri has you covered end to end.",
     },
   },
@@ -188,15 +188,15 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "The Msafiri audio course covers what every driver on these roads should understand. Listen while you drive.",
     },
     t2: {
-      title: "🎧 Most Kenyan drivers have never read the Highway Code",
+      title: "🎧 Most drivers skip the Highway Code",
       body: "We turned it into a 10-minute audio course you can finish on your commute. Already inside the app — free.",
     },
     t3: {
-      title: "🎧 The safety course other driving apps don't have",
+      title: "🎧 The course no other driving app has",
       body: "An audio course built specifically for Kenyan roads — speed zones, rules, hazards. Exclusive to Msafiri.",
     },
     t4: {
-      title: "🎧 You drive every day. But do you know all the rules?",
+      title: "🎧 You drive daily. Know all the rules?",
       body: "The Msafiri audio course is already waiting for you. 10 minutes. Could save you a fine — or much worse.",
     },
   },
@@ -215,7 +215,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Navigation, hazards, speed cameras, service centres, dashcam — one app. You already have it. Use it.",
     },
     t4: {
-      title: "🔧 You've been managing too many apps for your car",
+      title: "🔧 Too many apps for one car",
       body: "Msafiri handles everything — from live alerts on the road to finding a mechanic after. Come back and simplify.",
     },
   },
@@ -226,15 +226,15 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Drivers near you are flagging fresh incidents right now. Live road intel from real people on your roads.",
     },
     t2: {
-      title: "⚠️ Your community is reporting hazards you're missing",
+      title: "⚠️ Hazards near you — reported live",
       body: "Potholes, accidents, debris, road works — all live on Msafiri. No other app has this from actual Kenyan drivers.",
     },
     t3: {
-      title: "⚠️ Kenyan roads change by the hour. So do our alerts.",
+      title: "⚠️ Roads change hourly. So do our alerts.",
       body: "Real-time community hazard reports from drivers on your roads. Not from a government database updated monthly.",
     },
     t4: {
-      title: "⚠️ You've been driving without live road intelligence",
+      title: "⚠️ You're driving without live road intel",
       body: "Msafiri has the largest community of Kenyan drivers reporting live hazards. Every drive without it is a drive blind.",
     },
   },
@@ -245,7 +245,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "Hazards, speed cameras, trip sharing, dashcam, crash help — all in Msafiri. Already on your phone.",
     },
     t2: {
-      title: "📱 You installed 4 apps for what Msafiri does alone",
+      title: "📱 4 apps replaced by Msafiri alone",
       body: "Navigation + hazards + cameras + dashcam + crash assistant. One app. Free. Kenyan-built.",
     },
     t3: {
@@ -253,7 +253,7 @@ const FEATURE_CATALOG: FeatureDef[] = [
       body: "We're not being modest — Msafiri has features no competitor offers in a single app. Come see what you've been missing.",
     },
     t4: {
-      title: "📱 You're still using 5 apps that Msafiri replaces for free",
+      title: "📱 Still using 5 apps Msafiri replaces?",
       body: "Speed cameras, alcoblow, dashcam, crash assistant, trip sharing, audio course, nearby services — all in one. Still away?",
     },
   },
@@ -480,7 +480,7 @@ const RECOVERY_PHONE_NUDGE_MESSAGES = [
     body: "Add a recovery phone number so you can restore your account on any new device. Tap to set it up now.",
   },
   {
-    title: "⚠️ Can you restore your data if you lose your phone?",
+    title: "⚠️ Lose your phone = lose your data?",
     body: "Link a recovery phone in Msafiri and you'll always be able to get your vehicles and settings back.",
   },
 ];
