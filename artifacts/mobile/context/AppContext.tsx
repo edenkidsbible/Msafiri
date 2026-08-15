@@ -1815,6 +1815,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Suppress only when BOTH roads are known but disagree.
         if (z.road && currentRoadRef.current && !roadsMatch(currentRoadRef.current, z.road)) continue;
 
+        // Direction gate: when heading is known, only consider zones that are
+        // ahead of the driver (positive along-track).  A negative along-track
+        // means the driver has already passed the pin — skip it so the overlay
+        // never shows "behind you" distances and passed alerts never re-trigger
+        // going straight.  When heading is unavailable (slow roll / fresh GPS)
+        // we fall through to distance-only so alerts still fire from a standstill.
+        if (lastHeadingRef.current != null) {
+          const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, z.lat, z.lng);
+          if (atd <= 0) continue;
+        }
+
         // Cluster deduplication: speed cameras at roundabouts and interchanges
         // are often stored as multiple entries a few metres apart (one per
         // approach lane).  Speed cameras are omnidirectional — all directions
@@ -1852,6 +1863,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // industrial roads, and newly-opened roads not yet in OSM.
         // Same rule applies when currentRoad is null — fall back to distance only.
         if (r.roadName && currentRoadRef.current && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        // Direction gate: same as zone candidate — skip reports behind the driver.
+        if (lastHeadingRef.current != null) {
+          const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, r.lat, r.lng);
+          if (atd <= 0) continue;
+        }
         best = r;
         bestDist = d;
       }
@@ -1875,6 +1891,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // but disagree.  Unknown roadName = distance-only fallback (no blackout).
         // currentRoad null = distance-only fallback (driver road not yet resolved).
         if (h.roadName && currentRoadRef.current && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        // Direction gate: same as zone/report candidates — skip incidents behind the driver.
+        if (lastHeadingRef.current != null) {
+          const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, h.lat, h.lng);
+          if (atd <= 0) continue;
+        }
         best = h;
         bestDist = d;
       }
@@ -1968,8 +1989,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Extended cooldown (3 min) is used for divert-away dismissals to prevent
       // the same alert from immediately re-triggering on a parallel road.
-      // Normal pass-through uses the existing 60 s window.
+      // passthroughWithHeading = true when the driver passed the pin with a valid
+      // GPS heading — in that case the direction gate at candidate selection
+      // prevents straight-through re-fire, so no time cooldown is needed.
+      // A U-turn will flip along-track positive and the alert re-fires naturally.
       let extendedCooldown = false;
+      let passthroughWithHeading = false;
 
       // ── Step-bearing fallback ─────────────────────────────────────────────
       // lastHeadingRef.current is null whenever the driver has moved < 5 m
@@ -2072,7 +2097,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const iLngAt = alertItemLngRef.current;
         if (iLatAt != null && iLngAt != null) {
           const atd = alongTrackDistanceM(lat, lng, hdgAt, iLatAt, iLngAt);
-          if (atd <= -60) return true; // alert is 60 m or more behind the driver — gives ~3 s "Behind you" at 80 km/h
+          // Dismiss the moment the driver is level with (or past) the alert pin.
+          // Using +10 m tolerance avoids showing a flash of "Passing now" text and
+          // covers GPS position jitter at the moment of passing.
+          // NOTE: set passthroughWithHeading so the cooldown is cleared immediately —
+          // the direction gate at candidate selection prevents straight-through re-fire
+          // without needing a time delay; and a U-turn brings atd positive again.
+          if (atd <= 10) { passthroughWithHeading = true; return true; }
         }
         // ── Polyline redundancy when navigating ────────────────────────────────
         // Belt-and-suspenders: if the route's high-water mark has already advanced
@@ -2093,7 +2124,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (shouldDismiss) {
         const dismissedId = alertZoneRef.current!;
-        const cooldownMs  = extendedCooldown ? 180_000 : 60_000;
+        // • Extended divert-away (different road / sharp bearing flip): 3 min
+        // • Normal pass-through WITH known heading: no time cooldown needed —
+        //   the direction gate at candidate selection prevents straight-through
+        //   re-fire, and a U-turn brings along-track positive again (fires fresh).
+        // • Pass-through WITHOUT heading (slow/stopped, haversine fallback): 5 s
+        //   to absorb GPS jitter before the next candidate evaluation.
+        const cooldownMs = extendedCooldown
+          ? 180_000
+          : passthroughWithHeading
+            ? 0
+            : 5_000;
         const cooldownEntry = { expiry: Date.now() + cooldownMs, peakDistM: curDist ?? 0 };
         alertDismissCooldownRef.current.set(dismissedId, cooldownEntry);
 
