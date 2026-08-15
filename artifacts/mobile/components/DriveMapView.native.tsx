@@ -490,6 +490,17 @@ const DriveMapView = forwardRef(function DriveMapView(
   const camLatRef = useRef<number | null>(null);
   const camLngRef = useRef<number | null>(null);
 
+  // ── Position-smoothing refs ───────────────────────────────────────────────
+  // Raw GPS positions have ±5–15 m noise even at speed. Feeding them directly
+  // into animateCamera makes the map micro-jitter on every tick. These refs
+  // hold a low-pass smoothed copy used exclusively for camera animations.
+  const camSmoothLatRef  = useRef<number | null>(null);
+  const camSmoothLngRef  = useRef<number | null>(null);
+  // Last smoothed coordinate actually sent to animateCamera — the minimum-
+  // movement gate compares against this to suppress sub-threshold ticks.
+  const lastPosCamLatRef = useRef<number | null>(null);
+  const lastPosCamLngRef = useRef<number | null>(null);
+
   // Post-navigation route-fit timer — stored so unmount can cancel it and a
   // late-firing callback never touches a dead map ref.
   const postNavFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -816,6 +827,24 @@ const DriveMapView = forwardRef(function DriveMapView(
       camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, alpha);
     }
 
+    // ── 2b. Position smoothing ───────────────────────────────────────────────
+    // Apply a low-pass filter to the raw GPS position before it reaches the
+    // map camera. GPS readings have ±5–15 m of noise even at speed; without
+    // smoothing every tick causes a tiny snap that accumulates into visible
+    // shaking. Alpha adapts to vehicle speed so the camera responds quickly
+    // on highways but rejects more noise in slow city traffic.
+    const speedKmh = currentSpeed ?? 0;
+    const posAlpha = speedKmh > 80 ? 0.65 : speedKmh > 40 ? 0.45 : 0.28;
+    if (camSmoothLatRef.current == null) {
+      camSmoothLatRef.current = currentLat;
+      camSmoothLngRef.current = currentLng;
+    } else {
+      camSmoothLatRef.current += posAlpha * (currentLat - camSmoothLatRef.current);
+      camSmoothLngRef.current = (camSmoothLngRef.current ?? currentLng) + posAlpha * (currentLng - (camSmoothLngRef.current ?? currentLng));
+    }
+    const sLat = camSmoothLatRef.current;
+    const sLng = camSmoothLngRef.current ?? currentLng;
+
     // ── Zoom hysteresis (unchanged logic, kept here for locality) ───────────
     const targetDelta = speedToLatDelta(currentSpeed ?? 0);
     const nowMs = Date.now();
@@ -827,7 +856,9 @@ const DriveMapView = forwardRef(function DriveMapView(
         appliedDeltaRef.current = smoothed;
         lastDeltaRef.current    = smoothed;
         zoomBandTimestampRef.current = null;
-        const laCenter = lookAheadCenter(currentLat, currentLng, camHeadingRef.current, smoothed);
+        const laCenter = lookAheadCenter(sLat, sLng, camHeadingRef.current, smoothed);
+        lastPosCamLatRef.current = sLat;
+        lastPosCamLngRef.current = sLng;
         mapRef.current?.animateToRegion(
           { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
           500,
@@ -841,9 +872,22 @@ const DriveMapView = forwardRef(function DriveMapView(
       zoomBandTimestampRef.current = null;
     }
 
+    // ── 3. Minimum-movement gate ─────────────────────────────────────────────
+    // Only issue a camera animation if the smoothed position has moved at
+    // least 10 m from the position of the last animation. Sub-threshold
+    // deltas are GPS jitter — animating them makes the map shake on straight
+    // roads while visually adding nothing. When zoom changes above, we update
+    // lastPosCamLatRef there and return; this gate handles the position-only path.
+    if (lastPosCamLatRef.current != null) {
+      const moved = haversine(lastPosCamLatRef.current, lastPosCamLngRef.current!, sLat, sLng);
+      if (moved < 10) return;
+    }
+    lastPosCamLatRef.current = sLat;
+    lastPosCamLngRef.current = sLng;
+
     // ── Camera animation ─────────────────────────────────────────────────────
     const laCenter = lookAheadCenter(
-      currentLat, currentLng, camHeadingRef.current, appliedDeltaRef.current,
+      sLat, sLng, camHeadingRef.current, appliedDeltaRef.current,
     );
 
     // iOS: position only — heading goes through the dedicated 1500 ms interval.
@@ -869,10 +913,12 @@ const DriveMapView = forwardRef(function DriveMapView(
       }
     }
 
-    // 1200 ms duration slightly exceeds the ~1 s GPS tick rate so consecutive
-    // animations always overlap — the camera glides continuously rather than
-    // stopping between fixes and snapping to the next position.
-    mapRef.current?.animateCamera(driveCameraUpdate, { duration: 1200 });
+    // 700 ms — shorter than the ~1 s GPS tick rate so each animation completes
+    // before the next one starts. The previous 1200 ms caused animations to
+    // constantly overlap and cancel each other mid-flight, producing the
+    // vigorous shake the driver experienced. Position smoothing above ensures
+    // the camera still glides smoothly despite the shorter duration.
+    mapRef.current?.animateCamera(driveCameraUpdate, { duration: 700 });
   }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
@@ -995,6 +1041,13 @@ const DriveMapView = forwardRef(function DriveMapView(
     if (currentLat == null || currentLng == null) return;
     navBreadcrumb("map.camera", "recenter tapped");
     mapDriftedRef.current = false; // synchronous — next GPS tick resumes following
+    // Reset position-smoothing state so the camera snaps to the current GPS
+    // position immediately on recenter instead of gliding from a stale
+    // smoothed value (which could be several metres behind the car).
+    camSmoothLatRef.current  = currentLat;
+    camSmoothLngRef.current  = currentLng;
+    lastPosCamLatRef.current = null; // force next GPS tick to animate unconditionally
+    lastPosCamLngRef.current = null;
     const snapDelta = speedToLatDelta(currentSpeed ?? 0);
     appliedDeltaRef.current      = snapDelta;
     lastDeltaRef.current         = snapDelta;

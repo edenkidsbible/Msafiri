@@ -473,6 +473,11 @@ export default function MapViewScreen() {
 
   // ── Heading-up compass mode camera ─────────────────────────────────────────
   // Keeps map oriented to driver direction outside of active navigation.
+  // driverHeading intentionally excluded from deps: heading updates very
+  // frequently (compass sensor or GPS bearing); triggering a camera animation
+  // on every heading change causes continuous map shaking. Position-linked
+  // heading updates are sufficient — the iOS 1500 ms interval handles rotation
+  // on Apple Maps; Android gets the latest smoothed heading on every GPS fix.
   useEffect(() => {
     if (!headingUpMode) return;
     if (mapDriftedRef.current) return;
@@ -482,12 +487,15 @@ export default function MapViewScreen() {
     const hdg = camHeadingRef.current!;
     const center = lookAheadCenter(currentLat, currentLng, hdg, 0.015);
     if (Platform.OS === "ios") {
-      mapRef.current?.animateCamera({ center }, { duration: 300 });
+      // 700 ms matches DriveMapView's position channel duration — shorter than
+      // 300 ms (was triggering overlapping animations on every heading tick).
+      mapRef.current?.animateCamera({ center }, { duration: 700 });
       // iOS heading is sent by the 1500 ms interval above.
     } else {
-      mapRef.current?.animateCamera({ center, heading: hdg }, { duration: 300 });
+      mapRef.current?.animateCamera({ center, heading: hdg }, { duration: 700 });
     }
-  }, [headingUpMode, currentLat, currentLng, driverHeading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [headingUpMode, currentLat, currentLng]);
 
   // Restore north-up when compass mode is turned off (outside nav).
   useEffect(() => {
