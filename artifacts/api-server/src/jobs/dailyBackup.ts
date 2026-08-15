@@ -44,6 +44,8 @@ import {
   customVehiclesTable,
 } from "@workspace/db";
 import { sendDailyBackupEmail } from "../lib/email.js";
+import { tryDumpToR2 } from "../lib/pgDump.js";
+import { isR2Configured } from "../lib/r2Storage.js";
 import { logger } from "../lib/logger.js";
 
 // Target hour in UTC — 20:00 UTC = 23:00 EAT
@@ -265,6 +267,22 @@ async function runDailyBackup(): Promise<void> {
     logger.info({ stats, toEmail }, `[dailyBackup] Backup email sent for ${date}`);
   } else {
     logger.error("[dailyBackup] Backup email failed — check RESEND_API_KEY and BACKUP_EMAIL_ADDRESS");
+  }
+
+  // ── pg_dump → R2 ────────────────────────────────────────────────────────
+  // Upload a binary pg_dump alongside the email so there is always a
+  // restorable snapshot in R2, independent of email deliverability.
+  // Runs after the email so a slow dump never delays the email send.
+  if (isR2Configured()) {
+    const dump = await tryDumpToR2();
+    if (dump) {
+      logger.info({ key: dump.key, sizeBytes: dump.sizeBytes, durationMs: dump.durationMs },
+        "[dailyBackup] pg_dump uploaded to R2");
+    } else {
+      logger.warn("[dailyBackup] pg_dump to R2 failed — email backup still sent");
+    }
+  } else {
+    logger.warn("[dailyBackup] R2 not configured — skipping pg_dump; only email backup was sent");
   }
 }
 

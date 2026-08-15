@@ -44,6 +44,8 @@ import {
   customVehiclesTable,
 } from "@workspace/db";
 import { buildBackupSnapshot, runDailyBackup } from "../../jobs/dailyBackup.js";
+import { dumpToR2, tryDumpToR2 } from "../../lib/pgDump.js";
+import { isR2Configured } from "../../lib/r2Storage.js";
 import { logger } from "../../lib/logger.js";
 
 
@@ -157,6 +159,37 @@ router.post("/system/backup/run", async (_req: Request, res: Response) => {
   } catch (err) {
     logger.error({ err }, "[system/backup] On-demand run failed");
     res.status(500).json({ error: "Backup run failed" });
+  }
+});
+
+// ── POST /system/backup/pg-dump ───────────────────────────────────────────────
+// Runs pg_dump and uploads the binary dump to R2.
+// Use this BEFORE publishing to guarantee a point-in-time snapshot of
+// production data.  Returns the R2 key and file size on success.
+//
+// Restore procedure (if needed after a bad deploy):
+//   1. Download the .dump file from R2  (db-backups/<timestamp>.dump)
+//   2. Run: pg_restore --clean --if-exists -d $DATABASE_URL <file>.dump
+
+router.post("/system/backup/pg-dump", async (_req: Request, res: Response) => {
+  if (!isR2Configured()) {
+    return res.status(503).json({
+      error: "R2 not configured — set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME",
+    });
+  }
+  try {
+    logger.info("[system/backup/pg-dump] On-demand pg_dump triggered by admin");
+    const result = await dumpToR2();
+    return res.json({
+      ok:         true,
+      key:        result.key,
+      sizeBytes:  result.sizeBytes,
+      durationMs: result.durationMs,
+      note:       `Dump saved to R2 at ${result.key}. To restore: pg_restore --clean --if-exists -d $DATABASE_URL <file>.dump`,
+    });
+  } catch (err: any) {
+    logger.error({ err }, "[system/backup/pg-dump] Failed");
+    return res.status(500).json({ error: err?.message ?? "pg_dump failed" });
   }
 });
 

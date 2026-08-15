@@ -510,6 +510,69 @@ export async function migrateSchema(): Promise<void> {
         WHERE recovery_email IS NOT NULL
     `);
 
+    // ── speed_zones.camera_type ──────────────────────────────────────────────
+    // "fixed" | "mobile" — only meaningful when type === "camera".
+    // Added to Drizzle schema but omitted from this file; causes a hard 500 on
+    // every /api/speed-zones request in production until this column exists.
+    await db.execute(sql`
+      ALTER TABLE speed_zones
+      ADD COLUMN IF NOT EXISTS camera_type TEXT
+    `);
+
+    // ── community_reports — columns added in Drizzle schema but missing here ─
+    // Each was applied to dev via drizzle-kit push but never propagated to prod
+    // via this startup guard.  All use safe defaults so existing rows are valid.
+
+    // camera_type — same semantics as speed_zones.camera_type above.
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS camera_type TEXT
+    `);
+
+    // Flagging system (user-reported inappropriate/inaccurate reports).
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS flag_count INTEGER NOT NULL DEFAULT 0
+    `);
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS flagged_by JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS flag_reasons JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS flag_dismissed BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+
+    // admin_verified — admin-confirmed report badge (confirmCount pinned to 999).
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS admin_verified BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+
+    // source — "manual" (driver) | "auto" (hazard clustering job).
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual'
+    `);
+
+    // Report confidence fields.
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS observation_context TEXT NOT NULL DEFAULT 'on_location'
+    `);
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS observed_at TIMESTAMP
+    `);
+    await db.execute(sql`
+      ALTER TABLE community_reports
+      ADD COLUMN IF NOT EXISTS reporter_proximity_m INTEGER
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
