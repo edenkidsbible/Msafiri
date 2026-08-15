@@ -14,16 +14,19 @@ function dist(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+const EAT = "Africa/Nairobi";
+
 function dateStr(ts: number): string {
   return new Date(ts).toLocaleDateString("en-KE", {
     weekday: "short",
     day: "numeric",
     month: "short",
+    timeZone: EAT,
   });
 }
 
 function timeStr(ts: number): string {
-  return new Date(ts).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit", timeZone: EAT });
 }
 
 export default function TripCard({ trip }: { trip: TripData }) {

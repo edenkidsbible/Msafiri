@@ -45,20 +45,26 @@ export const PLAYER_SPEEDS = [0.5, 1, 1.5, 2];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const EAT = "Africa/Nairobi";
+
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-KE", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: EAT,
   });
 }
 
 export function fmtDateTime(ms: number): string {
   const d = new Date(ms);
   const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
+  // Compare dates in EAT, not the device's local timezone
+  const eatDateStr = (dt: Date) =>
+    dt.toLocaleDateString("en-KE", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: EAT });
+  const isToday = eatDateStr(d) === eatDateStr(now);
   if (isToday) return `Today, ${fmtTime(ms)}`;
   return (
-    d.toLocaleDateString("en-KE", { day: "numeric", month: "short" }) +
+    d.toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: EAT }) +
     ", " +
     fmtTime(ms)
   );

@@ -48,6 +48,7 @@ function fmtTime(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-KE", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "Africa/Nairobi",
   });
 }
 
