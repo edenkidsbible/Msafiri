@@ -325,6 +325,22 @@ export default function DashcamOverlay() {
   // to trigger a fresh loop iteration without toggling isRecording).
   useEffect(() => {
     if (!isRecording || Platform.OS === "web") return;
+    // Per-invocation cancel token. This is a local closure variable — NOT the
+    // shared loopCancelRef — so a subsequent effect invocation (e.g. from a
+    // recordingEpoch bump) cannot accidentally un-cancel this loop by resetting
+    // the shared ref. Without this, the following race was possible:
+    //
+    //   1. recordingEpoch bumps (e.g. iOS foreground return).
+    //   2. React cleanup sets loopCancelRef.current = true.
+    //   3. React immediately runs the new effect, setting loopCancelRef.current = false.
+    //   4. The OLD loop resumes from an await (onSegmentComplete / sleep) and
+    //      sees loopCancelRef.current === false → keeps running.
+    //   5. Both the old loop and the new loop now call recordAsync concurrently.
+    //      iOS rejects the second call; failures accumulate; stopDashcam() fires.
+    //
+    // Using a local `cancelled` variable that is only ever flipped to true by
+    // THIS invocation's cleanup ensures the old loop always exits when it should.
+    let cancelled = false;
     loopCancelRef.current = false;
 
     async function loop() {
@@ -346,9 +362,9 @@ export default function DashcamOverlay() {
       // a null result on the first segment, eating one of our failure slots.
       // A short pause here lets the camera fully initialise.
       await sleep(900);
-      if (loopCancelRef.current) return;
+      if (cancelled) return;
 
-      while (!loopCancelRef.current) {
+      while (!cancelled) {
         if (!localCameraRef.current) {
           // Camera ref not attached yet — wait instead of aborting.
           consecutiveFailures++;
@@ -373,14 +389,14 @@ export default function DashcamOverlay() {
             // location from the clip.
             const coords = lastValidCoordsRef.current ?? undefined;
             await onSegmentComplete(result.uri, durationS, coords);
-          } else if (!loopCancelRef.current) {
+          } else if (!cancelled) {
             // Resolved with no file (camera interrupted / not ready) — retry.
             consecutiveFailures++;
             if (consecutiveFailures >= MAX_FAILURES) break;
             await sleep(1500);
           }
         } catch (err) {
-          if (loopCancelRef.current) break;
+          if (cancelled) break;
           console.warn("[Dashcam] recordAsync failed, retrying:", err);
           consecutiveFailures++;
           if (consecutiveFailures >= MAX_FAILURES) break;
@@ -390,7 +406,7 @@ export default function DashcamOverlay() {
     }
 
     loop().then(() => {
-      if (!loopCancelRef.current) {
+      if (!cancelled) {
         // The loop exited due to consecutive MAX_FAILURES (not an explicit stop).
         // Try to auto-recover by bumping the recording epoch (restarts the loop
         // without toggling isRecording off) — this handles transient camera
@@ -412,6 +428,7 @@ export default function DashcamOverlay() {
       }
     });
     return () => {
+      cancelled = true;
       loopCancelRef.current = true;
       localCameraRef.current?.stopRecording();
     };
