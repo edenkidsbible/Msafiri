@@ -214,6 +214,28 @@ export async function updateTripOdometer(
   await saveVehicleCareData(data, storageKey);
 }
 
+/**
+ * Seed the care-odometer baseline when the user provides their current reading
+ * during vehicle setup or first save.
+ *
+ * We back-calculate `initialOdometerKm = entered_total − tripAccumulatedKm`
+ * so that (initialOdometerKm + tripAccumulatedKm) always equals the total the
+ * user typed — and any trip km already recorded before this call is preserved
+ * rather than reset.  This is the same formula used by the garage edit path.
+ *
+ * Calling this is idempotent: if called again with a new total (e.g. the user
+ * corrects the reading) the baseline just shifts while trip distance stays intact.
+ */
+export async function setVehicleCareInitialOdometer(
+  storageKey: string,
+  totalKm: number,
+): Promise<void> {
+  const data = await loadVehicleCareData(storageKey);
+  const accumulated = data.tripAccumulatedKm ?? 0;
+  data.initialOdometerKm = Math.max(0, totalKm - accumulated);
+  await saveVehicleCareData(data, storageKey);
+}
+
 // ── Computed values ───────────────────────────────────────────────────────────
 
 export function estimatedOdometerKm(data: VehicleCareData): number {

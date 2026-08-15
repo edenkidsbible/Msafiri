@@ -28,8 +28,10 @@ import {
   BG_SESSION_ID_KEY,
   BG_ZONES_CACHE_KEY,
   BG_REPORTS_CACHE_KEY,
+  BG_LAST_FIX_KEY,
   type BgZoneEntry,
   type BgReportEntry,
+  type BgLastFix,
 } from "@/utils/backgroundDriveAlerts";
 import {
   startBackgroundOdometerTask,
@@ -2648,6 +2650,79 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(watchdog);
       teardown();
     };
+  }, [locationGranted, handleLocation]);
+
+  // ── Foreground-return position injection ──────────────────────────────────
+  // When the driver returns to the app (screen unlocks, app switches back),
+  // the high-accuracy watchPositionAsync takes 1-5 s to deliver its first
+  // fresh fix.  During that window the map and speed display show a stale
+  // position — sometimes many hundreds of metres behind the vehicle.
+  //
+  // Fix: on every AppState → "active" transition, immediately read the last
+  // background GPS fix that the drive-alert task persisted to AsyncStorage and
+  // feed it through handleLocation.  This gives the app a correct position
+  // within milliseconds of the screen unlock, before the foreground watch even
+  // fires.  The watchdog's staleness timer is also reset so it doesn't
+  // immediately resubscribe on top of this injected fix.
+  //
+  // We also call Location.getLastKnownPositionAsync() as a second source: it
+  // returns the OS-cached position which may be more recent than the stored
+  // background fix (e.g. the share task or odometer task updated it more
+  // recently).  Both paths are safe — handleLocation is idempotent and
+  // deduplicates fixes that don't represent meaningful movement.
+  useEffect(() => {
+    if (!locationGranted || Platform.OS === "web") return;
+
+    const handleChange = async (state: AppStateStatus) => {
+      if (state !== "active") return;
+      try {
+        // ── Path 1: Background drive-alert task's persisted last fix ──────
+        const stored = await AsyncStorage.getItem(BG_LAST_FIX_KEY).catch(() => null);
+        if (stored) {
+          const fix: BgLastFix = JSON.parse(stored);
+          // Only inject if the fix is within the last 60 s — older than that
+          // and the driver may have been parked somewhere unrelated.
+          if (Date.now() - fix.ts < 60_000) {
+            handleLocation(fix.lat, fix.lng, fix.speedMs, fix.accuracyM, null);
+            // Prevent the GPS watchdog from immediately resubscribing on top of
+            // this injected fix (it would see 0 ms since last fix, which is fine,
+            // but this also avoids a redundant resubscribe on slow-starting GPS).
+            lastLocationAtRef.current = Date.now();
+          }
+          // Clear after consuming — avoid re-injecting the same stale fix on
+          // the next foreground return without a new background update.
+          AsyncStorage.removeItem(BG_LAST_FIX_KEY).catch(() => {});
+        }
+
+        // ── Path 2: OS-cached last known position ─────────────────────────
+        // getLastKnownPositionAsync() is non-blocking and returns immediately
+        // from the platform's location cache — no GPS hardware wakeup needed.
+        // maxAge: 30 s ensures we only use a reasonably fresh cached fix.
+        // requiredAccuracy: 200 m filters out old Wi-Fi / cell-tower estimates.
+        try {
+          const cached = await Location.getLastKnownPositionAsync({
+            maxAge:           30_000,
+            requiredAccuracy: 200,
+          });
+          if (cached) {
+            handleLocation(
+              cached.coords.latitude,
+              cached.coords.longitude,
+              cached.coords.speed ?? null,
+              cached.coords.accuracy ?? null,
+              null,
+            );
+            lastLocationAtRef.current = Date.now();
+          }
+        } catch { /* non-critical */ }
+      } catch { /* ignore */ }
+    };
+
+    const sub = AppState.addEventListener("change", handleChange);
+    return () => sub.remove();
+  // handleLocation is a useCallback — including it means we re-register the
+  // listener only when its deps change (rare), keeping the listener fresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationGranted, handleLocation]);
 
   // ── Route fetching ────────────────────────────────────────────────────────

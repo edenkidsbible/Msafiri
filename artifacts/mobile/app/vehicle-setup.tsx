@@ -24,6 +24,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { saveVehicles, loadVehicles, setPrimaryVehicleIdIfUnset, normalizePlate } from "@/utils/savedVehicles";
+import { getCareStorageKey, setVehicleCareInitialOdometer } from "@/utils/vehicleCare";
 import { apiGet, apiPost } from "@/utils/apiClient";
 import { useVehicle } from "@/context/VehicleContext";
 import { CAR_MAKES } from "@/data/carModels";
@@ -95,6 +96,8 @@ export default function VehicleSetup() {
   const [fuelType, setFuelType] = useState<FuelType | null>(null);
 
   const [plateNumber, setPlateNumber] = useState("");
+  const [odometerInput, setOdometerInput] = useState("");
+  const [odoModalVisible, setOdoModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Plate duplicate-check state
@@ -204,6 +207,8 @@ export default function VehicleSetup() {
       }
       setCtxVehicleType((ctxVehicleType ?? "car") as any);
 
+      const parsedOdometer = odometerInput.trim() ? parseFloat(odometerInput) : undefined;
+
       const newVehicle = {
         id: existing.length === 0 ? "v0" : `v${Date.now()}`,
         makeId: resolvedMakeId,
@@ -215,6 +220,7 @@ export default function VehicleSetup() {
         fuelType: fuelType ?? undefined,
         transmission: transmission ?? undefined,
         plateNumber: normalizePlate(plateNumber) || undefined,
+        odometerKm: parsedOdometer,
       };
 
       if (existing.length === 0) {
@@ -228,6 +234,16 @@ export default function VehicleSetup() {
         // isDefault stays false so the user's current default is preserved.
         await saveVehicles([...existing, { ...newVehicle, isDefault: false }]);
       }
+
+      // Seed the care-odometer baseline so the running total the app shows
+      // starts from the car's real mileage, not from zero.
+      if (parsedOdometer != null && !isNaN(parsedOdometer) && parsedOdometer > 0) {
+        const savedId    = newVehicle.id;
+        const savedIsDefault = existing.length === 0; // first vehicle → default key
+        const careKey    = getCareStorageKey(savedId, savedIsDefault);
+        await setVehicleCareInitialOdometer(careKey, parsedOdometer).catch(() => {});
+      }
+
       // Sync VehicleContext so all consumers see the updated list immediately
       refreshVehicles().catch(() => {});
     } catch {
@@ -544,6 +560,33 @@ export default function VehicleSetup() {
                 <Text style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Inter_400Regular", fontSize: 11 }}>Optional</Text>
               </Text>
               <ChipRow options={TRANSMISSIONS} value={transmission} onSelect={setTransmission} color="#00A845" />
+
+              {/* Current odometer */}
+              <Text style={[cs.fieldLabel, { marginTop: 20 }]}>
+                Current odometer (km){" "}
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Inter_400Regular", fontSize: 11 }}>Optional</Text>
+              </Text>
+              <Text style={cs.fieldHint}>
+                Your car's current mileage. Every trip you make will be added to this figure automatically.
+              </Text>
+              <KeyboardInputModal
+                visible={odoModalVisible}
+                label="Current Odometer (km)"
+                value={odometerInput}
+                onChangeText={t => setOdometerInput(t.replace(/[^0-9.]/g, ""))}
+                onDone={() => setOdoModalVisible(false)}
+                placeholder="e.g. 45000"
+                keyboardType="numeric"
+              />
+              <TouchableOpacity
+                style={cs.odometerInput}
+                onPress={() => setOdoModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: odometerInput ? "#ddd" : "#555", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+                  {odometerInput || "e.g. 45 000"}
+                </Text>
+              </TouchableOpacity>
             </>
           )}
       </KeyboardAwareScrollViewCompat>

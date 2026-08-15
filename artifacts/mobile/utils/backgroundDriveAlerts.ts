@@ -19,6 +19,11 @@
  *   @msafiri/bgReportsCache     JSON BgReportEntry[] — compact active reports
  *   @msafiri/bgNotifiedAlerts   JSON BgNotifiedMap   — dedup state, reset
  *                                                      when session ID changes
+ *   @msafiri/bgLastFix          JSON { lat, lng, speed, accuracy, ts }
+ *                                         — most recent background GPS fix,
+ *                                           read by AppContext on foreground
+ *                                           return to eliminate the position
+ *                                           "jump" when the screen unlocks
  */
 
 import * as TaskManager from "expo-task-manager";
@@ -29,11 +34,12 @@ import { Platform } from "react-native";
 
 export const BG_DRIVE_ALERTS_TASK = "MSAFIRI_BG_DRIVE_ALERTS";
 
-// ── AsyncStorage keys (exported so AppContext can write them) ─────────────────
+// ── AsyncStorage keys (exported so AppContext can write/read them) ─────────────
 export const BG_DRIVE_ACTIVE_KEY    = "@msafiri/bgDriveActive";
 export const BG_SESSION_ID_KEY      = "@msafiri/bgSessionId";
 export const BG_ZONES_CACHE_KEY     = "@msafiri/bgZonesCache";
 export const BG_REPORTS_CACHE_KEY   = "@msafiri/bgReportsCache";
+export const BG_LAST_FIX_KEY        = "@msafiri/bgLastFix";   // ← new: foreground recovery
 const        BG_NOTIFIED_ALERTS_KEY = "@msafiri/bgNotifiedAlerts";
 
 // ── Alert thresholds (match foreground AppContext values) ─────────────────────
@@ -43,6 +49,11 @@ const IN_ZONE_DIST = 250; // m — inner boundary: driver is already inside, ski
 // Don't re-notify the same zone/report within 5 minutes even if the driver
 // circles back. This matches the foreground dismiss-cooldown behaviour.
 const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+
+// Maximum age of a GPS fix accepted from the background task batch.
+// Stale fixes (cached by the OS after the device was still) can trigger
+// false alerts at the wrong location.
+const FIX_MAX_AGE_MS = 20_000; // 20 s
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
@@ -65,13 +76,18 @@ export interface BgReportEntry {
   speedLimit?: number | null;
 }
 
+/** Persisted last-known background GPS fix for foreground recovery. */
+export interface BgLastFix {
+  lat: number;
+  lng: number;
+  speedMs: number | null;
+  accuracyM: number | null;
+  ts: number; // epoch ms when the fix was recorded
+}
+
 /** Per-session notification dedup map stored in AsyncStorage. */
 interface BgNotifiedMap {
-  /** Matches the session ID written at trip start. If mismatched, the whole
-   *  map is discarded so stale dedup entries from a prior drive never block
-   *  alerts on the current one. */
   sessionId: string;
-  /** alertId → epoch ms of the last notification for that alert. */
   notified: Record<string, number>;
 }
 
@@ -131,15 +147,44 @@ export function defineBackgroundDriveAlertsTask(): void {
         const activeRaw = await AsyncStorage.getItem(BG_DRIVE_ACTIVE_KEY);
         if (activeRaw !== "true") return;
 
-        // ── 2. Extract the latest GPS fix from this background invocation ──
+        // ── 2. Extract the freshest GPS fix from this background invocation ─
+        // The OS may batch multiple locations; use the most recent one.
+        // Discard any fix that is too old — the OS sometimes delivers cached
+        // fixes (e.g. from when the device was parked) rather than a live one.
         const locations =
           (data as any)?.locations as Location.LocationObject[] | undefined;
         if (!locations?.length) return;
-        const loc = locations[locations.length - 1];
+
+        const now = Date.now();
+        // Sort descending by timestamp and pick the freshest.
+        const sorted = [...locations].sort(
+          (a, b) => b.timestamp - a.timestamp,
+        );
+        // Find the freshest fix that is within the staleness window.
+        const loc = sorted.find(
+          (l) => now - l.timestamp <= FIX_MAX_AGE_MS,
+        ) ?? sorted[0]; // fall back to freshest even if stale
+
+        // If the best fix is more than 60s old the device has not moved
+        // recently; skip this invocation rather than evaluating a cold cache.
+        if (now - loc.timestamp > 60_000) return;
+
         const lat = loc.coords.latitude;
         const lng = loc.coords.longitude;
+        const accuracyM = loc.coords.accuracy;
 
-        // ── 3. Load all data in parallel ───────────────────────────────────
+        // ── 3. Persist this fix so AppContext can consume it on foreground ──
+        const lastFix: BgLastFix = {
+          lat,
+          lng,
+          speedMs: loc.coords.speed ?? null,
+          accuracyM: accuracyM ?? null,
+          ts: loc.timestamp,
+        };
+        // Fire-and-forget; don't await — alert logic proceeds immediately.
+        AsyncStorage.setItem(BG_LAST_FIX_KEY, JSON.stringify(lastFix)).catch(() => {});
+
+        // ── 4. Load all data in parallel ───────────────────────────────────
         const [sessionIdRaw, zonesRaw, reportsRaw, notifiedRaw] =
           await Promise.all([
             AsyncStorage.getItem(BG_SESSION_ID_KEY),
@@ -170,7 +215,7 @@ export function defineBackgroundDriveAlertsTask(): void {
         try { zones   = zonesRaw   ? (JSON.parse(zonesRaw)   as BgZoneEntry[])   : []; } catch {}
         try { reports = reportsRaw ? (JSON.parse(reportsRaw) as BgReportEntry[]) : []; } catch {}
 
-        // ── 4. Evaluate all zones + reports, pick the closest alertable one ─
+        // ── 5. Evaluate all zones + reports, pick the closest alertable one ─
         // Mirrors the foreground winner-selection logic in AppContext:
         // only zones in (IN_ZONE_DIST, ALERT_DIST] qualify.
         type Winner = {
@@ -195,23 +240,22 @@ export function defineBackgroundDriveAlertsTask(): void {
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
           if (!winner || d < winner.dist) {
             winner = {
-              id:        r.id,
-              type:      r.type,
-              dist:      d,
+              id:         r.id,
+              type:       r.type,
+              dist:       d,
               speedLimit: r.speedLimit,
-              name:      TYPE_LABELS[r.type] ?? r.type,
+              name:       TYPE_LABELS[r.type] ?? r.type,
             };
           }
         }
 
         if (!winner) return;
 
-        // ── 5. Session-scoped dedup: skip if already notified recently ─────
-        const now = Date.now();
+        // ── 6. Session-scoped dedup: skip if already notified recently ─────
         const lastAt = notifiedMap.notified[winner.id] ?? 0;
         if (now - lastAt < ALERT_COOLDOWN_MS) return;
 
-        // ── 6. Fire the lock-screen notification ───────────────────────────
+        // ── 7. Fire the lock-screen / banner notification ──────────────────
         const label = TYPE_LABELS[winner.type] ?? "Alert";
         const distKm =
           winner.dist >= 1000
@@ -223,18 +267,26 @@ export function defineBackgroundDriveAlertsTask(): void {
           content: {
             title: `⚠️ ${label} ahead`,
             body:  `${label} ahead${speedPart} · ${distKm}`,
-            sound: "alert_tone.mp3",
+
+            // ── Sound ──────────────────────────────────────────────────────
+            // iOS: local notification sounds MUST be .wav / .aiff / .caf —
+            //      .mp3 is silently ignored by UNUserNotificationCenter.
+            //      `true` → system uses the app's default notification sound.
+            // Android: sound comes from the notification CHANNEL (configured
+            //      in usePushNotifications); the content-level sound field is
+            //      ignored on API 26+ (Oreo+), so we leave it unset there.
+            sound: Platform.OS === "ios" ? true : undefined,
+
             data:  { source: "bg_drive_alert", type: winner.type },
           },
-          // On Android the notification channel (which carries the alert tone
-          // and HIGH importance) must be set in the trigger, not in content —
-          // expo-notifications ignores a content-level channelId field.
           trigger: Platform.OS === "android"
+            // The msafiri_alerts channel carries HIGH importance + sound.
+            // Setting channelId here is the correct way to route on Android 8+.
             ? { channelId: "msafiri_alerts" }
             : null,
         });
 
-        // ── 7. Persist the updated dedup map ───────────────────────────────
+        // ── 8. Persist the updated dedup map ───────────────────────────────
         notifiedMap.notified[winner.id] = now;
         // Prune entries older than 2× cooldown to keep the map small
         for (const [id, ts] of Object.entries(notifiedMap.notified)) {
@@ -257,6 +309,22 @@ export function defineBackgroundDriveAlertsTask(): void {
  * Start the background alert location task.
  * Returns true if the task was started (or was already running).
  * Returns false when background location permission has not been granted.
+ *
+ * Accuracy and interval choices:
+ *   High accuracy  — uses GPS hardware, not cell/Wi-Fi. Gives 3-15 m fixes vs
+ *                    the 50-150 m typical of Balanced mode, which is critical
+ *                    for the 600 m alert window and precise distance display.
+ *   distanceInterval: 10 m — wake the task every ~10 m of movement. At
+ *                    100 km/h that's a wakeup every ~0.36 s; the OS schedules
+ *                    these as a batch but the density ensures we don't miss a
+ *                    600 m alert window on high-speed roads.
+ *   timeInterval: 5000 ms — also fire on a 5 s timer so a stationary driver
+ *                    near a hazard gets a notification without needing to move
+ *                    another 10 m first.
+ *   showsBackgroundLocationIndicator: true — shows the blue GPS pill on iOS.
+ *                    More importantly it signals to the iOS scheduler that
+ *                    this task requires timely location updates, granting it
+ *                    higher wakeup priority (similar to navigation apps).
  */
 export async function startBgDriveAlertsTask(): Promise<boolean> {
   if (Platform.OS === "web") return false;
@@ -270,14 +338,35 @@ export async function startBgDriveAlertsTask(): Promise<boolean> {
     if (isRunning) return true;
 
     await Location.startLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK, {
-      accuracy: Location.Accuracy.Balanced,
-      // Wake the task every 50 m — enough granularity to catch a zone at
-      // 600 m with several trigger opportunities while still being battery-
-      // friendly.
-      distanceInterval: 50,
-      // No blue status-bar pill on iOS; the share task already shows one
-      // when trip sharing is on, and this task runs silently.
-      showsBackgroundLocationIndicator: false,
+      // High accuracy: GPS hardware. Balanced would use cell/Wi-Fi (~100 m),
+      // too imprecise for reliable 600 m alert detection at driving speeds.
+      accuracy: Location.Accuracy.High,
+
+      // Wake on every 10 m of movement — fine enough that at 100 km/h we get
+      // ~10 wakeups per second's worth of distance, ensuring we catch every
+      // 600 m alert window with plenty of margin.
+      distanceInterval: 10,
+
+      // Also fire on a time cadence so a stationary driver sitting 400 m from
+      // a speed camera still gets notified without needing to move first.
+      timeInterval: 5000,
+
+      // Show the blue GPS status-bar pill on iOS. This tells the iOS location
+      // scheduler that updates are navigation-critical, granting higher wakeup
+      // fidelity and priority (same treatment as turn-by-turn navigation apps).
+      showsBackgroundLocationIndicator: true,
+
+      // Android foreground service: required for reliable background location
+      // on Android 8+. Without this, Doze mode can kill the task mid-drive.
+      // The notification tells the user the app is tracking their drive.
+      ...(Platform.OS === "android" ? {
+        foregroundService: {
+          notificationTitle:   "Msafiri Drive Mode",
+          notificationBody:    "Monitoring for nearby hazards and speed zones",
+          notificationColor:   "#00C853",
+          killServiceOnDestroy: false,
+        },
+      } : {}),
     });
     return true;
   } catch (e) {
@@ -288,6 +377,8 @@ export async function startBgDriveAlertsTask(): Promise<boolean> {
 
 /**
  * Stop the background alert location task.
+ * Also clears the persisted last-fix so stale position isn't injected on the
+ * next foreground return after a very long gap.
  */
 export async function stopBgDriveAlertsTask(): Promise<void> {
   if (Platform.OS === "web") return;

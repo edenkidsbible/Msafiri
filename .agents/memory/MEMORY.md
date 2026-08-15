@@ -79,3 +79,4 @@
 - [Route polyline gating rule](route-polyline-gating.md) — polylines only render when trip is active; gated on navTripActive (MapViewScreen) and tripMode (DriveMapView); alt routes hidden during trip; no preview polyline.
 - [Garage offline caching pattern](garage-offline-caching.md) — sessions + shared stats cached per vehicleId in AsyncStorage; stale-while-revalidate; isOffline in effect deps triggers re-fetch on reconnect; offline banner shown.
 - [Background odometer ownership](background-odometer-ownership.md) — bg location task solely owns distance while backgrounded; never write care storage from the task; route pending once on resume (trip vs continuous), gate fg accumulators.
+- [Background drive alerts improvements](bg-drive-alerts-improvements.md) — iOS local notification sound must be .wav/.aiff/.caf (not .mp3); High+10m+5s task config; foreground-return position injection via BG_LAST_FIX_KEY + getLastKnownPositionAsync.

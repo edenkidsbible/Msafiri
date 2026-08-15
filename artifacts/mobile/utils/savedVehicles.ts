@@ -14,6 +14,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { VehicleTypeId } from "@/data/vehicleTypes";
+import { getCareStorageKey, setVehicleCareInitialOdometer } from "@/utils/vehicleCare";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,14 @@ export async function applyPendingSlot(params: {
     await saveVehicles(updated);
     // If the list was empty, this is the first vehicle — record it as primary
     if (list.length === 0) await setPrimaryVehicleIdIfUnset(newVehicle.id);
+
+    // Seed the care-odometer baseline so trips accumulate on top of the
+    // user's real odometer reading, not on top of zero.
+    if (details?.odometerKm != null && details.odometerKm > 0) {
+      const careKey = getCareStorageKey(newVehicle.id, newVehicle.isDefault);
+      await setVehicleCareInitialOdometer(careKey, details.odometerKm).catch(() => {});
+    }
+
     return updated;
   }
 
@@ -221,6 +230,16 @@ export async function applyPendingSlot(params: {
       : v
   );
   await saveVehicles(updated);
+
+  // Keep the care baseline in sync when an existing vehicle's odometer changes
+  if (details?.odometerKm != null && details.odometerKm > 0) {
+    const target = updated[slot];
+    if (target) {
+      const careKey = getCareStorageKey(target.id, target.isDefault);
+      await setVehicleCareInitialOdometer(careKey, details.odometerKm).catch(() => {});
+    }
+  }
+
   return updated;
 }
 
