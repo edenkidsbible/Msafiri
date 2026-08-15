@@ -80,15 +80,18 @@ function greetingFor(hour: number): string {
   return "Good night";
 }
 
+const EAT = "Africa/Nairobi";
+
 function tripDateLabel(iso: string): string {
-  const d = new Date(iso);
+  const d   = new Date(iso);
   const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const yest = new Date(now); yest.setDate(now.getDate() - 1);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const eatDate = (dt: Date) => dt.toLocaleDateString("en-KE", { timeZone: EAT, year: "numeric", month: "2-digit", day: "2-digit" });
+  const sameDay = eatDate(d) === eatDate(now);
+  const yest    = new Date(now.getTime() - 86_400_000);
+  const time    = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
   if (sameDay) return `Today, ${time}`;
-  if (d.toDateString() === yest.toDateString()) return `Yesterday, ${time}`;
-  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+  if (eatDate(d) === eatDate(yest)) return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString("en-KE", { month: "short", day: "numeric", timeZone: EAT })}, ${time}`;
 }
 
 // ── Screen ───────────────────────────────────────────────────────────────────

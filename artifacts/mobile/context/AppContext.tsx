@@ -41,8 +41,8 @@ import { getRoadName } from "@/utils/snapToRoad";
 import { playSound, getSoundsMuted } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { syncBackup } from "@/utils/backupSync";
-import { loadVehicles } from "@/utils/savedVehicles";
-import { getCareStorageKey, updateTripOdometer } from "@/utils/vehicleCare";
+import { loadVehicles, saveVehicles } from "@/utils/savedVehicles";
+import { getCareStorageKey, updateTripOdometer, loadVehicleCareData, estimatedOdometerKm } from "@/utils/vehicleCare";
 import { flushOfflineSessions } from "@/utils/driveSessionApi";
 import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { Accelerometer } from "expo-sensors";
@@ -2436,20 +2436,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const done: TripData = { id: t.id ?? genId(), startTime: t.startTime ?? Date.now(), endTime: Date.now(), distance: t.distance ?? 0, maxSpeed: t.maxSpeed ?? 0, avgSpeed: t.avgSpeed ?? 0, alertsCount: t.alertsCount ?? 0, positions: t.positions ?? [] };
             setTripHistory((prev) => { const u = [done, ...prev].slice(0, 50); AsyncStorage.setItem(KEYS.TRIPS, JSON.stringify(u)); return u; });
             // Increment the care-odometer for whichever vehicle is active
-            loadVehicles().then(vs => {
+            loadVehicles().then(async vs => {
               const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
               if (!active) return;
-              updateTripOdometer(done.distance / 1000, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+              const careKey = getCareStorageKey(active.id, active.isDefault);
+              await updateTripOdometer(done.distance / 1000, careKey);
+              // Keep v.odometerKm in the vehicles list current so the garage
+              // page, the edit modal pre-fill, and backups always reflect the
+              // live running total (initial odometer + all accumulated trip km).
+              const careData = await loadVehicleCareData(careKey);
+              const est = estimatedOdometerKm(careData);
+              if (est > 0) {
+                const updated = vs.map(v => v.id === active.id ? { ...v, odometerKm: est } : v);
+                await saveVehicles(updated);
+              }
             }).catch(() => {});
           } else if (t && (t.distance ?? 0) > 0.01) {
             // Short trip below the save threshold (< MIN_TRIP_DIST km) — we don't
             // record it as a trip entry but we still credit the distance to the
             // vehicle odometer so casual/errand driving isn't silently missed.
             const shortKm = (t.distance ?? 0) / 1000;
-            loadVehicles().then(vs => {
+            loadVehicles().then(async vs => {
               const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
               if (!active) return;
-              updateTripOdometer(shortKm, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+              const careKey = getCareStorageKey(active.id, active.isDefault);
+              await updateTripOdometer(shortKm, careKey);
+              const careData = await loadVehicleCareData(careKey);
+              const est = estimatedOdometerKm(careData);
+              if (est > 0) {
+                const updated = vs.map(v => v.id === active.id ? { ...v, odometerKm: est } : v);
+                await saveVehicles(updated);
+              }
             }).catch(() => {});
           }
           // Reset trip state and warm-up so the next journey starts fresh

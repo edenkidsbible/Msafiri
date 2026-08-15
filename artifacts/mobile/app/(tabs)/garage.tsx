@@ -435,6 +435,7 @@ const TRANS_OPTIONS = ["Automatic", "Manual"] as const;
 function EditVehicleModal({
   vehicle, visible, onClose, onSaved,
   cardBg, borderCol, primary, foreground, subText,
+  estimatedOdoKm,
 }: {
   vehicle: SavedVehicle | null;
   visible: boolean;
@@ -445,6 +446,10 @@ function EditVehicleModal({
   primary: string;
   foreground: string;
   subText: string;
+  /** Live estimated odometer = initialOdometer + accumulated trip km.
+   *  Pre-fills the odometer field with the running total the driver actually
+   *  sees in the app, not the stale snapshot saved to the vehicle record. */
+  estimatedOdoKm?: number;
 }) {
   const c = useColors();
   const [fuelType,     setFuelType]     = useState<SavedVehicle["fuelType"]>(undefined);
@@ -458,9 +463,14 @@ function EditVehicleModal({
     if (!vehicle) return;
     setFuelType(vehicle.fuelType);
     setTransmission(vehicle.transmission);
-    setOdoText(vehicle.odometerKm != null && vehicle.odometerKm > 0 ? String(vehicle.odometerKm) : "");
+    // Pre-fill with the LIVE estimated odometer (initial + all accumulated trips)
+    // so the driver sees their actual running total, not a stale vehicle snapshot.
+    const liveOdo = estimatedOdoKm != null && estimatedOdoKm > 0
+      ? Math.round(estimatedOdoKm)
+      : (vehicle.odometerKm != null && vehicle.odometerKm > 0 ? vehicle.odometerKm : null);
+    setOdoText(liveOdo != null ? String(liveOdo) : "");
     setPlate(vehicle.plateNumber ?? "");
-  }, [vehicle?.id, visible]);
+  }, [vehicle?.id, visible, estimatedOdoKm]);
 
   async function handleSave() {
     if (!vehicle) return;
@@ -500,11 +510,14 @@ function EditVehicleModal({
       details.plateNumber = normalizePlate(plate) || undefined;
       await updateVehicleDetails(vehicle.id, details);
 
-      // When the odometer is manually corrected, reset trip accumulation so
-      // the estimated reading doesn't double-count km driven before the edit.
+      // Sync the care-odometer baseline to match what the driver just entered.
+      // We preserve tripAccumulatedKm so already-recorded trip distance is never
+      // lost: back-calculate initialOdometerKm = entered_total − accumulated,
+      // which keeps (initial + accumulated) == the value the driver typed.
       if (odo != null && !isNaN(odo) && odo >= 0) {
         const careKey = getCareStorageKey(vehicle.id, vehicle.isDefault);
         let careData = await loadVehicleCareData(careKey);
+        const accumulated = careData.tripAccumulatedKm ?? 0;
 
         // Check whether any service records are now "above" the new reading.
         // This happens after a downward correction and leaves km-based reminders
@@ -513,8 +526,8 @@ function EditVehicleModal({
         if (staleCount > 0) {
           // Finish the regular save first so the odometer update is not lost
           // if the user dismisses the dialog.
-          careData.initialOdometerKm = odo;
-          careData.tripAccumulatedKm = 0;
+          careData.initialOdometerKm = odo - accumulated;
+          // tripAccumulatedKm is intentionally preserved — driver entered total
           await saveVehicleCareData(careData, careKey);
 
           onSaved();
@@ -543,8 +556,8 @@ function EditVehicleModal({
           return;
         }
 
-        careData.initialOdometerKm = odo;
-        careData.tripAccumulatedKm = 0;
+        careData.initialOdometerKm = odo - accumulated;
+        // tripAccumulatedKm is intentionally preserved — driver entered total
         await saveVehicleCareData(careData, careKey);
       }
 
@@ -1660,6 +1673,7 @@ export default function GarageScreen() {
         primary={c.primary}
         foreground={c.foreground}
         subText={subText}
+        estimatedOdoKm={odometerKm > 0 ? odometerKm : undefined}
       />
 
       {/* ── Pending join requests modal ── */}

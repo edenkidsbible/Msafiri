@@ -137,7 +137,7 @@ export default function ProfileScreen() {
       if (daysLeft === 0) return "Trial ends today";
       return `Trial ends in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}`;
     }
-    return "Renews " + d.toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
+    return "Renews " + d.toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" });
   })();
 
   // Plan pill label + colour

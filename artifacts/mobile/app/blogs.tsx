@@ -34,7 +34,7 @@ interface BlogPost {
 function formatDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return d.toLocaleDateString("en-KE", { year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-KE", { year: "numeric", month: "short", day: "numeric", timeZone: "Africa/Nairobi" });
 }
 
 function resolveImage(path: string | null): string | null {

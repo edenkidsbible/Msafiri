@@ -59,16 +59,23 @@ export default function GlobalAlertOverlay() {
 
   // Suppress on the Drive tab — DriveAlertOverlay handles it there.
   const isOnDriveTab = pathname === "/drive" || pathname === "/(tabs)/drive";
-  const visible = !isOnDriveTab && activeAlert != null;
+  // Hide once the driver has passed the alert pin (>100 m behind). AppContext's
+  // shouldDismiss path will eventually clear activeAlert entirely, but the UI
+  // gate here gives an immediate visual response so the banner never shows an
+  // ever-increasing "behind you" distance while the dismissal logic catches up.
+  const isAlertPassed = activeAlert != null &&
+    activeAlert.alongTrackM != null &&
+    activeAlert.alongTrackM < -100;
+  const visible = !isOnDriveTab && activeAlert != null && !isAlertPassed;
 
   // ── Animate in/out ────────────────────────────────────────────────────────
   // Audio is handled entirely by AppContext (isNewAlert block). This effect
   // is responsible only for sliding the banner in and out.
   useEffect(() => {
-    if (!activeAlert || isOnDriveTab) {
+    if (!activeAlert || isOnDriveTab || isAlertPassed) {
       Animated.timing(slideY, {
         toValue: -180,
-        duration: activeAlert ? 0 : 260,
+        duration: 260,
         useNativeDriver: true,
       }).start();
       return;
@@ -83,7 +90,7 @@ export default function GlobalAlertOverlay() {
       friction: 11,
     }).start();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAlert?.id, isOnDriveTab]);
+  }, [activeAlert?.id, isOnDriveTab, isAlertPassed]);
 
   // Hide immediately when switching to the Drive tab
   useEffect(() => {
@@ -101,9 +108,19 @@ export default function GlobalAlertOverlay() {
   const hasExtras = activeAlertExtras.length > 0;
   const isDark = colors.isDark;
 
-  const distText = alert.alongTrackM != null && alert.alongTrackM < 50
-    ? "Passing now"
-    : `${formatDist(alert.distance)} ahead`;
+  // Distance display — prefer the signed along-track value (decreases as driver
+  // approaches, goes negative once passed) over haversine (always positive, rises
+  // when moving away — confusing after a pass-through).
+  const distText = (() => {
+    const atm = alert.alongTrackM;
+    if (atm != null) {
+      if (atm < 0) return "Just passed";   // between -100 m and 0 (not yet hidden)
+      if (atm < 50) return "Passing now";
+      return `${formatDist(atm)} ahead`;
+    }
+    // No heading yet — fall back to haversine
+    return alert.distance < 50 ? "Passing now" : `${formatDist(alert.distance)} ahead`;
+  })();
 
   return (
     <Animated.View

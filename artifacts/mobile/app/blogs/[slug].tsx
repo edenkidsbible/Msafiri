@@ -114,7 +114,7 @@ function parseHtml(html: string): Block[] {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString("en-KE", { year: "numeric", month: "long", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-KE", { year: "numeric", month: "long", day: "numeric", timeZone: "Africa/Nairobi" });
 }
 
 // ── Component ─────────────────────────────────────────────────────────

@@ -1702,7 +1702,12 @@ export default function DriveScreen() {
             <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>{`${primaryAlert.typeName} ahead`}</MarqueeText>
             <Text style={[styles.dmAlertSub, { color: c.mutedForeground }]} numberOfLines={1}>
               <Text style={{ color: c.primary, fontFamily: "Inter_700Bold" }}>
-                {distStr(primaryAlert.distanceM)}
+                {/* Prefer along-track distance (always decreases as driver
+                    approaches, never rises when moving away after a pass).
+                    Fall back to haversine when heading is unavailable. */}
+                {activeAlert?.alongTrackM != null && activeAlert.alongTrackM > 0
+                  ? distStr(activeAlert.alongTrackM)
+                  : distStr(primaryAlert.distanceM)}
               </Text>
               {primaryAlert.road ? ` • ${primaryAlert.road}` : ""}
             </Text>

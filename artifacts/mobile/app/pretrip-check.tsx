@@ -19,6 +19,7 @@ import {
   Image,
   AppState,
   Linking,
+  Modal,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -427,12 +428,31 @@ export default function PretripCheckScreen() {
     } catch { /* ignore */ }
   }, []);
 
+  // ── Camera orientation confirm step ───────────────────────────────────────
+  // Always shown (when camera is granted) so the driver can check/adjust their
+  // phone mount angle one final time before the trip starts.
+  const [showCameraConfirm, setShowCameraConfirm] = useState(false);
+  const [confirmCamReady,   setConfirmCamReady]   = useState(false);
+
   // ── Start driving ──────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     if (selectedVehicleId) setActiveVehicle(selectedVehicleId);
+    // When camera access is available, always pause on the orientation confirm
+    // screen so drivers can set the best mount angle before the trip begins.
+    if (cameraGranted && Platform.OS !== "web") {
+      setConfirmCamReady(false);
+      setShowCameraConfirm(true);
+    } else {
+      router.replace("/(tabs)/drive");
+    }
+  }, [selectedVehicleId, setActiveVehicle, cameraGranted]);
+
+  const handleConfirmAndStart = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setShowCameraConfirm(false);
     router.replace("/(tabs)/drive");
-  }, [selectedVehicleId, setActiveVehicle]);
+  }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const allEssentialGranted = locationStatus === "granted" && notifStatus === "granted";
@@ -632,9 +652,10 @@ export default function PretripCheckScreen() {
             </View>
             <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
 
-              {/* Camera preview */}
+              {/* Camera preview — hidden while the full-screen confirm overlay is
+                  open so the OS only has one CameraView active at a time.     */}
               <View style={styles.previewWrap}>
-                {cameraGranted && CameraView ? (
+                {!showCameraConfirm && cameraGranted && CameraView ? (
                   <>
                     <CameraView
                       style={styles.cameraView}
@@ -860,6 +881,114 @@ export default function PretripCheckScreen() {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* ── Camera orientation confirm ──────────────────────────────────────────
+          Full-screen live view shown when the driver taps "Start Driving" and
+          camera permission is available. The driver adjusts their phone mount
+          until the road ahead fills the frame, then confirms to start the trip.
+          Only one CameraView is active at a time — the inline preview in the
+          scroll area is gated off while this modal is open.               ── */}
+      {CameraView && (
+        <Modal
+          visible={showCameraConfirm}
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setShowCameraConfirm(false)}
+        >
+          <View style={styles.orientRoot}>
+            {/* Full-screen live camera ─────────────────────────────────── */}
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              onCameraReady={() => setConfirmCamReady(true)}
+            />
+
+            {/* Loading indicator while camera warms up */}
+            {!confirmCamReady && (
+              <View style={styles.orientLoading}>
+                <ActivityIndicator color="#FFF" size="large" />
+                <Text style={styles.orientLoadingTxt}>Starting camera…</Text>
+              </View>
+            )}
+
+            {/* Viewfinder corner brackets ─────────────────────────────── */}
+            <View style={styles.vfFrame} pointerEvents="none">
+              {/* top-left */}
+              <View style={[styles.vfCorner, styles.vfTL]} />
+              {/* top-right */}
+              <View style={[styles.vfCorner, styles.vfTR]} />
+              {/* bottom-left */}
+              <View style={[styles.vfCorner, styles.vfBL]} />
+              {/* bottom-right */}
+              <View style={[styles.vfCorner, styles.vfBR]} />
+            </View>
+
+            {/* Top bar — back button ───────────────────────────────────── */}
+            <View style={[styles.orientTopBar, { marginTop: insets.top }]}>
+              <TouchableOpacity
+                style={styles.orientBackBtn}
+                onPress={() => setShowCameraConfirm(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="arrow-back" size={20} color="#FFF" />
+              </TouchableOpacity>
+              <View style={styles.orientTopBadge}>
+                <Ionicons name="videocam" size={11} color="#FFF" />
+                <Text style={styles.orientTopBadgeTxt}>Dashcam view</Text>
+              </View>
+              <View style={{ width: 42 }} />
+            </View>
+
+            {/* Bottom sheet — instructions + CTA ─────────────────────── */}
+            <View style={[styles.orientSheet, { paddingBottom: insets.bottom + 20 }]}>
+              {/* Road-framing guide */}
+              <View style={styles.orientGuideRow}>
+                <View style={styles.orientGuideDot} />
+                <Text style={styles.orientGuideLabel}>CAMERA ANGLE CHECK</Text>
+              </View>
+
+              <Text style={styles.orientTitle}>Position your dashcam</Text>
+              <Text style={styles.orientSub}>
+                Adjust your phone mount so the road ahead fills the frame above, then tap the button when ready.
+              </Text>
+
+              {/* Tips */}
+              <View style={styles.orientTipsRow}>
+                <View style={styles.orientTip}>
+                  <Ionicons name="navigate-outline" size={14} color="rgba(255,255,255,0.75)" />
+                  <Text style={styles.orientTipTxt}>Road centred</Text>
+                </View>
+                <View style={styles.orientTip}>
+                  <Ionicons name="sunny-outline" size={14} color="rgba(255,255,255,0.75)" />
+                  <Text style={styles.orientTipTxt}>Horizon visible</Text>
+                </View>
+                <View style={styles.orientTip}>
+                  <Ionicons name="hand-left-outline" size={14} color="rgba(255,255,255,0.75)" />
+                  <Text style={styles.orientTipTxt}>Dash out of frame</Text>
+                </View>
+              </View>
+
+              {/* Confirm CTA */}
+              <TouchableOpacity
+                style={styles.orientConfirmBtn}
+                onPress={handleConfirmAndStart}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                <Text style={styles.orientConfirmTxt}>Looks good — Start Driving</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.orientSkipBtn}
+                onPress={() => setShowCameraConfirm(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.orientSkipTxt}>Go back to checklist</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1090,4 +1219,101 @@ const styles = StyleSheet.create({
   quickStartText:  { flex: 1 },
   quickStartLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   quickStartDesc:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+
+  // ── Camera orientation confirm (full-screen modal) ────────────────────────
+  orientRoot: { flex: 1, backgroundColor: "#000" },
+
+  orientLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center", justifyContent: "center", gap: 12,
+  },
+  orientLoadingTxt: {
+    color: "rgba(255,255,255,0.7)", fontSize: 14, fontFamily: "Inter_400Regular",
+  },
+
+  // Viewfinder corner brackets
+  vfFrame: {
+    position: "absolute", top: "18%", bottom: "30%", left: "8%", right: "8%",
+  },
+  vfCorner: {
+    position: "absolute", width: 28, height: 28,
+    borderColor: "rgba(255,255,255,0.85)",
+  },
+  vfTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
+  vfTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
+  vfBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
+  vfBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+
+  // Top bar
+  orientTopBar: {
+    position: "absolute", top: 0, left: 0, right: 0,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  orientBackBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  orientTopBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  orientTopBadgeTxt: {
+    color: "#FFF", fontSize: 12, fontFamily: "Inter_600SemiBold",
+  },
+
+  // Bottom sheet
+  orientSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    paddingHorizontal: 20, paddingTop: 20,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+  },
+  orientGuideRow: {
+    flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 10,
+  },
+  orientGuideDot: {
+    width: 4, height: 14, borderRadius: 2, backgroundColor: "#22C55E",
+  },
+  orientGuideLabel: {
+    fontSize: 11, fontFamily: "Inter_700Bold",
+    letterSpacing: 1.0, textTransform: "uppercase", color: "#22C55E",
+  },
+  orientTitle: {
+    fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 6,
+  },
+  orientSub: {
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.7)", lineHeight: 20, marginBottom: 16,
+  },
+  orientTipsRow: {
+    flexDirection: "row", gap: 12, marginBottom: 20,
+  },
+  orientTip: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 5,
+  },
+  orientTipTxt: {
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.7)", flexShrink: 1,
+  },
+  orientConfirmBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 10, paddingVertical: 16, borderRadius: 20,
+    backgroundColor: "#22C55E",
+    shadowColor: "#22C55E", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45, shadowRadius: 12, elevation: 6,
+    marginBottom: 10,
+  },
+  orientConfirmTxt: {
+    fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF",
+  },
+  orientSkipBtn: {
+    alignItems: "center", paddingVertical: 10,
+  },
+  orientSkipTxt: {
+    fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.45)",
+  },
 });
