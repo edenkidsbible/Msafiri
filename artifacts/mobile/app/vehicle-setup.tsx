@@ -184,7 +184,30 @@ export default function VehicleSetup() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handleFinish = async () => {
+    // Hard-gate: if the debounce already found a duplicate and it's unresolved, block.
+    if (plateDuplicate && !claimSent) return;
+
     setSaving(true);
+
+    // Final plate uniqueness check before writing — catches races where the
+    // 800 ms debounce hadn't fired yet or where the earlier search call failed.
+    const canonical = normalizePlate(plateNumber);
+    if (canonical.length >= 5) {
+      try {
+        const result = await apiGet<{ found: boolean; vehicle?: DuplicateVehicle; alreadyMember?: boolean }>(
+          `/vehicles/search?plate=${encodeURIComponent(canonical)}&deviceId=${deviceId ?? ""}`
+        );
+        if (result.found && result.vehicle && !result.alreadyMember) {
+          // Show the duplicate UI — same as if the debounce had caught it
+          setPlateDuplicate(result.vehicle);
+          setSaving(false);
+          return;
+        }
+      } catch {
+        // Network failure at save time — don't block the user, proceed with local save
+      }
+    }
+
     try {
       const existing = await loadVehicles();
       // Use slug-based IDs (not timestamps) so image URL resolution via

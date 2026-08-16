@@ -12,6 +12,7 @@ import {
 } from "@/utils/backgroundNotificationTask";
 import { addSharedVehicle } from "@/utils/savedVehicles";
 import { useApp, CommunityReport } from "@/context/AppContext";
+import { useVehicle } from "@/context/VehicleContext";
 import { useLiveLocation } from "@/context/LocationContext";
 
 // Resolved at build time from app.json → extra.eas.projectId.
@@ -225,6 +226,7 @@ export function usePushNotifications() {
     markReportPrompted,
     stopSharingTrip,
   } = useApp();
+  const { refreshVehicles } = useVehicle();
   const { currentLat, currentLng } = useLiveLocation();
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
@@ -376,13 +378,17 @@ export function usePushNotifications() {
           const plateNumber = data?.plateNumber as string | undefined;
           const memberToken = data?.memberToken as string | undefined;
           if (vehicleId && displayName) {
+            // Persist to AsyncStorage then immediately refresh VehicleContext so
+            // the Garage renders the new shared vehicle without needing a remount.
             addSharedVehicle({
               sharedVehicleId: vehicleId,
               displayName,
               vehicleType:     vehicleType ?? "car",
               plateNumber:     plateNumber ?? undefined,
               memberToken:     memberToken ?? undefined,
-            }).catch(() => {});
+            })
+              .then(() => refreshVehicles())
+              .catch(() => {});
           }
           // Navigate to garage so the user sees their new shared vehicle
           safePush("/(tabs)/garage" as any);
