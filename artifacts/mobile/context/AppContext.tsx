@@ -352,11 +352,11 @@ interface AppContextValue {
     fields: { name?: string; road?: string; speedLimit?: number | null; type?: string; description?: string },
     staticZone?: SpeedZone
   ) => Promise<void>;
-  /** Edit report metadata (type and/or roadName) in-place. */
+  /** Edit report metadata (type, roadName, speedLimit, cameraType) in-place. */
   adminEditReport: (
     serverId: string,
     localId: string,
-    fields: { type?: string; roadName?: string | null }
+    fields: { type?: string; roadName?: string | null; speedLimit?: number | null; cameraType?: "fixed" | "mobile" | null }
   ) => Promise<void>;
   /** Create a new speed zone at the given coordinates.
    *  Admin-created zones are auto-verified. Returns the new zone's id. */
@@ -959,7 +959,9 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
     content: {
       title: `⚠️ ${typeLabel} Ahead — ${zone.speedLimit} km/h`,
       body: `${zone.name} is ${d} away on ${zone.road}.`,
-      data: { zoneId: zone.id },
+      // lat/lng/type allow the notification tap handler to open the map and
+      // pulse-highlight the exact alert pin instead of just navigating to the map root.
+      data: { zoneId: zone.id, type: zone.type, lat: zone.lat, lng: zone.lng },
     },
     // On Android the channel must be specified on the trigger, not in content.
     // { channelId } without a time value fires immediately, same as trigger:null.
@@ -2381,11 +2383,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // overlay fired the chime independently on its own render cycle.
         if (!getSoundsMuted()) playSound("alert").catch(() => {});
         if (extraCandidates.length > 0) {
-          // Multi-alert cluster: set geo-anchor and play bundled multi phrase
+          // Multi-alert cluster: set geo-anchor and play bundled multi phrase.
+          // Speed camera always takes audio priority in a mixed cluster — the
+          // camera_multi phrase ("speed camera and more alerts nearby") covers
+          // the most safety-critical case regardless of which alert won the lead.
           alertAnchorLatRef.current = lat;
           alertAnchorLngRef.current = lng;
           alertAnchorExpiryRef.current = null; // fresh anchor — no TTL until driver dismisses
-          speakAlertMulti(winner.type).catch(() => {});
+          const clusterHasCamera = winner.type === "camera" ||
+            extraCandidates.some((e) => e.type === "camera");
+          speakAlertMulti(clusterHasCamera ? "camera" : winner.type).catch(() => {});
         } else {
           // Single alert: play normal bundled phrase (60 s per-ID cooldown on dismiss)
           speakAlert(winner.type).catch(() => {});
@@ -2852,13 +2859,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshReports = useCallback(async () => {
     if (isOfflineRef.current || !deviceIdRef.current) return;
     try {
-      // Anti-scraping: pass the driver's current location so the server only
-      // returns incidents within a 5 km radius. Falls back to no filter (all
-      // active reports) when GPS is not yet available.
+      // Pass the driver's current location so the server can apply a radius
+      // filter.  Use 50 km — wide enough to cover Greater Nairobi and surrounding
+      // routes, while still bounding the query for performance.
+      //
+      // WHY NOT 5 km: when a silent "reports_refresh" push wakes a device that
+      // is 6–8 km from the new report, the subsequent poll with radius=5000
+      // missed the report entirely — the push woke the device but the fetch
+      // still excluded it.  50 km fixes this without fetching a global dump.
+      // Falls back to no filter (all active reports) when GPS is unavailable.
       const lat = currentLatRef.current;
       const lng = currentLngRef.current;
       const url = (lat != null && lng != null)
-        ? `/reports?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radius=5000`
+        ? `/reports?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radius=50000`
         : `/reports`;
       const data = await apiGet<{ reports: Array<{
         id: string; type: string; lat: number; lng: number;
@@ -4550,7 +4563,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const adminEditReport = useCallback(async (
     serverId: string,
     localId: string,
-    fields: { type?: string; roadName?: string | null }
+    fields: { type?: string; roadName?: string | null; speedLimit?: number | null; cameraType?: "fixed" | "mobile" | null }
   ): Promise<void> => {
     await adminApiFetch("PATCH", `/admin-mobile/reports/${serverId}/meta`, fields);
     setCommunityReports((prev) =>
@@ -4558,8 +4571,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         r.id === localId || r.serverId === serverId
           ? {
               ...r,
-              ...(fields.type     !== undefined ? { type:     fields.type as CommunityReport["type"] } : {}),
-              ...(fields.roadName !== undefined ? { roadName: fields.roadName ?? undefined }           : {}),
+              ...(fields.type       !== undefined ? { type:       fields.type as CommunityReport["type"] }         : {}),
+              ...(fields.roadName   !== undefined ? { roadName:   fields.roadName ?? undefined }                   : {}),
+              ...(fields.speedLimit !== undefined ? { speedLimit: fields.speedLimit ?? undefined }                 : {}),
+              ...(fields.cameraType !== undefined ? { cameraType: (fields.cameraType ?? undefined) as "fixed" | "mobile" | undefined } : {}),
             }
           : r
       )

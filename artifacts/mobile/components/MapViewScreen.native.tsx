@@ -289,6 +289,7 @@ export default function MapViewScreen() {
     isOffline, lastAlertDataSyncedAt,
     navTripActive,
     navTripPaused,
+    pendingFocusCoords, setPendingFocusCoords,
   } = useApp();
   const weather = useWeather(currentLat, currentLng);
 
@@ -422,6 +423,48 @@ export default function MapViewScreen() {
       pulseAnimRef.current?.stop();
     };
   }, [focusId, focusLat, focusLng, focusTs]);
+
+  // Also consume pendingFocusCoords set by the notification tap handler when it
+  // routes the driver to the map tab without URL params (e.g. incident_check on
+  // the map tab). Mirrors the URL-params flow above but reads from AppContext.
+  useEffect(() => {
+    if (!pendingFocusCoords) return;
+    const { lat, lng } = pendingFocusCoords;
+    setPendingFocusCoords(null);
+    // Animate camera to the location
+    setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        { latitude: lat, longitude: lng, latitudeDelta: 0.008, longitudeDelta: 0.008 },
+        700,
+      );
+    }, 200);
+    // Trigger the sonar-wave pulse (same path as URL-param focus)
+    pulseAnimRef.current?.stop();
+    if (focusDismissTimer.current) clearTimeout(focusDismissTimer.current);
+    [pulseRing1, pulseRing2, pulseRing3].forEach((v) => v.setValue(0));
+    setFocusedAlert({ id: "pending_focus", lat, lng });
+    const makeRing = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1, duration: 1400, useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0, duration: 0,    useNativeDriver: true }),
+        ]),
+      );
+    const anim = Animated.parallel([
+      makeRing(pulseRing1, 0),
+      makeRing(pulseRing2, 467),
+      makeRing(pulseRing3, 933),
+    ]);
+    pulseAnimRef.current = anim;
+    anim.start();
+    focusDismissTimer.current = setTimeout(() => {
+      pulseAnimRef.current?.stop();
+      setFocusedAlert(null);
+    }, 6000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFocusCoords]);
+
   const openedAtRef = useRef(0);
   const now = Date.now();
 

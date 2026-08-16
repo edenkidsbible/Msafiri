@@ -100,16 +100,17 @@ router.get("/admin-mobile/reports", adminMobileAuth, async (req: Request, res: R
 
     return res.json({
       reports: rows.map((r) => ({
-        id: r.id,
-        type: r.type,
-        status: r.status,
-        lat: r.lat,
-        lng: r.lng,
-        roadName: r.roadName ?? null,
+        id:           r.id,
+        type:         r.type,
+        status:       r.status,
+        lat:          r.lat,
+        lng:          r.lng,
+        roadName:     r.roadName   ?? null,
+        speedLimit:   r.speedLimit ?? null,
+        cameraType:   r.cameraType ?? null,
         confirmCount: r.confirmCount,
-        denyCount: r.denyCount,
+        denyCount:    r.denyCount,
         adminVerified: r.adminVerified,
-        speedLimit: r.speedLimit ?? null,
         createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
         expiresAt: r.expiresAt instanceof Date ? r.expiresAt.toISOString() : (r.expiresAt ?? null),
       })),
@@ -477,21 +478,38 @@ router.patch(
 );
 
 // ─── PATCH /admin-mobile/reports/:id/meta ────────────────────────────────────
-// Edit report metadata: type and/or roadName.
+// Edit report metadata: type, roadName, speedLimit, cameraType.
 router.patch(
   "/admin-mobile/reports/:id/meta",
   adminMobileAuth,
   async (req: Request, res: Response) => {
     try {
       const id = req.params["id"] as string;
-      const { type, roadName } = req.body as { type?: string; roadName?: string | null };
+      const { type, roadName, speedLimit, cameraType } = req.body as {
+        type?: string;
+        roadName?: string | null;
+        speedLimit?: number | null;
+        cameraType?: "fixed" | "mobile" | null;
+      };
       const patch: Record<string, unknown> = {};
-      if (type     !== undefined) patch.type     = type;
-      if (roadName !== undefined) patch.roadName = roadName ?? null;
+      if (type       !== undefined) patch.type       = type;
+      if (roadName   !== undefined) patch.roadName   = roadName   ?? null;
+      if (speedLimit !== undefined) patch.speedLimit = speedLimit ?? null;
+      if (cameraType !== undefined) patch.cameraType = (type ?? "camera") === "camera" ? (cameraType ?? null) : null;
       if (!Object.keys(patch).length) return res.status(400).json({ error: "No fields to update" });
-      const [updated] = await db.update(communityReportsTable).set(patch).where(eq(communityReportsTable.id, id)).returning();
+      const [updated] = await db
+        .update(communityReportsTable)
+        .set(patch)
+        .where(eq(communityReportsTable.id, id))
+        .returning();
       if (!updated) return res.status(404).json({ error: "Report not found" });
-      return res.json({ id: updated.id, type: updated.type, roadName: updated.roadName });
+      return res.json({
+        id:         updated.id,
+        type:       updated.type,
+        roadName:   updated.roadName,
+        speedLimit: updated.speedLimit,
+        cameraType: updated.cameraType,
+      });
     } catch (err) {
       console.error("[admin-mobile/reports/meta]", err);
       return res.status(500).json({ error: "Internal server error" });
@@ -519,11 +537,14 @@ router.get(
           lat:          r.lat,
           lng:          r.lng,
           status:       r.status,
-          roadName:     r.roadName,
+          roadName:     r.roadName   ?? null,
+          speedLimit:   r.speedLimit ?? null,
+          cameraType:   r.cameraType ?? null,
           flagCount:    r.flagCount,
           confirmCount: r.confirmCount,
+          denyCount:    r.denyCount,
           adminVerified: r.adminVerified,
-          createdAt:    r.createdAt.toISOString(),
+          createdAt:    r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
         })),
       });
     } catch (err) {

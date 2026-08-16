@@ -344,18 +344,25 @@ export default function DashcamOverlay() {
     let cancelled = false;
     loopCancelRef.current = false;
 
-    async function loop() {
-      // Consecutive-failure counter — a single recordAsync rejection used to
-      // `break` the loop instantly, so a camera that wasn't quite ready yet
-      // (common when auto-started from the drive screen right after
-      // onCameraReady) left the REC indicator on while saving zero clips.
-      // Instead: back off briefly and retry; only give up after many
-      // consecutive failures. Reset on every successful segment.
-      // MAX_FAILURES is deliberately high (20) so transient interruptions
-      // caused by alert sounds, notification banners, or iOS audio-session
-      // switches don't prematurely stop the dashcam.
+    async function loop(): Promise<"null_stall" | "failure" | "done"> {
+      // Two separate counters to distinguish camera errors from audio interruptions:
+      //
+      // • consecutiveFailures — counts actual recordAsync EXCEPTIONS (real camera
+      //   errors). 20 consecutive exceptions triggers an auto-restart; 3 restarts
+      //   with no recovery triggers a hard stop.
+      //
+      // • nullRetryCount — counts null results (no URI returned).  This is the
+      //   normal outcome when iOS briefly interrupts the audio session due to a
+      //   TTS alert, chime, or notification banner.  These are temporary and
+      //   self-resolving; counting them against the hard-stop limit caused the
+      //   dashcam to stop mid-drive in alert-dense areas (cameras now fire more
+      //   often after the road-gate fix).  After 30 consecutive nulls (~45 s with
+      //   no segment saved) we treat it as a camera stall and trigger a restart,
+      //   but NOT the hard-stop counter — the restart resets nullRetryCount.
       let consecutiveFailures = 0;
-      const MAX_FAILURES = 20;
+      let nullRetryCount = 0;
+      const MAX_FAILURES   = 20;
+      const MAX_NULL_RETRY = 30;
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
       // Camera warm-up: onCameraReady fires slightly before the hardware is
@@ -363,13 +370,15 @@ export default function DashcamOverlay() {
       // a null result on the first segment, eating one of our failure slots.
       // A short pause here lets the camera fully initialise.
       await sleep(900);
-      if (cancelled) return;
+      if (cancelled) return "done";
+
+      let exitReason: "null_stall" | "failure" | "done" = "done";
 
       while (!cancelled) {
         if (!localCameraRef.current) {
           // Camera ref not attached yet — wait instead of aborting.
           consecutiveFailures++;
-          if (consecutiveFailures >= MAX_FAILURES) break;
+          if (consecutiveFailures >= MAX_FAILURES) { exitReason = "failure"; break; }
           await sleep(1000);
           continue;
         }
@@ -384,6 +393,7 @@ export default function DashcamOverlay() {
           });
           if (result?.uri) {
             consecutiveFailures = 0;
+            nullRetryCount = 0;
             const durationS = Math.round((Date.now() - segmentStartRef.current) / 1000);
             // Use the most recent valid GPS fix — persisted across momentary
             // signal gaps so a brief dropout at the 120 s mark doesn't strip
@@ -398,37 +408,52 @@ export default function DashcamOverlay() {
             // short, often returns null, and exhausts failure slots unnecessarily.
             if (!isRecordingRef.current) break;
           } else if (!cancelled) {
-            // Resolved with no file (camera interrupted / not ready) — retry.
-            consecutiveFailures++;
-            if (consecutiveFailures >= MAX_FAILURES) break;
-            await sleep(1500);
+            // Resolved with no file (camera interrupted / not ready).
+            // Most common cause: iOS briefly interrupts the audio session when
+            // a TTS alert, chime, or notification banner plays while recording.
+            // These interruptions are temporary — counting them as hard failures
+            // drained the MAX_FAILURES budget in alert-heavy driving and stopped
+            // the dashcam.  Track separately in nullRetryCount; only trigger a
+            // restart (not a hard stop) after MAX_NULL_RETRY consecutive nulls.
+            nullRetryCount++;
+            if (nullRetryCount >= MAX_NULL_RETRY) { exitReason = "null_stall"; break; }
+            await sleep(500); // short sleep — audio sessions recover quickly
           }
         } catch (err) {
           if (cancelled) break;
           console.warn("[Dashcam] recordAsync failed, retrying:", err);
           consecutiveFailures++;
-          if (consecutiveFailures >= MAX_FAILURES) break;
+          nullRetryCount = 0; // exception resets null-retry (different failure mode)
+          if (consecutiveFailures >= MAX_FAILURES) { exitReason = "failure"; break; }
           await sleep(1500);
         }
       }
+
+      return exitReason;
     }
 
-    loop().then(() => {
+    loop().then((reason) => {
       if (!cancelled) {
-        // The loop exited due to consecutive MAX_FAILURES (not an explicit stop).
-        // Try to auto-recover by bumping the recording epoch (restarts the loop
-        // without toggling isRecording off) — this handles transient camera
-        // interruptions caused by alert sounds or iOS audio-session changes.
-        // A restart counter caps recovery at 3 attempts; if the camera is
-        // genuinely broken we stop cleanly after the 3rd failed restart.
-        restartCountRef.current += 1;
-        if (restartCountRef.current <= 3) {
-          console.warn(`[Dashcam] MAX_FAILURES hit — auto-restarting (attempt ${restartCountRef.current})`);
+        if (reason === "null_stall") {
+          // Audio-session stall (30 consecutive null results ≈ 15 s with no
+          // saved segment).  Most likely cause: sustained TTS / chime playback
+          // while recording.  Restart the loop without consuming a restart slot
+          // — these stalls are temporary and should not hard-stop the dashcam.
+          console.warn("[Dashcam] Audio stall (null results) — restarting loop (no restart slot used)");
           bumpRecordingEpoch();
         } else {
-          console.warn("[Dashcam] MAX_FAILURES hit 3× — stopping dashcam");
-          restartCountRef.current = 0;
-          stopDashcam();
+          // The loop exited due to consecutive MAX_FAILURES — a real camera
+          // error (exception thrown by recordAsync).  Use a restart slot;
+          // after 3 failed genuine restarts, give up and stop cleanly.
+          restartCountRef.current += 1;
+          if (restartCountRef.current <= 3) {
+            console.warn(`[Dashcam] MAX_FAILURES hit — auto-restarting (attempt ${restartCountRef.current})`);
+            bumpRecordingEpoch();
+          } else {
+            console.warn("[Dashcam] MAX_FAILURES hit 3× — stopping dashcam");
+            restartCountRef.current = 0;
+            stopDashcam();
+          }
         }
       } else {
         // Normal explicit stop — reset the restart counter for the next session.

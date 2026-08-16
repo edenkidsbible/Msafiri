@@ -340,6 +340,10 @@ export function defineBackgroundDriveAlertsTask(): void {
           dist: number;
           speedLimit?: number | null;
           name: string;
+          /** Alert pin coordinates — passed through to the notification tap handler
+           *  so the map can focus and pulse-highlight the exact location. */
+          lat: number;
+          lng: number;
         };
         let winner: Winner | null = null;
         let nearestDist = Infinity; // nearest zone/report at any distance
@@ -349,7 +353,7 @@ export function defineBackgroundDriveAlertsTask(): void {
           if (d < nearestDist) nearestDist = d;
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
           if (!winner || d < winner.dist) {
-            winner = { id: z.id, type: z.type, dist: d, speedLimit: z.speedLimit, name: z.name };
+            winner = { id: z.id, type: z.type, dist: d, speedLimit: z.speedLimit, name: z.name, lat: z.lat, lng: z.lng };
           }
         }
 
@@ -364,6 +368,8 @@ export function defineBackgroundDriveAlertsTask(): void {
               dist:       d,
               speedLimit: r.speedLimit,
               name:       TYPE_LABELS[r.type] ?? r.type,
+              lat:        r.lat,
+              lng:        r.lng,
             };
           }
         }
@@ -420,7 +426,9 @@ export function defineBackgroundDriveAlertsTask(): void {
             //      ignored on API 26+ (Oreo+), so we leave it unset there.
             sound: Platform.OS === "ios" ? true : undefined,
 
-            data:  { source: "bg_drive_alert", type: winner.type },
+            // lat/lng/alertId let the notification tap handler open the map
+            // and pulse-highlight the exact alert pin.
+            data:  { source: "bg_drive_alert", type: winner.type, alertId: winner.id, lat: winner.lat, lng: winner.lng },
           },
           trigger: Platform.OS === "android"
             // The msafiri_alerts channel carries HIGH importance + sound.

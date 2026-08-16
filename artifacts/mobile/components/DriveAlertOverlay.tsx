@@ -1,38 +1,23 @@
 /**
- * DriveAlertOverlay — CANONICAL in-drive alert component
- * ───────────────────────────────────────────────────────
- * This is the SINGLE SOURCE OF TRUTH for all speed/zone/hazard alerts shown
- * to the driver while driving. All in-drive alert UI lives here.
+ * DriveAlertOverlay — bottom-sheet in-drive alert (redesigned)
+ * ─────────────────────────────────────────────────────────────
+ * SINGLE SOURCE OF TRUTH for all in-drive alert UI while on the Drive tab.
+ * Do NOT create a parallel alert component — extend this one.
  *
- * ⚠️  If you need a new alert type or new alert behaviour, extend THIS component
- *     (or its DriveAlert interface in AppContext) — do NOT create a parallel
- *     alert component (e.g. AlertBanner or similar). Parallel alert paths cause
- *     silent duplication, missed dismissals, and z-index conflicts.
- *
- * Full-width bottom panel that slides up when the driver approaches a speed
- * camera, police check, speed zone, or community-reported hazard.
- *
- * Urgency tiers (based on distance):
- *   • 1000–400 m  →  yellow  (warning)
- *   •  400–200 m  →  orange  (caution)
- *   •    < 200 m  →  red     (danger, pulsing)
- *
- * When extraAlerts is non-empty (multi-alert cluster), the overlay renders
- * a stacked layout:
- *   • Lead section: full camera gauge OR standard header (unchanged)
- *   • Divider
- *   • Compact rows for each extra (emoji + name + distance pill)
- *   • "Got it — dismiss all" button
- *
- * Height:
- *   The caller passes `minPanelHeight` — computed from the drive gauge's
- *   measured size — so the sheet always covers the gauge area exactly,
- *   making it the dominant element on screen while the alert is active.
+ * Design principles:
+ *  • Distance chip in the header always shows the true signed along-track
+ *    value (never "X m ahead" after the driver has passed the pin).
+ *  • "Passed ✓" state shown immediately when alongTrackM goes negative.
+ *  • Camera priority: when camera is in the cluster it appears first in the
+ *    extras list and its audio always plays (handled in AppContext).
+ *  • ScrollView body prevents content clipping on small phones.
+ *  • No bottom dismiss button — the X in the header is the only dismiss path.
  */
 
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -43,103 +28,124 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { DriveAlert } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
-// Note: alert chime (playSound) is now fired from AppContext alongside
-// speakAlert so both sounds are triggered from a single call site, preventing
-// the race condition where overlay and AppContext played sounds independently.
 import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { MarqueeText } from "@/components/MarqueeText";
+import { reportTier, freshnessLabel } from "@/lib/freshnessLabel";
 
 interface Props {
   alert: DriveAlert;
   /** Additional alerts within 1 km of the lead, sorted by distance. */
   extraAlerts?: DriveAlert[];
   onDismiss: () => void;
-  /** Called (in addition to onDismiss) when the driver taps "Got it — dismiss
-   *  all" on a multi-alert cluster. Use this to surface the re-arm hint. */
+  /** Called (in addition to onDismiss) when the driver dismisses a cluster. */
   onDismissAll?: () => void;
   currentSpeed: number;
   /**
-   * When false the overlay slides out of view (driver is stationary — no need
-   * to show alerts until they start moving again). The alert is NOT dismissed;
-   * it slides back in automatically when visible returns to true.
-   * Defaults to true.
+   * When false the overlay slides out of view (driver stationary). Not dismissed;
+   * slides back in when visible returns to true.
    */
   visible?: boolean;
   /**
-   * Minimum panel height in points. The caller should pass a value that
-   * covers the drive gauge so the overlay is dominant while active.
-   * Defaults to 340 if omitted.
+   * Minimum panel height. Caller passes the drive gauge height so the sheet
+   * always covers it exactly. Defaults to 340.
    */
   minPanelHeight?: number;
 }
 
-// Distance at which an alert is considered "passed" (driver is inside/past it)
-const IN_ZONE_DIST = 250; // metres — must match AppContext constant
+// ── Distance helpers ──────────────────────────────────────────────────────────
 
-// ── Confidence tier helpers ───────────────────────────────────────────────────
-
-import { reportTier, freshnessLabel } from "@/lib/freshnessLabel";
-
-function tierBg(baseBg: string, tier: "new" | "confirmed" | "reliable"): string {
-  if (tier === "new") return "#8D6E63";
-  return baseBg;
+function formatDist(m: number): string {
+  if (m < 1000) return `${Math.round(m / 10) * 10} m`;
+  return `${(m / 1000).toFixed(1)} km`;
 }
 
-// ── Zone-type helpers ─────────────────────────────────────────────────────────
+/** Signed along-track → human label + passed flag. */
+function distInfo(alert: DriveAlert): { text: string; passed: boolean } {
+  const atm = alert.alongTrackM;
+  const v   = atm ?? alert.distance;
+  if (v < -30) return { text: "Passed ✓", passed: true };
+  if (v <  50) return { text: "Here now",  passed: false };
+  return { text: formatDist(v), passed: false };
+}
 
-function urgencyColor(distance: number, colors: ReturnType<typeof useColors>) {
+// ── Colour helpers ────────────────────────────────────────────────────────────
+
+function urgencyColor(distance: number, colors: ReturnType<typeof useColors>): string {
   if (distance < 200) return colors.speedDanger;
   if (distance < 400) return "#E65100";
   return colors.warning;
 }
 
-function formatDist(m: number) {
-  if (m < 1000) return `${Math.round(m / 10) * 10} m`;
-  return `${(m / 1000).toFixed(1)} km`;
+// ── Type priority for display sorting (camera always first) ───────────────────
+
+const TYPE_PRIORITY: Record<string, number> = { camera: 0, police: 1, alcoblow: 2 };
+
+function sortedExtras(extras: DriveAlert[]): DriveAlert[] {
+  return [...extras].sort((a, b) => {
+    const pa = TYPE_PRIORITY[a.type] ?? 99;
+    const pb = TYPE_PRIORITY[b.type] ?? 99;
+    return pa !== pb ? pa - pb : a.distance - b.distance;
+  });
 }
 
-// Extra-alert distance pill color
-function distPillColor(m: number): string {
+// Extra-alert distance pill colour
+function extraPillColor(m: number): string {
   if (m < 200) return "#E53935";
   if (m < 500) return "#E65100";
   return "#00C853";
 }
 
-// The sheet always starts off-screen by at least this much before animating in.
-const ANIM_OFFSCREEN = 520;
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-// ── Extra-alert compact row ───────────────────────────────────────────────────
+const ANIM_OFFSCREEN = 560;
 
-function ExtraAlertRow({ extra, colors }: { extra: DriveAlert; colors: ReturnType<typeof useColors> }) {
-  const resolved = resolveIncidentType(extra.type);
-  const isZone   = extra.source === "zone";
-  const emoji    = !isZone ? resolved.emoji : null;
-  const isPassed = extra.distance < IN_ZONE_DIST;
-  const pillColor = distPillColor(extra.distance);
+// ── Extra-alert row ───────────────────────────────────────────────────────────
+
+function ExtraAlertRow({
+  extra,
+  colors,
+}: {
+  extra: DriveAlert;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const resolved  = resolveIncidentType(extra.type);
+  const isZone    = extra.source === "zone";
+  const emoji     = !isZone ? resolved.emoji : null;
+  const isPassed  = (extra.alongTrackM ?? extra.distance) < -30;
+  const pillColor = extraPillColor(extra.distance);
+  const { text: distText } = distInfo(extra);
 
   return (
-    <View style={[styles.extraRow, { opacity: isPassed ? 0.38 : 1 }]}>
-      <View style={[styles.extraIconWrap, { backgroundColor: resolved.color + "22" }]}>
+    <View style={[styles.extraRow, { opacity: isPassed ? 0.35 : 1 }]}>
+      {/* Type icon */}
+      <View style={[styles.extraIconWrap, { backgroundColor: resolved.color + "1E" }]}>
         {emoji ? (
           <Text style={[styles.extraEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{emoji}</Text>
         ) : (
           <Ionicons
             name={resolved.icon as React.ComponentProps<typeof Ionicons>["name"]}
-            size={16}
+            size={15}
             color={resolved.color}
           />
         )}
       </View>
+
+      {/* Name */}
       <Text style={[styles.extraName, { color: colors.foreground }]} numberOfLines={1}>
         {resolved.label}
       </Text>
-      <View style={[styles.extraDistPill, {
-        backgroundColor: pillColor + "20",
-        borderColor:     pillColor + "55",
-      }]}>
-        <Text style={[styles.extraDistTxt, { color: pillColor }]}>
-          {formatDist(extra.distance)}
+
+      {/* Distance chip */}
+      <View style={[
+        styles.extraDistPill,
+        { backgroundColor: (isPassed ? colors.mutedForeground : pillColor) + "1E",
+          borderColor:     (isPassed ? colors.mutedForeground : pillColor) + "55" },
+      ]}>
+        <Text style={[styles.extraDistTxt, {
+          color: isPassed ? colors.mutedForeground : pillColor,
+        }]}>
+          {distText}
         </Text>
       </View>
     </View>
@@ -157,73 +163,32 @@ export default function DriveAlertOverlay({
   visible = true,
   minPanelHeight = 340,
 }: Props) {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const slideY       = useRef(new Animated.Value(ANIM_OFFSCREEN)).current;
-  const prevId       = useRef<string | null>(null);
-  const activeIdRef  = useRef(alert.id);
+  const colors  = useColors();
+  const insets  = useSafeAreaInsets();
+  const slideY  = useRef(new Animated.Value(ANIM_OFFSCREEN)).current;
+  const prevId  = useRef<string | null>(null);
+  const activeIdRef = useRef(alert.id);
   const [dismissing, setDismissing] = useState(false);
+  const isFirstRenderRef = useRef(true);
 
-  const hasExtras = extraAlerts.length > 0;
+  const hasExtras     = extraAlerts.length > 0;
+  const sortedExtrasArr = sortedExtras(extraAlerts);
 
   useEffect(() => { activeIdRef.current = alert.id; }, [alert.id]);
 
   const visibleRef = useRef(visible);
   useEffect(() => { visibleRef.current = visible; }, [visible]);
 
-  const isFirstRenderRef = useRef(true);
+  // ── Distance + urgency ────────────────────────────────────────────────────
+  const { text: distText, passed: isPassed } = distInfo(alert);
+  const effectiveDist  = alert.alongTrackM ?? alert.distance;
+  const urgent         = !isPassed && effectiveDist < 200;
+  const accentColor    = isPassed
+    ? colors.mutedForeground
+    : urgencyColor(effectiveDist, colors);
+  const pulse          = useHeartbeatPulse(urgent && !dismissing);
 
-  const urgent      = alert.distance < 200;
-  const accentColor = urgencyColor(alert.distance, colors);
-  const pulse       = useHeartbeatPulse(urgent && !dismissing);
-
-  // ── Slide in + sound on first appearance of a new alert ──────────────────
-  useEffect(() => {
-    if (alert.id !== prevId.current) {
-      prevId.current = alert.id;
-      setDismissing(false);
-      slideY.setValue(ANIM_OFFSCREEN);
-      if (visibleRef.current) {
-        Animated.spring(slideY, {
-          toValue: 0, useNativeDriver: true,
-          tension: 58, friction: 10,
-        }).start();
-      }
-    }
-  }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Show / hide based on driver motion ───────────────────────────────────
-  useEffect(() => {
-    if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return; }
-    if (dismissing) return;
-    if (visible) {
-      Animated.spring(slideY, {
-        toValue: 0, useNativeDriver: true,
-        tension: 58, friction: 10,
-      }).start();
-    } else {
-      Animated.timing(slideY, {
-        toValue: ANIM_OFFSCREEN, duration: 280, useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Dismiss ───────────────────────────────────────────────────────────────
-  const handleDismiss = () => {
-    const dismissedId = alert.id;
-    const wasCluster  = hasExtras;
-    setDismissing(true);
-    Animated.timing(slideY, {
-      toValue: ANIM_OFFSCREEN, duration: 280, useNativeDriver: true,
-    }).start(() => {
-      if (activeIdRef.current === dismissedId) {
-        onDismiss();
-        if (wasCluster) onDismissAll?.();
-      }
-    });
-  };
-
-  // ── Resolve display values ────────────────────────────────────────────────
+  // ── Alert type ────────────────────────────────────────────────────────────
   const isZone    = alert.source === "zone";
   const resolved  = resolveIncidentType(alert.type);
   const typeLabel = resolved.label;
@@ -235,19 +200,57 @@ export default function DriveAlertOverlay({
   const speedColor     = overLimit ? colors.speedDanger : "#2E7D32";
 
   const tier        = !isZone ? reportTier(alert.confirmCount) : null;
-  const effectiveBg = tier ? tierBg(accentColor, tier) : accentColor;
 
-  // Sheet glass background — matches the top alert banner's treatment
-  const sheetBg = colors.isDark ? "#0C1610F5" : "#F6FBF8F8";
+  const sheetBg = colors.isDark ? "#0C1610F5" : "#F5FAF6F8";
 
+  // ── Slide-in when a new alert appears ────────────────────────────────────
+  useEffect(() => {
+    if (alert.id !== prevId.current) {
+      prevId.current = alert.id;
+      setDismissing(false);
+      slideY.setValue(ANIM_OFFSCREEN);
+      if (visibleRef.current) {
+        Animated.spring(slideY, {
+          toValue: 0, useNativeDriver: true, tension: 58, friction: 10,
+        }).start();
+      }
+    }
+  }, [alert.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Show / hide when driver stops / starts moving ────────────────────────
+  useEffect(() => {
+    if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return; }
+    if (dismissing) return;
+    Animated.spring(slideY, {
+      toValue: visible ? 0 : ANIM_OFFSCREEN,
+      useNativeDriver: true, tension: 58, friction: 10,
+    }).start();
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Dismiss ───────────────────────────────────────────────────────────────
+  const handleDismiss = () => {
+    const dismissedId = alert.id;
+    const wasCluster  = hasExtras;
+    setDismissing(true);
+    Animated.timing(slideY, {
+      toValue: ANIM_OFFSCREEN, duration: 260, useNativeDriver: true,
+    }).start(() => {
+      if (activeIdRef.current === dismissedId) {
+        onDismiss();
+        if (wasCluster) onDismissAll?.();
+      }
+    });
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Animated.View
       style={[
         styles.sheet,
         {
           minHeight:       minPanelHeight,
-          paddingBottom:   insets.bottom + 20,
-          borderTopColor:  effectiveBg,
+          paddingBottom:   insets.bottom + 16,
+          borderTopColor:  isPassed ? (colors.isDark ? "#2A3A2E" : "#C8DCC8") : accentColor,
           backgroundColor: sheetBg,
           transform:       [{ translateY: slideY }],
         },
@@ -255,204 +258,239 @@ export default function DriveAlertOverlay({
     >
       {/* ── Handle pill ── */}
       <View style={[styles.handle, {
-        backgroundColor: colors.isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.14)",
+        backgroundColor: colors.isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)",
       }]} />
 
-      {/* ── Header: glow orb + type + distance + close ── */}
+      {/* ── Header: orb + labels + distance chip + dismiss ── */}
       <View style={styles.headerRow}>
-        {/* Alert type orb — pulses when urgent */}
+        {/* Alert type orb */}
         <Animated.View style={[styles.alertOrb, {
-          backgroundColor: effectiveBg + "22",
-          borderColor:     effectiveBg + "55",
+          backgroundColor: accentColor + "1E",
+          borderColor:     accentColor + "50",
           transform:       [{ scale: urgent ? pulse : 1 }],
         }]}>
           {emoji ? (
             <Text style={[styles.orbEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{emoji}</Text>
           ) : (
-            <Ionicons name={typeIcon} size={28} color={effectiveBg} />
+            <Ionicons name={typeIcon} size={26} color={accentColor} />
           )}
         </Animated.View>
 
-        {/* Text column */}
+        {/* Type + sub-info */}
         <View style={styles.headerTextCol}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={[styles.typeLabel, { color: effectiveBg }]}>
-              {typeLabel}
-            </Text>
-            {alert.source === "here" && (
-              <View style={styles.liveBadge}>
-                <Text style={styles.liveBadgeTxt}>LIVE</Text>
-              </View>
-            )}
-          </View>
-          <Text style={[styles.distLabel, { color: colors.mutedForeground }]}>
-            {`${formatDist(alert.distance)} ahead`}
+          <Text style={[styles.typeLabel, { color: colors.foreground }]} numberOfLines={1}>
+            {typeLabel}
           </Text>
-          {tier && tier !== "new" && (
-            <View style={[styles.tierBadge, {
-              backgroundColor: tier === "reliable" ? "#00C85322" : "#FFD60022",
-              borderColor:     tier === "reliable" ? "#00C85360" : "#FFD60060",
+
+          {/* Subtitle: road or confidence tier */}
+          {!hasExtras && alert.road ? (
+            <Text style={[styles.subLabel, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {alert.road}
+            </Text>
+          ) : null}
+          {!isZone && alert.source === "report" && tier && tier !== "new" && (
+            <View style={[styles.tierChip, {
+              backgroundColor: tier === "reliable" ? "#00C85318" : "#FFD60018",
+              borderColor:     tier === "reliable" ? "#00C85350" : "#FFD60050",
             }]}>
               <Ionicons
                 name={tier === "reliable" ? "shield-checkmark" : "checkmark-circle"}
                 size={10}
                 color={tier === "reliable" ? "#00C853" : "#D4A000"}
               />
-              <Text style={[styles.tierBadgeTxt, {
+              <Text style={[styles.tierChipTxt, {
                 color: tier === "reliable" ? "#00C853" : "#D4A000",
               }]}>
-                {tier === "reliable" ? "Highly Reliable" : "Confirmed"}
+                {tier === "reliable" ? "Highly reliable" : "Confirmed"}
               </Text>
+            </View>
+          )}
+          {alert.source === "here" && (
+            <View style={styles.liveBadge}>
+              <Text style={styles.liveBadgeTxt}>LIVE</Text>
             </View>
           )}
         </View>
 
-        {/* Close button */}
+        {/* Distance chip — urgency coloured; shows "Passed ✓" when behind */}
+        <Animated.View style={[
+          styles.distChip,
+          {
+            backgroundColor: accentColor + "18",
+            borderColor:     accentColor + "55",
+            transform:       [{ scale: urgent ? pulse : 1 }],
+          },
+        ]}>
+          {urgent && (
+            <Ionicons name="warning" size={11} color={accentColor} style={{ marginRight: 3 }} />
+          )}
+          <Text style={[styles.distChipTxt, { color: accentColor }]}>
+            {distText}
+          </Text>
+        </Animated.View>
+
+        {/* Dismiss */}
         <TouchableOpacity
           onPress={handleDismiss}
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          hitSlop={{ top: 16, bottom: 16, left: 12, right: 12 }}
           style={[styles.closeBtn, {
-            backgroundColor: colors.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+            backgroundColor: colors.isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.06)",
           }]}
         >
-          <Ionicons name="close" size={18} color={colors.foreground} />
+          <Ionicons name="close" size={17} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
-      {/* Hairline accent divider */}
-      <View style={[styles.accentDivider, { backgroundColor: effectiveBg + "38" }]} />
+      {/* ── Accent divider ── */}
+      <View style={[styles.divider, {
+        backgroundColor: isPassed
+          ? (colors.isDark ? "#1E2E22" : "#D8EAD8")
+          : accentColor + "30",
+      }]} />
 
-      {/* ── Speed comparison — zone alerts only ── */}
-      {hasSpeedBadges && (
-        <View style={[styles.speedCompare, {
-          backgroundColor: colors.isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-          borderColor:     colors.isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)",
-        }]}>
-          {/* Your speed */}
-          <View style={styles.speedHalf}>
-            <Text style={[styles.speedHalfLbl, { color: colors.mutedForeground }]}>
-              YOUR SPEED
-            </Text>
-            <Text style={[styles.speedHalfNum, { color: speedColor }]}>
-              {Math.round(currentSpeed)}
-            </Text>
-            <Text style={[styles.speedHalfUnit, { color: speedColor }]}>km/h</Text>
-            {overLimit && (
-              <View style={[styles.overLimitPill, {
-                backgroundColor: colors.speedDanger + "20",
-                borderColor:     colors.speedDanger + "55",
-              }]}>
-                <Ionicons name="warning" size={9} color={colors.speedDanger} />
-                <Text style={[styles.overLimitTxt, { color: colors.speedDanger }]}>
-                  OVER LIMIT
+      {/* ── Scrollable body — prevents clipping on small phones ── */}
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={false} // disabled until content actually overflows
+        nestedScrollEnabled
+      >
+
+        {/* ── Speed comparison (zone + camera alerts with a known limit) ── */}
+        {hasSpeedBadges && (
+          <View style={[styles.speedCard, {
+            backgroundColor: colors.isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+            borderColor:     colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
+          }]}>
+            {/* YOUR SPEED */}
+            <View style={styles.speedHalf}>
+              <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>YOUR SPEED</Text>
+              <View style={styles.speedNumRow}>
+                <Text style={[styles.speedNum, { color: speedColor }]}>
+                  {Math.round(currentSpeed)}
                 </Text>
+                <Text style={[styles.speedUnit, { color: speedColor }]}>km/h</Text>
               </View>
-            )}
+              {overLimit && (
+                <View style={[styles.overLimitChip, {
+                  backgroundColor: colors.speedDanger + "18",
+                  borderColor:     colors.speedDanger + "50",
+                }]}>
+                  <Ionicons name="warning" size={9} color={colors.speedDanger} />
+                  <Text style={[styles.overLimitTxt, { color: colors.speedDanger }]}>OVER LIMIT</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Vertical divider */}
+            <View style={[styles.speedVdiv, {
+              backgroundColor: colors.isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)",
+            }]} />
+
+            {/* SPEED LIMIT */}
+            <Animated.View style={[styles.speedHalf, { transform: [{ scale: urgent ? pulse : 1 }] }]}>
+              <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>SPEED LIMIT</Text>
+              <View style={styles.speedNumRow}>
+                <Text style={[styles.speedNum, {
+                  color: isPassed ? colors.mutedForeground : accentColor,
+                }]}>
+                  {alert.speedLimit}
+                </Text>
+                <Text style={[styles.speedUnit, {
+                  color: isPassed ? colors.mutedForeground : accentColor,
+                }]}>km/h</Text>
+              </View>
+              {urgent && !isPassed && (
+                <View style={[styles.limitRing, { borderColor: accentColor + "50" }]} />
+              )}
+            </Animated.View>
           </View>
+        )}
 
-          <View style={[styles.speedVdiv, {
-            backgroundColor: colors.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.09)",
-          }]} />
-
-          {/* Speed limit — pulses when urgent */}
-          <Animated.View style={[styles.speedHalf, { transform: [{ scale: pulse }] }]}>
-            <Text style={[styles.speedHalfLbl, { color: colors.mutedForeground }]}>
-              SPEED LIMIT
+        {/* ── Speed limit row for report-type alerts (non-zone) ── */}
+        {!isZone && alert.speedLimit != null && (
+          <View style={[styles.reportLimitRow, {
+            backgroundColor: accentColor + "10",
+            borderColor:     accentColor + "28",
+          }]}>
+            <Ionicons name="speedometer-outline" size={17} color={accentColor} />
+            <Text style={[styles.reportLimitLbl, { color: colors.mutedForeground }]}>
+              Speed limit at hazard
             </Text>
-            <Text style={[styles.speedHalfNum, { color: effectiveBg }]}>
-              {alert.speedLimit}
-            </Text>
-            <Text style={[styles.speedHalfUnit, { color: effectiveBg }]}>km/h</Text>
-            {urgent && (
-              <View style={[styles.limitUrgentRing, { borderColor: effectiveBg + "55" }]} />
-            )}
-          </Animated.View>
-        </View>
-      )}
+            <Animated.View style={{ transform: [{ scale: urgent ? pulse : 1 }] }}>
+              <Text style={[styles.reportLimitNum, { color: accentColor }]}>
+                {alert.speedLimit} km/h
+              </Text>
+            </Animated.View>
+          </View>
+        )}
 
-      {/* ── Speed limit inline row — report-type alerts with a known limit ── */}
-      {!isZone && alert.speedLimit != null && (
-        <View style={[styles.reportLimitRow, {
-          backgroundColor: effectiveBg + "12",
-          borderColor:     effectiveBg + "30",
-        }]}>
-          <Ionicons name="speedometer-outline" size={18} color={effectiveBg} />
-          <Text style={[styles.reportLimitLbl, { color: colors.mutedForeground }]}>
-            Speed limit at hazard
-          </Text>
-          <Animated.View style={{ transform: [{ scale: pulse }] }}>
-            <Text style={[styles.reportLimitNum, { color: effectiveBg }]}>
-              {alert.speedLimit} km/h
-            </Text>
-          </Animated.View>
-        </View>
-      )}
-
-      {/* ── Location name + road (single alert only) ── */}
-      {!hasExtras && (
+        {/* ── Location name + road (all alerts) ── */}
         <View style={[styles.locationRow, {
-          backgroundColor: colors.isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
-          borderColor:     colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+          backgroundColor: colors.isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.025)",
+          borderColor:     colors.isDark ? "rgba(255,255,255,0.07)"  : "rgba(0,0,0,0.055)",
         }]}>
-          <View style={[styles.locationIconWrap, { backgroundColor: effectiveBg + "22" }]}>
-            <Ionicons name="location-sharp" size={15} color={effectiveBg} />
+          <View style={[styles.locationIconWrap, { backgroundColor: accentColor + "1E" }]}>
+            <Ionicons name="location-sharp" size={14} color={accentColor} />
           </View>
           <View style={{ flex: 1 }}>
-            <MarqueeText style={[styles.zoneName, { color: colors.foreground }]}>
+            <MarqueeText style={[styles.locationName, { color: colors.foreground }]}>
               {alert.name}
             </MarqueeText>
             {alert.road ? (
-              <MarqueeText style={[styles.zoneRoad, { color: colors.mutedForeground }]}>
+              <MarqueeText style={[styles.locationRoad, { color: colors.mutedForeground }]}>
                 {alert.road}
               </MarqueeText>
             ) : null}
-            {/* Freshness + confidence label for community reports */}
+            {/* Freshness label for community reports */}
             {alert.source === "report" && (
-              <Text style={[
-                styles.zoneRoad,
-                {
-                  color: alert.observationContext === "community_tip"
-                    ? "#FF9800"
-                    : tier === "reliable" ? "#22C55E" : colors.mutedForeground,
-                  fontStyle: tier === "new" && alert.observationContext !== "community_tip" ? "italic" : "normal",
-                },
-              ]}>
+              <Text style={[styles.locationRoad, {
+                color: alert.observationContext === "community_tip"
+                  ? "#FF9800"
+                  : tier === "reliable" ? "#22C55E" : colors.mutedForeground,
+                fontStyle: tier === "new" && alert.observationContext !== "community_tip"
+                  ? "italic"
+                  : "normal",
+              }]}>
                 {freshnessLabel(alert.confirmCount, alert.createdAt, alert.observationContext)}
               </Text>
             )}
           </View>
         </View>
-      )}
 
-      {/* ── Extra alerts section (multi-alert cluster) ── */}
-      {hasExtras && (
-        <>
-          <View style={[styles.extraHeader, {
-            borderBottomColor: colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
-          }]}>
-            <View style={[styles.extraCountPill, {
-              backgroundColor: effectiveBg + "20",
-              borderColor:     effectiveBg + "45",
+        {/* ── Multi-alert extras ── */}
+        {hasExtras && (
+          <>
+            <View style={[styles.extrasHeader, {
+              borderBottomColor: colors.isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
             }]}>
-              <Text style={[styles.extraCountTxt, { color: effectiveBg }]}>
-                +{extraAlerts.length} nearby
+              <View style={[styles.extrasCountChip, {
+                backgroundColor: accentColor + "18",
+                borderColor:     accentColor + "40",
+              }]}>
+                <Text style={[styles.extrasCountTxt, { color: accentColor }]}>
+                  +{sortedExtrasArr.length} nearby
+                </Text>
+              </View>
+              <Text style={[styles.extrasHint, { color: colors.mutedForeground }]}>
+                along your route
               </Text>
             </View>
-            <Text style={[styles.extraHeaderHint, { color: colors.mutedForeground }]}>
-              along your route
-            </Text>
-          </View>
-          <View style={styles.extraList}>
-            {extraAlerts.map((extra) => (
-              <ExtraAlertRow key={extra.id} extra={extra} colors={colors} />
-            ))}
-          </View>
-        </>
-      )}
+            <View style={styles.extrasList}>
+              {sortedExtrasArr.map((extra) => (
+                <ExtraAlertRow key={extra.id} extra={extra} colors={colors} />
+              ))}
+            </View>
+          </>
+        )}
 
+      </ScrollView>
     </Animated.View>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   sheet: {
@@ -460,66 +498,82 @@ const styles = StyleSheet.create({
     left:                 0,
     right:                0,
     bottom:               0,
-    borderTopLeftRadius:  28,
-    borderTopRightRadius: 28,
-    borderTopWidth:       2.5,
+    borderTopLeftRadius:  26,
+    borderTopRightRadius: 26,
+    borderTopWidth:       3,
     shadowColor:          "#000",
     shadowOffset:         { width: 0, height: -10 },
-    shadowOpacity:        0.30,
-    shadowRadius:         24,
+    shadowOpacity:        0.28,
+    shadowRadius:         22,
     elevation:            30,
     zIndex:               9999,
   },
+
   handle: {
     alignSelf:    "center",
     marginTop:    10,
-    width:        40,
+    width:        36,
     height:       4,
     borderRadius: 2,
   },
 
-  // ── Header ──────────────────────────────────────────────────────────────
+  // ── Header ──────────────────────────────────────────────────────────────────
   headerRow: {
-    flexDirection: "row",
-    alignItems:    "center",
-    marginHorizontal: 16,
-    marginTop:     14,
-    gap:           12,
+    flexDirection:    "row",
+    alignItems:       "center",
+    marginHorizontal: 14,
+    marginTop:        12,
+    gap:              10,
   },
   alertOrb: {
-    width:          64,
-    height:         64,
-    borderRadius:   20,
-    borderWidth:    1,
+    width:          56,
+    height:         56,
+    borderRadius:   18,
+    borderWidth:    1.5,
     alignItems:     "center",
     justifyContent: "center",
+    flexShrink:     0,
   },
-  orbEmoji: { fontSize: 32 },
-  headerTextCol: { flex: 1, gap: 2 },
+  orbEmoji: { fontSize: 28 },
+  headerTextCol: {
+    flex: 1,
+    gap:  3,
+    minWidth: 0,
+  },
   typeLabel: {
-    fontSize:      17,
+    fontSize:      18,
     fontFamily:    "Inter_700Bold",
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
+    flexShrink:    1,
   },
-  distLabel: {
-    fontSize:           14,
-    fontFamily:         "Inter_500Medium",
-    lineHeight:         18,
-    includeFontPadding: false,
-    marginTop:          1,
+  subLabel: {
+    fontSize:   13,
+    fontFamily: "Inter_400Regular",
+    marginTop:  1,
   },
-  closeBtn: {
-    width:          34,
-    height:         34,
-    borderRadius:   17,
-    alignItems:     "center",
-    justifyContent: "center",
+  tierChip: {
+    flexDirection:    "row",
+    alignItems:       "center",
+    gap:              4,
+    alignSelf:        "flex-start",
+    borderWidth:      1,
+    borderRadius:     6,
+    paddingHorizontal: 6,
+    paddingVertical:  2,
+    marginTop:        4,
+  },
+  tierChipTxt: {
+    fontSize:      10,
+    fontFamily:    "Inter_600SemiBold",
+    letterSpacing: 0.3,
   },
   liveBadge: {
     backgroundColor:  "#D32F2F",
     borderRadius:     4,
     paddingHorizontal: 5,
     paddingVertical:  1,
+    alignSelf:        "flex-start",
+    marginTop:        4,
   },
   liveBadgeTxt: {
     fontSize:      9,
@@ -527,75 +581,96 @@ const styles = StyleSheet.create({
     color:         "#FFF",
     letterSpacing: 0.8,
   },
-  tierBadge: {
+
+  // Distance chip — replaces the old "X m ahead" text label
+  distChip: {
     flexDirection:    "row",
     alignItems:       "center",
-    gap:              4,
-    alignSelf:        "flex-start",
-    borderWidth:      1,
-    borderRadius:     7,
-    paddingHorizontal: 6,
-    paddingVertical:  2,
-    marginTop:        5,
+    borderWidth:      1.5,
+    borderRadius:     10,
+    paddingHorizontal: 10,
+    paddingVertical:  6,
+    flexShrink:       0,
   },
-  tierBadgeTxt: {
-    fontSize:      10,
-    fontFamily:    "Inter_600SemiBold",
-    letterSpacing: 0.3,
+  distChipTxt: {
+    fontSize:      13,
+    fontFamily:    "Inter_700Bold",
+    letterSpacing: 0.2,
   },
 
-  accentDivider: {
-    height:           1,
-    marginHorizontal: 16,
-    marginTop:        14,
+  closeBtn: {
+    width:          32,
+    height:         32,
+    borderRadius:   16,
+    alignItems:     "center",
+    justifyContent: "center",
+    flexShrink:     0,
   },
 
-  // ── Speed comparison ──────────────────────────────────────────────────
-  speedCompare: {
-    flexDirection:    "row",
-    marginHorizontal: 16,
+  // Divider
+  divider: {
+    height:           1.5,
+    marginHorizontal: 14,
     marginTop:        12,
-    borderRadius:     20,
-    borderWidth:      1,
-    overflow:         "hidden",
+    borderRadius:     1,
+  },
+
+  // ── Body ─────────────────────────────────────────────────────────────────────
+  body: {
+    flex: 1,
+  },
+  bodyContent: {
+    paddingHorizontal: 14,
+    paddingTop:        10,
+    gap:               10,
+  },
+
+  // ── Speed comparison card ─────────────────────────────────────────────────
+  speedCard: {
+    flexDirection: "row",
+    borderRadius:  18,
+    borderWidth:   1,
+    overflow:      "hidden",
   },
   speedHalf: {
     flex:           1,
     alignItems:     "center",
     justifyContent: "center",
-    paddingVertical:   20,
-    paddingHorizontal: 8,
+    paddingVertical:   18,
+    paddingHorizontal: 10,
     position:       "relative",
+    gap:            2,
   },
-  speedVdiv: {
-    width:          1,
-    marginVertical: 18,
-  },
-  speedHalfLbl: {
+  speedLabel: {
     fontSize:      9,
     fontFamily:    "Inter_700Bold",
     letterSpacing: 1.4,
-    marginBottom:  4,
   },
-  speedHalfNum: {
-    fontSize:           54,
+  speedNumRow: {
+    flexDirection: "row",
+    alignItems:    "flex-end",
+    gap:           3,
+    marginTop:     2,
+  },
+  speedNum: {
+    fontSize:           50,
     fontFamily:         "Inter_700Bold",
-    lineHeight:         56,
+    lineHeight:         52,
     includeFontPadding: false,
   },
-  speedHalfUnit: {
-    fontSize:   12,
-    fontFamily: "Inter_600SemiBold",
-    marginTop:  2,
+  speedUnit: {
+    fontSize:      12,
+    fontFamily:    "Inter_600SemiBold",
+    marginBottom:  6,
   },
-  overLimitPill: {
+  overLimitChip: {
     flexDirection:    "row",
     alignItems:       "center",
     gap:              3,
-    marginTop:        8,
+    marginTop:        6,
     paddingHorizontal: 8,
     paddingVertical:  3,
-    borderRadius:     8,
+    borderRadius:     7,
     borderWidth:      1,
   },
   overLimitTxt: {
@@ -603,7 +678,11 @@ const styles = StyleSheet.create({
     fontFamily:    "Inter_700Bold",
     letterSpacing: 0.8,
   },
-  limitUrgentRing: {
+  speedVdiv: {
+    width:          1,
+    marginVertical: 14,
+  },
+  limitRing: {
     position:     "absolute",
     top:          8,
     left:         8,
@@ -611,19 +690,17 @@ const styles = StyleSheet.create({
     bottom:       8,
     borderRadius: 100,
     borderWidth:  2,
-    opacity:      0.4,
+    opacity:      0.35,
   },
 
-  // ── Report-type speed limit row ───────────────────────────────────────
+  // ── Report-type speed limit row ───────────────────────────────────────────
   reportLimitRow: {
     flexDirection:    "row",
     alignItems:       "center",
-    marginHorizontal: 16,
-    marginTop:        12,
     gap:              10,
     paddingHorizontal: 14,
     paddingVertical:  11,
-    borderRadius:     14,
+    borderRadius:     13,
     borderWidth:      1,
   },
   reportLimitLbl: {
@@ -636,82 +713,79 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
   },
 
-  // ── Location name + road ──────────────────────────────────────────────
+  // ── Location row ──────────────────────────────────────────────────────────
   locationRow: {
     flexDirection:    "row",
     alignItems:       "center",
-    marginHorizontal: 16,
-    marginTop:        12,
     gap:              10,
-    paddingHorizontal: 14,
-    paddingVertical:  12,
-    borderRadius:     14,
+    paddingHorizontal: 12,
+    paddingVertical:  11,
+    borderRadius:     13,
     borderWidth:      1,
   },
   locationIconWrap: {
-    width:          32,
-    height:         32,
-    borderRadius:   10,
+    width:          30,
+    height:         30,
+    borderRadius:   9,
     alignItems:     "center",
     justifyContent: "center",
+    flexShrink:     0,
   },
-  zoneName: {
-    fontSize:   15,
-    fontFamily: "Inter_700Bold",
+  locationName: {
+    fontSize:   14,
+    fontFamily: "Inter_600SemiBold",
     flexShrink: 1,
   },
-  zoneRoad: {
+  locationRoad: {
     fontSize:   12,
     fontFamily: "Inter_400Regular",
     marginTop:  2,
     flexShrink: 1,
   },
 
-  // ── Extra alerts cluster ──────────────────────────────────────────────
-  extraHeader: {
+  // ── Multi-alert extras ────────────────────────────────────────────────────
+  extrasHeader: {
     flexDirection:  "row",
     alignItems:     "center",
     gap:            8,
-    marginHorizontal: 16,
-    marginTop:      14,
-    paddingBottom:  10,
+    paddingBottom:  9,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop:      2,
   },
-  extraCountPill: {
-    borderRadius:     8,
+  extrasCountChip: {
+    borderRadius:     7,
     borderWidth:      1,
     paddingHorizontal: 8,
     paddingVertical:  3,
   },
-  extraCountTxt: {
+  extrasCountTxt: {
     fontSize:      11,
     fontFamily:    "Inter_700Bold",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  extraHeaderHint: {
+  extrasHint: {
     fontSize:   12,
     fontFamily: "Inter_400Regular",
   },
-  extraList: {
-    marginHorizontal: 16,
-    marginTop:        6,
-    gap:              2,
+  extrasList: {
+    gap: 1,
   },
   extraRow: {
     flexDirection: "row",
     alignItems:    "center",
     gap:           10,
-    paddingVertical: 8,
+    paddingVertical: 7,
   },
   extraIconWrap: {
-    width:          36,
-    height:         36,
+    width:          34,
+    height:         34,
     borderRadius:   10,
     alignItems:     "center",
     justifyContent: "center",
+    flexShrink:     0,
   },
   extraEmoji: {
-    fontSize:  17,
+    fontSize:  16,
     textAlign: "center",
   },
   extraName: {
@@ -720,14 +794,14 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
   },
   extraDistPill: {
-    borderWidth:      1,
-    borderRadius:     8,
+    borderWidth:      1.5,
+    borderRadius:     7,
     paddingHorizontal: 8,
     paddingVertical:  3,
+    flexShrink:       0,
   },
   extraDistTxt: {
     fontSize:   12,
     fontFamily: "Inter_700Bold",
   },
-
 });

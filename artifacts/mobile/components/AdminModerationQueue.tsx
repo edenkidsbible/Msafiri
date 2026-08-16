@@ -38,6 +38,7 @@ export interface AdminReport {
   status: string;
   roadName: string | null;
   speedLimit: number | null;
+  cameraType: "fixed" | "mobile" | null;
   flagCount: number;
   confirmCount: number;
   denyCount: number;
@@ -383,12 +384,14 @@ export default function AdminModerationQueue({ visible, onClose, onFixPin, onVie
     onViewOnMap?.(r.lat, r.lng);
   };
 
-  const handleEditSave = async (fields: { type?: string; roadName?: string | null }) => {
+  const handleEditSave = async (fields: { type?: string; roadName?: string | null; speedLimit?: number | null; cameraType?: "fixed" | "mobile" | null }) => {
     if (!editingReport) return;
     await adminEditReport(editingReport.id, editingReport.id, fields);
     const patch = {
-      ...(fields.type     !== undefined ? { type: fields.type }               : {}),
-      ...(fields.roadName !== undefined ? { roadName: fields.roadName ?? null } : {}),
+      ...(fields.type       !== undefined ? { type:       fields.type }                  : {}),
+      ...(fields.roadName   !== undefined ? { roadName:   fields.roadName   ?? null }    : {}),
+      ...(fields.speedLimit !== undefined ? { speedLimit: fields.speedLimit ?? null }    : {}),
+      ...(fields.cameraType !== undefined ? { cameraType: fields.cameraType ?? null }    : {}),
     };
     setQueueReports((p) => p.map((r) => r.id === editingReport.id ? { ...r, ...patch } : r));
     setAllReports((p)   => p.map((r) => r.id === editingReport.id ? { ...r, ...patch } : r));
@@ -584,13 +587,15 @@ export default function AdminModerationQueue({ visible, onClose, onFixPin, onVie
         {editingReport && (
           <AdminReportEditSheet
             report={{
-              id:        editingReport.id,
-              type:      editingReport.type as CommunityReport["type"],
-              lat:       editingReport.lat,
-              lng:       editingReport.lng,
-              timestamp: new Date(editingReport.createdAt).getTime(),
-              confirmed: editingReport.confirmCount,
-              roadName:  editingReport.roadName ?? undefined,
+              id:         editingReport.id,
+              type:       editingReport.type as CommunityReport["type"],
+              lat:        editingReport.lat,
+              lng:        editingReport.lng,
+              timestamp:  new Date(editingReport.createdAt).getTime(),
+              confirmed:  editingReport.confirmCount,
+              roadName:   editingReport.roadName   ?? undefined,
+              speedLimit: editingReport.speedLimit ?? undefined,
+              cameraType: (editingReport.cameraType ?? undefined) as "fixed" | "mobile" | undefined,
             }}
             visible
             onClose={() => setEditingReport(null)}

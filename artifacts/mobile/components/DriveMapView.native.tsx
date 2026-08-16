@@ -13,6 +13,7 @@ import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
+  Animated,
   Image,
   Modal,
   Platform,
@@ -647,9 +648,46 @@ const DriveMapView = forwardRef(function DriveMapView(
     }
   }, [mapPickerActive]);
 
-  // Temporary focus highlight — shown for 2.5 s after a Nearby Alert row tap
+  // ── Focus pulse animation — animated expanding rings shown after:
+  //    (a) tapping a Nearby Alert row in the alerts sheet (focusCoords() call)
+  //    (b) tapping a push notification that carries lat/lng (pendingFocusCoords)
+  // Uses the same Animated.Value / Marker pattern as MapViewScreen so rings
+  // stay anchored to the map coordinate instead of floating over the screen.
   const [focusHighlight, setFocusHighlight] = useState<{ lat: number; lng: number } | null>(null);
   const focusHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dmPulseRing1    = useRef(new Animated.Value(0)).current;
+  const dmPulseRing2    = useRef(new Animated.Value(0)).current;
+  const dmPulseRing3    = useRef(new Animated.Value(0)).current;
+  const dmPulseAnimRef  = useRef<Animated.CompositeAnimation | null>(null);
+
+  /** Start the sonar-wave animation at (lat, lng) and clear it after `durationMs`. */
+  const triggerFocusPulse = useCallback((lat: number, lng: number, durationMs = 5000) => {
+    if (focusHighlightTimerRef.current) clearTimeout(focusHighlightTimerRef.current);
+    setFocusHighlight({ lat, lng });
+    // Stop any running animation and reset ring values
+    dmPulseAnimRef.current?.stop();
+    [dmPulseRing1, dmPulseRing2, dmPulseRing3].forEach((v) => v.setValue(0));
+    const makeRing = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1, duration: 1400, useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0, duration: 0,    useNativeDriver: true }),
+        ]),
+      );
+    const anim = Animated.parallel([
+      makeRing(dmPulseRing1, 0),
+      makeRing(dmPulseRing2, 467),
+      makeRing(dmPulseRing3, 933),
+    ]);
+    dmPulseAnimRef.current = anim;
+    anim.start();
+    focusHighlightTimerRef.current = setTimeout(() => {
+      dmPulseAnimRef.current?.stop();
+      setFocusHighlight(null);
+    }, durationMs);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dmPulseRing1, dmPulseRing2, dmPulseRing3]);
 
   const handleFlagReport = (id: string) => {
     Alert.alert(
@@ -953,19 +991,20 @@ const DriveMapView = forwardRef(function DriveMapView(
     [onDriftChange],
   );
 
-  // Deep-link focus: center map on a push-notification incident then clear
+  // Deep-link focus: center map on a push-notification incident then clear.
+  // Also triggers the sonar-wave pulse so the driver can see exactly which
+  // pin the notification was about.
   useEffect(() => {
     if (!pendingFocusCoords) return;
+    const { lat, lng } = pendingFocusCoords;
     mapRef.current?.animateToRegion(
-      {
-        latitude: pendingFocusCoords.lat,
-        longitude: pendingFocusCoords.lng,
-        latitudeDelta: 0.008,
-        longitudeDelta: 0.008,
-      },
+      { latitude: lat, longitude: lng, latitudeDelta: 0.008, longitudeDelta: 0.008 },
       700
     );
+    triggerFocusPulse(lat, lng, 6000); // 6 s — extra long for cold-start arrival
     setPendingFocusCoords(null);
+  // triggerFocusPulse is stable (useCallback with stable deps) — safe to omit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFocusCoords]);
 
   // ── POI fetch — reload when the driver moves > 1 km from the last fetch ────
@@ -1085,16 +1124,13 @@ const DriveMapView = forwardRef(function DriveMapView(
   }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
 
   const focusCoords = useCallback((lat: number, lng: number) => {
-    // Pan the map to the alert's location
+    // Pan the map to the alert's location, then sonar-pulse the pin for 5 s.
     mapRef.current?.animateToRegion(
       { latitude: lat, longitude: lng, latitudeDelta: 0.008, longitudeDelta: 0.008 },
       700,
     );
-    // Show a temporary highlight ring for 2.5 s
-    if (focusHighlightTimerRef.current) clearTimeout(focusHighlightTimerRef.current);
-    setFocusHighlight({ lat, lng });
-    focusHighlightTimerRef.current = setTimeout(() => setFocusHighlight(null), 2500);
-  }, []);
+    triggerFocusPulse(lat, lng, 5000);
+  }, [triggerFocusPulse]);
 
   useImperativeHandle(ref, () => ({ recenter, focusCoords }), [recenter, focusCoords]);
 
@@ -1297,25 +1333,54 @@ const DriveMapView = forwardRef(function DriveMapView(
           setCreateZoneCoords({ lat: latitude, lng: longitude });
         }}
       >
-        {/* Nearby-alert focus highlight — temporary ring shown after tapping
-            a row in the Nearby Alerts sheet. Cleared after 2.5 s. */}
+        {/* Nearby-alert focus highlight — three animated sonar-wave rings that
+            expand outward from the alert pin for 5–6 s, then auto-dismiss.
+            Triggered by:  (a) tapping a Nearby Alerts row → focusCoords()
+                           (b) tapping a push notification → pendingFocusCoords
+            Uses a Marker so rings are anchored to the map coordinate. */}
         {focusHighlight && (
-          <>
-            <Circle
-              center={{ latitude: focusHighlight.lat, longitude: focusHighlight.lng }}
-              radius={120}
-              strokeColor="#FFD600CC"
-              fillColor="#FFD60022"
-              strokeWidth={3}
-            />
-            <Circle
-              center={{ latitude: focusHighlight.lat, longitude: focusHighlight.lng }}
-              radius={60}
-              strokeColor="#FFD600AA"
-              fillColor="#FFD60044"
-              strokeWidth={2}
-            />
-          </>
+          <Marker
+            coordinate={{ latitude: focusHighlight.lat, longitude: focusHighlight.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            zIndex={998}
+            tracksViewChanges
+            onPress={() => {
+              dmPulseAnimRef.current?.stop();
+              if (focusHighlightTimerRef.current) clearTimeout(focusHighlightTimerRef.current);
+              setFocusHighlight(null);
+            }}
+          >
+            <View collapsable={false} style={dmStyles.focusMarkerWrap}>
+              {/* Ring 1 — largest, slowest to appear */}
+              <Animated.View style={[
+                dmStyles.pulseRing,
+                {
+                  transform: [{ scale: dmPulseRing1.interpolate({ inputRange: [0, 1], outputRange: [0.4, 3.2] }) }],
+                  opacity:   dmPulseRing1.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.55, 0] }),
+                },
+              ]} />
+              {/* Ring 2 */}
+              <Animated.View style={[
+                dmStyles.pulseRing,
+                {
+                  transform: [{ scale: dmPulseRing2.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.6] }) }],
+                  opacity:   dmPulseRing2.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.60, 0] }),
+                },
+              ]} />
+              {/* Ring 3 — smallest, innermost */}
+              <Animated.View style={[
+                dmStyles.pulseRing,
+                {
+                  transform: [{ scale: dmPulseRing3.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.0] }) }],
+                  opacity:   dmPulseRing3.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.65, 0] }),
+                },
+              ]} />
+              {/* Static centre dot */}
+              <View style={dmStyles.focusRing}>
+                <View style={dmStyles.focusRingInner} />
+              </View>
+            </View>
+          </Marker>
         )}
 
         {/* Speed zone markers — road-stretch corridors show their limit as a
@@ -2375,4 +2440,29 @@ const hms = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 3,
   },
   hereLivePillTxt: { fontSize: 10, fontWeight: "800", color: "#FFF", letterSpacing: 0.5 },
+});
+
+// Styles for the animated sonar-pulse focus marker (notification deep-link highlight)
+const dmStyles = StyleSheet.create({
+  focusMarkerWrap: {
+    width: 80, height: 80,
+    alignItems: "center", justifyContent: "center",
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 54, height: 54, borderRadius: 27,
+    borderWidth: 2.5, borderColor: "#FFD600",
+    backgroundColor: "#FFD60012",
+  },
+  focusRing: {
+    width: 54, height: 54, borderRadius: 27,
+    borderWidth: 3, borderColor: "#FFD600",
+    backgroundColor: "#FFD60018",
+    alignItems: "center", justifyContent: "center",
+  },
+  focusRingInner: {
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: "#FFD600",
+    borderWidth: 2, borderColor: "#FFFFFF",
+  },
 });

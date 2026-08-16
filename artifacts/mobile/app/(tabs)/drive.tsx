@@ -1701,14 +1701,20 @@ export default function DriveScreen() {
             </Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>{`${primaryAlert.typeName} ahead`}</MarqueeText>
+            <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>
+              {activeAlert?.alongTrackM != null && activeAlert.alongTrackM <= 0
+                ? primaryAlert.typeName                  // drop "ahead" once passed
+                : `${primaryAlert.typeName} ahead`}
+            </MarqueeText>
             <Text style={[styles.dmAlertSub, { color: c.mutedForeground }]} numberOfLines={1}>
               <Text style={{ color: c.primary, fontFamily: "Inter_700Bold" }}>
-                {/* Prefer along-track distance (always decreases as driver
-                    approaches, never rises when moving away after a pass).
-                    Fall back to haversine when heading is unavailable. */}
-                {activeAlert?.alongTrackM != null && activeAlert.alongTrackM > 0
-                  ? distStr(activeAlert.alongTrackM)
+                {/* Prefer signed along-track (decreases as driver approaches,
+                    goes negative once passed — show "Passing now" instead of
+                    an ever-growing haversine that incorrectly reads "ahead"). */}
+                {activeAlert?.alongTrackM != null
+                  ? activeAlert.alongTrackM > 0
+                    ? distStr(activeAlert.alongTrackM)
+                    : "Passing now"
                   : distStr(primaryAlert.distanceM)}
               </Text>
               {primaryAlert.road ? ` • ${primaryAlert.road}` : ""}

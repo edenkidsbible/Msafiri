@@ -1,6 +1,7 @@
 /**
  * AdminReportEditSheet — bottom sheet for editing a community report's
- * type and road name. Only shown when isAdmin is true.
+ * type, road name, speed limit, and camera sub-type.  Only shown when
+ * isAdmin is true.
  */
 import React, { useState, useEffect } from "react";
 import {
@@ -21,28 +22,44 @@ import { useColors } from "@/hooks/useColors";
 import { INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
 import type { CommunityReport } from "@/context/AppContext";
 
+export interface ReportEditFields {
+  type: string;
+  roadName: string | null;
+  speedLimit: number | null;
+  cameraType: "fixed" | "mobile" | null;
+}
+
 interface Props {
   report: CommunityReport;
   visible: boolean;
   onClose: () => void;
-  onSave: (fields: { type: string; roadName: string | null }) => Promise<void>;
+  onSave: (fields: ReportEditFields) => Promise<void>;
 }
 
 // Types that an admin can assign (excludes internal __unknown)
 const SELECTABLE_TYPES = INCIDENT_TYPE_ORDER.filter((t) => t !== "zone");
 
+// Types for which a speed limit makes sense
+const SPEED_LIMIT_TYPES = new Set(["camera", "police", "zone", "alcoblow"]);
+
 export default function AdminReportEditSheet({ report, visible, onClose, onSave }: Props) {
   const c      = useColors();
   const isDark = c.isDark;
 
-  const [type,     setType]     = useState(report.type as string);
-  const [roadName, setRoadName] = useState(report.roadName ?? "");
-  const [saving,   setSaving]   = useState(false);
+  const [type,           setType]       = useState(report.type as string);
+  const [roadName,       setRoadName]   = useState(report.roadName ?? "");
+  const [speedLimitStr,  setSpeedStr]   = useState(report.speedLimit != null ? String(report.speedLimit) : "");
+  const [cameraType,     setCameraType] = useState<"fixed" | "mobile">(
+    (report.cameraType as "fixed" | "mobile") ?? "fixed"
+  );
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setType(report.type as string);
     setRoadName(report.roadName ?? "");
+    setSpeedStr(report.speedLimit != null ? String(report.speedLimit) : "");
+    setCameraType((report.cameraType as "fixed" | "mobile") ?? "fixed");
   }, [visible, report]);
 
   const bg      = isDark ? "#1C1C1E" : "#FFFFFF";
@@ -52,9 +69,19 @@ export default function AdminReportEditSheet({ report, visible, onClose, onSave 
   const divider = isDark ? "#333"    : "#E0E0E0";
 
   async function handleSave() {
+    const sl = speedLimitStr.trim() !== "" ? parseFloat(speedLimitStr) : null;
+    if (sl !== null && (isNaN(sl) || sl < 0 || sl > 300)) {
+      Alert.alert("Invalid speed limit", "Enter a number between 0 and 300, or leave blank to clear.");
+      return;
+    }
     setSaving(true);
     try {
-      await onSave({ type, roadName: roadName.trim() || null });
+      await onSave({
+        type,
+        roadName:   roadName.trim() || null,
+        speedLimit: sl,
+        cameraType: type === "camera" ? cameraType : null,
+      });
       onClose();
     } catch (err: unknown) {
       Alert.alert("Save failed", err instanceof Error ? err.message : "Unknown error");
@@ -85,7 +112,8 @@ export default function AdminReportEditSheet({ report, visible, onClose, onSave 
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Type grid */}
+
+            {/* ── Incident type grid ───────────────────────────────────────── */}
             <Text style={[ss.label, { color: fgMuted }]}>INCIDENT TYPE</Text>
             <View style={ss.typeGrid}>
               {SELECTABLE_TYPES.map((key) => {
@@ -110,7 +138,54 @@ export default function AdminReportEditSheet({ report, visible, onClose, onSave 
               })}
             </View>
 
-            {/* Road name */}
+            {/* ── Camera sub-type (fixed / mobile) — camera only ───────────── */}
+            {type === "camera" && (
+              <>
+                <Text style={[ss.label, { color: fgMuted }]}>CAMERA TYPE</Text>
+                <View style={ss.segmentRow}>
+                  {(["fixed", "mobile"] as const).map((ct) => {
+                    const active = cameraType === ct;
+                    return (
+                      <TouchableOpacity
+                        key={ct}
+                        style={[ss.segmentBtn, {
+                          backgroundColor: active ? "#1565C0" : inputBg,
+                          borderColor:     active ? "#1565C0" : divider,
+                        }]}
+                        onPress={() => setCameraType(ct)}
+                      >
+                        <Ionicons
+                          name={ct === "fixed" ? "camera" : "car"}
+                          size={14}
+                          color={active ? "#FFF" : fgMuted}
+                        />
+                        <Text style={[ss.segmentTxt, { color: active ? "#FFF" : fg }]}>
+                          {ct === "fixed" ? "Fixed" : "Mobile"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {/* ── Speed limit — for camera / police / zone types ───────────── */}
+            {SPEED_LIMIT_TYPES.has(type) && (
+              <>
+                <Text style={[ss.label, { color: fgMuted }]}>SPEED LIMIT (km/h)</Text>
+                <TextInput
+                  style={[ss.input, { backgroundColor: inputBg, color: fg, borderColor: divider }]}
+                  placeholder="e.g. 50  (leave blank to clear)"
+                  placeholderTextColor={fgMuted}
+                  value={speedLimitStr}
+                  onChangeText={setSpeedStr}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                />
+              </>
+            )}
+
+            {/* ── Road name ────────────────────────────────────────────────── */}
             <Text style={[ss.label, { color: fgMuted }]}>ROAD NAME</Text>
             <TextInput
               style={[ss.input, { backgroundColor: inputBg, color: fg, borderColor: divider }]}
@@ -143,20 +218,23 @@ export default function AdminReportEditSheet({ report, visible, onClose, onSave 
 }
 
 const ss = StyleSheet.create({
-  backdrop:     { flex: 1, justifyContent: "flex-end", backgroundColor: "#00000060" },
-  sheet:        { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingTop: 12, maxHeight: "88%" },
-  handle:       { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 14 },
-  header:       { marginBottom: 16 },
-  adminChip:    { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
-  adminChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
-  title:        { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  closeBtn:     { position: "absolute", top: 0, right: 0, padding: 4 },
-  label:        { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, marginBottom: 8, marginTop: 14 },
-  typeGrid:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeCell:     { width: "30%", flexGrow: 1, alignItems: "center", gap: 4, paddingVertical: 10, borderRadius: 10 },
-  typeEmoji:    { fontSize: 20 },
-  typeCellTxt:  { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center" },
-  input:        { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular" },
-  saveBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, marginTop: 20 },
-  saveTxt:      { color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold" },
+  backdrop:    { flex: 1, justifyContent: "flex-end", backgroundColor: "#00000060" },
+  sheet:       { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingTop: 12, maxHeight: "90%" },
+  handle:      { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 14 },
+  header:      { marginBottom: 16 },
+  adminChip:   { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  adminChipTxt:{ fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  title:       { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  closeBtn:    { position: "absolute", top: 0, right: 0, padding: 4 },
+  label:       { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, marginBottom: 8, marginTop: 14 },
+  typeGrid:    { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  typeCell:    { width: "30%", flexGrow: 1, alignItems: "center", gap: 4, paddingVertical: 10, borderRadius: 10 },
+  typeEmoji:   { fontSize: 20 },
+  typeCellTxt: { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center" },
+  input:       { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular" },
+  saveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, marginTop: 20 },
+  saveTxt:     { color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold" },
+  segmentRow:  { flexDirection: "row", gap: 10 },
+  segmentBtn:  { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5 },
+  segmentTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

@@ -390,8 +390,64 @@ export function usePushNotifications() {
           // Driver tapped the 4-hour review reminder — take them to the drive
           // tab where the review banner lives (noAutoStart prevents trip auto-start)
           safePush({ pathname: "/(tabs)/drive", params: { noAutoStart: "1" } } as any);
+        } else if (data?.source === "bg_drive_alert") {
+          // Background drive-alert tapped (fired by the bg location task while
+          // the app was backgrounded). Navigate to the map and pulse-highlight
+          // the exact alert pin so the user can see what was ahead.
+          const tapLat = data?.lat as number | undefined;
+          const tapLng = data?.lng as number | undefined;
+          const tapId  = data?.alertId as string | undefined;
+          if (tapLat != null && tapLng != null) {
+            safePush({
+              pathname: "/(tabs)/map",
+              params: {
+                focusId:  tapId ?? "bg_alert",
+                focusLat: String(tapLat),
+                focusLng: String(tapLng),
+                focusTs:  String(Date.now()),
+              },
+            } as any);
+          } else {
+            safePush("/(tabs)/map" as any);
+          }
+        } else if (data?.zoneId) {
+          // Foreground zone notification tapped (fireZoneNotification in AppContext).
+          // Navigate to the map and pulse-highlight the zone's exact pin.
+          const tapLat = data?.lat as number | undefined;
+          const tapLng = data?.lng as number | undefined;
+          const tapId  = data?.zoneId as string;
+          if (tapLat != null && tapLng != null) {
+            safePush({
+              pathname: "/(tabs)/map",
+              params: {
+                focusId:  tapId,
+                focusLat: String(tapLat),
+                focusLng: String(tapLng),
+                focusTs:  String(Date.now()),
+              },
+            } as any);
+          } else {
+            safePush("/(tabs)/map" as any);
+          }
         } else if (type === "incident") {
-          safePush("/(tabs)/map" as any);
+          // General incident notification — navigate to the map, pulse-
+          // highlighting the pin if coordinates are in the payload.
+          const tapLat = data?.lat as number | undefined;
+          const tapLng = data?.lng as number | undefined;
+          const tapId  = data?.id as string | undefined;
+          if (tapLat != null && tapLng != null) {
+            safePush({
+              pathname: "/(tabs)/map",
+              params: {
+                focusId:  tapId ?? "incident",
+                focusLat: String(tapLat),
+                focusLng: String(tapLng),
+                focusTs:  String(Date.now()),
+              },
+            } as any);
+          } else {
+            safePush("/(tabs)/map" as any);
+          }
         } else if (type === "app_update") {
           // Push notification from admin publishing a new release.
           // Navigate to the update screen — isForceUpdate in the payload

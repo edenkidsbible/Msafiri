@@ -33,10 +33,12 @@ async function geocodeRoadName(lat: number, lng: number): Promise<string | null>
 // drivers. Kept small and deliberate — these are the types most likely to
 // cause real harm to drivers if a bad report goes live unreviewed.
 // Only cameras require admin moderation before going live — they are permanent
-// physical infrastructure that need verification.  Police checkpoints are
-// time-sensitive crowd signals that should appear on the map immediately;
-// removing them from moderation means drivers see them while they are relevant.
-const MODERATED_TYPES = new Set(["camera"]);
+// Camera reports go live immediately so both the submitting driver and
+// nearby drivers can see them on the map right away.  Admin verification
+// (adminVerified flag) is still used to visually distinguish a community-
+// reported camera from one that has been physically confirmed by an admin —
+// it is now an optional review step rather than a mandatory gate.
+const MODERATED_TYPES = new Set<string>();
 
 // ── TTL per report type (seconds; null = never expires) ───────────────────────
 // Per-type TTLs reflect how quickly each incident class realistically clears:
