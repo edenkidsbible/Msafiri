@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 
 const PROXIMITY_M = 200;
 // Poll interval for proximity checks. 3 s gives sub-second-accurate detection
@@ -16,8 +17,8 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 export function useIncidentConfirmationPrompt() {
+  const { currentLat, currentLng } = useLiveLocation();
   const {
-    currentLat, currentLng,
     communityReports,
     hasVotedOnReport,
     pendingConfirmationReport,

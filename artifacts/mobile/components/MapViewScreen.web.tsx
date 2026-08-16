@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import type { CommunityReport } from "@/context/AppContext";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import ReportModal from "@/components/ReportModal";
@@ -50,12 +51,13 @@ export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const {
-    currentLat, currentLng, communityReports, addReport, deleteReport,
+    communityReports, addReport, deleteReport,
     activeRoute, altRoutes, selectRoute,
     navDestination, setNavDestination, showTraffic, setShowTraffic,
     vehicleType, routeTrafficDelayS, allZones,
     isOffline, lastAlertDataSyncedAt,
   } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   const vehicle = getVehicleTypeDef(vehicleType);
   const [filter, setFilter] = useState<ZoneFilter>("all");
   const [showReport, setShowReport] = useState(false);

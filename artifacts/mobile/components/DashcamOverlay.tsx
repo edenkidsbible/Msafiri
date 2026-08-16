@@ -36,6 +36,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useDashcam } from "@/context/DashcamContext";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { setDashcamAudioMode } from "@/utils/sound";
@@ -86,7 +87,7 @@ export default function DashcamOverlay() {
     onSegmentStart, onSegmentComplete,
   } = useDashcam();
 
-  const { currentLat, currentLng } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   // Track the most recent VALID GPS fix so a brief signal gap at the moment a
   // 2-minute segment completes doesn't cause that clip to be saved with no
   // location.  Updated only when both components are non-null.

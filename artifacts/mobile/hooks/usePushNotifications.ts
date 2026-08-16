@@ -12,6 +12,7 @@ import {
 } from "@/utils/backgroundNotificationTask";
 import { addSharedVehicle } from "@/utils/savedVehicles";
 import { useApp, CommunityReport } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 
 // Resolved at build time from app.json → extra.eas.projectId.
 // Expo requires this in production to route push tokens to the correct project.
@@ -221,11 +222,10 @@ export function usePushNotifications() {
     setPendingConfirmationReport,
     setPendingConfirmationSource,
     setPendingFocusCoords,
-    currentLat,
-    currentLng,
     markReportPrompted,
     stopSharingTrip,
   } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   const communityReportsRef = useRef(communityReports);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useApp, RouteCheckResult } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { useColors } from "@/hooks/useColors";
 import { distLabel, incidentVisual, incidentDelayMin, delayMinutesLabel } from "@/components/RouteIncidentsPanel";
 
@@ -46,7 +47,8 @@ export default function RouteCheckModal({
   const c = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { locationGranted, requestLocationPermission, currentLat, checkRouteStatus, setNavDestination } = useApp();
+  const { locationGranted, requestLocationPermission, checkRouteStatus, setNavDestination } = useApp();
+  const { currentLat } = useLiveLocation();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

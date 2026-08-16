@@ -34,6 +34,7 @@ import { requestBackgroundLocationPermission } from "@/utils/backgroundShare";
 import { useColors } from "@/hooks/useColors";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { useDashcam } from "@/context/DashcamContext";
 import DriveAlertOverlay from "@/components/DriveAlertOverlay";
 import TripSummaryModal, { type TripSummaryData } from "@/components/TripSummaryModal";
@@ -166,14 +167,14 @@ export default function DriveScreen() {
   const insets = useSafeAreaInsets();
   const {
     locationGranted, requestLocationPermission,
-    currentSpeed, currentSpeedLimit, activeAlert, activeAlertExtras, dismissAlert, nearbyZones, communityReports,
+    currentSpeedLimit, activeAlert, activeAlertExtras, dismissAlert, nearbyZones, communityReports,
     hereIncidents,
     setThemeOverride,
     navDestination, setNavDestination,
     activeRoute, altRoutes, selectRoute, routeLoading,
     routeIncidentsAhead, routeTrafficDelayS, setRouteIncidentsExpanded,
     showTraffic, setShowTraffic,
-    addReport, currentLat, currentLng,
+    addReport,
     pendingConfirmationReport, setPendingConfirmationReport,
     setPendingConfirmationSource,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
@@ -186,6 +187,7 @@ export default function DriveScreen() {
     setNavTripActive, setNavTripPaused,
     isOffline, lastAlertDataSyncedAt,
   } = useApp();
+  const { currentLat, currentLng, currentSpeed } = useLiveLocation();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
 

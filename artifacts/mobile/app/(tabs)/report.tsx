@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CrosshairPickerModal } from "@/components/CrosshairPicker";
 import ReportModal from "@/components/ReportModal";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { useColors } from "@/hooks/useColors";
 import { speakAlert } from "@/utils/alertTts";
 import { playSound } from "@/utils/sound";
@@ -104,9 +105,10 @@ export default function ReportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    addReport, currentLat, currentLng,
+    addReport,
     communityReports, snapToActiveRoute, setMapPickerActive,
   } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
 
   const [showReport, setShowReport] = useState(false);
   const [initialType, setInitialType] = useState<ReportType | null>(null);

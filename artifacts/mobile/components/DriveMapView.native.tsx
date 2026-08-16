@@ -25,6 +25,7 @@ import {
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import type { CommunityReport, HereIncident, SpeedInterval } from "@/context/AppContext";
 import type { SpeedZone } from "@/data/speedZones";
 import { useColors } from "@/hooks/useColors";
@@ -409,8 +410,8 @@ const DriveMapView = forwardRef(function DriveMapView(
   },
   ref: React.ForwardedRef<DriveMapViewHandle>,
 ) {
+  const { currentLat, currentLng, currentSpeed, driverHeading } = useLiveLocation();
   const {
-    currentLat, currentLng, currentSpeed,
     activeRoute, altRoutes, selectRoute,
     communityReports, showTraffic,
     confirmReport, denyReport, flagReport,
@@ -419,7 +420,6 @@ const DriveMapView = forwardRef(function DriveMapView(
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone,
     adminEditZone, adminEditReport, adminCreateZone,
-    driverHeading,
     hereIncidents, dismissHereIncident,
     mapPickerActive,
   } = useApp();

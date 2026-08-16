@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp, CommunityReport } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound } from "@/utils/sound";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
@@ -22,7 +23,8 @@ interface Props {
 
 export default function IncidentConfirmationPrompt({ report, onDismiss }: Props) {
   const c = useColors();
-  const { confirmReport, denyReport, pendingConfirmationSource, currentLat, currentLng } = useApp();
+  const { confirmReport, denyReport, pendingConfirmationSource } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   const def = resolveIncidentType(report.type);
   const id = report.serverId ?? report.id;
 

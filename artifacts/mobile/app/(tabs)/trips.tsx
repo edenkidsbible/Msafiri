@@ -26,6 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { useVehicle } from "@/context/VehicleContext";
 import { nominatimSearch, GeoResult } from "@/utils/geocoding";
 import { loadRecentSearches, saveRecentSearch, removeRecentSearch } from "@/utils/recentSearches";
@@ -100,9 +101,10 @@ export default function TripsScreen() {
   const {
     deviceId, tripHistory, clearTripHistory, currentTrip,
     isSharingTrip, shareLink, startSharingTrip, stopSharingTrip,
-    driverName, currentLat, currentLng,
+    driverName,
     isOffline,
   } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   const { activeVehicle, activeVehicleId, primaryVehicleId } = useVehicle();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;

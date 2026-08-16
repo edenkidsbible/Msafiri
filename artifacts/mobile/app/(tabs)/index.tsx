@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const COURSE_DISCLAIMER_KEY = "course_disclaimer_agreed";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { useDashcam } from "@/context/DashcamContext";
 import { useColors } from "@/hooks/useColors";
 import { useWeather, weatherIcon } from "@/hooks/useWeather";
@@ -119,8 +120,6 @@ export default function HomeScreen() {
     nearbyZones,
     communityReports,
     hereIncidents,
-    currentLat,
-    currentLng,
     themeOverride,
     setThemeOverride,
     navTripActive,
@@ -129,6 +128,7 @@ export default function HomeScreen() {
     isOffline,
     lastAlertDataSyncedAt,
   } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   const { activeVehicle, activeVehicleId } = useVehicle();
 
   // Increments each time the Home tab gains focus so DefaultVehicleImage

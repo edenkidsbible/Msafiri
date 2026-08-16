@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MarqueeText } from "@/components/MarqueeText";
 import { useColors } from "@/hooks/useColors";
 import { useApp, RouteCoord } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { fetchWithTimeout } from "@/utils/fetchTimeout";
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
@@ -361,7 +362,8 @@ interface Props {
 export default function RouteSearchSheet({ visible, onClose, onSelect }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { activeRoute, currentLat, currentLng, currentSpeed } = useApp();
+  const { activeRoute } = useApp();
+  const { currentLat, currentLng, currentSpeed } = useLiveLocation();
 
   const [query, setQuery]     = useState("");
   const [results, setResults] = useState<POIResult[]>([]);

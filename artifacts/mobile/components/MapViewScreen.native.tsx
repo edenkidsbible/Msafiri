@@ -8,6 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Circle, Marker, Polyline } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 import BackOnlinePill from "@/components/BackOnlinePill";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
@@ -272,15 +273,14 @@ export default function MapViewScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { currentLat, currentLng, currentSpeed, driverHeading } = useLiveLocation();
   const {
-    currentLat, currentLng,
     communityReports, addReport, deleteReport,
     activeRoute, altRoutes, selectRoute,
     navDestination, setNavDestination,
     showTraffic, setShowTraffic,
     vehicleType, allZones,
     confirmReport, denyReport, flagReport,
-    driverHeading, currentSpeed,
     isAdmin, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
     adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
     routeIncidentsAhead, setRouteIncidentsExpanded,

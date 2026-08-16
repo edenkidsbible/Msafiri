@@ -10,6 +10,7 @@ import { Alert, Animated, Platform, StyleSheet, Text, TouchableOpacity } from "r
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import { apiPost } from "@/utils/apiClient";
 
 interface Props {
@@ -19,7 +20,8 @@ interface Props {
 
 export default function SOSButton({ compact = false, small = false }: Props) {
   const colors = useColors();
-  const { deviceId, driverName, sosContact, currentLat, currentLng } = useApp();
+  const { deviceId, driverName, sosContact } = useApp();
+  const { currentLat, currentLng } = useLiveLocation();
   const scale = useRef(new Animated.Value(1)).current;
   const sending = useRef(false);
 

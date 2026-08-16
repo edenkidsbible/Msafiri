@@ -43,6 +43,7 @@ import React, {
 } from "react";
 import { useVehicle } from "@/context/VehicleContext";
 import { useApp } from "@/context/AppContext";
+import { useLiveLocation } from "@/context/LocationContext";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
@@ -234,7 +235,8 @@ export function useDashcam(): DashcamContextValue {
 
 export function DashcamProvider({ children }: { children: React.ReactNode }) {
   // ── GPS speed — read at segment-start to tag each clip with its opening speed
-  const { currentSpeed, locationGranted, gpsLastFixAtRef } = useApp();
+  const { locationGranted, gpsLastFixAtRef } = useApp();
+  const { currentSpeed } = useLiveLocation();
   const currentSpeedRef = useRef(currentSpeed);
   const locationGrantedRef = useRef(locationGranted);
 

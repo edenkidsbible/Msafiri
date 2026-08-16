@@ -1,4 +1,5 @@
 import { useVehicle } from "@/context/VehicleContext";
+import { LocationContext } from "@/context/LocationContext";
 import React, {
   createContext,
   useCallback,
@@ -229,9 +230,9 @@ interface AppContextValue {
   locationGranted: boolean;
   requestLocationPermission: () => Promise<void>;
   requestNotificationPermission: () => Promise<boolean>;
-  currentLat: number | null;
-  currentLng: number | null;
-  currentSpeed: number;
+  // NOTE: currentLat / currentLng / currentSpeed / driverHeading moved to the
+  // narrow LocationContext (context/LocationContext.tsx, useLiveLocation()) so
+  // GPS ticks don't re-render every useApp() consumer.
   activeAlert: DriveAlert | null;
   /** Additional alerts within 1 km of the lead alert, sorted by distance.
    *  Non-empty only when the driver is in a cluster zone. Cleared with activeAlert. */
@@ -326,11 +327,6 @@ interface AppContextValue {
   setPendingFocusCoords: (coords: { lat: number; lng: number } | null) => void;
   markReportPrompted: (id: string) => void;
   isReportPrompted: (id: string) => boolean;
-  /** Driver heading in degrees (0–360°), derived from consecutive GPS fixes.
-   *  Null until at least two fixes are available or if movement is below the
-   *  noise threshold (< 5 m). Used by the map to fade pins that are behind
-   *  the driver (angle > 90° from the heading vector). */
-  driverHeading: number | null;
   // HERE Live Traffic
   hereIncidents: HereIncident[];
   dismissHereIncident: (id: string) => void;
@@ -4633,10 +4629,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <AppContext.Provider value={{
+  // Narrow, high-frequency location value — its own context so a GPS tick only
+  // re-renders components that call useLiveLocation(), not all useApp() consumers.
+  const locationValue = useMemo(
+    () => ({ currentLat, currentLng, currentSpeed, driverHeading }),
+    [currentLat, currentLng, currentSpeed, driverHeading],
+  );
+
+  // The main app value is memoized WITHOUT the GPS fields, so provider
+  // re-renders caused by GPS setState produce a referentially-identical value
+  // and useApp() consumers bail out of re-rendering.
+  const appValue = useMemo<AppContextValue>(() => ({
       locationGranted, requestLocationPermission, requestNotificationPermission,
-      currentLat, currentLng, currentSpeed,
       activeAlert, activeAlertExtras, currentSpeedLimit, nearbyZones, allZones, stretchZones: dbStretches, dismissAlert,
       hudMode, setHudMode,
       themeOverride, setThemeOverride,
@@ -4668,7 +4672,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hasVotedOnReport,
       pendingFocusCoords, setPendingFocusCoords,
       markReportPrompted, isReportPrompted,
-      driverHeading,
       isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
       adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
       adminEditZone, adminEditReport, adminCreateZone,
@@ -4683,8 +4686,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       navTripActive, navTripPaused,
       setNavTripActive: setNavTripActive as (v: boolean) => void,
       setNavTripPaused,
-    }}>
-      {children}
+  }), [
+    locationGranted, requestLocationPermission, requestNotificationPermission,
+    activeAlert, activeAlertExtras, currentSpeedLimit, nearbyZones, allZones, dbStretches, dismissAlert,
+    hudMode, setHudMode,
+    themeOverride, setThemeOverride,
+    clearAllData,
+    sosContact, setSosContact,
+    communityReports, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
+    currentTrip, tripHistory, clearTripHistory,
+    odoBaseKm,
+    hydrated, onboardingComplete, completeOnboarding,
+    isOffline,
+    lastAlertDataSyncedAt,
+    vehicleType, setVehicleType,
+    vehicleMakeId, vehicleModelId, setVehicleModel,
+    vehicleCustomMakeName, vehicleCustomModelName, setCustomVehicle,
+    navDestination, setNavDestination,
+    activeRoute, altRoutes, selectRoute,
+    shareToken, shareCode,
+    driverName, setDriverName,
+    startSharingTrip, stopSharingTrip,
+    distanceRemainingM, durationRemainingS, routeLoading,
+    showTraffic, setShowTraffic,
+    routeIncidentsAhead, routeTrafficDelayS, checkRouteStatus, routeIncidentsExpanded, setRouteIncidentsExpanded,
+    pendingConfirmationReport, setPendingConfirmationReport,
+    pendingConfirmationSource, setPendingConfirmationSource,
+    hasVotedOnReport,
+    pendingFocusCoords, setPendingFocusCoords,
+    markReportPrompted, isReportPrompted,
+    isAdmin, adminLogin, adminLogout, adminVerifyReport, adminDenyReport, adminUpdateReportLocation,
+    adminUpdateZoneLocation, adminRemoveZone, adminVerifyZone, adminSyncStaticZones,
+    adminEditZone, adminEditReport, adminCreateZone,
+    snapToActiveRoute,
+    hereIncidents, dismissHereIncident,
+    mapPickerActive, setMapPickerActive,
+    crashDetected, clearCrash, crashAssistantId,
+    crashSensitivity, setCrashSensitivity,
+    setDashcamActive,
+    gpsLastFixAtRef,
+    profilePhotoUri, setProfilePhotoUri,
+    navTripActive, navTripPaused,
+    setNavTripActive, setNavTripPaused,
+  ]);
+
+  return (
+    <AppContext.Provider value={appValue}>
+      <LocationContext.Provider value={locationValue}>
+        {children}
+      </LocationContext.Provider>
     </AppContext.Provider>
   );
 }
