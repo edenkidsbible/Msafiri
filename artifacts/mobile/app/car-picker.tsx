@@ -4,6 +4,7 @@ import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Image, ActivityIndicator, Platform, ScrollView, Modal,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
@@ -894,60 +895,68 @@ export default function CarPickerScreen() {
         visible={claimVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setClaimVisible(false)}
+        onRequestClose={() => { Keyboard.dismiss(); setClaimVisible(false); }}
         statusBarTranslucent
       >
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 }}>
-            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: c.tileBorder, marginBottom: 20 }} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <Ionicons name="flag-outline" size={20} color="#D97706" />
-              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: c.foreground }}>Claim this vehicle</Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+              <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 }}>
+                <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: c.tileBorder, marginBottom: 20 }} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <Ionicons name="flag-outline" size={20} color="#D97706" />
+                  <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: c.foreground }}>Claim this vehicle</Text>
+                </View>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginBottom: 16, lineHeight: 19 }}>
+                  Tell us why you believe{" "}
+                  <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>
+                    {plateDuplicate?.displayName ?? "this vehicle"}
+                  </Text>
+                  {" "}is yours. Our team will review and contact you.
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: c.muted, borderRadius: 12, borderWidth: 1, borderColor: c.tileBorder,
+                    paddingHorizontal: 14, paddingVertical: 11, color: c.foreground,
+                    fontFamily: "Inter_400Regular", fontSize: 14, minHeight: 100,
+                    textAlignVertical: "top", marginBottom: 6,
+                  }}
+                  value={claimNote}
+                  onChangeText={setClaimNote}
+                  placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
+                  placeholderTextColor={c.mutedForeground + "88"}
+                  multiline
+                  blurOnSubmit
+                  numberOfLines={4}
+                  maxLength={500}
+                />
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground + "55", alignSelf: "flex-end", marginBottom: 16 }}>
+                  {claimNote.length}/500
+                </Text>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: c.primary, marginBottom: 10, opacity: claimSending ? 0.7 : 1 }}
+                  onPress={() => { Keyboard.dismiss(); handleSubmitClaim(); }}
+                  disabled={claimSending}
+                  activeOpacity={0.85}
+                >
+                  {claimSending
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <>
+                        <Ionicons name="send-outline" size={16} color="#fff" />
+                        <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>Submit Claim</Text>
+                      </>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { Keyboard.dismiss(); setClaimVisible(false); }} activeOpacity={0.8} style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: c.mutedForeground, marginBottom: 16, lineHeight: 19 }}>
-              Tell us why you believe{" "}
-              <Text style={{ fontFamily: "Inter_600SemiBold", color: c.foreground }}>
-                {plateDuplicate?.displayName ?? "this vehicle"}
-              </Text>
-              {" "}is yours. Our team will review and contact you.
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: c.muted, borderRadius: 12, borderWidth: 1, borderColor: c.tileBorder,
-                paddingHorizontal: 14, paddingVertical: 11, color: c.foreground,
-                fontFamily: "Inter_400Regular", fontSize: 14, minHeight: 100,
-                textAlignVertical: "top", marginBottom: 6,
-              }}
-              value={claimNote}
-              onChangeText={setClaimNote}
-              placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
-              placeholderTextColor={c.mutedForeground + "88"}
-              multiline
-              numberOfLines={4}
-              maxLength={500}
-            />
-            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground + "55", alignSelf: "flex-end", marginBottom: 16 }}>
-              {claimNote.length}/500
-            </Text>
-            <TouchableOpacity
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: c.primary, marginBottom: 10, opacity: claimSending ? 0.7 : 1 }}
-              onPress={handleSubmitClaim}
-              disabled={claimSending}
-              activeOpacity={0.85}
-            >
-              {claimSending
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <>
-                    <Ionicons name="send-outline" size={16} color="#fff" />
-                    <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>Submit Claim</Text>
-                  </>
-              }
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setClaimVisible(false)} activeOpacity={0.8} style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

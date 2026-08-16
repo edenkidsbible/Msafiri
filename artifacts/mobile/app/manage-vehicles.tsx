@@ -473,12 +473,15 @@ function EditSheet({
         visible={claimVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setClaimVisible(false)}
+        onRequestClose={() => { Keyboard.dismiss(); setClaimVisible(false); }}
         statusBarTranslucent
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
               <View style={{ backgroundColor: bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 }}>
                 <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: border, marginBottom: 20 }} />
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -513,7 +516,7 @@ function EditSheet({
                 </Text>
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: c.primary, marginBottom: 10, opacity: claimSending ? 0.7 : 1 }}
-                  onPress={handleSubmitClaim}
+                  onPress={() => { Keyboard.dismiss(); handleSubmitClaim(); }}
                   disabled={claimSending}
                   activeOpacity={0.85}
                 >
@@ -525,13 +528,13 @@ function EditSheet({
                       </>
                   }
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setClaimVisible(false)} activeOpacity={0.8} style={{ alignItems: "center" }}>
+                <TouchableOpacity onPress={() => { Keyboard.dismiss(); setClaimVisible(false); }} activeOpacity={0.8} style={{ alignItems: "center" }}>
                   <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </Modal>
   );
