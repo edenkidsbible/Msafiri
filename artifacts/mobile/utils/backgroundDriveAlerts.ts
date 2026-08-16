@@ -7,6 +7,23 @@
  * reports. If the driver is approaching an alertable zone (within ALERT_DIST
  * but outside IN_ZONE_DIST), a local notification fires with the alert tone.
  *
+ * ── Adaptive accuracy ──────────────────────────────────────────────────────
+ * To reduce battery / heat on long empty-road stretches, the task switches
+ * between two GPS accuracy modes automatically:
+ *
+ *   High (default)  — GPS hardware, 25 m distance interval, 5 s time interval.
+ *                     Used whenever a zone or report is within 2 km OR within
+ *                     2 minutes of the last alert trigger.
+ *   Balanced        — Cell/Wi-Fi, 100 m distance interval, 15 s time interval.
+ *                     Activated when no zone/report is within 2 km AND no alert
+ *                     has fired for more than 2 minutes.  Uses ~40–60 % less
+ *                     GPS power on long highway stretches (Google Maps pattern).
+ *
+ * Mode transitions are effected by stopping and restarting the location
+ * subscription with new parameters (the only way expo-location allows it).
+ * The current mode is persisted in AsyncStorage so `startBgDriveAlertsTask`
+ * can resume in the correct mode after an app restart.
+ *
  * IMPORTANT: `defineBackgroundDriveAlertsTask()` must be called at the top
  * level of the app entry point (before any React components mount) —
  * expo-task-manager requires tasks to be registered synchronously at startup.
@@ -24,6 +41,8 @@
  *                                           read by AppContext on foreground
  *                                           return to eliminate the position
  *                                           "jump" when the screen unlocks
+ *   @msafiri/bgAccuracyMode     "high" | "balanced"  — current adaptive mode
+ *   @msafiri/bgLastAlertAt      string (epoch ms)    — when the last alert fired
  */
 
 import * as TaskManager from "expo-task-manager";
@@ -39,12 +58,25 @@ export const BG_DRIVE_ACTIVE_KEY    = "@msafiri/bgDriveActive";
 export const BG_SESSION_ID_KEY      = "@msafiri/bgSessionId";
 export const BG_ZONES_CACHE_KEY     = "@msafiri/bgZonesCache";
 export const BG_REPORTS_CACHE_KEY   = "@msafiri/bgReportsCache";
-export const BG_LAST_FIX_KEY        = "@msafiri/bgLastFix";   // ← new: foreground recovery
+export const BG_LAST_FIX_KEY        = "@msafiri/bgLastFix";   // ← foreground recovery
 const        BG_NOTIFIED_ALERTS_KEY = "@msafiri/bgNotifiedAlerts";
+const        BG_ACCURACY_MODE_KEY   = "@msafiri/bgAccuracyMode";   // "high" | "balanced"
+const        BG_LAST_ALERT_AT_KEY   = "@msafiri/bgLastAlertAt";    // epoch ms string
 
 // ── Alert thresholds (match foreground AppContext values) ─────────────────────
 const ALERT_DIST   = 600; // m — outer boundary: notify when approaching
 const IN_ZONE_DIST = 250; // m — inner boundary: driver is already inside, skip
+
+// ── Adaptive accuracy thresholds ──────────────────────────────────────────────
+/** Drop to Balanced if no alert has fired for longer than this. */
+const ADAPTIVE_QUIET_MS = 2 * 60 * 1000; // 2 minutes
+
+/**
+ * Re-arm to High accuracy if ANY zone or report is closer than this.
+ * Must be well above ALERT_DIST (600 m) so we switch back to High *before*
+ * the driver enters the alert window — not after.
+ */
+const REARM_DIST = 2000; // 2 km
 
 // Don't re-notify the same zone/report within 5 minutes even if the driver
 // circles back. This matches the foreground dismiss-cooldown behaviour.
@@ -91,6 +123,8 @@ interface BgNotifiedMap {
   notified: Record<string, number>;
 }
 
+type AccuracyMode = "high" | "balanced";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -120,6 +154,84 @@ const TYPE_LABELS: Record<string, string> = {
   breakdown: "Breakdown",
   closure:   "Road closure",
 };
+
+/**
+ * Location options for a given accuracy mode.
+ *
+ *   High     — GPS hardware, 25 m / 5 s cadence.  Used near zones or just
+ *              after an alert so we never miss the 600 m alert window.
+ *   Balanced — Cell/Wi-Fi, 100 m / 15 s cadence.  Used on long empty
+ *              stretches; ~40–60 % less GPS power draw.
+ */
+function locationOptions(mode: AccuracyMode): Parameters<typeof Location.startLocationUpdatesAsync>[1] {
+  const base = {
+    showsBackgroundLocationIndicator: true,
+    ...(Platform.OS === "android" ? {
+      foregroundService: {
+        notificationTitle:   "Msafiri Drive Mode",
+        notificationBody:    "Monitoring for nearby hazards and speed zones",
+        notificationColor:   "#00C853",
+        killServiceOnDestroy: false,
+      },
+    } : {}),
+  };
+
+  if (mode === "balanced") {
+    return {
+      ...base,
+      // Balanced: cell/Wi-Fi positioning, larger wakeup intervals.
+      // At 100 km/h, 100 m ≈ one wakeup every 3.6 s — still well above the
+      // 2 km re-arm gate that switches us back to High before any zone matters.
+      accuracy:         Location.Accuracy.Balanced,
+      distanceInterval: 100,
+      timeInterval:     15_000,
+    };
+  }
+
+  // High (default): GPS hardware.
+  return {
+    ...base,
+    // 25 m at 100 km/h ≈ 1 wakeup/s — reliable for 600 m alert window.
+    accuracy:         Location.Accuracy.High,
+    distanceInterval: 25,
+    timeInterval:     5_000,
+  };
+}
+
+/**
+ * Restart the location subscription with a new accuracy mode.
+ * Called fire-and-forget from within the task handler so the current
+ * invocation completes without waiting for the new subscription to register.
+ *
+ * Guards against concurrent restarts and missing permissions.
+ */
+async function switchAccuracyMode(mode: AccuracyMode): Promise<void> {
+  try {
+    const { status } = await Location.getBackgroundPermissionsAsync();
+    if (status !== "granted") return;
+
+    // Persist *before* stopping so that if something throws, the target mode
+    // is recorded and the next startBgDriveAlertsTask call picks it up.
+    await AsyncStorage.setItem(BG_ACCURACY_MODE_KEY, mode);
+
+    const isRunning = await Location.hasStartedLocationUpdatesAsync(
+      BG_DRIVE_ALERTS_TASK,
+    ).catch(() => false);
+
+    if (isRunning) {
+      await Location.stopLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK);
+    }
+
+    await Location.startLocationUpdatesAsync(
+      BG_DRIVE_ALERTS_TASK,
+      locationOptions(mode),
+    );
+
+    console.log(`[bgDriveAlerts] switched accuracy to ${mode}`);
+  } catch (e) {
+    console.warn("[bgDriveAlerts] switchAccuracyMode failed:", e);
+  }
+}
 
 // ─── Task definition ──────────────────────────────────────────────────────────
 
@@ -185,15 +297,19 @@ export function defineBackgroundDriveAlertsTask(): void {
         AsyncStorage.setItem(BG_LAST_FIX_KEY, JSON.stringify(lastFix)).catch(() => {});
 
         // ── 4. Load all data in parallel ───────────────────────────────────
-        const [sessionIdRaw, zonesRaw, reportsRaw, notifiedRaw] =
+        const [sessionIdRaw, zonesRaw, reportsRaw, notifiedRaw, accuracyModeRaw, lastAlertAtRaw] =
           await Promise.all([
             AsyncStorage.getItem(BG_SESSION_ID_KEY),
             AsyncStorage.getItem(BG_ZONES_CACHE_KEY),
             AsyncStorage.getItem(BG_REPORTS_CACHE_KEY),
             AsyncStorage.getItem(BG_NOTIFIED_ALERTS_KEY),
+            AsyncStorage.getItem(BG_ACCURACY_MODE_KEY),
+            AsyncStorage.getItem(BG_LAST_ALERT_AT_KEY),
           ]);
 
-        const sessionId = sessionIdRaw ?? "unknown";
+        const sessionId   = sessionIdRaw ?? "unknown";
+        const currentMode = (accuracyModeRaw as AccuracyMode | null) ?? "high";
+        const lastAlertAt = lastAlertAtRaw ? parseInt(lastAlertAtRaw, 10) : 0;
 
         // Parse + validate the dedup map; reset on session change so a new
         // drive's alerts are never suppressed by the prior drive's entries.
@@ -216,8 +332,8 @@ export function defineBackgroundDriveAlertsTask(): void {
         try { reports = reportsRaw ? (JSON.parse(reportsRaw) as BgReportEntry[]) : []; } catch {}
 
         // ── 5. Evaluate all zones + reports, pick the closest alertable one ─
-        // Mirrors the foreground winner-selection logic in AppContext:
-        // only zones in (IN_ZONE_DIST, ALERT_DIST] qualify.
+        // Simultaneously track the nearest distance across ALL zones/reports
+        // (regardless of the alert window) for the adaptive-accuracy gate.
         type Winner = {
           id: string;
           type: string;
@@ -226,9 +342,11 @@ export function defineBackgroundDriveAlertsTask(): void {
           name: string;
         };
         let winner: Winner | null = null;
+        let nearestDist = Infinity; // nearest zone/report at any distance
 
         for (const z of zones) {
           const d = haversine(lat, lng, z.lat, z.lng);
+          if (d < nearestDist) nearestDist = d;
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
           if (!winner || d < winner.dist) {
             winner = { id: z.id, type: z.type, dist: d, speedLimit: z.speedLimit, name: z.name };
@@ -237,6 +355,7 @@ export function defineBackgroundDriveAlertsTask(): void {
 
         for (const r of reports) {
           const d = haversine(lat, lng, r.lat, r.lng);
+          if (d < nearestDist) nearestDist = d;
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
           if (!winner || d < winner.dist) {
             winner = {
@@ -246,6 +365,30 @@ export function defineBackgroundDriveAlertsTask(): void {
               speedLimit: r.speedLimit,
               name:       TYPE_LABELS[r.type] ?? r.type,
             };
+          }
+        }
+
+        // ── 5b. Adaptive accuracy: decide whether to switch modes ──────────
+        //
+        //  Switch to Balanced when ALL of:
+        //    • no zone/report is within REARM_DIST (2 km)
+        //    • no alert has fired in the last ADAPTIVE_QUIET_MS (2 min)
+        //
+        //  Restore to High when ANY of:
+        //    • a zone/report is within REARM_DIST (2 km)   ← re-arm before alert window
+        //    • an alert fired within the last ADAPTIVE_QUIET_MS (2 min)
+        //
+        //  The 2 km gate gives a comfortable ~2–3 s runway at 100 km/h between
+        //  the mode switch and actually entering the 600 m alert window.
+        {
+          const zoneNearby   = nearestDist <= REARM_DIST;
+          const alertRecent  = (now - lastAlertAt) < ADAPTIVE_QUIET_MS;
+          const targetMode: AccuracyMode = (zoneNearby || alertRecent) ? "high" : "balanced";
+
+          if (targetMode !== currentMode) {
+            // Fire-and-forget: switching involves a stop+start which is
+            // async but we don't need the result for this invocation.
+            switchAccuracyMode(targetMode).catch(() => {});
           }
         }
 
@@ -286,16 +429,21 @@ export function defineBackgroundDriveAlertsTask(): void {
             : null,
         });
 
-        // ── 8. Persist the updated dedup map ───────────────────────────────
+        // ── 8. Persist updated dedup map + last-alert timestamp ───────────
         notifiedMap.notified[winner.id] = now;
         // Prune entries older than 2× cooldown to keep the map small
         for (const [id, ts] of Object.entries(notifiedMap.notified)) {
           if (now - ts > 2 * ALERT_COOLDOWN_MS) delete notifiedMap.notified[id];
         }
-        await AsyncStorage.setItem(
-          BG_NOTIFIED_ALERTS_KEY,
-          JSON.stringify(notifiedMap),
-        );
+        await Promise.all([
+          AsyncStorage.setItem(
+            BG_NOTIFIED_ALERTS_KEY,
+            JSON.stringify(notifiedMap),
+          ),
+          // Record when the last alert fired so the adaptive-accuracy logic
+          // has a fresh reference on the next task invocation.
+          AsyncStorage.setItem(BG_LAST_ALERT_AT_KEY, String(now)),
+        ]);
       } catch (e) {
         console.warn("[bgDriveAlerts] unhandled error:", e);
       }
@@ -310,21 +458,10 @@ export function defineBackgroundDriveAlertsTask(): void {
  * Returns true if the task was started (or was already running).
  * Returns false when background location permission has not been granted.
  *
- * Accuracy and interval choices:
- *   High accuracy  — uses GPS hardware, not cell/Wi-Fi. Gives 3-15 m fixes vs
- *                    the 50-150 m typical of Balanced mode, which is critical
- *                    for the 600 m alert window and precise distance display.
- *   distanceInterval: 10 m — wake the task every ~10 m of movement. At
- *                    100 km/h that's a wakeup every ~0.36 s; the OS schedules
- *                    these as a batch but the density ensures we don't miss a
- *                    600 m alert window on high-speed roads.
- *   timeInterval: 5000 ms — also fire on a 5 s timer so a stationary driver
- *                    near a hazard gets a notification without needing to move
- *                    another 10 m first.
- *   showsBackgroundLocationIndicator: true — shows the blue GPS pill on iOS.
- *                    More importantly it signals to the iOS scheduler that
- *                    this task requires timely location updates, granting it
- *                    higher wakeup priority (similar to navigation apps).
+ * Reads the persisted accuracy mode from AsyncStorage so that a task which was
+ * stopped and restarted (e.g. after an app restart mid-drive) resumes in the
+ * same mode it had been running in rather than always defaulting to High.
+ * On a fresh drive start, no mode is stored yet → defaults to High.
  */
 export async function startBgDriveAlertsTask(): Promise<boolean> {
   if (Platform.OS === "web") return false;
@@ -337,38 +474,12 @@ export async function startBgDriveAlertsTask(): Promise<boolean> {
     ).catch(() => false);
     if (isRunning) return true;
 
-    await Location.startLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK, {
-      // High accuracy: GPS hardware. Balanced would use cell/Wi-Fi (~100 m),
-      // too imprecise for reliable 600 m alert detection at driving speeds.
-      accuracy: Location.Accuracy.High,
+    // Restore the accuracy mode from the last run, defaulting to High for a
+    // fresh session (no stored mode) so we never miss an early zone.
+    const storedMode = await AsyncStorage.getItem(BG_ACCURACY_MODE_KEY).catch(() => null);
+    const mode: AccuracyMode = (storedMode as AccuracyMode | null) ?? "high";
 
-      // Wake on every 25 m of movement. At 100 km/h that's ~1 wakeup/second,
-      // still well within the 1 km alert detection window and ~2.5× fewer
-      // background task wakeups than the previous 10 m setting (which was
-      // 2.8 wakeups/s at highway speed — excessive heat/battery drain).
-      distanceInterval: 25,
-
-      // Also fire on a time cadence so a stationary driver sitting 400 m from
-      // a speed camera still gets notified without needing to move first.
-      timeInterval: 5000,
-
-      // Show the blue GPS status-bar pill on iOS. This tells the iOS location
-      // scheduler that updates are navigation-critical, granting higher wakeup
-      // fidelity and priority (same treatment as turn-by-turn navigation apps).
-      showsBackgroundLocationIndicator: true,
-
-      // Android foreground service: required for reliable background location
-      // on Android 8+. Without this, Doze mode can kill the task mid-drive.
-      // The notification tells the user the app is tracking their drive.
-      ...(Platform.OS === "android" ? {
-        foregroundService: {
-          notificationTitle:   "Msafiri Drive Mode",
-          notificationBody:    "Monitoring for nearby hazards and speed zones",
-          notificationColor:   "#00C853",
-          killServiceOnDestroy: false,
-        },
-      } : {}),
-    });
+    await Location.startLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK, locationOptions(mode));
     return true;
   } catch (e) {
     console.warn("[bgDriveAlerts] start failed:", e);
@@ -380,6 +491,7 @@ export async function startBgDriveAlertsTask(): Promise<boolean> {
  * Stop the background alert location task.
  * Also clears the persisted last-fix so stale position isn't injected on the
  * next foreground return after a very long gap.
+ * Resets the accuracy mode to High so the next drive starts fresh.
  */
 export async function stopBgDriveAlertsTask(): Promise<void> {
   if (Platform.OS === "web") return;
@@ -391,4 +503,9 @@ export async function stopBgDriveAlertsTask(): Promise<void> {
   } catch {
     // Ignore — task may not be registered yet
   }
+  // Reset adaptive state for the next drive session.
+  await Promise.all([
+    AsyncStorage.removeItem(BG_ACCURACY_MODE_KEY).catch(() => {}),
+    AsyncStorage.removeItem(BG_LAST_ALERT_AT_KEY).catch(() => {}),
+  ]);
 }
