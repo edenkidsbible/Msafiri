@@ -120,9 +120,10 @@ export default function CarPickerScreen() {
   const [plateChecking,     setPlateChecking]     = useState(false);
   const [plateDuplicate,    setPlateDuplicate]    = useState<{ id: string; displayName: string } | null>(null);
   const plateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [claimVisible,  setClaimVisible]  = useState(false);
-  const [claimNote,     setClaimNote]     = useState("");
-  const [claimSending,  setClaimSending]  = useState(false);
+  const [claimVisible,      setClaimVisible]      = useState(false);
+  const [claimNote,         setClaimNote]         = useState("");
+  const [claimSending,      setClaimSending]      = useState(false);
+  const [claimNoteKimOpen,  setClaimNoteKimOpen]  = useState(false);
   const [claimSent,     setClaimSent]     = useState(false);
 
   // Auto-open the text modal when entering custom make/model steps (replaces autoFocus)
@@ -895,15 +896,12 @@ export default function CarPickerScreen() {
         visible={claimVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setClaimVisible(false); }}
+        onRequestClose={() => setClaimVisible(false)}
         statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+        <TouchableWithoutFeedback onPress={() => setClaimVisible(false)} accessible={false}>
+          <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+            <TouchableWithoutFeedback accessible={false}>
               <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 }}>
                 <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: c.tileBorder, marginBottom: 20 }} />
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -917,28 +915,30 @@ export default function CarPickerScreen() {
                   </Text>
                   {" "}is yours. Our team will review and contact you.
                 </Text>
-                <TextInput
+                {/* Tappable note card — keyboard entry handled by KeyboardInputModal below */}
+                <TouchableOpacity
+                  onPress={() => setClaimNoteKimOpen(true)}
+                  activeOpacity={0.75}
                   style={{
-                    backgroundColor: c.muted, borderRadius: 12, borderWidth: 1, borderColor: c.tileBorder,
-                    paddingHorizontal: 14, paddingVertical: 11, color: c.foreground,
-                    fontFamily: "Inter_400Regular", fontSize: 14, minHeight: 100,
-                    textAlignVertical: "top", marginBottom: 6,
+                    backgroundColor: c.muted, borderRadius: 12, borderWidth: 1,
+                    borderColor: claimNote ? c.tileBorder : c.primary + "66",
+                    paddingHorizontal: 14, paddingVertical: 11, minHeight: 100,
+                    justifyContent: "flex-start", marginBottom: 6,
                   }}
-                  value={claimNote}
-                  onChangeText={setClaimNote}
-                  placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
-                  placeholderTextColor={c.mutedForeground + "88"}
-                  multiline
-                  blurOnSubmit
-                  numberOfLines={4}
-                  maxLength={500}
-                />
+                >
+                  <Text style={{
+                    color: claimNote ? c.foreground : c.mutedForeground + "88",
+                    fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20,
+                  }}>
+                    {claimNote || "e.g. I bought this car in 2021, my plate is KAA 123B…"}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: c.mutedForeground + "55", alignSelf: "flex-end", marginBottom: 16 }}>
                   {claimNote.length}/500
                 </Text>
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: c.primary, marginBottom: 10, opacity: claimSending ? 0.7 : 1 }}
-                  onPress={() => { Keyboard.dismiss(); handleSubmitClaim(); }}
+                  onPress={handleSubmitClaim}
                   disabled={claimSending}
                   activeOpacity={0.85}
                 >
@@ -950,14 +950,27 @@ export default function CarPickerScreen() {
                       </>
                   }
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { Keyboard.dismiss(); setClaimVisible(false); }} activeOpacity={0.8} style={{ alignItems: "center" }}>
+                <TouchableOpacity onPress={() => setClaimVisible(false)} activeOpacity={0.8} style={{ alignItems: "center" }}>
                   <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: c.mutedForeground }}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
+
+      {/* ── Claim note text entry (KeyboardInputModal keeps Submit always visible) */}
+      <KeyboardInputModal
+        visible={claimNoteKimOpen}
+        label="Why is this vehicle yours?"
+        value={claimNote}
+        onChangeText={(t) => setClaimNote(t.slice(0, 500))}
+        onDone={() => setClaimNoteKimOpen(false)}
+        onCancel={() => setClaimNoteKimOpen(false)}
+        placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
+        multiline
+        inputHeight={130}
+      />
     </View>
   );
 }

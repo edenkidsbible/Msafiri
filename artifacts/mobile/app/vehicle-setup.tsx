@@ -109,9 +109,10 @@ export default function VehicleSetup() {
   const plateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Claim modal state
-  const [claimVisible,  setClaimVisible]  = useState(false);
-  const [claimNote,     setClaimNote]     = useState("");
-  const [claimSending,  setClaimSending]  = useState(false);
+  const [claimVisible,      setClaimVisible]      = useState(false);
+  const [claimNote,         setClaimNote]         = useState("");
+  const [claimSending,      setClaimSending]      = useState(false);
+  const [claimNoteKimOpen,  setClaimNoteKimOpen]  = useState(false);
   const [claimSent,     setClaimSent]     = useState(false);
 
   // Keyboard input modals (replaces TextInput + revealInput refs pattern)
@@ -648,15 +649,12 @@ export default function VehicleSetup() {
         visible={claimVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => { Keyboard.dismiss(); setClaimVisible(false); }}
+        onRequestClose={() => setClaimVisible(false)}
         statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+        <TouchableWithoutFeedback onPress={() => setClaimVisible(false)} accessible={false}>
+          <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+            <TouchableWithoutFeedback accessible={false}>
               <View style={cs.claimSheet}>
                 <View style={cs.claimHandle} />
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -670,24 +668,28 @@ export default function VehicleSetup() {
                   </Text>{" "}
                   is yours. Our team will review it and contact you.
                 </Text>
-                <TextInput
-                  style={cs.claimInput}
-                  value={claimNote}
-                  onChangeText={setClaimNote}
-                  placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
-                  placeholderTextColor="#555"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  maxLength={500}
-                  blurOnSubmit
-                />
+                {/* Tappable note card — keyboard entry handled by KeyboardInputModal below */}
+                <TouchableOpacity
+                  onPress={() => setClaimNoteKimOpen(true)}
+                  activeOpacity={0.75}
+                  style={[cs.claimInput, {
+                    justifyContent: "flex-start",
+                    borderColor: claimNote ? "rgba(255,255,255,0.15)" : "#00A84566",
+                  }]}
+                >
+                  <Text style={{
+                    color: claimNote ? "#fff" : "#555",
+                    fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20,
+                  }}>
+                    {claimNote || "e.g. I bought this car in 2021, my plate is KAA 123B…"}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "Inter_400Regular", alignSelf: "flex-end", marginBottom: 16 }}>
                   {claimNote.length}/500
                 </Text>
                 <TouchableOpacity
                   style={[cs.nextBtn, { marginBottom: 10 }]}
-                  onPress={() => { Keyboard.dismiss(); handleSubmitClaim(); }}
+                  onPress={handleSubmitClaim}
                   disabled={claimSending}
                   activeOpacity={0.85}
                 >
@@ -701,16 +703,29 @@ export default function VehicleSetup() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={cs.skipBtnBelow}
-                  onPress={() => { Keyboard.dismiss(); setClaimVisible(false); }}
+                  onPress={() => setClaimVisible(false)}
                   activeOpacity={0.8}
                 >
                   <Text style={cs.skipBelowTxt}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
+
+      {/* ── Claim note text entry (KeyboardInputModal keeps Submit always visible) */}
+      <KeyboardInputModal
+        visible={claimNoteKimOpen}
+        label="Why is this vehicle yours?"
+        value={claimNote}
+        onChangeText={(t) => setClaimNote(t.slice(0, 500))}
+        onDone={() => setClaimNoteKimOpen(false)}
+        onCancel={() => setClaimNoteKimOpen(false)}
+        placeholder="e.g. I bought this car in 2021, my plate is KAA 123B…"
+        multiline
+        inputHeight={130}
+      />
     </SafeAreaView>
   );
 }
