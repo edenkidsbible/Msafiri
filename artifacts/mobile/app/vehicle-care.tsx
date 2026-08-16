@@ -440,7 +440,8 @@ function UpdateOdometerModal({ visible, currentKm, storageKey, vehicleId, onClos
 export default function VehicleCareScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType } = useApp();
+  const { vehicleMakeId, vehicleModelId, vehicleCustomMakeName, vehicleCustomModelName, vehicleType, liveOdometerKm } = useApp();
+  const { activeVehicleId } = useVehicle();
 
   // Route params passed from the garage when navigating to a specific vehicle's care screen
   const params = useLocalSearchParams<{ vehicleId?: string; isDefault?: string; vehicleName?: string }>();
@@ -542,7 +543,16 @@ export default function VehicleCareScreen() {
 
   const stats     = computeVehicleCareStats(data);
   const statuses  = computeItemStatuses(data);
-  const odometer  = estimatedOdometerKm(data);
+  // Use the live odometer (base + current in-progress trip km) when this care
+  // screen is open for the active vehicle — mirrors how the garage card shows
+  // the odometer.  For any other vehicle fall back to the stored estimate which
+  // excludes the current trip (there is no live trip distance for an inactive
+  // vehicle).
+  const storedOdometer = estimatedOdometerKm(data);
+  const isActiveVehicle = !!paramVehicleId && paramVehicleId === activeVehicleId;
+  const odometer = isActiveVehicle && liveOdometerKm > storedOdometer
+    ? liveOdometerKm
+    : storedOdometer;
 
   const healthColor =
     stats.healthScore >= 90 ? c.primary
