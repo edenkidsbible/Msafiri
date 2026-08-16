@@ -450,17 +450,6 @@ export default function DriveAlertOverlay({
         </>
       )}
 
-      {/* ── Dismiss button — always app-green to match brand CTA ── */}
-      <TouchableOpacity
-        onPress={handleDismiss}
-        activeOpacity={0.82}
-        style={styles.dismissBtn}
-      >
-        <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-        <Text style={styles.dismissTxt}>
-          {hasExtras ? "Got it — dismiss all" : "Got it"}
-        </Text>
-      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -741,26 +730,4 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
   },
 
-  // ── Dismiss button — always app-green ────────────────────────────────
-  dismissBtn: {
-    flexDirection:    "row",
-    alignItems:       "center",
-    justifyContent:   "center",
-    gap:              8,
-    marginHorizontal: 16,
-    marginTop:        16,
-    paddingVertical:  15,
-    borderRadius:     16,
-    backgroundColor:  "#00C853",
-    shadowColor:      "#00C853",
-    shadowOffset:     { width: 0, height: 4 },
-    shadowOpacity:    0.35,
-    shadowRadius:     10,
-    elevation:        6,
-  },
-  dismissTxt: {
-    fontSize:   15,
-    fontFamily: "Inter_700Bold",
-    color:      "#FFF",
-  },
 });

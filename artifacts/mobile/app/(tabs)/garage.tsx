@@ -802,6 +802,24 @@ export default function GarageScreen() {
       .catch(() => {});
   }, [deviceId]));
 
+  // Polling fallback: re-fetch join requests every 30 s while the screen is
+  // mounted. This covers two cases the useFocusEffect above cannot:
+  //  (a) A push notification arrives while the owner is already on this tab
+  //      — useFocusEffect doesn't re-fire for the already-focused screen.
+  //  (b) The push token is stale / permission denied — the owner never
+  //      receives a notification and would only discover the request by
+  //      opening the Garage manually. The poll ensures the badge appears
+  //      within 30 s regardless of push delivery.
+  useEffect(() => {
+    if (!deviceId) return;
+    const id = setInterval(() => {
+      apiGet<{ requests: typeof pendingRequests }>(`/vehicles/join-requests/incoming?deviceId=${deviceId}`)
+        .then(r => setPendingRequests(r.requests ?? []))
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(id);
+  }, [deviceId]);
+
   async function handleApproveRequest(requestId: string) {
     if (!deviceId) return;
     setRespondingId(requestId);

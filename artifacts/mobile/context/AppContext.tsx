@@ -1841,7 +1841,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Also allow through when the driver's road is not yet resolved (null) —
         // distance-only fallback prevents silent blackout during road-warmup.
         // Suppress only when BOTH roads are known but disagree.
-        if (z.road && currentRoadRef.current && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        //
+        // Camera-type zones are excluded from the road-name gate entirely.
+        // Cameras are admin-verified at precise GPS coordinates, so distance
+        // + heading is sufficient to avoid false positives.  The road-name
+        // gate caused ALL camera alerts to silently fail whenever the Google
+        // Geocoding API returned a road code (e.g. "A8") instead of the
+        // human-readable name stored in the camera record ("Mombasa Road").
+        if (z.type !== "camera" && z.road && currentRoadRef.current && !roadsMatch(currentRoadRef.current, z.road)) continue;
 
         // Direction gate: when heading is known, only consider zones that are
         // ahead of the driver (positive along-track).  A negative along-track
