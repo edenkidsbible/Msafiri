@@ -194,10 +194,13 @@ const MAX_MANUAL_LOCKS_LOCAL  = 5;
 const MAX_AUTO_LOCKS_LOCAL    = 20;
 
 const DEFAULT_SETTINGS: DashcamSettings = {
-  // audioEnabled intentionally defaults to true — users expect audio in clips.
-  // The individual dashcam settings panel lets them disable it if needed.
-  quality: "1080p",
-  audioEnabled: true,
+  // 720p default: encodes at roughly half the CPU/GPU load of 1080p, which
+  // is the single largest hardware heat source during a recording trip.
+  // Drivers can upgrade to 1080p in Settings or the pretrip checklist.
+  quality: "720p",
+  // Audio off by default: keeping the mic open blocks Bluetooth audio and
+  // adds continuous audio encoding overhead. Drivers can enable it when needed.
+  audioEnabled: false,
   wifiOnlyUpload: true,
 };
 

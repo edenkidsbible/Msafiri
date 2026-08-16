@@ -342,10 +342,11 @@ export async function startBgDriveAlertsTask(): Promise<boolean> {
       // too imprecise for reliable 600 m alert detection at driving speeds.
       accuracy: Location.Accuracy.High,
 
-      // Wake on every 10 m of movement — fine enough that at 100 km/h we get
-      // ~10 wakeups per second's worth of distance, ensuring we catch every
-      // 600 m alert window with plenty of margin.
-      distanceInterval: 10,
+      // Wake on every 25 m of movement. At 100 km/h that's ~1 wakeup/second,
+      // still well within the 1 km alert detection window and ~2.5× fewer
+      // background task wakeups than the previous 10 m setting (which was
+      // 2.8 wakeups/s at highway speed — excessive heat/battery drain).
+      distanceInterval: 25,
 
       // Also fire on a time cadence so a stationary driver sitting 400 m from
       // a speed camera still gets notified without needing to move first.
