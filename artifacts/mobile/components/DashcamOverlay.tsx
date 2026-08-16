@@ -441,7 +441,7 @@ export default function DashcamOverlay() {
           // — these stalls are temporary and should not hard-stop the dashcam.
           console.warn("[Dashcam] Audio stall (null results) — restarting loop (no restart slot used)");
           bumpRecordingEpoch();
-        } else {
+        } else if (reason === "failure") {
           // The loop exited due to consecutive MAX_FAILURES — a real camera
           // error (exception thrown by recordAsync).  Use a restart slot;
           // after 3 failed genuine restarts, give up and stop cleanly.
@@ -454,9 +454,18 @@ export default function DashcamOverlay() {
             restartCountRef.current = 0;
             stopDashcam();
           }
+        } else {
+          // reason === "done": the loop exited cleanly because isRecordingRef
+          // was set to false (stopAndSaveDashcam / stopDashcam called while a
+          // segment was in-flight).  This is a normal, intentional stop — NOT
+          // a failure.  Reset the counter so cross-trip leakage cannot deplete
+          // the genuine restart budget on subsequent recording sessions within
+          // the same app lifecycle.
+          restartCountRef.current = 0;
         }
       } else {
-        // Normal explicit stop — reset the restart counter for the next session.
+        // Normal explicit stop (effect cleanup set cancelled = true) — reset
+        // the restart counter for the next session.
         restartCountRef.current = 0;
       }
     });
