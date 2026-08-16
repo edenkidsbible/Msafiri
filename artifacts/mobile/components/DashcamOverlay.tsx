@@ -236,21 +236,13 @@ export default function DashcamOverlay() {
     [setCameraRef]
   );
 
-  // ── Audio session: keep BT music alive during recording ──────────────────
-  // iOS AVCaptureSession claims the audio route the moment recordAsync() is
-  // called — even with muted:true — because the encoder pipeline initialises
-  // an audio track regardless. Without MixWithOthers, the system tears down
-  // the A2DP (Bluetooth) route and music stops.
-  //
-  // Fix: engage PlayAndRecord + MixWithOthers whenever the camera is rolling,
-  // irrespective of whether the mic is on. This lets BT music coexist with
-  // both muted and audio-enabled recording.
-  // Restores DuckOthers (baseline) the moment recording stops.
-  useEffect(() => {
-    if (Platform.OS === "web" || !isRecording) return;
-    setDashcamAudioMode(true);
-    return () => { setDashcamAudioMode(false); };
-  }, [isRecording]);
+  // NOTE: setDashcamAudioMode(true) is now called *inside* the recording loop
+  // (awaited before the first recordAsync) instead of as a fire-and-forget
+  // effect here.  The old pattern created a race: recordAsync could start
+  // before setAudioModeAsync finished, causing iOS to see two simultaneous
+  // AVAudioSession reconfigurations and interrupt the capture session — the
+  // root cause of dashcam stops at ~60-90 s into a recording.
+  // See the recording loop effect below for the new placement.
 
   // ── Keep screen awake while dashcam is active ─────────────────────────────
   // keepAwakeActive tracks whether activateKeepAwakeAsync completed successfully
@@ -365,6 +357,23 @@ export default function DashcamOverlay() {
       const MAX_NULL_RETRY = 30;
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+      // ── Audio session setup ─────────────────────────────────────────────
+      // MUST be awaited BEFORE recordAsync() starts.  The previous approach
+      // fired setDashcamAudioMode(true) as a fire-and-forget side-effect;
+      // that created a race where recordAsync() could begin while
+      // setAudioModeAsync was still running.  iOS sees two simultaneous
+      // AVAudioSession reconfigurations (one from our app, one from the
+      // camera pipeline) and interrupts the capture session — causing null
+      // results or exceptions that draining retry budgets and stopping the
+      // dashcam ~60-90 s into recording.  Awaiting here ensures the session
+      // is fully settled before any recording attempt.
+      if (Platform.OS !== "web") {
+        console.log("[Dashcam] Awaiting audio session setup before recordAsync…");
+        await setDashcamAudioMode(true);
+        console.log("[Dashcam] Audio session ready");
+      }
+      if (cancelled) return "done";
+
       // Camera warm-up: onCameraReady fires slightly before the hardware is
       // actually ready to record. Starting recordAsync immediately often yields
       // a null result on the first segment, eating one of our failure slots.
@@ -416,13 +425,14 @@ export default function DashcamOverlay() {
             // the dashcam.  Track separately in nullRetryCount; only trigger a
             // restart (not a hard stop) after MAX_NULL_RETRY consecutive nulls.
             nullRetryCount++;
+            console.warn(`[Dashcam] null result (${nullRetryCount}/${MAX_NULL_RETRY})`);
             if (nullRetryCount >= MAX_NULL_RETRY) { exitReason = "null_stall"; break; }
             await sleep(500); // short sleep — audio sessions recover quickly
           }
         } catch (err) {
           if (cancelled) break;
-          console.warn("[Dashcam] recordAsync failed, retrying:", err);
           consecutiveFailures++;
+          console.warn(`[Dashcam] recordAsync exception (${consecutiveFailures}/${MAX_FAILURES}):`, err);
           nullRetryCount = 0; // exception resets null-retry (different failure mode)
           if (consecutiveFailures >= MAX_FAILURES) { exitReason = "failure"; break; }
           await sleep(1500);
@@ -473,6 +483,13 @@ export default function DashcamOverlay() {
       cancelled = true;
       loopCancelRef.current = true;
       localCameraRef.current?.stopRecording();
+      // Restore the baseline audio session now that recording is stopping.
+      // Previously done by a separate useEffect cleanup; moved here so that
+      // the audio session is always restored whenever the loop is torn down,
+      // regardless of whether isRecording changed or an epoch bump fired.
+      if (Platform.OS !== "web") {
+        setDashcamAudioMode(false);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording, recordingEpoch]);

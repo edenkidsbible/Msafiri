@@ -100,8 +100,20 @@ export async function setDashcamAudioMode(recording: boolean): Promise<void> {
       audioModePromise = Promise.resolve();
     }
   } catch {
-    // Non-critical — recording continues, music may be briefly interrupted
-    dashcamAudioActive = false;
+    // Non-critical — recording continues, music may be briefly interrupted.
+    //
+    // IMPORTANT: do NOT reset dashcamAudioActive to false on failure when
+    // recording=true.  If we do, every subsequent ensureAudioMode() call from
+    // an alert sound will try to set DuckOthers on the live audio session —
+    // each of those reconfigurations can interrupt the camera's AVCaptureSession
+    // and cause recordAsync() to return null or throw, draining retry budgets
+    // and eventually stopping the dashcam.  Keeping dashcamAudioActive=true
+    // means ensureAudioMode() stays a no-op for the duration of the recording;
+    // the session reverts to DuckOthers when setDashcamAudioMode(false) is
+    // called explicitly at recording end.
+    if (!recording) {
+      dashcamAudioActive = false;
+    }
   }
 }
 

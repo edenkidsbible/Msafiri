@@ -914,6 +914,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const stopDashcam = useCallback(() => {
+    console.log("[Dashcam] stopDashcam() called");
     isRecordingRef.current = false;
     setIsRecording(false);
     setBackgroundRecordPending(false);
@@ -963,6 +964,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
    */
   const stopAndSaveDashcam = useCallback(() => {
     if (!isRecordingRef.current) return;
+    console.log("[Dashcam] stopAndSaveDashcam() called");
     isRecordingRef.current = false;   // prevent re-entry; signals trip-end to onSegmentComplete
     setBackgroundRecordPending(false);
     cameraRef.current?.stopRecording();
