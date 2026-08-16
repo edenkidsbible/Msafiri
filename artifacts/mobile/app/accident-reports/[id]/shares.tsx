@@ -23,7 +23,12 @@ import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { format } from "date-fns";
+// EAT helpers — timezone-safe date formatting for Kenya (UTC+3)
+const EAT = "Africa/Nairobi";
+const eatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric", timeZone: EAT });
+const eatDayMonth = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: EAT });
 import { useApp } from "@/context/AppContext";
 import { apiDelete, apiGet, apiPost } from "@/utils/apiClient";
 import { useColors } from "@/hooks/useColors";
@@ -268,8 +273,8 @@ function ShareCard({
             {share.label ?? "Untitled link"}
           </Text>
           <Text style={[styles.cardDate, { color: colors.mutedForeground }]}>
-            Created {format(new Date(share.createdAt), "d MMM yyyy")}
-            {revoked && share.revokedAt ? ` · Revoked ${format(new Date(share.revokedAt), "d MMM")}` : ""}
+            Created {eatDate(share.createdAt)}
+            {revoked && share.revokedAt ? ` · Revoked ${eatDayMonth(share.revokedAt)}` : ""}
           </Text>
         </View>
         {!revoked && (

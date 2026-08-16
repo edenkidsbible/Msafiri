@@ -132,11 +132,22 @@ export default function TripDetailScreen() {
           {/* Date + route label */}
           <Text style={[styles.dateTxt, { color: c.mutedForeground }]}>{fmtDateTime(session.startedAt)}</Text>
           {locationNames && (
-            <Text style={[styles.routeLabel, { color: c.foreground }]} numberOfLines={1}>
-              {locationNames.from}
-              {locationNames.to && locationNames.to !== locationNames.from
-                ? ` → ${locationNames.to}` : ""}
-            </Text>
+            <View style={styles.routeBlock}>
+              <View style={styles.routeRow}>
+                <View style={[styles.routeDot, { backgroundColor: "#16A34A" }]} />
+                <Text style={[styles.routeName, { color: "#16A34A" }]} numberOfLines={1}>
+                  {locationNames.from}
+                </Text>
+              </View>
+              {locationNames.to && locationNames.to !== locationNames.from && (
+                <View style={styles.routeRow}>
+                  <View style={[styles.routeDot, { backgroundColor: "#EF4444" }]} />
+                  <Text style={[styles.routeName, { color: "#EF4444" }]} numberOfLines={1}>
+                    {locationNames.to}
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
 
           {/* Route map — only shown when we have at least a start coordinate */}
@@ -260,7 +271,10 @@ const styles = StyleSheet.create({
   retryTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   dateTxt: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
-  routeLabel: { fontSize: 17, fontFamily: "Inter_700Bold", marginBottom: 12 },
+  routeBlock: { marginBottom: 12, gap: 4 },
+  routeRow:   { flexDirection: "row", alignItems: "center", gap: 7 },
+  routeDot:   { width: 9, height: 9, borderRadius: 4.5, flexShrink: 0 },
+  routeName:  { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1 },
 
   scoreCard: {
     flexDirection: "row", alignItems: "center", gap: 14,

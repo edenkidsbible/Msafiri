@@ -474,7 +474,7 @@ type Tab = "all" | "upcoming" | "past" | "shared";
 export default function TripHistoryScreen() {
   const c       = useColors();
   const insets  = useSafeAreaInsets();
-  const { deviceId, isOffline } = useApp();
+  const { deviceId, isOffline, liveOdometerKm } = useApp();
   // Global active vehicle — used to initialise this screen's local selection
   // and to react when the user swipes to a different car in the garage.
   const { activeVehicle: ctxActiveVehicle, primaryVehicleId } = useVehicle();
@@ -1000,7 +1000,7 @@ export default function TripHistoryScreen() {
                   {[activeVehicle.fuelType, activeVehicle.transmission].filter(Boolean).join(" · ")}
                 </Text>
                 <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: subText, marginTop: 2 }}>
-                  {activeVehicle.odometerKm ? `${activeVehicle.odometerKm.toLocaleString()} km  ·  Updated from your trips` : "Odometer not set"}
+                  {liveOdometerKm > 0 ? `${Math.round(liveOdometerKm).toLocaleString()} km  ·  Updated from your trips` : (activeVehicle.odometerKm ? `${activeVehicle.odometerKm.toLocaleString()} km` : "Odometer not set")}
                 </Text>
               </View>
               {vehicles.length > 1 && (
@@ -1176,13 +1176,28 @@ export default function TripHistoryScreen() {
                           >
                             <DateBlock month={sd.monthShort} day={sd.day} weekday={sd.weekday} borderCol={borderCol} />
                             <View style={{ flex: 1, minWidth: 0 }}>
-                              <Text style={[styles.tripLabel, { color: c.foreground }]} numberOfLines={1}>
-                                {locationCache[s.id]
-                                  ? locationCache[s.id].to && locationCache[s.id].to !== locationCache[s.id].from
-                                    ? `${locationCache[s.id].from} → ${locationCache[s.id].to}`
-                                    : locationCache[s.id].from
-                                  : `${timePeriod(s.startedAt)} Drive`}
-                              </Text>
+                              {locationCache[s.id] ? (
+                                <View style={{ gap: 1 }}>
+                                  <View style={styles.locRow}>
+                                    <View style={[styles.locDot, { backgroundColor: "#16A34A" }]} />
+                                    <Text style={[styles.tripLabel, { color: "#16A34A", flex: 1 }]} numberOfLines={1}>
+                                      {locationCache[s.id].from}
+                                    </Text>
+                                  </View>
+                                  {locationCache[s.id].to && locationCache[s.id].to !== locationCache[s.id].from && (
+                                    <View style={styles.locRow}>
+                                      <View style={[styles.locDot, { backgroundColor: "#EF4444" }]} />
+                                      <Text style={[styles.tripLabel, { color: "#EF4444", flex: 1 }]} numberOfLines={1}>
+                                        {locationCache[s.id].to}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </View>
+                              ) : (
+                                <Text style={[styles.tripLabel, { color: c.foreground }]} numberOfLines={1}>
+                                  {`${timePeriod(s.startedAt)} Drive`}
+                                </Text>
+                              )}
                               <View style={[styles.tripMeta, { marginTop: 3 }]}>
                                 <Text style={[styles.tripMetaTxt, { color: subText }]}>
                                   {sd.timeStr}  ·  {distKm} km  ·  {formatDuration(s.durationS ?? 0)}
@@ -1408,6 +1423,8 @@ const styles = StyleSheet.create({
   dateWeekday: { fontSize: 9, fontFamily: "Inter_600SemiBold" },
 
   tripLabel:   { fontSize: 14, fontFamily: "Inter_700Bold" },
+  locRow:      { flexDirection: "row", alignItems: "center", gap: 5 },
+  locDot:      { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
   tripMeta:    { flexDirection: "row", alignItems: "center", gap: 4 },
   tripMetaTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
 

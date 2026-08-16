@@ -28,7 +28,20 @@ import { KeyboardInputModal } from "@/components/KeyboardInputModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { format } from "date-fns";
+// EAT (Africa/Nairobi, UTC+3) date/time helpers — replaces date-fns format()
+// so timestamps are always shown in Kenyan time regardless of device locale.
+const EAT = "Africa/Nairobi";
+function eatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric", timeZone: EAT });
+}
+function eatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
+}
+function eatDayMonth(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: EAT });
+}
+function eatDateTime(iso: string): string { return `${eatDate(iso)} · ${eatTime(iso)}`; }
+function eatDayMonthTime(iso: string): string { return `${eatDayMonth(iso)} · ${eatTime(iso)}`; }
 import * as ImagePicker from "expo-image-picker";
 import { useApp } from "@/context/AppContext";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, API_BASE } from "@/utils/apiClient";
@@ -466,7 +479,7 @@ export default function CrashAssistantScreen() {
     if (!id) return;
     // Use the short branded URL that redirects server-side to the signed PDF.
     // This avoids sharing long presigned R2 URLs with insurers / authorities.
-    const dateStr = record ? format(new Date(record.detectedAt), "d MMM yyyy") : "";
+    const dateStr = record ? eatDate(record.detectedAt) : "";
     const shortUrl = `${API_BASE}/r/${id}`;
     try {
       await Share.share({ url: shortUrl, message: `Crash Report — ${dateStr}` });
@@ -549,7 +562,7 @@ export default function CrashAssistantScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Crash Assistant</Text>
           <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-            {format(new Date(record.detectedAt), "d MMM yyyy · h:mm a")}
+            {eatDateTime(record.detectedAt)}
           </Text>
         </View>
         <View style={[styles.stepBadge, { backgroundColor: colors.primary + "18" }]}>
@@ -1030,7 +1043,7 @@ function PhotosStep({
                   <View key={p.id} style={[styles.photoChip, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
                     <Ionicons name="image-outline" size={13} color={colors.primary} />
                     <Text style={[styles.photoChipText, { color: colors.primary }]}>
-                      {format(new Date(p.createdAt), "h:mm a")}
+                      {eatTime(p.createdAt)}
                     </Text>
                     <TouchableOpacity onPress={() => onDelete(p.id)}>
                       <Ionicons name="close" size={14} color={colors.mutedForeground} />
@@ -1361,7 +1374,7 @@ function ReportStep({
               </View>
               <View style={{ flex: 1, paddingBottom: i < record.timeline.length - 1 ? 12 : 0 }}>
                 <Text style={[styles.timelineTime, { color: colors.mutedForeground }]}>
-                  {format(new Date(evt.occurredAt), "h:mm a")}
+                  {eatTime(evt.occurredAt)}
                 </Text>
                 <Text style={[styles.timelineDesc, { color: colors.text }]}>{evt.description ?? evt.eventType}</Text>
               </View>
@@ -1439,7 +1452,7 @@ function ReportStep({
                       <Ionicons name="videocam-outline" size={18} color={colors.primary} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.reportCardTitle, { color: colors.text, fontSize: 14, marginBottom: 2 }]}>
-                          {format(new Date(seg.startedAt), "d MMM · h:mm a")}
+                          {eatDayMonthTime(new Date(seg.startedAt).toISOString())}
                         </Text>
                         <Text style={[styles.reportCardSub, { color: colors.mutedForeground, marginBottom: 0 }]}>
                           {Math.round(seg.durationS)}s · {seg.lockType === "manual" ? "Manual lock" : "Auto lock"}

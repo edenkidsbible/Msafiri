@@ -16,6 +16,20 @@ import { sql } from "drizzle-orm";
 
 const router = Router();
 
+// ── Timestamp normaliser ──────────────────────────────────────────────────────
+// PostgreSQL TIMESTAMP WITHOUT TIME ZONE columns are stored in UTC but the pg
+// driver returns them as plain strings ("2024-08-16 07:30:00.000") without a
+// trailing "Z".  JavaScript (and Hermes on React Native) then parses them as
+// *local* time, which is 3 hours early for EAT devices.
+// This helper guarantees every timestamp in API responses is a proper UTC ISO
+// string so clients always parse them correctly regardless of device timezone.
+function toUtcIso(ts: unknown): string | null {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts.toISOString();
+  const s = String(ts).trim().replace(" ", "T");
+  return s.endsWith("Z") ? s : s + "Z";
+}
+
 // ── Scoring algorithm ─────────────────────────────────────────────────────────
 
 function computeScore(stats: {
@@ -65,7 +79,7 @@ router.post("/drive-sessions", async (req: Request, res: Response) => {
     `);
 
     const row = result.rows[0];
-    return res.status(201).json({ id: row.id, startedAt: row.started_at });
+    return res.status(201).json({ id: row.id, startedAt: toUtcIso(row.started_at) });
   } catch (err) {
     console.error("POST /drive-sessions error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -245,8 +259,8 @@ router.get("/drive-sessions/:id", async (req: Request, res: Response) => {
     return res.json({
       id:                 r.id,
       deviceId:           r.device_id,
-      startedAt:          r.started_at,
-      endedAt:            r.ended_at,
+      startedAt:          toUtcIso(r.started_at),
+      endedAt:            toUtcIso(r.ended_at),
       startLat:           r.start_lat,
       startLng:           r.start_lng,
       endLat:             r.end_lat,
@@ -331,8 +345,8 @@ router.get("/drive-sessions", async (req: Request, res: Response) => {
       id:                 r.id,
       deviceId:           r.device_id,
       vehicleId:          r.vehicle_id ?? null,
-      startedAt:          r.started_at,
-      endedAt:            r.ended_at,
+      startedAt:          toUtcIso(r.started_at),
+      endedAt:            toUtcIso(r.ended_at),
       startLat:           r.start_lat,
       startLng:           r.start_lng,
       endLat:             r.end_lat,
@@ -350,7 +364,7 @@ router.get("/drive-sessions", async (req: Request, res: Response) => {
       speedCameraAlerts:  r.speed_camera_alerts  ?? 0,
       policeAlerts:       r.police_alerts        ?? 0,
       hazardsEncountered: r.hazards_encountered  ?? 0,
-      createdAt:          r.created_at,
+      createdAt:          toUtcIso(r.created_at),
     }));
 
     const total = parseInt((countResult.rows[0]?.count as string) ?? "0", 10);

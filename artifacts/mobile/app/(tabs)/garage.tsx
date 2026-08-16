@@ -748,6 +748,7 @@ export default function GarageScreen() {
     vehicleCustomMakeName, vehicleCustomModelName,
     setVehicleModel, setCustomVehicle, setVehicleType,
     isOffline, tripHistory,
+    liveOdometerKm,
   } = useApp();
 
   // ── Offline session / stats cache keys ───────────────────────────────────────
@@ -771,7 +772,6 @@ export default function GarageScreen() {
   // re-renders don't duplicate in-flight requests.
   const geocodingInFlightRef = useRef(new Set<string>());
   const [careStats,  setCareStats]  = useState<VehicleCareStats | null>(null);
-  const [odometerKm, setOdometerKm] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
   // Bumped each time the screen is focused; triggers the care stats reload effect.
   const [focusTick, setFocusTick] = useState(0);
@@ -1051,9 +1051,8 @@ export default function GarageScreen() {
     const storageKey = getCareStorageKey(activeVehicle.id, activeVehicle.isDefault);
     loadVehicleCareData(storageKey).then(data => {
       setCareStats(computeVehicleCareStats(data));
-      setOdometerKm(estimatedOdometerKm(data));
     }).catch(() => {});
-  }, [vehicles, clampedSlideIndex, focusTick, tripHistory.length]);
+  }, [vehicles, clampedSlideIndex, focusTick]);
 
   // ── Computed stats ──────────────────────────────────────────────────────────
 
@@ -1314,7 +1313,7 @@ export default function GarageScreen() {
       <VehicleSlide
         v={item} index={index}
         healthScore={healthScore} healthLabel={healthLabel} healthColor={healthColor}
-        odometerKm={odometerKm}
+        odometerKm={liveOdometerKm}
         cardBg={cardBg} borderCol={borderCol} subText={subText} primary={c.primary}
         foreground={c.foreground}
         totalVehicles={vehicles.length}
@@ -1623,7 +1622,7 @@ export default function GarageScreen() {
                 <TouchableOpacity
                   key={t.id}
                   style={[styles.tripRow, { backgroundColor: cardBg, borderColor: borderCol }]}
-                  onPress={() => router.push("/(tabs)/trips" as any)}
+                  onPress={() => router.push(`/trip-detail/${t.id}` as any)}
                   activeOpacity={0.8}
                 >
                   <TripThumb color={c.primary} />
@@ -1631,13 +1630,26 @@ export default function GarageScreen() {
                     <Text style={[styles.tripDate, { color: subText }]} numberOfLines={1}>
                       {tripDateLabel(t.startedAt)}
                     </Text>
-                    <Text style={[styles.tripRoute, { color: c.foreground }]} numberOfLines={1}>
-                      {locationCache[t.id]
-                        ? locationCache[t.id].to && locationCache[t.id].to !== locationCache[t.id].from
-                          ? `${locationCache[t.id].from} → ${locationCache[t.id].to}`
-                          : locationCache[t.id].from
-                        : "—"}
-                    </Text>
+                    {locationCache[t.id] ? (
+                      <View style={{ gap: 1 }}>
+                        <View style={styles.tripLocRow}>
+                          <View style={[styles.tripLocDot, { backgroundColor: "#16A34A" }]} />
+                          <Text style={[styles.tripRoute, { color: "#16A34A", flex: 1 }]} numberOfLines={1}>
+                            {locationCache[t.id].from}
+                          </Text>
+                        </View>
+                        {locationCache[t.id].to && locationCache[t.id].to !== locationCache[t.id].from && (
+                          <View style={styles.tripLocRow}>
+                            <View style={[styles.tripLocDot, { backgroundColor: "#EF4444" }]} />
+                            <Text style={[styles.tripRoute, { color: "#EF4444", flex: 1 }]} numberOfLines={1}>
+                              {locationCache[t.id].to}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={[styles.tripRoute, { color: c.foreground }]}>—</Text>
+                    )}
                     <Text style={[styles.tripStats, { color: subText }]} numberOfLines={1}>
                       {t.distanceM >= 1000
                         ? `${(t.distanceM / 1000).toFixed(1)} km`
@@ -1673,7 +1685,7 @@ export default function GarageScreen() {
         primary={c.primary}
         foreground={c.foreground}
         subText={subText}
-        estimatedOdoKm={odometerKm > 0 ? odometerKm : undefined}
+        estimatedOdoKm={liveOdometerKm > 0 ? liveOdometerKm : undefined}
       />
 
       {/* ── Pending join requests modal ── */}
@@ -1935,9 +1947,11 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12,
     borderRadius: 16, borderWidth: 1, padding: 12,
   },
-  tripDate:  { fontSize: 11, fontFamily: "Inter_500Medium", marginBottom: 2 },
-  tripRoute: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
-  tripStats: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  tripDate:   { fontSize: 11, fontFamily: "Inter_500Medium", marginBottom: 2 },
+  tripRoute:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  tripLocRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tripLocDot: { width: 7, height: 7, borderRadius: 3.5, flexShrink: 0 },
+  tripStats:  { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   scoreRing: {
     width: 40, height: 40, borderRadius: 20, borderWidth: 2.5,
     alignItems: "center", justifyContent: "center",

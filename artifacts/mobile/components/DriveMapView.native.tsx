@@ -450,9 +450,10 @@ const DriveMapView = forwardRef(function DriveMapView(
   const camHeadingRef = useRef<number | null>(null);
 
   // Minimum heading change (degrees) that triggers a map rotation animation.
-  // Raising this well above GPS noise (~5–10°) ensures the map stays still on
-  // straight roads and only rotates when the driver genuinely turns.
-  const HEADING_DEAD_BAND = 7;
+  // 5° sits just above typical GPS bearing noise (3–4° on a straight road at
+  // speed) so the map rotates promptly on gentle curves without reacting to
+  // sensor jitter.
+  const HEADING_DEAD_BAND = 5;
 
   // The heading value most recently passed to any animateCamera({ heading })
   // call.  Compared against camHeadingRef to enforce the dead-band gate.
@@ -536,17 +537,19 @@ const DriveMapView = forwardRef(function DriveMapView(
       const hdg = camHeadingRef.current;
       if (hdg == null) return;
       // Only rotate when the heading has moved past the dead-band.  GPS bearing
-      // on a straight road fluctuates ≤ 5° — the 7° gate absorbs all of that.
+      // on a straight road fluctuates ≤ 3–4° — the 5° gate absorbs all of that
+      // while still responding to gentle curves promptly.
       const prev  = lastAnimatedHeadingRef.current;
       const delta = prev == null
         ? 360
         : Math.abs(((hdg - prev) + 540) % 360 - 180);
-      if (delta < 7) return;
+      if (delta < 5) return;
       lastAnimatedHeadingRef.current = hdg;
-      // 1400 ms duration vs 1500 ms interval — consecutive animations slightly
-      // overlap so the compass rotates continuously rather than ticking.
-      mapRef.current?.animateCamera({ heading: hdg }, { duration: 1400 });
-    }, 1500);
+      // 900 ms animation, 1000 ms interval — each animation finishes before the
+      // next fires so consecutive heading updates never stack and cancel each
+      // other mid-flight (the old 1400 ms / 1500 ms pair caused this shudder).
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: 900 });
+    }, 1000);
 
     return () => {
       if (headingIntervalRef.current) {
@@ -822,8 +825,13 @@ const DriveMapView = forwardRef(function DriveMapView(
       const rawDiff = camHeadingRef.current != null
         ? Math.abs(wrapDiff(camHeadingRef.current, driverHeading))
         : 180; // first fix — initialise directly
-      // Three-band alpha: slow on straight road, fast at intersections.
-      const alpha = rawDiff > 60 ? 0.50 : rawDiff > 20 ? 0.18 : 0.06;
+      // Three-band alpha: aggressively filters noise on straight roads while
+      // converging quickly after turns.  Higher minimums than before so the
+      // camera reaches the correct post-turn heading in 2–3 s rather than 10+ s.
+      //   < 20°  straight road / gentle bend  → 0.10 (was 0.06)
+      //   20–60° gradual curve / lane change  → 0.30 (was 0.18)
+      //   > 60°  sharp turn / intersection    → 0.65 (was 0.50)
+      const alpha = rawDiff > 60 ? 0.65 : rawDiff > 20 ? 0.30 : 0.10;
       camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, alpha);
     }
 
@@ -834,7 +842,13 @@ const DriveMapView = forwardRef(function DriveMapView(
     // shaking. Alpha adapts to vehicle speed so the camera responds quickly
     // on highways but rejects more noise in slow city traffic.
     const speedKmh = currentSpeed ?? 0;
-    const posAlpha = speedKmh > 80 ? 0.65 : speedKmh > 40 ? 0.45 : 0.28;
+    // Higher alpha → less lag, more GPS noise passes through.
+    // The 8 m minimum-movement gate below absorbs the extra noise so we can
+    // safely reduce lag without introducing per-tick jitter.
+    //   > 80 km/h  highway  → 0.75 (was 0.65) — smooth fast cruising
+    //   > 40 km/h  suburban → 0.55 (was 0.45) — responsive city driving
+    //   ≤ 40 km/h  slow     → 0.40 (was 0.28) — cuts the 20 m position lag in city traffic
+    const posAlpha = speedKmh > 80 ? 0.75 : speedKmh > 40 ? 0.55 : 0.40;
     if (camSmoothLatRef.current == null) {
       camSmoothLatRef.current = currentLat;
       camSmoothLngRef.current = currentLng;
@@ -874,13 +888,15 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     // ── 3. Minimum-movement gate ─────────────────────────────────────────────
     // Only issue a camera animation if the smoothed position has moved at
-    // least 10 m from the position of the last animation. Sub-threshold
+    // least 8 m from the position of the last animation. Sub-threshold
     // deltas are GPS jitter — animating them makes the map shake on straight
-    // roads while visually adding nothing. When zoom changes above, we update
+    // roads while visually adding nothing. 8 m (reduced from 10 m) gives a
+    // better balance: still absorbs GPS noise (~5–6 m) but keeps up with slow
+    // city driving (~8–14 km/h). When zoom changes above, we update
     // lastPosCamLatRef there and return; this gate handles the position-only path.
     if (lastPosCamLatRef.current != null) {
       const moved = haversine(lastPosCamLatRef.current, lastPosCamLngRef.current!, sLat, sLng);
-      if (moved < 10) return;
+      if (moved < 8) return;
     }
     lastPosCamLatRef.current = sLat;
     lastPosCamLngRef.current = sLng;

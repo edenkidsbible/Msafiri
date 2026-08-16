@@ -32,6 +32,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam, type DashcamSegment } from "@/context/DashcamContext";
 import { useVehicle } from "@/context/VehicleContext";
+import { useApp } from "@/context/AppContext";
 import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import { API_BASE } from "@/utils/apiClient";
 import { getMakeById, getModelById } from "@/data/carModels";
@@ -123,28 +124,29 @@ function timeOfDayName(ms: number): string {
   return "Night drive";
 }
 
+const EAT_TZ = "Africa/Nairobi";
+function eatKey(d: Date) {
+  return d.toLocaleDateString("en-KE", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: EAT_TZ });
+}
 function dayLabel(ms: number): string {
   const d = new Date(ms);
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) return "Today";
-  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
-  if (d.toDateString() === yest.toDateString()) return "Yesterday";
-  return d.toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long" });
+  const key = eatKey(d);
+  if (key === eatKey(new Date())) return "Today";
+  if (key === eatKey(new Date(Date.now() - 86_400_000))) return "Yesterday";
+  return d.toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", timeZone: EAT_TZ });
 }
 
 function inRange(ms: number, filter: DateFilter): boolean {
   if (filter === "all") return true;
-  const now = new Date();
-  const d   = new Date(ms);
+  const d = new Date(ms);
   if (filter === "today") {
-    return d.toDateString() === now.toDateString();
+    return eatKey(d) === eatKey(new Date());
   }
   if (filter === "yesterday") {
-    const y = new Date(now); y.setDate(y.getDate() - 1);
-    return d.toDateString() === y.toDateString();
+    return eatKey(d) === eatKey(new Date(Date.now() - 86_400_000));
   }
   if (filter === "week") {
-    const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
     return ms >= weekAgo.getTime();
   }
   return true;
@@ -170,7 +172,7 @@ function syncLabel(d: Date | null): string {
   if (!d) return "Not synced yet";
   const now = new Date();
   const today = now.getDate() === d.getDate() && now.getMonth() === d.getMonth();
-  const time  = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit" });
+  const time  = d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT_TZ });
   return `Last synced: ${today ? "Today, " : ""}${time}`;
 }
 
@@ -389,6 +391,7 @@ export default function DashcamVideosScreen() {
 
   // ── Vehicle context ────────────────────────────────────────────────────────
   const { vehicles, activeVehicleId, setActiveVehicle } = useVehicle();
+  const { liveOdometerKm } = useApp();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [serverClips,     setServerClips]     = useState<ServerClip[]>([]);
@@ -1064,9 +1067,9 @@ export default function DashcamVideosScreen() {
                           <View style={vs.primaryBadge}><Text style={vs.primaryText}>Primary</Text></View>
                         )}
                       </View>
-                      {activeVehicle?.odometerKm ? (
+                      {liveOdometerKm > 0 ? (
                         <Text style={[vs.vehicleMeta, { color: c.mutedForeground }]}>
-                          {activeVehicle.odometerKm.toLocaleString()} km
+                          {Math.round(liveOdometerKm).toLocaleString()} km
                         </Text>
                       ) : null}
                       {activeVehicle?.plateNumber ? (

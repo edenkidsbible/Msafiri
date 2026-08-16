@@ -462,12 +462,14 @@ export default function MapViewScreen() {
       if (!mountedRef.current || mapDriftedRef.current) return;
       const hdg = camHeadingRef.current;
       if (hdg == null) return;
+      // 5° matches DriveMapView — just above GPS bearing noise on straight roads.
       const prev  = lastAnimatedHdgRef.current;
       const delta = prev == null ? 360 : Math.abs(((hdg - prev) + 540) % 360 - 180);
-      if (delta < 2) return;
+      if (delta < 5) return;
       lastAnimatedHdgRef.current = hdg;
-      mapRef.current?.animateCamera({ heading: hdg }, { duration: 800 });
-    }, 1500);
+      // 900 ms animation, 1000 ms interval — fully sequential, no stacking.
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: 900 });
+    }, 1000);
     return () => { if (headingIntervalRef.current) { clearInterval(headingIntervalRef.current); headingIntervalRef.current = null; } };
   }, [headingUpMode]);
 
@@ -483,14 +485,21 @@ export default function MapViewScreen() {
     if (mapDriftedRef.current) return;
     if (currentLat == null || currentLng == null) return;
     if (driverHeading == null || driverHeading < 0) return;
-    camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, 0.3);
+    // Adaptive three-band alpha — mirrors DriveMapView so post-turn convergence
+    // is fast (2–3 s) while straight-road GPS bearing noise is still filtered.
+    {
+      const wrapDiff = (a: number, b: number) => { let d = b - a; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
+      const rawDiff = camHeadingRef.current != null
+        ? Math.abs(wrapDiff(camHeadingRef.current, driverHeading))
+        : 180;
+      const alpha = rawDiff > 60 ? 0.65 : rawDiff > 20 ? 0.30 : 0.10;
+      camHeadingRef.current = smoothHeading(camHeadingRef.current, driverHeading, alpha);
+    }
     const hdg = camHeadingRef.current!;
     const center = lookAheadCenter(currentLat, currentLng, hdg, 0.015);
     if (Platform.OS === "ios") {
-      // 700 ms matches DriveMapView's position channel duration — shorter than
-      // 300 ms (was triggering overlapping animations on every heading tick).
+      // iOS: position only — heading goes through the 1000 ms interval above.
       mapRef.current?.animateCamera({ center }, { duration: 700 });
-      // iOS heading is sent by the 1500 ms interval above.
     } else {
       mapRef.current?.animateCamera({ center, heading: hdg }, { duration: 700 });
     }

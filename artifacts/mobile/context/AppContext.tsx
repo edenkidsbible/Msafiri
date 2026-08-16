@@ -262,6 +262,13 @@ interface AppContextValue {
   deviceId: string | null;
   currentTrip: Partial<TripData> | null;
   tripHistory: TripData[];
+  /**
+   * Live odometer reading for the active vehicle.
+   * = storedTotal + currentTripKm (ticks every ~4 s while driving).
+   * Resets to the new stored total when a trip ends.
+   * Zero when no care data exists yet (vehicle never driven / no initial reading).
+   */
+  liveOdometerKm: number;
   clearTripHistory: () => void;
   hydrated: boolean;
   onboardingComplete: boolean;
@@ -1012,6 +1019,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const hereIncidentsRef = useRef<HereIncident[]>([]);
   const [currentTrip, setCurrentTrip] = useState<Partial<TripData> | null>(null);
   const [tripHistory, setTripHistory] = useState<TripData[]>([]);
+  // Stored odometer total for the active vehicle (initialOdometerKm + tripAccumulatedKm
+  // from care storage). Updated after every updateTripOdometer() write so it never
+  // races with async storage operations. liveOdometerKm adds currentTrip distance on
+  // top so the displayed value ticks up during an active drive.
+  const [odoBaseKm, setOdoBaseKm] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -1029,6 +1041,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { activeVehicleId: _activeVehicleId } = useVehicle();
   const activeVehicleIdRef = useRef<string | null>(null);
   useEffect(() => { activeVehicleIdRef.current = _activeVehicleId; }, [_activeVehicleId]);
+
+  // ── Live odometer baseline — reload from care storage whenever the active
+  // vehicle changes.  The context value adds currentTrip.distance on top so
+  // the displayed total ticks up every ~4 s while driving without hitting
+  // AsyncStorage on every GPS fix.
+  useEffect(() => {
+    loadVehicles().then(async vs => {
+      const active = vs.find(v => v.id === _activeVehicleId) ?? vs.find(v => v.isDefault) ?? vs[0];
+      if (!active) return;
+      const data = await loadVehicleCareData(getCareStorageKey(active.id, active.isDefault));
+      setOdoBaseKm(estimatedOdometerKm(data));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_activeVehicleId]);
 
   const currentLatRef = useRef<number | null>(null);
   const currentLngRef = useRef<number | null>(null);
@@ -2490,6 +2516,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const careData = await loadVehicleCareData(careKey);
               const est = estimatedOdometerKm(careData);
               if (est > 0) {
+                setOdoBaseKm(est);
                 const updated = vs.map(v => v.id === active.id ? { ...v, odometerKm: est } : v);
                 await saveVehicles(updated);
               }
@@ -2507,6 +2534,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const careData = await loadVehicleCareData(careKey);
               const est = estimatedOdometerKm(careData);
               if (est > 0) {
+                setOdoBaseKm(est);
                 const updated = vs.map(v => v.id === active.id ? { ...v, odometerKm: est } : v);
                 await saveVehicles(updated);
               }
@@ -2545,10 +2573,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const pendingKm = odoContPendingMRef.current / 1000;
             odoContPendingMRef.current = 0;
             odoContFlushAtRef.current  = now;
-            loadVehicles().then(vs => {
+            loadVehicles().then(async vs => {
               const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
               if (!active) return;
-              updateTripOdometer(pendingKm, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+              const careKey = getCareStorageKey(active.id, active.isDefault);
+              await updateTripOdometer(pendingKm, careKey);
+              const data = await loadVehicleCareData(careKey);
+              const est = estimatedOdometerKm(data);
+              if (est > 0) setOdoBaseKm(est);
             }).catch(() => {});
           }
         }
@@ -3447,10 +3479,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // route so recovered distance survives an immediate app kill instead of
     // waiting in memory for a future GPS fix to flush it.
     const creditOdometerKm = (km: number) => {
-      loadVehicles().then(vs => {
+      loadVehicles().then(async vs => {
         const active = vs.find(v => v.id === activeVehicleIdRef.current) ?? vs.find(v => v.isDefault) ?? vs[0];
         if (!active) return;
-        updateTripOdometer(km, getCareStorageKey(active.id, active.isDefault)).catch(() => {});
+        const careKey = getCareStorageKey(active.id, active.isDefault);
+        await updateTripOdometer(km, careKey);
+        const data = await loadVehicleCareData(careKey);
+        const est = estimatedOdometerKm(data);
+        if (est > 0) setOdoBaseKm(est);
       }).catch(() => {});
     };
 
@@ -4602,6 +4638,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sosContact, setSosContact,
       communityReports, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
+      liveOdometerKm: odoBaseKm + (currentTrip != null ? (currentTrip.distance ?? 0) / 1000 : 0),
       hydrated, onboardingComplete, completeOnboarding,
       isOffline,
       lastAlertDataSyncedAt,

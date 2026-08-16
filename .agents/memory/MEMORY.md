@@ -8,6 +8,8 @@
 - [expo-router react-native-maps web fix](expo-router-rnmaps-web.md) — .native.tsx files in app/ dir still bundled on web by require.context; move native-only components to components/ with platform extensions instead.
 - [Speed zone pairing rule](speed-zone-pairing.md) — stretch zones (X→Y roads) need TWO entries (one per end); point cameras need only one.
 - [API server URL pattern](api-server-url.md) — proxy routes /api/* to port 8080; mobile uses https://${EXPO_PUBLIC_DOMAIN}/api
+- [PostgreSQL TIMESTAMP timezone trap](pg-timestamp-tz-trap.md) — TIMESTAMP WITHOUT TIME ZONE returns no-Z strings; Hermes parses as local time (3h early in EAT); fix: toUtcIso() helper in server responses + EAT helpers replacing date-fns format() on mobile.
+- [Live odometer architecture](live-odometer-architecture.md) — liveOdometerKm in AppContext = odoBaseKm + currentTrip.distance/1000; odoBaseKm updated after every updateTripOdometer() call; eliminates race condition where garage reloaded care storage before async write completed.
 - [Drizzle + Express 5 gotchas](drizzle-express5-gotchas.md) — ne() instead of not(inArray()), Express 5 req.params typed string|string[] so cast with as string
 - [Expo Router web nav crash fix](expo-router-web-nav.md) — router.replace() before Stack mounts crashes on web; fix: add hydrated flag to AppContext, gate navigation on it
 - [Expo Router navReady gating](expo-router-navready-gating.md) — gate cold-start navigation on useRootNavigationState().key in effect deps; queue listener-driven routes in a ref until ready; never rely on try/catch retries.
@@ -39,6 +41,7 @@
 - [Expo tsconfig platform-file resolution](expo-tsconfig-platform-suffixes.md) — tsc can't resolve `@/components/Foo` when only Foo.native.tsx/Foo.web.tsx exist; add moduleSuffixes to tsconfig.
 - [logAudit call-site signature](audit-log-signature.md) — logAudit takes one options object with nested `actor: {id,name,role}` and object `details`; watch for call sites drifting to flat actorId/actorName or string details.
 - [Drive page theme vs HUD mode](drive-theme-vs-hudmode.md) — two separate booleans (themeOverride, hudMode) look similar; drive-page color theming must follow themeOverride/useColors, not the HUD/Night-Mode settings switch.
+- [Map camera smoothing parameters](map-camera-smoothing.md) — heading alpha 0.65/0.30/0.10, pos alpha 0.75/0.55/0.40, 8m gate, iOS interval 1000ms/900ms, 5° dead-band; both DriveMapView and MapViewScreen.
 - [Auto-switch interval ref-bag pattern](auto-switch-ref-bag.md) — when a 60s interval needs fresh state without re-registering on every GPS fix, keep a ref-bag updated by a no-dep useEffect; interval reads the ref, not closure-captured state.
 - [lib/db composite build gotcha](db-package-composite-build.md) — new schema exports invisible to consumers until `tsc -b` regenerates dist/*.d.ts; drizzle-kit push alone doesn't do this.
 - [On-demand route status check](route-status-on-demand-check.md) — checkRouteStatus() reuses active-nav incident-matching for arbitrary destinations (Saved Places/Planned Trips) without touching navigation state.

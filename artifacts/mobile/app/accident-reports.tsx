@@ -32,7 +32,23 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { format, isToday, isYesterday } from "date-fns";
+// EAT (Africa/Nairobi, UTC+3) helpers — replaces date-fns so all timestamps
+// show in Kenyan time regardless of the device's system locale/timezone.
+const EAT = "Africa/Nairobi";
+function eatKey(d: Date) {
+  return d.toLocaleDateString("en-KE", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: EAT });
+}
+function eatTime(d: Date) {
+  return d.toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
+}
+function eatShortDate(d: Date) {
+  return d.toLocaleDateString("en-KE", { month: "short", day: "numeric", year: "numeric", timeZone: EAT });
+}
+function eatMonthYear(d: Date) {
+  return d.toLocaleDateString("en-KE", { month: "long", year: "numeric", timeZone: EAT });
+}
+function isEatToday(d: Date) { return eatKey(d) === eatKey(new Date()); }
+function isEatYesterday(d: Date) { return eatKey(d) === eatKey(new Date(Date.now() - 86_400_000)); }
 import { Image } from "expo-image";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -121,18 +137,18 @@ function statusIcon(status: ReportStatus): keyof typeof Ionicons.glyphMap {
 
 function dayLabel(dateStr: string): string {
   const d = new Date(dateStr);
-  if (isToday(d))     return "Today";
-  if (isYesterday(d)) return "Yesterday";
-  return format(d, "MMMM yyyy");
+  if (isEatToday(d))     return "Today";
+  if (isEatYesterday(d)) return "Yesterday";
+  return eatMonthYear(d);
 }
 
 function lastEditedLabel(r: AccidentRecord): string | null {
   const src = r.updatedAt ?? r.detectedAt;
   if (!src) return null;
   const d = new Date(src);
-  if (isToday(d)) return `Last edited: Today, ${format(d, "h:mm a")}`;
-  if (isYesterday(d)) return `Last edited: Yesterday, ${format(d, "h:mm a")}`;
-  return `Last edited: ${format(d, "MMM d, yyyy")}`;
+  if (isEatToday(d))     return `Last edited: Today, ${eatTime(d)}`;
+  if (isEatYesterday(d)) return `Last edited: Yesterday, ${eatTime(d)}`;
+  return `Last edited: ${eatShortDate(d)}`;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -477,12 +493,14 @@ export default function AccidentReportsScreen() {
   function RecordItem({ item }: { item: AccidentRecord }) {
     const sc = statusColor(item.status);
     const title = deriveTitle(item);
-    const dateStr = format(new Date(item.detectedAt), "MMM d, yyyy · h:mm a");
+    const det = new Date(item.detectedAt);
+    const dateStr = `${eatShortDate(det)} · ${eatTime(det)}`;
     const edited = item.status === "draft" ? lastEditedLabel(item) : null;
+    const upd = new Date(item.updatedAt ?? item.detectedAt);
     const completedStr = item.status === "complete"
-      ? `Completed: ${format(new Date(item.updatedAt ?? item.detectedAt), "MMM d, yyyy")}`
+      ? `Completed: ${eatShortDate(upd)}`
       : item.status === "archived"
-      ? `Archived: ${format(new Date(item.updatedAt ?? item.detectedAt), "MMM d, yyyy")}`
+      ? `Archived: ${eatShortDate(upd)}`
       : null;
 
     return (
