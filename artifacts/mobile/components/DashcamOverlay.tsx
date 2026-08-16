@@ -79,7 +79,7 @@ const PANEL_HEIGHT   = 340; // px — settings sheet height
 
 export default function DashcamOverlay() {
   const {
-    isRecording, isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
+    isRecording, isRecordingRef, isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked, stopAndSaveDashcam,
     closeDashcam, clearBackgroundRecordPending, setCameraRef,
@@ -389,6 +389,13 @@ export default function DashcamOverlay() {
             // location from the clip.
             const coords = lastValidCoordsRef.current ?? undefined;
             await onSegmentComplete(result.uri, durationS, coords);
+            // Guard: stopAndSaveDashcam() sets isRecordingRef.current = false
+            // before the React state update propagates. Without this check the
+            // loop would start another recordAsync between the setIsRecording(false)
+            // call inside onSegmentComplete and React running the effect cleanup
+            // that sets `cancelled = true`. That extra segment is typically very
+            // short, often returns null, and exhausts failure slots unnecessarily.
+            if (!isRecordingRef.current) break;
           } else if (!cancelled) {
             // Resolved with no file (camera interrupted / not ready) — retry.
             consecutiveFailures++;
@@ -653,31 +660,25 @@ export default function DashcamOverlay() {
                   icon: "film-outline",
                   color: "#60A5FA",
                   title: "2-minute rolling clips",
-                  body: "The dashcam records in 2-minute segments, looping continuously. Old unlocked clips are overwritten when your storage limit is reached.",
+                  body: "The dashcam records in 2-minute segments, looping continuously. The last 5 clips (~10 minutes) are kept as a rolling buffer. Old unlocked clips are overwritten automatically.",
                 },
                 {
                   icon: "lock-closed-outline",
                   color: "#F59E0B",
-                  title: "Lock a clip to keep it forever",
-                  body: "Tap 🔒 Lock Clip at any time during a drive — or tap it on the drive screen — to permanently protect the current clip. Locked clips are uploaded to cloud storage and never auto-deleted.",
+                  title: "Lock a clip to keep it",
+                  body: "Tap Lock Clip at any time to permanently protect the current 2-minute segment. Locked clips are uploaded to cloud storage and kept for 30 days — never auto-deleted.",
                 },
                 {
                   icon: "cloud-upload-outline",
                   color: "#34D399",
-                  title: "What gets saved to cloud",
-                  body: "Only locked clips are uploaded. Unlocked clips stay on your device only and are removed when you run out of storage. Lock anything important — crashes, near-misses, incidents.",
+                  title: "Only locked clips go to cloud",
+                  body: "Unlocked clips stay on your device only. Lock anything important — crashes, near-misses, incidents — to back it up safely.",
                 },
                 {
-                  icon: "trash-outline",
-                  color: "#F87171",
-                  title: "What gets deleted",
-                  body: "When your storage limit is reached (default 1 GB), the oldest unlocked clips are deleted automatically. Locked clips are never automatically deleted.",
-                },
-                {
-                  icon: "car-sport-outline",
+                  icon: "phone-portrait-outline",
                   color: "#A78BFA",
-                  title: "Driving is required",
-                  body: "The dashcam only records during an active drive. Start a drive from the Drive tab, then turn on the dashcam from the drive screen or this overlay.",
+                  title: "Keep the app open while driving",
+                  body: "Recording continues when you switch to the map screen. If you get a call or the phone is backgrounded, the last clips are automatically saved for review when you return.",
                 },
               ] as { icon: any; color: string; title: string; body: string }[]).map((item, i) => (
                 <View key={i} style={styles.guideRow}>

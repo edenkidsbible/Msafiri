@@ -111,6 +111,8 @@ export interface DashcamSettings {
 
 interface DashcamContextValue {
   isRecording: boolean;
+  /** Stable ref — mirrors isRecording but readable synchronously from the recording loop. */
+  isRecordingRef: React.MutableRefObject<boolean>;
   isDashcamOpen: boolean;
   backgroundRecordPending: boolean;
   segments: DashcamSegment[];
@@ -494,11 +496,18 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   //  2. Stop the current clip cleanly (no lock — the clip saves as unlocked).
   //  3. Bump recordingEpoch on foreground so the loop restarts.
   // isRecording stays true throughout — the REC pill stays on.
+  //
+  // IMPORTANT: only fire on "background", NOT "inactive".
+  // "inactive" fires on every notification banner, control-center swipe,
+  // incoming call alert, and any other transient OS interruption. Treating
+  // "inactive" as a background event stops the current segment and sends a
+  // "Dashcam clips saved" notification on every alert — making it look like
+  // the dashcam randomly stops mid-drive.
   useEffect(() => {
     if (Platform.OS !== "ios") return;
 
     const subscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState === "background" || nextState === "inactive") {
+      if (nextState === "background") {
         if (!isRecordingRef.current) return;
         backgroundedWhileRecordingRef.current = true;
 
@@ -850,7 +859,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!micGranted) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      // Short pause so the second OS dialog doesn't appear instantly on top of
+      // the first one — some Android versions dismiss both simultaneously when
+      // they open within the same animation frame. 200 ms is enough.
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
       try {
         const res = await requestMicPermissionRef.current();
         micGranted = res?.granted ?? false;
@@ -879,7 +891,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!micPermission?.granted) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
       try { await requestMicPermissionRef.current(); } catch { /* muted fallback */ }
     }
 
@@ -1097,7 +1109,16 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
       try {
         await FileSystem.makeDirectoryAsync(capturedDir, { intermediates: true });
-        await FileSystem.moveAsync({ from: tempUri, to: destUri });
+        // moveAsync is preferred (faster, atomic) but can fail when the source
+        // is on a different volume or has already been partially evicted by iOS
+        // under memory pressure.  Fall back to copyAsync + delete so the clip
+        // is never silently lost due to a cross-volume move restriction.
+        try {
+          await FileSystem.moveAsync({ from: tempUri, to: destUri });
+        } catch {
+          await FileSystem.copyAsync({ from: tempUri, to: destUri });
+          FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => {});
+        }
         const info      = await FileSystem.getInfoAsync(destUri);
         const sizeBytes = (info as any).size ?? 0;
 
@@ -1322,7 +1343,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<DashcamContextValue>(
     () => ({
-      isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
+      isRecording, isRecordingRef, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings,
       pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
