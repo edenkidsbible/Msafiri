@@ -104,7 +104,7 @@ export interface DashcamSegment {
 }
 
 export interface DashcamSettings {
-  quality: "720p" | "1080p";
+  quality: "720p";
   audioEnabled: boolean;
   wifiOnlyUpload: boolean;
 }
@@ -194,9 +194,8 @@ const MAX_MANUAL_LOCKS_LOCAL  = 5;
 const MAX_AUTO_LOCKS_LOCAL    = 20;
 
 const DEFAULT_SETTINGS: DashcamSettings = {
-  // 720p default: encodes at roughly half the CPU/GPU load of 1080p, which
-  // is the single largest hardware heat source during a recording trip.
-  // Drivers can upgrade to 1080p in Settings or the pretrip checklist.
+  // 720p only: 1080p encoding was the single largest hardware heat source
+  // during a trip. 720p is sufficient for incident evidence and insurance claims.
   quality: "720p",
   // Audio off by default: keeping the mic open blocks Bluetooth audio and
   // adds continuous audio encoding overhead. Drivers can enable it when needed.

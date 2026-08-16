@@ -438,32 +438,6 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={16} color={c.mutedForeground} />
             </TouchableOpacity>
 
-            {/* Quality */}
-            <View style={[styles.row, { borderBottomColor: c.border }]}>
-              <Ionicons name="settings-outline" size={20} color={c.primary} />
-              <Text style={[styles.rowLabel, { color: c.foreground }]}>Quality</Text>
-              <View style={{ flexDirection: "row", gap: 6 }}>
-                {(["720p", "1080p"] as const).map(q => (
-                  <TouchableOpacity
-                    key={q}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 8,
-                      backgroundColor: dashcamSettings.quality === q ? c.primary : c.muted,
-                    }}
-                    onPress={() => updateDashcam({ quality: q })}
-                  >
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: dashcamSettings.quality === q ? "#fff" : c.mutedForeground,
-                    }}>{q}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
             {/* Audio */}
             <View style={[styles.row, { borderBottomColor: c.border }]}>
               <Ionicons name={dashcamSettings.audioEnabled ? "mic" : "mic-off"} size={20} color={c.primary} />

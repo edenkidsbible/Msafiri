@@ -386,12 +386,6 @@ export default function PretripCheckScreen() {
     }
   }, [updateSettings, micPermission, requestMicPerm]);
 
-  // ── Quality selector ───────────────────────────────────────────────────────
-  const setQuality = useCallback(async (q: "720p" | "1080p") => {
-    Haptics.selectionAsync().catch(() => {});
-    await updateSettings({ quality: q });
-  }, [updateSettings]);
-
   // ── Quick-start preference ─────────────────────────────────────────────────
   const [quickStartEnabled, setQuickStartEnabled] = useState(false);
 
@@ -709,49 +703,6 @@ export default function PretripCheckScreen() {
               </View>
 
               <View style={[styles.divider, { backgroundColor: c.border }]} />
-
-              {/* Quality selector */}
-              <View style={styles.settingRow}>
-                <View style={styles.settingRowLeft}>
-                  <Ionicons name="film-outline" size={20} color={c.mutedForeground} />
-                  <Text style={[styles.settingRowLabel, { color: c.foreground }]}>
-                    Video Quality
-                  </Text>
-                </View>
-                <View style={styles.qualityChips}>
-                  {(["720p", "1080p"] as const).map((q) => (
-                    <TouchableOpacity
-                      key={q}
-                      style={[
-                        styles.qualityChip,
-                        {
-                          backgroundColor: settings.quality === q ? c.primary : c.muted,
-                          borderColor: settings.quality === q ? c.primary : c.border,
-                        },
-                      ]}
-                      onPress={() => setQuality(q)}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.qualityChipTxt,
-                          { color: settings.quality === q ? "#FFF" : c.mutedForeground },
-                        ]}
-                      >
-                        {q === "720p" ? "HD" : "FHD"}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.qualityChipSub,
-                          { color: settings.quality === q ? "#FFF" : c.mutedForeground },
-                        ]}
-                      >
-                        {q}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
 
               <View style={[styles.divider, { backgroundColor: c.border }]} />
 

@@ -522,8 +522,7 @@ export default function DashcamOverlay() {
   // onCameraReady fires, startDashcam() is called, backgroundRecordPending is
   // cleared, and we transition into the normal invisible-recording state.
   const showUI = isDashcamOpen && !backgroundRecordPending;
-  const qualityLabel = settings.quality === "1080p" ? "1080P" : "720P";
-  const isHD         = settings.quality === "1080p";
+  const qualityLabel = "720P";
   // The rolling window keeps at most 5 unlocked clips at a time (~10 min max).
   // Show how many unlocked clips are currently on device as a simple counter.
   const unlockedCount = segments.filter((s) => !s.locked && !s.savedForReview).length;
@@ -572,7 +571,7 @@ export default function DashcamOverlay() {
           style={StyleSheet.absoluteFill}
           facing="back"
           mode="video"
-          videoQuality={settings.quality === "720p" ? "720p" : "1080p"}
+          videoQuality="720p"
           mute={audioMuted}
           onCameraReady={() => {
             cameraReadyRef.current = true;
@@ -739,11 +738,6 @@ export default function DashcamOverlay() {
               {/* Right: quality badge */}
               <View style={styles.qualityRow}>
                 <Text style={styles.qualityText}>{qualityLabel}</Text>
-                {isHD && (
-                  <View style={styles.fhdBadge}>
-                    <Text style={styles.fhdText}>FHD</Text>
-                  </View>
-                )}
               </View>
             </View>
 
@@ -919,27 +913,6 @@ export default function DashcamOverlay() {
                 <Text style={styles.panelTitle}>Dashcam Settings</Text>
 
                 <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 4 }}>
-
-                  {/* ── Video Quality ─────────────────────────────── */}
-                  <Text style={styles.sectionLabel}>VIDEO QUALITY</Text>
-                  <View style={styles.chipRow}>
-                    {(["720p", "1080p"] as const).map((q) => (
-                      <TouchableOpacity
-                        key={q}
-                        style={[styles.chip, settings.quality === q && styles.chipActive]}
-                        onPress={() => { Haptics.selectionAsync(); updateSettings({ quality: q }); }}
-                      >
-                        <Ionicons
-                          name="videocam-outline"
-                          size={15}
-                          color={settings.quality === q ? "#fff" : "#ffffff88"}
-                        />
-                        <Text style={[styles.chipText, settings.quality === q && styles.chipTextActive]}>
-                          {q === "1080p" ? "1080p FHD" : "720p HD"}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
 
                   {/* ── Rolling window info ───────────────────── */}
                   <Text style={[styles.sectionLabel, { marginTop: 18 }]}>LOCAL STORAGE</Text>
