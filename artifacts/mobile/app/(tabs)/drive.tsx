@@ -55,6 +55,7 @@ import { DASHCAM_AUTOSTART_KEY } from "@/app/pretrip-check";
 import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { loadCachedPlaces, cachePlaces } from "@/utils/offlineTripCache";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import * as Notifications from "expo-notifications";
 import {
   loadRecentSearches,
   saveRecentSearch,
@@ -396,6 +397,12 @@ export default function DriveScreen() {
   const [previewConfig, setPreviewConfig] = useState<PlayerConfig | null>(null);
   const pauseNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Notification permission banner ───────────────────────────────────────
+  // Shown on the idle drive screen when the user has blocked notifications.
+  // Session-only dismissal: shows again next launch if still denied.
+  const [notifBlocked, setNotifBlocked] = useState(false);
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
+
   // Load recent searches from AsyncStorage on mount
   useEffect(() => {
     loadRecentSearches().then(setRecentSearches).catch(() => {});
@@ -705,6 +712,16 @@ export default function DriveScreen() {
   // destination set by the Map tab is visible when focus arrives.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navDestination, noAutoStart]));
+
+  // Check notification permission each time the drive tab gains focus.
+  // If the user blocked notifications, show the background-alerts banner so
+  // they understand why alerts only work when the screen is open.
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS === "web") return;
+    Notifications.getPermissionsAsync()
+      .then(({ status }) => setNotifBlocked(status === "denied"))
+      .catch(() => {});
+  }, []));
 
   // Reset the auto-start guard and vehicle picker state when the trip ends.
   useEffect(() => {
@@ -1327,6 +1344,55 @@ export default function DriveScreen() {
           zIndex: 1,
           paddingHorizontal: 28,
         }]}>
+
+          {/* ── Notification permission banner ──────────────────────────────
+              Shown when the user has blocked notifications for the app.
+              Background drive alerts (speed cameras, hazards) are delivered
+              as local notifications and won't arrive with the screen off.
+              In-app alerts work fine regardless.                            */}
+          {notifBlocked && !notifBannerDismissed && (
+            <View style={{
+              position: "absolute",
+              top: insets.top + 8,
+              left: 0, right: 0,
+              paddingHorizontal: 16,
+              zIndex: 10,
+            }}>
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 10,
+                backgroundColor: isDark ? "#2A1800" : "#FFF3E0",
+                borderRadius: 14,
+                paddingHorizontal: 14, paddingVertical: 11,
+                borderWidth: 1,
+                borderColor: isDark ? "#7C4D0055" : "#FB8C0055",
+              }}>
+                <Ionicons name="notifications-off-outline" size={18} color="#FB8C00" style={{ flexShrink: 0 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: isDark ? "#FFB74D" : "#E65100", lineHeight: 17 }}>
+                    Background alerts are off
+                  </Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isDark ? "#FFCC80" : "#BF360C", lineHeight: 16, marginTop: 1 }}>
+                    Alerts work while this screen is open. Enable notifications to also receive them when the screen is off.
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <TouchableOpacity
+                    onPress={() => Linking.openSettings()}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  >
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FB8C00" }}>Settings</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setNotifBannerDismissed(true)}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                  >
+                    <Ionicons name="close" size={16} color={isDark ? "#FFCC80" : "#BF360C"} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
           <View style={{ alignItems: "center", gap: 24, width: "100%" }}>
             <View style={{
               width: 96, height: 96, borderRadius: 48,

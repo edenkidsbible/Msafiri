@@ -88,6 +88,21 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
   // Push notifications are not available on web or in Expo simulators
   if (Platform.OS === "web") return;
 
+  // Detect Expo Go ("storeClient") — push notifications don't work there on
+  // Android because Expo Go uses its own FCM sender ID, not the project's.
+  // Local notifications (background drive alerts) still work fine.
+  // Standalone preview/production builds are unaffected by this check.
+  const isExpoGo = Constants.executionEnvironment === "storeClient";
+  if (isExpoGo && Platform.OS === "android") {
+    console.warn(
+      "[usePushNotifications] Running in Expo Go on Android — remote push " +
+      "notifications are NOT delivered in Expo Go. Use an EAS preview or " +
+      "production build to test push. Local (background drive) alerts still work."
+    );
+    // Skip token registration — the token would be invalid for this project anyway.
+    return;
+  }
+
   await ensureAndroidChannels();
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -120,14 +135,23 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
       projectId: EAS_PROJECT_ID,
     });
   } catch (err) {
-    // On Android standalone builds this almost always means google-services.json
-    // was missing from the EAS build or FCM V1 credentials were not uploaded to
-    // the EAS project. The error message from the native layer is the key clue.
+    // On Android standalone builds this almost always means FCM V1 credentials
+    // (a Service Account JSON) have not been uploaded to the EAS project.
+    // Fix: run `eas credentials` → Android → select the build profile →
+    // "Google Services JSON" + "FCM V1 key" and upload the service account.
+    // google-services.json must also be present at build time (EAS injects it
+    // from the GOOGLE_SERVICES_JSON_BASE64 secret for CI builds).
+    // On iOS: APNs key or certificate must be uploaded to EAS.
+    // This error is silent to the user — the device simply never gets a token
+    // registered, so the server cannot send it push notifications.
     const msg = err instanceof Error ? err.message : String(err);
     console.error(
-      "[usePushNotifications] getExpoPushTokenAsync FAILED — " +
-      "Android builds require google-services.json + FCM V1 credentials in EAS. " +
-      "iOS builds require APNs credentials in EAS. " +
+      `[usePushNotifications] getExpoPushTokenAsync FAILED (${Platform.OS}) — ` +
+      (Platform.OS === "android"
+        ? "ACTION REQUIRED: upload FCM V1 Service Account JSON to EAS via " +
+          "`eas credentials`. Without it push tokens cannot be issued on Android. "
+        : "ACTION REQUIRED: upload APNs key/certificate to EAS via " +
+          "`eas credentials`. ") +
       `Raw error: ${msg}`
     );
     return;
