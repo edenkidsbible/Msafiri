@@ -181,6 +181,39 @@ router.post("/vehicle-claims/:id/transfer-owner", requireFeature("reports"), asy
   return res.json({ success: true, vehicleId, newOwnerDeviceId: claimantDeviceId });
 });
 
+// ── DELETE /vehicles/:vehicleId ──────────────────────────────────────────────
+// Hard-deletes a vehicle directly by its ID (no claim required).
+// Useful for one-off admin cleanup when no ownership claim exists.
+router.delete("/vehicles/:vehicleId", requireFeature("reports"), async (req, res) => {
+  const { vehicleId } = req.params as { vehicleId: string };
+
+  const [vehicle] = await db
+    .select({ displayName: sharedVehiclesTable.displayName, plateNumber: sharedVehiclesTable.plateNumber })
+    .from(sharedVehiclesTable)
+    .where(eq(sharedVehiclesTable.id, vehicleId));
+
+  if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
+
+  // CASCADE handles vehicle_members, vehicle_join_requests, vehicle_claims
+  await db.delete(sharedVehiclesTable).where(eq(sharedVehiclesTable.id, vehicleId));
+
+  await logAudit({
+    actor:   { id: req.adminUser?.id ?? "unknown", name: req.adminUser?.name ?? "Admin", role: req.adminUser?.role ?? "admin" },
+    action:  "vehicle.deleted_by_admin",
+    targetType: "shared_vehicle",
+    targetId:   vehicleId,
+    details: { plate: vehicle.plateNumber, name: vehicle.displayName },
+  });
+
+  await createNotification({
+    title:   "Vehicle deleted by admin",
+    message: `${vehicle.displayName ?? vehicleId} (${vehicle.plateNumber ?? "no plate"}) was deleted by admin.`,
+    type:    "warning",
+  });
+
+  return res.json({ success: true, plate: vehicle.plateNumber });
+});
+
 // ── DELETE /vehicle-claims/:id/vehicle ───────────────────────────────────────
 // Hard-deletes the vehicle and all its members/claims (ON DELETE CASCADE).
 // Use when the registered account is clearly fraudulent and the real owner
