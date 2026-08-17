@@ -133,3 +133,53 @@ export async function tryDumpToR2(): Promise<DumpResult | null> {
     return null;
   }
 }
+
+// ── Prune old backups ─────────────────────────────────────────────────────────
+
+const BACKUP_PREFIX = "db-backups/";
+const RETENTION_DAYS = 30;
+
+/**
+ * Lists all objects under the db-backups/ prefix and deletes those whose
+ * LastModified timestamp is older than RETENTION_DAYS days.
+ *
+ * Returns the number of objects deleted.
+ */
+export async function pruneOldDumps(): Promise<number> {
+  const { listObjectsWithPrefix, deleteObject } = await import("./r2Storage.js");
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+  const objects = await listObjectsWithPrefix(BACKUP_PREFIX);
+  const toDelete = objects.filter(
+    (o) => o.lastModified && o.lastModified < cutoff,
+  );
+
+  let deleted = 0;
+  for (const obj of toDelete) {
+    try {
+      await deleteObject(obj.key);
+      logger.info({ key: obj.key, lastModified: obj.lastModified }, "[pgDump] Pruned old backup");
+      deleted++;
+    } catch (err) {
+      logger.warn({ err, key: obj.key }, "[pgDump] Failed to delete old backup — skipping");
+    }
+  }
+
+  return deleted;
+}
+
+/**
+ * Best-effort wrapper around pruneOldDumps(). Never throws.
+ */
+export async function tryPruneOldDumps(): Promise<void> {
+  try {
+    const deleted = await pruneOldDumps();
+    if (deleted > 0) {
+      logger.info({ deleted }, `[pgDump] Pruned ${deleted} backup(s) older than ${RETENTION_DAYS} days`);
+    } else {
+      logger.info("[pgDump] No old backups to prune");
+    }
+  } catch (err) {
+    logger.error({ err }, "[pgDump] Prune failed — skipping");
+  }
+}

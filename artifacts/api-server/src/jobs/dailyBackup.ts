@@ -4,8 +4,11 @@
  * buildBackupSnapshot() — queries every important table and returns the full
  *   data object. Shared between the scheduled job and the on-demand admin API.
  *
- * runDailyBackup() — calls buildBackupSnapshot, builds a reports CSV (for
- *   direct admin import), and emails both files to BACKUP_EMAIL_ADDRESS.
+ * runDailyBackup() — always runs pg_dump → R2 (primary disaster-recovery
+ *   backup) when R2 is configured, then optionally sends a JSON + CSV email
+ *   snapshot to BACKUP_EMAIL_ADDRESS if that env var is set. The two paths
+ *   are independent: a missing email address never prevents the R2 dump, and
+ *   an email failure never rolls back the already-uploaded dump.
  */
 
 import { db } from "@workspace/db";
@@ -44,7 +47,7 @@ import {
   customVehiclesTable,
 } from "@workspace/db";
 import { sendDailyBackupEmail } from "../lib/email.js";
-import { tryDumpToR2 } from "../lib/pgDump.js";
+import { tryDumpToR2, tryPruneOldDumps } from "../lib/pgDump.js";
 import { isR2Configured } from "../lib/r2Storage.js";
 import { logger } from "../lib/logger.js";
 
@@ -237,52 +240,63 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
 // ── Scheduled job ──────────────────────────────────────────────────────────────
 
 async function runDailyBackup(): Promise<void> {
-  const toEmail = process.env["BACKUP_EMAIL_ADDRESS"];
-  if (!toEmail) {
-    logger.warn("[dailyBackup] BACKUP_EMAIL_ADDRESS not set — skipping backup email");
-    return;
-  }
-
-  logger.info("[dailyBackup] Starting daily backup export…");
-
-  const snapshot = await buildBackupSnapshot();
-  const { tables, stats } = snapshot;
-
-  // Build reports CSV for direct admin import
-  const reports = tables.communityReports as Array<Record<string, unknown>>;
-  const csvLines = [CSV_HEADER, ...reports.map(reportToCsvLine)];
-  const csvContent = csvLines.join("\n");
-  const jsonContent = JSON.stringify(snapshot, null, 2);
-
+  logger.info("[dailyBackup] Starting daily backup…");
   const date = eatDateString();
-  const ok = await sendDailyBackupEmail({
-    toEmail,
-    date,
-    stats,
-    csvContent,
-    jsonContent,
-  });
 
-  if (ok) {
-    logger.info({ stats, toEmail }, `[dailyBackup] Backup email sent for ${date}`);
-  } else {
-    logger.error("[dailyBackup] Backup email failed — check RESEND_API_KEY and BACKUP_EMAIL_ADDRESS");
-  }
-
-  // ── pg_dump → R2 ────────────────────────────────────────────────────────
-  // Upload a binary pg_dump alongside the email so there is always a
-  // restorable snapshot in R2, independent of email deliverability.
-  // Runs after the email so a slow dump never delays the email send.
+  // ── pg_dump → R2 (primary backup — always runs when R2 is configured) ──────
+  // This is the disaster-recovery restore point. It runs independently of the
+  // email snapshot so a missing BACKUP_EMAIL_ADDRESS never prevents it.
   if (isR2Configured()) {
     const dump = await tryDumpToR2();
     if (dump) {
-      logger.info({ key: dump.key, sizeBytes: dump.sizeBytes, durationMs: dump.durationMs },
-        "[dailyBackup] pg_dump uploaded to R2");
+      logger.info(
+        { key: dump.key, sizeBytes: dump.sizeBytes, durationMs: dump.durationMs },
+        "[dailyBackup] pg_dump uploaded to R2",
+      );
     } else {
-      logger.warn("[dailyBackup] pg_dump to R2 failed — email backup still sent");
+      logger.warn("[dailyBackup] pg_dump to R2 failed");
     }
+
+    // Prune dumps older than 30 days (best-effort, never throws)
+    await tryPruneOldDumps();
   } else {
-    logger.warn("[dailyBackup] R2 not configured — skipping pg_dump; only email backup was sent");
+    logger.warn("[dailyBackup] R2 not configured — skipping pg_dump");
+  }
+
+  // ── Email snapshot (optional — only when BACKUP_EMAIL_ADDRESS is set) ───────
+  // Runs after the R2 dump so a slow snapshot/email never delays the primary backup.
+  const toEmail = process.env["BACKUP_EMAIL_ADDRESS"];
+  if (!toEmail) {
+    logger.info("[dailyBackup] BACKUP_EMAIL_ADDRESS not set — skipping email snapshot");
+    return;
+  }
+
+  try {
+    const snapshot = await buildBackupSnapshot();
+    const { tables, stats } = snapshot;
+
+    // Build reports CSV for direct admin import
+    const reports = tables.communityReports as Array<Record<string, unknown>>;
+    const csvLines = [CSV_HEADER, ...reports.map(reportToCsvLine)];
+    const csvContent = csvLines.join("\n");
+    const jsonContent = JSON.stringify(snapshot, null, 2);
+
+    const ok = await sendDailyBackupEmail({
+      toEmail,
+      date,
+      stats,
+      csvContent,
+      jsonContent,
+    });
+
+    if (ok) {
+      logger.info({ stats, toEmail }, `[dailyBackup] Backup email sent for ${date}`);
+    } else {
+      logger.error("[dailyBackup] Backup email failed — check RESEND_API_KEY and BACKUP_EMAIL_ADDRESS");
+    }
+  } catch (err) {
+    // A snapshot/email failure must never abort the job — the R2 dump already succeeded above.
+    logger.error({ err }, "[dailyBackup] Email snapshot failed — R2 dump was already uploaded");
   }
 }
 

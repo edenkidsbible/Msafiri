@@ -36,6 +36,45 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 
 _Populate as you build — explicit user instructions worth remembering across sessions._
 
+## Database Backup & Restore
+
+### Nightly backup
+A scheduled job runs every night at **23:00 EAT (20:00 UTC)** and:
+1. Calls `pg_dump --format=custom` against `DATABASE_URL`
+2. Uploads the dump to Cloudflare R2 under `db-backups/YYYY-MM-DD_HH-mm-ss.dump`
+3. Sends a JSON + CSV email snapshot to `BACKUP_EMAIL_ADDRESS` (if set)
+4. Prunes R2 dumps older than **30 days** automatically
+
+Backups can also be triggered on demand from the Admin panel → Backup tab.
+
+### Restore from a pg_dump file
+
+1. Download the dump file from R2 (`db-backups/` prefix in the `R2_BUCKET_NAME` bucket).
+2. Set your target `DATABASE_URL` in your shell environment.
+3. Run:
+   ```bash
+   pg_restore --no-owner --no-privileges --clean --if-exists \
+     -d "$DATABASE_URL" path/to/backup.dump
+   ```
+   - `--clean` drops existing objects before recreating them (use with caution in production).
+   - `--no-owner` / `--no-privileges` — skips role assignments (managed DB handles permissions).
+4. Verify the restore:
+   ```bash
+   psql "$DATABASE_URL" -c "SELECT count(*) FROM community_reports;"
+   ```
+
+### Required environment variables
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string (set automatically by Replit) |
+| `R2_ACCOUNT_ID` | Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | R2 API token key ID |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
+| `R2_BUCKET_NAME` | R2 bucket name |
+| `BACKUP_EMAIL_ADDRESS` | (optional) Email address to receive nightly backup emails |
+
+---
+
 ## Gotchas
 
 - **Mobile Expo packages — always use `expo install`, never `pnpm add`.**

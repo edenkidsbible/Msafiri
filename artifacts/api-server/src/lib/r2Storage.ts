@@ -11,7 +11,7 @@
  * return 503 rather than crash.
  */
 
-import { S3Client, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Readable } from "stream";
@@ -122,6 +122,35 @@ export async function getPresignedDownloadUrl(key: string): Promise<string> {
 export async function deleteObject(key: string): Promise<void> {
   const client = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: BUCKET(), Key: key }));
+}
+
+/** List all objects under a key prefix. Handles pagination automatically. */
+export async function listObjectsWithPrefix(prefix: string): Promise<Array<{ key: string; lastModified?: Date; size: number }>> {
+  const client = getClient();
+  const results: Array<{ key: string; lastModified?: Date; size: number }> = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const res = await client.send(new ListObjectsV2Command({
+      Bucket: BUCKET(),
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+
+    for (const obj of res.Contents ?? []) {
+      if (obj.Key) {
+        results.push({
+          key: obj.Key,
+          lastModified: obj.LastModified,
+          size: obj.Size ?? 0,
+        });
+      }
+    }
+
+    continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return results;
 }
 
 /** Build the canonical R2 key for a dashcam clip. */
