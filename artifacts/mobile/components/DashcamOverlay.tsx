@@ -146,19 +146,25 @@ export default function DashcamOverlay() {
   // opaque cover View on top of it when it should be invisible.
   const [showAnglePreview, setShowAnglePreview] = useState(false);
   const [angleCountdown, setAngleCountdown]     = useState(4);
-  const angleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const angleTickRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Mirror showAnglePreview in a ref so the isRecording effect below can read
-  // it without listing showAnglePreview as a dependency (which would restart
-  // the timer every time the countdown ticks).
-  const showAnglePreviewRef = useRef(showAnglePreview);
-  showAnglePreviewRef.current = showAnglePreview; // updated every render
+  const angleTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const angleTickRef         = useRef<ReturnType<typeof setInterval> | null>(null);
+  const angleSafetyTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set to true when the 4-second timer fires but the camera was not yet ready
+  // (iOS session handoff from the pre-trip checklist's CameraView). Causes
+  // onCameraReady to show the live feed briefly then dismiss, instead of the
+  // preview being dismissed before the driver ever sees a live camera frame.
+  const angleTimerDoneRef    = useRef(false);
+  // Ref-safe mirror of showAnglePreview so the onCameraReady JSX closure
+  // (which captures stale state) can read the current value correctly.
+  const showAnglePreviewRef  = useRef(false);
 
   const dismissAnglePreview = useCallback(() => {
     setShowAnglePreview(false);
-    if (angleTimerRef.current)  { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
-    if (angleTickRef.current)   { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
+    showAnglePreviewRef.current  = false;
+    angleTimerDoneRef.current    = false;
+    if (angleTimerRef.current)       { clearTimeout(angleTimerRef.current);       angleTimerRef.current       = null; }
+    if (angleTickRef.current)        { clearInterval(angleTickRef.current);        angleTickRef.current        = null; }
+    if (angleSafetyTimerRef.current) { clearTimeout(angleSafetyTimerRef.current); angleSafetyTimerRef.current = null; }
   }, []);
 
   // Effect #1 — If backgroundRecordPending is set while the camera is already
@@ -174,52 +180,54 @@ export default function DashcamOverlay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backgroundRecordPending]);
 
-  // Effect #2 — Show the angle-preview card as soon as background recording
-  // is requested (before the camera is ready / onCameraReady fires).
+  // When backgroundRecordPending is set, immediately show the angle-preview
+  // card so the driver can verify the camera is aimed correctly.
   //
-  // IMPORTANT: Do NOT start the countdown timer here. The timer is started in
-  // Effect #3 (below) which fires when isRecording becomes true. This
-  // decoupling ensures the 4-second window is always anchored to the moment
-  // recording is genuinely active, even when the camera session takes several
-  // seconds to hand off — for example after the pre-trip checklist's own
-  // CameraView releases the session on navigation away.  If the timer were
-  // started here it would expire before onCameraReady fires, dismissing the
-  // preview while showAnglePreview=false and leaving isBackgroundOnly=true the
-  // instant recording starts (camera flies off-screen, first recordAsync call
-  // fails, dashcam stops itself).
+  // The 4-second countdown auto-dismisses IF the camera is already live
+  // (onCameraReady has fired). When coming from the pre-trip checklist the iOS
+  // camera session is still being handed off from the checklist's own CameraView
+  // — onCameraReady can take 5–8 s to fire on some devices. In that case the
+  // 4-second timer sets angleTimerDoneRef but does NOT hide the card; when
+  // onCameraReady fires it shows the live feed for 1.5 s so the driver can
+  // confirm their mounting angle, then hides. A 12-second safety ceiling always
+  // dismisses regardless, preventing the card from hanging if the camera stalls.
   useEffect(() => {
     if (!backgroundRecordPending) return;
+    angleTimerDoneRef.current   = false;
+    showAnglePreviewRef.current = true;
     setAngleCountdown(4);
     setShowAnglePreview(true);
-    // No cleanup needed — nothing started here.
-  }, [backgroundRecordPending]);
-
-  // Effect #3 — Start the angle-preview countdown the moment recording is
-  // genuinely active (isRecording transitions to true).  Using isRecording
-  // rather than backgroundRecordPending as the trigger means the 4 s window
-  // correctly accounts for any delay between the pending request and the
-  // camera becoming available (onCameraReady latency, session handoff, etc.).
-  useEffect(() => {
-    if (!isRecording || !showAnglePreviewRef.current) return;
-    // Clear any stale timers from a previous trip in the same session.
-    if (angleTimerRef.current) { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
-    if (angleTickRef.current)  { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
-    // Tick down the counter each second.
     angleTickRef.current = setInterval(() => {
       setAngleCountdown((n) => (n <= 1 ? 0 : n - 1));
     }, 1000);
-    // Auto-dismiss after 4 s.
     angleTimerRef.current = setTimeout(() => {
-      setShowAnglePreview(false);
       if (angleTickRef.current) { clearInterval(angleTickRef.current); angleTickRef.current = null; }
       angleTimerRef.current = null;
+      if (cameraReadyRef.current) {
+        // Camera is live — dismiss normally.
+        setShowAnglePreview(false);
+        showAnglePreviewRef.current = false;
+      } else {
+        // Camera not yet ready (iOS session handoff still in progress).
+        // Defer the dismiss to onCameraReady so the driver still sees a live frame.
+        angleTimerDoneRef.current = true;
+      }
     }, 4000);
+    // Safety ceiling: always dismiss after 12 s even if onCameraReady never fires.
+    angleSafetyTimerRef.current = setTimeout(() => {
+      angleSafetyTimerRef.current = null;
+      angleTimerDoneRef.current   = false;
+      setShowAnglePreview(false);
+      showAnglePreviewRef.current = false;
+      if (angleTimerRef.current) { clearTimeout(angleTimerRef.current); angleTimerRef.current = null; }
+      if (angleTickRef.current)  { clearInterval(angleTickRef.current);  angleTickRef.current  = null; }
+    }, 12_000);
     return () => {
-      if (angleTimerRef.current) { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
-      if (angleTickRef.current)  { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
+      if (angleTimerRef.current)       { clearTimeout(angleTimerRef.current);       angleTimerRef.current       = null; }
+      if (angleTickRef.current)        { clearInterval(angleTickRef.current);        angleTickRef.current        = null; }
+      if (angleSafetyTimerRef.current) { clearTimeout(angleSafetyTimerRef.current); angleSafetyTimerRef.current = null; }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording]);
+  }, [backgroundRecordPending]);
 
   // First-time guide modal
   const [guideVisible, setGuideVisible]     = useState(false);
@@ -452,6 +460,13 @@ export default function DashcamOverlay() {
             // drained the MAX_FAILURES budget in alert-heavy driving and stopped
             // the dashcam.  Track separately in nullRetryCount; only trigger a
             // restart (not a hard stop) after MAX_NULL_RETRY consecutive nulls.
+            //
+            // Special case: if the trip already ended (stopAndSaveDashcam set
+            // isRecordingRef.current = false) and stopRecording() returned null,
+            // break immediately instead of cycling through null-stall → restart.
+            // The 12 s safety timer in stopAndSaveDashcam handles state cleanup
+            // if onSegmentComplete never fires for this final clip.
+            if (!isRecordingRef.current) { exitReason = "done"; break; }
             nullRetryCount++;
             console.warn(`[Dashcam] null result (${nullRetryCount}/${MAX_NULL_RETRY})`);
             if (nullRetryCount >= MAX_NULL_RETRY) { exitReason = "null_stall"; break; }
@@ -655,6 +670,18 @@ export default function DashcamOverlay() {
           mute={audioMuted}
           onCameraReady={() => {
             cameraReadyRef.current = true;
+            // If the 4-second angle-preview timer already fired while the camera
+            // was still initialising (iOS session handoff from the pre-trip
+            // checklist CameraView can take 5–8 s), the dismiss was deferred.
+            // Now that we have a live feed, show the card for 1.5 s so the
+            // driver can verify their mounting angle, then hide it.
+            if (angleTimerDoneRef.current && showAnglePreviewRef.current) {
+              angleTimerDoneRef.current = false;
+              setTimeout(() => {
+                setShowAnglePreview(false);
+                showAnglePreviewRef.current = false;
+              }, 1500);
+            }
             // Fallback: if backgroundRecordPending was set before the camera
             // finished warming up (slow device / very first launch), start now.
             // Read from ref — the JSX closure captures a stale false value.

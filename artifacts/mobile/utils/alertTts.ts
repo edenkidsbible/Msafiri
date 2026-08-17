@@ -10,7 +10,7 @@
  */
 import { Platform } from "react-native";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
-import { ensureAudioMode } from "@/utils/sound";
+import { duckForAlert } from "@/utils/sound";
 import { API_BASE } from "@/utils/apiClient";
 
 // ─── Bundled assets (pre-generated via ElevenLabs Multilingual v2, Yna Agalo) ─
@@ -112,7 +112,7 @@ export function isAlertVoicePlaying(): boolean {
 async function playKey(key: string): Promise<void> {
   if (!key || voiceDisabled || Platform.OS === "web") return;
   stopAlertVoice();
-  await ensureAudioMode(); // shared with sound.ts — fires setAudioModeAsync only once
+  await duckForAlert(); // ducks BT music during dashcam recording; no-op on web
 
   try {
     const cached = getCachedPlayer(key);
@@ -205,7 +205,7 @@ export async function speakNavCancel(): Promise<void> {
 export async function speakAlertPhrase(text: string): Promise<void> {
   if (voiceDisabled || Platform.OS === "web" || !API_BASE) return;
   stopAlertVoice();
-  await ensureAudioMode();
+  await duckForAlert();
   try {
     const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
     currentPlayer = player;

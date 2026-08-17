@@ -294,6 +294,9 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const cameraRef              = useRef<CameraView | null>(null);
   const lockNextRef            = useRef<string | null>(null);
   const isRecordingRef         = useRef(false);
+  // Cleared by onSegmentComplete (normal path) or the 12 s safety timer in
+  // stopAndSaveDashcam (fallback). Guards against double-execution.
+  const pendingTripEndRef      = useRef(false);
   const segmentStartRef        = useRef<number>(0);
   const segmentsRef            = useRef<DashcamSegment[]>([]);
   const settingsRef            = useRef<DashcamSettings>(DEFAULT_SETTINGS);
@@ -965,10 +968,43 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const stopAndSaveDashcam = useCallback(() => {
     if (!isRecordingRef.current) return;
     console.log("[Dashcam] stopAndSaveDashcam() called");
-    isRecordingRef.current = false;   // prevent re-entry; signals trip-end to onSegmentComplete
+    isRecordingRef.current    = false; // signals trip-end to onSegmentComplete
+    pendingTripEndRef.current = true;  // safety timer clears this if onSegmentComplete doesn't
     setBackgroundRecordPending(false);
     cameraRef.current?.stopRecording();
-  }, []);
+
+    // Safety valve: if stopRecording() returns a null result (common when the
+    // clip was still short or the audio session was interrupted), the recording
+    // loop's null-stall counter ticks up and the loop keeps restarting without
+    // ever calling onSegmentComplete — so setIsRecording(false) is never called,
+    // the overlay stays on-screen indefinitely, and clips are never marked
+    // savedForReview.  After 12 s we force both so the post-trip review card
+    // always appears and the dashcam overlay always unmounts.
+    setTimeout(() => {
+      if (!pendingTripEndRef.current) return; // onSegmentComplete already handled it
+      pendingTripEndRef.current = false;
+      console.log("[Dashcam] force-stop safety timer fired — marking clips for review");
+
+      const rolling = segmentsRef.current
+        .filter((s) => !s.locked && !s.savedForReview)
+        .sort((a, b) => b.startedAt - a.startedAt)
+        .slice(0, UNLOCKED_ROLLING_WINDOW);
+      if (rolling.length > 0) {
+        const reviewIds = new Set(rolling.map((s) => s.id));
+        const updated   = applyReviewCap(
+          segmentsRef.current.map((s) =>
+            reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
+          )
+        );
+        segmentsRef.current = updated;
+        setSegments(updated);
+        AsyncStorage.setItem(segmentsAsyncKeyRef.current, JSON.stringify(updated)).catch(() => {});
+        setPendingTripReview(true);
+        scheduleReviewReminder();
+      }
+      setIsRecording(false);
+    }, 12_000);
+  }, [applyReviewCap, scheduleReviewReminder]);
 
   /**
    * Lock the currently recording clip.
@@ -1192,6 +1228,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           // would lose the savedForReview flags and the review banner would not
           // re-appear on the next cold start).
           if (tripEnded) {
+            pendingTripEndRef.current = false; // safety timer no longer needed
             AsyncStorage.setItem(
               capturedAsyncKey,
               JSON.stringify(segmentsRef.current),
@@ -1213,6 +1250,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         }
         // Still complete the deferred stop if trip ended
         if (!isRecordingRef.current) {
+          pendingTripEndRef.current = false; // safety timer no longer needed
           AsyncStorage.setItem(
             capturedAsyncKey,
             JSON.stringify(segmentsRef.current),
