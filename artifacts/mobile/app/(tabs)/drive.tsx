@@ -766,13 +766,31 @@ export default function DriveScreen() {
   }, [tripActive, tripPaused]);
 
   // Restore the persisted Audio Alerts preference on mount.
+  // Canonical keys (shared with app-settings/voice-sound.tsx):
+  //   "voice_alerts_disabled" → "true" = voice off   / "false" or null = on
+  //   "sounds_muted"          → "true" = sounds off  / "false" or null = on
+  // Legacy key (drive-screen-only, was the sole store pre-unification):
+  //   "sdk_audio_alerts_off"  → "1" = both off       / "0" or null = on
+  // Migration: if the canonical keys have never been written, seed them from
+  // the legacy key so users who toggled audio off from the drive screen don't
+  // silently lose that preference after the update.
   useEffect(() => {
-    AsyncStorage.getItem("sdk_audio_alerts_off").then((v) => {
-      const on = v !== "1";
-      setAudioAlertsOn(on);
-      setAlertVoiceDisabled(!on);
-      setSoundsMuted(!on);
-    }).catch(() => {});
+    AsyncStorage.multiGet(["voice_alerts_disabled", "sounds_muted", "sdk_audio_alerts_off"])
+      .then(([[, voiceVal], [, soundsVal], [, legacyVal]]) => {
+        // Canonical keys take precedence; fall back to legacy for migration.
+        const voiceOn  = voiceVal  !== null ? voiceVal  !== "true" : legacyVal !== "1";
+        const soundsOn = soundsVal !== null ? soundsVal !== "true" : legacyVal !== "1";
+        setAudioAlertsOn(voiceOn && soundsOn);
+        setAlertVoiceDisabled(!voiceOn);
+        setSoundsMuted(!soundsOn);
+        // One-time migration: write canonical keys so future restarts use them.
+        if (voiceVal === null || soundsVal === null) {
+          AsyncStorage.multiSet([
+            ["voice_alerts_disabled", (!voiceOn).toString()],
+            ["sounds_muted",          (!soundsOn).toString()],
+          ]).catch(() => {});
+        }
+      }).catch(() => {});
   }, []);
 
   // ── Trip Pause / Resume ───────────────────────────────────────────────────
@@ -800,7 +818,12 @@ export default function DriveScreen() {
       const next = !prev;
       setAlertVoiceDisabled(!next);
       setSoundsMuted(!next);
-      AsyncStorage.setItem("sdk_audio_alerts_off", next ? "0" : "1").catch(() => {});
+      // Write canonical keys (same as app-settings/voice-sound.tsx) so the
+      // settings page always reflects the drive-screen toggle and vice versa.
+      AsyncStorage.multiSet([
+        ["voice_alerts_disabled", (!next).toString()],
+        ["sounds_muted",          (!next).toString()],
+      ]).catch(() => {});
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       return next;
     });

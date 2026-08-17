@@ -105,10 +105,11 @@ export default function DashcamOverlay() {
   const restartCountRef   = useRef(0);
   const segmentStartRef = useRef(Date.now());
 
-  // Track whether the CameraView has already fired onCameraReady. The view is
-  // always mounted (translated off-screen when idle) so onCameraReady fires
-  // once at app start — not again when backgroundRecordPending is set later.
-  // This ref lets us start recording immediately if the camera is already warm.
+  // Track whether the CameraView has already fired onCameraReady for this
+  // mount. The overlay unmounts between trips (returns null when idle), so
+  // this ref resets to false each time. Effect #1 below uses it to start
+  // recording immediately when the camera is already warm (e.g. on the 2nd+
+  // trip within the same app session where the overlay re-mounts quickly).
   const cameraReadyRef = useRef(false);
 
   // Mirror backgroundRecordPending in a ref so onCameraReady (which runs once
@@ -148,16 +149,23 @@ export default function DashcamOverlay() {
   const angleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const angleTickRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Mirror showAnglePreview in a ref so the isRecording effect below can read
+  // it without listing showAnglePreview as a dependency (which would restart
+  // the timer every time the countdown ticks).
+  const showAnglePreviewRef = useRef(showAnglePreview);
+  showAnglePreviewRef.current = showAnglePreview; // updated every render
+
   const dismissAnglePreview = useCallback(() => {
     setShowAnglePreview(false);
     if (angleTimerRef.current)  { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
     if (angleTickRef.current)   { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
   }, []);
 
-  // If backgroundRecordPending is set while the camera is already warm (the
-  // normal case — CameraView is always mounted and onCameraReady fired at app
-  // start), immediately kick off recording without waiting for a second
-  // onCameraReady that will never arrive.
+  // Effect #1 — If backgroundRecordPending is set while the camera is already
+  // warm, immediately kick off recording without waiting for a second
+  // onCameraReady that will never arrive (the overlay remounts each trip so
+  // cameraReadyRef resets; this path fires on trips after the first within a
+  // session where the camera warms up fast).
   useEffect(() => {
     if (backgroundRecordPending && cameraReadyRef.current) {
       startDashcam();
@@ -166,22 +174,41 @@ export default function DashcamOverlay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backgroundRecordPending]);
 
-  // Trigger angle preview when background recording starts
+  // Effect #2 — Show the angle-preview card as soon as background recording
+  // is requested (before the camera is ready / onCameraReady fires).
+  //
+  // IMPORTANT: Do NOT start the countdown timer here. The timer is started in
+  // Effect #3 (below) which fires when isRecording becomes true. This
+  // decoupling ensures the 4-second window is always anchored to the moment
+  // recording is genuinely active, even when the camera session takes several
+  // seconds to hand off — for example after the pre-trip checklist's own
+  // CameraView releases the session on navigation away.  If the timer were
+  // started here it would expire before onCameraReady fires, dismissing the
+  // preview while showAnglePreview=false and leaving isBackgroundOnly=true the
+  // instant recording starts (camera flies off-screen, first recordAsync call
+  // fails, dashcam stops itself).
   useEffect(() => {
     if (!backgroundRecordPending) return;
     setAngleCountdown(4);
     setShowAnglePreview(true);
-    // Tick down the counter each second
+    // No cleanup needed — nothing started here.
+  }, [backgroundRecordPending]);
+
+  // Effect #3 — Start the angle-preview countdown the moment recording is
+  // genuinely active (isRecording transitions to true).  Using isRecording
+  // rather than backgroundRecordPending as the trigger means the 4 s window
+  // correctly accounts for any delay between the pending request and the
+  // camera becoming available (onCameraReady latency, session handoff, etc.).
+  useEffect(() => {
+    if (!isRecording || !showAnglePreviewRef.current) return;
+    // Clear any stale timers from a previous trip in the same session.
+    if (angleTimerRef.current) { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
+    if (angleTickRef.current)  { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
+    // Tick down the counter each second.
     angleTickRef.current = setInterval(() => {
-      setAngleCountdown((n) => {
-        if (n <= 1) {
-          // Timer expired — let the interval cleanup handle itself
-          return 0;
-        }
-        return n - 1;
-      });
+      setAngleCountdown((n) => (n <= 1 ? 0 : n - 1));
     }, 1000);
-    // Auto-dismiss after 4 s
+    // Auto-dismiss after 4 s.
     angleTimerRef.current = setTimeout(() => {
       setShowAnglePreview(false);
       if (angleTickRef.current) { clearInterval(angleTickRef.current); angleTickRef.current = null; }
@@ -191,7 +218,8 @@ export default function DashcamOverlay() {
       if (angleTimerRef.current) { clearTimeout(angleTimerRef.current);  angleTimerRef.current  = null; }
       if (angleTickRef.current)  { clearInterval(angleTickRef.current);   angleTickRef.current   = null; }
     };
-  }, [backgroundRecordPending]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecording]);
 
   // First-time guide modal
   const [guideVisible, setGuideVisible]     = useState(false);
