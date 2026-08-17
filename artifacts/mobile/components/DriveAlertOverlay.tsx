@@ -195,7 +195,11 @@ export default function DriveAlertOverlay({
   const typeIcon  = resolved.icon as React.ComponentProps<typeof Ionicons>["name"];
   const emoji     = !isZone ? resolved.emoji : null;
 
+  // Show the speed card whenever this is a camera-type zone alert — even when
+  // no speed limit is stored — so the driver always sees their live speed.
+  const isCamera       = isZone && alert.type === "camera";
   const hasSpeedBadges = isZone && alert.speedLimit != null;
+  const showSpeedCard  = isCamera || hasSpeedBadges;
   const overLimit      = hasSpeedBadges && currentSpeed > alert.speedLimit!;
   const speedColor     = overLimit ? colors.speedDanger : "#2E7D32";
 
@@ -357,14 +361,14 @@ export default function DriveAlertOverlay({
         nestedScrollEnabled
       >
 
-        {/* ── Speed comparison (zone + camera alerts with a known limit) ── */}
-        {hasSpeedBadges && (
+        {/* ── Speed comparison card (all camera zone alerts, or any zone with a limit) ── */}
+        {showSpeedCard && (
           <View style={[styles.speedCard, {
             backgroundColor: colors.isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
             borderColor:     colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
           }]}>
-            {/* YOUR SPEED */}
-            <View style={styles.speedHalf}>
+            {/* YOUR SPEED — always shown */}
+            <View style={[styles.speedHalf, !hasSpeedBadges && styles.speedHalfFull]}>
               <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>YOUR SPEED</Text>
               <View style={styles.speedNumRow}>
                 <Text style={[styles.speedNum, { color: speedColor }]}>
@@ -377,34 +381,36 @@ export default function DriveAlertOverlay({
                   backgroundColor: colors.speedDanger + "18",
                   borderColor:     colors.speedDanger + "50",
                 }]}>
-                  <Ionicons name="warning" size={9} color={colors.speedDanger} />
+                  <Ionicons name="warning" size={11} color={colors.speedDanger} />
                   <Text style={[styles.overLimitTxt, { color: colors.speedDanger }]}>OVER LIMIT</Text>
                 </View>
               )}
             </View>
 
-            {/* Vertical divider */}
-            <View style={[styles.speedVdiv, {
-              backgroundColor: colors.isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)",
-            }]} />
-
-            {/* SPEED LIMIT */}
-            <Animated.View style={[styles.speedHalf, { transform: [{ scale: urgent ? pulse : 1 }] }]}>
-              <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>SPEED LIMIT</Text>
-              <View style={styles.speedNumRow}>
-                <Text style={[styles.speedNum, {
-                  color: isPassed ? colors.mutedForeground : accentColor,
-                }]}>
-                  {alert.speedLimit}
-                </Text>
-                <Text style={[styles.speedUnit, {
-                  color: isPassed ? colors.mutedForeground : accentColor,
-                }]}>km/h</Text>
-              </View>
-              {urgent && !isPassed && (
-                <View style={[styles.limitRing, { borderColor: accentColor + "50" }]} />
-              )}
-            </Animated.View>
+            {/* Vertical divider + SPEED LIMIT — only when a limit is stored */}
+            {hasSpeedBadges && (
+              <>
+                <View style={[styles.speedVdiv, {
+                  backgroundColor: colors.isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)",
+                }]} />
+                <Animated.View style={[styles.speedHalf, { transform: [{ scale: urgent ? pulse : 1 }] }]}>
+                  <Text style={[styles.speedLabel, { color: colors.mutedForeground }]}>SPEED LIMIT</Text>
+                  <View style={styles.speedNumRow}>
+                    <Text style={[styles.speedNum, {
+                      color: isPassed ? colors.mutedForeground : accentColor,
+                    }]}>
+                      {alert.speedLimit}
+                    </Text>
+                    <Text style={[styles.speedUnit, {
+                      color: isPassed ? colors.mutedForeground : accentColor,
+                    }]}>km/h</Text>
+                  </View>
+                  {urgent && !isPassed && (
+                    <View style={[styles.limitRing, { borderColor: accentColor + "50" }]} />
+                  )}
+                </Animated.View>
+              </>
+            )}
           </View>
         )}
 
@@ -636,32 +642,36 @@ const styles = StyleSheet.create({
     flex:           1,
     alignItems:     "center",
     justifyContent: "center",
-    paddingVertical:   18,
+    paddingVertical:   22,
     paddingHorizontal: 10,
     position:       "relative",
     gap:            2,
   },
+  /** Used when only YOUR SPEED is shown (no stored limit). */
+  speedHalfFull: {
+    flex: 1, // already full-width; no companion column
+  },
   speedLabel: {
-    fontSize:      9,
+    fontSize:      11,
     fontFamily:    "Inter_700Bold",
-    letterSpacing: 1.4,
+    letterSpacing: 1.6,
   },
   speedNumRow: {
     flexDirection: "row",
     alignItems:    "flex-end",
-    gap:           3,
-    marginTop:     2,
+    gap:           4,
+    marginTop:     3,
   },
   speedNum: {
-    fontSize:           50,
+    fontSize:           72,
     fontFamily:         "Inter_700Bold",
-    lineHeight:         52,
+    lineHeight:         74,
     includeFontPadding: false,
   },
   speedUnit: {
-    fontSize:      12,
+    fontSize:      15,
     fontFamily:    "Inter_600SemiBold",
-    marginBottom:  6,
+    marginBottom:  9,
   },
   overLimitChip: {
     flexDirection:    "row",

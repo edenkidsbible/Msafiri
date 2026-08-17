@@ -1112,6 +1112,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Synchronous mirrors of dbZones/suppressedStaticIds state — read by admin
   // callbacks that need the current value before the next render cycle fires.
   const dbZonesRef = useRef<SpeedZone[]>([]);
+  /** Raw ApiSpeedZone objects keyed by their DB id, used for stale-while-revalidate. */
+  const prevApiZonesMapRef = useRef<Map<string, ApiSpeedZone>>(new Map());
+  /** Timestamp (ms) when each DB zone id was last seen in an API response. */
+  const dbZoneLastSeenRef  = useRef<Map<string, number>>(new Map());
   const suppressedStaticIdsRef = useRef<string[]>([]);
 
   const [profilePhotoUri, setProfilePhotoUriState] = useState<string | null>(null);
@@ -1890,7 +1894,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let bestDist = Infinity;
       for (const r of communityReportsRef.current) {
         if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
-        if (now - r.timestamp > 7200000) continue;
+        // Age filter removed: the server's expireReports job already marks old reports
+        // as expired, and the poll only returns active/confirmed reports. A mobile-side
+        // 2 h cutoff was causing police checkpoints and other alerts that are still
+        // server-active (TTL up to 4-24 h) to silently stop triggering after 2 hours.
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
         // Road match: skip only when BOTH roads are known but disagree.
@@ -2985,8 +2992,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (isOfflineRef.current) return;
       try {
         const data = await apiGet<{ zones: ApiSpeedZone[]; suppressedStaticIds?: string[] }>(`/speed-zones`);
-        setDbZones(data.zones.flatMap(apiZoneToStaticZones));
-        setDbStretches(data.zones.map(apiZoneToStretch).filter((s): s is SpeedStretch => s !== null));
+
+        // ── Stale-while-revalidate merge ─────────────────────────────────────
+        // Problem: a single slow/partial API response previously wiped the entire
+        // zone list for up to 5 minutes, causing cameras to vanish mid-drive.
+        // Fix: keep any zone that was present in a recent poll (within 10 min).
+        // Zones absent for 10+ consecutive minutes are assumed truly removed.
+        const nowPoll = Date.now();
+        const STALE_ZONE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+        // Update the cache with every zone returned by this poll.
+        for (const z of data.zones) {
+          prevApiZonesMapRef.current.set(z.id, z);
+          dbZoneLastSeenRef.current.set(z.id, nowPoll);
+        }
+
+        // Evict zones not seen in the last 10 minutes.
+        for (const [id, seenAt] of dbZoneLastSeenRef.current) {
+          if (nowPoll - seenAt > STALE_ZONE_TTL_MS) {
+            dbZoneLastSeenRef.current.delete(id);
+            prevApiZonesMapRef.current.delete(id);
+          }
+        }
+
+        const mergedZones = [...prevApiZonesMapRef.current.values()];
+        setDbZones(mergedZones.flatMap(apiZoneToStaticZones));
+        setDbStretches(mergedZones.map(apiZoneToStretch).filter((s): s is SpeedStretch => s !== null));
         setSuppressedStaticIds(data.suppressedStaticIds ?? []);
         setLastAlertDataSyncedAt(new Date());
       } catch { /* network error — keep previous DB zones */ }
