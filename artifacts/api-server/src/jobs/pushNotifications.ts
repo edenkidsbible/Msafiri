@@ -1,6 +1,6 @@
 import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable, deviceBackupsTable } from "@workspace/db";
 import { and, eq, lte, gte, isNull, or, ne, isNotNull, inArray, notInArray, sql } from "drizzle-orm";
-import { sendPushNotifications, flushBadTokensFromReceipts } from "../lib/expoPush.js";
+import { sendPushNotifications, flushBadTokensFromReceipts, drainForeignExperienceTokens } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
 // ─── Rotating daily messages ─────────────────────────────────────────────────
@@ -937,18 +937,37 @@ async function runJob(): Promise<void> {
 // Deletes any push_tokens that APNs/FCM confirmed as permanently invalid.
 async function purgeDeadTokens(): Promise<void> {
   try {
+    // Receipt-based purge: APNs/FCM confirmed these tokens as permanently invalid.
     const badTokens = await flushBadTokensFromReceipts();
-    if (badTokens.length === 0) return;
     for (const token of badTokens) {
       await db.delete(pushTokensTable).where(eq(pushTokensTable.token, token));
     }
-    logger.info({ count: badTokens.length }, "Purged dead push tokens via receipt check");
+    if (badTokens.length > 0) {
+      logger.info({ count: badTokens.length }, "Purged dead push tokens via receipt check");
+    }
+
+    // Foreign-experience purge: tokens that belong to a different Expo project
+    // (collected when PUSH_TOO_MANY_EXPERIENCE_IDS is returned by the push API).
+    const foreignTokens = drainForeignExperienceTokens();
+    for (const token of foreignTokens) {
+      await db.delete(pushTokensTable).where(eq(pushTokensTable.token, token));
+    }
+    if (foreignTokens.length > 0) {
+      logger.info({ count: foreignTokens.length }, "Purged foreign-experience push tokens");
+    }
   } catch (err) {
     logger.warn({ err }, "purgeDeadTokens failed");
   }
 }
 
 export function startPushNotificationsJob(): NodeJS.Timeout {
+  // Push campaigns must only run in production.  The dev server shares the same
+  // DB as production, so running jobs here would double-send every notification.
+  if (process.env.NODE_ENV !== "production") {
+    logger.info("pushNotifications job: dev mode — campaigns disabled (production only)");
+    return setInterval(() => {}, 24 * 60 * 60 * 1000);
+  }
+
   logger.info("pushNotifications job started");
 
   // Fire catch-up first (sends any windows already passed today that were missed

@@ -59,6 +59,22 @@ const EXPO_ACCESS_TOKEN = process.env.EXPO_ACCESS_TOKEN ?? null;
 // Cleared after each receipt flush. Survives for the lifetime of the process.
 const pendingReceipts = new Map<string, string>();
 
+// Tokens that belong to a different Expo project/experience than this one.
+// Collected when Expo returns PUSH_TOO_MANY_EXPERIENCE_IDS and drained by
+// the receipt-purge job so they are removed from the DB.
+const foreignExperienceTokens = new Set<string>();
+
+/**
+ * Returns and clears all tokens flagged as belonging to a foreign Expo
+ * experience (a different project than the one this server is configured for).
+ * Call this from the periodic dead-token purge job.
+ */
+export function drainForeignExperienceTokens(): string[] {
+  const tokens = [...foreignExperienceTokens];
+  foreignExperienceTokens.clear();
+  return tokens;
+}
+
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {
@@ -101,7 +117,60 @@ export async function sendPushNotifications(
       });
 
       if (!response.ok) {
-        logger.error({ status: response.status }, "Expo push API HTTP error");
+        let errorBody: unknown;
+        try { errorBody = await response.json(); } catch { errorBody = await response.text().catch(() => "(unreadable)"); }
+
+        // PUSH_TOO_MANY_EXPERIENCE_IDS: the batch contains tokens from multiple
+        // Expo projects (e.g. after migrating to a new Expo account).  Split by
+        // project, queue the minority group for DB purge, and retry with the
+        // largest group (which should be our current project).
+        const errCode = (errorBody as any)?.errors?.[0]?.code;
+        if (errCode === "PUSH_TOO_MANY_EXPERIENCE_IDS") {
+          const details: Record<string, string[]> = (errorBody as any).errors[0].details ?? {};
+          const groups = Object.entries(details);
+          // Largest group = our current project; all others are stale/foreign.
+          groups.sort((a, b) => b[1].length - a[1].length);
+          const [ourExp, ourTokens] = groups[0] ?? ["", []];
+          const ourSet = new Set(ourTokens);
+          for (const [exp, tokens] of groups.slice(1)) {
+            logger.warn({ exp, count: tokens.length }, "Purging push tokens from foreign Expo experience");
+            tokens.forEach((t) => foreignExperienceTokens.add(t));
+          }
+          logger.warn({ ourExp, kept: ourTokens.length, purged: chunk.length - ourTokens.length }, "PUSH_TOO_MANY_EXPERIENCE_IDS — retrying with current-project tokens only");
+
+          // Retry with only the tokens that belong to our project.
+          const retryChunk = chunk.filter((m) => ourSet.has(m.to));
+          if (retryChunk.length > 0) {
+            try {
+              const retryRes = await fetch(EXPO_PUSH_URL, {
+                method: "POST",
+                headers: makeHeaders(),
+                body: JSON.stringify(retryChunk),
+              });
+              if (retryRes.ok) {
+                const retryResult = (await retryRes.json()) as { data: ExpoPushTicket[] };
+                (retryResult.data ?? []).forEach((ticket, i) => {
+                  if (ticket.status === "ok") {
+                    ok++;
+                    if (ticket.id && retryChunk[i]?.to) pendingReceipts.set(ticket.id, retryChunk[i].to);
+                  } else {
+                    failed++;
+                    logger.warn({ ticket }, "Expo push ticket error (retry after experience split)");
+                  }
+                });
+              } else {
+                failed += retryChunk.length;
+              }
+            } catch (retryErr) {
+              failed += retryChunk.length;
+            }
+          }
+          // Count foreign tokens as failed (they can't receive pushes anyway).
+          failed += chunk.length - retryChunk.length;
+          continue;
+        }
+
+        logger.error({ status: response.status, body: errorBody, sampleToken: chunk[0]?.to?.slice(0, 30) }, "Expo push API HTTP error");
         failed += chunk.length;
         continue;
       }
