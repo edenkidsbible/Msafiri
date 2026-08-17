@@ -34,7 +34,7 @@ function timestampTag(): string {
  * Runs pg_dump --format=custom against the given connection URL and collects
  * its stdout into a Buffer.  Rejects if pg_dump exits with a non-zero code.
  */
-function runPgDump(databaseUrl: string): Promise<Buffer> {
+export function runPgDump(databaseUrl: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
 

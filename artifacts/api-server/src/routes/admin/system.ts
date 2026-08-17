@@ -1,9 +1,12 @@
 /**
  * Admin → System routes
  *
- * GET  /system/backup/export   — download the full backup JSON immediately
- * POST /system/backup/run      — trigger backup (sends email + returns JSON)
- * POST /system/backup/restore  — upsert-restore from an uploaded backup JSON
+ * GET  /system/backup/export            — download the full backup JSON immediately
+ * GET  /system/backup/pg-dump/latest    — most recent R2 dump metadata (key, size, timestamp)
+ * GET  /system/backup/pg-dump/download  — run fresh pg_dump, upload to R2, stream .dump to browser
+ * POST /system/backup/run               — trigger backup (sends email + returns JSON)
+ * POST /system/backup/pg-dump           — run pg_dump, upload to R2, return metadata only
+ * POST /system/backup/restore           — upsert-restore from an uploaded backup JSON
  */
 
 import { Router, type Request, type Response } from "express";
@@ -44,8 +47,8 @@ import {
   customVehiclesTable,
 } from "@workspace/db";
 import { buildBackupSnapshot, runDailyBackup } from "../../jobs/dailyBackup.js";
-import { dumpToR2, tryDumpToR2 } from "../../lib/pgDump.js";
-import { isR2Configured } from "../../lib/r2Storage.js";
+import { dumpToR2, tryDumpToR2, runPgDump } from "../../lib/pgDump.js";
+import { isR2Configured, listObjectsWithPrefix, uploadBuffer } from "../../lib/r2Storage.js";
 import { logger } from "../../lib/logger.js";
 
 
@@ -189,6 +192,72 @@ router.post("/system/backup/pg-dump", async (_req: Request, res: Response) => {
     });
   } catch (err: any) {
     logger.error({ err }, "[system/backup/pg-dump] Failed");
+    return res.status(500).json({ error: err?.message ?? "pg_dump failed" });
+  }
+});
+
+// ── GET /system/backup/pg-dump/latest ────────────────────────────────────────
+// Returns metadata for the most recent R2 dump (key, size, lastModified).
+
+router.get("/system/backup/pg-dump/latest", async (_req: Request, res: Response) => {
+  if (!isR2Configured()) {
+    return res.json({ configured: false, backup: null });
+  }
+  try {
+    const objects = await listObjectsWithPrefix("db-backups/");
+    if (!objects.length) return res.json({ configured: true, backup: null });
+    // Sort descending by key (ISO timestamp filenames sort naturally)
+    objects.sort((a, b) => b.key.localeCompare(a.key));
+    const latest = objects[0];
+    return res.json({
+      configured: true,
+      backup: {
+        key:          latest.key,
+        sizeBytes:    latest.size,
+        lastModified: latest.lastModified?.toISOString() ?? null,
+      },
+    });
+  } catch (err: any) {
+    logger.error({ err }, "[system/backup/pg-dump/latest] Failed to list R2 objects");
+    return res.status(500).json({ error: err?.message ?? "Failed to list backups" });
+  }
+});
+
+// ── GET /system/backup/pg-dump/download ──────────────────────────────────────
+// Runs a fresh pg_dump, uploads to R2 (if configured), and streams the binary
+// .dump file to the browser for direct download.
+
+router.get("/system/backup/pg-dump/download", async (_req: Request, res: Response) => {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (!databaseUrl) {
+    return res.status(503).json({ error: "DATABASE_URL not set — cannot run pg_dump" });
+  }
+
+  try {
+    logger.info("[system/backup/pg-dump/download] On-demand pg_dump download triggered by admin");
+    const now = new Date();
+    const tag = now.toISOString()
+      .replace("T", "_")
+      .replace(/:/g, "-")
+      .slice(0, 19);
+    const key = `db-backups/${tag}.dump`;
+
+    const buffer = await runPgDump(databaseUrl);
+
+    // Best-effort upload to R2 so this download also serves as a backup
+    if (isR2Configured()) {
+      uploadBuffer(key, buffer, "application/octet-stream").catch((err) =>
+        logger.warn({ err }, "[system/backup/pg-dump/download] R2 upload failed — still serving download"),
+      );
+    }
+
+    const filename = `msafiri-db-${tag}.dump`;
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    return res.send(buffer);
+  } catch (err: any) {
+    logger.error({ err }, "[system/backup/pg-dump/download] Failed");
     return res.status(500).json({ error: err?.message ?? "pg_dump failed" });
   }
 });

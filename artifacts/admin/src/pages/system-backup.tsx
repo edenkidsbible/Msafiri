@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
 import {
   Download, Upload, Play, Database, CheckCircle2,
-  AlertCircle, Loader2, FileJson, Mail, RefreshCw, HardDrive, ShieldCheck,
+  AlertCircle, Loader2, FileJson, Mail, RefreshCw, HardDrive, ShieldCheck, Clock,
 } from "lucide-react";
 import { PageGuide } from "@/components/page-guide";
 
@@ -96,6 +96,15 @@ export default function SystemBackup() {
   } | null>(null);
   const [pgDumpError, setPgDumpError] = useState<string | null>(null);
 
+  // Last backup state (fetched on mount)
+  const [lastBackup, setLastBackup] = useState<{
+    key: string;
+    sizeBytes: number;
+    lastModified: string;
+  } | null>(null);
+  const [lastBackupLoading, setLastBackupLoading] = useState(true);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+
   // Restore state
   const fileRef              = useRef<HTMLInputElement>(null);
   const [restoreLoading,  setRestoreLoading]  = useState(false);
@@ -105,6 +114,24 @@ export default function SystemBackup() {
     counts: Record<string, number>;
     restoredRows: number;
   } | null>(null);
+
+  // ── Fetch last backup on mount ────────────────────────────────────────────
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res  = await fetch("/api/admin/system/backup/pg-dump/latest", {
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok && data.backup) setLastBackup(data.backup);
+      } catch {
+        // non-critical — just leave lastBackup as null
+      } finally {
+        setLastBackupLoading(false);
+      }
+    })();
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -120,6 +147,8 @@ export default function SystemBackup() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setPgDumpResult({ key: data.key, sizeBytes: data.sizeBytes, durationMs: data.durationMs });
+      // Refresh last-backup display
+      setLastBackup({ key: data.key, sizeBytes: data.sizeBytes, lastModified: new Date().toISOString() });
       toast({ title: "Database snapshot created", description: `Saved to R2: ${data.key}` });
     } catch (err) {
       const msg = String(err).replace(/^Error:\s*/, "");
@@ -127,6 +156,38 @@ export default function SystemBackup() {
       toast({ title: "Snapshot failed", description: msg, variant: "destructive" });
     } finally {
       setPgDumpLoading(false);
+    }
+  };
+
+  const handleDownloadDump = async () => {
+    setDownloadLoading(true);
+    try {
+      const res = await fetch("/api/admin/system/backup/pg-dump/download", {
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any).error ?? `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      // Derive filename from Content-Disposition if present, else fallback
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? `msafiri-db-${new Date().toISOString().slice(0, 10)}.dump`;
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement("a");
+      a.href     = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      // Refresh last-backup info
+      setLastBackup({ key: `db-backups/${filename.replace("msafiri-db-", "").replace(".dump", "")}.dump`, sizeBytes: blob.size, lastModified: new Date().toISOString() });
+      toast({ title: "Backup downloaded", description: `Saved as ${filename}` });
+    } catch (err) {
+      const msg = String(err).replace(/^Error:\s*/, "");
+      toast({ title: "Download failed", description: msg, variant: "destructive" });
+    } finally {
+      setDownloadLoading(false);
     }
   };
 
@@ -284,16 +345,49 @@ export default function SystemBackup() {
             point if a deploy goes wrong. Takes 10–30 s.
           </p>
 
-          <Button
-            onClick={handlePgDump}
-            disabled={pgDumpLoading}
-            size="lg"
-            className="w-full sm:w-auto"
-          >
-            {pgDumpLoading
-              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creating snapshot…</>
-              : <><HardDrive className="h-4 w-4 mr-2" />Create database snapshot</>}
-          </Button>
+          {/* Last backup info */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 shrink-0" />
+            {lastBackupLoading ? (
+              <span className="italic">Checking last backup…</span>
+            ) : lastBackup ? (
+              <span>
+                Last backup:{" "}
+                <strong className="text-foreground">
+                  {new Date(lastBackup.lastModified).toLocaleString()}
+                </strong>
+                {" · "}
+                <span className="font-mono">{(lastBackup.sizeBytes / 1024).toFixed(1)} KB</span>
+              </span>
+            ) : (
+              <span className="italic">No backups found in R2</span>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={handlePgDump}
+              disabled={pgDumpLoading || downloadLoading}
+              size="lg"
+              className="flex-1"
+            >
+              {pgDumpLoading
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creating snapshot…</>
+                : <><HardDrive className="h-4 w-4 mr-2" />Create database snapshot</>}
+            </Button>
+
+            <Button
+              onClick={handleDownloadDump}
+              disabled={downloadLoading || pgDumpLoading}
+              size="lg"
+              variant="outline"
+              className="flex-1"
+            >
+              {downloadLoading
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Downloading…</>
+                : <><Download className="h-4 w-4 mr-2" />Download backup now</>}
+            </Button>
+          </div>
 
           {pgDumpResult && (
             <div className="rounded-md border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900 p-4 space-y-2">
