@@ -1812,26 +1812,23 @@ export default function DriveScreen() {
           style={[styles.dmAlertBanner, {
             top: topInset + 8,
             backgroundColor: isDark ? "#101613F2" : "#FFFFFFF5",
-            borderColor: primaryAlert.distanceM < 500 ? primaryAlert.color : c.primary + "66",
+            borderColor: primaryAlert.color,
             transform: [{ scale: alertOverlayScale }],
           }]}
         >
           <View style={[styles.dmAlertIconWrap, { backgroundColor: primaryAlert.color + "22" }]}>
-            <Text style={{ fontSize: 20, fontFamily: EMOJI_FONT_FAMILY }}>
+            <Text style={{ fontSize: 22, fontFamily: EMOJI_FONT_FAMILY }}>
               {resolveIncidentType(primaryAlert.type).emoji}
             </Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>
               {activeAlert?.alongTrackM != null && activeAlert.alongTrackM <= 0
-                ? primaryAlert.typeName                  // drop "ahead" once passed
+                ? primaryAlert.typeName
                 : `${primaryAlert.typeName} ahead`}
             </MarqueeText>
             <Text style={[styles.dmAlertSub, { color: c.mutedForeground }]} numberOfLines={1}>
               <Text style={{ color: c.primary, fontFamily: "Inter_700Bold" }}>
-                {/* Prefer signed along-track (decreases as driver approaches,
-                    goes negative once passed — show "Passing now" instead of
-                    an ever-growing haversine that incorrectly reads "ahead"). */}
                 {activeAlert?.alongTrackM != null
                   ? activeAlert.alongTrackM > 0
                     ? distStr(activeAlert.alongTrackM)
@@ -2186,19 +2183,19 @@ export default function DriveScreen() {
       ══════════════════════════════════════════════════════════════════ */}
       {tripActive && (
         <>
-          {/* Speed dial — green ring, big digit, km/h, limit badge below */}
+          {/* Speed dial — solid filled circle, white text */}
           <View
             pointerEvents="none"
             style={[styles.dmDialWrap, {
               top: topInset + (primaryAlert ? 90 : 16),
-              backgroundColor: isDark ? "#0F1411E8" : "#FFFFFFF0",
-              borderColor: overLimit ? c.speedDanger : c.primary,
+              backgroundColor: overLimit ? c.speedDanger : c.primary,
+              borderWidth: 0,
             }]}
           >
-            <Text style={[styles.dmDialNum, { color: overLimit ? c.speedDanger : c.primary }]}>
+            <Text style={[styles.dmDialNum, { color: "#FFFFFF" }]}>
               {Math.round(currentSpeed)}
             </Text>
-            <Text style={[styles.dmDialUnit, { color: c.mutedForeground }]}>km/h</Text>
+            <Text style={[styles.dmDialUnit, { color: "rgba(255,255,255,0.82)" }]}>km/h</Text>
             {currentSpeedLimit != null && (
               <View style={styles.dmDialLimit}>
                 <Text style={styles.dmDialLimitTxt}>{currentSpeedLimit}</Text>
@@ -4580,38 +4577,38 @@ const styles = StyleSheet.create({
   dmAlertBanner: {
     position: "absolute", left: 12, right: 12, zIndex: 19,
     flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 18, borderWidth: 1.5,
-    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 20, borderWidth: 2,
+    paddingHorizontal: 12, paddingVertical: 11,
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 10, elevation: 10,
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 10,
   },
   dmAlertIconWrap: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 46, height: 46, borderRadius: 13,
     alignItems: "center", justifyContent: "center",
   },
-  dmAlertTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  dmAlertSub:   { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },
+  dmAlertTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  dmAlertSub:   { fontSize: 13, fontFamily: "Inter_500Medium", marginTop: 2 },
   dmLimitBadge: {
-    width: 40, height: 40, borderRadius: 20,
-    borderWidth: 4, borderColor: "#E5484D",
+    width: 46, height: 46, borderRadius: 23,
+    borderWidth: 4.5, borderColor: "#E5484D",
     backgroundColor: "#FFF",
     alignItems: "center", justifyContent: "center",
   },
-  dmLimitBadgeTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111" },
+  dmLimitBadgeTxt: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111" },
 
   // ── Drive Mode speed dial ─────────────────────────────────────────────────
   dmDialWrap: {
     position: "absolute", left: 14, zIndex: 15,
-    width: 96, height: 96, borderRadius: 48, borderWidth: 5,
+    width: 100, height: 100, borderRadius: 50,
     alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 10,
   },
-  dmDialNum:  { fontSize: 32, fontFamily: "Inter_700Bold", lineHeight: 36, includeFontPadding: false },
+  dmDialNum:  { fontSize: 34, fontFamily: "Inter_700Bold", lineHeight: 38, includeFontPadding: false },
   dmDialUnit: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: -2 },
   dmDialLimit: {
     position: "absolute", bottom: -14, alignSelf: "center",
-    width: 32, height: 32, borderRadius: 16,
+    width: 34, height: 34, borderRadius: 17,
     borderWidth: 3.5, borderColor: "#E5484D",
     backgroundColor: "#FFF",
     alignItems: "center", justifyContent: "center",

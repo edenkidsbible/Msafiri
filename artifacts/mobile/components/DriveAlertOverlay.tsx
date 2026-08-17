@@ -282,16 +282,15 @@ export default function DriveAlertOverlay({
 
         {/* Type + sub-info */}
         <View style={styles.headerTextCol}>
-          <Text style={[styles.typeLabel, { color: colors.foreground }]} numberOfLines={1}>
+          <Text style={[styles.typeLabel, { color: accentColor }]} numberOfLines={1}>
             {typeLabel}
           </Text>
 
-          {/* Subtitle: road or confidence tier */}
-          {!hasExtras && alert.road ? (
-            <Text style={[styles.subLabel, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {alert.road}
-            </Text>
-          ) : null}
+          {/* Distance as primary subtitle — replaces the old distChip pill */}
+          <Text style={[styles.subLabel, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {distText}
+          </Text>
+
           {!isZone && alert.source === "report" && tier && tier !== "new" && (
             <View style={[styles.tierChip, {
               backgroundColor: tier === "reliable" ? "#00C85318" : "#FFD60018",
@@ -315,23 +314,6 @@ export default function DriveAlertOverlay({
             </View>
           )}
         </View>
-
-        {/* Distance chip — urgency coloured; shows "Passed ✓" when behind */}
-        <Animated.View style={[
-          styles.distChip,
-          {
-            backgroundColor: accentColor + "18",
-            borderColor:     accentColor + "55",
-            transform:       [{ scale: urgent ? pulse : 1 }],
-          },
-        ]}>
-          {urgent && (
-            <Ionicons name="warning" size={11} color={accentColor} style={{ marginRight: 3 }} />
-          )}
-          <Text style={[styles.distChipTxt, { color: accentColor }]}>
-            {distText}
-          </Text>
-        </Animated.View>
 
         {/* Dismiss */}
         <TouchableOpacity
@@ -532,10 +514,9 @@ const styles = StyleSheet.create({
     gap:              10,
   },
   alertOrb: {
-    width:          56,
-    height:         56,
-    borderRadius:   18,
-    borderWidth:    1.5,
+    width:          52,
+    height:         52,
+    borderRadius:   16,
     alignItems:     "center",
     justifyContent: "center",
     flexShrink:     0,
