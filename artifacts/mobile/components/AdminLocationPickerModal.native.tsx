@@ -32,6 +32,10 @@ interface Props {
   onClose: () => void;
   /** Called with the new position; should call adminUpdateReportLocation under the hood. */
   onSave: (lat: number, lng: number, roadName?: string) => Promise<void>;
+  /** Header title — defaults to "Fix Report Location". */
+  title?: string;
+  /** Alert message shown after a successful save. */
+  successMessage?: string;
 }
 
 export function AdminLocationPickerModal({
@@ -42,6 +46,8 @@ export function AdminLocationPickerModal({
   initialRoadName,
   onClose,
   onSave,
+  title = "Fix Report Location",
+  successMessage = "The report position has been saved.",
 }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -105,7 +111,7 @@ export function AdminLocationPickerModal({
     try {
       await onSave(pos.latitude, pos.longitude, roadName.trim() || undefined);
       handleClose();
-      Alert.alert("Location Updated", "The report position has been saved.");
+      Alert.alert("Location Updated", successMessage);
     } catch (err: any) {
       Alert.alert("Save Failed", err?.message ?? "Check your connection and try again.");
     } finally {
@@ -136,7 +142,7 @@ export function AdminLocationPickerModal({
           >
             <Ionicons name="close" size={20} color={c.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: c.foreground }]}>Fix Report Location</Text>
+          <Text style={[styles.headerTitle, { color: c.foreground }]}>{title}</Text>
           {/* Spacer to keep title centred */}
           <View style={{ width: 36 }} />
         </View>

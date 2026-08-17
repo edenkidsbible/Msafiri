@@ -1,9 +1,11 @@
 /**
- * admin-listings.tsx — Admin management screen for community report listings.
+ * admin-listings.tsx — Admin management screen for community reports and
+ * speed cameras / zones.
  *
- * Accessible from Profile → Manage Listings when the admin PIN has been entered
- * at the paywall.  Shows pending_review reports (waiting for admin approval)
- * and lets the admin approve or deny each one.
+ * Accessible from Profile → Manage Listings when the admin PIN has been entered.
+ * Sections:
+ *   Reports  — pending_review / active community reports; approve, deny, edit, relocate
+ *   Cameras  — speed cameras, police zones, and other zones in the DB; edit, relocate
  *
  * Uses the /admin-mobile/* endpoints with the stored 30-day JWT.
  */
@@ -13,8 +15,8 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -27,24 +29,21 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
+import AdminZoneEditSheet, { type ZoneEditFields } from "@/components/AdminZoneEditSheet";
+import AdminReportEditSheet, { type ReportEditFields } from "@/components/AdminReportEditSheet";
+import type { CommunityReport } from "@/context/AppContext";
+import type { SpeedZone } from "@/data/speedZones";
+
+// Platform-conditional imports so web doesn't try to load the native modal
+const AdminLocationPickerModal =
+  Platform.OS !== "web"
+    ? require("@/components/AdminLocationPickerModal.native").AdminLocationPickerModal
+    : () => null;
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "msafirikenya.com"}/api`;
 const EAT = "Africa/Nairobi";
-
-type AdminReport = {
-  id: string;
-  type: string;
-  status: string;
-  lat: number;
-  lng: number;
-  roadName: string | null;
-  confirmCount: number;
-  denyCount: number;
-  adminVerified: boolean;
-  speedLimit: number | null;
-  createdAt: string;
-  expiresAt: string | null;
-};
 
 function fmtAge(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -55,13 +54,15 @@ function fmtAge(iso: string): string {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-KE", { hour: "numeric", minute: "2-digit", timeZone: EAT });
+  return new Date(iso).toLocaleTimeString("en-KE", {
+    hour: "numeric", minute: "2-digit", timeZone: EAT,
+  });
 }
 
 async function adminFetch<T = unknown>(
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<T> {
   const token = await AsyncStorage.getItem("admin_mobile_token");
   if (!token) throw new Error("Not authenticated");
@@ -77,39 +78,136 @@ async function adminFetch<T = unknown>(
   return res.json() as Promise<T>;
 }
 
-type Tab = "pending" | "active";
+// ─── types ───────────────────────────────────────────────────────────────────
+
+type AdminReport = {
+  id: string;
+  type: string;
+  status: string;
+  lat: number;
+  lng: number;
+  roadName: string | null;
+  confirmCount: number;
+  denyCount: number;
+  adminVerified: boolean;
+  speedLimit: number | null;
+  cameraType: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+};
+
+type AdminZone = {
+  id: string;
+  name: string;
+  road: string | null;
+  speedLimit: number | null;
+  type: string;
+  description: string | null;
+  lat: number | null;
+  lng: number | null;
+  status: string;
+  verified: boolean;
+  staticId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Section    = "reports" | "cameras";
+type ReportTab  = "pending" | "active";
+type ZoneFilter = "all" | "camera" | "police" | "zone";
+
+// Picker target shared by both reports and zones
+type LocationTarget = {
+  id: string;
+  lat: number;
+  lng: number;
+  road: string | null;
+  forZone: boolean;
+  name?: string; // zone name for the modal title
+};
+
+// ─── Zone type display config ─────────────────────────────────────────────────
+
+const ZONE_META: Record<string, { emoji: string; label: string; color: string }> = {
+  camera: { emoji: "📷", label: "Camera",    color: "#E53935" },
+  police: { emoji: "👮", label: "Police",    color: "#1565C0" },
+  zone:   { emoji: "⚠️", label: "Zone",      color: "#E65100" },
+};
+function zoneInfo(type: string) {
+  return ZONE_META[type] ?? { emoji: "📍", label: type, color: "#555" };
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AdminListingsScreen() {
   const c = useColors();
   const { isAdmin } = useApp();
-  const [tab, setTab] = useState<Tab>("pending");
-  const [reports, setReports] = useState<AdminReport[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Section
+  const [section,    setSection]   = useState<Section>("reports");
+
+  // Reports
+  const [reportTab,  setReportTab] = useState<ReportTab>("pending");
+  const [reports,    setReports]   = useState<AdminReport[]>([]);
+  const [rLoading,   setRLoading]  = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  // Guard: non-admins can't reach this screen
-  useEffect(() => {
-    if (!isAdmin) router.back();
-  }, [isAdmin]);
+  // Zones
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>("all");
+  const [zones,      setZones]      = useState<AdminZone[]>([]);
+  const [zLoading,   setZLoading]   = useState(false);
 
+  // Edit sheets
+  const [editReport,  setEditReport]  = useState<AdminReport | null>(null);
+  const [editZone,    setEditZone]    = useState<AdminZone | null>(null);
+
+  // Location picker
+  const [locTarget, setLocTarget] = useState<LocationTarget | null>(null);
+
+  // ── Guard ────────────────────────────────────────────────────────────────
+  useEffect(() => { if (!isAdmin) router.back(); }, [isAdmin]);
+
+  // ── Fetch reports ─────────────────────────────────────────────────────────
   const fetchReports = useCallback(async () => {
-    setLoading(true);
+    setRLoading(true);
     try {
-      const status = tab === "pending" ? "pending_review" : "active";
+      const status = reportTab === "pending" ? "pending_review" : "active";
       const data = await adminFetch<{ reports: AdminReport[] }>(
-        "GET",
-        `/admin-mobile/reports?status=${status}`
+        "GET", `/admin-mobile/reports?status=${status}`
       );
       setReports(data.reports ?? []);
     } catch {
       // Keep existing list on error
     } finally {
-      setLoading(false);
+      setRLoading(false);
     }
-  }, [tab]);
+  }, [reportTab]);
 
-  useEffect(() => { fetchReports(); }, [fetchReports]);
+  useEffect(() => {
+    if (section === "reports") fetchReports();
+  }, [section, fetchReports]);
 
+  // ── Fetch zones ───────────────────────────────────────────────────────────
+  const fetchZones = useCallback(async () => {
+    setZLoading(true);
+    try {
+      const typeParam = zoneFilter === "all" ? "" : `&type=${zoneFilter}`;
+      const data = await adminFetch<{ zones: AdminZone[] }>(
+        "GET", `/admin-mobile/zones?status=active${typeParam}&limit=100`
+      );
+      setZones(data.zones ?? []);
+    } catch {
+      // Keep existing list
+    } finally {
+      setZLoading(false);
+    }
+  }, [zoneFilter]);
+
+  useEffect(() => {
+    if (section === "cameras") fetchZones();
+  }, [section, fetchZones]);
+
+  // ── Report actions ────────────────────────────────────────────────────────
   const approve = useCallback(async (id: string) => {
     setActioningId(id);
     try {
@@ -129,15 +227,14 @@ export default function AdminListingsScreen() {
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Deny",
-          style: "destructive",
+          text: "Deny", style: "destructive",
           onPress: async () => {
             setActioningId(id);
             try {
               await adminFetch("POST", `/admin-mobile/reports/${id}/deny`);
               setReports((prev) => prev.filter((r) => r.id !== id));
             } catch {
-              Alert.alert("Error", "Failed to deny report. Please try again.");
+              Alert.alert("Error", "Failed to deny report.");
             } finally {
               setActioningId(null);
             }
@@ -147,144 +244,408 @@ export default function AdminListingsScreen() {
     );
   }, []);
 
+  // ── Save report metadata ──────────────────────────────────────────────────
+  const saveReportMeta = useCallback(async (id: string, fields: ReportEditFields) => {
+    await adminFetch("PATCH", `/admin-mobile/reports/${id}/meta`, fields);
+    setReports((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? { ...r, ...fields, speedLimit: fields.speedLimit ?? null, roadName: fields.roadName ?? null }
+          : r
+      )
+    );
+  }, []);
+
+  // ── Save zone metadata ────────────────────────────────────────────────────
+  const saveZoneMeta = useCallback(async (id: string, fields: ZoneEditFields) => {
+    await adminFetch("PATCH", `/admin-mobile/zones/${id}/meta`, fields);
+    setZones((prev) =>
+      prev.map((z) =>
+        z.id === id
+          ? { ...z, ...fields, speedLimit: fields.speedLimit ?? null }
+          : z
+      )
+    );
+  }, []);
+
+  // ── Save location (report or zone) ────────────────────────────────────────
+  const saveLocation = useCallback(async (
+    lat: number, lng: number, roadName?: string
+  ) => {
+    if (!locTarget) return;
+    const { id, forZone } = locTarget;
+    if (forZone) {
+      await adminFetch("PATCH", `/admin-mobile/zones/${id}/location`, { lat, lng });
+      setZones((prev) =>
+        prev.map((z) => z.id === id ? { ...z, lat, lng } : z)
+      );
+    } else {
+      await adminFetch("PATCH", `/admin-mobile/reports/${id}/location`, {
+        lat, lng, roadName: roadName ?? null,
+      });
+      setReports((prev) =>
+        prev.map((r) => r.id === id ? { ...r, lat, lng, roadName: roadName ?? r.roadName } : r)
+      );
+    }
+  }, [locTarget]);
+
   if (!isAdmin) return null;
 
+  // ── Report card ───────────────────────────────────────────────────────────
+  function renderReport({ item: r }: { item: AdminReport }) {
+    const def  = resolveIncidentType(r.type);
+    const busy = actioningId === r.id;
+    const isPending = r.status === "pending_review";
+
+    return (
+      <View style={[ss.card, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
+        {/* Type + status row */}
+        <View style={ss.cardTop}>
+          <View style={[ss.typePill, { backgroundColor: def.color + "22" }]}>
+            <Text style={[ss.typeEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{def.emoji}</Text>
+            <Text style={[ss.typeLabel, { color: def.color }]}>{def.label}</Text>
+          </View>
+          <View style={[
+            ss.statusPill,
+            { backgroundColor: isPending ? "#F59E0B22" : "#22C55E22" },
+          ]}>
+            <Text style={[ss.statusTxt, { color: isPending ? "#D97706" : "#16A34A" }]}>
+              {isPending ? "Pending" : r.adminVerified ? "Verified ✓" : "Active"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Location */}
+        {r.roadName
+          ? <Text style={[ss.road, { color: c.foreground }]} numberOfLines={1}>📍 {r.roadName}</Text>
+          : <Text style={[ss.road, { color: c.mutedForeground }]} numberOfLines={1}>{r.lat.toFixed(5)}, {r.lng.toFixed(5)}</Text>
+        }
+
+        {/* Meta */}
+        <Text style={[ss.meta, { color: c.mutedForeground }]}>
+          {fmtAge(r.createdAt)} · {fmtTime(r.createdAt)}
+          {r.speedLimit != null ? ` · ${r.speedLimit} km/h` : ""}
+        </Text>
+        <Text style={[ss.meta, { color: c.mutedForeground }]}>
+          👍 {r.confirmCount} · 👎 {r.denyCount}
+        </Text>
+
+        {/* Action buttons — row 1: approve/deny (pending only), always shown for active */}
+        {isPending && (
+          <View style={[ss.actionRow, { marginTop: 8 }]}>
+            <TouchableOpacity
+              style={[ss.btnGreen, busy && ss.btnDisabled]}
+              onPress={() => approve(r.id)}
+              disabled={busy}
+              activeOpacity={0.8}
+            >
+              {busy
+                ? <ActivityIndicator size="small" color="#FFF" />
+                : <><Ionicons name="checkmark-circle" size={15} color="#FFF" /><Text style={ss.btnTxtWhite}>Approve</Text></>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[ss.btnOutline, { borderColor: c.destructive + "55" }, busy && ss.btnDisabled]}
+              onPress={() => deny(r.id)}
+              disabled={busy}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close-circle" size={15} color={c.destructive} />
+              <Text style={[ss.btnTxtColor, { color: c.destructive }]}>Deny</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Row 2: Edit + Location */}
+        <View style={ss.actionRow}>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: c.border }, busy && ss.btnDisabled]}
+            onPress={() => setEditReport(r)}
+            disabled={busy}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="pencil" size={14} color={c.foreground} />
+            <Text style={[ss.btnTxtColor, { color: c.foreground }]}>Edit Details</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: c.border }, busy && ss.btnDisabled]}
+            onPress={() => setLocTarget({ id: r.id, lat: r.lat, lng: r.lng, road: r.roadName, forZone: false })}
+            disabled={busy}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="location" size={14} color="#1565C0" />
+            <Text style={[ss.btnTxtColor, { color: "#1565C0" }]}>Fix Location</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Zone card ─────────────────────────────────────────────────────────────
+  function renderZone({ item: z }: { item: AdminZone }) {
+    const meta = zoneInfo(z.type);
+    return (
+      <View style={[ss.card, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
+        {/* Type + verified row */}
+        <View style={ss.cardTop}>
+          <View style={[ss.typePill, { backgroundColor: meta.color + "22" }]}>
+            <Text style={[ss.typeEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{meta.emoji}</Text>
+            <Text style={[ss.typeLabel, { color: meta.color }]}>{meta.label}</Text>
+          </View>
+          {z.verified && (
+            <View style={[ss.statusPill, { backgroundColor: "#22C55E22" }]}>
+              <Text style={[ss.statusTxt, { color: "#16A34A" }]}>Verified ✓</Text>
+            </View>
+          )}
+          {z.speedLimit != null && (
+            <View style={[ss.statusPill, { backgroundColor: "#1565C022" }]}>
+              <Text style={[ss.statusTxt, { color: "#1565C0" }]}>{z.speedLimit} km/h</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Name */}
+        <Text style={[ss.road, { color: c.foreground }]} numberOfLines={1}>{z.name}</Text>
+
+        {/* Road */}
+        {z.road
+          ? <Text style={[ss.meta, { color: c.mutedForeground }]} numberOfLines={1}>📍 {z.road}</Text>
+          : (z.lat != null && z.lng != null)
+            ? <Text style={[ss.meta, { color: c.mutedForeground }]}>{z.lat.toFixed(5)}, {z.lng.toFixed(5)}</Text>
+            : <Text style={[ss.meta, { color: c.mutedForeground }]}>No location set</Text>
+        }
+
+        {/* Description */}
+        {!!z.description && (
+          <Text style={[ss.meta, { color: c.mutedForeground }]} numberOfLines={2}>{z.description}</Text>
+        )}
+
+        <Text style={[ss.meta, { color: c.mutedForeground }]}>
+          {fmtAge(z.updatedAt)} updated
+        </Text>
+
+        {/* Actions */}
+        <View style={[ss.actionRow, { marginTop: 8 }]}>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: c.border }]}
+            onPress={() => setEditZone(z)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="pencil" size={14} color={c.foreground} />
+            <Text style={[ss.btnTxtColor, { color: c.foreground }]}>Edit Details</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: c.border }]}
+            onPress={() => setLocTarget({
+              id: z.id,
+              lat: z.lat ?? 0,
+              lng: z.lng ?? 0,
+              road: z.road,
+              forZone: true,
+              name: z.name,
+            })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="location" size={14} color="#1565C0" />
+            <Text style={[ss.btnTxtColor, { color: "#1565C0" }]}>Fix Location</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: c.background }]}>
+    <SafeAreaView style={[ss.root, { backgroundColor: c.background }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: c.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <View style={[ss.header, { borderBottomColor: c.border }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={ss.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="chevron-back" size={26} color={c.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: c.foreground }]}>Manage Listings</Text>
-        <TouchableOpacity onPress={fetchReports} style={styles.refreshBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={[ss.headerTitle, { color: c.foreground }]}>Manage Listings</Text>
+        <TouchableOpacity
+          onPress={section === "reports" ? fetchReports : fetchZones}
+          style={ss.refreshBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="refresh" size={22} color={c.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Tab selector */}
-      <View style={[styles.segmentWrap, { backgroundColor: c.muted }]}>
-        {(["pending", "active"] as Tab[]).map((t) => (
+      {/* Section switcher: Reports | Cameras */}
+      <View style={[ss.sectionRow, { borderBottomColor: c.border }]}>
+        {(["reports", "cameras"] as Section[]).map((s) => (
           <TouchableOpacity
-            key={t}
-            style={[styles.segmentBtn, tab === t && { backgroundColor: c.card }]}
-            onPress={() => setTab(t)}
+            key={s}
+            style={[ss.sectionTab, section === s && { borderBottomColor: c.primary }]}
+            onPress={() => setSection(s)}
           >
-            <Text style={[styles.segmentTxt, { color: tab === t ? c.primary : c.mutedForeground }]}>
-              {t === "pending" ? "Needs Review" : "Active Reports"}
+            <Ionicons
+              name={s === "reports" ? "flag" : "camera"}
+              size={15}
+              color={section === s ? c.primary : c.mutedForeground}
+            />
+            <Text style={[ss.sectionTxt, { color: section === s ? c.primary : c.mutedForeground }]}>
+              {s === "reports" ? "Reports" : "Cameras & Zones"}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={c.primary} />
-          <Text style={[styles.loadingTxt, { color: c.mutedForeground }]}>Loading reports…</Text>
-        </View>
-      ) : reports.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyIcon}>{tab === "pending" ? "✅" : "🗺️"}</Text>
-          <Text style={[styles.emptyTitle, { color: c.foreground }]}>
-            {tab === "pending" ? "All clear" : "No active reports"}
-          </Text>
-          <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
-            {tab === "pending"
-              ? "No reports are waiting for review right now."
-              : "There are no live community reports at the moment."}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={reports}
-          keyExtractor={(r) => r.id}
-          contentContainerStyle={{ padding: 16, gap: 12 }}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text style={[styles.countLabel, { color: c.mutedForeground }]}>
-              {reports.length} report{reports.length !== 1 ? "s" : ""}
-            </Text>
-          }
-          renderItem={({ item: r }) => {
-            const def = resolveIncidentType(r.type);
-            const busy = actioningId === r.id;
-            return (
-              <View style={[styles.card, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
-                {/* Type + status row */}
-                <View style={styles.cardTop}>
-                  <View style={[styles.typePill, { backgroundColor: def.color + "22" }]}>
-                    <Text style={[styles.typeEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{def.emoji}</Text>
-                    <Text style={[styles.typeLabel, { color: def.color }]}>{def.label}</Text>
-                  </View>
-                  <View style={[
-                    styles.statusPill,
-                    { backgroundColor: r.status === "pending_review" ? "#F59E0B22" : "#22C55E22" },
-                  ]}>
-                    <Text style={[
-                      styles.statusTxt,
-                      { color: r.status === "pending_review" ? "#D97706" : "#16A34A" },
-                    ]}>
-                      {r.status === "pending_review" ? "Pending" : r.adminVerified ? "Verified ✓" : "Active"}
+      {/* ── REPORTS section ─────────────────────────────────────────────── */}
+      {section === "reports" && (
+        <>
+          <View style={[ss.segmentWrap, { backgroundColor: c.muted }]}>
+            {(["pending", "active"] as ReportTab[]).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[ss.segmentBtn, reportTab === t && { backgroundColor: c.card }]}
+                onPress={() => setReportTab(t)}
+              >
+                <Text style={[ss.segmentTxt, { color: reportTab === t ? c.primary : c.mutedForeground }]}>
+                  {t === "pending" ? "Needs Review" : "Active Reports"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {rLoading ? (
+            <View style={ss.center}>
+              <ActivityIndicator size="large" color={c.primary} />
+              <Text style={[ss.loadingTxt, { color: c.mutedForeground }]}>Loading reports…</Text>
+            </View>
+          ) : reports.length === 0 ? (
+            <View style={ss.center}>
+              <Text style={ss.emptyIcon}>{reportTab === "pending" ? "✅" : "🗺️"}</Text>
+              <Text style={[ss.emptyTitle, { color: c.foreground }]}>
+                {reportTab === "pending" ? "All clear" : "No active reports"}
+              </Text>
+              <Text style={[ss.emptyText, { color: c.mutedForeground }]}>
+                {reportTab === "pending"
+                  ? "No reports are waiting for review right now."
+                  : "There are no live community reports at the moment."}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={reports}
+              keyExtractor={(r) => r.id}
+              contentContainerStyle={{ padding: 16, gap: 12 }}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                <Text style={[ss.countLabel, { color: c.mutedForeground }]}>
+                  {reports.length} report{reports.length !== 1 ? "s" : ""}
+                </Text>
+              }
+              renderItem={renderReport}
+            />
+          )}
+        </>
+      )}
+
+      {/* ── CAMERAS section ─────────────────────────────────────────────── */}
+      {section === "cameras" && (
+        <>
+          {/* Zone type filter tabs */}
+          <View style={[ss.filterRow, { backgroundColor: c.muted }]}>
+            {(["all", "camera", "police", "zone"] as ZoneFilter[]).map((f) => {
+              const active = zoneFilter === f;
+              const meta   = f === "all" ? null : zoneInfo(f);
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[ss.filterBtn, active && { backgroundColor: c.card }]}
+                  onPress={() => setZoneFilter(f)}
+                >
+                  {meta && (
+                    <Text style={{ fontSize: 12, fontFamily: EMOJI_FONT_FAMILY }}>
+                      {meta.emoji}
                     </Text>
-                  </View>
-                </View>
-
-                {/* Location */}
-                {r.roadName ? (
-                  <Text style={[styles.road, { color: c.foreground }]} numberOfLines={1}>
-                    📍 {r.roadName}
+                  )}
+                  <Text style={[ss.filterTxt, { color: active ? c.primary : c.mutedForeground }]}>
+                    {f === "all" ? "All" : meta!.label}
                   </Text>
-                ) : (
-                  <Text style={[styles.road, { color: c.mutedForeground }]} numberOfLines={1}>
-                    {r.lat.toFixed(5)}, {r.lng.toFixed(5)}
-                  </Text>
-                )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-                {/* Meta */}
-                <Text style={[styles.meta, { color: c.mutedForeground }]}>
-                  {fmtAge(r.createdAt)} · {fmtTime(r.createdAt)}
-                  {r.speedLimit != null ? ` · ${r.speedLimit} km/h zone` : ""}
+          {zLoading ? (
+            <View style={ss.center}>
+              <ActivityIndicator size="large" color={c.primary} />
+              <Text style={[ss.loadingTxt, { color: c.mutedForeground }]}>Loading zones…</Text>
+            </View>
+          ) : zones.length === 0 ? (
+            <View style={ss.center}>
+              <Text style={ss.emptyIcon}>📷</Text>
+              <Text style={[ss.emptyTitle, { color: c.foreground }]}>No zones found</Text>
+              <Text style={[ss.emptyText, { color: c.mutedForeground }]}>
+                No{zoneFilter !== "all" ? ` ${zoneFilter}` : ""} zones are in the database yet.{"\n"}
+                Zones promoted from the map or created by admins appear here.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={zones}
+              keyExtractor={(z) => z.id}
+              contentContainerStyle={{ padding: 16, gap: 12 }}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                <Text style={[ss.countLabel, { color: c.mutedForeground }]}>
+                  {zones.length} zone{zones.length !== 1 ? "s" : ""}
                 </Text>
-                <Text style={[styles.votes, { color: c.mutedForeground }]}>
-                  👍 {r.confirmCount} confirms · 👎 {r.denyCount} denies
-                </Text>
+              }
+              renderItem={renderZone}
+            />
+          )}
+        </>
+      )}
 
-                {/* Action buttons */}
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={[styles.approveBtn, busy && styles.btnDisabled]}
-                    onPress={() => approve(r.id)}
-                    disabled={busy}
-                    activeOpacity={0.8}
-                  >
-                    {busy
-                      ? <ActivityIndicator size="small" color="#FFF" />
-                      : <>
-                          <Ionicons name="checkmark-circle" size={16} color="#FFF" />
-                          <Text style={styles.btnTxt}>Approve</Text>
-                        </>
-                    }
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.denyBtn, { borderColor: c.destructive + "55" }, busy && styles.btnDisabled]}
-                    onPress={() => deny(r.id)}
-                    disabled={busy}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="close-circle" size={16} color={c.destructive} />
-                    <Text style={[styles.denyTxt, { color: c.destructive }]}>Deny</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          }}
+      {/* ── Report edit sheet ─────────────────────────────────────────────── */}
+      {editReport && (
+        <AdminReportEditSheet
+          report={editReport as unknown as CommunityReport}
+          visible={!!editReport}
+          onClose={() => setEditReport(null)}
+          onSave={(fields) => saveReportMeta(editReport.id, fields)}
+        />
+      )}
+
+      {/* ── Zone edit sheet ───────────────────────────────────────────────── */}
+      {editZone && (
+        <AdminZoneEditSheet
+          zone={editZone as unknown as SpeedZone}
+          visible={!!editZone}
+          onClose={() => setEditZone(null)}
+          onSave={(fields) => saveZoneMeta(editZone.id, fields)}
+        />
+      )}
+
+      {/* ── Location picker (reports + zones) ────────────────────────────── */}
+      {locTarget && Platform.OS !== "web" && (
+        <AdminLocationPickerModal
+          visible={!!locTarget}
+          reportId={locTarget.id}
+          initialLat={locTarget.lat}
+          initialLng={locTarget.lng}
+          initialRoadName={locTarget.road ?? undefined}
+          title={locTarget.forZone ? `Fix Location — ${locTarget.name ?? "Zone"}` : "Fix Report Location"}
+          successMessage={locTarget.forZone ? "Zone location has been saved." : "The report position has been saved."}
+          onClose={() => setLocTarget(null)}
+          onSave={saveLocation}
         />
       )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const ss = StyleSheet.create({
   root: { flex: 1 },
 
   header: {
@@ -295,10 +656,28 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: { width: 44, alignItems: "flex-start", paddingLeft: 8 },
-  refreshBtn: { width: 44, alignItems: "flex-end", paddingRight: 8 },
+  backBtn:     { width: 44, alignItems: "flex-start", paddingLeft: 8 },
+  refreshBtn:  { width: 44, alignItems: "flex-end",   paddingRight: 8 },
   headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
 
+  // Section switcher (Reports | Cameras)
+  sectionRow: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  sectionTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  sectionTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  // Sub-tabs (inside Reports: Pending | Active)
   segmentWrap: {
     flexDirection: "row",
     margin: 16,
@@ -313,21 +692,38 @@ const styles = StyleSheet.create({
   },
   segmentTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, padding: 24 },
-  loadingTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  // Zone type filter (inside Cameras)
+  filterRow: {
+    flexDirection: "row",
+    margin: 16,
+    borderRadius: 12,
+    padding: 3,
+  },
+  filterBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  filterTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
+  center:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, padding: 24 },
+  loadingTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  emptyIcon:  { fontSize: 48 },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  emptyText:  { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
   countLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 4 },
 
   card: {
     borderRadius: 16,
     borderWidth: 1,
     padding: 14,
-    gap: 6,
+    gap: 5,
   },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" },
 
   typePill: {
     flexDirection: "row",
@@ -337,38 +733,38 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  typeEmoji: { fontSize: 14 },
+  typeEmoji: { fontSize: 13 },
   typeLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
   statusPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  statusTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  statusTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
   road: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  votes: { fontSize: 12, fontFamily: "Inter_400Regular" },
 
-  actions: { flexDirection: "row", gap: 10, marginTop: 6 },
-  approveBtn: {
+  actionRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+
+  btnGreen: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "#22C55E",
-    borderRadius: 12,
-    paddingVertical: 10,
+    borderRadius: 10,
+    paddingVertical: 9,
   },
-  denyBtn: {
+  btnOutline: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    borderRadius: 12,
+    gap: 5,
+    borderRadius: 10,
     borderWidth: 1.5,
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
-  btnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  denyTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  btnTxtWhite: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  btnTxtColor: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   btnDisabled: { opacity: 0.5 },
 });

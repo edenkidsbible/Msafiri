@@ -89,9 +89,10 @@ router.get("/admin-mobile/reports", adminMobileAuth, async (req: Request, res: R
         confirmCount: communityReportsTable.confirmCount,
         denyCount: communityReportsTable.denyCount,
         adminVerified: communityReportsTable.adminVerified,
-        speedLimit: communityReportsTable.speedLimit,
-        createdAt: communityReportsTable.createdAt,
-        expiresAt: communityReportsTable.expiresAt,
+        speedLimit:  communityReportsTable.speedLimit,
+        cameraType:  communityReportsTable.cameraType,
+        createdAt:   communityReportsTable.createdAt,
+        expiresAt:   communityReportsTable.expiresAt,
       })
       .from(communityReportsTable)
       .where(eq(communityReportsTable.status, safeStatus as any))
@@ -654,6 +655,72 @@ router.get(
       });
     } catch (err) {
       console.error("[admin-mobile/reports/all]", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// ─── GET /admin-mobile/zones ─────────────────────────────────────────────────
+// Paginated list of speed zones for the admin listings screen.
+// Query params: type (camera|police|zone|all), status (active|inactive|all),
+//               page (1-based, default 1), limit (default 50, max 100).
+router.get(
+  "/admin-mobile/zones",
+  adminMobileAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { type, status = "active", page = "1", limit = "50" } =
+        req.query as Record<string, string>;
+      const pageNum  = Math.max(1, parseInt(page,  10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+      const offset   = (pageNum - 1) * limitNum;
+
+      const { and, eq: eqOp, count: countFn, ne } = await import("drizzle-orm");
+      const filters: ReturnType<typeof eqOp>[] = [];
+
+      if (status && status !== "all") {
+        filters.push(eqOp(speedZonesTable.status, status as any));
+      }
+      if (type && type !== "all" && ["camera", "police", "zone"].includes(type)) {
+        filters.push(eqOp(speedZonesTable.type, type as any));
+      }
+      const where = filters.length ? and(...filters) : undefined;
+
+      const [{ total }] = await db
+        .select({ total: countFn() })
+        .from(speedZonesTable)
+        .where(where);
+
+      const rows = await db
+        .select()
+        .from(speedZonesTable)
+        .where(where)
+        .orderBy(desc(speedZonesTable.createdAt))
+        .limit(limitNum)
+        .offset(offset);
+
+      return res.json({
+        total:  Number(total),
+        page:   pageNum,
+        limit:  limitNum,
+        zones:  rows.map((z) => ({
+          id:          z.id,
+          name:        z.name,
+          road:        z.road        ?? null,
+          speedLimit:  z.speedLimit  ?? null,
+          type:        z.type,
+          description: z.description ?? null,
+          lat:         z.lat,
+          lng:         z.lng,
+          status:      z.status,
+          verified:    z.verified,
+          staticId:    z.staticId    ?? null,
+          createdAt:   z.createdAt instanceof Date ? z.createdAt.toISOString() : String(z.createdAt),
+          updatedAt:   z.updatedAt instanceof Date ? z.updatedAt.toISOString() : String(z.updatedAt ?? z.createdAt),
+        })),
+      });
+    } catch (err) {
+      console.error("[admin-mobile/zones]", err);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
