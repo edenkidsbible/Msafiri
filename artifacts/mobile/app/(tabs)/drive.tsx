@@ -95,6 +95,35 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+/** Signed along-track distance (metres). Positive = ahead of the driver, negative = behind.
+ *  When heading is null the caller should treat the zone as "unknown direction" and allow it through. */
+function alongTrackM(
+  driverLat: number, driverLng: number, heading: number,
+  targetLat: number, targetLng: number,
+): number {
+  const dist = haversineM(driverLat, driverLng, targetLat, targetLng);
+  const R = 6371000;
+  const dLat = ((targetLat - driverLat) * Math.PI) / 180;
+  const dLng = ((targetLng - driverLng) * Math.PI) / 180;
+  const lat1 = (driverLat * Math.PI) / 180;
+  const lat2 = (targetLat * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  const brg = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  void dLat; void R; // dist already computed above
+  const deltaRad = ((brg - heading + 540) % 360 - 180) * (Math.PI / 180);
+  return dist * Math.cos(deltaRad);
+}
+
+/** Returns true when the target is ahead of the driver (or heading is unknown). */
+function isAheadOfDriver(
+  driverLat: number, driverLng: number, heading: number | null,
+  targetLat: number, targetLng: number,
+): boolean {
+  if (heading == null) return true; // no direction data — don't suppress
+  return alongTrackM(driverLat, driverLng, heading, targetLat, targetLng) > 0;
+}
 function durationStr(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -188,7 +217,7 @@ export default function DriveScreen() {
     setNavTripActive, setNavTripPaused,
     isOffline, lastAlertDataSyncedAt,
   } = useApp();
-  const { currentLat, currentLng, currentSpeed } = useLiveLocation();
+  const { currentLat, currentLng, currentSpeed, driverHeading } = useLiveLocation();
 
   const { markDismissed } = useIncidentConfirmationPrompt();
 
@@ -1032,7 +1061,6 @@ export default function DriveScreen() {
       isHere?: boolean;
     };
     const results: NearbyCandidate[] = [];
-    const TWO_HOURS = 2 * 60 * 60 * 1000;
     const NEARBY_RADIUS_M = 3000;
     const now = Date.now();
 
@@ -1047,11 +1075,10 @@ export default function DriveScreen() {
       });
     }
 
-    // Community reports within 3 km, < 2 h old
+    // Community reports within 3 km (server handles expiry via TTL + expireReports job)
     if (currentLat != null && currentLng != null) {
       for (const r of communityReports) {
         if (r.status === "expired" || r.status === "denied") continue;
-        if (now - r.timestamp > TWO_HOURS) continue;
         const d = haversineM(currentLat, currentLng, r.lat, r.lng);
         if (d > NEARBY_RADIUS_M) continue;
         results.push({
@@ -1116,7 +1143,13 @@ export default function DriveScreen() {
     // Skip any zone within 250 m — those are in-zone or just-passed; the
     // DriveAlertOverlay handles them, and the strip would show a stale distance
     // counting upward after the driver passes.
-    const aheadZone = nearbyZones.find(z => z.distance > 250);
+    // Heading gate: when the driver's heading is known, only show zones that are
+    // AHEAD (positive along-track). This stops a just-passed camera from
+    // continuing to appear in the banner as it falls behind.
+    const aheadZone = nearbyZones.find(z =>
+      z.distance > 250 &&
+      isAheadOfDriver(currentLat ?? 0, currentLng ?? 0, driverHeading, z.lat, z.lng)
+    );
     if (aheadZone) {
       candidates.push({
         type: aheadZone.type, typeName: resolveIncidentType(aheadZone.type).label,
@@ -1127,20 +1160,19 @@ export default function DriveScreen() {
     }
 
     // Community reports + HERE incidents within 3 km.
-    // Same 250 m cutoff — once the driver is inside the zone the overlay owns it.
+    // Same 250 m cutoff + heading gate — once the driver is inside the zone or
+    // has passed, the overlay owns it (or should not show it at all).
     if (currentLat != null && currentLng != null) {
-      const TWO_HOURS = 2 * 60 * 60 * 1000;
       const REPORT_RADIUS_M = 3000;
       const now = Date.now();
       let nearestDist = Infinity;
       let nearestReport: typeof communityReports[0] | null = null;
       for (const r of communityReports) {
-        if (now - r.timestamp > TWO_HOURS) continue;
         const d = haversineM(currentLat, currentLng, r.lat, r.lng);
-        if (d > 250 && d <= REPORT_RADIUS_M && d < nearestDist) {
-          nearestDist = d;
-          nearestReport = r;
-        }
+        if (d <= 250 || d > REPORT_RADIUS_M || d >= nearestDist) continue;
+        if (!isAheadOfDriver(currentLat, currentLng, driverHeading, r.lat, r.lng)) continue;
+        nearestDist = d;
+        nearestReport = r;
       }
       if (nearestReport) {
         candidates.push({
@@ -1157,10 +1189,10 @@ export default function DriveScreen() {
       for (const h of hereIncidents) {
         if (h.endTime != null && h.endTime < now) continue;
         const d = haversineM(currentLat, currentLng, h.lat, h.lng);
-        if (d > 250 && d <= REPORT_RADIUS_M && d < nearestHereDist) {
-          nearestHereDist = d;
-          nearestHere = h;
-        }
+        if (d <= 250 || d > REPORT_RADIUS_M || d >= nearestHereDist) continue;
+        if (!isAheadOfDriver(currentLat, currentLng, driverHeading, h.lat, h.lng)) continue;
+        nearestHereDist = d;
+        nearestHere = h;
       }
       if (nearestHere) {
         candidates.push({
@@ -1183,7 +1215,7 @@ export default function DriveScreen() {
       return within1000.find(c => c.isSpeedCam) ?? within1000[0];
     }
     return candidates.find(c => c.isSpeedCam) ?? null;
-  }, [activeRoute, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng]);
+  }, [activeRoute, routeIncidentsAhead, nearbyZones, communityReports, hereIncidents, currentLat, currentLng, driverHeading]);
 
   // ── Alert overlay heartbeat pulse ────────────────────────────────────────
   // Placed here (after primaryAlert useMemo) so alertDistM can read it safely.
