@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authFetch, getUser } from "@/lib/auth";
-import { subscribeChatSocket, type ChatSocketEvent } from "@/lib/chat-socket";
+import { subscribeChatSocket, sendChatFrame, type ChatSocketEvent } from "@/lib/chat-socket";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -84,6 +84,13 @@ export default function Chat() {
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Typing indicators: map of conversationId → list of currently-typing users.
+  const [typingMap, setTypingMap] = useState<
+    Record<number, { userId: string; senderName: string; expiresAt: number }[]>
+  >({});
+  // Throttle ref: only send one "typing" frame every 2 s while the user keeps typing.
+  const typingThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data: conversations, isLoading } = useQuery<ConversationItem[]>({
     queryKey: ["ops-chat-conversations"],
     queryFn: async () => {
@@ -140,6 +147,15 @@ export default function Chat() {
       }
       if (evt.event === "message:new" && evt.message) {
         const msg = evt.message;
+        // Clear typing indicator for the sender once their message arrives.
+        if (msg.senderId) {
+          setTypingMap((prev) => ({
+            ...prev,
+            [msg.conversationId]: (prev[msg.conversationId] ?? []).filter(
+              (t) => t.userId !== msg.senderId,
+            ),
+          }));
+        }
         queryClient.setQueryData<ChatMessage[]>(
           ["ops-chat-messages", msg.conversationId],
           (old) => {
@@ -149,10 +165,31 @@ export default function Chat() {
           },
         );
         queryClient.invalidateQueries({ queryKey: ["ops-chat-conversations"] });
+        return;
+      }
+      if (
+        evt.event === "typing" &&
+        evt.conversationId != null &&
+        evt.userId &&
+        evt.userId !== me?.id
+      ) {
+        const { conversationId, userId, senderName = "Someone" } = evt;
+        const expiresAt = Date.now() + 4000;
+        setTypingMap((prev) => {
+          const existing = (prev[conversationId] ?? []).filter((t) => t.userId !== userId);
+          return { ...prev, [conversationId]: [...existing, { userId, senderName, expiresAt }] };
+        });
+        // Auto-expire the indicator after the grace period.
+        setTimeout(() => {
+          setTypingMap((prev) => ({
+            ...prev,
+            [conversationId]: (prev[conversationId] ?? []).filter((t) => t.expiresAt > Date.now()),
+          }));
+        }, 4100);
       }
     });
     return unsubscribe;
-  }, [queryClient]);
+  }, [queryClient, me?.id]);
 
   // Keep the message pane scrolled to the bottom.
   useEffect(() => {
@@ -340,10 +377,49 @@ export default function Chat() {
                   );
                 })}
               </div>
+              {/* Typing indicator */}
+              {(() => {
+                const now = Date.now();
+                const typingUsers =
+                  selectedId != null
+                    ? (typingMap[selectedId] ?? []).filter((t) => t.expiresAt > now)
+                    : [];
+                if (typingUsers.length === 0) return null;
+                const label =
+                  typingUsers.length === 1
+                    ? `${typingUsers[0].senderName} is typing…`
+                    : "Several people are typing…";
+                return (
+                  <div className="px-4 py-1 flex items-center gap-1.5">
+                    <span className="flex gap-0.5">
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
+                          style={{ animationDelay: `${i * 0.15}s` }}
+                        />
+                      ))}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                  </div>
+                );
+              })()}
               <div className="p-3 border-t flex items-end gap-2">
                 <textarea
                   value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    // Emit a typing frame at most once every 2 s.
+                    if (selectedId != null && !typingThrottleRef.current) {
+                      sendChatFrame({
+                        event: "typing",
+                        conversationId: selectedId,
+                      });
+                      typingThrottleRef.current = setTimeout(() => {
+                        typingThrottleRef.current = null;
+                      }, 2000);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();

@@ -11,6 +11,8 @@ import { getToken } from "@/lib/auth";
 export interface ChatSocketEvent {
   event: string;
   conversationId?: number;
+  userId?: string;
+  senderName?: string;
   message?: {
     id: number;
     conversationId: number;
@@ -88,6 +90,13 @@ function scheduleReconnect(): void {
     if (listeners.size > 0) connect();
   }, backoffMs);
   backoffMs = Math.min(backoffMs * 2, 30_000);
+}
+
+/** Send a frame to the server over the shared connection (fire-and-forget). */
+export function sendChatFrame(frame: Record<string, unknown>): void {
+  if (ws?.readyState === WebSocket.OPEN) {
+    try { ws.send(JSON.stringify(frame)); } catch { /* noop */ }
+  }
 }
 
 /** Subscribe to chat events. Opens the shared connection on first subscriber. */

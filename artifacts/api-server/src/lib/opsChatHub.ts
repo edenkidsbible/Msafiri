@@ -16,6 +16,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
 import jwt from "jsonwebtoken";
+import { eq, sql } from "drizzle-orm";
+import { db, adminUsersTable, opsConversationsTable, opsConversationMembersTable } from "@workspace/db";
 import { logger } from "./logger";
 import type { AdminJwtPayload } from "../middleware/adminAuth";
 
@@ -70,11 +72,15 @@ export function setupOpsChatWs(server: Server): void {
         client.alive = true;
       });
       ws.on("message", (raw) => {
-        // Client keepalive — respond so the browser side can detect dead links.
         try {
           const msg = JSON.parse(String(raw));
           if (msg?.event === "ping") {
+            // Client keepalive — respond so the browser side can detect dead links.
             ws.send(JSON.stringify({ event: "pong" }));
+          } else if (msg?.event === "typing" && typeof msg.conversationId === "number") {
+            // Relay typing indicator to other conversation members.
+            // senderName is resolved server-side; we never trust client-supplied identity.
+            void relayTyping(userId, msg.conversationId);
           }
         } catch {
           /* ignore malformed frames */
@@ -106,6 +112,71 @@ export function setupOpsChatWs(server: Server): void {
     }
   }, 30_000);
   interval.unref();
+}
+
+/**
+ * Relay a typing indicator to the other members of a conversation.
+ *
+ * Access control:
+ *   - For direct conversations the sender must have a membership row; if not,
+ *     the frame is silently dropped.
+ *   - For group conversations being an authenticated admin (already verified by
+ *     the JWT check on connect) is sufficient.
+ *
+ * Identity: senderName is resolved server-side from admin_users — the client-
+ * supplied value is never used.
+ */
+async function relayTyping(senderId: string, conversationId: number): Promise<void> {
+  try {
+    // 1. Look up conversation type.
+    const [conv] = await db
+      .select({ type: opsConversationsTable.type })
+      .from(opsConversationsTable)
+      .where(eq(opsConversationsTable.id, conversationId))
+      .limit(1);
+    if (!conv) return;
+
+    // 2. Look up conversation members (needed for DM auth and targeting).
+    const members = await db
+      .select({ userId: opsConversationMembersTable.userId })
+      .from(opsConversationMembersTable)
+      .where(eq(opsConversationMembersTable.conversationId, conversationId));
+    const memberIds = members.map((m) => m.userId);
+
+    // 3. For direct conversations enforce membership — prevents cross-conversation snooping.
+    if (conv.type === "direct" && !memberIds.includes(senderId)) return;
+
+    // 4. Resolve the sender's display name server-side.
+    //    admin_users.id is UUID; senderId comes from the JWT as a string, so cast.
+    const [sender] = await db
+      .select({ name: adminUsersTable.name })
+      .from(adminUsersTable)
+      .where(sql`${adminUsersTable.id}::text = ${senderId}`)
+      .limit(1);
+    const senderName = sender?.name ?? "Unknown";
+
+    const frame = JSON.stringify({ event: "typing", conversationId, userId: senderId, senderName });
+
+    if (conv.type === "direct") {
+      // Only relay to the other member of the DM.
+      const recipients = new Set(memberIds.filter((id) => id !== senderId));
+      for (const client of clients) {
+        if (recipients.has(client.userId) && client.ws.readyState === WebSocket.OPEN) {
+          try { client.ws.send(frame); } catch { /* noop */ }
+        }
+      }
+    } else {
+      // Group conversation — broadcast to all connected clients except the sender.
+      for (const client of clients) {
+        if (client.userId === senderId) continue;
+        if (client.ws.readyState === WebSocket.OPEN) {
+          try { client.ws.send(frame); } catch { /* noop */ }
+        }
+      }
+    }
+  } catch {
+    /* ignore relay errors — typing indicators are best-effort */
+  }
 }
 
 /**
