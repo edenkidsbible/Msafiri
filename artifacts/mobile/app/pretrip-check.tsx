@@ -159,6 +159,246 @@ function toStatus(granted?: boolean, canAsk?: boolean): PermStatus {
   return "undetermined";
 }
 
+// ── Camera permission rationale modal ─────────────────────────────────────────
+// Shown before the OS dialog so Android gets a clear user intent signal,
+// and separately when the permission is permanently denied (go-to-settings path).
+interface CameraRationaleModalProps {
+  visible: boolean;
+  permanentlyDenied: boolean;
+  colors: ReturnType<typeof useColors>;
+  onAllow: () => void;
+  onSettings: () => void;
+  onDismiss: () => void;
+}
+
+function CameraRationaleModal({
+  visible, permanentlyDenied, colors: c, onAllow, onSettings, onDismiss,
+}: CameraRationaleModalProps) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <View style={camModalStyles.overlay}>
+        <View style={[camModalStyles.sheet, { backgroundColor: c.card }]}>
+          {/* Icon */}
+          <View style={[camModalStyles.iconWrap, { backgroundColor: c.primary + "18" }]}>
+            <Ionicons name="videocam" size={34} color={c.primary} />
+          </View>
+
+          <Text style={[camModalStyles.title, { color: c.foreground }]}>
+            {permanentlyDenied ? "Camera Access Blocked" : "Allow Camera Access"}
+          </Text>
+
+          {permanentlyDenied ? (
+            <>
+              <Text style={[camModalStyles.body, { color: c.mutedForeground }]}>
+                Camera access was previously denied. To use the dashcam and Crash Assistant, you'll need to enable it manually:
+              </Text>
+              <View style={[camModalStyles.stepBox, { backgroundColor: c.muted + "88", borderColor: c.border }]}>
+                <View style={camModalStyles.stepRow}>
+                  <View style={[camModalStyles.stepNum, { backgroundColor: c.primary }]}>
+                    <Text style={camModalStyles.stepNumTxt}>1</Text>
+                  </View>
+                  <Text style={[camModalStyles.stepTxt, { color: c.foreground }]}>
+                    Tap <Text style={{ fontWeight: "700" }}>Open Settings</Text> below
+                  </Text>
+                </View>
+                <View style={camModalStyles.stepRow}>
+                  <View style={[camModalStyles.stepNum, { backgroundColor: c.primary }]}>
+                    <Text style={camModalStyles.stepNumTxt}>2</Text>
+                  </View>
+                  <Text style={[camModalStyles.stepTxt, { color: c.foreground }]}>
+                    Tap <Text style={{ fontWeight: "700" }}>Permissions</Text> → <Text style={{ fontWeight: "700" }}>Camera</Text>
+                  </Text>
+                </View>
+                <View style={camModalStyles.stepRow}>
+                  <View style={[camModalStyles.stepNum, { backgroundColor: c.primary }]}>
+                    <Text style={camModalStyles.stepNumTxt}>3</Text>
+                  </View>
+                  <Text style={[camModalStyles.stepTxt, { color: c.foreground }]}>
+                    Select <Text style={{ fontWeight: "700" }}>Allow</Text>, then return to Msafiri
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={[camModalStyles.body, { color: c.mutedForeground }]}>
+                Msafiri uses your camera for:
+              </Text>
+              <View style={camModalStyles.featureList}>
+                <View style={[camModalStyles.featureRow, { borderColor: c.border }]}>
+                  <View style={[camModalStyles.featureIcon, { backgroundColor: "#3B82F618" }]}>
+                    <Ionicons name="videocam" size={16} color="#3B82F6" />
+                  </View>
+                  <View style={camModalStyles.featureText}>
+                    <Text style={[camModalStyles.featureTitle, { color: c.foreground }]}>Dashcam Recording</Text>
+                    <Text style={[camModalStyles.featureSub, { color: c.mutedForeground }]}>
+                      Continuous footage while you drive. Clips stay on your device.
+                    </Text>
+                  </View>
+                </View>
+                <View style={[camModalStyles.featureRow, { borderColor: c.border, borderTopWidth: 0 }]}>
+                  <View style={[camModalStyles.featureIcon, { backgroundColor: "#EF444418" }]}>
+                    <Ionicons name="warning" size={16} color="#EF4444" />
+                  </View>
+                  <View style={camModalStyles.featureText}>
+                    <Text style={[camModalStyles.featureTitle, { color: c.foreground }]}>Crash Assistant</Text>
+                    <Text style={[camModalStyles.featureSub, { color: c.mutedForeground }]}>
+                      Document accident scenes and vehicles for your records.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={[camModalStyles.privacy, { color: c.mutedForeground }]}>
+                🔒 Video is stored only on your device and never uploaded without your explicit action.
+              </Text>
+            </>
+          )}
+
+          {/* Action buttons */}
+          {permanentlyDenied ? (
+            <>
+              <TouchableOpacity
+                style={[camModalStyles.primaryBtn, { backgroundColor: c.primary }]}
+                onPress={onSettings}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="settings-outline" size={17} color="#FFF" />
+                <Text style={camModalStyles.primaryBtnTxt}>Open Settings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={camModalStyles.dismissBtn} onPress={onDismiss} activeOpacity={0.7}>
+                <Text style={[camModalStyles.dismissTxt, { color: c.mutedForeground }]}>Maybe Later</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[camModalStyles.primaryBtn, { backgroundColor: c.primary }]}
+                onPress={onAllow}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="videocam" size={17} color="#FFF" />
+                <Text style={camModalStyles.primaryBtnTxt}>Allow Camera Access</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={camModalStyles.dismissBtn} onPress={onDismiss} activeOpacity={0.7}>
+                <Text style={[camModalStyles.dismissTxt, { color: c.mutedForeground }]}>Not Right Now</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const camModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "#00000070",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  sheet: {
+    width: "100%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 36,
+    alignItems: "center",
+    gap: 0,
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  body: {
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  featureList: {
+    width: "100%",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+  },
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  featureText: { flex: 1 },
+  featureTitle: { fontSize: 13, fontWeight: "600", marginBottom: 2 },
+  featureSub:   { fontSize: 12, lineHeight: 17 },
+  privacy: {
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  stepBox: {
+    width: "100%",
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 10,
+    marginBottom: 20,
+  },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  stepNum: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  stepNumTxt: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+  stepTxt:    { fontSize: 13, flex: 1, lineHeight: 19 },
+  primaryBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 15,
+    borderRadius: 14,
+    marginBottom: 8,
+  },
+  primaryBtnTxt: { color: "#FFF", fontSize: 16, fontWeight: "700" },
+  dismissBtn:    { paddingVertical: 10, paddingHorizontal: 20 },
+  dismissTxt:    { fontSize: 14 },
+});
+
 // ── 2-column permission card ──────────────────────────────────────────────────
 interface PermCardProps {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -265,6 +505,7 @@ export default function PretripCheckScreen() {
   const micStatus    = toStatus(micPermission?.granted,  micPermission?.canAskAgain);
 
   const [loadingPerm, setLoadingPerm] = useState<string | null>(null);
+  const [cameraRationaleVisible, setCameraRationaleVisible] = useState(false);
 
   // Check existing permission statuses
   const refreshPermissions = useCallback(async () => {
@@ -342,20 +583,31 @@ export default function PretripCheckScreen() {
     setLoadingPerm(null);
   }, [notifCanAsk]);
 
-  const requestCamera = useCallback(async () => {
+  // Show the rationale modal whenever the user taps Enable (or Open Settings).
+  // The modal owns the actual OS dialog call so Android sees a deliberate user
+  // action immediately before the system prompt — preventing silent no-show.
+  const requestCamera = useCallback(() => {
+    setCameraRationaleVisible(true);
+  }, []);
+
+  // Called from inside the rationale modal — fires the real OS permission dialog.
+  const doRequestCameraPermission = useCallback(async () => {
+    setCameraRationaleVisible(false);
     setLoadingPerm("camera");
     try {
-      if (camPermission?.canAskAgain === false) {
-        // Permanently denied — the OS will not show a dialog again.
-        // Send the user to the device Settings screen to unblock manually.
-        Linking.openSettings();
-      } else {
-        await requestCamPerm();
-        await requestDashcamPermissions();
-      }
+      await requestCamPerm();
+      // Intentionally NOT calling requestDashcamPermissions() here — that
+      // function also calls requestCameraPermissionRef which would queue a
+      // second OS dialog on Android, causing both to be silently dropped.
+      // DashcamContext will re-check camera.granted before recording starts.
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestDashcamPermissions, requestCamPerm, camPermission]);
+  }, [requestCamPerm]);
+
+  const openCameraSettings = useCallback(() => {
+    setCameraRationaleVisible(false);
+    Linking.openSettings();
+  }, []);
 
   const requestMic = useCallback(async () => {
     setLoadingPerm("mic");
@@ -437,8 +689,21 @@ export default function PretripCheckScreen() {
 
   const heroBg = c.isDark ? c.background : "#F3FAF4";
 
+  // Permanently denied = hook has loaded (non-null) AND canAskAgain is explicitly false.
+  const cameraPermanentlyDenied = camPermission !== null && camPermission?.canAskAgain === false && !camPermission?.granted;
+
   return (
     <View style={[styles.root, { backgroundColor: heroBg }]}>
+
+      {/* ── Camera permission rationale modal ──────────────────────────── */}
+      <CameraRationaleModal
+        visible={cameraRationaleVisible}
+        permanentlyDenied={cameraPermanentlyDenied}
+        colors={c}
+        onAllow={doRequestCameraPermission}
+        onSettings={openCameraSettings}
+        onDismiss={() => setCameraRationaleVisible(false)}
+      />
 
       {/* ── Back button — floating, no header bar ──────────────────────── */}
       <TouchableOpacity
