@@ -33,6 +33,8 @@ import backupRouter from "./backup.js";
 import otpRouter from "./otp.js";
 import vehiclesRouter from "./vehicles.js";
 import accountRouter from "./account.js";
+import opsRouter from "./ops/index.js";
+import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
 const router: IRouter = Router();
 
@@ -70,5 +72,6 @@ router.use(backupRouter);
 router.use(otpRouter);
 router.use(vehiclesRouter);
 router.use(accountRouter);
+router.use("/ops", adminAuthMiddleware, opsRouter);
 
 export default router;

@@ -585,6 +585,364 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE
     `);
 
+    // ── Ops Platform tables (ops_ prefix to avoid collision) ─────────────────
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_departments (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL,
+        description TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_team_members (
+        id              SERIAL PRIMARY KEY,
+        admin_user_id   TEXT NOT NULL,
+        department_id   INTEGER REFERENCES ops_departments(id) ON DELETE SET NULL,
+        role            TEXT NOT NULL DEFAULT 'member',
+        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_invitations (
+        id             SERIAL PRIMARY KEY,
+        email          TEXT NOT NULL,
+        role           TEXT NOT NULL DEFAULT 'member',
+        department_id  INTEGER REFERENCES ops_departments(id) ON DELETE SET NULL,
+        token          TEXT NOT NULL UNIQUE,
+        status         TEXT NOT NULL DEFAULT 'pending',
+        invited_by     TEXT,
+        expires_at     TIMESTAMPTZ NOT NULL,
+        accepted_at    TIMESTAMPTZ,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_operating_weeks (
+        id                      SERIAL PRIMARY KEY,
+        week_number             INTEGER NOT NULL UNIQUE,
+        start_date              DATE NOT NULL,
+        end_date                DATE NOT NULL,
+        planned_cash_in_kes     NUMERIC(15,2),
+        planned_cash_out_kes    NUMERIC(15,2),
+        planned_ending_cash_kes NUMERIC(15,2),
+        actual_cash_in_kes      NUMERIC(15,2),
+        actual_cash_out_kes     NUMERIC(15,2),
+        actual_ending_cash_kes  NUMERIC(15,2),
+        variance_kes            NUMERIC(15,2),
+        created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_weekly_plans (
+        id                  SERIAL PRIMARY KEY,
+        week_id             INTEGER NOT NULL REFERENCES ops_operating_weeks(id),
+        main_objective      TEXT,
+        required_outcomes   TEXT[],
+        completed_outcomes  TEXT[],
+        cash_decision       TEXT,
+        product_priority    TEXT,
+        user_priority       TEXT,
+        field_sprint        TEXT,
+        content_plan        TEXT,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by          TEXT
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_weekly_reviews (
+        id                  SERIAL PRIMARY KEY,
+        week_id             INTEGER NOT NULL REFERENCES ops_operating_weeks(id),
+        what_worked         TEXT,
+        what_didnt_work     TEXT,
+        key_learning        TEXT,
+        next_week_focus     TEXT,
+        reviewed_at         TIMESTAMPTZ,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by          TEXT
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_transaction_categories (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL,
+        type        TEXT NOT NULL,
+        description TEXT,
+        is_system   BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_transactions (
+        id                          SERIAL PRIMARY KEY,
+        date                        DATE NOT NULL,
+        type                        TEXT NOT NULL,
+        amount_kes                  NUMERIC(15,2) NOT NULL,
+        description                 TEXT NOT NULL,
+        cleared                     BOOLEAN NOT NULL DEFAULT FALSE,
+        category_id                 INTEGER REFERENCES ops_transaction_categories(id),
+        week_id                     INTEGER REFERENCES ops_operating_weeks(id),
+        payment_method              TEXT,
+        reference                   TEXT,
+        notes                       TEXT,
+        linked_field_trip_id        INTEGER,
+        linked_content_id           INTEGER,
+        is_deleted                  BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by                  TEXT,
+        updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by                  TEXT
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_recurring_expenses (
+        id                    SERIAL PRIMARY KEY,
+        name                  TEXT NOT NULL,
+        amount_kes            NUMERIC(15,2),
+        currency_type         TEXT NOT NULL DEFAULT 'KES',
+        amount_usd            NUMERIC(10,2),
+        frequency             TEXT NOT NULL,
+        category_id           INTEGER REFERENCES ops_transaction_categories(id),
+        next_billing_date     DATE,
+        is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+        notes                 TEXT,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_tasks (
+        id                  SERIAL PRIMARY KEY,
+        title               TEXT NOT NULL,
+        description         TEXT,
+        status              TEXT NOT NULL DEFAULT 'todo',
+        priority            TEXT NOT NULL DEFAULT 'medium',
+        module              TEXT NOT NULL DEFAULT 'other',
+        type                TEXT,
+        due_date            DATE,
+        week_id             INTEGER REFERENCES ops_operating_weeks(id),
+        estimated_hours     NUMERIC(6,2),
+        actual_hours        NUMERIC(6,2),
+        assigned_to         TEXT,
+        acceptance_criteria TEXT,
+        position            INTEGER NOT NULL DEFAULT 0,
+        is_recurring        BOOLEAN NOT NULL DEFAULT FALSE,
+        is_deleted          BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by          TEXT,
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by          TEXT
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_content_items (
+        id                          SERIAL PRIMARY KEY,
+        title                       TEXT NOT NULL,
+        status                      TEXT NOT NULL DEFAULT 'idea',
+        week_id                     INTEGER REFERENCES ops_operating_weeks(id),
+        is_core                     BOOLEAN NOT NULL DEFAULT FALSE,
+        platforms                   TEXT[],
+        pillar                      TEXT,
+        format                      TEXT,
+        angle                       TEXT,
+        hook                        TEXT,
+        caption_seed                TEXT,
+        cta                         TEXT,
+        scheduled_date              DATE,
+        posted_date                 DATE,
+        linked_field_trip_id        INTEGER,
+        views                       INTEGER,
+        clicks                      INTEGER,
+        installs                    INTEGER,
+        paid_subscribers_attributed INTEGER,
+        founder_minutes             INTEGER,
+        notes                       TEXT,
+        compliance_notes            TEXT,
+        has_compliance_warning      BOOLEAN NOT NULL DEFAULT FALSE,
+        is_deleted                  BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by                  TEXT,
+        updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by                  TEXT
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_field_trips (
+        id                    SERIAL PRIMARY KEY,
+        date                  DATE NOT NULL,
+        purpose               TEXT NOT NULL,
+        corridor              TEXT,
+        status                TEXT NOT NULL DEFAULT 'planned',
+        week_id               INTEGER REFERENCES ops_operating_weeks(id),
+        planned_km            NUMERIC(8,2),
+        start_odometer        NUMERIC(10,1),
+        end_odometer          NUMERIC(10,1),
+        actual_km             NUMERIC(8,2),
+        parking_kes           NUMERIC(10,2),
+        tolls_kes             NUMERIC(10,2),
+        contingency_kes       NUMERIC(10,2),
+        actual_fuel_spend_kes NUMERIC(10,2),
+        required_outputs      TEXT,
+        assigned_to           TEXT,
+        notes                 TEXT,
+        is_deleted            BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by            TEXT,
+        updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_road_records (
+        id                    SERIAL PRIMARY KEY,
+        record_date           DATE,
+        county                TEXT NOT NULL,
+        corridor              TEXT NOT NULL,
+        landmark              TEXT,
+        direction             TEXT,
+        data_type             TEXT NOT NULL,
+        coordinates           TEXT,
+        speed_limit_kph       INTEGER,
+        confidence            TEXT NOT NULL DEFAULT 'D',
+        source_type           TEXT,
+        evidence              TEXT,
+        verifier              TEXT,
+        last_verified_date    DATE,
+        next_action           TEXT,
+        status                TEXT NOT NULL DEFAULT 'needs_verification',
+        linked_field_trip_id  INTEGER REFERENCES ops_field_trips(id),
+        notes                 TEXT,
+        is_deleted            BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by            TEXT,
+        updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_subscription_week_metrics (
+        id                          SERIAL PRIMARY KEY,
+        week_id                     INTEGER NOT NULL REFERENCES ops_operating_weeks(id),
+        period_start_date           DATE,
+        new_downloads               INTEGER,
+        trials_started              INTEGER,
+        new_paid                    INTEGER,
+        renewals                    INTEGER,
+        cancellations               INTEGER,
+        active_paid_end             INTEGER NOT NULL,
+        gross_sales_kes             NUMERIC(15,2),
+        processor_fees_kes          NUMERIC(15,2),
+        refunds_kes                 NUMERIC(15,2),
+        cash_received_kes           NUMERIC(15,2),
+        notes                       TEXT,
+        created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by                  TEXT,
+        updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_import_batches (
+        id              SERIAL PRIMARY KEY,
+        status          TEXT NOT NULL DEFAULT 'pending',
+        filename        TEXT NOT NULL,
+        file_path       TEXT,
+        file_checksum   TEXT,
+        sheet_count     INTEGER,
+        rows_created    INTEGER,
+        rows_updated    INTEGER,
+        rows_skipped    INTEGER,
+        rows_errored    INTEGER,
+        warnings_json   TEXT,
+        errors_json     TEXT,
+        sheets_json     TEXT,
+        committed_at    TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_by      TEXT,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_settings (
+        id                            SERIAL PRIMARY KEY,
+        first_funding_date            DATE NOT NULL DEFAULT '2026-08-14',
+        weekly_funding_amount_kes     NUMERIC(15,2) NOT NULL DEFAULT 10000.00,
+        exchange_rate_kes_per_usd     NUMERIC(10,4) NOT NULL DEFAULT 129.3600,
+        fuel_price_per_litre_kes      NUMERIC(10,2) NOT NULL DEFAULT 214.00,
+        vehicle_efficiency_km_per_litre NUMERIC(8,2) NOT NULL DEFAULT 12.00,
+        cash_floor_kes                NUMERIC(15,2) NOT NULL DEFAULT 2500.00,
+        reserve_transfer_target_kes   NUMERIC(15,2) NOT NULL DEFAULT 1500.00,
+        monthly_subscription_price_kes NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+        replit_monthly_usd            NUMERIC(10,2) NOT NULL DEFAULT 20.00,
+        replit_next_billing_date      DATE,
+        baseline_active_paid          INTEGER NOT NULL DEFAULT 0,
+        baseline_downloads            INTEGER NOT NULL DEFAULT 0,
+        current_mrr_override_kes      NUMERIC(15,2),
+        updated_at                    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by                    TEXT
+      )
+    `);
+
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ops_conversation_type') THEN
+          CREATE TYPE ops_conversation_type AS ENUM ('all_team', 'department', 'direct');
+        END IF;
+      END$$
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_conversations (
+        id             SERIAL PRIMARY KEY,
+        type           ops_conversation_type NOT NULL,
+        department_id  INTEGER REFERENCES ops_departments(id) ON DELETE CASCADE,
+        name           TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_messages (
+        id              SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES ops_conversations(id) ON DELETE CASCADE,
+        sender_id       TEXT NOT NULL,
+        body            TEXT NOT NULL,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        deleted_at      TIMESTAMPTZ
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ops_conversation_members (
+        id                  SERIAL PRIMARY KEY,
+        conversation_id     INTEGER NOT NULL REFERENCES ops_conversations(id) ON DELETE CASCADE,
+        user_id             TEXT NOT NULL,
+        joined_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_read_message_id INTEGER REFERENCES ops_messages(id) ON DELETE SET NULL
+      )
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

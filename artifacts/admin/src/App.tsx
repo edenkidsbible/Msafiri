@@ -14,6 +14,36 @@ import { NoAccess } from "@/components/no-access";
 import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
 import Dashboard from "@/pages/dashboard";
+
+// Ops platform pages (lazy-loaded to keep initial bundle small)
+import { lazy, Suspense } from "react";
+const OpsHome         = lazy(() => import("@/pages/ops/home"));
+const OpsThisWeek     = lazy(() => import("@/pages/ops/this-week"));
+const OpsMoney        = lazy(() => import("@/pages/ops/money"));
+const OpsTasks        = lazy(() => import("@/pages/ops/tasks"));
+const OpsContent      = lazy(() => import("@/pages/ops/content"));
+const OpsField        = lazy(() => import("@/pages/ops/field"));
+const OpsSubscriptions= lazy(() => import("@/pages/ops/subscriptions"));
+const OpsTeam         = lazy(() => import("@/pages/ops/team"));
+const OpsChat         = lazy(() => import("@/pages/ops/chat"));
+const OpsImport       = lazy(() => import("@/pages/ops/import"));
+const OpsSettings     = lazy(() => import("@/pages/ops/settings"));
+
+function OpsRoute({ component: Component }: { component: React.ComponentType }) {
+  const [, setLocation] = useLocation();
+  const token = getToken();
+  const user = getUser();
+  useEffect(() => {
+    if (!token || !user) setLocation("/login");
+    else if (user.mustChangePassword) setLocation("/change-password");
+  }, [token, user, setLocation]);
+  if (!token || !user || user.mustChangePassword) return null;
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-32 text-muted-foreground text-sm">Loading…</div>}>
+      <Component />
+    </Suspense>
+  );
+}
 import Reports from "@/pages/reports";
 import ModerationQueue from "@/pages/moderation-queue";
 import SpeedZones from "@/pages/speed-zones";
@@ -126,6 +156,18 @@ function Router() {
       <Route path="/system-backup"><ProtectedRoute component={SystemBackup} feature="app_settings" /></Route>
       <Route path="/inbox"><ProtectedRoute component={InboxPage} feature="inbox" /></Route>
       <Route path="/vehicle-claims"><ProtectedRoute component={VehicleClaims} feature="reports" /></Route>
+      {/* Ops platform routes */}
+      <Route path="/ops/home"><OpsRoute component={OpsHome} /></Route>
+      <Route path="/ops/this-week"><OpsRoute component={OpsThisWeek} /></Route>
+      <Route path="/ops/money"><OpsRoute component={OpsMoney} /></Route>
+      <Route path="/ops/tasks"><OpsRoute component={OpsTasks} /></Route>
+      <Route path="/ops/content"><OpsRoute component={OpsContent} /></Route>
+      <Route path="/ops/field"><OpsRoute component={OpsField} /></Route>
+      <Route path="/ops/subscriptions"><OpsRoute component={OpsSubscriptions} /></Route>
+      <Route path="/ops/team"><OpsRoute component={OpsTeam} /></Route>
+      <Route path="/ops/chat"><OpsRoute component={OpsChat} /></Route>
+      <Route path="/ops/import"><OpsRoute component={OpsImport} /></Route>
+      <Route path="/ops/settings"><OpsRoute component={OpsSettings} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,6 +1,14 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon, ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound, Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup, ExternalLink, Inbox, Flag } from "lucide-react";
+import {
+  LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon,
+  ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound,
+  Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup,
+  ExternalLink, Inbox, Flag,
+  // Ops icons
+  Home, CalendarDays, Wallet, CheckSquare, Video, Map, FileUp,
+  UsersRound, MessageCircle, Building2,
+} from "lucide-react";
 import { getToken } from "@/lib/auth";
 
 function authFetch(url: string) {
@@ -59,6 +67,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const unreadCount = notifData?.unreadCount ?? 0;
 
   const [inboxUnread, setInboxUnread] = useState(0);
+  const [chatUnread, setChatUnread] = useState(0);
+
   useEffect(() => {
     if (!can("inbox")) return;
     const fetchInboxStats = () => {
@@ -72,11 +82,39 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const fetchChatUnread = () => {
+      authFetch("/api/ops/chat/unread")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setChatUnread(d.total ?? 0))
+        .catch(() => {});
+    };
+    fetchChatUnread();
+    const id = setInterval(fetchChatUnread, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleLogout = () => {
     clearToken();
     setLocation("/login");
   };
 
+  // ── Ops nav items ──────────────────────────────────────────────────────────
+  const opsNav = [
+    { href: "/ops/home",          label: "Command",         icon: Home },
+    { href: "/ops/this-week",     label: "This Week",       icon: CalendarDays },
+    { href: "/ops/money",         label: "Money",           icon: Wallet },
+    { href: "/ops/tasks",         label: "Tasks",           icon: CheckSquare },
+    { href: "/ops/content",       label: "Content",         icon: Video },
+    { href: "/ops/field",         label: "Field & Road",    icon: Map },
+    { href: "/ops/subscriptions", label: "Subscribers",     icon: CreditCard },
+    { href: "/ops/team",          label: "Team",            icon: UsersRound },
+    { href: "/ops/chat",          label: "Chat",            icon: MessageCircle, badge: chatUnread },
+    { href: "/ops/import",        label: "Import",          icon: FileUp },
+    { href: "/ops/settings",      label: "Ops Settings",    icon: Settings2 },
+  ];
+
+  // ── App management nav items ───────────────────────────────────────────────
   const coreNavAll: Array<{ href: string; label: string; icon: typeof AlertCircle; feature: FeatureKey }> = [
     { href: "/reports",            label: "Incident Reports",  icon: AlertCircle,  feature: "reports" },
     { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck,  feature: "reports" },
@@ -121,6 +159,37 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </SidebarHeader>
           <SidebarContent>
+
+            {/* ── Operations Platform ── */}
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
+                Operations
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {opsNav.map((item) => {
+                    const isActive = location.startsWith(item.href);
+                    return (
+                      <SidebarMenuItem key={item.href} className="px-2">
+                        <SidebarMenuButton asChild isActive={isActive} tooltip={item.label} className="h-10">
+                          <Link href={item.href} data-testid={`nav-ops-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                            <item.icon className="h-4 w-4 mr-2" />
+                            <span className="font-medium text-sm">{item.label}</span>
+                            {item.badge !== undefined && item.badge > 0 && (
+                              <span className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center shrink-0">
+                                {item.badge > 9 ? "9+" : item.badge}
+                              </span>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* ── App Management Overview ── */}
             {adminOnlyNav.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
@@ -146,6 +215,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </SidebarGroup>
             )}
 
+            {/* ── Platform ── */}
             <SidebarGroup>
               <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
                 Platform
@@ -169,10 +239,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </SidebarGroupContent>
             </SidebarGroup>
 
+            {/* ── Community & Content ── */}
             {moderatorNav.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
-                  Operations
+                  Community
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
@@ -203,27 +274,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 </SidebarGroupContent>
               </SidebarGroup>
             )}
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
-                Founder
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem className="px-2">
-                    <SidebarMenuButton asChild tooltip="Operations Site" className="h-10">
-                      <a
-                        href="https://operations.msafirikenya.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        <span className="font-medium text-sm">Operations Site</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t border-sidebar-border">
             <div className="flex items-center justify-between">

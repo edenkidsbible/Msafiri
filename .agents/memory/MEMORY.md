@@ -1,3 +1,4 @@
+- [Ops Platform Integration](ops-platform-integration.md) — Founder OS merged into admin; ops_ table prefix; /api/ops/ routes; /ops/ frontend; form components are dialog-style (open+onClose); no 2nd login.
 - [LocationContext split](location-context-split.md) — GPS lat/lng/speed/heading come from useLiveLocation(), not useApp(); new AppContext fields MUST be added to its useMemo deps or they go stale.
 - [Mobile crash telemetry (Sentry)](mobile-crash-telemetry.md) — all Sentry access via utils/telemetry.ts (DSN-gated, web no-op twin); breadcrumb categories; DSN pending from user.
 - [Custom vehicle display name pitfalls](custom-vehicle-display-name.md) — known-make+custom-model shows "My Vehicle"; priority order + vehicle-setup.tsx ID fix.
