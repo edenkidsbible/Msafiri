@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "wouter";
@@ -257,6 +258,7 @@ export default function Chat() {
   );
 
   return (
+    <AdminLayout>
     <div className="space-y-4 animate-in">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Team Chat</h1>
@@ -463,5 +465,6 @@ export default function Chat() {
         </div>
       </div>
     </div>
+    </AdminLayout>
   );
 }

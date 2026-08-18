@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -215,7 +216,7 @@ export default function Money() {
   };
 
   if (loadingSum) {
-    return <div className="p-8 space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-96 w-full" /></div>;
+    return <AdminLayout><div className="p-8 space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-96 w-full" /></div></AdminLayout>;
   }
 
   const chartData = [...(summary?.weeklyRows ?? [])].reverse().slice(-12).map(w => ({
@@ -225,6 +226,7 @@ export default function Money() {
   }));
 
   return (
+    <AdminLayout>
     <div className="space-y-8 animate-in">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -454,5 +456,6 @@ export default function Money() {
         defaultDescription={formDefaults.defaultDescription}
       />
     </div>
+    </AdminLayout>
   );
 }

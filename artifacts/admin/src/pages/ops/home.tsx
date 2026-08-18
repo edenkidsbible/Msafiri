@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -238,6 +239,7 @@ export default function Home() {
   });
 
   return (
+    <AdminLayout>
     <div className="space-y-6 animate-in">
 
       {/* ── Header ── */}
@@ -509,5 +511,6 @@ export default function Home() {
       <TransactionForm open={txFormOpen} onClose={() => setTxFormOpen(false)} defaultAmount="10000" defaultType="income" defaultDescription="Friday Funding" />
       <TaskForm open={taskFormOpen} onClose={() => setTaskFormOpen(false)} />
     </div>
+    </AdminLayout>
   );
 }

@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -172,10 +173,11 @@ export default function Settings() {
   const handleSave = () => updateSettingsMutation.mutate(formData);
 
   if (isLoading) {
-    return <div className="p-8 space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-[500px] w-full" /></div>;
+    return <AdminLayout><div className="p-8 space-y-6"><Skeleton className="h-10 w-48" /><Skeleton className="h-[500px] w-full" /></div></AdminLayout>;
   }
 
   return (
+    <AdminLayout>
     <div className="space-y-8 animate-in max-w-4xl">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -291,5 +293,6 @@ export default function Settings() {
         <ChangePasswordCard />
       </div>
     </div>
+    </AdminLayout>
   );
 }

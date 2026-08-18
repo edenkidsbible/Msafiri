@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -127,6 +128,7 @@ export default function Tasks() {
   }
 
   return (
+    <AdminLayout>
     <div className="space-y-6 animate-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -322,5 +324,6 @@ export default function Tasks() {
 
       <TaskForm open={formOpen} onClose={handleClose} task={editingTask} />
     </div>
+    </AdminLayout>
   );
 }

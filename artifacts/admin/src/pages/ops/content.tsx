@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -142,6 +143,7 @@ export default function Content() {
   );
 
   return (
+    <AdminLayout>
     <div className="space-y-6 animate-in">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -329,5 +331,6 @@ export default function Content() {
 
       <ContentForm open={formOpen} onClose={handleClose} item={editingItem} currentWeekId={weekId} />
     </div>
+    </AdminLayout>
   );
 }

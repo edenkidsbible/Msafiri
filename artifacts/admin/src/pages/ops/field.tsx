@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -101,6 +102,7 @@ export default function FieldRoad() {
   };
 
   return (
+    <AdminLayout>
     <div className="space-y-8 animate-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -252,5 +254,6 @@ export default function FieldRoad() {
       <FieldTripForm open={tripFormOpen} onClose={closeTripForm} trip={editingTrip} />
       <RoadRecordForm open={recordFormOpen} onClose={closeRecordForm} record={editingRecord} />
     </div>
+    </AdminLayout>
   );
 }

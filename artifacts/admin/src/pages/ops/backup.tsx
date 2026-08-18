@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch, getToken } from "@/lib/auth";
@@ -103,6 +104,7 @@ export default function BackupPage() {
   const totalRows = status?.tables.reduce((sum, t) => sum + t.count, 0) ?? 0;
 
   return (
+    <AdminLayout>
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Backup & Restore</h1>
@@ -246,5 +248,6 @@ export default function BackupPage() {
         </ul>
       </div>
     </div>
+    </AdminLayout>
   );
 }

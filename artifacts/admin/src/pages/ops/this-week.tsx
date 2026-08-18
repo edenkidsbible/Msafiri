@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth";
@@ -321,6 +322,7 @@ export default function ThisWeekPage() {
   const hasReview = review && (review.whatWorked || review.whatDidntWork);
 
   return (
+    <AdminLayout>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -521,5 +523,6 @@ export default function ThisWeekPage() {
         </>
       )}
     </div>
+    </AdminLayout>
   );
 }

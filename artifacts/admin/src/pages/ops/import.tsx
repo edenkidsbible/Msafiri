@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/layout/admin-layout";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch, getToken } from "@/lib/auth";
@@ -106,6 +107,7 @@ export default function ImportData() {
   };
 
   return (
+    <AdminLayout>
     <div className="space-y-8 animate-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -204,5 +206,6 @@ export default function ImportData() {
         )}
       </div>
     </div>
+    </AdminLayout>
   );
 }
