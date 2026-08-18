@@ -1,15 +1,22 @@
 /**
  * Admin → System routes
  *
- * GET  /system/backup/export            — download the full backup JSON immediately
- * GET  /system/backup/pg-dump/latest    — most recent R2 dump metadata (key, size, timestamp)
- * GET  /system/backup/pg-dump/download  — run fresh pg_dump, upload to R2, stream .dump to browser
- * POST /system/backup/run               — trigger backup (sends email + returns JSON)
- * POST /system/backup/pg-dump           — run pg_dump, upload to R2, return metadata only
- * POST /system/backup/restore           — upsert-restore from an uploaded backup JSON
+ * GET  /system/backup/export               — download the full backup JSON immediately
+ * GET  /system/backup/pg-dump/latest       — most recent R2 dump metadata (key, size, timestamp)
+ * GET  /system/backup/pg-dump/list         — all R2 dumps sorted newest-first
+ * GET  /system/backup/pg-dump/download     — run fresh pg_dump, upload to R2, stream .dump to browser
+ * GET  /system/backup/pg-dump/fetch?key=   — stream an existing R2 dump by key (no fresh dump)
+ * POST /system/backup/run                  — trigger backup (sends email + returns JSON)
+ * POST /system/backup/pg-dump              — run pg_dump, upload to R2, return metadata only
+ * POST /system/backup/pg-dump/restore      — restore DB from a specific R2 dump key via pg_restore
+ * POST /system/backup/restore              — upsert-restore from an uploaded backup JSON
  */
 
 import { Router, type Request, type Response } from "express";
+import { spawn } from "child_process";
+import { writeFile, unlink } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { db } from "@workspace/db";
 import { sql, getTableColumns } from "drizzle-orm";
 import {
@@ -48,7 +55,7 @@ import {
 } from "@workspace/db";
 import { buildBackupSnapshot, runDailyBackup } from "../../jobs/dailyBackup.js";
 import { dumpToR2, tryDumpToR2, runPgDump } from "../../lib/pgDump.js";
-import { isR2Configured, listObjectsWithPrefix, uploadBuffer } from "../../lib/r2Storage.js";
+import { isR2Configured, listObjectsWithPrefix, uploadBuffer, downloadAsBuffer } from "../../lib/r2Storage.js";
 import { logger } from "../../lib/logger.js";
 
 
@@ -259,6 +266,116 @@ router.get("/system/backup/pg-dump/download", async (_req: Request, res: Respons
   } catch (err: any) {
     logger.error({ err }, "[system/backup/pg-dump/download] Failed");
     return res.status(500).json({ error: err?.message ?? "pg_dump failed" });
+  }
+});
+
+// ── GET /system/backup/pg-dump/list ──────────────────────────────────────────
+// Returns all R2 dumps under db-backups/ sorted newest-first.
+
+router.get("/system/backup/pg-dump/list", async (_req: Request, res: Response) => {
+  if (!isR2Configured()) return res.json({ configured: false, backups: [] });
+  try {
+    const objects = await listObjectsWithPrefix("db-backups/");
+    objects.sort((a, b) => b.key.localeCompare(a.key));
+    return res.json({
+      configured: true,
+      backups: objects.map((o) => ({
+        key:          o.key,
+        sizeBytes:    o.size,
+        lastModified: o.lastModified?.toISOString() ?? null,
+      })),
+    });
+  } catch (err: any) {
+    logger.error({ err }, "[system/backup/pg-dump/list] Failed");
+    return res.status(500).json({ error: err?.message ?? "Failed to list backups" });
+  }
+});
+
+// ── GET /system/backup/pg-dump/fetch?key= ────────────────────────────────────
+// Streams an EXISTING R2 dump to the browser by key — does NOT create a fresh dump.
+
+router.get("/system/backup/pg-dump/fetch", async (req: Request, res: Response) => {
+  const key = req.query["key"] as string | undefined;
+  if (!key || !key.startsWith("db-backups/")) {
+    return res.status(400).json({ error: "key parameter missing or must start with db-backups/" });
+  }
+  if (!isR2Configured()) return res.status(503).json({ error: "R2 not configured" });
+  try {
+    logger.info({ key }, "[system/backup/pg-dump/fetch] Streaming existing dump from R2");
+    const buffer   = await downloadAsBuffer(key);
+    const filename = `msafiri-db-${key.split("/").pop() ?? "backup.dump"}`;
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    return res.send(buffer);
+  } catch (err: any) {
+    logger.error({ err, key }, "[system/backup/pg-dump/fetch] Failed");
+    return res.status(500).json({ error: err?.message ?? "Download from R2 failed" });
+  }
+});
+
+// ── POST /system/backup/pg-dump/restore ──────────────────────────────────────
+// Downloads a specific R2 dump by key, writes it to a temp file, then runs
+// pg_restore --clean --if-exists against the live database.
+// ⚠️ DESTRUCTIVE — drops and recreates all restored objects.
+
+router.post("/system/backup/pg-dump/restore", async (req: Request, res: Response) => {
+  const { key } = req.body as { key?: string };
+  if (!key || !key.startsWith("db-backups/")) {
+    return res.status(400).json({ error: "key must start with db-backups/" });
+  }
+  if (!isR2Configured()) return res.status(503).json({ error: "R2 not configured" });
+
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (!databaseUrl) return res.status(503).json({ error: "DATABASE_URL not set" });
+
+  const tmpFile = join(tmpdir(), `msafiri-restore-${Date.now()}.dump`);
+  const start   = Date.now();
+
+  try {
+    logger.info({ key }, "[system/backup/pg-dump/restore] Downloading dump from R2…");
+    const buffer = await downloadAsBuffer(key);
+    await writeFile(tmpFile, buffer);
+
+    logger.info({ key, sizeBytes: buffer.length }, "[system/backup/pg-dump/restore] Running pg_restore…");
+
+    const { exitCode, stderr } = await new Promise<{ exitCode: number | null; stderr: string }>(
+      (resolve) => {
+        const proc = spawn("pg_restore", [
+          "--clean",
+          "--if-exists",
+          "--no-acl",
+          "--no-owner",
+          "-d", databaseUrl,
+          tmpFile,
+        ]);
+        let stderrOut = "";
+        proc.stderr.on("data", (d: Buffer) => { stderrOut += d.toString(); });
+        proc.on("close", (code) => resolve({ exitCode: code, stderr: stderrOut }));
+        proc.on("error", (err) => resolve({ exitCode: -1, stderr: err.message }));
+      },
+    );
+
+    const durationMs = Date.now() - start;
+
+    // pg_restore exits 1 on warnings (harmless); only code ≥2 means real failure
+    if (exitCode !== null && exitCode >= 2) {
+      logger.error({ key, exitCode, stderr }, "[system/backup/pg-dump/restore] pg_restore failed");
+      return res.status(500).json({
+        ok: false,
+        error: `pg_restore exited with code ${exitCode}`,
+        stderr: stderr.slice(-2000),
+        durationMs,
+      });
+    }
+
+    logger.info({ key, exitCode, durationMs }, "[system/backup/pg-dump/restore] Restore complete");
+    return res.json({ ok: true, durationMs, warnings: stderr.trim() || null });
+  } catch (err: any) {
+    logger.error({ err, key }, "[system/backup/pg-dump/restore] Unexpected error");
+    return res.status(500).json({ ok: false, error: err?.message ?? "Restore failed" });
+  } finally {
+    unlink(tmpFile).catch(() => {});
   }
 });
 
