@@ -19,6 +19,7 @@ import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledRelease
 import { startClusterHazardsJob } from "./jobs/clusterHazards";
 import { startPurgePhotoOrphansJob } from "./jobs/purgePhotoOrphans";
 import { startAbandonDraftAccidentsJob } from "./jobs/abandonDraftAccidents";
+import { setupOpsChatWs } from "./lib/opsChatHub";
 
 const rawPort = process.env["PORT"];
 
@@ -64,7 +65,7 @@ async function seedDefaultAdmin() {
   }
 }
 
-app.listen(port, async (err) => {
+const server = app.listen(port, async (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -118,3 +119,7 @@ app.listen(port, async (err) => {
     logger.error({ err }, "retryPendingLogos crashed"),
   );
 });
+
+// WebSocket hub for the ops team chat (/api/ops/chat/ws). Attached to the
+// HTTP server directly — Express never sees upgrade requests.
+setupOpsChatWs(server);

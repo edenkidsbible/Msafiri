@@ -72,6 +72,7 @@ export default defineConfig({
         rewrite: (path: string) =>
           path.replace(new RegExp(`^${basePath}api`), "/api"),
         changeOrigin: true,
+        ws: true,
       },
     },
   },

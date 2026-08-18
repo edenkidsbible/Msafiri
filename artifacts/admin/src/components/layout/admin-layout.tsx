@@ -10,6 +10,7 @@ import {
   UsersRound, MessageCircle, Building2,
 } from "lucide-react";
 import { getToken } from "@/lib/auth";
+import { subscribeChatSocket } from "@/lib/chat-socket";
 
 function authFetch(url: string) {
   return fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
@@ -82,6 +83,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Chat unread badge: fetched once on mount, then refreshed in real time by
+  // WebSocket events (new messages and reconnects) — no polling interval.
   useEffect(() => {
     const fetchChatUnread = () => {
       authFetch("/api/ops/chat/unread")
@@ -90,8 +93,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         .catch(() => {});
     };
     fetchChatUnread();
-    const id = setInterval(fetchChatUnread, 30000);
-    return () => clearInterval(id);
+    const unsubscribe = subscribeChatSocket((evt) => {
+      if (evt.event === "message:new" || evt.event === "connected") {
+        fetchChatUnread();
+      }
+    });
+    return unsubscribe;
   }, []);
 
   const handleLogout = () => {
