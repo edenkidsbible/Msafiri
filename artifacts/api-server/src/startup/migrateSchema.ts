@@ -573,6 +573,18 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS reporter_proximity_m INTEGER
     `);
 
+    // ── admin_users TOTP columns ──────────────────────────────────────────────
+    // totp_secret — base32 TOTP secret; NULL means 2FA not set up yet.
+    // totp_enabled — true once the user has scanned + verified the QR code.
+    await db.execute(sql`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS totp_secret TEXT
+    `);
+    await db.execute(sql`
+      ALTER TABLE admin_users
+      ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

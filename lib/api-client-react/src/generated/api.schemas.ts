@@ -25,8 +25,10 @@ export interface AdminUser {
 }
 
 export interface AdminLoginResult {
-  token: string;
-  user: AdminUser;
+  token?: string;
+  user?: AdminUser;
+  totpRequired?: boolean;
+  pendingToken?: string;
 }
 
 export interface AdminMe {
@@ -35,7 +37,28 @@ export interface AdminMe {
   name: string;
   role: string;
   mustChangePassword?: boolean;
+  totpEnabled?: boolean;
   effectivePermissions: string[];
+}
+
+export interface AdminTotpConfirmInput {
+  pendingToken: string;
+  code: string;
+}
+
+export interface AdminTotpSetupResult {
+  secret: string;
+  otpAuthUrl: string;
+  qrCode: string;
+}
+
+export interface AdminTotpVerifySetupInput {
+  code: string;
+  secret: string;
+}
+
+export interface AdminTotpDisableInput {
+  password: string;
 }
 
 export interface AdminChangePasswordInput {
@@ -673,6 +696,42 @@ export interface UpdatePoiInput {
   status?: string;
 }
 
+export interface InboxEmail {
+  id: string;
+  messageId?: string | null;
+  fromEmail: string;
+  fromName?: string | null;
+  toEmail: string;
+  subject: string;
+  bodyHtml?: string | null;
+  bodyText?: string | null;
+  isRead: boolean;
+  isReplied: boolean;
+  repliedAt?: string | null;
+  replyCount: number;
+  inReplyTo?: string | null;
+  spamScore?: string | null;
+  receivedAt: string;
+  createdAt: string;
+}
+
+export interface InboxEmailList {
+  emails: InboxEmail[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface InboxStats {
+  unreadCount: number;
+}
+
+export interface InboxReplyInput {
+  subject?: string;
+  body: string;
+}
+
 export type BlogStatsTopPostsItem = {
   id?: string;
   slug?: string;
@@ -689,6 +748,16 @@ export interface BlogStats {
   draftCount: number;
   topPosts: BlogStatsTopPostsItem[];
 }
+
+export type AdminTotpVerifySetup200 = {
+  ok: boolean;
+  totpEnabled: boolean;
+};
+
+export type AdminTotpDisable200 = {
+  ok: boolean;
+  totpEnabled: boolean;
+};
 
 export type AdminListReportsParams = {
 page?: number;
@@ -776,5 +845,24 @@ export const AdminDeletePoiHard = {
 
 export type AdminDeletePoi200 = AdminPoi | {
   deleted?: boolean;
+};
+
+export type AdminListEmailsParams = {
+page?: number;
+limit?: number;
+search?: string;
+filter?: AdminListEmailsFilter;
+};
+
+export type AdminListEmailsFilter = typeof AdminListEmailsFilter[keyof typeof AdminListEmailsFilter];
+
+
+export const AdminListEmailsFilter = {
+  unread: 'unread',
+  replied: 'replied',
+} as const;
+
+export type AdminToggleEmailReadBody = {
+  isRead: boolean;
 };
 

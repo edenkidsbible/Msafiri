@@ -55,7 +55,7 @@ export const AdminLoginBody = zod.object({
 })
 
 export const AdminLoginResponse = zod.object({
-  "token": zod.string(),
+  "token": zod.string().optional(),
   "user": zod.object({
   "id": zod.string(),
   "email": zod.string(),
@@ -64,7 +64,70 @@ export const AdminLoginResponse = zod.object({
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
   "effectivePermissions": zod.array(zod.string()).optional()
+}).optional(),
+  "totpRequired": zod.boolean().optional(),
+  "pendingToken": zod.string().optional()
 })
+
+
+/**
+ * @summary Step 2 of login when TOTP is enabled — verify code and receive full JWT
+ */
+export const AdminTotpConfirmBody = zod.object({
+  "pendingToken": zod.string(),
+  "code": zod.string()
+})
+
+export const AdminTotpConfirmResponse = zod.object({
+  "token": zod.string().optional(),
+  "user": zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "createdAt": zod.string(),
+  "mustChangePassword": zod.boolean().optional(),
+  "effectivePermissions": zod.array(zod.string()).optional()
+}).optional(),
+  "totpRequired": zod.boolean().optional(),
+  "pendingToken": zod.string().optional()
+})
+
+
+/**
+ * @summary Generate a new TOTP secret and QR code (does not enable 2FA yet)
+ */
+export const AdminTotpSetupResponse = zod.object({
+  "secret": zod.string(),
+  "otpAuthUrl": zod.string(),
+  "qrCode": zod.string()
+})
+
+
+/**
+ * @summary Confirm a scanned TOTP code to activate 2FA on the account
+ */
+export const AdminTotpVerifySetupBody = zod.object({
+  "code": zod.string(),
+  "secret": zod.string()
+})
+
+export const AdminTotpVerifySetupResponse = zod.object({
+  "ok": zod.boolean(),
+  "totpEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary Disable 2FA on the account (requires current password)
+ */
+export const AdminTotpDisableBody = zod.object({
+  "password": zod.string()
+})
+
+export const AdminTotpDisableResponse = zod.object({
+  "ok": zod.boolean(),
+  "totpEnabled": zod.boolean()
 })
 
 
@@ -81,7 +144,7 @@ export const AdminChangePasswordBody = zod.object({
 })
 
 export const AdminChangePasswordResponse = zod.object({
-  "token": zod.string(),
+  "token": zod.string().optional(),
   "user": zod.object({
   "id": zod.string(),
   "email": zod.string(),
@@ -90,7 +153,9 @@ export const AdminChangePasswordResponse = zod.object({
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
   "effectivePermissions": zod.array(zod.string()).optional()
-})
+}).optional(),
+  "totpRequired": zod.boolean().optional(),
+  "pendingToken": zod.string().optional()
 })
 
 
@@ -103,6 +168,7 @@ export const AdminGetMeResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
+  "totpEnabled": zod.boolean().optional(),
   "effectivePermissions": zod.array(zod.string())
 })
 
@@ -1505,5 +1571,136 @@ export const AdminDeletePoiResponse = zod.union([zod.object({
 }),zod.object({
   "deleted": zod.boolean().optional()
 })])
+
+
+/**
+ * @summary Get unread email count
+ */
+export const AdminGetInboxStatsResponse = zod.object({
+  "unreadCount": zod.number()
+})
+
+
+/**
+ * @summary List inbox emails
+ */
+export const AdminListEmailsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional(),
+  "filter": zod.enum(['unread', 'replied']).optional()
+})
+
+export const AdminListEmailsResponse = zod.object({
+  "emails": zod.array(zod.object({
+  "id": zod.string(),
+  "messageId": zod.string().nullish(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string().nullish(),
+  "toEmail": zod.string(),
+  "subject": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "bodyText": zod.string().nullish(),
+  "isRead": zod.boolean(),
+  "isReplied": zod.boolean(),
+  "repliedAt": zod.string().nullish(),
+  "replyCount": zod.number(),
+  "inReplyTo": zod.string().nullish(),
+  "spamScore": zod.string().nullish(),
+  "receivedAt": zod.string(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "pages": zod.number()
+})
+
+
+/**
+ * @summary Get a single email (marks as read)
+ */
+export const AdminGetEmailParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminGetEmailResponse = zod.object({
+  "id": zod.string(),
+  "messageId": zod.string().nullish(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string().nullish(),
+  "toEmail": zod.string(),
+  "subject": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "bodyText": zod.string().nullish(),
+  "isRead": zod.boolean(),
+  "isReplied": zod.boolean(),
+  "repliedAt": zod.string().nullish(),
+  "replyCount": zod.number(),
+  "inReplyTo": zod.string().nullish(),
+  "spamScore": zod.string().nullish(),
+  "receivedAt": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete an email
+ */
+export const AdminDeleteEmailParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeleteEmailResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Toggle email read/unread
+ */
+export const AdminToggleEmailReadParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminToggleEmailReadBody = zod.object({
+  "isRead": zod.boolean()
+})
+
+export const AdminToggleEmailReadResponse = zod.object({
+  "id": zod.string(),
+  "messageId": zod.string().nullish(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string().nullish(),
+  "toEmail": zod.string(),
+  "subject": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "bodyText": zod.string().nullish(),
+  "isRead": zod.boolean(),
+  "isReplied": zod.boolean(),
+  "repliedAt": zod.string().nullish(),
+  "replyCount": zod.number(),
+  "inReplyTo": zod.string().nullish(),
+  "spamScore": zod.string().nullish(),
+  "receivedAt": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Send a reply via Resend
+ */
+export const AdminReplyToEmailParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminReplyToEmailBody = zod.object({
+  "subject": zod.string().optional(),
+  "body": zod.string()
+})
+
+export const AdminReplyToEmailResponse = zod.object({
+  "success": zod.boolean()
+})
 
 

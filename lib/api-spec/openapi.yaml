@@ -130,6 +130,96 @@ paths:
         "401":
           description: Invalid credentials
 
+  /admin/auth/totp/confirm:
+    post:
+      operationId: adminTotpConfirm
+      tags: [admin-auth]
+      summary: Step 2 of login when TOTP is enabled — verify code and receive full JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminTotpConfirmInput"
+      responses:
+        "200":
+          description: TOTP verified — full session token returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResult"
+        "401":
+          description: Invalid or expired pending token, or wrong TOTP code
+
+  /admin/auth/totp/setup:
+    post:
+      operationId: adminTotpSetup
+      tags: [admin-auth]
+      summary: Generate a new TOTP secret and QR code (does not enable 2FA yet)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Secret and QR code ready to scan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTotpSetupResult"
+
+  /admin/auth/totp/verify-setup:
+    post:
+      operationId: adminTotpVerifySetup
+      tags: [admin-auth]
+      summary: Confirm a scanned TOTP code to activate 2FA on the account
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminTotpVerifySetupInput"
+      responses:
+        "200":
+          description: 2FA enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, totpEnabled]
+                properties:
+                  ok: { type: boolean }
+                  totpEnabled: { type: boolean }
+        "400":
+          description: Invalid or expired TOTP code
+
+  /admin/auth/totp/disable:
+    post:
+      operationId: adminTotpDisable
+      tags: [admin-auth]
+      summary: Disable 2FA on the account (requires current password)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminTotpDisableInput"
+      responses:
+        "200":
+          description: 2FA disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, totpEnabled]
+                properties:
+                  ok: { type: boolean }
+                  totpEnabled: { type: boolean }
+        "401":
+          description: Incorrect password
+
   /admin/auth/change-password:
     post:
       operationId: adminChangePassword
@@ -1668,11 +1758,12 @@ components:
 
     AdminLoginResult:
       type: object
-      required: [token, user]
       properties:
         token: { type: string }
         user:
           $ref: "#/components/schemas/AdminUser"
+        totpRequired: { type: boolean }
+        pendingToken: { type: string }
 
     AdminUser:
       type: object
@@ -1697,9 +1788,38 @@ components:
         name:                  { type: string }
         role:                  { type: string }
         mustChangePassword:    { type: boolean }
+        totpEnabled:           { type: boolean }
         effectivePermissions:
           type: array
           items: { type: string }
+
+    AdminTotpConfirmInput:
+      type: object
+      required: [pendingToken, code]
+      properties:
+        pendingToken: { type: string }
+        code:         { type: string }
+
+    AdminTotpSetupResult:
+      type: object
+      required: [secret, otpAuthUrl, qrCode]
+      properties:
+        secret:     { type: string }
+        otpAuthUrl: { type: string }
+        qrCode:     { type: string }
+
+    AdminTotpVerifySetupInput:
+      type: object
+      required: [code, secret]
+      properties:
+        code:   { type: string }
+        secret: { type: string }
+
+    AdminTotpDisableInput:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string }
 
     AdminChangePasswordInput:
       type: object

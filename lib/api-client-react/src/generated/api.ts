@@ -34,6 +34,7 @@ import type {
   AdminKeepFlaggedReport200,
   AdminListAuditLogsParams,
   AdminListBlogPostsParams,
+  AdminListEmailsParams,
   AdminListPoisParams,
   AdminListReportsParams,
   AdminListSpeedZonesParams,
@@ -56,6 +57,13 @@ import type {
   AdminSpeedZoneList,
   AdminStats,
   AdminSubscriberList,
+  AdminToggleEmailReadBody,
+  AdminTotpConfirmInput,
+  AdminTotpDisable200,
+  AdminTotpDisableInput,
+  AdminTotpSetupResult,
+  AdminTotpVerifySetup200,
+  AdminTotpVerifySetupInput,
   AdminUser,
   AdminUserInput,
   AdminUserList,
@@ -77,6 +85,10 @@ import type {
   DeregisterPushTokenInput,
   GetAppVersionParams,
   HealthStatus,
+  InboxEmail,
+  InboxEmailList,
+  InboxReplyInput,
+  InboxStats,
   ListBlogPostsParams,
   ListSpeedZonesParams,
   PushCampaign,
@@ -490,6 +502,286 @@ export const useAdminLogin = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminLoginMutationOptions(options));
+    }
+
+export const getAdminTotpConfirmUrl = () => {
+
+
+
+
+  return `/api/admin/auth/totp/confirm`
+}
+
+/**
+ * @summary Step 2 of login when TOTP is enabled — verify code and receive full JWT
+ */
+export const adminTotpConfirm = async (adminTotpConfirmInput: AdminTotpConfirmInput, options?: RequestInit): Promise<AdminLoginResult> => {
+
+  return customFetch<AdminLoginResult>(getAdminTotpConfirmUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminTotpConfirmInput)
+  }
+);}
+
+
+
+
+export const getAdminTotpConfirmMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpConfirm>>, TError,{data: BodyType<AdminTotpConfirmInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminTotpConfirm>>, TError,{data: BodyType<AdminTotpConfirmInput>}, TContext> => {
+
+const mutationKey = ['adminTotpConfirm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminTotpConfirm>>, {data: BodyType<AdminTotpConfirmInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminTotpConfirm(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminTotpConfirmMutationResult = NonNullable<Awaited<ReturnType<typeof adminTotpConfirm>>>
+    export type AdminTotpConfirmMutationBody = BodyType<AdminTotpConfirmInput>
+    export type AdminTotpConfirmMutationError = ErrorType<void>
+
+    /**
+ * @summary Step 2 of login when TOTP is enabled — verify code and receive full JWT
+ */
+export const useAdminTotpConfirm = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpConfirm>>, TError,{data: BodyType<AdminTotpConfirmInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminTotpConfirm>>,
+        TError,
+        {data: BodyType<AdminTotpConfirmInput>},
+        TContext
+      > => {
+      return useMutation(getAdminTotpConfirmMutationOptions(options));
+    }
+
+export const getAdminTotpSetupUrl = () => {
+
+
+
+
+  return `/api/admin/auth/totp/setup`
+}
+
+/**
+ * @summary Generate a new TOTP secret and QR code (does not enable 2FA yet)
+ */
+export const adminTotpSetup = async ( options?: RequestInit): Promise<AdminTotpSetupResult> => {
+
+  return customFetch<AdminTotpSetupResult>(getAdminTotpSetupUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAdminTotpSetupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpSetup>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminTotpSetup>>, TError,void, TContext> => {
+
+const mutationKey = ['adminTotpSetup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminTotpSetup>>, void> = () => {
+
+
+          return  adminTotpSetup(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminTotpSetupMutationResult = NonNullable<Awaited<ReturnType<typeof adminTotpSetup>>>
+
+    export type AdminTotpSetupMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate a new TOTP secret and QR code (does not enable 2FA yet)
+ */
+export const useAdminTotpSetup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpSetup>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminTotpSetup>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAdminTotpSetupMutationOptions(options));
+    }
+
+export const getAdminTotpVerifySetupUrl = () => {
+
+
+
+
+  return `/api/admin/auth/totp/verify-setup`
+}
+
+/**
+ * @summary Confirm a scanned TOTP code to activate 2FA on the account
+ */
+export const adminTotpVerifySetup = async (adminTotpVerifySetupInput: AdminTotpVerifySetupInput, options?: RequestInit): Promise<AdminTotpVerifySetup200> => {
+
+  return customFetch<AdminTotpVerifySetup200>(getAdminTotpVerifySetupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminTotpVerifySetupInput)
+  }
+);}
+
+
+
+
+export const getAdminTotpVerifySetupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpVerifySetup>>, TError,{data: BodyType<AdminTotpVerifySetupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminTotpVerifySetup>>, TError,{data: BodyType<AdminTotpVerifySetupInput>}, TContext> => {
+
+const mutationKey = ['adminTotpVerifySetup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminTotpVerifySetup>>, {data: BodyType<AdminTotpVerifySetupInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminTotpVerifySetup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminTotpVerifySetupMutationResult = NonNullable<Awaited<ReturnType<typeof adminTotpVerifySetup>>>
+    export type AdminTotpVerifySetupMutationBody = BodyType<AdminTotpVerifySetupInput>
+    export type AdminTotpVerifySetupMutationError = ErrorType<void>
+
+    /**
+ * @summary Confirm a scanned TOTP code to activate 2FA on the account
+ */
+export const useAdminTotpVerifySetup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpVerifySetup>>, TError,{data: BodyType<AdminTotpVerifySetupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminTotpVerifySetup>>,
+        TError,
+        {data: BodyType<AdminTotpVerifySetupInput>},
+        TContext
+      > => {
+      return useMutation(getAdminTotpVerifySetupMutationOptions(options));
+    }
+
+export const getAdminTotpDisableUrl = () => {
+
+
+
+
+  return `/api/admin/auth/totp/disable`
+}
+
+/**
+ * @summary Disable 2FA on the account (requires current password)
+ */
+export const adminTotpDisable = async (adminTotpDisableInput: AdminTotpDisableInput, options?: RequestInit): Promise<AdminTotpDisable200> => {
+
+  return customFetch<AdminTotpDisable200>(getAdminTotpDisableUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminTotpDisableInput)
+  }
+);}
+
+
+
+
+export const getAdminTotpDisableMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpDisable>>, TError,{data: BodyType<AdminTotpDisableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminTotpDisable>>, TError,{data: BodyType<AdminTotpDisableInput>}, TContext> => {
+
+const mutationKey = ['adminTotpDisable'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminTotpDisable>>, {data: BodyType<AdminTotpDisableInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminTotpDisable(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminTotpDisableMutationResult = NonNullable<Awaited<ReturnType<typeof adminTotpDisable>>>
+    export type AdminTotpDisableMutationBody = BodyType<AdminTotpDisableInput>
+    export type AdminTotpDisableMutationError = ErrorType<void>
+
+    /**
+ * @summary Disable 2FA on the account (requires current password)
+ */
+export const useAdminTotpDisable = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminTotpDisable>>, TError,{data: BodyType<AdminTotpDisableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminTotpDisable>>,
+        TError,
+        {data: BodyType<AdminTotpDisableInput>},
+        TContext
+      > => {
+      return useMutation(getAdminTotpDisableMutationOptions(options));
     }
 
 export const getAdminChangePasswordUrl = () => {
@@ -5146,5 +5438,455 @@ export const useAdminDeletePoi = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeletePoiMutationOptions(options));
+    }
+
+export const getAdminGetInboxStatsUrl = () => {
+
+
+
+
+  return `/api/admin/inbox/stats`
+}
+
+/**
+ * @summary Get unread email count
+ */
+export const adminGetInboxStats = async ( options?: RequestInit): Promise<InboxStats> => {
+
+  return customFetch<InboxStats>(getAdminGetInboxStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetInboxStatsQueryKey = () => {
+    return [
+    `/api/admin/inbox/stats`
+    ] as const;
+    }
+
+
+export const getAdminGetInboxStatsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetInboxStats>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetInboxStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetInboxStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetInboxStats>>> = ({ signal }) => adminGetInboxStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetInboxStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetInboxStatsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetInboxStats>>>
+export type AdminGetInboxStatsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get unread email count
+ */
+
+export function useAdminGetInboxStats<TData = Awaited<ReturnType<typeof adminGetInboxStats>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetInboxStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetInboxStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminListEmailsUrl = (params?: AdminListEmailsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/inbox?${stringifiedParams}` : `/api/admin/inbox`
+}
+
+/**
+ * @summary List inbox emails
+ */
+export const adminListEmails = async (params?: AdminListEmailsParams, options?: RequestInit): Promise<InboxEmailList> => {
+
+  return customFetch<InboxEmailList>(getAdminListEmailsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListEmailsQueryKey = (params?: AdminListEmailsParams,) => {
+    return [
+    `/api/admin/inbox`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListEmailsQueryOptions = <TData = Awaited<ReturnType<typeof adminListEmails>>, TError = ErrorType<void>>(params?: AdminListEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListEmailsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListEmails>>> = ({ signal }) => adminListEmails(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListEmails>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListEmailsQueryResult = NonNullable<Awaited<ReturnType<typeof adminListEmails>>>
+export type AdminListEmailsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List inbox emails
+ */
+
+export function useAdminListEmails<TData = Awaited<ReturnType<typeof adminListEmails>>, TError = ErrorType<void>>(
+ params?: AdminListEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListEmailsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminGetEmailUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/inbox/${id}`
+}
+
+/**
+ * @summary Get a single email (marks as read)
+ */
+export const adminGetEmail = async (id: string, options?: RequestInit): Promise<InboxEmail> => {
+
+  return customFetch<InboxEmail>(getAdminGetEmailUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetEmailQueryKey = (id: string,) => {
+    return [
+    `/api/admin/inbox/${id}`
+    ] as const;
+    }
+
+
+export const getAdminGetEmailQueryOptions = <TData = Awaited<ReturnType<typeof adminGetEmail>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetEmail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetEmailQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetEmail>>> = ({ signal }) => adminGetEmail(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetEmail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetEmailQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetEmail>>>
+export type AdminGetEmailQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a single email (marks as read)
+ */
+
+export function useAdminGetEmail<TData = Awaited<ReturnType<typeof adminGetEmail>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetEmail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetEmailQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminDeleteEmailUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/inbox/${id}`
+}
+
+/**
+ * @summary Delete an email
+ */
+export const adminDeleteEmail = async (id: string, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminDeleteEmailUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeleteEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteEmail>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteEmail>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminDeleteEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteEmail>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminDeleteEmail(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteEmailMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteEmail>>>
+
+    export type AdminDeleteEmailMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an email
+ */
+export const useAdminDeleteEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteEmail>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteEmail>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteEmailMutationOptions(options));
+    }
+
+export const getAdminToggleEmailReadUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/inbox/${id}/read`
+}
+
+/**
+ * @summary Toggle email read/unread
+ */
+export const adminToggleEmailRead = async (id: string,
+    adminToggleEmailReadBody: AdminToggleEmailReadBody, options?: RequestInit): Promise<InboxEmail> => {
+
+  return customFetch<InboxEmail>(getAdminToggleEmailReadUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminToggleEmailReadBody)
+  }
+);}
+
+
+
+
+export const getAdminToggleEmailReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminToggleEmailRead>>, TError,{id: string;data: BodyType<AdminToggleEmailReadBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminToggleEmailRead>>, TError,{id: string;data: BodyType<AdminToggleEmailReadBody>}, TContext> => {
+
+const mutationKey = ['adminToggleEmailRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminToggleEmailRead>>, {id: string;data: BodyType<AdminToggleEmailReadBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminToggleEmailRead(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminToggleEmailReadMutationResult = NonNullable<Awaited<ReturnType<typeof adminToggleEmailRead>>>
+    export type AdminToggleEmailReadMutationBody = BodyType<AdminToggleEmailReadBody>
+    export type AdminToggleEmailReadMutationError = ErrorType<void>
+
+    /**
+ * @summary Toggle email read/unread
+ */
+export const useAdminToggleEmailRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminToggleEmailRead>>, TError,{id: string;data: BodyType<AdminToggleEmailReadBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminToggleEmailRead>>,
+        TError,
+        {id: string;data: BodyType<AdminToggleEmailReadBody>},
+        TContext
+      > => {
+      return useMutation(getAdminToggleEmailReadMutationOptions(options));
+    }
+
+export const getAdminReplyToEmailUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/inbox/${id}/reply`
+}
+
+/**
+ * @summary Send a reply via Resend
+ */
+export const adminReplyToEmail = async (id: string,
+    inboxReplyInput: InboxReplyInput, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminReplyToEmailUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(inboxReplyInput)
+  }
+);}
+
+
+
+
+export const getAdminReplyToEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminReplyToEmail>>, TError,{id: string;data: BodyType<InboxReplyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminReplyToEmail>>, TError,{id: string;data: BodyType<InboxReplyInput>}, TContext> => {
+
+const mutationKey = ['adminReplyToEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminReplyToEmail>>, {id: string;data: BodyType<InboxReplyInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminReplyToEmail(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminReplyToEmailMutationResult = NonNullable<Awaited<ReturnType<typeof adminReplyToEmail>>>
+    export type AdminReplyToEmailMutationBody = BodyType<InboxReplyInput>
+    export type AdminReplyToEmailMutationError = ErrorType<void>
+
+    /**
+ * @summary Send a reply via Resend
+ */
+export const useAdminReplyToEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminReplyToEmail>>, TError,{id: string;data: BodyType<InboxReplyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminReplyToEmail>>,
+        TError,
+        {id: string;data: BodyType<InboxReplyInput>},
+        TContext
+      > => {
+      return useMutation(getAdminReplyToEmailMutationOptions(options));
     }
 

@@ -9,6 +9,8 @@ export const adminUsersTable = pgTable("admin_users", {
   permissions:        text("permissions"), // JSON array of feature keys, null = use role defaults
   mustChangePassword: boolean("must_change_password").notNull().default(false),
   passwordUpdatedAt:  timestamp("password_updated_at"),
+  totpSecret:         text("totp_secret"),          // base32 TOTP secret; null = 2FA not set up
+  totpEnabled:        boolean("totp_enabled").notNull().default(false),
   createdAt:          timestamp("created_at").notNull().defaultNow(),
 });
 
