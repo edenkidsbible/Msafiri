@@ -11,6 +11,7 @@ import importsRouter from "./imports";
 import invitationsRouter from "./invitations";
 import dashboardRouter from "./dashboard";
 import chatRouter from "./chat";
+import backupRouter from "./backup";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use(importsRouter);
 router.use(invitationsRouter);
 router.use(dashboardRouter);
 router.use(chatRouter);
+router.use(backupRouter);
 
 export default router;

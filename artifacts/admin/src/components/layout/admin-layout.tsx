@@ -150,6 +150,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/ops/chat",          label: "Chat",            icon: MessageCircle, badge: chatUnread },
     { href: "/ops/import",        label: "Import",          icon: FileUp },
     { href: "/ops/settings",      label: "Ops Settings",    icon: Settings2 },
+    { href: "/ops/backup",        label: "Backup & Restore", icon: DatabaseBackup },
   ];
 
   // ── App management nav items ───────────────────────────────────────────────

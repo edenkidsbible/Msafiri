@@ -28,6 +28,7 @@ const OpsTeam         = lazy(() => import("@/pages/ops/team"));
 const OpsChat         = lazy(() => import("@/pages/ops/chat"));
 const OpsImport       = lazy(() => import("@/pages/ops/import"));
 const OpsSettings     = lazy(() => import("@/pages/ops/settings"));
+const OpsBackup       = lazy(() => import("@/pages/ops/backup"));
 
 function OpsRoute({ component: Component }: { component: React.ComponentType }) {
   const [, setLocation] = useLocation();
@@ -168,6 +169,7 @@ function Router() {
       <Route path="/ops/chat"><OpsRoute component={OpsChat} /></Route>
       <Route path="/ops/import"><OpsRoute component={OpsImport} /></Route>
       <Route path="/ops/settings"><OpsRoute component={OpsSettings} /></Route>
+      <Route path="/ops/backup"><OpsRoute component={OpsBackup} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

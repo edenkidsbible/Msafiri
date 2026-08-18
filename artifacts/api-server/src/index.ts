@@ -13,6 +13,7 @@ import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
 import { seedPois } from "./startup/seedPois";
+import { seedOpsData } from "./startup/seedOpsData";
 import { retryPendingCarImages, retryPendingLogos } from "./routes/customVehicles.js";
 import { startHereTrafficJob } from "./jobs/hereTraffic";
 import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
@@ -121,6 +122,7 @@ const server = app.listen(port, async (err) => {
     await backfillCourseAudio();
     await dedupPushTokens();
     await seedPois();
+    await seedOpsData(logger);
   } catch (startupErr) {
     logger.error({ err: startupErr }, "Startup task failed — exiting");
     process.exit(1);
