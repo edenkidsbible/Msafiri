@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, adminUsersTable, opsDepartmentsTable, opsTeamMembersTable } from "@workspace/db";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, asc, sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -44,7 +44,7 @@ router.patch("/team/departments/:id", async (req, res) => {
   if (!['founder', 'admin'].includes(role)) return res.status(403).json({ error: 'Forbidden' });
 
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { name, description, isActive } = req.body;
     const update: Record<string, unknown> = {};
     if (name !== undefined) update.name = name.trim();
@@ -69,7 +69,7 @@ router.delete("/team/departments/:id", async (req, res) => {
   if (!['founder', 'admin'].includes(role)) return res.status(403).json({ error: 'Forbidden' });
 
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     await db.delete(opsDepartmentsTable).where(eq(opsDepartmentsTable.id, id));
     return res.status(204).send();
   } catch (err) {
@@ -104,7 +104,7 @@ async function getTeamMembersWithUsers() {
   return db
     .select({
       id: opsTeamMembersTable.id,
-      userId: opsTeamMembersTable.userId,
+      adminUserId: opsTeamMembersTable.adminUserId,
       role: opsTeamMembersTable.role,
       departmentId: opsTeamMembersTable.departmentId,
       departmentName: opsDepartmentsTable.name,
@@ -116,7 +116,7 @@ async function getTeamMembersWithUsers() {
       name: adminUsersTable.name,
     })
     .from(opsTeamMembersTable)
-    .leftJoin(adminUsersTable, eq(opsTeamMembersTable.userId, adminUsersTable.id))
+    .leftJoin(adminUsersTable, sql`${opsTeamMembersTable.adminUserId} = ${adminUsersTable.id}::text`)
     .leftJoin(opsDepartmentsTable, eq(opsTeamMembersTable.departmentId, opsDepartmentsTable.id))
     .orderBy(asc(adminUsersTable.name));
 }
@@ -147,13 +147,13 @@ router.post("/team/members", async (req, res) => {
     const [existing] = await db
       .select()
       .from(opsTeamMembersTable)
-      .where(eq(opsTeamMembersTable.userId, userId));
+      .where(eq(opsTeamMembersTable.adminUserId, userId));
     if (existing) return res.status(400).json({ error: "User is already a team member" });
 
     const [member] = await db
       .insert(opsTeamMembersTable)
       .values({
-        userId,
+        adminUserId: userId,
         role: memberRole ?? "member",
         departmentId: departmentId ?? null,
         notes,
@@ -165,7 +165,7 @@ router.post("/team/members", async (req, res) => {
     const [full] = await db
       .select({
         id: opsTeamMembersTable.id,
-        userId: opsTeamMembersTable.userId,
+        adminUserId: opsTeamMembersTable.adminUserId,
         role: opsTeamMembersTable.role,
         departmentId: opsTeamMembersTable.departmentId,
         departmentName: opsDepartmentsTable.name,
@@ -177,7 +177,7 @@ router.post("/team/members", async (req, res) => {
         name: adminUsersTable.name,
       })
       .from(opsTeamMembersTable)
-      .leftJoin(adminUsersTable, eq(opsTeamMembersTable.userId, adminUsersTable.id))
+      .leftJoin(adminUsersTable, sql`${opsTeamMembersTable.adminUserId} = ${adminUsersTable.id}::text`)
       .leftJoin(opsDepartmentsTable, eq(opsTeamMembersTable.departmentId, opsDepartmentsTable.id))
       .where(eq(opsTeamMembersTable.id, member.id));
 
@@ -193,7 +193,7 @@ router.patch("/team/members/:id", async (req, res) => {
   if (!['founder', 'admin'].includes(role)) return res.status(403).json({ error: 'Forbidden' });
 
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { role: memberRole, departmentId, isActive, notes } = req.body;
     const update: Record<string, unknown> = {};
     if (memberRole !== undefined) update.role = memberRole;
@@ -211,7 +211,7 @@ router.patch("/team/members/:id", async (req, res) => {
     const [full] = await db
       .select({
         id: opsTeamMembersTable.id,
-        userId: opsTeamMembersTable.userId,
+        adminUserId: opsTeamMembersTable.adminUserId,
         role: opsTeamMembersTable.role,
         departmentId: opsTeamMembersTable.departmentId,
         departmentName: opsDepartmentsTable.name,
@@ -223,7 +223,7 @@ router.patch("/team/members/:id", async (req, res) => {
         name: adminUsersTable.name,
       })
       .from(opsTeamMembersTable)
-      .leftJoin(adminUsersTable, eq(opsTeamMembersTable.userId, adminUsersTable.id))
+      .leftJoin(adminUsersTable, sql`${opsTeamMembersTable.adminUserId} = ${adminUsersTable.id}::text`)
       .leftJoin(opsDepartmentsTable, eq(opsTeamMembersTable.departmentId, opsDepartmentsTable.id))
       .where(eq(opsTeamMembersTable.id, member.id));
 
@@ -239,7 +239,7 @@ router.delete("/team/members/:id", async (req, res) => {
   if (!['founder', 'admin'].includes(role)) return res.status(403).json({ error: 'Forbidden' });
 
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     await db.delete(opsTeamMembersTable).where(eq(opsTeamMembersTable.id, id));
     return res.status(204).send();
   } catch (err) {

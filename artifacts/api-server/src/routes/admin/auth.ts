@@ -2,8 +2,8 @@ import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import { db, adminUsersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, adminUsersTable, opsTeamMembersTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import {
   signAdminToken,
   adminAuthMiddleware,
@@ -19,6 +19,30 @@ import {
 } from "../../lib/totp.js";
 
 const router = Router();
+
+/**
+ * Idempotently ensures the given admin user has an ops_team_members row.
+ * Called on every successful login so accounts created after the last server
+ * startup are linked before the user ever reaches the Team page.
+ * Role mapping: founder → founder | admin → admin | moderator → member | * → member
+ * Failures are swallowed — a missing member row is non-fatal for login itself.
+ */
+async function ensureOpsTeamMember(userId: string, role: string): Promise<void> {
+  const opsRole =
+    role === "founder" ? "founder"
+    : role === "admin" ? "admin"
+    : "member";
+  try {
+    await db.execute(sql`
+      INSERT INTO ops_team_members (admin_user_id, role)
+      VALUES (${userId}, ${opsRole})
+      ON CONFLICT (admin_user_id) DO NOTHING
+    `);
+  } catch {
+    // Non-fatal: the unique index may not exist yet on a fresh DB that has not
+    // run migrateSchema yet, or the table itself may be mid-creation.
+  }
+}
 
 // ── Brute-force protection for admin login ────────────────────────────────────
 // 5 attempts per IP per 15 minutes — tight because this grants full admin access.
@@ -125,6 +149,9 @@ router.post("/auth/login", adminLoginLimiter, async (req: Request, res: Response
       mustChangePassword: user.mustChangePassword,
     });
 
+    // Ensure this admin has an ops team member row (idempotent).
+    await ensureOpsTeamMember(user.id, user.role);
+
     return res.json({
       token,
       user: {
@@ -181,6 +208,9 @@ router.post("/auth/totp/confirm", adminLoginLimiter, async (req: Request, res: R
       role: user.role,
       mustChangePassword: user.mustChangePassword,
     });
+
+    // Ensure this admin has an ops team member row (idempotent).
+    await ensureOpsTeamMember(user.id, user.role);
 
     return res.json({
       token,

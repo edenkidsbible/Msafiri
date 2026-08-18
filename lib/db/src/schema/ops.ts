@@ -36,9 +36,10 @@ export const opsTeamMembersTable = pgTable("ops_team_members", {
   id: serial("id").primaryKey(),
   adminUserId: text("admin_user_id").notNull(), // references admin_users.id
   departmentId: integer("department_id").references(() => opsDepartmentsTable.id, { onDelete: "set null" }),
-  role: text("role").notNull().default("member"), // owner | admin | member | viewer
+  role: text("role").notNull().default("member"), // founder | admin | member | viewer
   isActive: boolean("is_active").notNull().default(true),
   notes: text("notes"),
+  invitedBy: text("invited_by"), // admin_users.id of who added this member
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

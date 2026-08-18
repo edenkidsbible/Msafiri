@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { db, adminUsersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { startExpireReportsJob } from "./jobs/expireReports";
 import { startPushNotificationsJob } from "./jobs/pushNotifications";
@@ -65,6 +65,40 @@ async function seedDefaultAdmin() {
   }
 }
 
+/**
+ * Auto-link every admin_user to ops_team_members so the Team page is
+ * populated on a fresh install without any manual "add member" step.
+ *
+ * Runs AFTER seedDefaultAdmin so the default admin account (created in
+ * that step) is guaranteed to be present before we attempt the INSERT.
+ *
+ * Role mapping: founder → founder | admin → admin | moderator → member | * → member
+ *
+ * The INSERT uses ON CONFLICT (admin_user_id) DO NOTHING which is safe
+ * because migrateSchema() creates a UNIQUE INDEX on that column before
+ * this function is called.  Concurrent restarts therefore cannot produce
+ * duplicate rows.
+ */
+async function seedOpsTeamMembers() {
+  try {
+    await db.execute(sql`
+      INSERT INTO ops_team_members (admin_user_id, role)
+      SELECT
+        au.id::text,
+        CASE au.role
+          WHEN 'founder'   THEN 'founder'
+          WHEN 'admin'     THEN 'admin'
+          WHEN 'moderator' THEN 'member'
+          ELSE                  'member'
+        END
+      FROM admin_users au
+      ON CONFLICT (admin_user_id) DO NOTHING
+    `);
+  } catch (err) {
+    logger.warn({ err }, "seedOpsTeamMembers: could not auto-link admin accounts");
+  }
+}
+
 const server = app.listen(port, async (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -81,6 +115,7 @@ const server = app.listen(port, async (err) => {
   try {
     await migrateSchema();
     await seedDefaultAdmin();
+    await seedOpsTeamMembers();
     await syncStaticZones();
     await seedCourseIfEmpty();
     await backfillCourseAudio();

@@ -943,6 +943,31 @@ export async function migrateSchema(): Promise<void> {
       )
     `);
 
+    // ── ops_team_members.invited_by — column added after initial rollout ────────
+    // Tracks which admin user manually added a team member (NULL for auto-seeded rows).
+    await db.execute(sql`
+      ALTER TABLE ops_team_members
+      ADD COLUMN IF NOT EXISTS invited_by TEXT
+    `);
+
+    // ── Unique constraint on ops_team_members.admin_user_id ──────────────────
+    // Prevents duplicate rows for the same admin and makes ON CONFLICT work.
+    // Before creating the index, delete any duplicates that may exist from
+    // earlier deployments — keep the row with the lowest id for each user.
+    await db.execute(sql`
+      DELETE FROM ops_team_members
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM   ops_team_members
+        GROUP  BY admin_user_id
+      )
+    `);
+    // CREATE UNIQUE INDEX IF NOT EXISTS is idempotent across restarts.
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ops_team_members_admin_user_id_uniq
+        ON ops_team_members (admin_user_id)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
