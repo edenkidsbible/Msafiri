@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { authFetch, getUser } from "@/lib/auth";
 import { subscribeChatSocket, sendChatFrame, type ChatSocketEvent } from "@/lib/chat-socket";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,12 @@ function ConversationIcon({ type }: { type: string }) {
 export default function Chat() {
   const me = getUser();
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const rawSearch = useSearch();
+  const convParam = useMemo(() => {
+    const n = parseInt(new URLSearchParams(rawSearch).get("conv") ?? "", 10);
+    return isNaN(n) ? null : n;
+  }, [rawSearch]);
+  const [selectedId, setSelectedId] = useState<number | null>(convParam);
   const selectedIdRef = useRef<number | null>(null);
   selectedIdRef.current = selectedId;
   const [draft, setDraft] = useState("");
@@ -119,7 +125,12 @@ export default function Chat() {
     },
   });
 
-  // Auto-select the first conversation once loaded.
+  // If a ?conv= query param is present (e.g. from a toast click-through), honour it.
+  useEffect(() => {
+    if (convParam != null) setSelectedId(convParam);
+  }, [convParam]);
+
+  // Auto-select the first conversation once loaded (only when no param drove the selection).
   useEffect(() => {
     if (selectedId == null && conversations && conversations.length > 0) {
       setSelectedId(conversations[0].id);

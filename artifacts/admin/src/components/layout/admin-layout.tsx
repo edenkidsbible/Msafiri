@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon,
@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { getToken } from "@/lib/auth";
 import { subscribeChatSocket } from "@/lib/chat-socket";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 function authFetch(url: string) {
   return fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
@@ -43,6 +45,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const user = getUser();
   const { resolvedTheme, toggle } = useTheme();
+  const { toast } = useToast();
   const [searchOpen, setSearchOpen] = useState(false);
   const { can } = usePermissions();
 
@@ -83,6 +86,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Keep a stable ref to the current location so the socket listener can read
+  // the latest value without needing to re-subscribe on every navigation.
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
   // Chat unread badge: fetched once on mount, then refreshed in real time by
   // WebSocket events (new messages and reconnects) — no polling interval.
   useEffect(() => {
@@ -97,8 +105,31 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       if (evt.event === "message:new" || evt.event === "connected") {
         fetchChatUnread();
       }
+      // Show a toast when a message arrives and the user isn't on the chat page.
+      if (
+        evt.event === "message:new" &&
+        evt.message &&
+        !locationRef.current.startsWith("/ops/chat") &&
+        evt.message.senderId !== user?.id
+      ) {
+        const msg = evt.message;
+        const senderFirst = (msg.senderName ?? "Someone").split(" ")[0];
+        toast({
+          title: `New message from ${senderFirst}`,
+          description: msg.body.length > 60 ? msg.body.slice(0, 60) + "…" : msg.body,
+          action: (
+            <ToastAction
+              altText="Open chat"
+              onClick={() => setLocation(`/ops/chat?conv=${msg.conversationId}`)}
+            >
+              Open
+            </ToastAction>
+          ),
+        });
+      }
     });
     return unsubscribe;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLogout = () => {
