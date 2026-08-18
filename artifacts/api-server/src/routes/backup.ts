@@ -30,18 +30,18 @@ function normalizePlate(raw: string): string {
 }
 
 // ── Rate limiter for restore-by-plate ────────────────────────────────────────
-// Tight limit: 5 attempts per IP per 15 min.  Recovery requires correct plate
-// + vehicle details — brute-force must be expensive.
+// 3 attempts per IP per 24 hours. Recovery requires correct plate + vehicle
+// details — brute-force must be expensive.
 const restoreByPlateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 3,
   keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req: Request, res: Response) => {
-    res.set("Retry-After", "900");
+    res.set("Retry-After", "86400");
     res.status(429).json({
-      error: "Too many recovery attempts. Wait 15 minutes and try again.",
+      error: "Too many recovery attempts. Wait 24 hours and try again.",
     });
   },
 });

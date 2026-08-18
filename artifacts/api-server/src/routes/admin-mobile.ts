@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
 import { eq, isNotNull, inArray, desc } from "drizzle-orm";
 import { patchStaticZoneFile } from "../startup/syncStaticZones";
@@ -8,6 +9,22 @@ import { patchStaticZoneFile } from "../startup/syncStaticZones";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = Router();
+
+// ── Brute-force protection for mobile PIN ─────────────────────────────────────
+// 5 attempts per IP per 15 minutes.
+const pinAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.set("Retry-After", "900");
+    res.status(429).json({
+      error: "Too many PIN attempts. Wait 15 minutes and try again.",
+    });
+  },
+});
 
 function requireSessionSecret(): string {
   const s = process.env.SESSION_SECRET;
@@ -41,7 +58,7 @@ function adminMobileAuth(req: Request, res: Response, next: NextFunction): void 
 
 // ─── POST /admin-mobile/auth ──────────────────────────────────────────────────
 // Verify PIN, return a 30-day JWT for admin-mobile operations.
-router.post("/admin-mobile/auth", (req: Request, res: Response) => {
+router.post("/admin-mobile/auth", pinAuthLimiter, (req: Request, res: Response) => {
   const { pin } = req.body as { pin?: string };
   if (!pin || typeof pin !== "string") {
     return res.status(400).json({ error: "PIN required" });

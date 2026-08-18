@@ -1,5 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import pinoHttp from "pino-http";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -14,8 +16,53 @@ const __dirname = path.dirname(__filename);
 const app: Express = express();
 
 // Trust the first proxy hop so req.ip reflects the real client address when
-// deployed behind Replit/nginx. This is used for dashcam rate limiting.
+// deployed behind Replit/nginx. This is used for rate limiting.
 app.set("trust proxy", 1);
+
+// ── Security headers (helmet) ──────────────────────────────────────────────────
+app.use(
+  helmet({
+    // Allow loading assets from same origin; disable strict CSP so API JSON
+    // responses aren't blocked when browsers fetch them directly.
+    contentSecurityPolicy: false,
+  })
+);
+
+// ── CORS — allow only known origins ───────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  /^https:\/\/(www\.)?msafirikenya\.com$/,
+  /^https:\/\/.*\.msafirikenya\.com$/,
+  /^https:\/\/.*\.replit\.dev$/,
+  /^https:\/\/.*\.repl\.co$/,
+  /^http:\/\/localhost(:\d+)?$/,
+];
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // Allow requests with no origin (native mobile, curl, server-to-server)
+      if (!origin) return cb(null, true);
+      if (ALLOWED_ORIGINS.some((re) => re.test(origin))) return cb(null, true);
+      cb(new Error(`CORS: origin '${origin}' not allowed`));
+    },
+    credentials: true,
+  })
+);
+
+// ── Global rate limiter ────────────────────────────────────────────────────────
+// Broad DDoS baseline: 300 requests per 15 minutes per IP.
+// Sensitive endpoints (auth, OTP, restore) have tighter per-route limiters.
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
+  handler: (_req, res) => {
+    res.set("Retry-After", "900");
+    res.status(429).json({ error: "Too many requests. Please slow down." });
+  },
+});
+app.use(globalLimiter);
 
 app.use(
   pinoHttp({
@@ -36,8 +83,6 @@ app.use(
     },
   }),
 );
-app.use(cors());
-
 // Inbound email webhook must receive the raw body for Svix signature verification —
 // mount it BEFORE express.json() consumes the stream, using express.raw() for
 // this path only.

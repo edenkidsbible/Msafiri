@@ -1,11 +1,28 @@
 import { Router, type Request, type Response } from "express";
 import bcrypt from "bcrypt";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { db, adminUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { signAdminToken, adminAuthMiddleware, loadAdminPermissionsMiddleware, type AdminJwtPayload } from "../../middleware/adminAuth.js";
 import { getEffectivePermissions, parseStoredPermissions } from "@workspace/permissions";
 
 const router = Router();
+
+// ── Brute-force protection for admin login ────────────────────────────────────
+// 5 attempts per IP per 15 minutes — tight because this grants full admin access.
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ""),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.set("Retry-After", "900");
+    res.status(429).json({
+      error: "Too many login attempts. Wait 15 minutes and try again.",
+    });
+  },
+});
 
 // GET /admin/auth/me — the frontend calls this on load (and can re-poll it)
 // to get the caller's freshly-resolved effective permissions, so nav/route
@@ -23,7 +40,7 @@ router.get("/auth/me", adminAuthMiddleware, loadAdminPermissionsMiddleware, (req
 });
 
 // POST /admin/auth/login
-router.post("/auth/login", async (req: Request, res: Response) => {
+router.post("/auth/login", adminLoginLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body as { email: string; password: string };
     if (!email || !password) {

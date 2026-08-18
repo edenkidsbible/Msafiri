@@ -69,14 +69,17 @@ router.post("/auth/send-otp", async (req, res) => {
     }
   }
 
-  // Rate-limit: reject if an active (non-expired, <5 attempts) OTP already exists
+  // Rate-limit: reject if an active (non-expired) OTP already exists.
+  // This also covers locked OTPs (≥3 wrong attempts) because on the 3rd failure
+  // we extend expires_at to 24 hours, so the check below naturally enforces the
+  // 24-hour cooldown without a separate column.
   const existing = await db.execute(
     sql`SELECT id FROM phone_verifications
-        WHERE email = ${email} AND expires_at > NOW() AND attempts < 5
+        WHERE email = ${email} AND expires_at > NOW()
         LIMIT 1`
   );
   if ((existing.rows as any[]).length > 0) {
-    return res.status(429).json({ error: "A code was already sent recently. Wait a few minutes before trying again." });
+    return res.status(429).json({ error: "A code was already sent. Wait before requesting a new one." });
   }
 
   const otp    = generateOtp();
@@ -153,9 +156,10 @@ router.post("/auth/verify-otp", async (req, res) => {
 
   const record = records[0];
 
-  // Locked after 5 wrong attempts
-  if (record.attempts >= 5) {
-    return res.status(429).json({ error: "Too many attempts. Request a new OTP." });
+  // Locked after 3 wrong attempts — the 24-hour cooldown is enforced by the
+  // extended expires_at set on the 3rd failure (see below).
+  if (record.attempts >= 3) {
+    return res.status(429).json({ error: "Too many attempts. You can request a new code after 24 hours." });
   }
 
   // Reject if the intent doesn't match what was stored — prevents a link OTP
@@ -166,11 +170,26 @@ router.post("/auth/verify-otp", async (req, res) => {
 
   const hashed = hashOtp(otp.trim());
   if (hashed !== record.otp_hash) {
-    await db.execute(
-      sql`UPDATE phone_verifications SET attempts = attempts + 1 WHERE id = ${record.id}`
-    );
-    logger.info({ email, intent, attemptsAfter: record.attempts + 1 }, "[OTP] Verify — wrong code");
-    return res.status(401).json({ error: "Wrong code. Check the digits and try again." });
+    const attemptsAfter = record.attempts + 1;
+    // On the 3rd failure extend expires_at to 24 hours so the send-otp check
+    // blocks any new OTP request for the full cooldown window.
+    if (attemptsAfter >= 3) {
+      await db.execute(
+        sql`UPDATE phone_verifications
+            SET attempts = ${attemptsAfter}, expires_at = NOW() + INTERVAL '24 hours'
+            WHERE id = ${record.id}`
+      );
+    } else {
+      await db.execute(
+        sql`UPDATE phone_verifications SET attempts = ${attemptsAfter} WHERE id = ${record.id}`
+      );
+    }
+    logger.info({ email, intent, attemptsAfter }, "[OTP] Verify — wrong code");
+    const remaining = Math.max(0, 3 - attemptsAfter);
+    const msg = remaining > 0
+      ? `Wrong code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+      : "Wrong code. You have no more attempts. Request a new code after 24 hours.";
+    return res.status(401).json({ error: msg });
   }
 
   // ── Mark as verified ──────────────────────────────────────────────────────
