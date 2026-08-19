@@ -122,6 +122,10 @@ export default function ProfileScreen() {
     }
   };
 
+  const openSocialLink = (url: string) => {
+    Linking.openURL(url).catch(() => {});
+  };
+
   const initials = driverName ? driverName.substring(0, 2).toUpperCase() : "DR";
 
   // Derive the renewal/expiry label from RevenueCat customer info.
@@ -281,6 +285,33 @@ export default function ProfileScreen() {
               onPress={handleInvite}
               isLast
             />
+          </View>
+        </View>
+
+        {/* Social Links */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: c.foreground, marginHorizontal: 16 }]}>Follow Msafiri</Text>
+          <View style={[styles.socialGroup, { backgroundColor: c.card, borderColor: c.tileBorder, marginHorizontal: 16 }]}>
+            {[
+              { label: "TikTok", icon: "logo-tiktok" as const, color: "#111111", url: "https://www.tiktok.com/@msafirikenya.app" },
+              { label: "Instagram", icon: "logo-instagram" as const, color: "#E1306C", url: "https://www.instagram.com/msafirikenyaapp" },
+              { label: "Facebook", icon: "logo-facebook" as const, color: "#1877F2", url: "https://web.facebook.com/profile.php?id=61593084377998" },
+            ].map(({ label, icon, color, url }) => (
+              <TouchableOpacity
+                key={label}
+                style={styles.socialLink}
+                onPress={() => openSocialLink(url)}
+                activeOpacity={0.7}
+                accessibilityRole="link"
+                accessibilityLabel={`Open Msafiri Kenya on ${label}`}
+              >
+                <View style={[styles.socialIcon, { backgroundColor: color + "18" }]}>
+                  <Ionicons name={icon} size={20} color={color} />
+                </View>
+                <Text style={[styles.socialLabel, { color: c.foreground }]}>{label}</Text>
+                <Ionicons name="open-outline" size={16} color={c.mutedForeground} />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -467,6 +498,10 @@ const styles = StyleSheet.create({
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 12 },
   sectionGroup: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  socialGroup: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  socialLink: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  socialIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  socialLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   
   row: { flexDirection: "row", alignItems: "center", padding: 14 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 12 },

@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { Mail, MessageSquare, Shield, Clock, ExternalLink } from "lucide-react";
+import { FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
+
+const socialLinks = [
+  { label: "TikTok", href: "https://www.tiktok.com/@msafirikenya.app", icon: FaTiktok },
+  { label: "Instagram", href: "https://www.instagram.com/msafirikenyaapp", icon: FaInstagram },
+  { label: "Facebook", href: "https://web.facebook.com/profile.php?id=61593084377998", icon: FaFacebookF },
+];
 
 const S = {
   p: { fontSize: "0.9375rem", lineHeight: "1.8", color: "hsl(var(--muted-foreground))", marginBottom: "1rem" } as React.CSSProperties,
@@ -95,6 +102,37 @@ export default function Contact() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div style={{ ...S.card, marginBottom: "3rem", textAlign: "center" }}>
+        <p style={{ ...S.h2, marginBottom: "0.375rem" }}>Follow Msafiri Kenya</p>
+        <p style={{ ...S.p, fontSize: "0.875rem", marginBottom: "1rem" }}>
+          Stay up to date with road-safety tips, product updates, and community news.
+        </p>
+        <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
+          {socialLinks.map(({ label, href, icon: Icon }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Follow Msafiri on ${label}`}
+              title={`Follow Msafiri on ${label}`}
+              style={{
+                width: "2.5rem",
+                height: "2.5rem",
+                borderRadius: "999px",
+                border: "1px solid hsl(var(--border))",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "hsl(var(--muted-foreground))",
+              }}
+            >
+              <Icon size={17} aria-hidden="true" />
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* Form */}

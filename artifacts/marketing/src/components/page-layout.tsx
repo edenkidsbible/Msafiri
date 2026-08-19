@@ -1,7 +1,14 @@
 import React from "react";
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
+import { FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
 import logo from "@/assets/logo.png";
+
+const socialLinks = [
+  { label: "TikTok", href: "https://www.tiktok.com/@msafirikenya.app", icon: FaTiktok },
+  { label: "Instagram", href: "https://www.instagram.com/msafirikenyaapp", icon: FaInstagram },
+  { label: "Facebook", href: "https://web.facebook.com/profile.php?id=61593084377998", icon: FaFacebookF },
+];
 
 interface PageLayoutProps {
   badge: string;
@@ -50,6 +57,21 @@ export function PageLayout({ badge, title, subtitle, children }: PageLayoutProps
           <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
           <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+        </div>
+        <div className="flex items-center justify-center gap-4 mb-4" aria-label="Msafiri social media">
+          {socialLinks.map(({ label, href, icon: Icon }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Follow Msafiri on ${label}`}
+              title={`Follow Msafiri on ${label}`}
+              className="w-9 h-9 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            >
+              <Icon size={16} aria-hidden="true" />
+            </a>
+          ))}
         </div>
         <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Msafiri Kenya. All rights reserved.</p>
       </footer>

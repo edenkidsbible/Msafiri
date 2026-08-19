@@ -7,6 +7,7 @@ import {
   CloudRain, XCircle, CheckCircle2, Layers, Wine, Share2, Users,
   Video, HeartPulse, Route, Bookmark, BarChart2,
 } from "lucide-react";
+import { FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
 import logo from "@/assets/logo.png";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useTheme } from "@/components/ThemeProvider";
@@ -1039,6 +1040,25 @@ export default function Home() {
             <br />
             <span className="text-xs">Built in Nairobi 🇰🇪 for Kenyan drivers.</span>
           </div>
+        </div>
+        <div className="flex items-center justify-center gap-4 mt-8" aria-label="Msafiri social media">
+          {[
+            { label: "TikTok", href: "https://www.tiktok.com/@msafirikenya.app", Icon: FaTiktok },
+            { label: "Instagram", href: "https://www.instagram.com/msafirikenyaapp", Icon: FaInstagram },
+            { label: "Facebook", href: "https://web.facebook.com/profile.php?id=61593084377998", Icon: FaFacebookF },
+          ].map(({ label, href, Icon }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Follow Msafiri on ${label}`}
+              title={`Follow Msafiri on ${label}`}
+              className="w-9 h-9 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            >
+              <Icon size={16} aria-hidden="true" />
+            </a>
+          ))}
         </div>
       </footer>
     </div>
