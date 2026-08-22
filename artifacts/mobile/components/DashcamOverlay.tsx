@@ -102,6 +102,22 @@ export default function DashcamOverlay() {
 
   const insets = useSafeAreaInsets();
 
+  // ── Android permission local override ────────────────────────────────────
+  // expo-camera's useCameraPermissions hook reads a stale OS cache and can
+  // return canAskAgain:false before the system dialog is ever shown on OEM
+  // devices (Samsung, Xiaomi, Oppo, etc.).  We work around this by calling
+  // PermissionsAndroid.request() directly, which always reaches the OS.
+  //
+  // After the OS grants, we MUST NOT call the hook's requestPermission() to
+  // sync it — on the same OEM devices, re-invoking the permission API right
+  // after a fresh grant can either show a second dialog or return
+  // canAskAgain:false, leaving the permission screen stuck.
+  //
+  // Instead: flip this local flag immediately on GRANTED.  The hook will
+  // self-correct on the next mount cycle by re-reading the OS grant, but we
+  // do not wait for it — this flag bypasses the permission gate right away.
+  const [localPermGranted, setLocalPermGranted] = useState(false);
+
   const localCameraRef  = useRef<any>(null);
   const loopCancelRef     = useRef(false);
   const restartCountRef   = useRef(0);
@@ -570,7 +586,7 @@ export default function DashcamOverlay() {
   // false even though permission was just granted. Blocking here returns null,
   // prevents the CameraView from mounting, and leaves the dashcam stuck in
   // "Starting…" indefinitely because onCameraReady never fires.
-  if (!permission?.granted && !backgroundRecordPending) {
+  if (!permission?.granted && !localPermGranted && !backgroundRecordPending) {
     if (!isDashcamOpen) return null; // background start already handles denial
     return (
       <View style={[StyleSheet.absoluteFill, styles.permScreen]}>
@@ -622,8 +638,13 @@ export default function DashcamOverlay() {
               );
 
               if (result === PermissionsAndroid.RESULTS.GRANTED) {
-                // Sync expo-camera's internal hook state with the new OS grant.
-                requestPermission().catch(() => {});
+                // Bypass the permission gate immediately — do NOT call
+                // requestPermission() here.  On OEM devices (Samsung, Xiaomi,
+                // Oppo) calling it right after a fresh OS grant re-invokes the
+                // permission API and can show a second dialog or return
+                // canAskAgain:false, leaving the screen stuck.  The hook will
+                // self-correct on the next natural render cycle.
+                setLocalPermGranted(true);
               } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
                 // User ticked "Never ask again" — OS dialog is suppressed.
                 // Guide them to the correct Settings screen.
