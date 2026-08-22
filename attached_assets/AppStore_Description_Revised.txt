@@ -1,44 +1,44 @@
 Msafiri: Your Driving Companion
 
-Drive smarter and stay informed on Kenya's roads with Msafiri — a driving and road safety app built for Kenyan drivers.
+Drive smarter and stay safer on Kenya's roads. Msafiri is a driving and road safety companion built for Kenyan drivers — bringing together speed camera alerts, community road reports, a built-in dashcam, accident assistance, trip tracking and more.
 
-All features require an active subscription, available as an in-app purchase.
+A subscription is required to access all features, available as an in-app purchase.
 
-Speed Camera Alerts
-Stay aware of speed cameras and changing speed zones while you drive. Get timely alerts as you approach known camera locations and help keep your speed within the applicable limit.
+SPEED CAMERA ALERTS
+Stay aware of speed cameras and changing speed limits as you drive. Msafiri alerts you as you approach known camera locations across Kenya, helping you stay within the applicable speed limit.
 
-Built-In Dashcam
-Turn your smartphone into a dashcam and record your journeys. Save important moments and keep footage available when you need it.
+BUILT-IN DASHCAM
+Turn your phone into a dashcam. Record your journeys, capture important moments and keep footage ready whenever you need it.
 
-Accident Assistant
-If something goes wrong, Msafiri helps you capture incident details — location, photos, dashcam footage and trip information — and organise them into a structured accident report you can share with your insurer.
+ACCIDENT ASSISTANT
+If you are involved in an incident, Msafiri helps you gather the details that matter — location, photos, dashcam footage and trip information — and organises everything into a clear accident report you can share with your insurer.
 
-Road and Community Alerts
-Stay informed about what other drivers are seeing. Report and view road incidents including accidents, police checkpoints, Alcoblow locations, traffic, roadworks, potholes, flooding, roadblocks, debris and other hazards.
+ROAD AND COMMUNITY ALERTS
+See what other drivers are reporting in real time. View and submit reports for accidents, police checkpoints, Alcoblow locations, traffic, roadworks, potholes, flooding, roadblocks, debris and other road hazards.
 
-Alcoblow Alerts
-Get alerts about reported Alcoblow locations and stay aware of alcohol testing checkpoints along your journey.
+ALCOBLOW ALERTS
+Receive alerts about reported Alcoblow checkpoints along your route so you are always informed.
 
-Trip Tracking and Summaries
-Keep a record of your journeys with distance, duration, route and driving statistics. Review previous trips and understand more about how you drive.
+TRIP TRACKING
+Keep a log of every journey. Review your distance, duration, route and driving statistics, and build a clearer picture of how you drive over time.
 
-Driving Score
-Get a score based on your driving activity — speed, braking, acceleration and other patterns — and work toward smoother, safer driving.
+DRIVING SCORE
+Receive a driving score based on your speed, braking, acceleration and other driving patterns. Use it to understand your habits and work towards a smoother, safer driving style.
 
-Vehicle Service and Maintenance
-Track your vehicle's service history and use your estimated odometer to know when maintenance may be due. Share a vehicle with other drivers so their trips contribute to the mileage.
+VEHICLE SERVICE AND MAINTENANCE
+Stay on top of your vehicle's service history. Log completed services and use your estimated odometer to track when maintenance is next due. Share a vehicle with other drivers so their trips count towards the total mileage.
 
-Trip Sharing
-Share your live journey with family or friends so they can follow your trip in real time.
+TRIP SHARING
+Let family or friends follow your journey live — useful for anyone who wants to know you have arrived safely.
 
-Find Nearby and Navigation
-Discover petrol stations, restaurants, shops, gyms and other useful places nearby. Use Msafiri's map to explore roads and view alerts, or run it alongside your preferred navigation app for dedicated safety alerts while navigating.
+FIND NEARBY AND NAVIGATION
+Discover petrol stations, restaurants, shops, gyms and other useful places near you. Explore roads and alerts on Msafiri's map, or use it alongside your preferred navigation app for dedicated safety alerts while you navigate.
 
-Whether you're commuting across Nairobi, travelling upcountry or on a long road trip, Msafiri brings together the tools you need for a more informed drive.
+Whether you are commuting across Nairobi, heading upcountry or setting off on a long road trip, Msafiri gives you the tools to drive with more confidence and awareness.
 
-Download Msafiri and start your subscription today!
+Download Msafiri and start your subscription today.
 
-Subscription information: Msafiri is a subscription-based app. A subscription is required to access all features. Subscriptions are charged to your Apple ID at confirmation of purchase and auto-renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your Apple ID Account Settings.
+Subscription information: Msafiri is a subscription-based app. A subscription is required to access all features. Payment is charged to your Apple ID account upon confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. You can manage or cancel your subscription at any time in your Apple ID Account Settings.
 
 Privacy Policy: https://msafirikenya.com/privacy
 Terms of Service: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
