@@ -48,7 +48,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import * as Notifications from "expo-notifications";
-import { Alert, AppState, Platform } from "react-native";
+import { Alert, AppState, PermissionsAndroid, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
 import {
@@ -860,8 +860,30 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
     if (!cameraGranted) {
       try {
-        const res = await requestCameraPermissionRef.current();
-        cameraGranted = res?.granted ?? false;
+        if (Platform.OS === "android") {
+          // On Android, call PermissionsAndroid directly — expo-camera's hook
+          // can report canAskAgain:false on first load on OEM devices before
+          // any dialog is shown, causing requestPermission() to silently fail.
+          const result = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+            {
+              title: "Camera Access",
+              message:
+                "Msafiri needs camera access for dashcam recording and " +
+                "the Crash Assistant. Footage stays on your device.",
+              buttonPositive: "Allow",
+              buttonNegative: "Not Now",
+            }
+          );
+          cameraGranted = result === PermissionsAndroid.RESULTS.GRANTED;
+          if (cameraGranted) {
+            // Sync expo-camera hook with the new OS state
+            requestCameraPermissionRef.current().catch(() => {});
+          }
+        } else {
+          const res = await requestCameraPermissionRef.current();
+          cameraGranted = res?.granted ?? false;
+        }
       } catch { cameraGranted = false; }
     }
 
@@ -871,8 +893,26 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       // they open within the same animation frame. 200 ms is enough.
       await new Promise<void>((resolve) => setTimeout(resolve, 200));
       try {
-        const res = await requestMicPermissionRef.current();
-        micGranted = res?.granted ?? false;
+        if (Platform.OS === "android") {
+          const result = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            {
+              title: "Microphone Access",
+              message:
+                "Msafiri can record audio alongside dashcam clips and " +
+                "capture voice statements in the Crash Assistant.",
+              buttonPositive: "Allow",
+              buttonNegative: "Not Now",
+            }
+          );
+          micGranted = result === PermissionsAndroid.RESULTS.GRANTED;
+          if (micGranted) {
+            requestMicPermissionRef.current().catch(() => {});
+          }
+        } else {
+          const res = await requestMicPermissionRef.current();
+          micGranted = res?.granted ?? false;
+        }
       } catch { micGranted = false; }
     }
 
@@ -883,23 +923,51 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     if (isRecordingRef.current) return true;
 
     if (!cameraPermission?.granted) {
-      if ((cameraPermission as any)?.status === "undetermined") {
-        await new Promise<void>((resolve) =>
-          Alert.alert(
-            "Dashcam Access",
-            "Msafiri records continuous video while you drive — clips stay private on your device and are never uploaded without your permission. A microphone will also be requested so clips include audio.\n\nTap Continue to grant camera access.",
-            [{ text: "Continue", onPress: () => resolve() }],
-            { cancelable: false },
-          )
+      if (Platform.OS === "android") {
+        // On Android, use PermissionsAndroid directly to bypass expo-camera
+        // hook quirks — some OEM devices report canAskAgain:false before
+        // the dialog is ever shown, causing the hook to silently fail.
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: "Dashcam Access",
+            message:
+              "Msafiri records continuous video while you drive — clips stay " +
+              "private on your device and are never uploaded without your " +
+              "permission.",
+            buttonPositive: "Allow",
+            buttonNegative: "Not Now",
+          }
         );
+        if (result !== PermissionsAndroid.RESULTS.GRANTED) return false;
+        // Sync expo-camera hook state
+        requestCameraPermissionRef.current().catch(() => {});
+      } else {
+        // iOS path — show a rationale alert first, then expo-camera hook
+        if ((cameraPermission as any)?.status === "undetermined") {
+          await new Promise<void>((resolve) =>
+            Alert.alert(
+              "Dashcam Access",
+              "Msafiri records continuous video while you drive — clips stay private on your device and are never uploaded without your permission. A microphone will also be requested so clips include audio.\n\nTap Continue to grant camera access.",
+              [{ text: "Continue", onPress: () => resolve() }],
+              { cancelable: false },
+            )
+          );
+        }
+        const result = await requestCameraPermissionRef.current();
+        if (!result?.granted) return false;
       }
-      const result = await requestCameraPermissionRef.current();
-      if (!result?.granted) return false;
     }
 
     if (!micPermission?.granted) {
       await new Promise<void>((resolve) => setTimeout(resolve, 200));
-      try { await requestMicPermissionRef.current(); } catch { /* muted fallback */ }
+      try {
+        if (Platform.OS === "android") {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        } else {
+          await requestMicPermissionRef.current();
+        }
+      } catch { /* muted fallback — dashcam runs without audio */ }
     }
 
     setBackgroundRecordPending(true);

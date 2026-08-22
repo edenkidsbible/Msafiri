@@ -17,9 +17,11 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Linking,
   Modal,
+  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -593,17 +595,77 @@ export default function DashcamOverlay() {
           activeOpacity={0.85}
           onPress={async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+            if (Platform.OS === "android") {
+              // On Android, call PermissionsAndroid directly.
+              //
+              // expo-camera's useCameraPermissions hook reads a stale OS
+              // cache on first mount and can report canAskAgain:false BEFORE
+              // the dialog was ever shown on some OEM devices (Samsung,
+              // Xiaomi, Oppo, etc.). Calling the hook's requestPermission()
+              // in that state returns denied immediately without triggering
+              // any OS dialog.
+              //
+              // PermissionsAndroid.request() always goes straight to the OS
+              // and is not gated by the hook's cached state, so it reliably
+              // shows the system dialog on first ask.
+              const result = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.CAMERA,
+                {
+                  title: "Camera Access",
+                  message:
+                    "Msafiri needs camera access for dashcam recording " +
+                    "and the Crash Assistant. Footage stays on your device.",
+                  buttonPositive: "Allow",
+                  buttonNegative: "Not Now",
+                }
+              );
+
+              if (result === PermissionsAndroid.RESULTS.GRANTED) {
+                // Sync expo-camera's internal hook state with the new OS grant.
+                requestPermission().catch(() => {});
+              } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+                // User ticked "Never ask again" — OS dialog is suppressed.
+                // Guide them to the correct Settings screen.
+                Alert.alert(
+                  "Enable Camera in Settings",
+                  "Camera access was permanently denied.\n\n" +
+                    "Tap Open Settings → Permissions → Camera → Allow, " +
+                    "then return to Msafiri.",
+                  [
+                    { text: "Not Now", style: "cancel" },
+                    {
+                      text: "Open Settings",
+                      onPress: () => Linking.openSettings().catch(() => {}),
+                    },
+                  ]
+                );
+              }
+              // DENIED (tapped "Not Now"): dialog can show again next time.
+              return;
+            }
+
+            // iOS path — expo-camera hook is reliable on iOS.
             const res = await requestPermission();
             if (!res?.granted && res?.canAskAgain === false) {
-              // Permanently denied — the system dialog won't show again.
-              Linking.openSettings().catch(() => {});
+              Alert.alert(
+                "Enable Camera in Settings",
+                "Go to Settings → Privacy & Security → Camera, then enable Msafiri.",
+                [
+                  { text: "Not Now", style: "cancel" },
+                  {
+                    text: "Open Settings",
+                    onPress: () => Linking.openSettings().catch(() => {}),
+                  },
+                ]
+              );
             }
           }}
         >
           <Ionicons name="videocam-outline" size={18} color="#fff" />
           <Text style={styles.permGrantTxt}>Allow Camera Access</Text>
         </TouchableOpacity>
-        {permission?.canAskAgain === false && (
+        {permission?.canAskAgain === false && Platform.OS !== "android" && (
           <Text style={styles.permHint}>
             Camera was denied earlier — enable it in your phone's Settings.
           </Text>

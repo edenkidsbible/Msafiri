@@ -506,6 +506,11 @@ export default function PretripCheckScreen() {
 
   const [loadingPerm, setLoadingPerm] = useState<string | null>(null);
   const [cameraRationaleVisible, setCameraRationaleVisible] = useState(false);
+  // Tracks whether PermissionsAndroid previously returned NEVER_ASK_AGAIN on
+  // this Android device. Only after that result do we treat the permission as
+  // permanently denied — expo-camera's hook can incorrectly report
+  // canAskAgain:false on first load on some OEM devices before any dialog is shown.
+  const [androidCameraHardDenied, setAndroidCameraHardDenied] = useState(false);
 
   // Check existing permission statuses
   const refreshPermissions = useCallback(async () => {
@@ -595,14 +600,44 @@ export default function PretripCheckScreen() {
     setCameraRationaleVisible(false);
     setLoadingPerm("camera");
     try {
-      await requestCamPerm();
-      // Intentionally NOT calling requestDashcamPermissions() here — that
-      // function also calls requestCameraPermissionRef which would queue a
-      // second OS dialog on Android, causing both to be silently dropped.
-      // DashcamContext will re-check camera.granted before recording starts.
+      if (Platform.OS === "android") {
+        // On Android, call PermissionsAndroid directly.
+        //
+        // expo-camera's useCameraPermissions hook reads a stale OS cache on
+        // first mount and can report canAskAgain:false BEFORE the dialog was
+        // ever shown on some OEM devices (Samsung, Xiaomi, Oppo, etc.).
+        // Calling requestCamPerm() in that state returns denied immediately
+        // without triggering any OS dialog. PermissionsAndroid.request()
+        // bypasses the hook's cached state and always asks the OS directly.
+        const { PermissionsAndroid } = require("react-native");
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: "Camera Access",
+            message:
+              "Msafiri needs camera access for dashcam recording and the " +
+              "Crash Assistant. Footage stays on your device.",
+            buttonPositive: "Allow",
+            buttonNegative: "Not Now",
+          }
+        );
+        if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          setAndroidCameraHardDenied(true);
+        }
+        // Sync expo-camera hook with the new OS state (getter — no dialog).
+        // getCamPerm is the 3rd element of useCameraPermissions().
+        await (getCamPerm as (() => Promise<any>))?.().catch(() => {});
+      } else {
+        // iOS — expo-camera hook is reliable there.
+        // Intentionally NOT calling requestDashcamPermissions() here — that
+        // function also calls requestCameraPermissionRef which would queue a
+        // second OS dialog on Android, causing both to be silently dropped.
+        // DashcamContext will re-check camera.granted before recording starts.
+        await requestCamPerm();
+      }
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestCamPerm]);
+  }, [requestCamPerm, getCamPerm]);
 
   const openCameraSettings = useCallback(() => {
     setCameraRationaleVisible(false);
@@ -689,8 +724,15 @@ export default function PretripCheckScreen() {
 
   const heroBg = c.isDark ? c.background : "#F3FAF4";
 
-  // Permanently denied = hook has loaded (non-null) AND canAskAgain is explicitly false.
-  const cameraPermanentlyDenied = camPermission !== null && camPermission?.canAskAgain === false && !camPermission?.granted;
+  // "Permanently denied" means the OS will never show the dialog again.
+  //
+  // On iOS: the hook's canAskAgain is reliable — use it directly.
+  // On Android: canAskAgain:false from the hook is NOT reliable on first load
+  //   (some OEM devices report it before any dialog is shown). We only treat
+  //   it as permanent once PermissionsAndroid returned NEVER_ASK_AGAIN.
+  const cameraPermanentlyDenied = Platform.OS === "android"
+    ? androidCameraHardDenied
+    : (camPermission !== null && camPermission?.canAskAgain === false && !camPermission?.granted);
 
   return (
     <View style={[styles.root, { backgroundColor: heroBg }]}>
