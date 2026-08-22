@@ -64,6 +64,12 @@ const pendingReceipts = new Map<string, string>();
 // the receipt-purge job so they are removed from the DB.
 const foreignExperienceTokens = new Set<string>();
 
+// Prevents a double-clicked campaign or overlapping job tick from delivering
+// an identical payload twice to one device. This is intentionally short: it
+// only suppresses true duplicate sends, not subsequent real alerts.
+const RECENT_DUPLICATE_WINDOW_MS = 60_000;
+const recentlySentPayloads = new Map<string, number>();
+
 /**
  * Returns and clears all tokens flagged as belonging to a foreign Expo
  * experience (a different project than the one this server is configured for).
@@ -111,9 +117,21 @@ export async function sendPushNotifications(
     seenTokens.add(message.to);
     return true;
   });
-  const duplicatesDropped = messages.length - uniqueMessages.length;
+
+  const now = Date.now();
+  for (const [key, sentAt] of recentlySentPayloads) {
+    if (now - sentAt > RECENT_DUPLICATE_WINDOW_MS) recentlySentPayloads.delete(key);
+  }
+  const deliveryMessages = uniqueMessages.filter((message) => {
+    const key = `${message.to}\u0000${message.title ?? ""}\u0000${message.body ?? ""}\u0000${JSON.stringify(message.data ?? {})}`;
+    if (recentlySentPayloads.has(key)) return false;
+    recentlySentPayloads.set(key, now);
+    return true;
+  });
+
+  const duplicatesDropped = messages.length - deliveryMessages.length;
   if (duplicatesDropped > 0) {
-    logger.warn({ duplicatesDropped }, "Suppressed duplicate Expo push tokens in send batch");
+    logger.warn({ duplicatesDropped }, "Suppressed duplicate Expo pushes");
   }
 
   // Default every message to priority "high" so FCM delivers immediately
@@ -121,7 +139,7 @@ export async function sendPushNotifications(
   // Call sites override `priority` and `_contentAvailable` explicitly — do NOT
   // add `_contentAvailable` as a blanket default here because Apple rejects
   // content-available pushes sent at APNs priority 10 (should be priority 5).
-  const normalized = uniqueMessages.map((m) => ({ priority: "high" as const, ...m }));
+  const normalized = deliveryMessages.map((m) => ({ priority: "high" as const, ...m }));
 
   for (const chunk of chunkArray(normalized, CHUNK_SIZE)) {
     try {

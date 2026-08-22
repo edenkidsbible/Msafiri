@@ -968,6 +968,23 @@ export async function migrateSchema(): Promise<void> {
         ON ops_team_members (admin_user_id)
     `);
 
+    // ── Unique Expo push tokens ───────────────────────────────────────────────
+    // APNs/FCM can preserve an Expo token across a reinstall even though the
+    // app creates a new local device ID. Remove old copies before adding the
+    // unique index, keeping the installation that was seen most recently.
+    await db.execute(sql`
+      DELETE FROM push_tokens
+      WHERE id NOT IN (
+        SELECT DISTINCT ON (token) id
+        FROM push_tokens
+        ORDER BY token, last_seen_at DESC, created_at DESC, id DESC
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS push_tokens_token_unique
+        ON push_tokens (token)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
