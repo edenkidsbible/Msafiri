@@ -48,6 +48,13 @@ import {
   scoreLabel,
   formatDuration,
 } from "@/utils/driveSessionApi";
+import {
+  TripLocation,
+  TripLocationMap,
+  loadTripLocationCache,
+  saveTripLocation,
+} from "@/utils/tripLocationCache";
+import { reverseGeocode } from "@/utils/geocoding";
 import { useVehicle } from "@/context/VehicleContext";
 import { QUICK_START_KEY } from "@/app/pretrip-check";
 import { getLinkedEmail } from "@/utils/backupSync";
@@ -69,7 +76,15 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-function tripLabel(s: { startedAt: string; distanceM: number }): string {
+function tripLabel(
+  s: { startedAt: string; distanceM: number },
+  loc?: TripLocation | null,
+): string {
+  if (loc?.from) {
+    const from = loc.from;
+    const to   = loc.to && loc.to !== loc.from ? loc.to : null;
+    return to ? `${from} → ${to}` : from;
+  }
   const h = new Date(s.startedAt).getHours();
   const tod = h < 5 ? "Night" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Night";
   return `${tod} drive`;
@@ -143,6 +158,10 @@ export default function HomeScreen() {
   // ── Last trip + latest score from the persisted drive-session system ──────
   // Scoped to the active vehicle so the card changes when the user switches cars.
   const [lastSession, setLastSession] = useState<DriveSession | null>(null);
+  // Location cache shared with garage / trip-history: reverse-geocoded from/to
+  // names for sessions so the trip card shows "Westlands → CBD" not "Afternoon drive".
+  const [locationCache, setLocationCache] = useState<TripLocationMap>({});
+
   useFocusEffect(
     useCallback(() => {
       let alive = true;
@@ -161,9 +180,43 @@ export default function HomeScreen() {
           })
           .catch(() => {});
       }
+      // Load location cache so the trip title shows real place names immediately
+      loadTripLocationCache()
+        .then((cache) => { if (alive) setLocationCache(cache); })
+        .catch(() => {});
       return () => { alive = false; };
     }, [deviceId, activeVehicleId, activeVehicle]),
   );
+
+  // ── Reverse-geocode the last session if not yet cached ─────────────────────
+  // Runs whenever lastSession changes. Skips immediately if the location is
+  // already in the cache. Writes the result back to AsyncStorage so garage and
+  // trip-history screens benefit from the same cache entry.
+  useEffect(() => {
+    if (!lastSession?.endedAt) return;
+    if (locationCache[lastSession.id]) return; // already have it
+    if (lastSession.startLat == null || lastSession.startLng == null) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const [from, to] = await Promise.all([
+          reverseGeocode(lastSession.startLat!, lastSession.startLng!),
+          lastSession.endLat != null && lastSession.endLng != null
+            ? reverseGeocode(lastSession.endLat, lastSession.endLng)
+            : Promise.resolve(""),
+        ]);
+        if (cancelled || !from) return;
+        const loc: TripLocation = { from, to: to || from };
+        await saveTripLocation(lastSession.id, loc);
+        if (!cancelled) {
+          setLocationCache(prev => ({ ...prev, [lastSession.id]: loc }));
+        }
+      } catch { /* keep time-of-day fallback */ }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastSession?.id]);
 
   // ── Nearby alerts within 3 km, closest first ───────────────────────────────
   const nearbyAlerts = useMemo(() => {
@@ -907,7 +960,7 @@ export default function HomeScreen() {
                 {tripDateLabel(lastSession.startedAt)}
               </Text>
               <Text style={[styles.tripTitle, { color: c.foreground }]} numberOfLines={1}>
-                {tripLabel(lastSession)}
+                {tripLabel(lastSession, locationCache[lastSession.id])}
               </Text>
               <Text style={[styles.tripMeta, { color: c.mutedForeground }]} numberOfLines={1}>
                 {tripMetaLine(lastSession)}
@@ -1208,13 +1261,6 @@ const styles = StyleSheet.create({
   tripStatsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
   tripStat: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   tripStatLbl: { fontSize: 10.5, fontFamily: "Inter_400Regular", marginTop: 1 },
-  // Score ring
-  scoreRing: {
-    width: 50, height: 50, borderRadius: 25,
-    borderWidth: 3,
-    alignItems: "center", justifyContent: "center",
-  },
-  scoreRingTxt: { fontSize: 15, fontFamily: "Inter_700Bold" },
 
   // ── Course promo — full card (0 alerts) ────────────────────────────────────
   courseFull: { borderRadius: 20, borderWidth: 1.5, marginTop: 18, overflow: "hidden" },
