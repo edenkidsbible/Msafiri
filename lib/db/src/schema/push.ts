@@ -3,7 +3,10 @@ import { pgTable, uuid, text, timestamp, integer, real } from "drizzle-orm/pg-co
 export const pushTokensTable = pgTable("push_tokens", {
   id:              uuid("id").primaryKey().defaultRandom(),
   deviceId:        text("device_id").notNull().unique(),
-  token:           text("token").notNull(),
+  // A single Expo token represents one physical app installation. Keeping it
+  // unique prevents a reinstall/device-ID change from receiving duplicate
+  // notifications through multiple rows.
+  token:           text("token").notNull().unique(),
   platform:        text("platform").notNull().default("unknown"), // ios | android | web
   lastLat:         real("last_lat"),
   lastLng:         real("last_lng"),

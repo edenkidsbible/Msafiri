@@ -18,8 +18,13 @@ import { useLiveLocation } from "@/context/LocationContext";
 // Resolved at build time from app.json → extra.eas.projectId.
 // Expo requires this in production to route push tokens to the correct project.
 const EAS_PROJECT_ID =
+  Constants.easConfig?.projectId ??
   (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
-    ?.eas?.projectId ?? "465586c3-648b-459e-b3c9-1983e1a62ffb";
+    ?.eas?.projectId ??
+  // Keep this in sync with app.config.js. The old fallback pointed at a
+  // different EAS project, so builds without expoConfig registered a token
+  // that the Msafiri push service could never deliver to.
+  "35b79893-fc03-4518-bfcd-31ac65c262f4";
 
 const DEVICE_ID_KEY = "@msafiri/deviceId";
 const TOKEN_KEY = "@msafiri/pushToken";
@@ -173,6 +178,7 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
       platform: Platform.OS,
       ...(lat != null && lng != null ? { lat, lng } : {}),
     });
+    console.info(`[usePushNotifications] Push token registered for ${Platform.OS}`);
     await AsyncStorage.setItem(TOKEN_KEY, token);
     // Stamp the registration time so the background task can check staleness
     await AsyncStorage.setItem(TOKEN_REGISTERED_AT_KEY, String(Date.now()));

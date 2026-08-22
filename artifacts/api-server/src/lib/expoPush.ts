@@ -101,12 +101,27 @@ export async function sendPushNotifications(
   let ok = 0;
   let failed = 0;
 
+  // A device can retain its Expo token across a reinstall while its local
+  // device ID changes. Guarding at the sending boundary keeps legacy duplicate
+  // rows (and overlapping audience queries) from producing two identical
+  // notifications on the same phone.
+  const seenTokens = new Set<string>();
+  const uniqueMessages = messages.filter((message) => {
+    if (seenTokens.has(message.to)) return false;
+    seenTokens.add(message.to);
+    return true;
+  });
+  const duplicatesDropped = messages.length - uniqueMessages.length;
+  if (duplicatesDropped > 0) {
+    logger.warn({ duplicatesDropped }, "Suppressed duplicate Expo push tokens in send batch");
+  }
+
   // Default every message to priority "high" so FCM delivers immediately
   // (bypasses Doze mode / batching) and APNs uses priority 10.
   // Call sites override `priority` and `_contentAvailable` explicitly — do NOT
   // add `_contentAvailable` as a blanket default here because Apple rejects
   // content-available pushes sent at APNs priority 10 (should be priority 5).
-  const normalized = messages.map((m) => ({ priority: "high" as const, ...m }));
+  const normalized = uniqueMessages.map((m) => ({ priority: "high" as const, ...m }));
 
   for (const chunk of chunkArray(normalized, CHUNK_SIZE)) {
     try {
