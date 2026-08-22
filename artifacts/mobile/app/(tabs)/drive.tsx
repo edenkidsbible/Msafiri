@@ -783,13 +783,18 @@ export default function DriveScreen() {
     autoSaveRef.current = { tripActive, avgSpeedDisplay, currentLat, currentLng, deviceId, driveScore };
   });
 
-  // ── Auto-save trip when app is sent to background ────────────────────────
-  // If the driver backgrounds the app without tapping "End Trip" (e.g. takes a
-  // call, locks phone mid-drive), silently end the session on the server so the
-  // trip appears in Garage / Trip History when they return.
+  // ── Checkpoint save when app is sent to background ───────────────────────
+  // When the driver switches apps or locks their phone mid-drive, we do NOT
+  // end the trip — they will resume and stop it manually when done. The
+  // 30-second PATCH already keeps the server stats current. This handler just
+  // writes a local AsyncStorage snapshot as a safety net so stats are
+  // preserved even if the OS kills the app while it is backgrounded.
   //
-  // Guard: sessionIdRef.current is cleared immediately so the normal end-trip
-  // effect (prevTripActiveRef) sees null and skips — no double-save.
+  // The checkpoint is keyed "@msafiri/tripCheckpoint" and holds everything
+  // needed to reconstruct the trip summary or end the session if the user
+  // never returns: sessionId, deviceId, vehicleId, startedAt, paused ms, and
+  // the latest drive-score snapshot.  It is cleared when the trip is ended
+  // normally via the end-trip effect below.
   useEffect(() => {
     if (Platform.OS === "web") return;
 
@@ -798,60 +803,39 @@ export default function DriveScreen() {
       const bag = autoSaveRef.current;
       if (!bag.tripActive) return;
 
-      const sid = sessionIdRef.current;
-      const did = bag.deviceId;
-      // Only auto-save real server sessions (not offline local-* placeholders —
-      // those get replayed by flushOfflineSessions when connectivity returns).
-      if (!sid || !did || sid.startsWith("local-")) return;
+      const sid   = sessionIdRef.current;
+      const did   = bag.deviceId;
+      if (!sid || !did) return;
 
-      const snap     = bag.driveScore.getSnapshot();
-      const start    = tripStartTimeRef.current;
-      const durationS = start
-        ? Math.max(0, Math.round((Date.now() - start.getTime() - totalPausedMsRef.current) / 1000))
-        : 0;
+      const snap  = bag.driveScore.getSnapshot();
+      const start = tripStartTimeRef.current;
 
-      // Discard micro-trips (< 50 m) — same threshold as the manual stop path.
-      if (snap.distanceM < 50) {
-        sessionIdRef.current = null;
-        setTripActive(false);
-        setNavTripActive(false);
-        setNavTripPaused(false);
-        return;
-      }
-
-      // Clear the ref NOW so the prevTripActiveRef effect never double-saves.
-      sessionIdRef.current = null;
-
-      endDriveSession(sid, did, {
-        endLat:            bag.currentLat,
-        endLng:            bag.currentLng,
-        distanceM:         snap.distanceM,
-        durationS,
-        avgSpeedKmh:       bag.avgSpeedDisplay,
-        maxSpeedKmh:       snap.maxSpeedKmh,
-        harshBrakes:       snap.harshBrakes,
-        harshAccels:       snap.harshAccels,
-        sharpTurns:        snap.sharpTurns,
-        speedingMinutes:   snap.speedingMinutes,
-        smoothMinutes:     snap.smoothMinutes,
-        speedCameraAlerts: tripSpeedCamRef.current,
-        policeAlerts:      tripPoliceRef.current,
-        hazardsEncountered: tripHazardRef.current,
-      }).then(() => {
-        // Bust the Garage session-list cache so the next focus shows the just-
-        // saved trip without a stale flash.
-        const drivingVehicleId = driveVehicleRef.current?.id;
-        if (drivingVehicleId) {
-          AsyncStorage.removeItem(`msafiri_sessions_v1_${drivingVehicleId}`).catch(() => {});
-        }
-        AsyncStorage.setItem("@msafiri/lastTripEndedAt", String(Date.now())).catch(() => {});
-      }).catch(() => {});
-
-      // Reset drive state so the screen is clean when the user returns.
-      setTripActive(false);
-      setNavTripActive(false);
-      setNavTripPaused(false);
-      tripStartTimeRef.current = null;
+      // Write a local checkpoint — does not end the trip or change any state.
+      AsyncStorage.setItem(
+        "@msafiri/tripCheckpoint",
+        JSON.stringify({
+          sessionId:        sid,
+          deviceId:         did,
+          vehicleId:        driveVehicleRef.current?.id        ?? null,
+          sharedVehicleId:  driveVehicleRef.current?.sharedVehicleId ?? null,
+          startedAt:        start?.toISOString()               ?? null,
+          totalPausedMs:    totalPausedMsRef.current,
+          savedAt:          new Date().toISOString(),
+          stats: {
+            distanceM:        snap.distanceM,
+            maxSpeedKmh:      snap.maxSpeedKmh,
+            avgSpeedKmh:      bag.avgSpeedDisplay,
+            harshBrakes:      snap.harshBrakes,
+            harshAccels:      snap.harshAccels,
+            sharpTurns:       snap.sharpTurns,
+            speedingMinutes:  snap.speedingMinutes,
+            smoothMinutes:    snap.smoothMinutes,
+            speedCameraAlerts: tripSpeedCamRef.current,
+            policeAlerts:     tripPoliceRef.current,
+            hazardsEncountered: tripHazardRef.current,
+          },
+        })
+      ).catch(() => {});
     };
 
     const sub = AppState.addEventListener("change", handleBg);
@@ -1080,7 +1064,13 @@ export default function DriveScreen() {
           // appears on the very next screen visit without a stale flash.
           // The server has already written ended_at at this point, so any
           // refetch triggered by focusTick / useFocusEffect will see the row.
-          const busts: Promise<void>[] = [];
+          const busts: Promise<void>[] = [
+            // Clear the background checkpoint — trip ended cleanly.
+            AsyncStorage.removeItem("@msafiri/tripCheckpoint"),
+            // Timestamp flag read by the Trips tab to reset its loaded state
+            // and force a fresh fetch the next time the user opens "Past" trips.
+            AsyncStorage.setItem("@msafiri/lastTripEndedAt", String(Date.now())),
+          ];
           if (drivingVehicleId) {
             busts.push(
               AsyncStorage.removeItem(`msafiri_sessions_v1_${drivingVehicleId}`)
@@ -1091,11 +1081,6 @@ export default function DriveScreen() {
               AsyncStorage.removeItem(`msafiri_shared_stats_v1_${drivingSharedId}`)
             );
           }
-          // Timestamp flag read by the Trips tab to reset its loaded state and
-          // force a fresh fetch the next time the user opens "Past" trips.
-          busts.push(
-            AsyncStorage.setItem("@msafiri/lastTripEndedAt", String(Date.now()))
-          );
           Promise.all(busts).catch(() => {});
         }).catch(() => {});
       }
