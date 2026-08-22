@@ -277,6 +277,24 @@ export async function getSharedVehicleStats(
 }
 
 /**
+ * Fetch aggregate totals (distance, duration, trip count) for a personal
+ * vehicle from the server. Unlike listDriveSessions this is a server-side SUM
+ * so it covers ALL completed trips regardless of pagination limits.
+ */
+export async function getPersonalVehicleStats(
+  deviceId: string,
+  vehicleId?: string | null,
+  includeNullVehicle?: boolean,
+): Promise<{ totalDistM: number; totalDurS: number; totalTrips: number }> {
+  let url = `/drive-sessions/personal-stats?deviceId=${encodeURIComponent(deviceId)}`;
+  if (vehicleId) {
+    url += `&vehicleId=${encodeURIComponent(vehicleId)}`;
+    if (includeNullVehicle) url += `&includeNullVehicle=true`;
+  }
+  return apiGet<{ totalDistM: number; totalDurS: number; totalTrips: number }>(url);
+}
+
+/**
  * Fetch the completed drive sessions for a device (newest first).
  *
  * @param vehicleId          - Filter to a specific vehicle. Omit to return all.

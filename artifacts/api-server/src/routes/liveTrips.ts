@@ -223,6 +223,58 @@ router.get("/drive-sessions/shared-stats", async (req: Request, res: Response) =
   }
 });
 
+// ── GET /drive-sessions/personal-stats — aggregate totals for one device ─────
+// Returns SUM(distance_m), SUM(duration_s), COUNT(*) for all completed sessions
+// belonging to this device (and optional vehicle). Used by the Garage Overview
+// so totals are always accurate regardless of the 100-row pagination cap on the
+// session list endpoint.
+// IMPORTANT: must be defined before /drive-sessions/:id so Express does not
+// treat "personal-stats" as an :id param.
+
+router.get("/drive-sessions/personal-stats", async (req: Request, res: Response) => {
+  try {
+    const q = req.query as Record<string, string>;
+    const deviceId          = q.deviceId?.trim();
+    const vehicleId         = q.vehicleId?.trim() || null;
+    const includeNullVehicle = q.includeNullVehicle === "true";
+
+    if (!deviceId) {
+      return res.status(400).json({ error: "deviceId is required" });
+    }
+
+    const vehicleClause = vehicleId
+      ? includeNullVehicle
+        ? sql`AND (vehicle_id = ${vehicleId} OR vehicle_id IS NULL)`
+        : sql`AND vehicle_id = ${vehicleId}`
+      : sql``;
+
+    const result = await db.execute<{
+      total_dist_m: string;
+      total_dur_s: string;
+      total_trips: string;
+    }>(sql`
+      SELECT
+        COALESCE(SUM(distance_m), 0) AS total_dist_m,
+        COALESCE(SUM(duration_s), 0) AS total_dur_s,
+        COUNT(*)                     AS total_trips
+      FROM live_trips
+      WHERE device_id = ${deviceId}
+        AND ended_at IS NOT NULL
+        ${vehicleClause}
+    `);
+
+    const row = result.rows[0];
+    return res.json({
+      totalDistM: parseInt(row?.total_dist_m ?? "0", 10),
+      totalDurS:  parseInt(row?.total_dur_s  ?? "0", 10),
+      totalTrips: parseInt(row?.total_trips  ?? "0", 10),
+    });
+  } catch (err) {
+    console.error("GET /drive-sessions/personal-stats error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── GET /drive-sessions/:id — fetch a single session for a device ────────────
 
 router.get("/drive-sessions/:id", async (req: Request, res: Response) => {

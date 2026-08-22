@@ -31,6 +31,7 @@ import {
   scoreColor,
   formatDuration,
   getSharedVehicleStats,
+  getPersonalVehicleStats,
 } from "@/utils/driveSessionApi";
 import { getCarImageUrl, getMakeById, getModelById } from "@/data/carModels";
 import { getVehicleFallbackImage, slugify } from "@/lib/vehicleImageFallback";
@@ -783,6 +784,13 @@ export default function GarageScreen() {
     totalDistM: number; totalDurS: number; totalTrips: number;
   } | null>(null);
 
+  // Server-side aggregate totals for personal vehicles. Using a server SUM
+  // guarantees all completed trips are counted, regardless of the 100-row
+  // pagination cap on the session list endpoint.
+  const [personalStats, setPersonalStats] = useState<{
+    totalDistM: number; totalDurS: number; totalTrips: number;
+  } | null>(null);
+
   // Edit vehicle details modal
   const [editTarget, setEditTarget] = useState<SavedVehicle | null>(null);
   const [editVisible, setEditVisible] = useState(false);
@@ -969,6 +977,40 @@ export default function GarageScreen() {
       .catch(() => {/* keep cached value */});
   }, [vehicles, clampedSlideIndex, focusTick, isOffline, sharedStatsCacheKey]);
 
+  // ── Personal vehicle aggregate stats ─────────────────────────────────────────
+  // For non-shared vehicles, fetch a server-side SUM so the Garage Overview
+  // always shows accurate totals — summing the paginated session list (max 100
+  // rows) would undercount trips for any user with more than 100 sessions.
+  const personalStatsCacheKey = useCallback(
+    (vehicleId: string) => `msafiri_personal_stats_v1_${vehicleId}`,
+    []
+  );
+  useEffect(() => {
+    if (!deviceId) return;
+    const activeVehicle = vehicles[clampedSlideIndex] ?? vehicles[0];
+    if (!activeVehicle) return;
+    // Shared vehicles use sharedStats; skip personal fetch for them.
+    if (activeVehicle.sharedVehicleId) {
+      setPersonalStats(null);
+      return;
+    }
+    const cacheKey = personalStatsCacheKey(activeVehicle.id);
+    AsyncStorage.getItem(cacheKey)
+      .then((raw) => { if (raw) setPersonalStats(JSON.parse(raw)); })
+      .catch(() => {});
+    if (isOffline) return;
+    getPersonalVehicleStats(
+      deviceId,
+      activeVehicle.id,
+      activeVehicle.id === primaryVehicleId,
+    )
+      .then(stats => {
+        setPersonalStats(stats);
+        AsyncStorage.setItem(cacheKey, JSON.stringify(stats)).catch(() => {});
+      })
+      .catch(() => {/* keep cached value */});
+  }, [deviceId, vehicles, clampedSlideIndex, focusTick, isOffline, personalStatsCacheKey, primaryVehicleId]);
+
   // ── Per-vehicle session fetch ────────────────────────────────────────────────
   // Fetch sessions from the server scoped to the vehicle currently shown on the
   // garage slide. focusTick re-triggers on every screen focus so new sessions
@@ -1075,16 +1117,18 @@ export default function GarageScreen() {
   // ── Computed stats ──────────────────────────────────────────────────────────
 
   const completed = filteredSessions.filter(s => s.endedAt != null);
-  // For shared vehicles, use server-aggregated totals that cover ALL co-drivers.
-  // For personal vehicles, sum the current device's own completed sessions only.
-  const totalDistKm = sharedStats
-    ? sharedStats.totalDistM / 1000
+  // Prefer server-side aggregates (sharedStats / personalStats) so totals are
+  // accurate for all trip counts. Fall back to summing the paginated list only
+  // while the aggregate fetch is still in flight (avoids a blank flash).
+  const aggregateStats = sharedStats ?? personalStats;
+  const totalDistKm = aggregateStats
+    ? aggregateStats.totalDistM / 1000
     : completed.reduce((a, s) => a + s.distanceM, 0) / 1000;
-  const totalDurS = sharedStats
-    ? sharedStats.totalDurS
+  const totalDurS = aggregateStats
+    ? aggregateStats.totalDurS
     : completed.reduce((a, s) => a + (s.durationS ?? 0), 0);
-  const totalTrips = sharedStats
-    ? sharedStats.totalTrips
+  const totalTrips = aggregateStats
+    ? aggregateStats.totalTrips
     : completed.length;
   const recentTrips = completed.slice(0, 3);
 
