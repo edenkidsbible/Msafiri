@@ -3,6 +3,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import React, { useRef, useState, useMemo, useCallback, useEffect } from "react";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { FLAT_LIST_PROPS, SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
@@ -761,6 +762,24 @@ export default function DriveScreen() {
         ?? driveVehiclesRef.current[0]
         ?? null;
     }
+  }, [tripActive]);
+
+  // Keep the screen awake for the entire duration of an active trip.
+  // The global keep-awake in _layout.tsx guards the whole app, but Android
+  // "inactive" state (notification shade, brief overlays) can inadvertently
+  // release it. A second lock scoped to tripActive here means the drive screen
+  // independently prevents sleep regardless of AppState transitions.
+  const DRIVE_KEEP_AWAKE_TAG = "msafiri-drive-trip";
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (tripActive) {
+      activateKeepAwakeAsync(DRIVE_KEEP_AWAKE_TAG).catch(() => {});
+    } else {
+      deactivateKeepAwake(DRIVE_KEEP_AWAKE_TAG).catch(() => {});
+    }
+    return () => {
+      deactivateKeepAwake(DRIVE_KEEP_AWAKE_TAG).catch(() => {});
+    };
   }, [tripActive]);
 
   // Auto-start dashcam when a trip begins if the driver enabled that preference

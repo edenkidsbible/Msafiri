@@ -38,8 +38,11 @@ export const LAST_LOCATION_KEY       = "@msafiri/lastLocation";
 const DEVICE_ID_KEY = "@msafiri/deviceId";
 const TOKEN_KEY     = "@msafiri/pushToken";
 
-// Resolved at build time from app.config.js → extra.eas.projectId (fallback)
-const EAS_PROJECT_ID = "465586c3-648b-459e-b3c9-1983e1a62ffb";
+// Resolved at build time from app.config.js → extra.eas.projectId.
+// Must match app.config.js extra.eas.projectId exactly — a mismatch means
+// getExpoPushTokenAsync issues a token for the wrong Expo project and Expo's
+// push gateway cannot deliver it to this app's APNs/FCM credentials.
+const EAS_PROJECT_ID = "35b79893-fc03-4518-bfcd-31ac65c262f4";
 
 /** Re-register token if it is absent or older than this. */
 const TOKEN_REFRESH_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

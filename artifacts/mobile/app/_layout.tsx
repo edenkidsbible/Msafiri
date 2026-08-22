@@ -286,7 +286,11 @@ function RootLayoutNav() {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (nextState === "active") {
         activateKeepAwakeAsync(tag).catch(() => {});
-      } else if (nextState === "background" || nextState === "inactive") {
+      } else if (nextState === "background") {
+        // Only release on true background, never on "inactive".
+        // On Android, "inactive" fires for notification shade, system dialogs,
+        // and other transient overlays — the app is still fully visible. Releasing
+        // the lock there causes the screen to sleep mid-drive.
         deactivateKeepAwake(tag);
       }
     };
