@@ -38,7 +38,27 @@ export default function PersonalInformationScreen() {
   useEffect(() => {
     AsyncStorage.getItem("profile_email").then(val => { if (val) setEmail(val); });
     AsyncStorage.getItem("profile_phone").then(val => { if (val) setPhone(val); });
-    AsyncStorage.getItem("profile_photo_uri").then(val => { if (val) setPhotoUri(val); });
+    // The stored value is now a filename-only string (e.g. "profile_photo_1234.jpg").
+    // Reconstruct the full path using the current documentDirectory so the image
+    // survives iOS container-path changes across app updates.
+    AsyncStorage.getItem("profile_photo_uri").then(async val => {
+      if (!val) return;
+      if (Platform.OS === "web" || val.startsWith("http") || val.startsWith("file://")) {
+        setPhotoUri(val);
+        return;
+      }
+      try {
+        const { documentDirectory } = await import("expo-file-system/legacy");
+        if (documentDirectory) {
+          const filename = val.includes("/") ? (val.split("/").pop() ?? val) : val;
+          setPhotoUri(`${documentDirectory}${filename}`);
+        } else {
+          setPhotoUri(val);
+        }
+      } catch {
+        setPhotoUri(val);
+      }
+    });
   }, []);
 
   // Re-check linked email whenever this screen gains focus (e.g. returning from /link-email)

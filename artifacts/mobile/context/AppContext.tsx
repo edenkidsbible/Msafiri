@@ -1384,7 +1384,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         crashSensitivityRef.current = storedCrashSensitivity;
       }
       if (storedProfilePhoto && !storedProfilePhoto.startsWith("http")) {
-        setProfilePhotoUriState(storedProfilePhoto);
+        // Resolve the stored value to a full usable URI.
+        //
+        // Why: on iOS the app container path changes when the app is updated via
+        // the App Store or EAS, making any stored absolute path like
+        //   /var/mobile/Containers/Data/Application/<UUID>/Documents/profile_photo_x.jpg
+        // immediately stale. The photo file itself is NOT deleted — only the
+        // UUID prefix changes — so extracting just the filename and prepending
+        // the current documentDirectory always points at the live file.
+        //
+        // Storage format is now filename-only (e.g. "profile_photo_1234.jpg").
+        // Legacy builds stored the full path; we handle both by always extracting
+        // the last path component.
+        try {
+          const { documentDirectory } = await import("expo-file-system/legacy");
+          if (documentDirectory && Platform.OS !== "web") {
+            const filename = storedProfilePhoto.includes("/")
+              ? storedProfilePhoto.split("/").pop()!
+              : storedProfilePhoto;
+            const resolved = `${documentDirectory}${filename}`;
+            setProfilePhotoUriState(resolved);
+            // Migrate legacy full-path entries to filename-only so they survive
+            // future updates without needing another migration pass.
+            if (storedProfilePhoto !== filename) {
+              AsyncStorage.setItem("profile_photo_uri", filename).catch(() => {});
+            }
+          } else {
+            // Web or no documentDirectory — keep whatever was stored as-is
+            setProfilePhotoUriState(storedProfilePhoto);
+          }
+        } catch {
+          setProfilePhotoUriState(storedProfilePhoto);
+        }
       } else if (storedProfilePhoto) {
         // Stale HTTP car-image URL stored by an older build — clear it silently
         AsyncStorage.removeItem("profile_photo_uri").catch(() => {});
@@ -3705,7 +3736,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setProfilePhotoUri = useCallback((uri: string | null) => {
     setProfilePhotoUriState(uri);
     if (uri) {
-      AsyncStorage.setItem("profile_photo_uri", uri).catch(() => {});
+      // Persist only the filename — the documentDirectory prefix is
+      // reconstructed at load time (see startup load above).  This makes the
+      // persisted value immune to iOS container-path changes across app updates.
+      const filename = uri.includes("/") ? (uri.split("/").pop() ?? uri) : uri;
+      AsyncStorage.setItem("profile_photo_uri", filename).catch(() => {});
     } else {
       AsyncStorage.removeItem("profile_photo_uri").catch(() => {});
     }
