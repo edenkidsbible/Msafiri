@@ -38,7 +38,10 @@ async function geocodeRoadName(lat: number, lng: number): Promise<string | null>
 // (adminVerified flag) is still used to visually distinguish a community-
 // reported camera from one that has been physically confirmed by an admin —
 // it is now an optional review step rather than a mandatory gate.
-const MODERATED_TYPES = new Set<string>();
+// Camera reports require admin moderation before going live — they represent
+// permanent physical infrastructure, so an admin should confirm each one
+// exists before it appears on the map for all drivers.
+const MODERATED_TYPES = new Set<string>(["camera"]);
 
 // ── TTL per report type (seconds; null = never expires) ───────────────────────
 // Per-type TTLs reflect how quickly each incident class realistically clears:

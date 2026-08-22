@@ -157,6 +157,12 @@ export default function AdminListingsScreen() {
   const [zones,      setZones]      = useState<AdminZone[]>([]);
   const [zLoading,   setZLoading]   = useState(false);
 
+  // Pending camera community reports — shown inside the Cameras section so
+  // admins find them where they'd naturally look, not buried in the Reports tab.
+  const [pendingCams,    setPendingCams]    = useState<AdminReport[]>([]);
+  const [pcLoading,      setPcLoading]      = useState(false);
+  const [pcActioningId,  setPcActioningId]  = useState<string | null>(null);
+
   // Edit sheets
   const [editReport,  setEditReport]  = useState<AdminReport | null>(null);
   const [editZone,    setEditZone]    = useState<AdminZone | null>(null);
@@ -203,11 +209,32 @@ export default function AdminListingsScreen() {
     }
   }, [zoneFilter]);
 
-  useEffect(() => {
-    if (section === "cameras") fetchZones();
-  }, [section, fetchZones]);
+  // ── Fetch pending community camera reports ────────────────────────────────
+  // These are reports submitted by drivers that need admin verification
+  // before they appear on the map.  Shown inside the Cameras section so
+  // admins find them without having to switch to the Reports tab.
+  const fetchPendingCams = useCallback(async () => {
+    setPcLoading(true);
+    try {
+      const data = await adminFetch<{ reports: AdminReport[] }>(
+        "GET", "/admin-mobile/reports?status=pending_review&type=camera"
+      );
+      setPendingCams(data.reports ?? []);
+    } catch {
+      // Keep existing list
+    } finally {
+      setPcLoading(false);
+    }
+  }, []);
 
-  // ── Report actions ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (section === "cameras") {
+      fetchZones();
+      fetchPendingCams();
+    }
+  }, [section, fetchZones, fetchPendingCams]);
+
+  // ── Report actions (Reports section) ─────────────────────────────────────
   const approve = useCallback(async (id: string) => {
     setActioningId(id);
     try {
@@ -237,6 +264,43 @@ export default function AdminListingsScreen() {
               Alert.alert("Error", "Failed to deny report.");
             } finally {
               setActioningId(null);
+            }
+          },
+        },
+      ]
+    );
+  }, []);
+
+  // ── Pending camera actions (Cameras section) ──────────────────────────────
+  const approveCam = useCallback(async (id: string) => {
+    setPcActioningId(id);
+    try {
+      await adminFetch("POST", `/admin-mobile/reports/${id}/verify`);
+      setPendingCams((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      Alert.alert("Error", "Failed to verify camera report. Please try again.");
+    } finally {
+      setPcActioningId(null);
+    }
+  }, []);
+
+  const denyCam = useCallback((id: string) => {
+    Alert.alert(
+      "Deny Camera Report",
+      "This camera report will be removed. Deny only if the location is incorrect or the camera doesn't exist.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Deny", style: "destructive",
+          onPress: async () => {
+            setPcActioningId(id);
+            try {
+              await adminFetch("POST", `/admin-mobile/reports/${id}/deny`);
+              setPendingCams((prev) => prev.filter((r) => r.id !== id));
+            } catch {
+              Alert.alert("Error", "Failed to deny camera report.");
+            } finally {
+              setPcActioningId(null);
             }
           },
         },
@@ -468,7 +532,10 @@ export default function AdminListingsScreen() {
         </TouchableOpacity>
         <Text style={[ss.headerTitle, { color: c.foreground }]}>Manage Listings</Text>
         <TouchableOpacity
-          onPress={section === "reports" ? fetchReports : fetchZones}
+          onPress={() => {
+            if (section === "reports") fetchReports();
+            else { fetchZones(); fetchPendingCams(); }
+          }}
           style={ss.refreshBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -550,6 +617,94 @@ export default function AdminListingsScreen() {
       {/* ── CAMERAS section ─────────────────────────────────────────────── */}
       {section === "cameras" && (
         <>
+          {/* ── Pending community camera reports ── */}
+          {/* Shown at the top so admins can verify/deny newly reported cameras
+              before they go live. Camera reports start in pending_review status
+              and only appear on the map after admin approval. */}
+          {(pcLoading || pendingCams.length > 0) && (
+            <View style={[ss.pendingCamSection, { borderBottomColor: c.border }]}>
+              <View style={ss.pendingCamHeader}>
+                <View style={[ss.pendingCamBadge, { backgroundColor: "#F59E0B22" }]}>
+                  <Ionicons name="alert-circle" size={14} color="#D97706" />
+                  <Text style={[ss.pendingCamBadgeTxt, { color: "#D97706" }]}>
+                    Needs Verification
+                  </Text>
+                </View>
+                <Text style={[ss.pendingCamCount, { color: c.mutedForeground }]}>
+                  {pcLoading ? "Loading…" : `${pendingCams.length} pending`}
+                </Text>
+              </View>
+
+              {pcLoading ? (
+                <ActivityIndicator size="small" color={c.primary} style={{ marginBottom: 12 }} />
+              ) : (
+                pendingCams.map((r) => {
+                  const busy = pcActioningId === r.id;
+                  return (
+                    <View
+                      key={r.id}
+                      style={[ss.pendingCamCard, { backgroundColor: c.card, borderColor: "#F59E0B44" }]}
+                    >
+                      <View style={ss.cardTop}>
+                        <View style={[ss.typePill, { backgroundColor: "#E5393522" }]}>
+                          <Text style={[ss.typeEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>📷</Text>
+                          <Text style={[ss.typeLabel, { color: "#E53935" }]}>
+                            {r.cameraType === "mobile" ? "Mobile Camera" : "Fixed Camera"}
+                          </Text>
+                        </View>
+                        {r.speedLimit != null && (
+                          <View style={[ss.statusPill, { backgroundColor: "#1565C022" }]}>
+                            <Text style={[ss.statusTxt, { color: "#1565C0" }]}>{r.speedLimit} km/h</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {r.roadName
+                        ? <Text style={[ss.road, { color: c.foreground }]} numberOfLines={1}>📍 {r.roadName}</Text>
+                        : <Text style={[ss.road, { color: c.mutedForeground }]}>{r.lat.toFixed(5)}, {r.lng.toFixed(5)}</Text>
+                      }
+                      <Text style={[ss.meta, { color: c.mutedForeground }]}>
+                        Reported {fmtAge(r.createdAt)} · {fmtTime(r.createdAt)}
+                      </Text>
+
+                      <View style={[ss.actionRow, { marginTop: 8 }]}>
+                        <TouchableOpacity
+                          style={[ss.btnGreen, busy && ss.btnDisabled]}
+                          onPress={() => approveCam(r.id)}
+                          disabled={busy}
+                          activeOpacity={0.8}
+                        >
+                          {busy
+                            ? <ActivityIndicator size="small" color="#FFF" />
+                            : <><Ionicons name="checkmark-circle" size={15} color="#FFF" /><Text style={ss.btnTxtWhite}>Verify</Text></>
+                          }
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[ss.btnOutline, { borderColor: c.destructive + "55" }, busy && ss.btnDisabled]}
+                          onPress={() => denyCam(r.id)}
+                          disabled={busy}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="close-circle" size={15} color={c.destructive} />
+                          <Text style={[ss.btnTxtColor, { color: c.destructive }]}>Deny</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[ss.btnOutline, { borderColor: c.border }, busy && ss.btnDisabled]}
+                          onPress={() => setLocTarget({ id: r.id, lat: r.lat, lng: r.lng, road: r.roadName, forZone: false })}
+                          disabled={busy}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="location" size={14} color="#1565C0" />
+                          <Text style={[ss.btnTxtColor, { color: "#1565C0" }]}>Map</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+
           {/* Zone type filter tabs */}
           <View style={[ss.filterRow, { backgroundColor: c.muted }]}>
             {(["all", "camera", "police", "zone"] as ZoneFilter[]).map((f) => {
@@ -664,6 +819,37 @@ const ss = StyleSheet.create({
   sectionRow: {
     flexDirection: "row",
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+
+  // Pending community camera reports (inside Cameras section)
+  pendingCamSection: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  pendingCamHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  pendingCamBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  pendingCamBadgeTxt: { fontSize: 12, fontWeight: "600" },
+  pendingCamCount:    { fontSize: 12 },
+  pendingCamCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+    gap: 4,
   },
   sectionTab: {
     flex: 1,

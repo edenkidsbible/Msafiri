@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import jwt from "jsonwebtoken";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
-import { eq, isNotNull, inArray, desc } from "drizzle-orm";
+import { and, eq, isNotNull, inArray, desc } from "drizzle-orm";
 import { patchStaticZoneFile } from "../startup/syncStaticZones";
 
 // UUID v4 pattern — static zones use "sz"-prefixed IDs instead
@@ -95,6 +95,21 @@ router.get("/admin-mobile/reports", adminMobileAuth, async (req: Request, res: R
     const VALID = ["pending_review", "active", "confirmed", "denied", "expired", "flagged"];
     const safeStatus = VALID.includes(status) ? status : "pending_review";
 
+    // Optional type filter — used by the Cameras section to fetch pending
+    // camera community reports separately from general reports.
+    const typeFilter = req.query.type as string | undefined;
+    const VALID_TYPES = ["camera", "police", "alcoblow", "accident", "traffic",
+      "roadblock", "roadworks", "hazard", "pothole", "debris", "breakdown",
+      "weather", "closure", "clear"];
+    const safeType = typeFilter && VALID_TYPES.includes(typeFilter) ? typeFilter : null;
+
+    const whereConditions = safeType
+      ? and(
+          eq(communityReportsTable.status, safeStatus as any),
+          eq(communityReportsTable.type, safeType)
+        )
+      : eq(communityReportsTable.status, safeStatus as any);
+
     const rows = await db
       .select({
         id: communityReportsTable.id,
@@ -112,7 +127,7 @@ router.get("/admin-mobile/reports", adminMobileAuth, async (req: Request, res: R
         expiresAt:   communityReportsTable.expiresAt,
       })
       .from(communityReportsTable)
-      .where(eq(communityReportsTable.status, safeStatus as any))
+      .where(whereConditions)
       .orderBy(desc(communityReportsTable.createdAt))
       .limit(100);
 
