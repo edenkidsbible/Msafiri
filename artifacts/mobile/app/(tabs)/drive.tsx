@@ -80,6 +80,7 @@ import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 import BackOnlinePill from "@/components/BackOnlinePill";
+import RadarWaveRings from "@/components/RadarWaveRings";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1939,10 +1940,17 @@ export default function DriveScreen() {
             transform: [{ scale: alertOverlayScale }],
           }]}
         >
-          <View style={[styles.dmAlertIconWrap, { backgroundColor: primaryAlert.color + "22" }]}>
-            <Text style={{ fontSize: 22, fontFamily: EMOJI_FONT_FAMILY }}>
-              {resolveIncidentType(primaryAlert.type).emoji}
-            </Text>
+          <View style={styles.dmAlertIconOuter}>
+            <RadarWaveRings
+              color={primaryAlert.color}
+              size={46}
+              active={primaryAlert.distanceM < 500}
+            />
+            <View style={[styles.dmAlertIconWrap, { backgroundColor: primaryAlert.color + "22" }]}>
+              <Text style={{ fontSize: 22, fontFamily: EMOJI_FONT_FAMILY }}>
+                {resolveIncidentType(primaryAlert.type).emoji}
+              </Text>
+            </View>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <MarqueeText style={[styles.dmAlertTitle, { color: c.foreground }]}>
@@ -4704,6 +4712,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 11,
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18, shadowRadius: 12, elevation: 10,
+  },
+  dmAlertIconOuter: {
+    width: 46, height: 46,
+    alignItems: "center", justifyContent: "center",
+    overflow: "visible",
+    flexShrink: 0,
   },
   dmAlertIconWrap: {
     width: 46, height: 46, borderRadius: 13,

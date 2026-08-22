@@ -32,6 +32,7 @@ import { useHeartbeatPulse } from "@/utils/useHeartbeatPulse";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { MarqueeText } from "@/components/MarqueeText";
 import { reportTier, freshnessLabel } from "@/lib/freshnessLabel";
+import RadarWaveRings from "@/components/RadarWaveRings";
 
 interface Props {
   alert: DriveAlert;
@@ -267,18 +268,26 @@ export default function DriveAlertOverlay({
 
       {/* ── Header: orb + labels + distance chip + dismiss ── */}
       <View style={styles.headerRow}>
-        {/* Alert type orb */}
-        <Animated.View style={[styles.alertOrb, {
-          backgroundColor: accentColor + "1E",
-          borderColor:     accentColor + "50",
-          transform:       [{ scale: urgent ? pulse : 1 }],
-        }]}>
-          {emoji ? (
-            <Text style={[styles.orbEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{emoji}</Text>
-          ) : (
-            <Ionicons name={typeIcon} size={26} color={accentColor} />
-          )}
-        </Animated.View>
+        {/* Alert type orb — radar waves radiate outward when approaching */}
+        <View style={styles.orbWrap}>
+          {/* Radar rings: shown when < 500 m away and not yet passed */}
+          <RadarWaveRings
+            color={accentColor}
+            size={52}
+            active={!isPassed && effectiveDist < 500}
+          />
+          <Animated.View style={[styles.alertOrb, {
+            backgroundColor: accentColor + "1E",
+            borderColor:     accentColor + "50",
+            transform:       [{ scale: urgent ? pulse : 1 }],
+          }]}>
+            {emoji ? (
+              <Text style={[styles.orbEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>{emoji}</Text>
+            ) : (
+              <Ionicons name={typeIcon} size={26} color={accentColor} />
+            )}
+          </Animated.View>
+        </View>
 
         {/* Type + sub-info */}
         <View style={styles.headerTextCol}>
@@ -513,13 +522,20 @@ const styles = StyleSheet.create({
     marginTop:        12,
     gap:              10,
   },
+  orbWrap: {
+    width:          52,
+    height:         52,
+    flexShrink:     0,
+    alignItems:     "center",
+    justifyContent: "center",
+    overflow:       "visible",
+  },
   alertOrb: {
     width:          52,
     height:         52,
     borderRadius:   16,
     alignItems:     "center",
     justifyContent: "center",
-    flexShrink:     0,
   },
   orbEmoji: { fontSize: 28 },
   headerTextCol: {

@@ -520,25 +520,39 @@ const DriveMapView = forwardRef(function DriveMapView(
     if (headingIntervalRef.current) clearInterval(headingIntervalRef.current);
   }, []);
 
-  // iOS heading channel — fires a standalone animateCamera({ heading }) every
-  // 1500 ms whenever follow mode is active (both normal drive mode AND active
-  // navigation).  This is the ONLY place heading is sent to MapKit; the
-  // position-follow effect never includes heading on iOS.  Standalone rotation
-  // animations are stable in MapKit at any speed/cornering rate; only combined
-  // pan+rotation crashes it.
+  // ── Heading-only interval — both iOS and Android ─────────────────────────
+  //
+  // Heading is sent to the map exclusively through this interval on BOTH
+  // platforms.  The GPS position-follow effect (below) sends centre-only
+  // animateCamera calls so the two channels never combine in a single call.
+  //
+  // Why separate?
+  //   iOS   — MapKit crashes on combined pan+rotation at > 1 Hz.
+  //   Android — Google Maps interpolates combined pan+rotation from the
+  //             previous camera state; when the heading crosses 0°/360° the
+  //             renderer occasionally chooses the long path (spinning 330°
+  //             instead of 30°), causing the upside-down rotation the driver
+  //             sees.  Isolating heading in its own call eliminates that bug.
+  //
+  // Timing:
+  //   iOS     — 700 ms animation / 800 ms interval  (animation always ends
+  //              before the next fires; ~100 ms dead-time).
+  //   Android — 500 ms animation / 650 ms interval  (faster for Google Maps'
+  //              smoother compositor, keeps heading visually snappy).
   //
   // The interval self-gates via mapDriftedRef (suspended while drifted) and
-  // camHeadingRef (no-ops until a smoothed heading is available), so it is safe
-  // to run unconditionally from mount — no navigationActive guard needed.
+  // camHeadingRef (no-ops until a smoothed heading is available).
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
+    const isIOS      = Platform.OS === "ios";
+    const animMs     = isIOS ? 700  : 500;
+    const intervalMs = isIOS ? 800  : 650;
 
     headingIntervalRef.current = setInterval(() => {
       if (!mountedRef.current || mapDriftedRef.current) return;
       const hdg = camHeadingRef.current;
       if (hdg == null) return;
       // Only rotate when the heading has moved past the dead-band.  GPS bearing
-      // on a straight road fluctuates ≤ 3–4° — the 5° gate absorbs all of that
+      // on a straight road fluctuates ≤ 3–4° — the 5° gate absorbs all of it
       // while still responding to gentle curves promptly.
       const prev  = lastAnimatedHeadingRef.current;
       const delta = prev == null
@@ -546,11 +560,8 @@ const DriveMapView = forwardRef(function DriveMapView(
         : Math.abs(((hdg - prev) + 540) % 360 - 180);
       if (delta < 5) return;
       lastAnimatedHeadingRef.current = hdg;
-      // 900 ms animation, 1000 ms interval — each animation finishes before the
-      // next fires so consecutive heading updates never stack and cancel each
-      // other mid-flight (the old 1400 ms / 1500 ms pair caused this shudder).
-      mapRef.current?.animateCamera({ heading: hdg }, { duration: 900 });
-    }, 1000);
+      mapRef.current?.animateCamera({ heading: hdg }, { duration: animMs });
+    }, intervalMs);
 
     return () => {
       if (headingIntervalRef.current) {
@@ -944,35 +955,20 @@ const DriveMapView = forwardRef(function DriveMapView(
       sLat, sLng, camHeadingRef.current, appliedDeltaRef.current,
     );
 
-    // iOS: position only — heading goes through the dedicated 1500 ms interval.
-    // Android: include heading only when it has genuinely changed (dead-band +
-    // rate-limit guard to prevent micro-rotation jitter on straight roads).
-    const driveCameraUpdate: { center: { latitude: number; longitude: number }; heading?: number } = {
-      center: laCenter,
-    };
+    // Centre-only — heading is sent exclusively through the platform interval
+    // above (both iOS and Android).  Combining heading with centre in a single
+    // animateCamera call caused the upside-down rotation bug on Android: Google
+    // Maps would occasionally animate the heading the long way round (e.g.
+    // 330° instead of 30° when crossing north), visually spinning the map.
+    // Separating the channels eliminates that race entirely.
+    const driveCameraUpdate = { center: laCenter };
 
-    if (Platform.OS !== "ios" && camHeadingRef.current != null) {
-      const prev       = lastAnimatedHeadingRef.current ?? camHeadingRef.current;
-      const hdgDelta   = Math.abs(((camHeadingRef.current - prev) + 540) % 360 - 180);
-      // 3. Dead-band gate
-      if (hdgDelta >= HEADING_DEAD_BAND) {
-        // 4. Rate-limit small heading moves to ≤ 1 per 800 ms.
-        const isLargeTurn    = hdgDelta > 30;
-        const msSinceLastHdg = nowMs - (lastHdgAnimTimeRef.current ?? 0);
-        if (isLargeTurn || msSinceLastHdg >= 800) {
-          driveCameraUpdate.heading      = camHeadingRef.current;
-          lastAnimatedHeadingRef.current = camHeadingRef.current;
-          lastHdgAnimTimeRef.current     = nowMs;
-        }
-      }
-    }
-
-    // 700 ms — shorter than the ~1 s GPS tick rate so each animation completes
-    // before the next one starts. The previous 1200 ms caused animations to
-    // constantly overlap and cancel each other mid-flight, producing the
-    // vigorous shake the driver experienced. Position smoothing above ensures
-    // the camera still glides smoothly despite the shorter duration.
-    mapRef.current?.animateCamera(driveCameraUpdate, { duration: 700 });
+    // 350 ms — well inside the ~650–800 ms interval so each position animation
+    // completes before the next fires.  Shorter duration also gives the touch
+    // gesture recogniser room to breathe; the previous 700 ms left only 300 ms
+    // of free time between animations which caused apparent "freezing" on slow
+    // GPS devices.
+    mapRef.current?.animateCamera(driveCameraUpdate, { duration: 350 });
   }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
@@ -1318,10 +1314,22 @@ const DriveMapView = forwardRef(function DriveMapView(
         // source of "snap-back" jank when tapping a cluster mid-pan on Android.
         moveOnMarkerPress={false}
         toolbarEnabled={false}
-        // Zoom and scroll are always enabled so the driver can pinch-zoom at any
-        // time. The camera effects only update the center (pan) during
-        // navigation — they deliberately leave the zoom level alone after the
-        // initial zoom-in on nav start, so the driver's manual zoom is respected.
+        // Explicitly enable scroll and zoom so touch events are never blocked
+        // by a default-false platform interpretation.  The GPS follow effect
+        // only drives the centre coordinate — it deliberately does not own
+        // zoom — so the driver's pinch-zoom is always respected.
+        scrollEnabled
+        zoomEnabled
+        zoomTapEnabled
+        // rotateEnabled=false: map rotation is driven exclusively via
+        // animateCamera({ heading }) from the interval above; allowing gesture
+        // rotation would let the driver accidentally spin the map and fight
+        // the heading channel.
+        rotateEnabled={false}
+        // pitchEnabled=false: 3-D tilt adds no value in drive mode and
+        // disabling it keeps the map flat (2-D heading-up), consistent with
+        // the look-ahead camera design.
+        pitchEnabled={false}
         onRegionChangeComplete={handleRegionChangeComplete}
         // onPanDrag fires reliably on every user drag gesture (unlike
         // onRegionChangeComplete's details.isGesture which is missing on older
