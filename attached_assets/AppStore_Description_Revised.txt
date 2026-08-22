@@ -1,109 +1,44 @@
 Msafiri: Your Driving Companion
 
-Drive smarter and stay informed on Kenya's roads with Msafiri, a driving and road safety app built for Kenyan drivers.
+Drive smarter and stay informed on Kenya's roads with Msafiri — a driving and road safety app built for Kenyan drivers.
 
-All features in Msafiri require an active subscription, available as an in-app purchase.
+All features require an active subscription, available as an in-app purchase.
 
 Speed Camera Alerts
-
-Stay aware of speed cameras and changing speed zones while you drive. Get timely alerts as you approach known speed camera locations and help keep your driving within the applicable speed limit.
-
-Msafiri is continually expanding its speed camera coverage across Kenya.
+Stay aware of speed cameras and changing speed zones while you drive. Get timely alerts as you approach known camera locations and help keep your speed within the applicable limit.
 
 Built-In Dashcam
-
-Turn your smartphone into a dashcam and record your journeys while you drive.
-
-Record your road trips, save important moments and keep valuable footage available when you need it. Msafiri can connect your driving activity with your trip history and safety features.
+Turn your smartphone into a dashcam and record your journeys. Save important moments and keep footage available when you need it.
 
 Accident Assistant
-
-If something goes wrong, Msafiri can help you capture important information about the incident.
-
-Accident assistance can help organize details such as your location, trip information, photos, dashcam footage and other evidence into an accident report that you can save and share with your insurer or other relevant parties.
-
-Insurance-Ready Accident Reports
-
-After an accident, collecting information can be stressful. Msafiri helps organize your accident evidence into a structured report.
-
-Keep your incident details, location, photos, video evidence, driver information and notes together so you can provide relevant information when making an insurance claim.
+If something goes wrong, Msafiri helps you capture incident details — location, photos, dashcam footage and trip information — and organise them into a structured accident report you can share with your insurer.
 
 Road and Community Alerts
-
-Stay informed about what other drivers are seeing on the road.
-
-View and report road incidents such as:
-
-Accidents
-Police checkpoints
-Alcoblow locations
-Traffic
-Roadworks
-Potholes
-Flooding
-Roadblocks
-Debris
-Other road hazards
-
-Community reports help drivers stay aware of changing road conditions.
+Stay informed about what other drivers are seeing. Report and view road incidents including accidents, police checkpoints, Alcoblow locations, traffic, roadworks, potholes, flooding, roadblocks, debris and other hazards.
 
 Alcoblow Alerts
-
 Get alerts about reported Alcoblow locations and stay aware of alcohol testing checkpoints along your journey.
 
 Trip Tracking and Summaries
-
-Keep a record of your journeys and see useful trip information such as distance, duration, route and driving statistics.
-
-Review your previous trips and understand more about how you drive.
+Keep a record of your journeys with distance, duration, route and driving statistics. Review previous trips and understand more about how you drive.
 
 Driving Score
-
-Get a driving score based on your driving activity, including factors such as speed, braking, acceleration and other driving patterns.
-
-Use your score to understand your driving habits and work toward smoother, safer driving.
+Get a score based on your driving activity — speed, braking, acceleration and other patterns — and work toward smoother, safer driving.
 
 Vehicle Service and Maintenance
-
-Keep your vehicle's maintenance history organized.
-
-Add your vehicle, record when services were completed and use your estimated odometer to help track when maintenance may be due.
-
-You can also share a vehicle with other drivers so their trips contribute to the vehicle's mileage, helping keep service tracking more accurate.
+Track your vehicle's service history and use your estimated odometer to know when maintenance may be due. Share a vehicle with other drivers so their trips contribute to the mileage.
 
 Trip Sharing
+Share your live journey with family or friends so they can follow your trip in real time.
 
-Share your journey with people you trust and let them follow your trip.
+Find Nearby and Navigation
+Discover petrol stations, restaurants, shops, gyms and other useful places nearby. Use Msafiri's map to explore roads and view alerts, or run it alongside your preferred navigation app for dedicated safety alerts while navigating.
 
-Useful for family members, friends and anyone who wants to know where you are while you're on the road.
-
-Find Nearby
-
-Looking for something while you're on the road?
-
-Use Find Nearby to discover places around you, including:
-
-Petrol stations
-Restaurants
-Shopping
-Gyms
-And other useful places
-
-Navigation and Maps
-
-Use Msafiri's map experience to explore roads, view nearby alerts and find useful places around you.
-
-You can also use Msafiri alongside your preferred navigation app when you want dedicated road and safety alerts while navigating.
-
-Drive With More Awareness
-
-Whether you're commuting across Nairobi, travelling upcountry or taking a long-distance road trip, Msafiri brings together the tools you need for a more informed driving experience.
-
-Msafiri is built for drivers who want more than a map.
+Whether you're commuting across Nairobi, travelling upcountry or on a long road trip, Msafiri brings together the tools you need for a more informed drive.
 
 Download Msafiri and start your subscription today!
 
-Subscription information: Msafiri is a subscription-based app. A subscription is required to access all features. Subscriptions are charged to your Apple ID account at confirmation of purchase and auto-renew unless cancelled at least 24 hours before the end of the current period. You can manage or cancel your subscription in your Apple ID Account Settings at any time after purchase.
+Subscription information: Msafiri is a subscription-based app. A subscription is required to access all features. Subscriptions are charged to your Apple ID at confirmation of purchase and auto-renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your Apple ID Account Settings.
 
 Privacy Policy: https://msafirikenya.com/privacy
 Terms of Service: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
