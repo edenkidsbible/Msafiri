@@ -79,7 +79,8 @@ import {
   stopBgDriveAlertsTask,
 } from "@/utils/backgroundDriveAlerts";
 import { defineBackgroundOdometerTask } from "@/utils/backgroundOdometer";
-import { prewarmAlertAudio } from "@/utils/alertTts";
+import { prewarmAlertAudio, resetAlertPlayerCache } from "@/utils/alertTts";
+import { resetAudioMode } from "@/utils/sound";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 
 try {
@@ -322,6 +323,21 @@ function RootLayoutNav() {
       } else if (next === "active" && (prev === "background" || prev === "inactive")) {
         // App foregrounded — always stop task so in-app overlay takes over
         stopBgDriveAlertsTask().catch(() => {});
+
+        // ── Restore audio alert capability after foreground return ──────────
+        // A phone call, Siri/Google Assistant, or any system audio interruption
+        // can leave the iOS AVAudioSession deactivated and cached AudioPlayer
+        // instances in a dead/interrupted state.  Without these resets:
+        //   • ensureAudioMode() sees a resolved promise and skips reconfiguring
+        //     the session → every subsequent duckForAlert() is a no-op.
+        //   • seekTo(0) + play() on a stale cached player silently fails →
+        //     the code path looks correct but no sound comes out.
+        // Resetting both forces a fresh session + fresh players on the very
+        // next alert, so audio reliably restarts after any interruption.
+        resetAudioMode();
+        resetAlertPlayerCache();
+        // Re-prewarm in the background so the next alert plays without delay.
+        setTimeout(() => prewarmAlertAudio(), 500);
       }
     });
     return () => sub.remove();

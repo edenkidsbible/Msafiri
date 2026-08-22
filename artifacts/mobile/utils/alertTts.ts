@@ -82,6 +82,33 @@ function getCachedPlayer(key: string): AudioPlayer | null {
   return player;
 }
 
+/**
+ * Drop all cached AudioPlayer instances so they are recreated fresh on the
+ * next alert.
+ *
+ * Call this whenever the app returns to foreground after a system audio
+ * interruption (phone call, Siri, Google Assistant, etc.).  iOS and Android
+ * can leave native player objects in an error/interrupted state after such
+ * events; `seekTo(0); play()` on a stale player silently fails — the code
+ * looks correct but no sound ever comes out.  Clearing the cache forces
+ * `getCachedPlayer()` to call `createAudioPlayer()` again, giving every
+ * alert a brand-new native player that is guaranteed to be in a clean state.
+ *
+ * After clearing, call `prewarmAlertAudio()` to pre-initialize replacements
+ * in the background so the very next alert still plays without a 1-3 s delay.
+ */
+export function resetAlertPlayerCache(): void {
+  if (Platform.OS === "web") return;
+  // Stop and discard every cached player. Expo Audio players hold native
+  // resources; pausing before dropping the reference prevents them from
+  // continuing to play (or holding audio focus) after the cache is cleared.
+  for (const player of playerCache.values()) {
+    try { player.pause(); } catch {}
+  }
+  playerCache.clear();
+  currentPlayer = null;
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let currentPlayer: AudioPlayer | null = null;

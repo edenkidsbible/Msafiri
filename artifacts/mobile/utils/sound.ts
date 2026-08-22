@@ -30,6 +30,24 @@ let dashcamAudioActive = false;
 // just join the wait.
 let audioModePromise: Promise<void> | null = null;
 
+/**
+ * Reset the cached audio-mode promise so the next `ensureAudioMode()` call
+ * re-establishes the AVAudioSession from scratch.
+ *
+ * Call this whenever the app returns to foreground after a backgrounding event
+ * that may have caused an iOS/Android audio-session interruption (phone call,
+ * Siri, Google Assistant, navigation apps taking audio focus, etc.).  Without
+ * this reset, `ensureAudioMode()` sees a resolved promise and skips
+ * `setAudioModeAsync` — leaving all subsequent alert playback silent even
+ * though the code path looks correct.
+ */
+export function resetAudioMode(): void {
+  audioModePromise = null;
+  // Also reset the duck-mode singleton so concurrent dashcam-path callers
+  // don't join a stale in-flight call that can never resolve.
+  duckModePromise  = null;
+}
+
 /** Configure the iOS/Android audio session for alert playback.
  *  Idempotent — all concurrent callers await the same promise.
  *  No-ops while dashcam audio is active (dashcam owns the session then). */

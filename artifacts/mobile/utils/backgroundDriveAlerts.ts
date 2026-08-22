@@ -222,12 +222,29 @@ async function switchAccuracyMode(mode: AccuracyMode): Promise<void> {
       await Location.stopLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK);
     }
 
-    await Location.startLocationUpdatesAsync(
-      BG_DRIVE_ALERTS_TASK,
-      locationOptions(mode),
-    );
-
-    console.log(`[bgDriveAlerts] switched accuracy to ${mode}`);
+    try {
+      await Location.startLocationUpdatesAsync(
+        BG_DRIVE_ALERTS_TASK,
+        locationOptions(mode),
+      );
+      console.log(`[bgDriveAlerts] switched accuracy to ${mode}`);
+    } catch (startErr) {
+      // The stop succeeded but the restart failed. The background task is now
+      // dead — no more GPS updates, no more alerts for the rest of the drive.
+      // Attempt a recovery restart with the default High mode so at minimum
+      // the driver still receives alerts, even if at full power draw.
+      console.warn("[bgDriveAlerts] restart after mode switch failed, recovering:", startErr);
+      try {
+        await Location.startLocationUpdatesAsync(
+          BG_DRIVE_ALERTS_TASK,
+          locationOptions("high"),
+        );
+        await AsyncStorage.setItem(BG_ACCURACY_MODE_KEY, "high");
+        console.log("[bgDriveAlerts] recovery restart succeeded (high mode)");
+      } catch (recoveryErr) {
+        console.warn("[bgDriveAlerts] recovery restart also failed:", recoveryErr);
+      }
+    }
   } catch (e) {
     console.warn("[bgDriveAlerts] switchAccuracyMode failed:", e);
   }
