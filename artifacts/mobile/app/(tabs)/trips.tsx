@@ -3,7 +3,7 @@
 export { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { FLAT_LIST_PROPS } from "@/lib/scrollProps";
 import {
   ActivityIndicator,
@@ -215,6 +215,35 @@ export default function TripsScreen() {
     setDriveHistLoaded(false);
     setDriveHistory([]);
   }, [activeVehicleId]);
+
+  // ── Bust drive-history cache after a trip is saved ────────────────────────
+  // drive.tsx writes "@msafiri/lastTripEndedAt" (unix ms string) after every
+  // successful endDriveSession(). On each screen focus we check that key; if
+  // it is newer than the last history load, we reset driveHistoryLoaded so the
+  // initial-fetch effect re-runs a fresh query (bypassing any stale state or
+  // race with the in-flight endDriveSession call).
+  const lastHistoryFetchAtRef = useRef(0);
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("@msafiri/lastTripEndedAt")
+        .then((raw) => {
+          if (!raw) return;
+          const endedAt = parseInt(raw, 10);
+          if (endedAt > lastHistoryFetchAtRef.current) {
+            // A new trip was saved since our last fetch — force a fresh load.
+            ++driveHistFetchGenRef.current;
+            setDriveHistLoaded(false);
+            setDriveHistory([]);
+            // Clear the flag so subsequent focuses don't reset unnecessarily.
+            AsyncStorage.removeItem("@msafiri/lastTripEndedAt").catch(() => {});
+          }
+        })
+        .catch(() => {});
+      // Record the focus time so the comparison above is always relative to
+      // when this screen was last active, not when the component mounted.
+      lastHistoryFetchAtRef.current = Date.now();
+    }, [])
+  );
 
   useEffect(() => {
     if (tab !== "past" || driveHistoryLoaded || driveHistoryLoading || !deviceId) return;

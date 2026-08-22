@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-
+  AppState,
+  type AppStateStatus,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -764,6 +765,100 @@ export default function DriveScreen() {
     }
   }, [tripActive]);
 
+  // ── Ref bag for AppState-scoped auto-save ────────────────────────────────
+  // AppState handlers live in a stable (empty-deps) useEffect so they never
+  // see fresh render state. A single ref bag updated on every render lets the
+  // handler read up-to-date values without being re-registered each time.
+  const autoSaveRef = useRef({
+    tripActive: false,
+    avgSpeedDisplay: 0,
+    currentLat: null as number | null,
+    currentLng: null as number | null,
+    deviceId: null as string | null,
+    driveScore, // whole hook object — getSnapshot() is always current
+  });
+  // Update every render (intentionally no deps array so this is always fresh)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    autoSaveRef.current = { tripActive, avgSpeedDisplay, currentLat, currentLng, deviceId, driveScore };
+  });
+
+  // ── Auto-save trip when app is sent to background ────────────────────────
+  // If the driver backgrounds the app without tapping "End Trip" (e.g. takes a
+  // call, locks phone mid-drive), silently end the session on the server so the
+  // trip appears in Garage / Trip History when they return.
+  //
+  // Guard: sessionIdRef.current is cleared immediately so the normal end-trip
+  // effect (prevTripActiveRef) sees null and skips — no double-save.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const handleBg = (nextState: AppStateStatus) => {
+      if (nextState !== "background") return;
+      const bag = autoSaveRef.current;
+      if (!bag.tripActive) return;
+
+      const sid = sessionIdRef.current;
+      const did = bag.deviceId;
+      // Only auto-save real server sessions (not offline local-* placeholders —
+      // those get replayed by flushOfflineSessions when connectivity returns).
+      if (!sid || !did || sid.startsWith("local-")) return;
+
+      const snap     = bag.driveScore.getSnapshot();
+      const start    = tripStartTimeRef.current;
+      const durationS = start
+        ? Math.max(0, Math.round((Date.now() - start.getTime() - totalPausedMsRef.current) / 1000))
+        : 0;
+
+      // Discard micro-trips (< 50 m) — same threshold as the manual stop path.
+      if (snap.distanceM < 50) {
+        sessionIdRef.current = null;
+        setTripActive(false);
+        setNavTripActive(false);
+        setNavTripPaused(false);
+        return;
+      }
+
+      // Clear the ref NOW so the prevTripActiveRef effect never double-saves.
+      sessionIdRef.current = null;
+
+      endDriveSession(sid, did, {
+        endLat:            bag.currentLat,
+        endLng:            bag.currentLng,
+        distanceM:         snap.distanceM,
+        durationS,
+        avgSpeedKmh:       bag.avgSpeedDisplay,
+        maxSpeedKmh:       snap.maxSpeedKmh,
+        harshBrakes:       snap.harshBrakes,
+        harshAccels:       snap.harshAccels,
+        sharpTurns:        snap.sharpTurns,
+        speedingMinutes:   snap.speedingMinutes,
+        smoothMinutes:     snap.smoothMinutes,
+        speedCameraAlerts: tripSpeedCamRef.current,
+        policeAlerts:      tripPoliceRef.current,
+        hazardsEncountered: tripHazardRef.current,
+      }).then(() => {
+        // Bust the Garage session-list cache so the next focus shows the just-
+        // saved trip without a stale flash.
+        const drivingVehicleId = driveVehicleRef.current?.id;
+        if (drivingVehicleId) {
+          AsyncStorage.removeItem(`msafiri_sessions_v1_${drivingVehicleId}`).catch(() => {});
+        }
+        AsyncStorage.setItem("@msafiri/lastTripEndedAt", String(Date.now())).catch(() => {});
+      }).catch(() => {});
+
+      // Reset drive state so the screen is clean when the user returns.
+      setTripActive(false);
+      setNavTripActive(false);
+      setNavTripPaused(false);
+      tripStartTimeRef.current = null;
+    };
+
+    const sub = AppState.addEventListener("change", handleBg);
+    return () => sub.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // stable — reads exclusively from refs and ref bag
+
   // Keep the screen awake for the entire duration of an active trip.
   // The global keep-awake in _layout.tsx guards the whole app, but Android
   // "inactive" state (notification shade, brief overlays) can inadvertently
@@ -949,18 +1044,22 @@ export default function DriveScreen() {
     prevTripActiveRef.current = tripActive;
     if (!tripActive && wasActive) {
       const sid = sessionIdRef.current;
+      // sessionIdRef is cleared to null by the auto-save AppState handler when
+      // the trip was already ended on backgrounding — skip to avoid double-save.
       if (sid && deviceId) {
         const snap      = driveScore.getSnapshot();
         const startTime = tripStartTimeRef.current;
         const durationS = startTime
-          ? Math.max(0, Math.round((Date.now() - startTime.getTime()) / 1000))
+          ? Math.max(0, Math.round((Date.now() - startTime.getTime() - totalPausedMsRef.current) / 1000))
           : 0;
-        // Only persist sessions where the driver actually moved ≥ 50 m at speed
-        if (snap.distanceM < 50) {
-          sessionIdRef.current     = null;
-          tripStartTimeRef.current = null;
-          return;
-        }
+        // Clear refs immediately so no other effect can double-fire a save.
+        sessionIdRef.current     = null;
+        tripStartTimeRef.current = null;
+        // Only persist sessions where the driver actually moved ≥ 50 m.
+        if (snap.distanceM < 50) return;
+        // Capture the driving vehicle ID now (ref may clear before .then fires).
+        const drivingVehicleId     = driveVehicleRef.current?.id ?? null;
+        const drivingSharedId      = driveVehicleRef.current?.sharedVehicleId ?? null;
         endDriveSession(sid, deviceId, {
           endLat:            currentLat,
           endLng:            currentLng,
@@ -976,9 +1075,29 @@ export default function DriveScreen() {
           speedCameraAlerts:  tripSpeedCamRef.current,
           policeAlerts:       tripPoliceRef.current,
           hazardsEncountered: tripHazardRef.current,
+        }).then(() => {
+          // Bust the Garage and Trips caches so the freshly-saved session
+          // appears on the very next screen visit without a stale flash.
+          // The server has already written ended_at at this point, so any
+          // refetch triggered by focusTick / useFocusEffect will see the row.
+          const busts: Promise<void>[] = [];
+          if (drivingVehicleId) {
+            busts.push(
+              AsyncStorage.removeItem(`msafiri_sessions_v1_${drivingVehicleId}`)
+            );
+          }
+          if (drivingSharedId) {
+            busts.push(
+              AsyncStorage.removeItem(`msafiri_shared_stats_v1_${drivingSharedId}`)
+            );
+          }
+          // Timestamp flag read by the Trips tab to reset its loaded state and
+          // force a fresh fetch the next time the user opens "Past" trips.
+          busts.push(
+            AsyncStorage.setItem("@msafiri/lastTripEndedAt", String(Date.now()))
+          );
+          Promise.all(busts).catch(() => {});
         }).catch(() => {});
-        sessionIdRef.current     = null;
-        tripStartTimeRef.current = null;
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
