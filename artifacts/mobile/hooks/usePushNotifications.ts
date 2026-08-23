@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import * as IntentLauncher from "expo-intent-launcher";
+import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { useRouter, useRootNavigationState } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,8 +28,9 @@ const EAS_PROJECT_ID =
   // that the Msafiri push service could never deliver to.
   "35b79893-fc03-4518-bfcd-31ac65c262f4";
 
-const DEVICE_ID_KEY = "@msafiri/deviceId";
-const TOKEN_KEY = "@msafiri/pushToken";
+const DEVICE_ID_KEY           = "@msafiri/deviceId";
+const TOKEN_KEY               = "@msafiri/pushToken";
+const BATTERY_OPT_PROMPTED_KEY = "@msafiri/batteryOptPrompted";
 
 // How often to push location to the server (ms). Every 5 minutes is enough.
 const LOCATION_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -39,6 +42,59 @@ async function getOrCreateDeviceId(): Promise<string> {
     await AsyncStorage.setItem(DEVICE_ID_KEY, id);
   }
   return id;
+}
+
+// On many Android OEM devices (Samsung, Tecno, Infinix, Xiaomi, Oppo) the OS
+// aggressively kills background processes and blocks FCM high-priority delivery
+// unless the app is whitelisted from battery optimisation.  This is the #1 cause
+// of Android push notifications silently not arriving even when FCM credentials,
+// channels, and tokens are all correct.
+//
+// Android 6+ provides ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which opens
+// a system dialog ("Allow app to ignore battery optimizations? Yes / No") tied
+// to the specific package.  We show it once — the first time permission is
+// granted — then never again (flag stored in AsyncStorage).
+//
+// Requires android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS in the
+// manifest (added to app.config.js).
+async function requestBatteryOptimizationExemptionOnce(): Promise<void> {
+  if (Platform.OS !== "android") return;
+
+  // Only prompt once per installation.
+  const alreadyPrompted = await AsyncStorage.getItem(BATTERY_OPT_PROMPTED_KEY);
+  if (alreadyPrompted) return;
+
+  await AsyncStorage.setItem(BATTERY_OPT_PROMPTED_KEY, "1");
+
+  // Explain before opening the OS dialog.
+  await new Promise<void>(resolve =>
+    Alert.alert(
+      "Keep Alerts Reliable",
+      "To ensure speed camera and hazard alerts arrive instantly — even when Msafiri is running in the background — please tap \"Allow\" on the next screen.\n\nThis prevents your phone's battery saver from blocking time-critical safety notifications.",
+      [{ text: "Continue", onPress: () => resolve() }],
+      { cancelable: false }
+    )
+  );
+
+  const pkg = Application.applicationId ?? "com.msafirikenya.app";
+  try {
+    // Opens "Allow app to ignore battery optimizations?" system dialog for
+    // this specific package.  A no-op (no dialog) if already whitelisted.
+    await IntentLauncher.startActivityAsync(
+      "android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+      { data: `package:${pkg}` }
+    );
+  } catch {
+    // Fallback: open the general battery optimisation list so the user can
+    // find and whitelist the app manually.
+    try {
+      await IntentLauncher.startActivityAsync(
+        "android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS"
+      );
+    } catch {
+      // Device doesn't support either intent — nothing to do.
+    }
+  }
 }
 
 // Android permanently caches notification channel importance after first creation —
@@ -131,6 +187,12 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
   }
 
   if (finalStatus !== "granted") return;
+
+  // On Android, prompt the user once to exempt the app from battery optimisation.
+  // OEM devices (Samsung, Tecno, Infinix, Xiaomi) block FCM delivery when the
+  // app is killed unless it is whitelisted — this is the most common cause of
+  // Android push notifications silently not arriving.
+  await requestBatteryOptimizationExemptionOnce();
 
   let tokenData: Notifications.ExpoPushToken;
   try {

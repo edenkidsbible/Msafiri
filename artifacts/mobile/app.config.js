@@ -85,6 +85,11 @@ module.exports = {
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
+        // Required to launch ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which
+        // opens the OS dialog that exempts the app from Doze / battery saver.
+        // Without this, FCM high-priority messages are blocked on OEM Android
+        // devices (Samsung, Tecno, Infinix, Xiaomi) when the app is killed.
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.WRITE_EXTERNAL_STORAGE",
