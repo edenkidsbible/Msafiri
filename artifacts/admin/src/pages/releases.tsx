@@ -103,6 +103,16 @@ const PLATFORM_ICON: Record<string, React.ReactNode> = {
   android: <Smartphone className="h-3.5 w-3.5" />,
 };
 
+const PLATFORM_LABEL: Record<string, string> = {
+  all: "both iOS and Android",
+  ios: "iOS",
+  android: "Android",
+};
+
+function platformLabel(platform: string): string {
+  return PLATFORM_LABEL[platform] ?? platform;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_MAP[status] ?? STATUS_MAP.draft!;
   return (
@@ -128,7 +138,7 @@ function isoToLocalDatetime(iso: string | null): string {
 }
 
 const EMPTY_FORM = {
-  version: "", buildNumber: "1", platform: "all", releaseType: "patch",
+  version: "", buildNumber: "1", platform: "", releaseType: "patch",
   releaseNotes: "", isForceUpdate: false, storeUrlIos: "", storeUrlAndroid: "",
   scheduledAt: "",
 };
@@ -168,6 +178,14 @@ function ReleaseDialog({
   const handleSave = async () => {
     if (!form.version.trim()) {
       toast({ title: "Version required", variant: "destructive" });
+      return;
+    }
+    if (form.platform !== "ios" && form.platform !== "android" && !isEdit) {
+      toast({
+        title: "Choose a platform",
+        description: "Create separate releases for iOS and Android so each update stays targeted.",
+        variant: "destructive",
+      });
       return;
     }
     setLoading(true);
@@ -223,15 +241,22 @@ function ReleaseDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Platform</Label>
+              <Label>Target platform</Label>
               <Select value={form.platform} onValueChange={(v) => set("platform", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choose iOS or Android" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All platforms</SelectItem>
                   <SelectItem value="ios">iOS only</SelectItem>
                   <SelectItem value="android">Android only</SelectItem>
+                  {existing?.platform === "all" && (
+                    <SelectItem value="all">Both platforms (legacy release)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground">
+                {form.platform === "all"
+                  ? "This existing combined release intentionally notifies both platforms. Create separate releases for platform-specific updates."
+                  : "The update policy and push notification apply only to the platform you choose."}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Release Type</Label>
@@ -256,54 +281,72 @@ function ReleaseDialog({
             />
           </div>
 
-          {/* Store URLs — shown with warning context when force-update is on */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5">
-              App Store URL (iOS)
-              {form.isForceUpdate && form.platform !== "android" && !form.storeUrlIos && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="h-3 w-3" /> Required for force update
-                </span>
-              )}
-            </Label>
-            <Input
-              placeholder="https://apps.apple.com/app/id..."
-              value={form.storeUrlIos}
-              onChange={(e) => set("storeUrlIos", e.target.value)}
-              className={form.isForceUpdate && form.platform !== "android" && !form.storeUrlIos ? "border-amber-400 dark:border-amber-600 focus-visible:ring-amber-400" : ""}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5">
-              Play Store URL (Android)
-              {form.isForceUpdate && form.platform !== "ios" && !form.storeUrlAndroid && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="h-3 w-3" /> Required for force update
-                </span>
-              )}
-            </Label>
-            <Input
-              placeholder="https://play.google.com/store/apps/details?id=..."
-              value={form.storeUrlAndroid}
-              onChange={(e) => set("storeUrlAndroid", e.target.value)}
-              className={form.isForceUpdate && form.platform !== "ios" && !form.storeUrlAndroid ? "border-amber-400 dark:border-amber-600 focus-visible:ring-amber-400" : ""}
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border p-3 bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+          {/* Platform-specific store link and update policy. Keeping these scoped
+              to the selected target prevents accidentally configuring one OS
+              while thinking the other OS is being updated. */}
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
             <div>
-              <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-red-500" />
-                Force Update
+              <p className="text-sm font-semibold text-foreground">
+                {platformLabel(form.platform)} update setup
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Clients below this version CANNOT use the app without updating first.
+                This release and its notification target {platformLabel(form.platform)} devices only.
               </p>
             </div>
-            <Switch
-              checked={form.isForceUpdate}
-              onCheckedChange={(v) => set("isForceUpdate", v)}
-            />
+
+            {(form.platform === "ios" || form.platform === "all") && (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  App Store URL (iOS)
+                  {form.isForceUpdate && !form.storeUrlIos && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3" /> Required for force update
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  placeholder="https://apps.apple.com/app/id..."
+                  value={form.storeUrlIos}
+                  onChange={(e) => set("storeUrlIos", e.target.value)}
+                  className={form.isForceUpdate && !form.storeUrlIos ? "border-amber-400 dark:border-amber-600 focus-visible:ring-amber-400" : ""}
+                />
+              </div>
+            )}
+
+            {(form.platform === "android" || form.platform === "all") && (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Play Store URL (Android)
+                  {form.isForceUpdate && !form.storeUrlAndroid && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3" /> Required for force update
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  placeholder="https://play.google.com/store/apps/details?id=..."
+                  value={form.storeUrlAndroid}
+                  onChange={(e) => set("storeUrlAndroid", e.target.value)}
+                  className={form.isForceUpdate && !form.storeUrlAndroid ? "border-amber-400 dark:border-amber-600 focus-visible:ring-amber-400" : ""}
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between rounded-lg border p-3 bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+              <div>
+                <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <Zap className="h-4 w-4 text-red-500" />
+                  Force Update for {platformLabel(form.platform)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {platformLabel(form.platform)} clients below this version cannot use the app without updating.
+                </p>
+              </div>
+              <Switch
+                checked={form.isForceUpdate}
+                onCheckedChange={(v) => set("isForceUpdate", v)}
+              />
+            </div>
           </div>
 
           {/* Scheduled publish */}
@@ -318,7 +361,7 @@ function ReleaseDialog({
               onChange={(e) => set("scheduledAt", e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              If set, the release will go live automatically at this time. Leave blank to publish immediately when you click Publish.
+              If set, the {platformLabel(form.platform)} release will go live automatically at this time. Leave blank to publish immediately when you click Publish.
             </p>
           </div>
 
@@ -395,6 +438,7 @@ function PublishConfirmDialog({
   const softNotif  = buildNotifCopy(release, false);
 
   const missingUrls = missingStoreUrls(release);
+  const targetLabel = platformLabel(release.platform);
   const isScheduled = !!release.scheduledAt && new Date(release.scheduledAt) > new Date();
   const scheduledLabel = release.scheduledAt
     ? new Date(release.scheduledAt).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })
@@ -410,8 +454,8 @@ function PublishConfirmDialog({
           </DialogTitle>
           <DialogDescription>
             {isScheduled
-              ? `This release will go live on ${scheduledLabel}. A push notification will be sent to all devices at that time.`
-              : "A push notification will be sent to all registered devices immediately. Review the copy below before confirming."}
+              ? `This ${targetLabel} release will go live on ${scheduledLabel}. A push notification will be sent only to ${targetLabel} devices at that time.`
+              : `A push notification will be sent only to registered ${targetLabel} devices immediately. Review the copy below before confirming.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -443,7 +487,7 @@ function PublishConfirmDialog({
           {!isScheduled && (
             <>
               <NotifPreviewCard
-                label={release.isForceUpdate ? "Force update — what will send" : "Soft update — what will send"}
+                label={`${targetLabel} · ${release.isForceUpdate ? "Force update" : "Soft update"} — what will send`}
                 title={release.isForceUpdate ? forceNotif.title : softNotif.title}
                 body={release.isForceUpdate ? forceNotif.body : softNotif.body}
                 highlight={release.isForceUpdate}
@@ -453,11 +497,11 @@ function PublishConfirmDialog({
               <div>
                 <p className="text-xs text-muted-foreground mb-1.5 px-0.5">
                   {release.isForceUpdate
-                    ? "If Force Update were off, it would say:"
-                    : "If Force Update were on, it would say:"}
+                    ? `If Force Update for ${targetLabel} were off, it would say:`
+                    : `If Force Update for ${targetLabel} were on, it would say:`}
                 </p>
                 <NotifPreviewCard
-                  label={release.isForceUpdate ? "Soft update (not active)" : "Force update (not active)"}
+                label={`${targetLabel} · ${release.isForceUpdate ? "Soft update" : "Force update"} (not active)`}
                   title={release.isForceUpdate ? softNotif.title : forceNotif.title}
                   body={release.isForceUpdate ? softNotif.body : forceNotif.body}
                 />
@@ -469,7 +513,7 @@ function PublishConfirmDialog({
             <div className="flex items-start gap-2 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
               <CalendarClock className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Push notifications will be sent automatically when the release goes live on <strong>{scheduledLabel}</strong>.
+                Push notifications will be sent automatically to {targetLabel} devices when the release goes live on <strong>{scheduledLabel}</strong>.
               </p>
             </div>
           )}
@@ -478,7 +522,7 @@ function PublishConfirmDialog({
             <div className="flex items-start gap-2 rounded-md border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 px-3 py-2">
               <Zap className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
               <p className="text-xs text-red-700 dark:text-red-400">
-                Force update is <strong>on</strong> — devices below v{release.version} will be blocked until they update.
+                Force update is <strong>on for {targetLabel}</strong> — devices below v{release.version} on that platform will be blocked until they update.
               </p>
             </div>
           )}
@@ -532,9 +576,16 @@ export default function Releases() {
   const releases = data?.releases ?? [];
   const liveReleases = releases.filter((r) => r.status === "live");
   const scheduledReleases = releases.filter((r) => r.status === "scheduled");
-  const forceRelease = liveReleases.filter((r) => r.isForceUpdate).sort((a, b) =>
-    b.version.localeCompare(a.version, undefined, { numeric: true })
-  )[0];
+  const latestLiveForPlatform = (platform: "ios" | "android") =>
+    liveReleases
+      .filter((r) => r.platform === platform || r.platform === "all")
+      .sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))[0];
+  const forceReleaseForPlatform = (platform: "ios" | "android") =>
+    liveReleases
+      .filter((r) => r.isForceUpdate && (r.platform === platform || r.platform === "all"))
+      .sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))[0];
+  const iosForceRelease = forceReleaseForPlatform("ios");
+  const androidForceRelease = forceReleaseForPlatform("android");
 
   // Draft force-update releases missing store URLs — surface in the page header
   const draftForceWarnings = releases.filter(
@@ -597,7 +648,7 @@ export default function Releases() {
         })}
 
         {/* Status cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-5 pb-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Live Releases</p>
@@ -609,12 +660,33 @@ export default function Releases() {
           </Card>
           <Card>
             <CardContent className="pt-5 pb-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Force Update Floor</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                <Apple className="h-3.5 w-3.5" /> iOS Force Update
+              </p>
               <p className="text-3xl font-bold mt-1 text-red-600 dark:text-red-400">
-                {forceRelease ? `v${forceRelease.version}` : "None"}
+                {iosForceRelease ? `v${iosForceRelease.version}` : "None"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {forceRelease ? "Clients below this must update" : "No forced updates active"}
+                {iosForceRelease ? "iOS clients below this must update" : "No forced iOS updates active"}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Latest: v{latestLiveForPlatform("ios")?.version ?? "—"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5 pb-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                <Smartphone className="h-3.5 w-3.5" /> Android Force Update
+              </p>
+              <p className="text-3xl font-bold mt-1 text-red-600 dark:text-red-400">
+                {androidForceRelease ? `v${androidForceRelease.version}` : "None"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {androidForceRelease ? "Android clients below this must update" : "No forced Android updates active"}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Latest: v{latestLiveForPlatform("android")?.version ?? "—"}
               </p>
             </CardContent>
           </Card>
@@ -647,7 +719,7 @@ export default function Releases() {
               </div>
               <div className="flex gap-2">
                 <span className="text-blue-600 font-bold">2.</span>
-                <span>Enable <strong>Force Update</strong> if clients below this version must upgrade before using the app. Add the store URL(s) so users can download the new binary.</span>
+                <span>Choose <strong>iOS only</strong> or <strong>Android only</strong>, then enable Force Update if clients on that platform must upgrade. Add that platform&apos;s store URL.</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-blue-600 font-bold">3.</span>
@@ -655,7 +727,7 @@ export default function Releases() {
               </div>
               <div className="flex gap-2">
                 <span className="text-blue-600 font-bold">4.</span>
-                <span>Publish the release. The mobile app checks on every launch and shows a full-screen update prompt if needed.</span>
+                <span>Publish the release. The push notification is sent only to registered devices on the selected platform, and that platform checks the version on launch.</span>
               </div>
             </div>
           </CardContent>

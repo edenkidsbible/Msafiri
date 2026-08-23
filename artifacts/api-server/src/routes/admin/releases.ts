@@ -1,60 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { db, appReleasesTable, pushTokensTable, pushCampaignsTable } from "@workspace/db";
+import { db, appReleasesTable } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
 import { logAudit } from "../../lib/audit.js";
-import { sendPushNotifications } from "../../lib/expoPush.js";
+import { fireReleasePush } from "../../lib/releasePush.js";
 
 const router = Router();
-
-// ── Helper: fire push notifications when a release goes live ──────────────────
-async function fireReleasePush(release: typeof appReleasesTable.$inferSelect, actorName: string) {
-  const notifTitle = release.isForceUpdate
-    ? `Msafiri just got better 🚀`
-    : `What's new in Msafiri v${release.version} ✨`;
-  const notifBody = release.isForceUpdate
-    ? `v${release.version} is ready for you — a quick update and you're back on the road.`
-    : (release.releaseNotes
-        ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
-        : `Msafiri v${release.version} is here. Tap to see what's new.`);
-
-  const notifData = {
-    type:            "app_update",
-    version:         release.version,
-    isForceUpdate:   release.isForceUpdate,
-    releaseNotes:    release.releaseNotes ?? "",
-    storeUrlIos:     release.storeUrlIos ?? "",
-    storeUrlAndroid: release.storeUrlAndroid ?? "",
-  };
-
-  const tokens = await db.select({ token: pushTokensTable.token }).from(pushTokensTable);
-  if (tokens.length === 0) return;
-
-  const messages = tokens.map((t) => ({
-    to:        t.token,
-    title:     notifTitle,
-    body:      notifBody,
-    sound:     "default" as const,
-    channelId: "msafiri_alerts",
-    data:      notifData,
-  }));
-
-  const { ok, failed } = await sendPushNotifications(messages);
-
-  await db.insert(pushCampaignsTable).values({
-    title:       notifTitle,
-    body:        notifBody,
-    dataJson:    JSON.stringify(notifData),
-    type:        "broadcast",
-    status:      "sent",
-    sentAt:      new Date(),
-    sentCount:   ok,
-    failedCount: failed,
-    targetCount: tokens.length,
-    createdBy:   actorName,
-  });
-
-  console.log(`[releases] Published v${release.version}: push sent to ${ok}/${tokens.length} devices`);
-}
 
 // GET /admin/releases
 router.get("/releases", async (_req: Request, res: Response) => {
@@ -108,6 +58,9 @@ router.post("/releases", async (req: Request, res: Response) => {
 
   if (!version) {
     return res.status(400).json({ error: "version is required" });
+  }
+  if (platform !== undefined && !["all", "ios", "android"].includes(platform)) {
+    return res.status(400).json({ error: "platform must be all, ios, or android" });
   }
 
   try {
@@ -169,6 +122,9 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
 
   try {
     const updateFields: Record<string, unknown> = {};
+    if (platform !== undefined && !["all", "ios", "android"].includes(platform)) {
+      return res.status(400).json({ error: "platform must be all, ios, or android" });
+    }
     if (version !== undefined)         updateFields["version"]          = version;
     if (buildNumber !== undefined)     updateFields["buildNumber"]      = buildNumber;
     if (platform !== undefined)        updateFields["platform"]         = platform;
