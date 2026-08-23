@@ -54,6 +54,7 @@ import { Stack, useRouter, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, AppStateStatus, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -79,8 +80,8 @@ import {
   stopBgDriveAlertsTask,
 } from "@/utils/backgroundDriveAlerts";
 import { defineBackgroundOdometerTask } from "@/utils/backgroundOdometer";
-import { prewarmAlertAudio, resetAlertPlayerCache } from "@/utils/alertTts";
-import { resetAudioMode } from "@/utils/sound";
+import { prewarmAlertAudio, resetAlertPlayerCache, setAlertVoiceDisabled } from "@/utils/alertTts";
+import { resetAudioMode, setSoundsMuted } from "@/utils/sound";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 
 try {
@@ -594,6 +595,21 @@ function RootLayout() {
       // Subsetted to only the ~18 codepoints this app actually uses.
       NotoColorEmoji: require("@/assets/fonts/NotoColorEmoji.ttf"),
     }).catch(() => {});
+    // Initialise audio mute/voice flags from AsyncStorage immediately at startup.
+    // voiceDisabled and soundsMuted are module-level variables in alertTts.ts /
+    // sound.ts; they default to false but are persisted via the Drive screen
+    // toggle.  Without this early read, the flags stay false until the Drive
+    // tab first mounts (Expo Router lazily renders tabs).  If the user had
+    // previously disabled alerts, alerts would play audio on every cold start
+    // until Drive mounts — or, worse, if they had enabled them the Drive tab
+    // mount would correctly restore them but any alert that fired in the window
+    // between startup and Drive mount would use the wrong state.
+    AsyncStorage.multiGet(["voice_alerts_disabled", "sounds_muted"])
+      .then(([[, voiceVal], [, soundsVal]]) => {
+        setAlertVoiceDisabled(voiceVal === "true");
+        setSoundsMuted(soundsVal === "true");
+      })
+      .catch(() => {});
     // Pre-create all bundled alert audio players in parallel with font loading
     // so the first speakAlert() call (e.g. "report submitted") is instant.
     prewarmAlertAudio();

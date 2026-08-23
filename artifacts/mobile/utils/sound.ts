@@ -46,6 +46,14 @@ export function resetAudioMode(): void {
   // Also reset the duck-mode singleton so concurrent dashcam-path callers
   // don't join a stale in-flight call that can never resolve.
   duckModePromise  = null;
+  // Clear the dashcam audio lock so ensureAudioMode() can reconfigure the
+  // session cleanly after any background / foreground transition.  The dashcam
+  // recording loop re-asserts dashcamAudioActive via setDashcamAudioMode(true)
+  // within its next iteration if recording is still active.  Without this
+  // reset, a recording session that ended abnormally (crash, permission revoke,
+  // AVCaptureSession interruption) leaves dashcamAudioActive stuck true, which
+  // makes every subsequent ensureAudioMode() a no-op — silencing all alerts.
+  dashcamAudioActive = false;
 }
 
 /** Configure the iOS/Android audio session for alert playback.
