@@ -210,23 +210,17 @@ async function syncLocation(lat: number, lng: number): Promise<void> {
 //   (c) Background drive-alert notifications (source: "bg_drive_alert") fired
 //       by the bg location task — the in-app DriveAlertOverlay already handles
 //       alerting when foregrounded, so showing a banner too would double-alert.
-// Configure how notifications appear when the app is in the foreground.
-// Three categories are suppressed:
-//   (a) Silent background-refresh pushes (no title, no body) — data payload
-//       is handled by addNotificationReceivedListener to trigger an immediate
-//       report poll; the driver sees no banner.
-//   (b) Explicit silent_ping payloads — belt-and-suspenders so a future send
-//       with an accidental non-empty title doesn't slip through guard (a).
-//   (c) Background drive-alert notifications (source: "bg_drive_alert") fired
-//       by the bg location task — the in-app DriveAlertOverlay already handles
-//       alerting when foregrounded, so showing a banner too would double-alert.
 //
-// shouldShowAlert is intentionally OMITTED (always false / default).
-// On iOS 14+, shouldShowAlert and shouldShowBanner map to two separate
-// UNNotificationPresentationOptions (.alert and .banner).  Setting both true
-// causes the OS to present the notification TWICE — once as an alert-style
-// banner and once as a banner-style banner — which is the "double notification"
-// the user sees.  shouldShowBanner alone is the correct modern flag.
+// iOS vs Android difference:
+//   iOS 14+: shouldShowAlert maps to UNNotificationPresentationOptionAlert and
+//            shouldShowBanner maps to UNNotificationPresentationOptionBanner —
+//            two separate presentation options.  Setting BOTH to true causes the
+//            OS to show the notification twice (the iOS double-notification bug).
+//            Use shouldShowBanner only; set shouldShowAlert to false on iOS.
+//   Android: shouldShowBanner is ignored entirely.  shouldShowAlert is the only
+//            field that controls whether a foreground notification appears as a
+//            heads-up banner.  Must be true (when not suppressed) on Android or
+//            foreground notifications are silently invisible.
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const { title, body } = notification.request.content;
@@ -234,10 +228,15 @@ Notifications.setNotificationHandler({
     const isSilent = (!title && !body) || data?.type === "silent_ping";
     const isBgDriveAlert = data?.source === "bg_drive_alert";
     const suppress = isSilent || isBgDriveAlert;
+    const isIos = Platform.OS === "ios";
     return {
-      shouldShowAlert:  false,   // never set — would double-show with shouldShowBanner on iOS
+      // iOS:     false — shouldShowBanner handles it; both true = double notification
+      // Android: !suppress — only field that shows foreground heads-up banners
+      shouldShowAlert:  isIos ? false : !suppress,
       shouldPlaySound:  !suppress,
       shouldSetBadge:   false,
+      // iOS:     !suppress — the modern banner flag (iOS 14+)
+      // Android: ignored, but set consistently for clarity
       shouldShowBanner: !suppress,
       shouldShowList:   !suppress,
     };
