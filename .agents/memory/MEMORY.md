@@ -88,3 +88,4 @@
 - [Background odometer ownership](background-odometer-ownership.md) — bg location task solely owns distance while backgrounded; never write care storage from the task; route pending once on resume (trip vs continuous), gate fg accumulators.
 - [Background drive alerts improvements](bg-drive-alerts-improvements.md) — iOS local notification sound must be .wav/.aiff/.caf (not .mp3); High+10m+5s task config; foreground-return position injection via BG_LAST_FIX_KEY + getLastKnownPositionAsync.
 - [Platform-specific release notifications](platform-release-notifications.md) — iOS/Android releases must filter immediate and scheduled push sends to matching device tokens.
+- [Android FCM receipt diagnosis](android-fcm-receipt-diagnosis.md) — Expo tickets are not delivery proof; FCM DeveloperError requires the matching Expo FCM V1 service-account credential.

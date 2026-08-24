@@ -1,0 +1,175 @@
+import { Platform } from "react-native";
+import { createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { duckForAlert } from "@/utils/sound";
+import { API_BASE } from "@/utils/apiClient";
+
+const ALERT_AUDIO: Record<string, unknown> = {
+  camera: require("@/assets/sounds/alerts/camera.mp3"),
+  police: require("@/assets/sounds/alerts/police.mp3"),
+  zone: require("@/assets/sounds/alerts/zone.mp3"),
+  alcoblow: require("@/assets/sounds/alerts/alcoblow.mp3"),
+  accident: require("@/assets/sounds/alerts/accident.mp3"),
+  traffic: require("@/assets/sounds/alerts/traffic.mp3"),
+  roadblock: require("@/assets/sounds/alerts/roadblock.mp3"),
+  roadworks: require("@/assets/sounds/alerts/roadworks.mp3"),
+  hazard: require("@/assets/sounds/alerts/hazard.mp3"),
+  pothole: require("@/assets/sounds/alerts/pothole.mp3"),
+  debris: require("@/assets/sounds/alerts/debris.mp3"),
+  breakdown: require("@/assets/sounds/alerts/breakdown.mp3"),
+  weather: require("@/assets/sounds/alerts/weather.mp3"),
+  closure: require("@/assets/sounds/alerts/closure.mp3"),
+  clear: require("@/assets/sounds/alerts/clear.mp3"),
+  camera_multi: require("@/assets/sounds/alerts/camera_multi.mp3"),
+  police_multi: require("@/assets/sounds/alerts/police_multi.mp3"),
+  zone_multi: require("@/assets/sounds/alerts/zone_multi.mp3"),
+  alcoblow_multi: require("@/assets/sounds/alerts/alcoblow_multi.mp3"),
+  accident_multi: require("@/assets/sounds/alerts/accident_multi.mp3"),
+  traffic_multi: require("@/assets/sounds/alerts/traffic_multi.mp3"),
+  roadblock_multi: require("@/assets/sounds/alerts/roadblock_multi.mp3"),
+  roadworks_multi: require("@/assets/sounds/alerts/roadworks_multi.mp3"),
+  hazard_multi: require("@/assets/sounds/alerts/hazard_multi.mp3"),
+  pothole_multi: require("@/assets/sounds/alerts/pothole_multi.mp3"),
+  debris_multi: require("@/assets/sounds/alerts/debris_multi.mp3"),
+  breakdown_multi: require("@/assets/sounds/alerts/breakdown_multi.mp3"),
+  weather_multi: require("@/assets/sounds/alerts/weather_multi.mp3"),
+  closure_multi: require("@/assets/sounds/alerts/closure_multi.mp3"),
+  clear_multi: require("@/assets/sounds/alerts/clear_multi.mp3"),
+  report_submitted: require("@/assets/sounds/alerts/report_submitted.mp3"),
+  nav_start: require("@/assets/sounds/alerts/nav_start.mp3"),
+  nav_end: require("@/assets/sounds/alerts/nav_end.mp3"),
+  nav_cancel: require("@/assets/sounds/alerts/nav_cancel.mp3"),
+};
+
+const playerCache = new Map<string, AudioPlayer>();
+let currentPlayer: AudioPlayer | null = null;
+let voiceDisabled = false;
+
+function getCachedPlayer(key: string): AudioPlayer | null {
+  const source = ALERT_AUDIO[key];
+  if (!source) return null;
+  let player = playerCache.get(key);
+  if (!player) {
+    try {
+      player = createAudioPlayer(
+        source as Parameters<typeof createAudioPlayer>[0],
+        { downloadFirst: true },
+      );
+      playerCache.set(key, player);
+    } catch (error) {
+      console.warn(`[androidAlertTts] Failed to create ${key} player:`, error);
+      return null;
+    }
+  }
+  return player;
+}
+
+export function resetAlertPlayerCache(): void {
+  for (const player of playerCache.values()) {
+    try {
+      player.pause();
+      player.remove();
+    } catch {
+      // Recreating a player is still safe after an interrupted native cleanup.
+    }
+  }
+  playerCache.clear();
+  currentPlayer = null;
+}
+
+export function setAlertVoiceDisabled(disabled: boolean): void {
+  voiceDisabled = disabled;
+  if (disabled) stopAlertVoice();
+}
+
+export function getAlertVoiceDisabled(): boolean {
+  return voiceDisabled;
+}
+
+export function stopAlertVoice(): void {
+  try {
+    currentPlayer?.pause();
+  } catch {
+    // A player may already have been released after an interruption.
+  }
+  currentPlayer = null;
+}
+
+export function isAlertVoicePlaying(): boolean {
+  try {
+    return currentPlayer?.playing ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function playKey(key: string): Promise<void> {
+  if (!key || voiceDisabled || Platform.OS !== "android") return;
+  stopAlertVoice();
+  try {
+    await duckForAlert();
+    const player = getCachedPlayer(key);
+    if (player) {
+      currentPlayer = player;
+      player.volume = 1;
+      await player.seekTo(0);
+      player.play();
+      return;
+    }
+    if (!API_BASE) return;
+    const remotePlayer = createAudioPlayer(
+      { uri: `${API_BASE}/tts?text=${encodeURIComponent(`${key} ahead`)}` },
+      { downloadFirst: true },
+    );
+    currentPlayer = remotePlayer;
+    remotePlayer.volume = 1;
+    remotePlayer.play();
+  } catch (error) {
+    console.warn("[androidAlertTts] Playback failed:", error);
+  }
+}
+
+export async function speakAlert(type: string): Promise<void> {
+  await playKey(type);
+}
+
+export async function speakAlertMulti(type: string): Promise<void> {
+  const multiKey = `${type}_multi`;
+  await playKey(ALERT_AUDIO[multiKey] ? multiKey : type);
+}
+
+export function prewarmAlertAudio(): void {
+  for (const key of Object.keys(ALERT_AUDIO)) getCachedPlayer(key);
+}
+
+export function prewarmNavAudio(): void {
+  prewarmAlertAudio();
+}
+
+export async function speakNavStart(): Promise<void> {
+  await playKey("nav_start");
+}
+
+export async function speakNavEnd(): Promise<void> {
+  await playKey("nav_end");
+}
+
+export async function speakNavCancel(): Promise<void> {
+  await playKey("nav_cancel");
+}
+
+export async function speakAlertPhrase(text: string): Promise<void> {
+  if (voiceDisabled || !API_BASE) return;
+  stopAlertVoice();
+  try {
+    await duckForAlert();
+    const player = createAudioPlayer(
+      { uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` },
+      { downloadFirst: true },
+    );
+    currentPlayer = player;
+    player.volume = 1;
+    player.play();
+  } catch (error) {
+    console.warn("[androidAlertTts] Phrase playback failed:", error);
+  }
+}

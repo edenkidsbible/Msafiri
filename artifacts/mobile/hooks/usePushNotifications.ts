@@ -16,6 +16,7 @@ import { addSharedVehicle } from "@/utils/savedVehicles";
 import { useApp, CommunityReport } from "@/context/AppContext";
 import { useVehicle } from "@/context/VehicleContext";
 import { useLiveLocation } from "@/context/LocationContext";
+import { ensureAndroidNotificationChannels } from "@/utils/androidNotificationChannels";
 
 // Resolved at build time from app.json → extra.eas.projectId.
 // Expo requires this in production to route push tokens to the correct project.
@@ -97,54 +98,6 @@ async function requestBatteryOptimizationExemptionOnce(): Promise<void> {
   }
 }
 
-// Android permanently caches notification channel importance after first creation —
-// calling setNotificationChannelAsync on an existing channel ID with a different
-// importance is silently ignored by the OS (Android 8+ behaviour, by design).
-//
-// expo-notifications also auto-creates a "default" channel at IMPORTANCE_DEFAULT
-// before JS runs, so updating that ID from JS is always a no-op.
-//
-// Fix: use channel IDs that have never existed on any device so Android creates
-// them fresh at IMPORTANCE_HIGH. Old channels (default / incident-alerts) are
-// cleaned up so they don't clutter the user's notification settings.
-async function ensureAndroidChannels(): Promise<void> {
-  if (Platform.OS !== "android") return;
-  try {
-    // Remove legacy channels that were created with DEFAULT importance.
-    // deleteNotificationChannelAsync is a no-op if the channel doesn't exist.
-    await Notifications.deleteNotificationChannelAsync("default").catch(() => {});
-    await Notifications.deleteNotificationChannelAsync("incident-alerts").catch(() => {});
-
-    // Create new channels that Android has never seen before — it will honour
-    // the requested importance because no cached entry exists for these IDs.
-    await Notifications.setNotificationChannelAsync("msafiri_general", {
-      name: "General Notifications",
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: "default",
-      vibrationPattern: [0, 150, 100, 150],
-    });
-    await Notifications.setNotificationChannelAsync("msafiri_alerts", {
-      name: "Incident Alerts",
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: "alert_tone.mp3",
-      vibrationPattern: [0, 200, 100, 200],
-      lightColor: "#00C853",
-    });
-    // Silent channel for the persistent navigation status tile in the shade.
-    // LOW importance = no sound, no heads-up banner, no vibration — it only
-    // appears as a quiet sticky bar while navigation or sharing is active.
-    await Notifications.setNotificationChannelAsync("msafiri_nav", {
-      name: "Navigation Status",
-      importance: Notifications.AndroidImportance.LOW,
-      sound: undefined,
-      vibrationPattern: undefined,
-      enableVibrate: false,
-    });
-  } catch (err) {
-    console.warn("[usePushNotifications] Failed to set up Android channels:", err);
-  }
-}
-
 async function registerToken(lat?: number | null, lng?: number | null): Promise<void> {
   // Push notifications are not available on web or in Expo simulators
   if (Platform.OS === "web") return;
@@ -164,7 +117,14 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
     return;
   }
 
-  await ensureAndroidChannels();
+  const channelsReady = await ensureAndroidNotificationChannels();
+  if (Platform.OS === "android" && !channelsReady) {
+    console.warn(
+      "[usePushNotifications] Android notification channels are unavailable; " +
+      "token registration will retry next launch.",
+    );
+    return;
+  }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;

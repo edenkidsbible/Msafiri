@@ -32,6 +32,12 @@ export interface PushMessage {
   _contentAvailable?: boolean;
 }
 
+export interface PushReceiptStatus {
+  status: "ok" | "error";
+  error?: string;
+  message?: string;
+}
+
 interface ExpoPushTicket {
   status: "ok" | "error";
   id?: string;
@@ -101,11 +107,12 @@ function makeHeaders(): Record<string, string> {
 
 export async function sendPushNotifications(
   messages: PushMessage[]
-): Promise<{ ok: number; failed: number }> {
-  if (messages.length === 0) return { ok: 0, failed: 0 };
+): Promise<{ ok: number; failed: number; ticketIds: string[] }> {
+  if (messages.length === 0) return { ok: 0, failed: 0, ticketIds: [] };
 
   let ok = 0;
   let failed = 0;
+  const ticketIds: string[] = [];
 
   // A device can retain its Expo token across a reinstall while its local
   // device ID changes. Guarding at the sending boundary keeps legacy duplicate
@@ -185,7 +192,10 @@ export async function sendPushNotifications(
                 (retryResult.data ?? []).forEach((ticket, i) => {
                   if (ticket.status === "ok") {
                     ok++;
-                    if (ticket.id && retryChunk[i]?.to) pendingReceipts.set(ticket.id, retryChunk[i].to);
+                      if (ticket.id && retryChunk[i]?.to) {
+                        ticketIds.push(ticket.id);
+                        pendingReceipts.set(ticket.id, retryChunk[i].to);
+                      }
                   } else {
                     failed++;
                     logger.warn({ ticket }, "Expo push ticket error (retry after experience split)");
@@ -214,6 +224,7 @@ export async function sendPushNotifications(
           ok++;
           // Store ticketId → token so we can match receipts later
           if (ticket.id && chunk[i]?.to) {
+            ticketIds.push(ticket.id);
             pendingReceipts.set(ticket.id, chunk[i].to);
           }
         } else {
@@ -227,7 +238,39 @@ export async function sendPushNotifications(
     }
   }
 
-  return { ok, failed };
+  return { ok, failed, ticketIds };
+}
+
+/**
+ * Read Expo receipt outcomes without exposing device tokens. This is used by
+ * the one-device Android diagnostic route after its short receipt wait.
+ */
+export async function getPushReceiptStatuses(
+  ticketIds: string[],
+): Promise<Record<string, PushReceiptStatus>> {
+  if (ticketIds.length === 0) return {};
+  try {
+    const response = await fetch(EXPO_RECEIPTS_URL, {
+      method: "POST",
+      headers: makeHeaders(),
+      body: JSON.stringify({ ids: ticketIds }),
+    });
+    if (!response.ok) return {};
+    const result = (await response.json()) as { data: Record<string, ExpoPushReceipt> };
+    return Object.fromEntries(
+      Object.entries(result.data ?? {}).map(([id, receipt]) => [
+        id,
+        {
+          status: receipt.status,
+          error: receipt.details?.error,
+          message: receipt.message,
+        },
+      ]),
+    );
+  } catch (error) {
+    logger.warn({ error }, "Failed to read Expo push receipt status");
+    return {};
+  }
 }
 
 /**

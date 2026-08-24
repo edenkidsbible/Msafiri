@@ -6,6 +6,10 @@ const source = await readFile(
   new URL("../hooks/usePushNotifications.ts", import.meta.url),
   "utf8",
 );
+const androidChannels = await readFile(
+  new URL("../utils/androidNotificationChannels.ts", import.meta.url),
+  "utf8",
+);
 
 test("push registration refreshes the device platform even for cached tokens", () => {
   assert.match(source, /platform:\s*Platform\.OS/);
@@ -16,6 +20,7 @@ test("push registration refreshes the device platform even for cached tokens", (
 test("iOS keeps one foreground banner while Android keeps foreground alerts", () => {
   assert.match(source, /shouldShowAlert:\s*isIos \? false : !suppress/);
   assert.match(source, /shouldShowBanner:\s*!suppress/);
-  assert.match(source, /msafiri_general/);
-  assert.match(source, /msafiri_alerts/);
+  assert.match(source, /ensureAndroidNotificationChannels/);
+  assert.match(androidChannels, /msafiri_general/);
+  assert.match(androidChannels, /msafiri_alerts/);
 });

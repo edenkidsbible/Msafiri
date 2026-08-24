@@ -1,7 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import { db, pushTokensTable, pushCampaignsTable } from "@workspace/db";
 import { desc, eq, and, gte, lte, sql, isNotNull } from "drizzle-orm";
-import { sendPushNotifications, sendSilentPing, flushBadTokensFromReceipts } from "../../lib/expoPush.js";
+import {
+  sendPushNotifications,
+  sendSilentPing,
+  flushBadTokensFromReceipts,
+  getPushReceiptStatuses,
+} from "../../lib/expoPush.js";
 import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
 
@@ -232,6 +237,72 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("POST /admin/push/campaigns error:", err);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/push/test/android-latest — controlled delivery test for the most
+// recently active Android device. This never targets iOS or broadcasts to users.
+router.post("/push/test/android-latest", async (req: Request, res: Response) => {
+  const actor = (req as any).adminUser;
+  try {
+    const [device] = await db
+      .select({
+        token: pushTokensTable.token,
+        deviceId: pushTokensTable.deviceId,
+        lastSeenAt: pushTokensTable.lastSeenAt,
+      })
+      .from(pushTokensTable)
+      .where(eq(pushTokensTable.platform, "android"))
+      .orderBy(desc(pushTokensTable.lastSeenAt))
+      .limit(1);
+
+    if (!device) {
+      return res.status(404).json({ error: "No Android device has registered for push notifications yet." });
+    }
+
+    const { ok, failed, ticketIds } = await sendPushNotifications([{
+      to: device.token,
+      title: "Msafiri Android delivery test",
+      body: "If you can see this, Android push delivery is working.",
+      sound: "default",
+      channelId: "msafiri_general",
+      priority: "high",
+      data: { type: "android_delivery_test" },
+    }]);
+
+    // Expo tickets only mean the gateway accepted the request. Waiting briefly
+    // for the receipt lets Admin distinguish an FCM credential failure from a
+    // genuine delivered Android notification without exposing the device token.
+    await new Promise((resolve) => setTimeout(resolve, 6000));
+    const receipt = ticketIds.length
+      ? Object.values(await getPushReceiptStatuses(ticketIds))[0]
+      : undefined;
+    const delivery =
+      receipt?.status === "ok"
+        ? "confirmed"
+        : receipt?.status === "error" && /authenticate with the FCM server/i.test(receipt.message ?? "")
+          ? "fcm_credentials"
+          : receipt?.status === "error"
+            ? "failed"
+            : "pending";
+
+    await logAudit({
+      actor: { id: actor?.id ?? "system", name: actor?.name ?? "Admin", role: actor?.role ?? "admin" },
+      action: "push_android_test",
+      targetType: "push_device",
+      targetId: device.deviceId,
+      details: { message: `Android delivery test accepted: ${ok}; failed: ${failed}; receipt: ${delivery}` },
+    });
+
+    return res.json({
+      sent: ok,
+      failed,
+      delivery,
+      lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
+    });
+  } catch (err) {
+    console.error("POST /admin/push/test/android-latest error:", err);
+    return res.status(500).json({ error: "Unable to send Android test notification." });
   }
 });
 

@@ -52,6 +52,10 @@ import { Accelerometer } from "expo-sensors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying } from "@/utils/alertTts";
+import {
+  ANDROID_ALERTS_CHANNEL_ID,
+  ensureAndroidNotificationChannels,
+} from "@/utils/androidNotificationChannels";
 
 export interface CommunityReport {
   id: string;
@@ -953,6 +957,10 @@ async function requestNotificationPermissionInternal(): Promise<boolean> {
 
 async function fireZoneNotification(zone: SpeedZone, distM: number) {
   if (Platform.OS === "web") return;
+  if (Platform.OS === "android" && !(await ensureAndroidNotificationChannels())) {
+    console.warn("[alerts] Android channel setup failed; zone notification skipped.");
+    return;
+  }
   const typeLabel = zone.type === "camera" ? "Speed Camera" : zone.type === "police" ? "Police Checkpoint" : "Speed Zone";
   const d = distM < 1000 ? `${Math.round(distM)} m` : `${(distM / 1000).toFixed(1)} km`;
   await Notifications.scheduleNotificationAsync({
@@ -968,7 +976,7 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
     // Without this Android 8+ silently discards the notification because it
     // falls back to the "default" channel which is permanently low-importance.
     trigger: Platform.OS === "android"
-      ? { channelId: "msafiri_alerts" } as any
+      ? { channelId: ANDROID_ALERTS_CHANNEL_ID } as any
       : null,
   });
 }

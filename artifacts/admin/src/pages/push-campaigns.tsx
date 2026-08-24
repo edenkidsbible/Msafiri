@@ -287,6 +287,47 @@ function SilentPingDialog({ onSent }: { onSent: () => void }) {
   );
 }
 
+function AndroidTestButton({ onSent }: { onSent: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  const sendTest = async () => {
+    setLoading(true);
+    try {
+      const result = await authFetch("/admin/push/test/android-latest", { method: "POST" });
+      const description =
+        result.delivery === "confirmed"
+          ? "Expo confirmed delivery to the most recently active Android device. Check the notification shade."
+          : result.delivery === "fcm_credentials"
+            ? "Expo could not authenticate with Firebase Cloud Messaging. Replace the Android FCM V1 service-account credential in Expo before retesting."
+            : result.delivery === "failed"
+              ? "Expo accepted the request but the device delivery receipt failed. Review the Android push diagnostics."
+              : "Expo accepted a test for the most recently active Android device. Check that phone now.";
+      toast({
+        title: result.delivery === "confirmed" ? "Android delivery confirmed" : result.sent ? "Android test needs attention" : "Android test failed",
+        description: result.sent ? description : "Expo did not accept the test notification.",
+        variant: result.delivery === "confirmed" ? "default" : "destructive",
+      });
+      onSent();
+    } catch {
+      toast({
+        title: "Android test unavailable",
+        description: "No Android device is registered, or the delivery request failed.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" className="gap-2" onClick={sendTest} disabled={loading}>
+      {loading ? <RotateCcw className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+      Test Latest Android
+    </Button>
+  );
+}
+
 export default function PushCampaigns() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -347,6 +388,7 @@ export default function PushCampaigns() {
             </p>
           </div>
           <div className="flex gap-2">
+            <AndroidTestButton onSent={refresh} />
             <SilentPingDialog onSent={refresh} />
             <ComposeDialog onSent={refresh} />
           </div>

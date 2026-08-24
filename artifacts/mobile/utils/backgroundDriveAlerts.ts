@@ -50,6 +50,10 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import {
+  ANDROID_ALERTS_CHANNEL_ID,
+  ensureAndroidNotificationChannels,
+} from "@/utils/androidNotificationChannels";
 
 export const BG_DRIVE_ALERTS_TASK = "MSAFIRI_BG_DRIVE_ALERTS";
 
@@ -421,6 +425,14 @@ export function defineBackgroundDriveAlertsTask(): void {
         const lastAt = notifiedMap.notified[winner.id] ?? 0;
         if (now - lastAt < ALERT_COOLDOWN_MS) return;
 
+        if (
+          Platform.OS === "android" &&
+          !(await ensureAndroidNotificationChannels())
+        ) {
+          console.warn("[bgDriveAlerts] Android notification channel unavailable; retaining alert for retry.");
+          return;
+        }
+
         // ── 7. Fire the lock-screen / banner notification ──────────────────
         const label = TYPE_LABELS[winner.type] ?? "Alert";
         const distKm =
@@ -450,7 +462,7 @@ export function defineBackgroundDriveAlertsTask(): void {
           trigger: Platform.OS === "android"
             // The msafiri_alerts channel carries HIGH importance + sound.
             // Setting channelId here is the correct way to route on Android 8+.
-            ? { channelId: "msafiri_alerts" }
+            ? { channelId: ANDROID_ALERTS_CHANNEL_ID }
             : null,
         });
 
