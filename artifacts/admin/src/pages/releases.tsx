@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,6 +109,11 @@ const PLATFORM_LABEL: Record<string, string> = {
   android: "Android",
 };
 
+const DEFAULT_STORE_URLS = {
+  ios: "https://apps.apple.com/ke/app/msafiri-kenya/id6789483834",
+  android: "https://play.google.com/store/apps/details?id=com.msafirikenya.app",
+};
+
 function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform] ?? platform;
 }
@@ -143,6 +148,20 @@ const EMPTY_FORM = {
   scheduledAt: "",
 };
 
+function formFromRelease(release: Release) {
+  return {
+    version:         release.version,
+    buildNumber:     String(release.buildNumber),
+    platform:        release.platform,
+    releaseType:     release.releaseType,
+    releaseNotes:    release.releaseNotes ?? "",
+    isForceUpdate:   release.isForceUpdate,
+    storeUrlIos:     release.storeUrlIos || (release.platform === "ios" || release.platform === "all" ? DEFAULT_STORE_URLS.ios : ""),
+    storeUrlAndroid: release.storeUrlAndroid || (release.platform === "android" || release.platform === "all" ? DEFAULT_STORE_URLS.android : ""),
+    scheduledAt:     isoToLocalDatetime(release.scheduledAt),
+  };
+}
+
 function ReleaseDialog({
   open, onClose, existing, onSaved,
 }: {
@@ -151,21 +170,16 @@ function ReleaseDialog({
   existing?: Release;
   onSaved: () => void;
 }) {
-  const [form, setForm] = useState(existing ? {
-    version:         existing.version,
-    buildNumber:     String(existing.buildNumber),
-    platform:        existing.platform,
-    releaseType:     existing.releaseType,
-    releaseNotes:    existing.releaseNotes ?? "",
-    isForceUpdate:   existing.isForceUpdate,
-    storeUrlIos:     existing.storeUrlIos ?? "",
-    storeUrlAndroid: existing.storeUrlAndroid ?? "",
-    scheduledAt:     isoToLocalDatetime(existing.scheduledAt),
-  } : EMPTY_FORM);
+  const [form, setForm] = useState(existing ? formFromRelease(existing) : EMPTY_FORM);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   const isEdit = !!existing;
+
+  useEffect(() => {
+    if (!open) return;
+    setForm(existing ? formFromRelease(existing) : EMPTY_FORM);
+  }, [open, existing]);
 
   // Live warning for missing store URLs
   const missingUrls = missingStoreUrls({
@@ -217,7 +231,18 @@ function ReleaseDialog({
     }
   };
 
-  const set = (k: keyof typeof EMPTY_FORM, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof typeof EMPTY_FORM, v: any) => setForm((f) => {
+    const next = { ...f, [k]: v };
+    if (k === "platform") {
+      if ((v === "ios" || v === "all") && !f.storeUrlIos) {
+        next.storeUrlIos = DEFAULT_STORE_URLS.ios;
+      }
+      if ((v === "android" || v === "all") && !f.storeUrlAndroid) {
+        next.storeUrlAndroid = DEFAULT_STORE_URLS.android;
+      }
+    }
+    return next;
+  });
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -305,11 +330,14 @@ function ReleaseDialog({
                   )}
                 </Label>
                 <Input
-                  placeholder="https://apps.apple.com/app/id..."
+                  placeholder={DEFAULT_STORE_URLS.ios}
                   value={form.storeUrlIos}
                   onChange={(e) => set("storeUrlIos", e.target.value)}
                   className={form.isForceUpdate && !form.storeUrlIos ? "border-amber-400 dark:border-amber-600 focus-visible:ring-amber-400" : ""}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Prefilled with the Msafiri Kenya App Store listing. You can edit it if the listing changes.
+                </p>
               </div>
             )}
 
@@ -324,11 +352,14 @@ function ReleaseDialog({
                   )}
                 </Label>
                 <Input
-                  placeholder="https://play.google.com/store/apps/details?id=..."
+                  placeholder={DEFAULT_STORE_URLS.android}
                   value={form.storeUrlAndroid}
                   onChange={(e) => set("storeUrlAndroid", e.target.value)}
                   className={form.isForceUpdate && !form.storeUrlAndroid ? "border-amber-400 dark:border-amber-600 focus-visible:ring-amber-400" : ""}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Prefilled with the Msafiri Kenya Google Play listing. You can edit it if the listing changes.
+                </p>
               </div>
             )}
 
