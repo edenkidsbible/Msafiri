@@ -5,10 +5,9 @@
  * (and anywhere else a clip needs to be previewed without navigating away).
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Modal,
   Pressable,
   StyleSheet,
@@ -88,12 +87,9 @@ export function VideoPlayerModal({
   const [buffering, setBuffering] = useState(true);
   const [ct, setCt] = useState(0);
   const [dur, setDur] = useState(0);
-  const [ctrlVis, setCtrlVis] = useState(true);
   const [speedIdx, setSpeedIdx] = useState(1);
   const [barW, setBarW] = useState(1);
   const [metaVis, setMetaVis] = useState(true);
-  const anim = useRef(new Animated.Value(1)).current;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -112,31 +108,35 @@ export function VideoPlayerModal({
     return () => clearInterval(id);
   }, [player]);
 
-  const showCtrl = useCallback(() => {
-    setCtrlVis(true);
-    Animated.timing(anim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      Animated.timing(anim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() =>
-        setCtrlVis(false)
-      );
-    }, 4000);
-  }, [anim]);
-
-  useEffect(() => {
-    showCtrl();
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [showCtrl]);
-
   const progress = dur > 0 ? Math.min(1, ct / dur) : 0;
   const fT = (s: number) =>
     `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
   const { meta } = config;
 
+  const seekBy = (seconds: number) => {
+    if (dur <= 0) return;
+    const next = Math.max(0, Math.min(dur, ct + seconds));
+    player.currentTime = next;
+  };
+
+  const togglePlayback = () => {
+    // expo-video stays at the end of a non-looping clip. Treat play at the
+    // end as replay so the central button always does something useful.
+    if (player.playing) {
+      player.pause();
+    } else {
+      if (dur > 0 && ct >= dur - 0.15) player.currentTime = 0;
+      player.play();
+    }
+  };
+
   return (
-    <Modal visible animationType="fade" statusBarTranslucent>
+    <Modal
+      visible
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
       <View style={{ flex: 1, backgroundColor: "#000" }}>
         {/* Video surface */}
         <VideoView
@@ -170,23 +170,8 @@ export function VideoPlayerModal({
           </View>
         )}
 
-        {/* Tap area to show/hide controls */}
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => {
-            if (ctrlVis) {
-              Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true }).start(
-                () => setCtrlVis(false)
-              );
-              if (timerRef.current) clearTimeout(timerRef.current);
-            } else {
-              showCtrl();
-            }
-          }}
-        />
-
-        {/* Top bar — title + share */}
-        <Animated.View
+        {/* Top bar — persistent so Back is available while a clip is playing */}
+        <View
           style={[
             {
               position: "absolute",
@@ -199,24 +184,34 @@ export function VideoPlayerModal({
               paddingHorizontal: 12,
               paddingBottom: 12,
             },
-            { opacity: anim },
           ]}
-          pointerEvents={ctrlVis ? "box-none" : "none"}
         >
-          <TouchableOpacity onPress={onClose} style={pls.topBtn}>
-            <Ionicons name="chevron-down" size={26} color="#fff" />
+          <TouchableOpacity
+            onPress={onClose}
+            style={pls.topBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back to clips"
+            hitSlop={8}
+          >
+            <Ionicons name="arrow-back" size={25} color="#fff" />
           </TouchableOpacity>
           <Text style={pls.topTitle} numberOfLines={1}>
             {config.title}
           </Text>
           {config.onShare ? (
-            <TouchableOpacity onPress={config.onShare} style={pls.topBtn}>
+            <TouchableOpacity
+              onPress={config.onShare}
+              style={pls.topBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Share clip"
+              hitSlop={8}
+            >
               <Ionicons name="share-outline" size={22} color="#fff" />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 44 }} />
           )}
-        </Animated.View>
+        </View>
 
         {/* Metadata overlay — always visible, toggled by tapping the badge */}
         {meta && (
@@ -246,11 +241,9 @@ export function VideoPlayerModal({
           </View>
         )}
 
-        {/* Bottom controls */}
-        <Animated.View
-          style={{ opacity: anim }}
-          pointerEvents={ctrlVis ? "box-none" : "none"}
-        >
+        {/* Bottom controls stay visible while playing. The dark gradient keeps
+            the transport buttons readable without covering the clip itself. */}
+        <View pointerEvents="box-none">
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.92)"]}
             style={{
@@ -339,6 +332,8 @@ export function VideoPlayerModal({
                   player.playbackRate = PLAYER_SPEEDS[n];
                 }}
                 style={pls.speedBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Playback speed ${PLAYER_SPEEDS[speedIdx]} times`}
               >
                 <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>
                   {PLAYER_SPEEDS[speedIdx]}×
@@ -347,22 +342,21 @@ export function VideoPlayerModal({
 
               {/* −15 s */}
               <TouchableOpacity
-                onPress={() => {
-                  player.currentTime = Math.max(0, ct - 15);
-                }}
+                onPress={() => seekBy(-15)}
                 style={pls.skipBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Rewind 15 seconds"
               >
                 <Ionicons name="play-back-outline" size={28} color="#fff" />
-                <Text style={pls.skipLabel}>15</Text>
+                <Text style={pls.skipLabel}>15s</Text>
               </TouchableOpacity>
 
               {/* Play / Pause */}
               <TouchableOpacity
-                onPress={() => {
-                  if (player.playing) player.pause();
-                  else player.play();
-                }}
+                onPress={togglePlayback}
                 style={pls.playBtn}
+                accessibilityRole="button"
+                accessibilityLabel={playing ? "Pause clip" : "Play clip"}
               >
                 {buffering ? (
                   <ActivityIndicator size="small" color="#000" />
@@ -373,19 +367,21 @@ export function VideoPlayerModal({
 
               {/* +15 s */}
               <TouchableOpacity
-                onPress={() => {
-                  player.currentTime = Math.min(dur, ct + 15);
-                }}
+                onPress={() => seekBy(15)}
                 style={pls.skipBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Forward 15 seconds"
               >
                 <Ionicons name="play-forward-outline" size={28} color="#fff" />
-                <Text style={pls.skipLabel}>15</Text>
+                <Text style={pls.skipLabel}>15s</Text>
               </TouchableOpacity>
 
-              <View style={{ width: 52 }} />
+              {/* Keeps the primary play button centered while balancing the
+                  speed control on the opposite side. */}
+              <View style={{ width: 52 }} accessible={false} />
             </View>
           </LinearGradient>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );

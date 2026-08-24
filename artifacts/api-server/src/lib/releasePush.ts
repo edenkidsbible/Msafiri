@@ -1,13 +1,10 @@
 import { db, appReleasesTable, pushTokensTable, pushCampaignsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { sendPushNotifications } from "./expoPush.js";
+import { isDeviceReleasePlatform } from "./releaseTargeting.js";
 
 type AppRelease = typeof appReleasesTable.$inferSelect;
-
-function isDevicePlatform(platform: string): platform is "ios" | "android" {
-  return platform === "ios" || platform === "android";
-}
 
 /**
  * Notify only the devices that can receive a particular release.
@@ -38,16 +35,29 @@ export async function fireReleasePush(
     platform:        release.platform,
   };
 
-  const tokens = isDevicePlatform(release.platform)
-    ? await db
+  let tokens: { token: string }[];
+  let unclassifiedTokenCount = 0;
+
+  if (isDeviceReleasePlatform(release.platform)) {
+    const [targetTokens, unclassifiedRows] = await Promise.all([
+      db
         .select({ token: pushTokensTable.token })
         .from(pushTokensTable)
-        .where(eq(pushTokensTable.platform, release.platform))
-    : await db.select({ token: pushTokensTable.token }).from(pushTokensTable);
+        .where(eq(pushTokensTable.platform, release.platform)),
+      db
+        .select({ total: count() })
+        .from(pushTokensTable)
+        .where(eq(pushTokensTable.platform, "unknown")),
+    ]);
+    tokens = targetTokens;
+    unclassifiedTokenCount = Number(unclassifiedRows[0]?.total ?? 0);
+  } else {
+    tokens = await db.select({ token: pushTokensTable.token }).from(pushTokensTable);
+  }
 
   if (tokens.length === 0) {
     logger.info(
-      { version: release.version, platform: release.platform },
+      { version: release.version, platform: release.platform, unclassifiedTokenCount },
       "release push skipped: no registered devices for target platform",
     );
     return;
@@ -78,7 +88,13 @@ export async function fireReleasePush(
   });
 
   logger.info(
-    { version: release.version, platform: release.platform, ok, total: tokens.length },
+    {
+      version: release.version,
+      platform: release.platform,
+      ok,
+      total: tokens.length,
+      unclassifiedTokenCount,
+    },
     "release push sent",
   );
 }

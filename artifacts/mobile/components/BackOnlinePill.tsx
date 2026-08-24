@@ -3,13 +3,12 @@
  *
  * Shows a brief "Back online · data refreshed" pill whenever the app
  * transitions from offline → online. Fades in, holds for ~2 s, then
- * fades out automatically. Positioned at the same location as the
- * OfflineAlertBanner (bottom of screen above map controls) so the
- * driver's eye is already there.
+ * fades out automatically. Positioned at the same safe location as the
+ * OfflineAlertBanner so it never covers live driving controls.
  *
  * Props:
- *   bottomOffset — same convention as OfflineAlertBanner; pass the
- *                  value that places the pill above your map controls.
+ *   topOffset / bottomOffset — match the OfflineAlertBanner position.
+ *   Prefer topOffset on drive HUDs to keep controls unobstructed.
  */
 
 import React, { useEffect, useRef } from "react";
@@ -18,13 +17,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 
 interface Props {
-  /** Absolute distance from the bottom of the container. Matches
-   *  OfflineAlertBanner's bottomOffset so the pill appears in the
-   *  same spot where the offline pill was. */
-  bottomOffset: number;
+  /** Absolute distance from the top of the container. */
+  topOffset?: number;
+  /** Absolute distance from the bottom of the container (legacy map placement). */
+  bottomOffset?: number;
 }
 
-export default function BackOnlinePill({ bottomOffset }: Props) {
+export default function BackOnlinePill({ topOffset, bottomOffset }: Props) {
   const { isOffline } = useApp();
   const prevOfflineRef = useRef(isOffline);
   const opacity = useRef(new Animated.Value(0)).current;
@@ -59,7 +58,12 @@ export default function BackOnlinePill({ bottomOffset }: Props) {
 
   return (
     <Animated.View
-      style={[sheet.pill, { bottom: bottomOffset, opacity }]}
+      style={[
+        sheet.pill,
+        topOffset !== undefined
+          ? { top: topOffset, opacity }
+          : { bottom: bottomOffset ?? 0, opacity },
+      ]}
       pointerEvents="none"
     >
       <View style={sheet.iconWrap}>

@@ -1934,7 +1934,9 @@ export default function DriveScreen() {
           activeOpacity={0.85}
           onPress={() => { if (nearbyAlertCandidates.length > 1) setShowNearbySheet(true); }}
           style={[styles.dmAlertBanner, {
-            top: topInset + 8,
+            // Keep the connectivity status in the top safe area when offline;
+            // the alert moves below it instead of the two banners overlapping.
+            top: topInset + (isOffline ? 44 : 8),
             backgroundColor: isDark ? "#101613F2" : "#FFFFFFF5",
             borderColor: primaryAlert.color,
             transform: [{ scale: alertOverlayScale }],
@@ -1980,20 +1982,26 @@ export default function DriveScreen() {
       {/* ── Compact LIVE pill — replaces the bulky trip info card so the top
           stays clear for nearby-alert overlays. Styled like the red REC pill. ── */}
       {tripActive && navDestination != null && (
-        <View style={[styles.livePill, { top: topInset + (primaryAlert ? 90 : 16) }]}>
+        <View style={[styles.livePill, { top: topInset + (primaryAlert ? (isOffline ? 126 : 90) : (isOffline ? 44 : 16)) }]}>
           <View style={styles.livePillDot} />
           <Text style={styles.livePillTxt}>LIVE</Text>
         </View>
       )}
 
-      {/* ── Offline mode pill — shown whenever device has no internet ──────── */}
+      {/* ── Offline mode status — in the safe header, never inside the drive
+          panel where dashcam/audio actions and the tab bar can cover it. ─── */}
       {isOffline && Platform.OS !== "web" && (
-        <OfflineAlertBanner lastSyncedAt={lastAlertDataSyncedAt} />
+        <OfflineAlertBanner
+          lastSyncedAt={lastAlertDataSyncedAt}
+          compact
+          topOffset={topInset + 8}
+        />
       )}
 
-      {/* ── Back-online confirmation — brief green pill when connectivity resumes */}
+      {/* ── Back-online confirmation — replaces the offline status in the same
+          unobstructed header area. */}
       {Platform.OS !== "web" && (
-        <BackOnlinePill bottomOffset={bottomInset + tabBarH + 20} />
+        <BackOnlinePill topOffset={topInset + 8} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════

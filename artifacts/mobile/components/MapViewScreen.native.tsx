@@ -1787,19 +1787,18 @@ export default function MapViewScreen() {
         </Modal>
       )}
 
-      {/* ── Offline pill — centered above the map controls; compact variant so it
-          doesn't fight the weather chip (left) or zoom controls (right).
-          bottomOffset is set above TAB_H + controls to avoid overlap. */}
+      {/* ── Offline status stays in the top safe area, leaving the map controls,
+          report actions, and tab bar completely unobstructed. */}
       {isOffline && (
         <OfflineAlertBanner
           lastSyncedAt={lastAlertDataSyncedAt}
           compact
-          bottomOffset={insets.bottom + TAB_H + 72}
+          topOffset={insets.top + 8}
         />
       )}
 
-      {/* ── Back-online confirmation — brief green pill when connectivity resumes */}
-      <BackOnlinePill bottomOffset={insets.bottom + TAB_H + 72} />
+      {/* ── Back-online confirmation — appears where the offline status was. */}
+      <BackOnlinePill topOffset={insets.top + 8} />
     </View>
   );
 }

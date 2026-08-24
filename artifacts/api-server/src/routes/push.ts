@@ -23,6 +23,13 @@ router.post("/push/register", async (req: Request, res: Response) => {
   }
 
   try {
+    // Only native platforms participate in platform-targeted app releases.
+    // Treat unexpected or older clients as unknown rather than accidentally
+    // including them in either iOS or Android audiences.
+    const registeredPlatform = platform === "ios" || platform === "android"
+      ? platform
+      : "unknown";
+
     // Remove any stale rows that share this token with a different deviceId.
     // This happens when a user reinstalls — AsyncStorage is wiped so a new
     // deviceId is generated, but APNs/FCM issues the same push token. Without
@@ -37,7 +44,7 @@ router.post("/push/register", async (req: Request, res: Response) => {
       .values({
         deviceId,
         token,
-        platform: platform ?? "unknown",
+        platform: registeredPlatform,
         lastLat: lat ?? null,
         lastLng: lng ?? null,
         lastSeenAt: new Date(),
@@ -46,7 +53,7 @@ router.post("/push/register", async (req: Request, res: Response) => {
         target: pushTokensTable.deviceId,
         set: {
           token,
-          platform: platform ?? "unknown",
+          platform: registeredPlatform,
           ...(lat != null && lng != null ? { lastLat: lat, lastLng: lng } : {}),
           lastSeenAt: new Date(),
         },

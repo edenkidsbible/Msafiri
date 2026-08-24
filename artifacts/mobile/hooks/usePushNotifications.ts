@@ -225,15 +225,14 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
   }
 
   const token = tokenData.data;
-  const cachedToken = await AsyncStorage.getItem(TOKEN_KEY);
-
   const deviceId = await getOrCreateDeviceId();
 
-  // Only skip if token hasn't changed AND we already have a location to avoid
-  // registering without coordinates on the very first call
-  if (cachedToken === token && (lat == null || lng == null)) return;
-
   try {
+    // Always refresh the server registration when the app starts. The platform
+    // field became part of release targeting after many users already had a
+    // cached token, and skipping unchanged tokens left those valid devices
+    // marked "unknown" and excluded from the correct iOS/Android release.
+    // The API preserves an existing location when no first GPS fix is ready.
     await apiPost("/push/register", {
       deviceId,
       token,
