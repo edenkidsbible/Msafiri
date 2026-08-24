@@ -52,6 +52,13 @@ import { Alert, AppState, PermissionsAndroid, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
 import {
+  getAndroidCameraPermissionState,
+  getAndroidMicrophonePermissionGranted,
+  requestAndroidCameraPermission,
+  requestAndroidMicrophonePermission,
+  type AndroidCameraPermissionState,
+} from "@/utils/androidCameraPermissions";
+import {
   vehicleSegmentsKey,
   vehicleSegmentsDir as _vehicleSegmentsDir,
   computeSegmentDestUri,
@@ -121,6 +128,9 @@ interface DashcamContextValue {
   currentSegmentDuration: number;
   uploadPending: number;
   settings: DashcamSettings;
+  /** Android reads the OS grant directly; iOS mirrors expo-camera's hook state. */
+  cameraPermissionState: AndroidCameraPermissionState;
+  microphonePermissionGranted: boolean;
   recordingEpoch: number;
   pushDeviceId: string | null;
   cloudQuotaFull: boolean;
@@ -137,7 +147,8 @@ interface DashcamContextValue {
   /** Stop recording without auto-locking; last 5 clips are saved for review. */
   stopAndSaveDashcam: () => void;
   startBackgroundRecording: () => Promise<boolean>;
-  requestDashcamPermissions: () => Promise<{ cameraGranted: boolean; micGranted: boolean }>;
+  requestDashcamPermissions: (options?: { requestCamera?: boolean; requestMicrophone?: boolean }) => Promise<{ cameraGranted: boolean; micGranted: boolean }>;
+  refreshDashcamCameraPermission: () => Promise<AndroidCameraPermissionState>;
   clearBackgroundRecordPending: () => void;
   /** Lock the currently recording clip (stops the clip, queues it for upload). */
   lockCurrentClip: (reason?: string) => void;
@@ -289,6 +300,67 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     : [{ granted: true } as { granted: boolean }, async () => ({ granted: true })];
   const requestMicPermissionRef = useRef(requestMicPermission);
   useEffect(() => { requestMicPermissionRef.current = requestMicPermission; }, [requestMicPermission]);
+
+  // Android's expo-camera hook can retain an incorrect denial cache on some
+  // OEM builds. Keep one provider-owned state sourced from PermissionsAndroid
+  // instead, so every dashcam entry point sees the same real OS result.
+  const [androidCameraPermission, setAndroidCameraPermission] =
+    useState<AndroidCameraPermissionState>({
+      granted: false,
+      canAskAgain: true,
+      status: "undetermined",
+    });
+  const [androidMicrophoneGranted, setAndroidMicrophoneGranted] = useState(false);
+
+  const refreshDashcamCameraPermission = useCallback(async (): Promise<AndroidCameraPermissionState> => {
+    if (Platform.OS === "android") {
+      const next = await getAndroidCameraPermissionState();
+      setAndroidCameraPermission(next);
+      return next;
+    }
+
+    const nativePermission = cameraPermission as any;
+    return {
+      granted: nativePermission?.granted ?? false,
+      canAskAgain: nativePermission?.canAskAgain !== false,
+      status: nativePermission?.granted
+        ? "granted"
+        : nativePermission?.status === "denied"
+          ? "denied"
+          : "undetermined",
+    };
+  }, [cameraPermission]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const refreshAndroidPermissions = () => {
+      refreshDashcamCameraPermission().catch(() => {});
+      getAndroidMicrophonePermissionGranted()
+        .then(setAndroidMicrophoneGranted)
+        .catch(() => setAndroidMicrophoneGranted(false));
+    };
+    refreshAndroidPermissions();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshAndroidPermissions();
+    });
+    return () => subscription.remove();
+  }, [refreshDashcamCameraPermission]);
+
+  const cameraPermissionState: AndroidCameraPermissionState =
+    Platform.OS === "android"
+      ? androidCameraPermission
+      : {
+          granted: (cameraPermission as any)?.granted ?? false,
+          canAskAgain: (cameraPermission as any)?.canAskAgain !== false,
+          status: (cameraPermission as any)?.granted
+            ? "granted"
+            : (cameraPermission as any)?.status === "denied"
+              ? "denied"
+              : "undetermined",
+        };
+  const microphonePermissionGranted = Platform.OS === "android"
+    ? androidMicrophoneGranted
+    : (micPermission as any)?.granted ?? false;
 
   // ── Core refs ─────────────────────────────────────────────────────────────
   const cameraRef              = useRef<CameraView | null>(null);
@@ -854,76 +926,63 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const openDashcam  = useCallback(() => setIsDashcamOpen(true), []);
   const closeDashcam = useCallback(() => setIsDashcamOpen(false), []);
 
-  const requestDashcamPermissions = useCallback(async (): Promise<{ cameraGranted: boolean; micGranted: boolean }> => {
+  const requestDashcamPermissions = useCallback(async (
+    options: { requestCamera?: boolean; requestMicrophone?: boolean } = {},
+  ): Promise<{ cameraGranted: boolean; micGranted: boolean }> => {
+    if (Platform.OS === "android") {
+      let cameraGranted = (await refreshDashcamCameraPermission()).granted;
+      let micGranted = await getAndroidMicrophonePermissionGranted().catch(() => false);
+      setAndroidMicrophoneGranted(micGranted);
+
+      if (options.requestCamera !== false && !cameraGranted) {
+        const next = await requestAndroidCameraPermission().catch(() => null);
+        if (next) {
+          setAndroidCameraPermission(next);
+          cameraGranted = next.granted;
+        }
+      }
+
+      if (options.requestMicrophone !== false && !micGranted) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 200));
+        micGranted = await requestAndroidMicrophonePermission().catch(() => false);
+        setAndroidMicrophoneGranted(micGranted);
+      }
+
+      return { cameraGranted, micGranted };
+    }
+
     let cameraGranted = cameraPermission?.granted ?? false;
     let micGranted    = micPermission?.granted    ?? false;
 
     if (!cameraGranted) {
       try {
-        if (Platform.OS === "android") {
-          // On Android, call PermissionsAndroid directly — expo-camera's hook
-          // can report canAskAgain:false on first load on OEM devices before
-          // any dialog is shown, causing requestPermission() to silently fail.
-          const result = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.CAMERA,
-            {
-              title: "Camera Access",
-              message:
-                "Msafiri needs camera access for dashcam recording and " +
-                "the Crash Assistant. Footage stays on your device.",
-              buttonPositive: "Allow",
-              buttonNegative: "Not Now",
-            }
-          );
-          cameraGranted = result === PermissionsAndroid.RESULTS.GRANTED;
-          if (cameraGranted) {
-            // Sync expo-camera hook with the new OS state
-            requestCameraPermissionRef.current().catch(() => {});
-          }
-        } else {
-          const res = await requestCameraPermissionRef.current();
-          cameraGranted = res?.granted ?? false;
-        }
+        const res = await requestCameraPermissionRef.current();
+        cameraGranted = res?.granted ?? false;
       } catch { cameraGranted = false; }
     }
 
     if (!micGranted) {
-      // Short pause so the second OS dialog doesn't appear instantly on top of
-      // the first one — some Android versions dismiss both simultaneously when
-      // they open within the same animation frame. 200 ms is enough.
       await new Promise<void>((resolve) => setTimeout(resolve, 200));
       try {
-        if (Platform.OS === "android") {
-          const result = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-            {
-              title: "Microphone Access",
-              message:
-                "Msafiri can record audio alongside dashcam clips and " +
-                "capture voice statements in the Crash Assistant.",
-              buttonPositive: "Allow",
-              buttonNegative: "Not Now",
-            }
-          );
-          micGranted = result === PermissionsAndroid.RESULTS.GRANTED;
-          if (micGranted) {
-            requestMicPermissionRef.current().catch(() => {});
-          }
-        } else {
-          const res = await requestMicPermissionRef.current();
-          micGranted = res?.granted ?? false;
-        }
+        const res = await requestMicPermissionRef.current();
+        micGranted = res?.granted ?? false;
       } catch { micGranted = false; }
     }
 
     return { cameraGranted, micGranted };
-  }, [cameraPermission?.granted, micPermission?.granted]);
+  }, [cameraPermission?.granted, micPermission?.granted, refreshDashcamCameraPermission]);
 
   const startBackgroundRecording = useCallback(async (): Promise<boolean> => {
     if (isRecordingRef.current) return true;
 
-    if (!cameraPermission?.granted) {
-      if (Platform.OS === "android") {
+    // Android permission prompting is deliberately reserved for an explicit UI
+    // action. Starting a recording only consumes the provider-owned OS state.
+    if (Platform.OS === "android" && !(await refreshDashcamCameraPermission()).granted) {
+      return false;
+    }
+
+    if (Platform.OS !== "android" && !cameraPermission?.granted) {
+      if (false) {
         // On Android, use PermissionsAndroid directly to bypass expo-camera
         // hook quirks — some OEM devices report canAskAgain:false before
         // the dialog is ever shown, causing the hook to silently fail.
@@ -959,10 +1018,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (!micPermission?.granted) {
+    if (Platform.OS !== "android" && !micPermission?.granted) {
       await new Promise<void>((resolve) => setTimeout(resolve, 200));
       try {
-        if (Platform.OS === "android") {
+        if (false) {
           await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
         } else {
           await requestMicPermissionRef.current();
@@ -972,7 +1031,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
     setBackgroundRecordPending(true);
     return true;
-  }, [cameraPermission?.granted, micPermission?.granted]);
+  }, [cameraPermission?.granted, micPermission?.granted, refreshDashcamCameraPermission]);
 
   const clearBackgroundRecordPending = useCallback(() => {
     setBackgroundRecordPending(false);
@@ -1456,10 +1515,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<DashcamContextValue>(
     () => ({
       isRecording, isRecordingRef, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
-      currentSegmentDuration, uploadPending, settings,
+      currentSegmentDuration, uploadPending, settings, cameraPermissionState, microphonePermissionGranted,
       pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
-      startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
+      startBackgroundRecording, requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
       lockCurrentClip, lockSavedClip, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,
@@ -1468,10 +1527,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
-      currentSegmentDuration, uploadPending, settings,
+      currentSegmentDuration, uploadPending, settings, cameraPermissionState, microphonePermissionGranted,
       pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
-      startBackgroundRecording, requestDashcamPermissions, clearBackgroundRecordPending,
+      startBackgroundRecording, requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
       lockCurrentClip, lockSavedClip, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,

@@ -21,7 +21,7 @@ import {
   Linking,
   Modal,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -467,9 +467,21 @@ function PermCard({
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function PretripCheckScreen() {
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
+  useFocusEffect(useCallback(() => {
+    setIsScreenFocused(true);
+    return () => setIsScreenFocused(false);
+  }, []));
   const c      = useColors();
   const insets = useSafeAreaInsets();
-  const { settings, updateSettings, requestDashcamPermissions } = useDashcam();
+  const {
+    settings,
+    updateSettings,
+    requestDashcamPermissions,
+    refreshDashcamCameraPermission,
+    cameraPermissionState,
+    microphonePermissionGranted,
+  } = useDashcam();
   const { vehicles, activeVehicleId, setActiveVehicle } = useVehicle();
 
   // Trip vehicle — defaults to the current active vehicle; driver can change before starting.
@@ -501,17 +513,15 @@ export default function PretripCheckScreen() {
     ? useMicrophonePermissions()
     : [null, async () => null, async () => null];
 
-  const cameraStatus = toStatus(camPermission?.granted, camPermission?.canAskAgain);
-  const micStatus    = toStatus(micPermission?.granted,  micPermission?.canAskAgain);
+  const cameraStatus = Platform.OS === "android"
+    ? cameraPermissionState.status
+    : toStatus(camPermission?.granted, camPermission?.canAskAgain);
+  const micStatus = Platform.OS === "android"
+    ? (microphonePermissionGranted ? "granted" : "undetermined")
+    : toStatus(micPermission?.granted, micPermission?.canAskAgain);
 
   const [loadingPerm, setLoadingPerm] = useState<string | null>(null);
   const [cameraRationaleVisible, setCameraRationaleVisible] = useState(false);
-  // Tracks whether PermissionsAndroid previously returned NEVER_ASK_AGAIN on
-  // this Android device. Only after that result do we treat the permission as
-  // permanently denied — expo-camera's hook can incorrectly report
-  // canAskAgain:false on first load on some OEM devices before any dialog is shown.
-  const [androidCameraHardDenied, setAndroidCameraHardDenied] = useState(false);
-
   // Check existing permission statuses
   const refreshPermissions = useCallback(async () => {
     try {
@@ -538,9 +548,13 @@ export default function PretripCheckScreen() {
     // Re-check camera & mic — critical when returning from iOS/Android Settings.
     // The hooks expose a 3rd "getPermission" function that re-reads status without
     // showing a dialog, which lets us update the displayed badge immediately.
-    try { if (getCamPerm) await getCamPerm(); } catch { /* ignore */ }
+    if (Platform.OS === "android") {
+      await refreshDashcamCameraPermission().catch(() => {});
+    } else {
+      try { if (getCamPerm) await getCamPerm(); } catch { /* ignore */ }
+    }
     try { if (getMicPerm) await getMicPerm(); } catch { /* ignore */ }
-  }, [getCamPerm, getMicPerm]);
+  }, [getCamPerm, getMicPerm, refreshDashcamCameraPermission]);
 
   useEffect(() => {
     refreshPermissions();
@@ -601,43 +615,28 @@ export default function PretripCheckScreen() {
     setLoadingPerm("camera");
     try {
       if (Platform.OS === "android") {
-        // On Android, call PermissionsAndroid directly.
-        //
-        // expo-camera's useCameraPermissions hook reads a stale OS cache on
-        // first mount and can report canAskAgain:false BEFORE the dialog was
-        // ever shown on some OEM devices (Samsung, Xiaomi, Oppo, etc.).
-        // Calling requestCamPerm() in that state returns denied immediately
-        // without triggering any OS dialog. PermissionsAndroid.request()
-        // bypasses the hook's cached state and always asks the OS directly.
-        const { PermissionsAndroid } = require("react-native");
-        const result = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: "Camera Access",
-            message:
-              "Msafiri needs camera access for dashcam recording and the " +
-              "Crash Assistant. Footage stays on your device.",
-            buttonPositive: "Allow",
-            buttonNegative: "Not Now",
-          }
-        );
-        if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-          setAndroidCameraHardDenied(true);
+        if (cameraPermissionState.canAskAgain) {
+          await requestDashcamPermissions({
+            requestCamera: true,
+            requestMicrophone: false,
+          });
         }
-        // Sync expo-camera hook with the new OS state (getter — no dialog).
-        // getCamPerm is the 3rd element of useCameraPermissions().
-        await (getCamPerm as (() => Promise<any>))?.().catch(() => {});
-      } else {
-        // iOS — expo-camera hook is reliable there.
-        // Intentionally NOT calling requestDashcamPermissions() here — that
-        // function also calls requestCameraPermissionRef which would queue a
-        // second OS dialog on Android, causing both to be silently dropped.
-        // DashcamContext will re-check camera.granted before recording starts.
-        await requestCamPerm();
+        await refreshDashcamCameraPermission();
+        setLoadingPerm(null);
+        return;
       }
+
+      // iOS — expo-camera hook is reliable there.
+      await requestCamPerm();
     } catch { /* ignore */ }
     setLoadingPerm(null);
-  }, [requestCamPerm, getCamPerm]);
+  }, [
+    requestCamPerm,
+    getCamPerm,
+    cameraPermissionState.canAskAgain,
+    requestDashcamPermissions,
+    refreshDashcamCameraPermission,
+  ]);
 
   const openCameraSettings = useCallback(() => {
     setCameraRationaleVisible(false);
@@ -662,16 +661,29 @@ export default function PretripCheckScreen() {
 
   // ── Camera preview ─────────────────────────────────────────────────────────
   const [cameraReady, setCameraReady] = useState(false);
-  const cameraGranted = camPermission?.granted ?? false;
+  const cameraGranted = Platform.OS === "android"
+    ? cameraPermissionState.granted
+    : camPermission?.granted ?? false;
 
   // ── Mic toggle with BT music warning ──────────────────────────────────────
   const toggleMic = useCallback(async (value: boolean) => {
     Haptics.selectionAsync().catch(() => {});
     await updateSettings({ audioEnabled: value });
-    if (value && micPermission && !micPermission.granted) {
+    if (value && Platform.OS === "android" && !microphonePermissionGranted) {
+      await requestDashcamPermissions({
+        requestCamera: false,
+        requestMicrophone: true,
+      }).catch(() => {});
+    } else if (value && micPermission && !micPermission.granted) {
       try { await requestMicPerm(); } catch { /* muted fallback */ }
     }
-  }, [updateSettings, micPermission, requestMicPerm]);
+  }, [
+    updateSettings,
+    micPermission,
+    requestMicPerm,
+    microphonePermissionGranted,
+    requestDashcamPermissions,
+  ]);
 
   // ── Quick-start preference ─────────────────────────────────────────────────
   const [quickStartEnabled, setQuickStartEnabled] = useState(false);
@@ -731,7 +743,7 @@ export default function PretripCheckScreen() {
   //   (some OEM devices report it before any dialog is shown). We only treat
   //   it as permanent once PermissionsAndroid returned NEVER_ASK_AGAIN.
   const cameraPermanentlyDenied = Platform.OS === "android"
-    ? androidCameraHardDenied
+    ? (!cameraPermissionState.granted && !cameraPermissionState.canAskAgain)
     : (camPermission !== null && camPermission?.canAskAgain === false && !camPermission?.granted);
 
   return (
@@ -940,7 +952,7 @@ export default function PretripCheckScreen() {
               {/* Camera preview — hidden while the full-screen confirm overlay is
                   open so the OS only has one CameraView active at a time.     */}
               <View style={styles.previewWrap}>
-                {cameraGranted && CameraView ? (
+                {cameraGranted && isScreenFocused && CameraView ? (
                   <>
                     <CameraView
                       style={styles.cameraView}

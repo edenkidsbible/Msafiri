@@ -21,7 +21,6 @@ import {
   Animated,
   Linking,
   Modal,
-  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -85,8 +84,9 @@ export default function DashcamOverlay() {
     isRecording, isRecordingRef, isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked, stopAndSaveDashcam,
-    closeDashcam, clearBackgroundRecordPending, setCameraRef,
+    closeDashcam, openDashcam, clearBackgroundRecordPending, setCameraRef,
     onSegmentStart, onSegmentComplete,
+    cameraPermissionState, microphonePermissionGranted, requestDashcamPermissions,
   } = useDashcam();
 
   const { currentLat, currentLng } = useLiveLocation();
@@ -102,26 +102,17 @@ export default function DashcamOverlay() {
 
   const insets = useSafeAreaInsets();
 
-  // ── Android permission local override ────────────────────────────────────
-  // expo-camera's useCameraPermissions hook reads a stale OS cache and can
-  // return canAskAgain:false before the system dialog is ever shown on OEM
-  // devices (Samsung, Xiaomi, Oppo, etc.).  We work around this by calling
-  // PermissionsAndroid.request() directly, which always reaches the OS.
-  //
-  // After the OS grants, we MUST NOT call the hook's requestPermission() to
-  // sync it — on the same OEM devices, re-invoking the permission API right
-  // after a fresh grant can either show a second dialog or return
-  // canAskAgain:false, leaving the permission screen stuck.
-  //
-  // Instead: flip this local flag immediately on GRANTED.  The hook will
-  // self-correct on the next mount cycle by re-reading the OS grant, but we
-  // do not wait for it — this flag bypasses the permission gate right away.
-  const [localPermGranted, setLocalPermGranted] = useState(false);
-
+  // Retained for the frozen iOS path below. Android never consumes this hook:
+  // its state is owned by DashcamContext and sourced from the OS directly.
+  const [permission, requestPermission] = useCameraPermissions
+    ? useCameraPermissions()
+    : [{ granted: true }, async () => ({ granted: true })];
   const localCameraRef  = useRef<any>(null);
   const loopCancelRef     = useRef(false);
   const restartCountRef   = useRef(0);
   const segmentStartRef = useRef(Date.now());
+  const [cameraAttempt, setCameraAttempt] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   // Track whether the CameraView has already fired onCameraReady for this
   // mount. The overlay unmounts between trips (returns null when idle), so
@@ -267,10 +258,6 @@ export default function DashcamOverlay() {
   const settingsPanelY = useRef(new Animated.Value(PANEL_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  const [permission, requestPermission] = useCameraPermissions
-    ? useCameraPermissions()
-    : [{ granted: true }, async () => ({ granted: true })];
-
   const [micPermission, requestMicPermission] = useMicrophonePermissions
     ? useMicrophonePermissions()
     : [{ granted: true }, async () => ({ granted: true })];
@@ -279,7 +266,50 @@ export default function DashcamOverlay() {
   // and mic permission — expo-camera v17 controls this via the CameraView
   // `mute` prop, NOT via a recordAsync option (the `muted` key in
   // recordAsync is silently ignored by this version of the library).
-  const audioMuted = !settings.audioEnabled || !(micPermission?.granted ?? false);
+  const audioMuted = !settings.audioEnabled || (
+    Platform.OS === "android"
+      ? !microphonePermissionGranted
+      : !(micPermission?.granted ?? false)
+  );
+  const hasCameraAccess = Platform.OS === "android"
+    ? cameraPermissionState.granted
+    : permission?.granted;
+
+  const retryCamera = useCallback(() => {
+    cameraReadyRef.current = false;
+    setCameraError(null);
+    setCameraAttempt((attempt) => attempt + 1);
+  }, []);
+
+  // Android camera services can fail to allocate a surface after a permission
+  // grant or an OEM camera-app handoff. Bound the wait and return the driver to
+  // a visible retry state instead of leaving recording in "Starting".
+  useEffect(() => {
+    if (
+      Platform.OS !== "android" ||
+      !hasCameraAccess ||
+      cameraReadyRef.current ||
+      (!isDashcamOpen && !backgroundRecordPending)
+    ) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      if (cameraReadyRef.current) return;
+      clearBackgroundRecordPending();
+      setCameraError("Camera did not start. Close any other camera app, then try again.");
+      openDashcam();
+    }, 12_000);
+
+    return () => clearTimeout(timeout);
+  }, [
+    hasCameraAccess,
+    isDashcamOpen,
+    backgroundRecordPending,
+    cameraAttempt,
+    clearBackgroundRecordPending,
+    openDashcam,
+  ]);
 
   // ── Register camera ref with DashcamContext ────────────────────────────────
   const cameraCallbackRef = useCallback(
@@ -586,7 +616,7 @@ export default function DashcamOverlay() {
   // false even though permission was just granted. Blocking here returns null,
   // prevents the CameraView from mounting, and leaves the dashcam stuck in
   // "Starting…" indefinitely because onCameraReady never fires.
-  if (!permission?.granted && !localPermGranted && !backgroundRecordPending) {
+  if (!hasCameraAccess && !backgroundRecordPending) {
     if (!isDashcamOpen) return null; // background start already handles denial
     return (
       <View style={[StyleSheet.absoluteFill, styles.permScreen]}>
@@ -613,56 +643,14 @@ export default function DashcamOverlay() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
             if (Platform.OS === "android") {
-              // On Android, call PermissionsAndroid directly.
-              //
-              // expo-camera's useCameraPermissions hook reads a stale OS
-              // cache on first mount and can report canAskAgain:false BEFORE
-              // the dialog was ever shown on some OEM devices (Samsung,
-              // Xiaomi, Oppo, etc.). Calling the hook's requestPermission()
-              // in that state returns denied immediately without triggering
-              // any OS dialog.
-              //
-              // PermissionsAndroid.request() always goes straight to the OS
-              // and is not gated by the hook's cached state, so it reliably
-              // shows the system dialog on first ask.
-              const result = await PermissionsAndroid.request(
-                PermissionsAndroid.PERMISSIONS.CAMERA,
-                {
-                  title: "Camera Access",
-                  message:
-                    "Msafiri needs camera access for dashcam recording " +
-                    "and the Crash Assistant. Footage stays on your device.",
-                  buttonPositive: "Allow",
-                  buttonNegative: "Not Now",
-                }
-              );
-
-              if (result === PermissionsAndroid.RESULTS.GRANTED) {
-                // Bypass the permission gate immediately — do NOT call
-                // requestPermission() here.  On OEM devices (Samsung, Xiaomi,
-                // Oppo) calling it right after a fresh OS grant re-invokes the
-                // permission API and can show a second dialog or return
-                // canAskAgain:false, leaving the screen stuck.  The hook will
-                // self-correct on the next natural render cycle.
-                setLocalPermGranted(true);
-              } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-                // User ticked "Never ask again" — OS dialog is suppressed.
-                // Guide them to the correct Settings screen.
-                Alert.alert(
-                  "Enable Camera in Settings",
-                  "Camera access was permanently denied.\n\n" +
-                    "Tap Open Settings → Permissions → Camera → Allow, " +
-                    "then return to Msafiri.",
-                  [
-                    { text: "Not Now", style: "cancel" },
-                    {
-                      text: "Open Settings",
-                      onPress: () => Linking.openSettings().catch(() => {}),
-                    },
-                  ]
-                );
+              if (!cameraPermissionState.canAskAgain) {
+                Linking.openSettings().catch(() => {});
+                return;
               }
-              // DENIED (tapped "Not Now"): dialog can show again next time.
+              await requestDashcamPermissions({
+                requestCamera: true,
+                requestMicrophone: false,
+              });
               return;
             }
 
@@ -684,7 +672,11 @@ export default function DashcamOverlay() {
           }}
         >
           <Ionicons name="videocam-outline" size={18} color="#fff" />
-          <Text style={styles.permGrantTxt}>Allow Camera Access</Text>
+          <Text style={styles.permGrantTxt}>
+            {Platform.OS === "android" && !cameraPermissionState.canAskAgain
+              ? "Open Camera Settings"
+              : "Allow Camera Access"}
+          </Text>
         </TouchableOpacity>
         {permission?.canAskAgain === false && Platform.OS !== "android" && (
           <Text style={styles.permHint}>
@@ -745,6 +737,7 @@ export default function DashcamOverlay() {
           driver is controlled by the translateY trick above, NOT by opacity. */}
       {CameraView && (
         <CameraView
+          key={`dashcam-camera-${cameraAttempt}`}
           ref={cameraCallbackRef}
           style={StyleSheet.absoluteFill}
           facing="back"
@@ -753,6 +746,7 @@ export default function DashcamOverlay() {
           mute={audioMuted}
           onCameraReady={() => {
             cameraReadyRef.current = true;
+            setCameraError(null);
             // If the 4-second angle-preview timer already fired while the camera
             // was still initialising (iOS session handoff from the pre-trip
             // checklist CameraView can take 5–8 s), the dismiss was deferred.
@@ -773,7 +767,33 @@ export default function DashcamOverlay() {
               clearBackgroundRecordPending();
             }
           }}
+          onMountError={(event: any) => {
+            if (Platform.OS !== "android") return;
+            cameraReadyRef.current = false;
+            clearBackgroundRecordPending();
+            setCameraError(
+              event?.nativeEvent?.message ??
+                "Camera could not start. Close any other camera app and try again.",
+            );
+            openDashcam();
+          }}
         />
+      )}
+
+      {cameraError && showUI && Platform.OS === "android" && (
+        <View style={styles.cameraErrorCard}>
+          <Ionicons name="camera-reverse-outline" size={22} color="#FBBF24" />
+          <Text style={styles.cameraErrorTitle}>Camera unavailable</Text>
+          <Text style={styles.cameraErrorBody}>{cameraError}</Text>
+          <TouchableOpacity
+            style={styles.cameraRetryButton}
+            onPress={retryCamera}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="refresh" size={17} color="#fff" />
+            <Text style={styles.cameraRetryText}>Try Camera Again</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ── Camera-angle preview ─────────────────────────────────────────────
@@ -1328,6 +1348,42 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.45)", fontSize: 12,
     textAlign: "center", marginTop: 14,
   },
+  cameraErrorCard: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    top: "35%",
+    alignItems: "center",
+    backgroundColor: "rgba(18,18,18,0.94)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.35)",
+    padding: 20,
+  },
+  cameraErrorTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  cameraErrorBody: {
+    color: "rgba(255,255,255,0.68)",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  cameraRetryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    backgroundColor: "#00A845",
+    borderRadius: 13,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  cameraRetryText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
   // ── Settings panel ──────────────────────────────────────────────────────────
   settingsPanel: {

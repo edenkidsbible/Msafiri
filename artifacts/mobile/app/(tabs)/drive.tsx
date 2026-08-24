@@ -234,6 +234,7 @@ export default function DriveScreen() {
     lockCurrentClip,
     startBackgroundRecording,
     requestDashcamPermissions,
+    refreshDashcamCameraPermission,
     segments: dashcamSegments,
     pendingTripReview,
   } = useDashcam();
@@ -242,19 +243,6 @@ export default function DriveScreen() {
   // state without being re-registered on every dashcamRecording change.
   const dashcamRecordingRef = useRef(false);
   useEffect(() => { dashcamRecordingRef.current = dashcamRecording; }, [dashcamRecording]);
-
-  // Proactively request camera + microphone permissions each time the drive
-  // screen comes into focus — before the user taps the dashcam button.
-  // This ensures first-time users see both system dialogs in the correct order
-  // (camera → 500 ms gap → microphone) rather than having them fire back-to-back
-  // when recording is already trying to start, which causes iOS to drop one.
-  // The call is a no-op when both permissions are already granted.
-  useFocusEffect(useCallback(() => {
-    if (Platform.OS !== "web") {
-      requestDashcamPermissions().catch(() => {});
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []));
 
   // Sync dashcam recording state into AppContext so the accelerometer
   // crash detector runs even when navigation is not active.
@@ -870,8 +858,10 @@ export default function DriveScreen() {
       .then((v) => {
         // Absence (first install) or "1" both mean auto-start; "0" means off.
         if (v === "0") return;
-        requestDashcamPermissions().then(({ cameraGranted }) => {
-          if (cameraGranted) startBackgroundRecording().catch(() => {});
+        // Auto-start must never surface an Android permission dialog. A driver
+        // can explicitly enable dashcam from the action pill when ready.
+        refreshDashcamCameraPermission().then(({ granted }) => {
+          if (granted) startBackgroundRecording().catch(() => {});
         }).catch(() => {});
       })
       .catch(() => {});
