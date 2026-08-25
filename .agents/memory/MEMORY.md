@@ -91,3 +91,4 @@
 - [Android FCM receipt diagnosis](android-fcm-receipt-diagnosis.md) — Expo tickets are not delivery proof; FCM DeveloperError requires the matching Expo FCM V1 service-account credential.
 - [Expo standalone build authorization](expo-build-auth.md) — an existing Expo token may still lack access to the configured owner/project, blocking APK submission before queueing.
 - [Expo Android manifest plugin ordering](expo-manifest-plugin-order.md) — image-picker opt-outs can globally remove dashcam permissions; manifest mods run in reverse plugin order.
+- [EAS file environment variables](eas-file-environment-variables.md) — file variables are temporary paths, not contents; copy them in build hooks and validate before building.
