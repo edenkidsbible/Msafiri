@@ -89,3 +89,4 @@
 - [Background drive alerts improvements](bg-drive-alerts-improvements.md) — iOS local notification sound must be .wav/.aiff/.caf (not .mp3); High+10m+5s task config; foreground-return position injection via BG_LAST_FIX_KEY + getLastKnownPositionAsync.
 - [Platform-specific release notifications](platform-release-notifications.md) — iOS/Android releases must filter immediate and scheduled push sends to matching device tokens.
 - [Android FCM receipt diagnosis](android-fcm-receipt-diagnosis.md) — Expo tickets are not delivery proof; FCM DeveloperError requires the matching Expo FCM V1 service-account credential.
+- [Expo standalone build authorization](expo-build-auth.md) — an existing Expo token may still lack access to the configured owner/project, blocking APK submission before queueing.
