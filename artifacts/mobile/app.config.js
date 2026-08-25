@@ -152,6 +152,10 @@ module.exports = {
           recordAudioAndroid: true,
         },
       ],
+      // Native manifest mods run in reverse plugin order. This must be
+      // registered before expo-image-picker so it restores the dashcam's
+      // Android permissions after image-picker's opt-out removals are applied.
+      "./plugins/withRequiredDashcamPermissions.js",
       [
         "expo-image-picker",
         {
