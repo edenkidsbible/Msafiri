@@ -1,12 +1,12 @@
 import { Router, type Request, type Response } from "express";
-import { db, creatorApplicationsTable } from "@workspace/db";
+import { db, creatorApplicationsTable, creatorBenefitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
 
 router.post("/creator-application", async (req: Request, res: Response) => {
   try {
-    const { deviceId, name, email, platform, reason } = req.body;
+    const { deviceId, name, email, platform, reason, revenuecatAppUserId } = req.body;
 
     if (!deviceId || !email) {
       return res.status(400).json({ error: "deviceId and email are required" });
@@ -44,6 +44,13 @@ router.post("/creator-application", async (req: Request, res: Response) => {
         reason: reason?.trim() || null,
       })
       .returning({ id: creatorApplicationsTable.id });
+
+    await db.insert(creatorBenefitsTable).values({
+      applicationId: application.id,
+      deviceId,
+      platform: platform ?? null,
+      revenuecatAppUserId: typeof revenuecatAppUserId === "string" ? revenuecatAppUserId : null,
+    });
 
     return res.status(201).json({ success: true, id: application.id });
   } catch (err) {

@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getToken } from "@/lib/auth";
-import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple, Upload, Mail } from "lucide-react";
+import { Users, CheckCircle, XCircle, Clock, Star, AlertTriangle, Smartphone, Apple, Upload, Mail, Activity, ShieldOff } from "lucide-react";
 import { format } from "date-fns";
 
 type Application = {
@@ -21,6 +21,23 @@ type Application = {
   reason: string | null;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+  platform: "ios" | "android" | null;
+  offer: {
+    status: string;
+    platform: string | null;
+    sentAt: string | null;
+    startedAt: string | null;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    revocationReason: string | null;
+    reminderCount: number;
+    bindingVerified: boolean;
+  };
+  reportActivity: {
+    total: number;
+    recent: number;
+    lastReportAt: string | null;
+  };
 };
 
 type CreatorsData = {
@@ -85,6 +102,22 @@ async function updateStatus(id: string, status: string): Promise<{ codeAssigned:
     body: JSON.stringify({ status }),
   });
   if (!res.ok) throw new Error("Failed to update application status");
+  return res.json();
+}
+
+async function updateBenefit(id: string, action: "grant" | "restore" | "revoke"): Promise<{ status: string }> {
+  const res = await fetch(`/api/admin/creators/${id}/benefit`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).error || "Failed to update creator benefit");
+  }
   return res.json();
 }
 
@@ -343,6 +376,19 @@ export default function Creators() {
     },
   });
 
+  const benefitMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "grant" | "restore" | "revoke" }) =>
+      updateBenefit(id, action),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/creators"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/creators/codes/stats"] });
+      toast({ title: `Creator benefit is now ${result.status.replace("_", " ")}` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Benefit not updated", description: error.message, variant: "destructive" });
+    },
+  });
+
   const filtered = (data?.applications ?? []).filter(
     (a) => filter === "all" || a.status === filter,
   );
@@ -519,6 +565,9 @@ export default function Creators() {
                       <TableHead>Applicant</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Why they want to join</TableHead>
+                      <TableHead>Offer</TableHead>
+                      <TableHead>Reports</TableHead>
+                      <TableHead>Activity</TableHead>
                       <TableHead>Applied</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -528,6 +577,9 @@ export default function Creators() {
                     {filtered.map((a) => {
                       const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE["pending"];
                       const isPending = statusMutation.isPending && (statusMutation.variables as any)?.id === a.id;
+                      const benefitPending = benefitMutation.isPending && benefitMutation.variables?.id === a.id;
+                      const offerLabel = a.offer.status.replaceAll("_", " ");
+                      const inactive = ["revoked", "expired"].includes(a.offer.status);
                       return (
                         <TableRow
                           key={a.id}
@@ -538,6 +590,40 @@ export default function Creators() {
                           <TableCell className="text-muted-foreground">{a.email}</TableCell>
                           <TableCell className="max-w-xs text-sm text-muted-foreground">
                             {a.reason ?? <span className="italic opacity-50">No reason provided</span>}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <Badge variant={inactive ? "destructive" : a.offer.status === "active" ? "default" : "outline"} className="capitalize">
+                                {offerLabel}
+                              </Badge>
+                              {a.offer.expiresAt && (
+                                <p className="text-xs text-muted-foreground whitespace-nowrap">
+                                  Ends {format(new Date(a.offer.expiresAt), "dd MMM yyyy")}
+                                </p>
+                              )}
+                              {a.offer.revocationReason && (
+                                <p className="text-xs text-destructive capitalize">
+                                  {a.offer.revocationReason.replaceAll("_", " ")}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm font-medium">{a.reportActivity.total} verified</div>
+                            <div className="text-xs text-muted-foreground">{a.reportActivity.recent} verified in 7 days</div>
+                          </TableCell>
+                          <TableCell>
+                            {a.reportActivity.lastReportAt ? (
+                              <div className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+                                <Activity className="h-3.5 w-3.5 text-emerald-500" />
+                                {format(new Date(a.reportActivity.lastReportAt), "dd MMM, HH:mm")}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No reports yet</span>
+                            )}
+                            {a.offer.reminderCount > 0 && (
+                              <div className="text-xs text-amber-600">{a.offer.reminderCount} reminder{a.offer.reminderCount === 1 ? "" : "s"}</div>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                             {format(new Date(a.createdAt), "dd MMM yyyy")}
@@ -569,6 +655,42 @@ export default function Creators() {
                                 >
                                   <Mail className="h-3.5 w-3.5 mr-1" />
                                   Resend Email
+                                </Button>
+                              )}
+                              {a.status === "approved" && !a.offer.bindingVerified && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={benefitPending}
+                                  onClick={() => benefitMutation.mutate({ id: a.id, action: "grant" })}
+                                >
+                                  Verify Identity & Grant
+                                </Button>
+                              )}
+                              {a.status === "approved" && inactive && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={benefitPending}
+                                  onClick={() => benefitMutation.mutate({ id: a.id, action: "restore" })}
+                                >
+                                  Restore
+                                </Button>
+                              )}
+                              {a.status === "approved" && a.offer.bindingVerified && !inactive && !["not_assigned", "pending"].includes(a.offer.status) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive border-destructive/20"
+                                  disabled={benefitPending}
+                                  onClick={() => {
+                                    if (window.confirm("Revoke this creator benefit? This does not cancel their store subscription.")) {
+                                      benefitMutation.mutate({ id: a.id, action: "revoke" });
+                                    }
+                                  }}
+                                >
+                                  <ShieldOff className="h-3.5 w-3.5 mr-1" />
+                                  Revoke
                                 </Button>
                               )}
                               {a.status !== "rejected" && (

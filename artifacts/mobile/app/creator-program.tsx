@@ -21,7 +21,7 @@ import { apiPost } from "@/utils/apiClient";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 const STORAGE_KEY    = "creator_application_submitted";
-const DEVICE_ID_KEY  = "msafiri_device_id";
+const DEVICE_ID_KEY  = "sdk_device_id";
 
 /** Returns a stable per-install UUID, generating one on first call. */
 async function getOrCreateDeviceId(): Promise<string> {
@@ -91,8 +91,10 @@ export default function CreatorProgramScreen() {
     setSubmitState("submitting");
     try {
       const deviceId = await getOrCreateDeviceId();
+      const revenuecatAppUserId = await Purchases.getAppUserID().catch(() => null);
       const result = await apiPost("/creator-application", {
         deviceId,
+        revenuecatAppUserId,
         name:     name.trim() || null,
         email:    email.trim().toLowerCase(),
         platform: store,

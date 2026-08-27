@@ -984,6 +984,45 @@ export async function migrateSchema(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS push_tokens_token_unique
         ON push_tokens (token)
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS creator_benefits (
+        application_id UUID PRIMARY KEY REFERENCES creator_applications(id) ON DELETE CASCADE,
+        device_id TEXT NOT NULL,
+        revenuecat_app_user_id TEXT,
+        binding_verified BOOLEAN NOT NULL DEFAULT FALSE,
+        platform TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        product_id TEXT, transaction_id TEXT, period_type TEXT,
+        offer_started_at TIMESTAMP, offer_expires_at TIMESTAMP, last_event_at TIMESTAMP,
+        last_reminder_at TIMESTAMP, reminder_count INTEGER NOT NULL DEFAULT 0,
+        revoked_at TIMESTAMP, revocation_reason TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`ALTER TABLE creator_benefits ADD COLUMN IF NOT EXISTS binding_verified BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE creator_benefits DROP CONSTRAINT IF EXISTS creator_benefits_revenuecat_app_user_id_unique`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS creator_benefits_device_idx ON creator_benefits (device_id)`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS creator_benefits_verified_device_unique ON creator_benefits (device_id) WHERE binding_verified = TRUE`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS creator_benefits_verified_rc_unique ON creator_benefits (revenuecat_app_user_id) WHERE binding_verified = TRUE AND revenuecat_app_user_id IS NOT NULL`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS creator_subscription_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_id TEXT NOT NULL UNIQUE,
+        application_id UUID REFERENCES creator_applications(id) ON DELETE SET NULL,
+        app_user_id TEXT NOT NULL, event_type TEXT NOT NULL,
+        product_id TEXT, platform TEXT, transaction_id TEXT,
+        purchased_at TIMESTAMP, expires_at TIMESTAMP, period_type TEXT,
+        match_status TEXT NOT NULL DEFAULT 'unmatched', raw_event JSONB NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS creator_subscription_events_app_user_idx ON creator_subscription_events (app_user_id, created_at DESC)`);
+    await db.execute(sql`
+      INSERT INTO creator_benefits (application_id, device_id, platform, status)
+      SELECT id, device_id, platform, CASE WHEN status = 'approved' THEN 'assigned' ELSE 'pending' END
+      FROM creator_applications
+      ON CONFLICT (application_id) DO NOTHING
+    `);
 
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {

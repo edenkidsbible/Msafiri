@@ -6,6 +6,7 @@
 import { Router, type Request, type Response } from "express";
 import { runPurgePhotoOrphans } from "../../jobs/purgePhotoOrphans.js";
 import { runAbandonDraftAccidents } from "../../jobs/abandonDraftAccidents.js";
+import { runCreatorMonitoring } from "../../jobs/creatorMonitoring.js";
 import { logger } from "../../lib/logger.js";
 
 const router = Router();
@@ -39,6 +40,21 @@ router.post("/:jobName", async (req: Request, res: Response) => {
         res.json({ ok: true, job: jobName, result });
       } catch (err) {
         logger.error({ err }, "admin: abandon-draft-accidents failed");
+        res.status(500).json({ error: "Job failed — check server logs" });
+      }
+      break;
+    }
+
+    case "creator-monitoring": {
+      try {
+        const result = await runCreatorMonitoring();
+        logger.info(
+          { actor: (req as any).adminUser?.email, result },
+          "admin: manual creator-monitoring run",
+        );
+        res.json({ ok: true, job: jobName, result });
+      } catch (err) {
+        logger.error({ err }, "admin: creator-monitoring failed");
         res.status(500).json({ error: "Job failed — check server logs" });
       }
       break;

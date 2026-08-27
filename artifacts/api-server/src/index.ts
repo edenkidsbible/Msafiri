@@ -20,6 +20,7 @@ import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledRelease
 import { startClusterHazardsJob } from "./jobs/clusterHazards";
 import { startPurgePhotoOrphansJob } from "./jobs/purgePhotoOrphans";
 import { startAbandonDraftAccidentsJob } from "./jobs/abandonDraftAccidents";
+import { startCreatorMonitoringJob } from "./jobs/creatorMonitoring";
 import { setupOpsChatWs } from "./lib/opsChatHub";
 
 const rawPort = process.env["PORT"];
@@ -138,6 +139,7 @@ const server = app.listen(port, async (err) => {
   startClusterHazardsJob();
   startPurgePhotoOrphansJob();
   startAbandonDraftAccidentsJob();
+  startCreatorMonitoringJob();
 
   // One-time (idempotent) copy of legacy media into R2 — runs in the
   // background so startup latency is unaffected.

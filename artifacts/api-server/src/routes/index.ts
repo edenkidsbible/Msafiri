@@ -33,6 +33,7 @@ import backupRouter from "./backup.js";
 import otpRouter from "./otp.js";
 import vehiclesRouter from "./vehicles.js";
 import accountRouter from "./account.js";
+import revenuecatWebhookRouter from "./revenuecatWebhook.js";
 import opsRouter from "./ops/index.js";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
@@ -47,6 +48,7 @@ router.use(appVersionRouter);
 router.use(blogRouter);
 router.use(tripsRouter);
 router.use(creatorsRouter);
+router.use(revenuecatWebhookRouter);
 router.use("/admin", adminRouter);
 router.use(shareRouter);
 router.use(courseRouter);

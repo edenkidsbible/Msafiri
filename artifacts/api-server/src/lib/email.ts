@@ -390,3 +390,47 @@ export async function sendCreatorPromoCode(opts: {
     return false;
   }
 }
+
+export async function sendCreatorActivityReminder(opts: {
+  toEmail: string;
+  toName: string | null;
+  inactiveDays: number;
+}): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+  const greeting = opts.toName ? `Hi ${opts.toName},` : "Hi there,";
+  const subject = "A quick reminder from the Msafiri Creator Program";
+  const text = [
+    greeting,
+    "",
+    `It has been ${opts.inactiveDays} days since your last qualifying road report.`,
+    "Open Msafiri and submit a genuine camera, checkpoint, hazard, pothole, traffic, or accident report when you safely observe one.",
+    "",
+    "Creator benefits are paused after 7 days without qualifying activity. Never submit a false report just to remain active.",
+    "",
+    "— The Msafiri Team",
+  ].join("\n");
+  const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#111;max-width:520px;margin:0 auto;padding:24px;">
+    <p style="font-size:22px;font-weight:700;">Creator activity reminder</p>
+    <p>${greeting}</p>
+    <p>It has been <strong>${opts.inactiveDays} days</strong> since your last qualifying road report.</p>
+    <p>Open Msafiri and submit a genuine road report when you safely observe one.</p>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin:20px 0;font-size:13px;">
+      Creator benefits are paused after 7 days without qualifying activity. Never submit a false report just to remain active.
+    </div>
+    <p style="color:#666;font-size:13px;">— The Msafiri Team</p>
+  </body></html>`;
+  try {
+    const { error } = await client.emails.send({
+      from: FROM,
+      to: opts.toEmail,
+      subject,
+      html,
+      text,
+    });
+    return !error;
+  } catch (err) {
+    logger.error({ err }, "Failed to send creator activity reminder");
+    return false;
+  }
+}
