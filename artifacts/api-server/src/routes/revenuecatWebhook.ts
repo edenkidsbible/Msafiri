@@ -16,6 +16,16 @@ function safeEqual(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function authorizationToken(value: string): string {
+  return value.trim().replace(/^Bearer\s+/i, "");
+}
+
+export function authorizationMatches(received: string, configured: string): boolean {
+  const receivedToken = authorizationToken(received);
+  const configuredToken = authorizationToken(configured);
+  return Boolean(receivedToken && configuredToken && safeEqual(receivedToken, configuredToken));
+}
+
 function toDate(value: unknown): Date | null {
   if (typeof value === "number") return new Date(value);
   if (typeof value === "string") {
@@ -56,7 +66,7 @@ router.post("/webhooks/revenuecat", async (req: Request, res: Response) => {
   if (!configured) return res.status(503).json({ error: "RevenueCat webhook is not configured" });
 
   const authorization = req.get("authorization") ?? "";
-  if (!safeEqual(authorization, configured)) {
+  if (!authorizationMatches(authorization, configured)) {
     return res.status(401).json({ error: "Invalid webhook authorization" });
   }
 

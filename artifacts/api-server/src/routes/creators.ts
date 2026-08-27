@@ -22,7 +22,11 @@ router.post("/creator-application", async (req: Request, res: Response) => {
     // unrelated users.
     const { or } = await import("drizzle-orm");
     const [existing] = await db
-      .select({ id: creatorApplicationsTable.id, status: creatorApplicationsTable.status })
+      .select({
+        id: creatorApplicationsTable.id,
+        status: creatorApplicationsTable.status,
+        deviceId: creatorApplicationsTable.deviceId,
+      })
       .from(creatorApplicationsTable)
       .where(or(
         eq(creatorApplicationsTable.deviceId, deviceId),
@@ -31,6 +35,23 @@ router.post("/creator-application", async (req: Request, res: Response) => {
       .limit(1);
 
     if (existing) {
+      // Let the original device refresh an unverified RevenueCat claim after an
+      // app update. Email-only matches cannot change identity, and verified
+      // bindings remain admin-controlled.
+      if (
+        existing.deviceId === deviceId
+        && typeof revenuecatAppUserId === "string"
+        && revenuecatAppUserId.trim()
+      ) {
+        const { and } = await import("drizzle-orm");
+        await db
+          .update(creatorBenefitsTable)
+          .set({ revenuecatAppUserId: revenuecatAppUserId.trim(), updatedAt: new Date() })
+          .where(and(
+            eq(creatorBenefitsTable.applicationId, existing.id),
+            eq(creatorBenefitsTable.bindingVerified, false),
+          ));
+      }
       return res.json({ success: true, alreadyApplied: true, status: existing.status });
     }
 

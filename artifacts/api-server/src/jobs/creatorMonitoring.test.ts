@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { evaluateCreatorActivity, selectActivityAnchor } from "./creatorMonitoring.js";
-import { shouldApplyLifecycleEvent, statusForEvent } from "../routes/revenuecatWebhook.js";
+import {
+  authorizationMatches,
+  shouldApplyLifecycleEvent,
+  statusForEvent,
+} from "../routes/revenuecatWebhook.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-08-27T12:00:00.000Z");
 
 describe("creator activity policy", () => {
+  it("accepts the same webhook secret with or without a Bearer prefix", () => {
+    expect(authorizationMatches("creator-secret", "creator-secret")).toBe(true);
+    expect(authorizationMatches("Bearer creator-secret", "creator-secret")).toBe(true);
+    expect(authorizationMatches("creator-secret", "Bearer creator-secret")).toBe(true);
+    expect(authorizationMatches("Bearer wrong-secret", "creator-secret")).toBe(false);
+    expect(authorizationMatches("", "creator-secret")).toBe(false);
+  });
+
   it("never starts the inactivity clock before benefit activation", () => {
     const activatedAt = new Date(now.getTime() - 2 * DAY);
     const historicalReport = new Date(now.getTime() - 30 * DAY);

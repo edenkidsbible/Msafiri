@@ -61,6 +61,7 @@ SENTRY_ORG = "alfrex-labs"
 SENTRY_PROJECT = "msafiri-mobile"
 SMSLEOPARD_SENDER_ID = "SMS_TEST"
 SMSLEOPARD_WA_PHONE_ID = "1279612125225629"
+CREATOR_PRODUCT_IDS = "msafiri_monthly_access:monthly,msafiri_monthly"
 
 [userenv.production]
 
