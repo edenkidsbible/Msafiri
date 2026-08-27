@@ -59,7 +59,7 @@ import {
 
 export interface CommunityReport {
   id: string;
-  type: "camera" | "police" | "alcoblow" | "accident" | "pothole" | "roadblock" | "roadworks" | "clear" | "hazard" | "closure" | "weather" | "debris" | "breakdown" | "traffic";
+  type: "camera" | "police" | "alcoblow" | "accident" | "pothole" | "roadblock" | "roadworks" | "clear" | "hazard" | "closure" | "weather" | "debris" | "breakdown" | "traffic" | "speed_bump";
   lat: number;
   lng: number;
   timestamp: number;

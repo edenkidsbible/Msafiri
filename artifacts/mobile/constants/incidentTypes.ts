@@ -26,8 +26,9 @@ export const INCIDENT_TYPES: Record<string, IncidentTypeDef> = {
   breakdown: { label: "Broken Down",       icon: "car",              iconSet: "Ionicons",               color: "#FF8F00", emoji: "🚗"  },
   weather:   { label: "Bad Weather",       icon: "rainy",            iconSet: "Ionicons",               color: "#37474F", emoji: "🌧️" },
   closure:   { label: "Road Closed",       icon: "hand-left",        iconSet: "Ionicons",               color: "#880E4F", emoji: "🔴"  },
-  clear:     { label: "Road Clear",        icon: "checkmark-circle", iconSet: "Ionicons",               color: "#00C853", emoji: "✅"  },
-  __unknown: { label: "Unknown",           icon: "help-circle",      iconSet: "Ionicons",               color: "#546E7A", emoji: "❓"  },
+  clear:      { label: "Road Clear",        icon: "checkmark-circle", iconSet: "Ionicons",               color: "#00C853", emoji: "✅"  },
+  speed_bump: { label: "Speed Bump",        icon: "speedometer",      iconSet: "Ionicons",               color: "#EF6C00", emoji: "🔶"  },
+  __unknown:  { label: "Unknown",           icon: "help-circle",      iconSet: "Ionicons",               color: "#546E7A", emoji: "❓"  },
 };
 
 export function resolveIncidentType(type: string): IncidentTypeDef {
@@ -36,5 +37,5 @@ export function resolveIncidentType(type: string): IncidentTypeDef {
 
 export const INCIDENT_TYPE_ORDER: (keyof typeof INCIDENT_TYPES)[] = [
   "camera", "police", "alcoblow", "accident", "traffic", "roadblock", "roadworks",
-  "hazard", "pothole", "debris", "breakdown", "weather", "closure", "clear",
+  "hazard", "speed_bump", "pothole", "debris", "breakdown", "weather", "closure", "clear",
 ];

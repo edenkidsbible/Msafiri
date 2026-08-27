@@ -31,7 +31,8 @@ const ALERT_AUDIO: Record<string, unknown> = {
   breakdown: require("@/assets/sounds/alerts/breakdown.mp3"),
   weather:   require("@/assets/sounds/alerts/weather.mp3"),
   closure:   require("@/assets/sounds/alerts/closure.mp3"),
-  clear:     require("@/assets/sounds/alerts/clear.mp3"),
+  clear:      require("@/assets/sounds/alerts/clear.mp3"),
+  speed_bump: require("@/assets/sounds/alerts/speed_bump.mp3"),
 
   // Multi-alert variants — lead type + extras present nearby
   camera_multi:    require("@/assets/sounds/alerts/camera_multi.mp3"),
@@ -48,7 +49,8 @@ const ALERT_AUDIO: Record<string, unknown> = {
   breakdown_multi: require("@/assets/sounds/alerts/breakdown_multi.mp3"),
   weather_multi:   require("@/assets/sounds/alerts/weather_multi.mp3"),
   closure_multi:   require("@/assets/sounds/alerts/closure_multi.mp3"),
-  clear_multi:     require("@/assets/sounds/alerts/clear_multi.mp3"),
+  clear_multi:      require("@/assets/sounds/alerts/clear_multi.mp3"),
+  speed_bump_multi: require("@/assets/sounds/alerts/speed_bump_multi.mp3"),
 
   // Report confirmation
   report_submitted: require("@/assets/sounds/alerts/report_submitted.mp3"),

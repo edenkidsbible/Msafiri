@@ -32,6 +32,7 @@ const PHRASES = [
   { text: "Bad Weather ahead",      file: "weather.mp3"   },
   { text: "Road Closed ahead",      file: "closure.mp3"   },
   { text: "Road Clear ahead",       file: "clear.mp3"     },
+  { text: "Speed Bump ahead",       file: "speed_bump.mp3" },
 ];
 
 // Multi-alert variants — played when lead alert has additional incidents nearby
@@ -51,6 +52,7 @@ const MULTI_PHRASES = [
   { text: "Bad Weather and more alerts ahead — please stay cautious.",       file: "weather_multi.mp3"   },
   { text: "Road Closed and more alerts ahead — please drive carefully.",     file: "closure_multi.mp3"   },
   { text: "Road Clear and more alerts ahead — please drive safely.",         file: "clear_multi.mp3"     },
+  { text: "Speed Bumps and more alerts ahead — please slow down.",           file: "speed_bump_multi.mp3" },
   { text: "Report submitted. Thank you for keeping Msafiri safe.",           file: "report_submitted.mp3" },
 
   // Navigation lifecycle (Yna Agalo — bundled so playback is instant & offline)

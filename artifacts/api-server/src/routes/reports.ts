@@ -51,20 +51,21 @@ const MODERATED_TYPES = new Set<string>(["camera"]);
 // INCIDENT_TTL is kept for the cluster-deduplication TTL extension path.
 const INCIDENT_TTL = 12 * 3600; // used by cluster dedup extension only
 export const TTL_SECONDS: Record<string, number | null> = {
-  camera:    null,            // permanent — admin managed only
-  police:    3  * 3600,      // 3 h  — checkpoints relocate frequently
-  alcoblow:  3  * 3600,      // 3 h  — mobile checkpoints
-  accident:  8  * 3600,      // 8 h
-  traffic:   2  * 3600,      // 2 h  — congestion clears quickly
-  roadblock: 12 * 3600,      // 12 h
-  roadworks: 12 * 3600,      // 12 h
-  closure:   12 * 3600,      // 12 h
-  hazard:    24 * 3600,      // 24 h — physical hazards persist
-  pothole:   24 * 3600,      // 24 h
-  debris:    24 * 3600,      // 24 h
-  breakdown: 24 * 3600,      // 24 h
-  weather:   24 * 3600,      // 24 h
-  clear:     INCIDENT_TTL,   // 12 h — ephemeral clearance signal
+  camera:     null,            // permanent — admin managed only
+  police:     3  * 3600,      // 3 h  — checkpoints relocate frequently
+  alcoblow:   3  * 3600,      // 3 h  — mobile checkpoints
+  accident:   8  * 3600,      // 8 h
+  traffic:    2  * 3600,      // 2 h  — congestion clears quickly
+  roadblock:  12 * 3600,      // 12 h
+  roadworks:  12 * 3600,      // 12 h
+  closure:    12 * 3600,      // 12 h
+  hazard:     24 * 3600,      // 24 h — physical hazards persist
+  pothole:    24 * 3600,      // 24 h
+  speed_bump: 7 * 24 * 3600,  // 7 days — permanent road infrastructure; expires only if road is changed
+  debris:     24 * 3600,      // 24 h
+  breakdown:  24 * 3600,      // 24 h
+  weather:    24 * 3600,      // 24 h
+  clear:      INCIDENT_TTL,   // 12 h — ephemeral clearance signal
 };
 
 // Cluster radius for non-camera report types (~50 m at equatorial latitudes)

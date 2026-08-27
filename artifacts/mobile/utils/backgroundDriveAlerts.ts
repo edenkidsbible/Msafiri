@@ -144,19 +144,20 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  camera:    "Speed camera",
-  police:    "Police checkpoint",
-  alcoblow:  "Alcoblow checkpoint",
-  hazard:    "Hazard",
-  accident:  "Accident",
-  pothole:   "Pothole",
-  roadblock: "Roadblock",
-  roadworks: "Road works",
-  traffic:   "Traffic",
-  weather:   "Weather hazard",
-  debris:    "Debris on road",
-  breakdown: "Breakdown",
-  closure:   "Road closure",
+  camera:     "Speed camera",
+  police:     "Police checkpoint",
+  alcoblow:   "Alcoblow checkpoint",
+  hazard:     "Hazard",
+  accident:   "Accident",
+  pothole:    "Pothole",
+  speed_bump: "Speed bump",
+  roadblock:  "Roadblock",
+  roadworks:  "Road works",
+  traffic:    "Traffic",
+  weather:    "Weather hazard",
+  debris:     "Debris on road",
+  breakdown:  "Breakdown",
+  closure:    "Road closure",
 };
 
 /**
