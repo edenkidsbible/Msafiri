@@ -315,6 +315,27 @@ function ClipRow({
                   </Text>
                 </View>
               )}
+              {/* Upload-status badges — only shown for local clips not yet on the cloud */}
+              {clip.source === "local" && clip.uploadStatus === "uploading" && (
+                <View style={[vs.typeBadge, { backgroundColor: "#3B82F622" }]}>
+                  <Text style={[vs.typeText, { color: "#3B82F6" }]}>⬆ Uploading…</Text>
+                </View>
+              )}
+              {clip.source === "local" && clip.uploadStatus === "pending" && (
+                <View style={[vs.typeBadge, { backgroundColor: "#6B728022" }]}>
+                  <Text style={[vs.typeText, { color: c.mutedForeground }]}>⬆ Upload pending</Text>
+                </View>
+              )}
+              {clip.source === "local" && clip.uploadStatus === "failed" && (
+                <View style={[vs.typeBadge, { backgroundColor: "#EF444422" }]}>
+                  <Text style={[vs.typeText, { color: "#EF4444" }]}>⚠ Upload failed</Text>
+                </View>
+              )}
+              {clip.source === "local" && clip.uploadStatus === "lost" && (
+                <View style={[vs.typeBadge, { backgroundColor: "#6B728022" }]}>
+                  <Text style={[vs.typeText, { color: c.mutedForeground }]}>Footage lost</Text>
+                </View>
+              )}
             </View>
           )
         }
@@ -392,6 +413,9 @@ export default function DashcamVideosScreen() {
   // ── Vehicle context ────────────────────────────────────────────────────────
   const { vehicles, activeVehicleId, setActiveVehicle } = useVehicle();
   const { liveOdometerKm } = useApp();
+  // Derived early so fetchServerClips can reference it in its deps array.
+  // Must be declared before the useCallback to avoid "used before declaration" TS errors.
+  const activeVehicle = vehicles.find((v) => v.id === activeVehicleId) ?? vehicles[0] ?? null;
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [serverClips,     setServerClips]     = useState<ServerClip[]>([]);
@@ -437,7 +461,13 @@ export default function DashcamVideosScreen() {
     } finally {
       setServerLoading(false);
     }
-  }, [pushDeviceId, activeVehicleId]);
+  // NOTE: activeVehicle is deliberately included in deps even though it is
+  // derived from vehicles+activeVehicleId, because its .isDefault property
+  // controls whether includeUnattributed is sent. Without this, the very first
+  // fetch fires before vehicles load and the flag is always absent — causing
+  // unattributed (NULL vehicleId) clips to be excluded for default-vehicle users.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushDeviceId, activeVehicleId, activeVehicle?.isDefault]);
 
   useFocusEffect(useCallback(() => { fetchServerClips(); }, [fetchServerClips]));
 
@@ -681,7 +711,7 @@ export default function DashcamVideosScreen() {
   }, [unifiedClips, tab, dateFilter]);
 
   // ── Vehicle helpers ────────────────────────────────────────────────────────
-  const activeVehicle = vehicles.find((v) => v.id === activeVehicleId) ?? vehicles[0] ?? null;
+  // (activeVehicle is derived early, above fetchServerClips, so it can be used in that callback's deps)
   const vehicleName   = activeVehicle
     ? [
         getMakeById(activeVehicle.makeId ?? "")?.name  ?? activeVehicle.customMakeName,

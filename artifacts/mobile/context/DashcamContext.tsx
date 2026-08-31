@@ -212,7 +212,10 @@ const DEFAULT_SETTINGS: DashcamSettings = {
   // Audio off by default: keeping the mic open blocks Bluetooth audio and
   // adds continuous audio encoding overhead. Drivers can enable it when needed.
   audioEnabled: false,
-  wifiOnlyUpload: true,
+  // Upload over any connection by default — most drivers in Kenya use mobile
+  // data while driving and would never reach Wi-Fi before a session ends.
+  // Users can opt in to Wi-Fi-only in Settings if data usage is a concern.
+  wifiOnlyUpload: false,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

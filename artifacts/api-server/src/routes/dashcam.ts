@@ -58,7 +58,7 @@ const MAX_PINS_PER_DEVICE     = 5;
 const INTENT_TTL_MS           = 30 * 60 * 1_000; // 30 minutes
 
 // Cloud retention windows (ms from recording date)
-const RETAIN_MANUAL_MS =  7 * 24 * 60 * 60 * 1_000; //  7 days
+const RETAIN_MANUAL_MS = 30 * 24 * 60 * 60 * 1_000; // 30 days (matches UI promise + DashcamContext comment)
 const RETAIN_AUTO_MS   =      24 * 60 * 60 * 1_000; // 24 hours
 const RETAIN_PINNED_MS = 60 * 24 * 60 * 60 * 1_000; // 60 days
 
