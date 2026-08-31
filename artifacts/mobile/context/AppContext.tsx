@@ -51,7 +51,7 @@ import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit }
 import { Accelerometer } from "expo-sensors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, resolveAlertKey } from "@/utils/alertTts";
 import {
   ANDROID_ALERTS_CHANNEL_ID,
   ensureAndroidNotificationChannels,
@@ -2438,10 +2438,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           alertAnchorExpiryRef.current = null; // fresh anchor — no TTL until driver dismisses
           const clusterHasCamera = winner.type === "camera" ||
             extraCandidates.some((e) => e.type === "camera");
+          // Multi-alert: keep base type so speakAlertMulti resolves camera_multi/zone_multi correctly.
+          // Speed-limit-specific audio only plays for single alerts where dedicated assets exist.
           speakAlertMulti(clusterHasCamera ? "camera" : winner.type).catch(() => {});
         } else {
-          // Single alert: play normal bundled phrase (60 s per-ID cooldown on dismiss)
-          speakAlert(winner.type).catch(() => {});
+          // Single alert: play speed-specific phrase when limit is known, generic otherwise
+          speakAlert(resolveAlertKey(winner.type, winner.speedLimit)).catch(() => {});
         }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }

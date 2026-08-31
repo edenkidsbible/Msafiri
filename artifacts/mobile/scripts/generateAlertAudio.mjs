@@ -33,6 +33,22 @@ const PHRASES = [
   { text: "Road Closed ahead",      file: "closure.mp3"   },
   { text: "Road Clear ahead",       file: "clear.mp3"     },
   { text: "Speed Bump ahead",       file: "speed_bump.mp3" },
+
+  // Speed-limit-specific camera alerts
+  { text: "Speed Camera ahead. Please keep your speed below 30 kilometres per hour.",  file: "camera_30.mp3"  },
+  { text: "Speed Camera ahead. Please keep your speed below 50 kilometres per hour.",  file: "camera_50.mp3"  },
+  { text: "Speed Camera ahead. Please keep your speed below 60 kilometres per hour.",  file: "camera_60.mp3"  },
+  { text: "Speed Camera ahead. Please keep your speed below 80 kilometres per hour.",  file: "camera_80.mp3"  },
+  { text: "Speed Camera ahead. Please keep your speed below 100 kilometres per hour.", file: "camera_100.mp3" },
+  { text: "Speed Camera ahead. Please keep your speed below 110 kilometres per hour.", file: "camera_110.mp3" },
+
+  // Speed-limit-specific zone alerts
+  { text: "Speed Zone ahead. Please keep your speed below 30 kilometres per hour.",  file: "zone_30.mp3"  },
+  { text: "Speed Zone ahead. Please keep your speed below 50 kilometres per hour.",  file: "zone_50.mp3"  },
+  { text: "Speed Zone ahead. Please keep your speed below 60 kilometres per hour.",  file: "zone_60.mp3"  },
+  { text: "Speed Zone ahead. Please keep your speed below 80 kilometres per hour.",  file: "zone_80.mp3"  },
+  { text: "Speed Zone ahead. Please keep your speed below 100 kilometres per hour.", file: "zone_100.mp3" },
+  { text: "Speed Zone ahead. Please keep your speed below 110 kilometres per hour.", file: "zone_110.mp3" },
 ];
 
 // Multi-alert variants — played when lead alert has additional incidents nearby

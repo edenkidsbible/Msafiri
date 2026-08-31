@@ -20,6 +20,20 @@ const ALERT_AUDIO: Record<string, unknown> = {
   closure: require("@/assets/sounds/alerts/closure.mp3"),
   clear: require("@/assets/sounds/alerts/clear.mp3"),
   speed_bump: require("@/assets/sounds/alerts/speed_bump.mp3"),
+  // Speed-limit-specific camera alerts
+  camera_30: require("@/assets/sounds/alerts/camera_30.mp3"),
+  camera_50: require("@/assets/sounds/alerts/camera_50.mp3"),
+  camera_60: require("@/assets/sounds/alerts/camera_60.mp3"),
+  camera_80: require("@/assets/sounds/alerts/camera_80.mp3"),
+  camera_100: require("@/assets/sounds/alerts/camera_100.mp3"),
+  camera_110: require("@/assets/sounds/alerts/camera_110.mp3"),
+  // Speed-limit-specific zone alerts
+  zone_30: require("@/assets/sounds/alerts/zone_30.mp3"),
+  zone_50: require("@/assets/sounds/alerts/zone_50.mp3"),
+  zone_60: require("@/assets/sounds/alerts/zone_60.mp3"),
+  zone_80: require("@/assets/sounds/alerts/zone_80.mp3"),
+  zone_100: require("@/assets/sounds/alerts/zone_100.mp3"),
+  zone_110: require("@/assets/sounds/alerts/zone_110.mp3"),
   camera_multi: require("@/assets/sounds/alerts/camera_multi.mp3"),
   police_multi: require("@/assets/sounds/alerts/police_multi.mp3"),
   zone_multi: require("@/assets/sounds/alerts/zone_multi.mp3"),
@@ -128,6 +142,18 @@ async function playKey(key: string): Promise<void> {
   } catch (error) {
     console.warn("[androidAlertTts] Playback failed:", error);
   }
+}
+
+/**
+ * Resolve a speed-limit-specific audio key for camera/zone alerts.
+ * Returns e.g. "camera_80" when bundled; falls back to the plain type key.
+ */
+export function resolveAlertKey(type: string, speedLimit?: number | null): string {
+  if ((type === "camera" || type === "zone") && speedLimit != null) {
+    const key = `${type}_${speedLimit}`;
+    if (ALERT_AUDIO[key]) return key;
+  }
+  return type;
 }
 
 export async function speakAlert(type: string): Promise<void> {
