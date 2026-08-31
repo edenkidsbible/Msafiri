@@ -58,6 +58,7 @@ import { listSavedPlaces, type SavedPlace } from "@/utils/tripsApi";
 import { loadCachedPlaces, cachePlaces } from "@/utils/offlineTripCache";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as Notifications from "expo-notifications";
+import * as StoreReview from "expo-store-review";
 import {
   loadRecentSearches,
   saveRecentSearch,
@@ -1027,6 +1028,14 @@ export default function DriveScreen() {
         const durationS = startTime
           ? Math.max(0, Math.round((Date.now() - startTime.getTime() - totalPausedMsRef.current) / 1000))
           : 0;
+        // Wall-clock duration (start → now, no pause subtraction) — captured
+        // here before refs are cleared. stopTrip() zeros totalPausedMsRef
+        // synchronously before this effect fires, so durationS is already
+        // wall-clock; we snapshot startTime explicitly to make the intent clear
+        // and safe against future refactoring.
+        const wallClockSessionS = startTime
+          ? Math.max(0, Math.round((Date.now() - startTime.getTime()) / 1000))
+          : durationS;
         // Clear refs immediately so no other effect can double-fire a save.
         sessionIdRef.current     = null;
         tripStartTimeRef.current = null;
@@ -1073,6 +1082,40 @@ export default function DriveScreen() {
             );
           }
           Promise.all(busts).catch(() => {});
+
+          // ── App Store / Google Play review prompt ──────────────────
+          // Fire at most once ever (gated by hasRequestedReview flag).
+          // Uses wall-clock session duration (≥ 5 min) — meaningful enough
+          // engagement for the driver to have a formed opinion of the app.
+          if (wallClockSessionS >= 300) {
+            (async () => {
+              try {
+                const [countStr, reviewed] = await Promise.all([
+                  AsyncStorage.getItem("@msafiri/completedSessionCount"),
+                  AsyncStorage.getItem("@msafiri/hasRequestedReview"),
+                ]);
+                if (!reviewed) {
+                  const count = (parseInt(countStr ?? "0", 10) || 0) + 1;
+                  await AsyncStorage.setItem(
+                    "@msafiri/completedSessionCount",
+                    String(count),
+                  );
+                  if (count >= 5 && (await StoreReview.isAvailableAsync())) {
+                    // Persist the flag BEFORE calling requestReview so that
+                    // if the native prompt is interrupted or throws, the gate
+                    // is already set and we never retry on a later session.
+                    await AsyncStorage.setItem(
+                      "@msafiri/hasRequestedReview",
+                      "true",
+                    );
+                    await StoreReview.requestReview();
+                  }
+                }
+              } catch {
+                // Non-critical — never interrupt the post-trip UX
+              }
+            })();
+          }
         }).catch(() => {});
       }
     }
