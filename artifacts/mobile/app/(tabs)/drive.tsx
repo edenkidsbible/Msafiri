@@ -150,6 +150,11 @@ function incidentSummaryParts(incidents: { type: string; source: string }[]): { 
   return parts;
 }
 
+// A free drive cannot remain open indefinitely. This is wall-clock time, so
+// pausing or leaving the app in the background does not preserve a session.
+const MAX_FREE_DRIVE_DURATION_MS = 12 * 60 * 60 * 1000;
+const FREE_DRIVE_STARTED_AT_KEY = "@msafiri/freeDriveStartedAt";
+
 // ─── Map error fallback ───────────────────────────────────────────────────────
 // Rendered by the ErrorBoundary that wraps DriveMapView when the map layer
 // throws (e.g. a bad Marker coordinate from a freshly-pushed zone or relocated
@@ -399,6 +404,9 @@ export default function DriveScreen() {
   const sessionIdRef     = useRef<string | null>(null);
   // Ref-copy of tripStartTime for use inside callbacks without stale closures
   const tripStartTimeRef = useRef<Date | null>(null);
+  // Invalidates pending AsyncStorage marker writes when a trip ends before the
+  // read/write sequence completes.
+  const freeDriveMarkerGenerationRef = useRef(0);
   // Tracks the last known tripActive value so the end-trip effect can detect
   // the false → true transition and fire only once per trip.
   const prevTripActiveRef = useRef(false);
@@ -637,6 +645,28 @@ export default function DriveScreen() {
       pausedAtMsRef.current = null;
       const now = new Date();
       tripStartTimeRef.current = now;
+      if (
+        !BYPASS_PAYWALL &&
+        !isSubscribedRef.current &&
+        !trialExpiredRef.current
+      ) {
+        const markerGeneration = ++freeDriveMarkerGenerationRef.current;
+        // Keep the earliest start across process restarts. A force-close must
+        // not reset the maximum free-drive window.
+        AsyncStorage.getItem(FREE_DRIVE_STARTED_AT_KEY)
+          .then((existing) => {
+            if (
+              freeDriveMarkerGenerationRef.current === markerGeneration &&
+              (!existing || !Number.isFinite(Date.parse(existing)))
+            ) {
+              return AsyncStorage.setItem(
+                FREE_DRIVE_STARTED_AT_KEY,
+                now.toISOString(),
+              );
+            }
+          })
+          .catch(() => {});
+      }
       // Snapshot how many dashcam clips exist right now — TripSummaryModal
       // compares the live count against this baseline to reactively show the
       // clips button without showing it for segments from previous trips.
@@ -987,6 +1017,7 @@ export default function DriveScreen() {
   }, []);
 
   const stopTrip = useCallback(() => {
+    freeDriveMarkerGenerationRef.current += 1;
     setTripActive(false);
     setTripPaused(false);
     setNavTripActive(false);
@@ -996,6 +1027,7 @@ export default function DriveScreen() {
     setTripStartTime(null);
     setNavDestination(null);
     setSearchText("");
+    AsyncStorage.removeItem(FREE_DRIVE_STARTED_AT_KEY).catch(() => {});
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Stop dashcam and save the current clip when driving ends
     if (dashcamRecording) stopAndSaveDashcam();
@@ -1065,6 +1097,125 @@ export default function DriveScreen() {
   // Wire up the refs that startTrip uses to break circular callback deps.
   useEffect(() => { resumeTripRef.current     = resumeTrip;     }, [resumeTrip]);
   useEffect(() => { captureAndStopRef.current = captureAndStop; }, [captureAndStop]);
+
+  // ── Free-drive maximum duration ──────────────────────────────────────────
+  // Prevent a non-subscriber from keeping one free session open indefinitely.
+  // This uses wall-clock time, so paused and background time still count. If
+  // the JS runtime is suspended, the timeout fires when the app resumes.
+  useEffect(() => {
+    if (
+      !tripActive ||
+      trialLoading ||
+      BYPASS_PAYWALL ||
+      isSubscribed ||
+      trialExpired
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    AsyncStorage.getItem(FREE_DRIVE_STARTED_AT_KEY)
+      .then((persisted) => {
+        if (cancelled) return;
+        const currentStartedAt = tripStartTimeRef.current?.getTime();
+        if (!currentStartedAt) return;
+        const persistedStartedAt = persisted ? Date.parse(persisted) : NaN;
+        const startedAt = Number.isFinite(persistedStartedAt)
+          ? Math.min(currentStartedAt, persistedStartedAt)
+          : currentStartedAt;
+        const remainingMs = Math.max(
+          0,
+          startedAt + MAX_FREE_DRIVE_DURATION_MS - Date.now(),
+        );
+
+        timeout = setTimeout(() => {
+          if (!tripActive || isSubscribed || trialExpired) return;
+
+          // End first so the normal finalisation and trial-count path runs even
+          // if the operating system later dismisses the explanatory alert.
+          captureAndStopRef.current();
+          setTimeout(() => {
+            Alert.alert(
+              "Free drive limit reached",
+              "This free drive has been ended after 12 hours. It counts as one of your three free drives.",
+              [{ text: "OK" }],
+              { cancelable: false },
+            );
+          }, 0);
+        }, remainingMs);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [tripActive, trialLoading, isSubscribed, trialExpired]);
+
+  // If the OS killed the app during a free drive, consume that abandoned
+  // session once its persisted 12-hour window has elapsed. Removing the marker
+  // before recording makes this idempotent across rapid remounts.
+  useEffect(() => {
+    if (
+      trialLoading ||
+      BYPASS_PAYWALL ||
+      isSubscribed ||
+      trialExpired
+    ) {
+      return;
+    }
+
+    AsyncStorage.getItem(FREE_DRIVE_STARTED_AT_KEY)
+      .then(async (persisted) => {
+        if (!persisted) return;
+        const startedAt = Date.parse(persisted);
+        if (
+          !Number.isFinite(startedAt) ||
+          Date.now() - startedAt < MAX_FREE_DRIVE_DURATION_MS
+        ) {
+          return;
+        }
+
+        await AsyncStorage.removeItem(FREE_DRIVE_STARTED_AT_KEY);
+        await recordTrialSession(deviceId ?? undefined);
+      })
+      .catch(() => {});
+  }, [
+    trialLoading,
+    isSubscribed,
+    trialExpired,
+    deviceId,
+    recordTrialSession,
+  ]);
+
+  // A stale abandoned session can expire while a newly opened Drive screen is
+  // still mounting. If that update exhausts the allowance, stop any trip that
+  // slipped through the startup race and take the driver to subscription.
+  useEffect(() => {
+    if (
+      !tripActive ||
+      BYPASS_PAYWALL ||
+      isSubscribed ||
+      !trialExpired
+    ) {
+      return;
+    }
+
+    captureAndStopRef.current();
+    Alert.alert(
+      "Free drives complete",
+      "You've used your three free drives. Subscribe to start another drive.",
+      [
+        {
+          text: "View Plans",
+          onPress: () => router.replace("/paywall" as any),
+        },
+      ],
+      { cancelable: false },
+    );
+  }, [tripActive, isSubscribed, trialExpired]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───
   useEffect(() => {
