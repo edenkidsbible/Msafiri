@@ -348,8 +348,15 @@ export default function PaywallScreen() {
   const {
     offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings,
     purchase, isPurchasing, restore, isRestoring, isDefinitelyIntroEligible,
+    trialExpiredUnpaid,
   } = useSubscription();
-  const { sessionsUsed, trialExpired } = useTrialSessions();
+  const {
+    sessionsUsed,
+    trialExpired: sessionTrialExpired,
+  } = useTrialSessions();
+  // Legacy store-trial users keep access while RevenueCat reports an active
+  // entitlement. Once that trial expires unpaid, they have no new free drives.
+  const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
   const [result, setResult] = useState<Result>(null);

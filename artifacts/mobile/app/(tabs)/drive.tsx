@@ -347,8 +347,16 @@ export default function DriveScreen() {
   const alertFocusModeRef = useRef(false);
 
   // ── Subscription / trial gate ────────────────────────────────────────────
-  const { isSubscribed } = useSubscription();
-  const { trialExpired, sessionsUsed, isLoading: trialLoading, recordSession: recordTrialSession } = useTrialSessions();
+  const { isSubscribed, trialExpiredUnpaid } = useSubscription();
+  const {
+    trialExpired: sessionTrialExpired,
+    sessionsUsed,
+    isLoading: trialLoading,
+    recordSession: recordTrialSession,
+  } = useTrialSessions();
+  // Do not grant a second trial to accounts that already consumed the legacy
+  // Apple/Google three-day store trial.
+  const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
   const sessionsRemaining = FREE_TRIAL_SESSIONS - sessionsUsed;
   // Refs for stable reads inside useFocusEffect without re-creating callbacks.
   const trialExpiredRef  = useRef(false);

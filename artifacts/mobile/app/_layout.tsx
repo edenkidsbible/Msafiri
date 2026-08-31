@@ -256,8 +256,18 @@ function RootLayoutNav() {
   const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination, driverName, navTripActive } = useApp();
   // Prevent the name-prompt from firing more than once per app session
   const namePromptShown = useRef(false);
-  const { isSubscribed, isLoading: subLoading } = useSubscription();
-  const { trialExpired, isLoading: trialLoading } = useTrialSessions();
+  const {
+    isSubscribed,
+    isLoading: subLoading,
+    trialExpiredUnpaid,
+  } = useSubscription();
+  const {
+    trialExpired: sessionTrialExpired,
+    isLoading: trialLoading,
+  } = useTrialSessions();
+  // Migration rule: an account that already consumed the legacy store trial
+  // does not receive three additional free drives after that trial expires.
+  const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
   const c = useColors();
   const router = useRouter();
   // Explicit navigator-ready signal: the root navigation state gets a key only
