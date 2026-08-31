@@ -3,7 +3,7 @@ module.exports = {
     name: "Msafiri",
     slug: "msafiri-kenya",
     owner: "alfrex-labs",
-    version: "2.0.2",
+    version: "2.0.3",
     // "default" allows all orientations at the native level.
     // expo-screen-orientation locks to portrait at startup (via _layout.tsx)
     // and temporarily unlocks to LANDSCAPE_LEFT during the drive screen when
