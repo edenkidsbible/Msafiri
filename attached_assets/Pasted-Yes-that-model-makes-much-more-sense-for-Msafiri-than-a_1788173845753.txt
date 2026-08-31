@@ -1,0 +1,159 @@
+Yes — that model makes much more sense for Msafiri than a simple 3-day timer, because it ties the free experience to actual product usage.
+
+The key distinction is this:
+
+The 3 free drive sessions would be controlled by Msafiri inside the app, not by Apple/Google as a store “free trial.”
+
+After the user uses those 3 free drives, you can show a paywall with a discounted introductory subscription price, then have it renew at the normal price afterward. Google Play supports multi-phase offers such as a discounted introductory period followed by the standard base-plan price, and developer-determined eligibility can be handled in your app. Apple also supports introductory pricing such as Pay Up Front or Pay As You Go, followed by normal renewal pricing, although Apple’s introductory-offer eligibility rules are more constrained than Google’s.
+
+For Msafiri, I’d structure it like this:
+
+Install Msafiri → 3 free driving sessions → special first-month offer → normal monthly subscription
+
+For example:
+
+3 Drives on Us
+
+Experience Msafiri on the road before deciding.
+
+Get speed-camera alerts, speed-limit awareness, road alerts and Dashcam on your first 3 drives.
+
+After Drive 1, you might show:
+
+2 free drives remaining
+
+Keep exploring Msafiri.
+
+After Drive 2:
+
+1 free drive remaining
+
+Then immediately after Drive 3:
+
+Your 3 free drives are complete
+
+Keep Msafiri with you on every journey.
+
+First month: KSh XXX
+
+Then KSh XXX/month. Cancel anytime.
+
+That has a much better psychological flow than:
+
+“Your 3 days are over.”
+
+Because a user cannot say, “I never even drove during the trial.”
+
+The discounted month is important
+
+I actually like your idea of putting a small paid commitment between free usage and full price.
+
+For example, hypothetically:
+
+3 free drives → KSh 99 first month → KSh 299/month thereafter
+
+rather than:
+
+3 free drives → immediately KSh 299/month
+
+The KSh 99 payment proves willingness to pay while reducing the jump from free → full subscription.
+
+Google Play explicitly supports an introductory-price phase followed by the normal base-plan price. Apple’s Pay Up Front introductory offer similarly allows a customer to pay a discounted price for a specified introductory duration before the subscription renews at its normal price.
+
+The actual pricing numbers would need testing, but strategically I like the funnel.
+
+And yes, use the popup + push notification
+
+I would use both, but the in-app popup should be the primary conversion mechanism.
+
+Immediately after Drive 3:
+
+You’ve completed your 3 free drives 🎉
+
+Keep getting speed-camera alerts, Dashcam recording, road intelligence, Accident Assistant, Vehicle Care and more.
+
+Unlock your first month for KSh XX
+
+Then KSh XXX/month.
+
+Continue with Msafiri
+
+Then if they dismiss it and leave:
+
+Push notification 30–60 minutes later
+
+Your free drives are complete
+
+Keep Msafiri with you on the road. Unlock your first month at our introductory price.
+
+Next day:
+
+Driving today?
+
+Your 3 free Msafiri drives are complete. Subscribe to keep speed-camera alerts, Dashcam and road intelligence active.
+
+And perhaps 2–3 days later:
+
+Your Msafiri offer is still waiting
+
+Get your first month at the introductory price and keep every drive protected.
+
+Don't bombard them beyond that.
+
+I'd make the free drives very deliberate
+
+Don't count someone opening and closing driving mode as one of their three drives.
+
+Set a minimum qualification such as:
+
+Drive lasts 5+ minutes OR covers 2–3 km.
+
+That stops accidental sessions consuming the allowance.
+
+You could even make the UI say:
+
+Free Drive 1 of 3
+
+while they are driving.
+
+That creates awareness that they're currently experiencing something valuable.
+
+Even better: show value after every drive
+
+After each session, give them a mini summary:
+
+Drive complete
+
+31 km travelled
+
+2 speed-camera zones detected
+
+4 nearby road alerts
+
+38 minutes protected by Dashcam
+
+2 free drives remaining
+
+Now you're training them to understand the subscription's value before asking for money.
+
+By Drive 3, the paywall becomes much easier to justify.
+
+One caution on Apple
+
+On iOS, don't describe the three app-controlled sessions as an Apple free trial unless you're actually using Apple's free-trial subscription mechanism.
+
+Call them something like:
+
+3 Free Drives
+
+or
+
+Try Msafiri on 3 Drives
+
+Then separately present Apple's real subscription purchase screen with the introductory price.
+
+That's cleaner and avoids confusing users about when Apple's billing starts.
+
+Apple also limits customers to one introductory offer per subscription group, so you'll need to check eligibility before promising the discounted introductory subscription to everyone.
+
+I think this is a stronger funnel
