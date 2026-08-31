@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  getRecordingPermissionsAsync,
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
@@ -9,6 +10,7 @@ import {
   useAudioRecorderState,
 } from "expo-audio";
 import { getInfoAsync } from "expo-file-system/legacy";
+import { requestAndroidMicrophonePermission } from "@/utils/androidCameraPermissions";
 
 import { useColors } from "@/hooks/useColors";
 import {
@@ -26,6 +28,13 @@ import {
 
 const MAX_SECONDS = 15;
 const MIN_USEFUL_SECONDS = 2;
+const PLAYBACK_AUDIO_MODE = {
+  allowsRecording: false,
+  playsInSilentMode: true,
+  interruptionMode: "duckOthers" as const,
+  shouldPlayInBackground: false,
+  shouldRouteThroughEarpiece: false,
+};
 
 export interface RoadChannelsVoiceReporterProps {
   /** Pass the driver's current position when available. */
@@ -62,6 +71,7 @@ export default function RoadChannelsVoiceReporter({
   const [message, setMessage] = useState<string | null>(null);
   const [interpretation, setInterpretation] = useState<VoiceInterpretation | null>(null);
   const [channel, setChannel] = useState<RoadChannel | null>(null);
+  const [discoveryStatus, setDiscoveryStatus] = useState<"loading" | "available" | "unavailable">("loading");
 
   const clearStopTimer = () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
@@ -71,18 +81,39 @@ export default function RoadChannelsVoiceReporter({
   // Discovery, presence and feed are intentionally best-effort context calls;
   // a report remains usable if a channel has no current feed.
   useEffect(() => {
-    if (!location || !roadName || Platform.OS === "web") return;
+    if (Platform.OS === "web") return;
+    if (roadName === undefined) {
+      setChannel(null);
+      setDiscoveryStatus("loading");
+      return;
+    }
+    if (!location || !roadName) {
+      setChannel(null);
+      setDiscoveryStatus("unavailable");
+      return;
+    }
     let active = true;
+    setChannel(null);
+    setDiscoveryStatus("loading");
     discoverRoadChannels(roadName)
       .then(async ({ channels }) => {
         if (!active) return;
         const nearest = channels[0] ?? null;
         setChannel(nearest);
-        await updateRoadChannelPresence({ deviceId, location, channelId: nearest?.id });
-        if (nearest) await getRoadChannelFeed(nearest.id);
+        setDiscoveryStatus(nearest ? "available" : "unavailable");
+        if (nearest) {
+          // Presence/feed context is best-effort and must never turn a valid
+          // road discovery into an unsupported-road state.
+          void Promise.allSettled([
+            updateRoadChannelPresence({ deviceId, location, channelId: nearest.id }),
+            getRoadChannelFeed(nearest.id),
+          ]);
+        }
       })
       .catch(() => {
-        // Discovery is not publication and should not block a one-tap report.
+        if (!active) return;
+        setChannel(null);
+        setDiscoveryStatus("unavailable");
       });
     return () => { active = false; };
   }, [deviceId, location?.latitude, location?.longitude, roadName]);
@@ -97,6 +128,7 @@ export default function RoadChannelsVoiceReporter({
       // timeout, so the minimum-duration check remains correct at 15 seconds.
       const durationMillis = recorder.getStatus().durationMillis;
       await recorder.stop();
+      await setAudioModeAsync(PLAYBACK_AUDIO_MODE).catch(() => {});
       const uri = recorder.uri;
       if (!uri) throw new Error("The recording could not be saved.");
       if (durationMillis < MIN_USEFUL_SECONDS * 1000) {
@@ -119,18 +151,22 @@ export default function RoadChannelsVoiceReporter({
     setInterpretation(null);
     setRecordedUri(null);
     try {
-      const permission = await requestRecordingPermissionsAsync();
+      const permission = Platform.OS === "android"
+        ? {
+            granted: await requestAndroidMicrophonePermission(),
+            canAskAgain: true,
+          }
+        : await (async () => {
+            const current = await getRecordingPermissionsAsync();
+            return current.granted ? current : requestRecordingPermissionsAsync();
+          })();
       if (!permission.granted) {
-        const detail = permission.canAskAgain
-          ? "Microphone permission is needed to report by voice."
-          : "Enable Microphone for Msafiri in Settings to report by voice.";
+        const detail = "Enable Microphone for Msafiri in Settings to report by voice.";
         setMessage(detail);
-        if (!permission.canAskAgain) {
-          Alert.alert("Microphone unavailable", detail, [
-            { text: "Not now", style: "cancel" },
-            { text: "Open Settings", onPress: () => Linking.openSettings().catch(() => {}) },
-          ]);
-        }
+        Alert.alert("Microphone unavailable", detail, [
+          { text: "Not now", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings().catch(() => {}) },
+        ]);
         return;
       }
       await setAudioModeAsync({
@@ -197,7 +233,11 @@ export default function RoadChannelsVoiceReporter({
 
   const cancel = () => {
     clearStopTimer();
-    if (recorder.isRecording) void recorder.stop();
+    if (recorder.isRecording) {
+      void recorder.stop().finally(() => {
+        void setAudioModeAsync(PLAYBACK_AUDIO_MODE).catch(() => {});
+      });
+    }
     rerecord();
     onCancelled?.();
   };
@@ -210,7 +250,11 @@ export default function RoadChannelsVoiceReporter({
       <Text style={[styles.eyebrow, { color: c.mutedForeground }]}>ROAD CHANNELS</Text>
       <Text style={[styles.title, { color: c.foreground }]}>Report by voice</Text>
       <Text style={[styles.helper, { color: c.mutedForeground }]}>
-         {channel?.name ? `Sharing with ${channel.name}` : roadName ? `${roadName} is not in the pilot yet.` : "Finding your road…"}
+         {discoveryStatus === "loading"
+           ? "Finding your road…"
+           : channel?.name
+             ? `Sharing with ${channel.name}`
+             : "This road has no Road Channel yet. Check back later."}
       </Text>
 
       {isRecording && <Text style={[styles.timer, { color: c.destructive }]} accessibilityLiveRegion="polite">{timeLabel(recording.durationMillis)} / 0:15</Text>}
@@ -236,9 +280,9 @@ export default function RoadChannelsVoiceReporter({
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
           accessibilityHint={isRecording ? "Stops and saves the voice report" : "Starts a voice report up to 15 seconds"}
-          disabled={busy || Platform.OS === "web" || !channel}
+          disabled={busy || Platform.OS === "web" || discoveryStatus !== "available"}
           onPress={isRecording ? () => { void stopRecording(); } : recordedUri ? interpret : () => { void startRecording(); }}
-          style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web") && styles.disabled]}
+          style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || discoveryStatus !== "available") && styles.disabled]}
         >
           <Ionicons name={isRecording ? "stop-circle" : "mic"} size={34} color={c.primaryForeground} />
           <Text style={[styles.primaryText, { color: c.primaryForeground }]}>{busy ? "Please wait…" : actionLabel}</Text>

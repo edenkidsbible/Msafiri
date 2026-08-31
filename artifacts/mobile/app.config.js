@@ -44,14 +44,14 @@ module.exports = {
           "Msafiri reads your address book only when you choose a contact to add as an emergency SOS contact. These contacts receive a message with your GPS coordinates if you trigger the SOS button while driving. Msafiri does not store, upload, or share your full contacts list.",
 
         // ── Camera ──────────────────────────────────────────────────────────
-        // Two distinct in-app uses must be declared to pass App Store review.
+        // Every in-app microphone use must be declared to pass App Store review.
         NSCameraUsageDescription:
           "Msafiri uses your camera for two purposes: (1) Dashcam — records continuous footage while you drive; clips are stored on your device and only uploaded when you choose to lock one. (2) Crash Assistant — lets you photograph accident scenes and vehicles when documenting an incident for your records or insurance.",
 
         // ── Microphone ──────────────────────────────────────────────────────
         // Two distinct in-app uses must be declared to pass App Store review.
         NSMicrophoneUsageDescription:
-          "Msafiri uses your microphone for two purposes: (1) Dashcam audio — optionally records sound alongside dashcam video so you can hear what was happening during a clip. (2) Crash Assistant — lets you record a voice statement as part of an accident report for your own records.",
+          "Msafiri uses your microphone for: (1) Road Channels — recording a short road update that you review before sharing, (2) Dashcam audio — optionally recording sound with dashcam video, and (3) Crash Assistant — recording a voice statement for your accident records.",
 
         // ── Photo Library ───────────────────────────────────────────────────
         // Two distinct in-app uses must be declared to pass App Store review.

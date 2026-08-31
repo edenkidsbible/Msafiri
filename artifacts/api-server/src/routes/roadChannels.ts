@@ -16,22 +16,50 @@ const PRESENCE_TTL_MS = 5 * 60 * 1000;
 const ALLOWED_AUDIO_TYPES = new Set(["audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav", "audio/webm", "audio/ogg"]);
 const ALLOWED_REPORT_TYPES = new Set(Object.keys(TTL_SECONDS));
 
-// Deliberately small pilot. Aliases resolve to one canonical channel identifier.
+// Pilot road catalog. Reverse-geocoders return a mix of local names, route
+// numbers, and corridor names, so aliases resolve them to stable channel IDs.
 const CHANNEL_ALIASES: Record<string, string> = {
   "thika superhighway": "thika-superhighway", "thika road": "thika-superhighway", "a2": "thika-superhighway",
   "mombasa road": "mombasa-road", "nairobi mombasa road": "mombasa-road", "a8": "mombasa-road", "a109": "mombasa-road",
   "waiyaki way": "waiyaki-way", "nairobi nakuru highway": "nairobi-nakuru-highway", "a104": "nairobi-nakuru-highway",
-  "ngong road": "ngong-road", "outer ring road": "outer-ring-road", "nairobi expressway": "nairobi-expressway",
+  "ngong road": "ngong-road",
+  "outer ring road": "outer-ring-road", "outer ring rd": "outer-ring-road", "outering road": "outer-ring-road", "outering rd": "outer-ring-road",
+  "nairobi expressway": "nairobi-expressway",
   "langata road": "langata-road", "lang'ata road": "langata-road",
   "kiambu road": "kiambu-road", "limuru road": "limuru-road",
   "eastern bypass": "eastern-bypass", "northern bypass": "northern-bypass",
   "southern bypass": "southern-bypass", "kangundo road": "kangundo-road",
+  "uhuru highway": "uhuru-highway", "jogoo road": "jogoo-road", "juja road": "juja-road",
+  "enterprise road": "enterprise-road", "lusaka road": "lusaka-road", "magadi road": "magadi-road",
+  "kenyatta avenue": "kenyatta-avenue", "haile selassie avenue": "haile-selassie-avenue",
+  "james gichuru road": "james-gichuru-road", "forest road": "forest-road",
+
+  // National and inter-county corridors.
+  "nairobi moyale highway": "nairobi-moyale-corridor", "nairobi nanyuki moyale road": "nairobi-moyale-corridor",
+  "nanyuki isiolo road": "nairobi-moyale-corridor", "isiolo moyale road": "nairobi-moyale-corridor",
+  "nairobi garissa highway": "nairobi-garissa-corridor", "garissa road": "nairobi-garissa-corridor",
+  "garissa liboi road": "nairobi-garissa-corridor", "b6": "nairobi-garissa-corridor",
+  "nakuru eldoret highway": "nakuru-eldoret-corridor", "eldoret nakuru road": "nakuru-eldoret-corridor",
+  "eldoret malaba road": "eldoret-malaba-corridor", "malaba road": "eldoret-malaba-corridor",
+  "nairobi namanga road": "nairobi-namanga-corridor", "namanga road": "nairobi-namanga-corridor", "a104 south": "nairobi-namanga-corridor",
+  "mombasa malindi highway": "mombasa-malindi-corridor", "malindi mombasa road": "mombasa-malindi-corridor",
+  "malindi lamu road": "malindi-lamu-corridor", "lunga lunga road": "mombasa-lunga-lunga-corridor", "a14": "mombasa-lunga-lunga-corridor",
+  "naivasha narok road": "naivasha-narok-corridor", "narok mai mahiu road": "naivasha-narok-corridor",
+  "narok kisii road": "narok-kisii-corridor", "kisii isebania road": "kisii-isebania-corridor",
+  "kisumu kakamega road": "kisumu-kakamega-corridor", "kisumu busia road": "kisumu-busia-corridor",
+  "kisumu kericho road": "kisumu-kericho-corridor", "kericho nakuru road": "kericho-nakuru-corridor",
+  "meru isiolo road": "meru-isiolo-corridor", "nyeri nanyuki road": "nyeri-nanyuki-corridor",
+  "embu meru highway": "embu-meru-corridor", "garissa wajir road": "garissa-wajir-corridor",
 };
+const CHANNEL_IDS = new Set(Object.values(CHANNEL_ALIASES));
 const requestWindows = new Map<string, number[]>();
 
 function channelFor(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  return CHANNEL_ALIASES[value.trim().toLowerCase().replace(/[–—-]/g, " ").replace(/\s+/g, " ")] ?? null;
+  const normalized = value.trim().toLowerCase().replace(/[–—-]/g, " ").replace(/\s+/g, " ");
+  const alias = CHANNEL_ALIASES[normalized];
+  if (alias) return alias;
+  return [...CHANNEL_IDS].find((id) => id.replace(/-/g, " ") === normalized) ?? null;
 }
 function channelName(channel: string): string {
   return channel.split("-").map((part) => part === "a2" ? "A2" : `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(" ");

@@ -317,7 +317,7 @@ export default function DriveScreen() {
   const [searchError, setSearchError] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showRoadVoice, setShowRoadVoice] = useState(false);
-  const [roadVoiceRoadName, setRoadVoiceRoadName] = useState<string | null>(null);
+  const [roadVoiceRoadName, setRoadVoiceRoadName] = useState<string | null | undefined>(undefined);
   // CrosshairPickerModal request — lifted out of ReportModal to sit at the
   // screen root so it is never nested inside another Modal (fixes iOS silent
   // presentation failure) and DriveMapView can unmount its map while it's open.
@@ -340,6 +340,22 @@ export default function DriveScreen() {
   // OR when the screen gains focus with a destination already set (Map tab flow).
   const [showRoutePreviewMode, setShowRoutePreviewMode] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
+
+  const openRoadVoiceReporter = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setRoadVoiceRoadName(undefined);
+    setShowRoadVoice(true);
+
+    if (currentLat == null || currentLng == null) {
+      setRoadVoiceRoadName(null);
+      return;
+    }
+
+    void Promise.race<string | null>([
+      getRoadName(currentLat, currentLng).catch(() => null),
+      new Promise((resolve) => setTimeout(() => resolve(null), 6000)),
+    ]).then(setRoadVoiceRoadName);
+  }, [currentLat, currentLng]);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
@@ -3305,24 +3321,49 @@ export default function DriveScreen() {
           }]}
           onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
-          {/* Keep the trial status in the protected bottom sheet instead of
-              the alert-covered map header. */}
-          {!BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading && (
-            <View
-              style={[
-                styles.inDriveTrialPill,
-                {
-                  backgroundColor: isDark ? "#0D2010" : "#F0FDF4",
-                  borderColor: isDark ? "#22C55E35" : "#22C55E55",
-                },
-              ]}
-            >
-              <Ionicons name="leaf-outline" size={12} color="#22C55E" />
-              <Text style={styles.inDriveTrialPillTxt}>
-                Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
-              </Text>
-            </View>
-          )}
+          {/* Compact status row: free-drive allowance on the left and Road
+              Channels voice reporting on the far right. */}
+          <View style={styles.driveStatusRow}>
+            {!BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading ? (
+              <View
+                style={[
+                  styles.inDriveTrialPill,
+                  {
+                    backgroundColor: isDark ? "#0D2010" : "#F0FDF4",
+                    borderColor: isDark ? "#22C55E35" : "#22C55E55",
+                  },
+                ]}
+              >
+                <Ionicons name="leaf-outline" size={12} color="#22C55E" />
+                <Text style={styles.inDriveTrialPillTxt} numberOfLines={1}>
+                  Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
+                </Text>
+              </View>
+            ) : <View style={styles.driveStatusSpacer} />}
+
+            {Platform.OS !== "web" && (
+              <TouchableOpacity
+                style={[styles.roadChannelPill, {
+                  backgroundColor: isDark ? "#111F1A" : "#F0FDF7",
+                  borderColor: c.primary + "55",
+                }]}
+                onPress={openRoadVoiceReporter}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Open Road Channels voice reporting"
+              >
+                <Ionicons name="mic" size={15} color={c.primary} />
+                <View style={styles.roadChannelPillCopy}>
+                  <Text style={[styles.roadChannelPillTitle, { color: c.foreground }]} numberOfLines={1}>
+                    Road Channel
+                  </Text>
+                  <Text style={[styles.roadChannelPillSub, { color: c.primary }]} numberOfLines={1}>
+                    Tap to speak
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Title row: "Drive Safely" · ETA (flex spacer) · SOS · End Trip
                The ETA Text always renders (flex:1) so SOS+End Trip stay pinned
@@ -3421,41 +3462,6 @@ export default function DriveScreen() {
               </View>
             );
           })()}
-
-          {Platform.OS !== "web" && (
-            <TouchableOpacity
-              style={[styles.roadChannelCard, {
-                backgroundColor: isDark ? "#111F1A" : "#F0FDF7",
-                borderColor: c.primary + "55",
-              }]}
-              onPress={async () => {
-                if (currentLat == null || currentLng == null) {
-                  Alert.alert("Finding your road", "Wait for a GPS fix, then try again.");
-                  return;
-                }
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                const road = await getRoadName(currentLat, currentLng).catch(() => null);
-                setRoadVoiceRoadName(road);
-                setShowRoadVoice(true);
-              }}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Open Road Channels voice reporting"
-            >
-              <View style={[styles.roadChannelIcon, { backgroundColor: c.primary + "22" }]}>
-                <Ionicons name="radio-outline" size={21} color={c.primary} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.roadChannelTitle, { color: c.foreground }]}>Road Channel</Text>
-                <Text style={[styles.roadChannelSub, { color: c.mutedForeground }]} numberOfLines={1}>
-                  Tap, speak for up to 15 seconds, then confirm
-                </Text>
-              </View>
-              <View style={[styles.roadChannelMic, { backgroundColor: c.primary }]}>
-                <Ionicons name="mic" size={18} color="#FFF" />
-              </View>
-            </TouchableOpacity>
-          )}
 
           {/* Bottom row: Dashcam toggle · red Stop Drive · Audio Alerts toggle */}
           <View style={styles.dmBottomRow}>
@@ -5198,7 +5204,8 @@ const styles = StyleSheet.create({
 
   // ── Drive Safely panel ────────────────────────────────────────────────────
   inDriveTrialPill: {
-    alignSelf: "flex-start",
+    flexShrink: 1,
+    maxWidth: "52%",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -5206,13 +5213,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 5,
-    marginBottom: 2,
   },
   inDriveTrialPillTxt: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     color: "#22C55E",
+    flexShrink: 1,
   },
+  driveStatusRow: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 2,
+  },
+  driveStatusSpacer: { flex: 1 },
+  roadChannelPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 36,
+    maxWidth: "48%",
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  roadChannelPillCopy: { minWidth: 0, flexShrink: 1 },
+  roadChannelPillTitle: { fontFamily: "Inter_700Bold", fontSize: 11.5, lineHeight: 14 },
+  roadChannelPillSub: { fontFamily: "Inter_600SemiBold", fontSize: 9.5, lineHeight: 12 },
   dmPanelTitleRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingTop: 6, paddingBottom: 10,
@@ -5240,33 +5271,6 @@ const styles = StyleSheet.create({
   dmBottomRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginTop: 12,
-  },
-  roadChannelCard: {
-    minHeight: 62,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  roadChannelIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  roadChannelTitle: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  roadChannelSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
-  roadChannelMic: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
   },
   roadVoiceBackdrop: {
     flex: 1,

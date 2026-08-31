@@ -105,7 +105,7 @@ export async function requestAndroidMicrophonePermission(): Promise<boolean> {
     const result = await PermissionsAndroid.request(permission, {
       title: "Microphone Access",
       message:
-        "Msafiri can include sound in dashcam clips and capture Crash Assistant voice statements.",
+        "Msafiri uses the microphone for short Road Channels updates, dashcam audio, and Crash Assistant voice statements.",
       buttonPositive: "Allow",
       buttonNegative: "Not Now",
     });

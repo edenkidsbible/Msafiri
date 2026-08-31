@@ -1,11 +1,9 @@
 const { withAndroidManifest } = require("expo/config-plugins");
 
-// expo-audio's native module unconditionally declares two foreground
-// services in its own AndroidManifest.xml: AudioControlsService (lock-screen
-// media controls, via androidx.media3 MediaSessionService) and
-// AudioRecordingService (microphone recording). This app only plays short
-// local chime/alert sounds — it never calls the lock-screen-controls APIs
-// and never records audio — so both services are dead code here.
+// expo-audio's native module declares a lock-screen media controls service.
+// Msafiri does not use lock-screen playback controls, so that service remains
+// unnecessary. AudioRecordingService MUST remain in the merged manifest:
+// Road Channels records short driver voice reports with expo-audio.
 //
 // On Android 15+, Google Play flags them as "restricted foreground service
 // types" reachable from a BOOT_COMPLETED broadcast receiver (pulled in
@@ -19,7 +17,6 @@ const { withAndroidManifest } = require("expo/config-plugins");
 // manifest, so they cannot be started by any code path whatsoever.
 const REMOVED_SERVICES = [
   "expo.modules.audio.service.AudioControlsService",
-  "expo.modules.audio.service.AudioRecordingService",
 ];
 
 function withDisableUnusedAudioServices(config) {
