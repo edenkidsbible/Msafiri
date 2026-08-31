@@ -381,6 +381,8 @@ export default function DriveScreen() {
   // Apple/Google three-day store trial.
   const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
   const sessionsRemaining = FREE_TRIAL_SESSIONS - sessionsUsed;
+  const showFreeDriveCounter =
+    !BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading;
   // Refs for stable reads inside useFocusEffect without re-creating callbacks.
   const trialExpiredRef  = useRef(false);
   const isSubscribedRef  = useRef(false);
@@ -1876,7 +1878,7 @@ export default function DriveScreen() {
                 Shown to non-subscribers who still have free drives left.
                 Turns amber on the last drive; disappears once subscribed
                 or after the trial expires.                                */}
-            {!BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading && (
+            {showFreeDriveCounter && (
               <View style={{
                 flexDirection: "row", alignItems: "center", gap: 6,
                 backgroundColor: sessionsRemaining === 1
@@ -3329,7 +3331,7 @@ export default function DriveScreen() {
           {/* Compact status row: free-drive allowance on the left and Road
               Channels voice reporting on the far right. */}
           <View style={styles.driveStatusRow}>
-            {!BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading ? (
+            {showFreeDriveCounter ? (
               <View
                 style={[
                   styles.inDriveTrialPill,

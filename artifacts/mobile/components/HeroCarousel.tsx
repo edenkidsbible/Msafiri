@@ -37,16 +37,55 @@ interface Slide {
   image: ReturnType<typeof require> | null;
   /** true = apply scaleX:-1 to the generic PNG so it faces right */
   flipX: boolean;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  title: string;
   tip: string;
+  isNew?: boolean;
 }
 
 // ── Content ───────────────────────────────────────────────────────────────────
-const TIPS = [
-  "Tap the dashcam icon on the drive screen to start recording your journey automatically.",
-  "Disable dashcam audio to record with your car music on — no mic interruptions.",
-  "Speed zone alerts fire before you reach a camera — stay fine-free on every road.",
-  "Every trip is saved to your garage — review routes and past events any time.",
-  "Community hazard reports update live — see what other drivers spotted just ahead.",
+const FEATURES: Omit<Slide, "image" | "flipX">[] = [
+  {
+    icon: "mic-outline",
+    title: "Road Channels",
+    tip: "While driving, tap Road Channel to share a short voice update about your road. Confirm it before it reaches other drivers.",
+    isNew: true,
+  },
+  {
+    icon: "share-social-outline",
+    title: "Share Trip",
+    tip: "Share your live route with trusted contacts so they can follow your journey and know when you arrive.",
+  },
+  {
+    icon: "school-outline",
+    title: "Audio Course",
+    tip: "Learn Kenya's road rules hands-free with short audio lessons whenever you have a few minutes.",
+  },
+  {
+    icon: "videocam-outline",
+    title: "Dashcam",
+    tip: "Tap the dashcam control on the Drive screen to record your journey automatically.",
+  },
+  {
+    icon: "lock-closed-outline",
+    title: "Lock to Save",
+    tip: "See something important? Tap the lock while recording to protect that dashcam clip from being overwritten.",
+  },
+  {
+    icon: "construct-outline",
+    title: "Vehicle Care",
+    tip: "Keep your vehicle healthy with service reminders, care records and important maintenance details in your Garage.",
+  },
+  {
+    icon: "warning-outline",
+    title: "Accident Reports",
+    tip: "After a crash, Accident Assistant helps you record what happened, collect evidence and prepare a report.",
+  },
+  {
+    icon: "people-outline",
+    title: "Emergency Contacts",
+    tip: "Add trusted contacts in your Profile so Msafiri can alert them with your location when you need urgent help.",
+  },
 ];
 
 // car ✗ left, motorcycle ✓ right, truck ✗ left, bus/van ✗ left, tractor ✗ left
@@ -80,12 +119,12 @@ interface Props {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
-  const slides: Slide[] = TIPS.map((tip, i) => ({
-    image:  !!activeVehicle ? null : GENERIC_SLIDES[i].image,
+  const slides: Slide[] = FEATURES.map((feature, i) => ({
+    ...feature,
+    image:  !!activeVehicle ? null : GENERIC_SLIDES[i % GENERIC_SLIDES.length].image,
     // User vehicles: DefaultVehicleImage handles FACE_RIGHT internally → no flipX.
     // Generic images: mirror if the source faces left.
-    flipX: !!activeVehicle ? false : GENERIC_SLIDES[i].flipX,
-    tip,
+    flipX: !!activeVehicle ? false : GENERIC_SLIDES[i % GENERIC_SLIDES.length].flipX,
   }));
 
   const [curIdx, setCurIdx] = useState(0);
@@ -210,7 +249,19 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
 
       {/* Right: text */}
       <View style={styles.textCol}>
-        <Text style={styles.title}>Start Driving</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Start Driving</Text>
+          {curSlide.isNew && (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>NEW</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.featureRow}>
+          <Ionicons name={curSlide.icon} size={15} color="#8FE3B2" />
+          <Text style={styles.featureTitle} numberOfLines={1}>{curSlide.title}</Text>
+        </View>
 
         <Animated.Text style={[styles.tip, { opacity: tipOpacity }]}>
           {curSlide.tip}
@@ -267,6 +318,35 @@ const styles = StyleSheet.create({
     fontSize: 21,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  newBadge: {
+    backgroundColor: "#A7F3D0",
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  newBadgeText: {
+    fontSize: 8,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.6,
+    color: "#065F35",
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 1,
+  },
+  featureTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#8FE3B2",
   },
   tip: {
     fontSize: 11.5,
