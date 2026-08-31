@@ -143,7 +143,7 @@ export const SPEED_ZONES: SpeedZone[] = [
   // ── Eastern Kenya / Mt Kenya region ──────────────────────────────────────────
   { id: "sz057", name: "A9 Embu–Siakago Highway",  road: "Nairobi–Embu Highway",  lat: -0.558203, lng: 37.546487, speedLimit: 80,  type: "zone", description: "80 km/h trunk road — Embu to Siakago. Limit: 80 km/h" },
   { id: "sz058", name: "D490 Ruiri–Isiolo Road",   road: "D490 (Ruiri–Isiolo)", lat:  0.234868, lng: 37.612488, speedLimit: 110, type: "zone", description: "Open semi-arid road — Ruiri to Isiolo. Drive to conditions. Limit: 110 km/h" },
-  { id: "sz059", name: "Airport North Road Zone",  road: "Airport North Road",  lat: -1.317996, lng: 36.921416, speedLimit: 50,  type: "zone", description: "50 km/h zone on Airport North Road near JKIA." },
+  { id: "sz059", name: "Airport North Road Zone",  road: "Airport North Road",  lat: -1.3165910683687465, lng: 36.92013048465373, speedLimit: 50,  type: "zone", description: "50 km/h zone on Airport North Road near JKIA." },
 
   // ── A8 Eldoret corridor ───────────────────────────────────────────────────────
   { id: "sz060", name: "A8 Eldoret–Nakuru Open Highway",  road: "A8 (Eldoret–Nakuru)", lat:  0.451985, lng: 35.30695,  speedLimit: 110, type: "zone", description: "110 km/h open highway — Eldoret to Nakuru. Limit: 110 km/h" },
