@@ -79,6 +79,7 @@ import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { recordSession } from "@/utils/vehicleSessionMap";
 import { useTrialSessions, FREE_TRIAL_SESSIONS } from "@/hooks/useTrialSessions";
 import { useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
+import { PaywallModal } from "@/components/PaywallModal";
 import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
@@ -430,6 +431,10 @@ export default function DriveScreen() {
   // Clip preview — rendered at the screen level so it is never nested inside
   // another RN Modal (which silently fails to present on iOS).
   const [previewConfig, setPreviewConfig] = useState<PlayerConfig | null>(null);
+  // When true the PaywallModal is shown at the drive-screen root level (never
+  // nested inside TripSummaryModal) and TripSummaryModal is hidden to avoid
+  // the iOS nested-Modal crash. Mirrors the VideoPlayerModal workaround.
+  const [paywallFromSummary, setPaywallFromSummary] = useState(false);
   const pauseNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Notification permission banner ───────────────────────────────────────
@@ -3724,7 +3729,7 @@ export default function DriveScreen() {
       {/* Post-trip summary — slides up after the driver ends a trip */}
       <TripSummaryModal
         data={tripSummaryData}
-        hidden={!!previewConfig || summaryHiddenForNav}
+        hidden={!!previewConfig || summaryHiddenForNav || paywallFromSummary}
         onPreview={setPreviewConfig}
         onDismiss={() => {
           // Only clear the data — the modal's own action buttons (goHome,
@@ -3745,6 +3750,7 @@ export default function DriveScreen() {
           // Update the summary data so the "Stop Sharing" button disappears
           setTripSummaryData(prev => prev ? { ...prev, isSharing: false } : null);
         }}
+        onSubscribeNow={() => setPaywallFromSummary(true)}
       />
 
       {/* Clip preview player — rendered here (never inside another Modal) so
@@ -3756,6 +3762,24 @@ export default function DriveScreen() {
           onClose={() => setPreviewConfig(null)}
         />
       )}
+
+      {/* Paywall — rendered here (never inside TripSummaryModal) to avoid the
+          iOS nested-Modal crash. TripSummaryModal is hidden while this is open
+          and reappears when the driver closes it without subscribing. On a
+          successful subscription isSubscribed becomes true and we dismiss the
+          summary entirely so the driver lands on a clean screen. */}
+      <PaywallModal
+        visible={paywallFromSummary}
+        onClose={() => {
+          setPaywallFromSummary(false);
+          // If the purchase succeeded, isSubscribed is now true — dismiss the
+          // summary modal so the driver isn't left staring at a stale banner.
+          if (isSubscribed) {
+            setTripSummaryData(null);
+            setSummaryHiddenForNav(false);
+          }
+        }}
+      />
 
       {/* ── Vehicle picker — shown before auto-start when user has 2+ vehicles ── */}
       <Modal

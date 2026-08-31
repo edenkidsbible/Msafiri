@@ -73,8 +73,8 @@ interface Props {
   onStopSharing:  () => void;
   /**
    * When true the underlying RN Modal is hidden (visible=false) so that a
-   * VideoPlayerModal can be presented at a non-nested level on top.
-   * The summary data is retained and re-appears when this turns false.
+   * VideoPlayerModal or PaywallModal can be presented at a non-nested level
+   * on top. The summary data is retained and re-appears when this turns false.
    */
   hidden?:        boolean;
   /** Forwarded to TripReviewCard so the caller can render VideoPlayerModal
@@ -86,6 +86,13 @@ interface Props {
    * the user browses those screens, so it reappears when they navigate back.
    */
   onNavigateAway?: () => void;
+  /**
+   * Called when the user taps "Subscribe Now" on the last-free-drive banner.
+   * The caller renders PaywallModal outside any Modal nesting and hides this
+   * modal (hidden=true) while the paywall is open to avoid nested-Modal
+   * crashes on iOS.
+   */
+  onSubscribeNow?: () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -175,7 +182,7 @@ const badge = StyleSheet.create({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidden = false, onPreview, onNavigateAway }: Props) {
+export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidden = false, onPreview, onNavigateAway, onSubscribeNow }: Props) {
   const c      = useColors();
   const insets = useSafeAreaInsets();
   // Subscribe to live segments so the button appears reactively even when
@@ -351,6 +358,27 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidde
                     <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isDark ? "#FED7AA" : "#9A3412", lineHeight: 16 }}>
                       Keep Msafiri with you on every journey — subscribe to stay protected.
                     </Text>
+                    {onSubscribeNow && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                          onSubscribeNow();
+                        }}
+                        activeOpacity={0.82}
+                        style={{
+                          marginTop: 10,
+                          alignSelf: "flex-start",
+                          backgroundColor: isDark ? "#EA580C" : "#C2410C",
+                          borderRadius: 10,
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" }}>
+                          Subscribe Now
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </>
                 ) : (
                   <>
