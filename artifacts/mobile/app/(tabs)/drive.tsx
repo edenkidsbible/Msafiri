@@ -344,8 +344,29 @@ export default function DriveScreen() {
   // OR when the screen gains focus with a destination already set (Map tab flow).
   const [showRoutePreviewMode, setShowRoutePreviewMode] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
+  // Kept above Road Channels callbacks so their guard always reads live state.
+  const [tripActive, setTripActive] = useState(false);
+
+  useEffect(() => {
+    if (!showRoadVoice || !tripActive) return;
+    let active = true;
+    const refreshRoad = () => {
+      const lat = currentLatRef.current, lng = currentLngRef.current;
+      if (lat == null || lng == null) return;
+      void getRoadName(lat, lng).then((road) => {
+        if (active) setRoadVoiceRoadName(road);
+      }).catch(() => {});
+    };
+    refreshRoad();
+    const timer = setInterval(refreshRoad, 20_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [showRoadVoice, tripActive]);
 
   const openRoadVoiceReporter = useCallback(() => {
+    if (!tripActive) {
+      Alert.alert("Start a drive first", "Road Channels is available only during an active drive.");
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setRoadVoiceRoadName(undefined);
     setShowRoadVoice(true);
@@ -359,7 +380,14 @@ export default function DriveScreen() {
       getRoadName(currentLat, currentLng).catch(() => null),
       new Promise((resolve) => setTimeout(() => resolve(null), 6000)),
     ]).then(setRoadVoiceRoadName);
-  }, [currentLat, currentLng]);
+  }, [currentLat, currentLng, tripActive]);
+
+  // A modal can otherwise remain mounted for the short transition while a trip
+  // ends. Close it immediately so a staged recording can never be confirmed
+  // outside an active drive.
+  useEffect(() => {
+    if (!tripActive) setShowRoadVoice(false);
+  }, [tripActive]);
 
   // ── Map drift (driver panned away from GPS position during navigation) ────
   const [mapDrifted, setMapDrifted] = useState(false);
@@ -392,8 +420,6 @@ export default function DriveScreen() {
   sessionsUsedRef.current  = sessionsUsed;
 
   // ── Live Trip state ──────────────────────────────────────────────────────
-  const [tripActive, setTripActive] = useState(false);
-
   // Post-trip summary — populated at the moment a trip is stopped so we can
   // display stats even after tripActive clears and state resets.
   const [tripSummaryData, setTripSummaryData] = useState<TripSummaryData | null>(null);
@@ -3698,25 +3724,30 @@ export default function DriveScreen() {
                 <Ionicons name="close" size={22} color={c.foreground} />
               </TouchableOpacity>
             </View>
-            <RoadChannelsVoiceReporter
-              location={currentLat != null && currentLng != null ? { latitude: currentLat, longitude: currentLng } : null}
-              deviceId={deviceId ?? undefined}
-              roadName={roadVoiceRoadName}
-              dashcamRecording={dashcamRecording || dashcamPending}
-              dashcamAudioEnabled={dashcamSettings.audioEnabled}
-              pauseDashcamForVoice={pauseForVoiceReport}
-              resumeDashcamAfterVoice={resumeAfterVoiceReport}
-              onCancelled={() => setShowRoadVoice(false)}
-              onConfirmed={() => {
-                void refreshReports();
-                speakAlert("report_submitted").catch(() => {});
-                setShowRoadVoice(false);
-                Alert.alert(
-                  "Road alert submitted",
-                  "Channel listeners can receive the update, and the confirmed alert is now in the normal road-report system.",
-                );
-              }}
-            />
+            <ScrollView contentContainerStyle={styles.roadVoiceContent} showsVerticalScrollIndicator={false}>
+              <RoadChannelsVoiceReporter
+                location={currentLat != null && currentLng != null ? { latitude: currentLat, longitude: currentLng } : null}
+                deviceId={deviceId ?? undefined}
+                roadName={roadVoiceRoadName}
+                heading={driverHeading}
+                dashcamRecording={dashcamRecording || dashcamPending}
+                dashcamAudioEnabled={dashcamSettings.audioEnabled}
+                activeDrive={tripActive}
+                pauseDashcamForVoice={pauseForVoiceReport}
+                resumeDashcamAfterVoice={resumeAfterVoiceReport}
+                onCancelled={() => setShowRoadVoice(false)}
+                onLeave={() => setShowRoadVoice(false)}
+                onConfirmed={() => {
+                  void refreshReports();
+                  speakAlert("report_submitted").catch(() => {});
+                  setShowRoadVoice(false);
+                  Alert.alert(
+                    "Road alert submitted",
+                    "Channel listeners can receive the update, and the confirmed alert is now in the normal road-report system.",
+                  );
+                }}
+              />
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -5304,6 +5335,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
+  roadVoiceContent: { paddingBottom: 4 },
   roadVoiceEyebrow: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 1.1 },
   roadVoiceHeading: { fontFamily: "Inter_700Bold", fontSize: 19, marginTop: 2 },
   roadVoiceClose: {

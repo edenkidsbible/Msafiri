@@ -62,6 +62,7 @@ import DashcamDevices from "@/pages/dashcam-devices";
 import SystemBackup from "@/pages/system-backup";
 import InboxPage from "@/pages/inbox";
 import VehicleClaims from "@/pages/vehicle-claims";
+import RoadChannels from "@/pages/road-channels";
 
 const queryClient = new QueryClient();
 
@@ -157,6 +158,7 @@ function Router() {
       <Route path="/system-backup"><ProtectedRoute component={SystemBackup} feature="app_settings" /></Route>
       <Route path="/inbox"><ProtectedRoute component={InboxPage} feature="inbox" /></Route>
       <Route path="/vehicle-claims"><ProtectedRoute component={VehicleClaims} feature="reports" /></Route>
+      <Route path="/road-channels"><ProtectedRoute component={RoadChannels} feature="road_channels" /></Route>
       {/* Ops platform routes */}
       <Route path="/ops/home"><OpsRoute component={OpsHome} /></Route>
       <Route path="/ops/this-week"><OpsRoute component={OpsThisWeek} /></Route>

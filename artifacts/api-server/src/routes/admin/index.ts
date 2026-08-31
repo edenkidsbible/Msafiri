@@ -21,6 +21,7 @@ import dashcamAdminRouter from "./dashcam.js";
 import systemRouter from "./system.js";
 import inboxRouter from "./inbox.js";
 import vehicleClaimsRouter from "./vehicle-claims.js";
+import roadChannelsAdminRouter from "./roadChannels.js";
 
 const router = Router();
 
@@ -90,5 +91,6 @@ router.use(scopedFeature("/dashcam", "dashboard"), dashcamAdminRouter);
 router.use(scopedFeature("/system",  "app_settings"), systemRouter);
 router.use(scopedFeature("/inbox", "inbox"), inboxRouter);
 router.use(scopedFeature("/vehicle-claims", "reports"), vehicleClaimsRouter);
+router.use(scopedFeature("/road-channels", "road_channels"), roadChannelsAdminRouter);
 
 export default router;

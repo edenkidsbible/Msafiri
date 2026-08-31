@@ -4,7 +4,7 @@ import {
   LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon,
   ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound,
   Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup,
-  ExternalLink, Inbox, Flag,
+  ExternalLink, Inbox, Flag, Radio,
 } from "lucide-react";
 import { getToken } from "@/lib/auth";
 
@@ -88,6 +88,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/reports",            label: "Incident Reports",  icon: AlertCircle,  feature: "reports" },
     { href: "/moderation-queue",   label: "Moderation Queue",  icon: ShieldCheck,  feature: "reports" },
     { href: "/vehicle-claims",     label: "Vehicle Claims",    icon: Flag,         feature: "reports" },
+    { href: "/road-channels",      label: "Road Channels",     icon: Radio,        feature: "road_channels" },
     { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge,        feature: "speed_zones" },
     { href: "/pois",               label: "Points of Interest",icon: MapPin,       feature: "pois" },
   ];

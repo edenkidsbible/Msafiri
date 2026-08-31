@@ -100,3 +100,4 @@
 - [Legacy dump restore reconciliation](legacy-dump-restore-reconciliation.md) — after restoring an older dump, compare every TABLE DATA count; schema push can recreate startup-managed tables empty.
 - [Road Channels voice-report trust boundary](road-channels-voice-trust.md) — audio and AI output stay private drafts; only explicit driver confirmation may create a normal community report.
 - [Road Channels dashcam mic handoff](road-channels-dashcam-mic-handoff.md) — never run expo-audio and CameraView mic capture together; use an acknowledged provider-owned lease.
+- [Road Channels privacy boundaries](road-channels-privacy-boundaries.md) — aggregate presence only; serialize one-channel leases; cap signed audio URLs at retention time; voice reports enter pending review.

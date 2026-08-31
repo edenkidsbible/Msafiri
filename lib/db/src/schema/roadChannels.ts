@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, doublePrecision, integer, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, doublePrecision, integer, timestamp, primaryKey, boolean } from "drizzle-orm/pg-core";
 
 /** Last known, opt-in presence of a device in a supported road channel. */
 export const roadChannelPresenceTable = pgTable("road_channel_presence", {
@@ -6,6 +6,9 @@ export const roadChannelPresenceTable = pgTable("road_channel_presence", {
   deviceId: text("device_id").notNull(),
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
+  direction: text("direction").notNull().default("unknown"),
+  muted: boolean("muted").notNull().default(false),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [primaryKey({ columns: [table.channel, table.deviceId] })]);
@@ -39,6 +42,12 @@ export const roadChannelVoiceReportsTable = pgTable("road_channel_voice_reports"
   proposedType: text("proposed_type"),
   proposedSpeedLimit: integer("proposed_speed_limit"),
   proposedCameraType: text("proposed_camera_type"),
+  durationMs: integer("duration_ms"),
+  termsVersion: text("terms_version"),
+  termsAcceptedAt: timestamp("terms_accepted_at"),
+  moderationStatus: text("moderation_status").notNull().default("pending"),
+  moderationReason: text("moderation_reason"),
+  expiresAt: timestamp("expires_at").notNull().defaultNow(),
   status: text("status").notNull().default("upload_pending"),
   interpretedAt: timestamp("interpreted_at"),
   confirmedAt: timestamp("confirmed_at"),
@@ -47,3 +56,12 @@ export const roadChannelVoiceReportsTable = pgTable("road_channel_voice_reports"
 });
 
 export type RoadChannelVoiceReportRow = typeof roadChannelVoiceReportsTable.$inferSelect;
+
+/** Driver reports about unsafe or abusive channel contributions. */
+export const roadChannelUserReportsTable = pgTable("road_channel_user_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  updateId: uuid("update_id").notNull(),
+  reporterDeviceId: text("reporter_device_id").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

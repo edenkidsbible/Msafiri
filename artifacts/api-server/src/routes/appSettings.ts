@@ -18,12 +18,13 @@ router.get("/app-settings", async (_req: Request, res: Response) => {
 
     // Return defaults if the singleton row hasn't been created yet
     const navigationEnabled = row?.navigationEnabled ?? true;
+    const roadChannelsEnabled = row?.roadChannelsEnabled ?? false;
 
-    return res.json({ navigationEnabled });
+    return res.json({ navigationEnabled, roadChannelsEnabled });
   } catch (err) {
     // Fail open — if the DB is temporarily unavailable, enable navigation
     // so the app doesn't degrade for all users.
-    return res.json({ navigationEnabled: true });
+    return res.json({ navigationEnabled: true, roadChannelsEnabled: false });
   }
 });
 

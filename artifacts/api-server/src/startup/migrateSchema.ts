@@ -1129,6 +1129,39 @@ export async function migrateSchema(): Promise<void> {
       CREATE INDEX IF NOT EXISTS road_channel_updates_feed_idx
         ON road_channel_updates (channel, created_at DESC)
     `);
+    await db.execute(sql`
+      ALTER TABLE road_channel_presence
+        ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'unknown',
+        ADD COLUMN IF NOT EXISTS muted BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP NOT NULL DEFAULT NOW()
+    `);
+    await db.execute(sql`
+      ALTER TABLE road_channel_voice_reports
+        ADD COLUMN IF NOT EXISTS duration_ms INTEGER,
+        ADD COLUMN IF NOT EXISTS terms_version TEXT,
+        ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS moderation_reason TEXT,
+        ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '7 days')
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS road_channel_voice_moderation_idx
+        ON road_channel_voice_reports (moderation_status, created_at DESC)
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS road_channel_user_reports (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        update_id UUID NOT NULL,
+        reporter_device_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(update_id, reporter_device_id)
+      )
+    `);
+    await db.execute(sql`
+      ALTER TABLE app_settings
+        ADD COLUMN IF NOT EXISTS road_channels_enabled BOOLEAN NOT NULL DEFAULT FALSE
+    `);
 
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {

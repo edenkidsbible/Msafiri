@@ -109,13 +109,13 @@ export async function downloadAsBuffer(key: string): Promise<Buffer> {
 
 /** Generate a presigned GET URL valid for 1 hour so the mobile client can
  *  stream or download a locked clip for sharing / playback. */
-export async function getPresignedDownloadUrl(key: string): Promise<string> {
+export async function getPresignedDownloadUrl(key: string, expiresInSeconds = 3600): Promise<string> {
   const client = getClient();
   const command = new GetObjectCommand({
     Bucket: BUCKET(),
     Key: key,
   });
-  return getSignedUrl(client, command, { expiresIn: 3600 }); // 1 hour
+  return getSignedUrl(client, command, { expiresIn: Math.max(1, Math.min(3600, Math.floor(expiresInSeconds))) });
 }
 
 /** Delete an object from R2 (e.g. when the user deletes a locked clip). */

@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAdminGetSettings, useAdminUpdateSettings } from "@workspace/api-client-react";
+import { authFetch } from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Navigation, MapPin } from "lucide-react";
+import { Navigation, MapPin, Radio } from "lucide-react";
 
 export default function AppSettings() {
   const { toast } = useToast();
@@ -30,6 +31,21 @@ export default function AppSettings() {
 
   const handleNavigationToggle = (enabled: boolean) => {
     updateSettings({ data: { navigationEnabled: enabled } });
+  };
+
+  const roadChannelsEnabled = (data as { roadChannelsEnabled?: boolean } | undefined)?.roadChannelsEnabled ?? false;
+  const handleRoadChannelsToggle = async (enabled: boolean) => {
+    try {
+      const response = await authFetch("/api/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ roadChannelsEnabled: enabled }),
+      });
+      if (!response.ok) throw new Error();
+      await refetch();
+      toast({ title: "Settings saved", description: `Road Channels ${enabled ? "enabled" : "disabled"}.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to update Road Channels.", variant: "destructive" });
+    }
   };
 
   if (isLoading) {
@@ -128,6 +144,40 @@ export default function AppSettings() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Radio className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Road Channels Pilot</CardTitle>
+                <CardDescription>
+                  Location-aware, listen-first road updates on supported pilot corridors.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="road-channels-toggle" className="text-base font-medium">Pilot access</Label>
+                <p className="text-sm text-muted-foreground">
+                  {roadChannelsEnabled
+                    ? "Active — eligible drivers can discover and join supported road channels."
+                    : "Off — discovery and contribution endpoints fail closed."}
+                </p>
+              </div>
+              <Switch
+                id="road-channels-toggle"
+                checked={roadChannelsEnabled}
+                onCheckedChange={handleRoadChannelsToggle}
+                aria-label="Toggle Road Channels pilot"
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

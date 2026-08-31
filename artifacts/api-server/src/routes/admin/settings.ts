@@ -18,7 +18,8 @@ router.get("/settings", async (_req: Request, res: Response) => {
       .where(eq(appSettingsTable.id, "singleton"));
 
     const navigationEnabled = row?.navigationEnabled ?? true;
-    return res.json({ navigationEnabled });
+    const roadChannelsEnabled = row?.roadChannelsEnabled ?? false;
+    return res.json({ navigationEnabled, roadChannelsEnabled });
   } catch (err) {
     return res.status(500).json({ error: "Failed to load settings" });
   }
@@ -30,17 +31,38 @@ router.get("/settings", async (_req: Request, res: Response) => {
  */
 router.put("/settings", async (req: Request, res: Response) => {
   try {
-    const { navigationEnabled } = req.body as { navigationEnabled?: boolean };
-    if (typeof navigationEnabled !== "boolean") {
+    const { navigationEnabled, roadChannelsEnabled } = req.body as {
+      navigationEnabled?: boolean;
+      roadChannelsEnabled?: boolean;
+    };
+    if (navigationEnabled === undefined && roadChannelsEnabled === undefined) {
+      return res.status(400).json({ error: "At least one setting is required" });
+    }
+    if (navigationEnabled !== undefined && typeof navigationEnabled !== "boolean") {
       return res.status(400).json({ error: "navigationEnabled must be a boolean" });
     }
+    if (roadChannelsEnabled !== undefined && typeof roadChannelsEnabled !== "boolean") {
+      return res.status(400).json({ error: "roadChannelsEnabled must be a boolean" });
+    }
 
+    const [current] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.id, "singleton"));
+    const nextNavigation = navigationEnabled ?? current?.navigationEnabled ?? true;
+    const nextRoadChannels = roadChannelsEnabled ?? current?.roadChannelsEnabled ?? false;
     await db
       .insert(appSettingsTable)
-      .values({ id: "singleton", navigationEnabled, updatedAt: new Date() })
+      .values({
+        id: "singleton",
+        navigationEnabled: nextNavigation,
+        roadChannelsEnabled: nextRoadChannels,
+        updatedAt: new Date(),
+      })
       .onConflictDoUpdate({
         target: appSettingsTable.id,
-        set: { navigationEnabled, updatedAt: new Date() },
+        set: {
+          navigationEnabled: nextNavigation,
+          roadChannelsEnabled: nextRoadChannels,
+          updatedAt: new Date(),
+        },
       });
 
     const actor = (req as any).adminUser as AdminJwtPayload;
@@ -49,10 +71,10 @@ router.put("/settings", async (req: Request, res: Response) => {
       action: "update_app_settings",
       targetType: "app_settings",
       targetId: "singleton",
-      details: { navigationEnabled },
+      details: { navigationEnabled: nextNavigation, roadChannelsEnabled: nextRoadChannels },
     });
 
-    return res.json({ navigationEnabled });
+    return res.json({ navigationEnabled: nextNavigation, roadChannelsEnabled: nextRoadChannels });
   } catch (err) {
     return res.status(500).json({ error: "Failed to update settings" });
   }

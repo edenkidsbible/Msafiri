@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  createAudioPlayer,
   getRecordingPermissionsAsync,
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
+  type AudioPlayer,
 } from "expo-audio";
 import { getInfoAsync } from "expo-file-system/legacy";
 import { requestAndroidMicrophonePermission } from "@/utils/androidCameraPermissions";
@@ -20,11 +23,16 @@ import {
   getRoadChannelFeed,
   interpretVoiceReport,
   requestVoiceUpload,
+  leaveRoadChannel,
+  setRoadChannelMuted,
   updateRoadChannelPresence,
   uploadVoiceRecording,
   type RoadChannel,
+  type RoadChannelCategory,
+  type RoadChannelFeedItem,
   type RoadChannelLocation,
   type VoiceInterpretation,
+  ROAD_CHANNEL_CATEGORIES,
 } from "@/utils/roadChannelsApi";
 
 const MAX_SECONDS = 15;
@@ -35,14 +43,25 @@ export interface RoadChannelsVoiceReporterProps {
   location?: RoadChannelLocation | null;
   deviceId?: string;
   roadName?: string | null;
+  heading?: number | null;
   dashcamRecording?: boolean;
   dashcamAudioEnabled?: boolean;
+  /** Reports can only be created while an explicit drive is active. */
+  activeDrive?: boolean;
   pauseDashcamForVoice?: () => Promise<boolean>;
   resumeDashcamAfterVoice?: (shouldResume: boolean) => Promise<void>;
   /** Lets a parent surface a successful confirmed report without coupling to AppContext. */
   onConfirmed?: (reportId: string, interpretation: VoiceInterpretation) => void;
   onCancelled?: () => void;
+  onLeave?: () => void;
 }
+
+const GUIDELINES_KEY = "@msafiri/road-channels-guidelines-v1";
+const CATEGORY_LABELS: Record<RoadChannelCategory, string> = {
+  traffic: "Traffic", accident: "Accident", police_checkpoint: "Police checkpoint",
+  roadworks: "Roadworks", hazard: "Hazard", speed_camera: "Speed camera",
+  flooding: "Flooding", breakdown: "Breakdown",
+};
 
 function timeLabel(milliseconds: number): string {
   const seconds = Math.min(MAX_SECONDS, Math.floor(milliseconds / 1000));
@@ -57,12 +76,15 @@ export default function RoadChannelsVoiceReporter({
   location = null,
   deviceId,
   roadName,
+  heading = null,
   dashcamRecording = false,
   dashcamAudioEnabled = false,
+  activeDrive = false,
   pauseDashcamForVoice,
   resumeDashcamAfterVoice,
   onConfirmed,
   onCancelled,
+  onLeave,
 }: RoadChannelsVoiceReporterProps) {
   const c = useColors();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -83,6 +105,20 @@ export default function RoadChannelsVoiceReporter({
   const [interpretation, setInterpretation] = useState<VoiceInterpretation | null>(null);
   const [channel, setChannel] = useState<RoadChannel | null>(null);
   const [discoveryStatus, setDiscoveryStatus] = useState<"loading" | "available" | "unavailable">("loading");
+  const [category, setCategory] = useState<RoadChannelCategory>("traffic");
+  const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
+  const [guidelinesLoaded, setGuidelinesLoaded] = useState(false);
+  const [feed, setFeed] = useState<RoadChannelFeedItem[]>([]);
+  const [, setFeedCursor] = useState<string | null>(null);
+  const feedCursorRef = useRef<string | null>(null);
+  const [feedStatus, setFeedStatus] = useState<"loading" | "ready" | "reconnecting">("loading");
+  const [listenerMuted, setListenerMuted] = useState(false);
+  const [listening, setListening] = useState(false);
+  const feedPlayerRef = useRef<AudioPlayer | null>(null);
+  const channelRef = useRef<RoadChannel | null>(null);
+  const handoffCandidateRef = useRef<{ id: string; count: number } | null>(null);
+  const [automaticSwitching, setAutomaticSwitching] = useState(false);
+  useEffect(() => { channelRef.current = channel; }, [channel]);
 
   const clearStopTimer = () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
@@ -120,8 +156,18 @@ export default function RoadChannelsVoiceReporter({
     });
   };
 
-  // Discovery, presence and feed are intentionally best-effort context calls;
-  // a report remains usable if a channel has no current feed.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    let active = true;
+    const key = `${GUIDELINES_KEY}:${deviceId ?? "anonymous"}`;
+    AsyncStorage.getItem(key)
+      .then((value) => { if (active) setGuidelinesAccepted(value === "accepted"); })
+      .catch(() => { if (active) setMessage("Could not load Road Channels preferences."); })
+      .finally(() => { if (active) setGuidelinesLoaded(true); });
+    return () => { active = false; };
+  }, [deviceId]);
+
+  // Discovery is read-only. Presence begins only after an explicit Join tap.
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (roadName === undefined) {
@@ -137,20 +183,35 @@ export default function RoadChannelsVoiceReporter({
     let active = true;
     setChannel(null);
     setDiscoveryStatus("loading");
-    discoverRoadChannels(roadName)
+    discoverRoadChannels(roadName, heading)
       .then(async ({ channels }) => {
         if (!active) return;
         const nearest = channels[0] ?? null;
-        setChannel(nearest);
-        setDiscoveryStatus(nearest ? "available" : "unavailable");
-        if (nearest) {
-          // Presence/feed context is best-effort and must never turn a valid
-          // road discovery into an unsupported-road state.
-          void Promise.allSettled([
-            updateRoadChannelPresence({ deviceId, location, channelId: nearest.id }),
-            getRoadChannelFeed(nearest.id),
-          ]);
+        const current = channelRef.current;
+        if (!nearest || !current || nearest.id === current.id) {
+          handoffCandidateRef.current = null;
+          setChannel(nearest);
+        } else {
+          const previous = handoffCandidateRef.current;
+          const count = previous?.id === nearest.id ? previous.count + 1 : 1;
+          handoffCandidateRef.current = { id: nearest.id, count };
+          if (count >= 2) {
+            handoffCandidateRef.current = null;
+            if (automaticSwitching) {
+              setChannel(nearest);
+            } else {
+              Alert.alert(
+                "Road Channel changed",
+                `Msafiri found ${nearest.name}. Switch from ${current.name}?`,
+                [
+                  { text: "Stay", style: "cancel" },
+                  { text: "Switch", onPress: () => setChannel(nearest) },
+                ],
+              );
+            }
+          }
         }
+        setDiscoveryStatus(nearest ? "available" : "unavailable");
       })
       .catch(() => {
         if (!active) return;
@@ -158,7 +219,66 @@ export default function RoadChannelsVoiceReporter({
         setDiscoveryStatus("unavailable");
       });
     return () => { active = false; };
-  }, [deviceId, location?.latitude, location?.longitude, roadName]);
+  }, [deviceId, location?.latitude, location?.longitude, roadName, heading, automaticSwitching]);
+
+  // Presence is a short lease, refreshed only while the driver is actively
+  // listening. Exact coordinates remain server-private and are never in feeds.
+  useEffect(() => {
+    if (!listening || !activeDrive || !channel || !deviceId || !location) return;
+    const heartbeat = () => {
+      void updateRoadChannelPresence({ deviceId, location, channelId: channel.id })
+        .catch(() => setFeedStatus("reconnecting"));
+    };
+    heartbeat();
+    const timer = setInterval(heartbeat, 60_000);
+    return () => clearInterval(timer);
+  }, [listening, activeDrive, channel?.id, deviceId, location?.latitude, location?.longitude]);
+
+  // Rehydrate the listener queue after each poll. If a deployment rejects a
+  // stale cursor, retry from the newest feed rather than leaving the driver in
+  // a permanently reconnecting state.
+  useEffect(() => {
+    if (Platform.OS === "web" || !channel || !deviceId || !activeDrive || !listening) return;
+    let active = true;
+    const refresh = async (recover = false) => {
+      setFeedStatus(recover ? "reconnecting" : "loading");
+      try {
+        const result = await getRoadChannelFeed(channel.id, deviceId, recover ? null : feedCursorRef.current);
+        if (!active) return;
+        setFeed((previous) => {
+          const seen = new Set(previous.map((item) => item.id));
+          const incoming = result.items.filter((item) => !seen.has(item.id));
+          return [...incoming, ...previous].slice(0, 20);
+        });
+        setFeedCursor(result.cursor);
+        feedCursorRef.current = result.cursor;
+        setFeedStatus("ready");
+      } catch {
+        if (!recover) {
+          await refresh(true);
+        } else if (active) {
+          setFeedStatus("reconnecting");
+        }
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => { void refresh(); }, 20_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [channel?.id, deviceId, activeDrive, listening]);
+
+  const playFeedItem = async (item: RoadChannelFeedItem) => {
+    if (!item.audioUrl || listenerMuted) return;
+    try {
+      feedPlayerRef.current?.pause();
+      await restoreAudioMode();
+      const player = createAudioPlayer({ uri: item.audioUrl });
+      feedPlayerRef.current = player;
+      player.volume = 0.7;
+      player.play();
+    } catch {
+      setMessage("Could not play this road update.");
+    }
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -170,6 +290,7 @@ export default function RoadChannelsVoiceReporter({
       // or call that shared object here because Expo may already have released
       // it before this cleanup executes.
       recordingActiveRef.current = false;
+      try { feedPlayerRef.current?.pause(); } catch {}
       void restoreVoiceAudioMode()
         .catch(() => {})
         .finally(() => { void resumeDashcamIfNeeded(); });
@@ -205,6 +326,10 @@ export default function RoadChannelsVoiceReporter({
 
   const startRecording = async () => {
     if (startInFlightRef.current || recordingActiveRef.current) return;
+    if (!activeDrive) {
+      setMessage("Start a drive before sending a Road Channels update.");
+      return;
+    }
     if (Platform.OS === "web") {
       setMessage("Voice reporting is available in the Msafiri mobile app.");
       return;
@@ -303,11 +428,20 @@ export default function RoadChannelsVoiceReporter({
 
   const confirm = async () => {
     if (!interpretation) return;
+    if (!activeDrive) {
+      setMessage("This drive has ended. Nothing was published.");
+      return;
+    }
+    if (!guidelinesAccepted) {
+      setMessage("Accept the community guidelines before your first contribution.");
+      return;
+    }
     setBusy(true);
     try {
       const result = await confirmVoiceReport(interpretation, {
         deviceId, location: location ?? undefined, channelId: channel?.id,
-      });
+      }, { selectedCategory: category, communityGuidelinesAccepted: true });
+      await AsyncStorage.setItem(`${GUIDELINES_KEY}:${deviceId ?? "anonymous"}`, "accepted");
       setMessage("Report shared with Road Channels.");
       onConfirmed?.(result.reportId, interpretation);
       setInterpretation(null);
@@ -343,18 +477,85 @@ export default function RoadChannelsVoiceReporter({
 
   const isRecording = recording.isRecording;
   const actionLabel = isRecording ? "Tap to stop" : recordedUri ? "Understand report" : "Tap and speak";
+  const canReport = activeDrive && discoveryStatus === "available";
 
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
       <Text style={[styles.eyebrow, { color: c.mutedForeground }]}>ROAD CHANNELS</Text>
       <Text style={[styles.title, { color: c.foreground }]}>Report by voice</Text>
       <Text style={[styles.helper, { color: c.mutedForeground }]}>
-         {discoveryStatus === "loading"
+          {!activeDrive
+            ? "Start an active drive to listen or report."
+            : discoveryStatus === "loading"
            ? "Finding your road…"
            : channel?.name
              ? `Sharing with ${channel.name}`
              : "This road has no Road Channel yet. Check back later."}
       </Text>
+       {activeDrive && channel ? (
+         <View style={[styles.listenCard, { backgroundColor: c.secondary, borderColor: c.border }]}>
+           <View style={styles.listenHeader}>
+             <View style={{ flex: 1 }}>
+               <Text style={[styles.listenTitle, { color: c.foreground }]}>Listen first</Text>
+               <Text style={[styles.listenCopy, { color: c.mutedForeground }]}>
+                 {feedStatus === "reconnecting" ? "Reconnecting to live updates…" : feed.length ? `${feed.length} recent channel update${feed.length === 1 ? "" : "s"}` : "No recent updates — you are first to listen."}
+               </Text>
+             </View>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={listenerMuted ? "Unmute Road Channel" : "Mute Road Channel"} onPress={() => {
+                const next = !listenerMuted;
+                setListenerMuted(next);
+                if (next) feedPlayerRef.current?.pause();
+                if (deviceId) void setRoadChannelMuted(channel.id, deviceId, next).catch(() => {});
+              }} style={[styles.listenerControl, { borderColor: c.border }]}>
+               <Ionicons name={listenerMuted ? "volume-mute-outline" : "volume-high-outline"} size={18} color={c.foreground} />
+             </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={listening ? "Leave Road Channel" : "Join Road Channel"} onPress={() => {
+                if (!deviceId || !location) return;
+                if (listening) {
+                  setListening(false);
+                  setFeed([]);
+                  feedCursorRef.current = null;
+                  void leaveRoadChannel(channel.id, deviceId).catch(() => {});
+                  onLeave?.();
+                } else {
+                  setListening(true);
+                  void updateRoadChannelPresence({ deviceId, location, channelId: channel.id });
+                }
+              }} style={[styles.listenerControl, { borderColor: c.border }]}>
+                <Ionicons name={listening ? "exit-outline" : "radio-outline"} size={18} color={c.foreground} />
+             </TouchableOpacity>
+           </View>
+            <Text style={[styles.listenCopy, { color: c.mutedForeground }]}>
+              {channel.direction && channel.direction !== "unknown" ? `${channel.direction} · ` : ""}
+              about {channel.memberCount ?? 0} listener{channel.memberCount === 1 ? "" : "s"}
+            </Text>
+            <TouchableOpacity accessibilityRole="switch" accessibilityState={{ checked: automaticSwitching }} onPress={() => setAutomaticSwitching((value) => !value)} style={styles.autoSwitchRow}>
+              <Ionicons name={automaticSwitching ? "checkbox" : "square-outline"} size={17} color={c.primary} />
+              <Text style={[styles.listenCopy, { color: c.mutedForeground }]}>Automatically switch after a stable road change</Text>
+            </TouchableOpacity>
+            {!listening ? <Text style={[styles.feedItem, { color: c.primary }]}>Tap the radio button to join.</Text> : null}
+            {feed.slice(0, 3).map((item) => (
+              <TouchableOpacity key={item.id} accessibilityRole="button" disabled={!item.audioUrl || listenerMuted} onPress={() => { void playFeedItem(item); }} style={styles.feedRow}>
+                <Ionicons name="play-circle" size={18} color={item.audioUrl && !listenerMuted ? c.primary : c.mutedForeground} />
+                <Text style={[styles.feedItem, { color: c.mutedForeground }]} numberOfLines={2}>
+                  {item.summary ?? `${item.type.replace(/_/g, " ")} · ${new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                </Text>
+              </TouchableOpacity>
+           ))}
+         </View>
+       ) : null}
+
+       <View style={styles.categorySection}>
+         <Text style={[styles.categoryHeading, { color: c.foreground }]}>What are you reporting?</Text>
+         <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>Choose a category to give listeners useful context.</Text>
+         <View style={styles.categoryGrid}>
+           {ROAD_CHANNEL_CATEGORIES.map((item) => (
+             <TouchableOpacity key={item} accessibilityRole="button" accessibilityState={{ selected: category === item }} onPress={() => setCategory(item)} style={[styles.categoryChip, { borderColor: category === item ? c.primary : c.border, backgroundColor: category === item ? c.primary + "18" : c.card }]}>
+               <Text style={[styles.categoryLabel, { color: category === item ? c.primary : c.foreground }]}>{CATEGORY_LABELS[item]}</Text>
+             </TouchableOpacity>
+           ))}
+         </View>
+       </View>
 
       {isRecording && <Text style={[styles.timer, { color: c.destructive }]} accessibilityLiveRegion="polite">{timeLabel(recording.durationMillis)} / 0:15</Text>}
 
@@ -362,13 +563,20 @@ export default function RoadChannelsVoiceReporter({
         <View style={[styles.result, { backgroundColor: c.secondary, borderColor: c.border }]}>
           <Text style={[styles.resultTitle, { color: c.foreground }]}>Check before sharing</Text>
            <Text style={[styles.resultText, { color: c.foreground }]}>
-             {interpretation.proposedType ?? "Could not identify an alert"} · {interpretation.road ?? "Road not recognised"}
+              {CATEGORY_LABELS[category]} · {interpretation.road ?? "Road not recognised"}
            </Text>
+            {interpretation.proposedType && interpretation.proposedType !== category && <Text style={[styles.detail, { color: c.mutedForeground }]}>Confirmed as: {interpretation.proposedType.replace(/_/g, " ")}</Text>}
            {interpretation.summary ? <Text style={[styles.summary, { color: c.foreground }]}>{interpretation.summary}</Text> : null}
           <Text style={[styles.transcript, { color: c.mutedForeground }]}>{interpretation.transcript}</Text>
           {interpretation.speedLimit != null && <Text style={[styles.detail, { color: c.mutedForeground }]}>Speed limit: {interpretation.speedLimit} km/h</Text>}
           {interpretation.cameraType && <Text style={[styles.detail, { color: c.mutedForeground }]}>Camera: {interpretation.cameraType}</Text>}
-           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Confirm and share report" disabled={busy || !interpretation.proposedType} onPress={confirm} style={[styles.confirm, { backgroundColor: c.primary }, !interpretation.proposedType && styles.disabled]}>
+           {!guidelinesLoaded ? <Text style={[styles.detail, { color: c.mutedForeground }]}>Loading contribution preferences…</Text> : !guidelinesAccepted ? (
+             <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: guidelinesAccepted }} onPress={() => setGuidelinesAccepted(true)} style={styles.guidelines}>
+               <Ionicons name="square-outline" size={20} color={c.primary} />
+               <Text style={[styles.guidelinesText, { color: c.mutedForeground }]}>I agree to share accurate, first-hand updates and follow Community Guidelines.</Text>
+             </TouchableOpacity>
+           ) : null}
+           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Confirm and share report" disabled={busy || !interpretation.proposedType || !guidelinesAccepted || !activeDrive} onPress={confirm} style={[styles.confirm, { backgroundColor: c.primary }, (!interpretation.proposedType || !guidelinesAccepted || !activeDrive) && styles.disabled]}>
             <Ionicons name="checkmark-circle" size={24} color={c.primaryForeground} />
             <Text style={[styles.confirmText, { color: c.primaryForeground }]}>Confirm alert</Text>
           </TouchableOpacity>
@@ -379,9 +587,9 @@ export default function RoadChannelsVoiceReporter({
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
           accessibilityHint={isRecording ? "Stops and saves the voice report" : "Starts a voice report up to 15 seconds"}
-          disabled={busy || Platform.OS === "web" || discoveryStatus !== "available"}
+           disabled={busy || Platform.OS === "web" || !canReport}
           onPress={isRecording ? () => { void stopRecording(); } : recordedUri ? interpret : () => { void startRecording(); }}
-          style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || discoveryStatus !== "available") && styles.disabled]}
+           style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || !canReport) && styles.disabled]}
         >
           <Ionicons name={isRecording ? "stop-circle" : "mic"} size={34} color={c.primaryForeground} />
           <Text style={[styles.primaryText, { color: c.primaryForeground }]}>{busy ? "Please wait…" : actionLabel}</Text>
@@ -409,6 +617,20 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: "Inter_700Bold", fontSize: 11, letterSpacing: 1 },
   title: { fontFamily: "Inter_700Bold", fontSize: 23 },
   helper: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 21 },
+  listenCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 7 },
+  listenHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
+  listenTitle: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  listenCopy: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
+  listenerControl: { width: 36, height: 36, borderWidth: 1, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  feedItem: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "capitalize" },
+  feedRow: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 34 },
+  autoSwitchRow: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 34 },
+  categorySection: { gap: 5, marginTop: 2 },
+  categoryHeading: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  categoryHint: { fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 17 },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 },
+  categoryChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 7 },
+  categoryLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   timer: { fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center", marginVertical: 8 },
   primaryAction: { minHeight: 112, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 7, marginTop: 6 },
   primaryText: { fontFamily: "Inter_700Bold", fontSize: 19 },
@@ -420,6 +642,8 @@ const styles = StyleSheet.create({
   transcript: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 21 },
   summary: { fontFamily: "Inter_600SemiBold", fontSize: 15, lineHeight: 21 },
   detail: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  guidelines: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 4, paddingVertical: 5 },
+  guidelinesText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 17 },
   confirm: { minHeight: 58, borderRadius: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 5 },
   confirmText: { fontFamily: "Inter_700Bold", fontSize: 17 },
   options: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8 },

@@ -1,68 +1,44 @@
 import { Router, type Request, type Response } from "express";
-import { and, count, desc, eq, gt } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import {
-  blockedDevicesTable, communityReportsTable, db, roadChannelPresenceTable,
-  roadChannelUpdatesTable, roadChannelVoiceReportsTable,
+  appSettingsTable, blockedDevicesTable, communityReportsTable, db, roadChannelPresenceTable,
+  roadChannelUpdatesTable, roadChannelUserReportsTable, roadChannelVoiceReportsTable,
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import { createCommunityReport, TTL_SECONDS } from "./reports.js";
-import { downloadAsBuffer, getPresignedUploadUrl, headObject, isR2Configured } from "../lib/r2Storage.js";
+import {
+  downloadAsBuffer, getPresignedDownloadUrl, getPresignedUploadUrl, headObject, isR2Configured,
+} from "../lib/r2Storage.js";
 import { logger } from "../lib/logger.js";
+import { PILOT_CORRIDORS, pilotDirection, resolvePilotCorridor } from "../lib/roadChannelPilot.js";
 
 const router = Router();
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const PRESENCE_TTL_MS = 5 * 60 * 1000;
 const ALLOWED_AUDIO_TYPES = new Set(["audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav", "audio/webm", "audio/ogg"]);
 const ALLOWED_REPORT_TYPES = new Set(Object.keys(TTL_SECONDS));
-
-// Pilot road catalog. Reverse-geocoders return a mix of local names, route
-// numbers, and corridor names, so aliases resolve them to stable channel IDs.
-const CHANNEL_ALIASES: Record<string, string> = {
-  "thika superhighway": "thika-superhighway", "thika road": "thika-superhighway", "a2": "thika-superhighway",
-  "mombasa road": "mombasa-road", "nairobi mombasa road": "mombasa-road", "a8": "mombasa-road", "a109": "mombasa-road",
-  "waiyaki way": "waiyaki-way", "nairobi nakuru highway": "nairobi-nakuru-highway", "a104": "nairobi-nakuru-highway",
-  "ngong road": "ngong-road",
-  "outer ring road": "outer-ring-road", "outer ring rd": "outer-ring-road", "outering road": "outer-ring-road", "outering rd": "outer-ring-road",
-  "nairobi expressway": "nairobi-expressway",
-  "langata road": "langata-road", "lang'ata road": "langata-road",
-  "kiambu road": "kiambu-road", "limuru road": "limuru-road",
-  "eastern bypass": "eastern-bypass", "northern bypass": "northern-bypass",
-  "southern bypass": "southern-bypass", "kangundo road": "kangundo-road",
-  "uhuru highway": "uhuru-highway", "jogoo road": "jogoo-road", "juja road": "juja-road",
-  "enterprise road": "enterprise-road", "lusaka road": "lusaka-road", "magadi road": "magadi-road",
-  "kenyatta avenue": "kenyatta-avenue", "haile selassie avenue": "haile-selassie-avenue",
-  "james gichuru road": "james-gichuru-road", "forest road": "forest-road",
-
-  // National and inter-county corridors.
-  "nairobi moyale highway": "nairobi-moyale-corridor", "nairobi nanyuki moyale road": "nairobi-moyale-corridor",
-  "nanyuki isiolo road": "nairobi-moyale-corridor", "isiolo moyale road": "nairobi-moyale-corridor",
-  "nairobi garissa highway": "nairobi-garissa-corridor", "garissa road": "nairobi-garissa-corridor",
-  "garissa liboi road": "nairobi-garissa-corridor", "b6": "nairobi-garissa-corridor",
-  "nakuru eldoret highway": "nakuru-eldoret-corridor", "eldoret nakuru road": "nakuru-eldoret-corridor",
-  "eldoret malaba road": "eldoret-malaba-corridor", "malaba road": "eldoret-malaba-corridor",
-  "nairobi namanga road": "nairobi-namanga-corridor", "namanga road": "nairobi-namanga-corridor", "a104 south": "nairobi-namanga-corridor",
-  "mombasa malindi highway": "mombasa-malindi-corridor", "malindi mombasa road": "mombasa-malindi-corridor",
-  "malindi lamu road": "malindi-lamu-corridor", "lunga lunga road": "mombasa-lunga-lunga-corridor", "a14": "mombasa-lunga-lunga-corridor",
-  "naivasha narok road": "naivasha-narok-corridor", "narok mai mahiu road": "naivasha-narok-corridor",
-  "narok kisii road": "narok-kisii-corridor", "kisii isebania road": "kisii-isebania-corridor",
-  "kisumu kakamega road": "kisumu-kakamega-corridor", "kisumu busia road": "kisumu-busia-corridor",
-  "kisumu kericho road": "kisumu-kericho-corridor", "kericho nakuru road": "kericho-nakuru-corridor",
-  "meru isiolo road": "meru-isiolo-corridor", "nyeri nanyuki road": "nyeri-nanyuki-corridor",
-  "embu meru highway": "embu-meru-corridor", "garissa wajir road": "garissa-wajir-corridor",
+const TERMS_VERSION = "road-channels-pilot-v1";
+const AUDIO_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const CATEGORY_TO_TYPE: Record<string, string> = {
+  traffic: "traffic",
+  accident: "accident",
+  police_checkpoint: "police",
+  roadworks: "roadworks",
+  hazard: "hazard",
+  speed_camera: "camera",
+  flooding: "weather",
+  breakdown: "breakdown",
 };
-const CHANNEL_IDS = new Set(Object.values(CHANNEL_ALIASES));
+const PROFANITY_PATTERN = /\b(fuck|shit|bitch|asshole|cunt)\b/i;
+
 const requestWindows = new Map<string, number[]>();
 
 function channelFor(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim().toLowerCase().replace(/[–—-]/g, " ").replace(/\s+/g, " ");
-  const alias = CHANNEL_ALIASES[normalized];
-  if (alias) return alias;
-  return [...CHANNEL_IDS].find((id) => id.replace(/-/g, " ") === normalized) ?? null;
+  return resolvePilotCorridor(value)?.id ?? null;
 }
 function channelName(channel: string): string {
-  return channel.split("-").map((part) => part === "a2" ? "A2" : `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(" ");
+  return resolvePilotCorridor(channel)?.name ?? channel;
 }
 function validDevice(value: unknown): value is string {
   return typeof value === "string" && value.length >= 8 && value.length <= 200;
@@ -83,32 +59,93 @@ async function blocked(deviceId: string): Promise<boolean> {
     .where(eq(blockedDevicesTable.deviceId, deviceId));
   return !!row;
 }
+async function enabled(): Promise<boolean> {
+  const [row] = await db.select({ value: appSettingsTable.roadChannelsEnabled })
+    .from(appSettingsTable).where(eq(appSettingsTable.id, "singleton"));
+  return row?.value ?? false;
+}
+async function requireEnabled(res: Response): Promise<boolean> {
+  if (await enabled()) return true;
+  res.status(503).json({ error: "Road Channels pilot is not enabled" });
+  return false;
+}
+function encodeCursor(createdAt: Date, id: string): string {
+  return Buffer.from(`${createdAt.toISOString()}|${id}`, "utf8").toString("base64url");
+}
+function decodeCursor(value: unknown): Date | null {
+  if (typeof value !== "string" || value.length > 300) return null;
+  try {
+    const [iso] = Buffer.from(value, "base64url").toString("utf8").split("|");
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  } catch {
+    return null;
+  }
+}
+async function activeMember(channel: string, deviceId: string): Promise<boolean> {
+  const [row] = await db.select({ lastSeenAt: roadChannelPresenceTable.lastSeenAt })
+    .from(roadChannelPresenceTable)
+    .where(and(
+      eq(roadChannelPresenceTable.channel, channel),
+      eq(roadChannelPresenceTable.deviceId, deviceId),
+      gt(roadChannelPresenceTable.lastSeenAt, new Date(Date.now() - PRESENCE_TTL_MS)),
+    ));
+  return !!row;
+}
+async function refreshPresence(
+  channel: string,
+  deviceId: string,
+  lat: number,
+  lng: number,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    // Serialize all channel switches for one device. This closes the
+    // delete/insert interleaving race without exposing a global lock.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${deviceId}))`);
+    await tx.delete(roadChannelPresenceTable).where(and(
+      eq(roadChannelPresenceTable.deviceId, deviceId),
+      ne(roadChannelPresenceTable.channel, channel),
+    ));
+    await tx.insert(roadChannelPresenceTable).values({
+      channel, deviceId, lat, lng, lastSeenAt: new Date(),
+    }).onConflictDoUpdate({
+      target: [roadChannelPresenceTable.channel, roadChannelPresenceTable.deviceId],
+      // Preserve muted and joinedAt while refreshing location/lease fields.
+      set: { lat, lng, lastSeenAt: new Date() },
+    });
+  });
+}
 function voiceKey(deviceId: string, id: string): string {
   // Encoded device id prevents path separator/prefix tricks while preserving ownership.
   return `road-channels/${encodeURIComponent(deviceId)}/${id}.audio`;
 }
 
-router.get("/road-channels", (_req, res) => {
-  const channels = [...new Set(Object.values(CHANNEL_ALIASES))];
-  res.json({ channels, aliases: CHANNEL_ALIASES });
+router.get("/road-channels", async (_req, res) => {
+  if (!await requireEnabled(res)) return;
+  res.json({ enabled: true, channels: PILOT_CORRIDORS.map((corridor) => corridor.id) });
 });
 
 router.get("/road-channels/discovery", async (req, res) => {
+  if (!await requireEnabled(res)) return;
   const channel = channelFor(req.query.roadName);
   if (!channel) return res.json({ channels: [] });
   const [presence] = await db.select({ value: count() }).from(roadChannelPresenceTable)
     .where(and(eq(roadChannelPresenceTable.channel, channel), gt(roadChannelPresenceTable.lastSeenAt, new Date(Date.now() - PRESENCE_TTL_MS))));
+  const corridor = resolvePilotCorridor(channel)!;
+  const direction = pilotDirection(corridor, Number(req.query.heading));
   return res.json({
     channels: [{
       id: channel,
       name: `${channelName(channel)} Channel`,
       road: channelName(channel),
+      direction,
       memberCount: Number(presence?.value ?? 0),
     }],
   });
 });
 
 router.post("/road-channels/presence", async (req: Request, res: Response) => {
+  if (!await requireEnabled(res)) return;
   const { deviceId, location, channelId } = req.body as {
     deviceId?: unknown;
     location?: { latitude?: unknown; longitude?: unknown };
@@ -119,40 +156,130 @@ router.post("/road-channels/presence", async (req: Request, res: Response) => {
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
   if (!validDevice(deviceId) || !validCoordinates(lat, lng)) return res.status(400).json({ error: "Valid deviceId and location required" });
   if (!permit(deviceId, "presence", 20) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to update presence" });
-  await db.insert(roadChannelPresenceTable).values({ channel, deviceId, lat, lng: lng as number, lastSeenAt: new Date() })
-    .onConflictDoUpdate({ target: [roadChannelPresenceTable.channel, roadChannelPresenceTable.deviceId], set: { lat, lng: lng as number, lastSeenAt: new Date() } });
+  await refreshPresence(channel, deviceId, lat, lng as number);
   return res.status(204).end();
 });
 
 router.post("/road-channels/:channel/presence", async (req: Request, res: Response) => {
+  if (!await requireEnabled(res)) return;
   const channel = channelFor(req.params.channel);
   const { deviceId, lat, lng } = req.body as Record<string, unknown>;
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
   if (!validDevice(deviceId) || !validCoordinates(lat, lng)) return res.status(400).json({ error: "Valid deviceId, lat and lng required" });
   if (!permit(deviceId, "presence", 20) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to update presence" });
   const latitude = lat as number, longitude = lng as number;
-  await db.insert(roadChannelPresenceTable).values({ channel, deviceId, lat: latitude, lng: longitude, lastSeenAt: new Date() })
-    .onConflictDoUpdate({ target: [roadChannelPresenceTable.channel, roadChannelPresenceTable.deviceId], set: { lat: latitude, lng: longitude, lastSeenAt: new Date() } });
+  await refreshPresence(channel, deviceId, latitude, longitude);
+  return res.status(204).end();
+});
+
+router.post("/road-channels/:channel/leave", async (req: Request, res: Response) => {
+  if (!await requireEnabled(res)) return;
+  const channel = channelFor(req.params.channel);
+  const { deviceId } = req.body as { deviceId?: unknown };
+  if (!channel || !validDevice(deviceId)) return res.status(400).json({ error: "Valid channel and deviceId required" });
+  await db.delete(roadChannelPresenceTable).where(and(
+    eq(roadChannelPresenceTable.channel, channel),
+    eq(roadChannelPresenceTable.deviceId, deviceId),
+  ));
+  return res.status(204).end();
+});
+
+router.post("/road-channels/:channel/mute", async (req: Request, res: Response) => {
+  if (!await requireEnabled(res)) return;
+  const channel = channelFor(req.params.channel);
+  const { deviceId, muted } = req.body as { deviceId?: unknown; muted?: unknown };
+  if (!channel || !validDevice(deviceId) || typeof muted !== "boolean") {
+    return res.status(400).json({ error: "Valid channel, deviceId and muted state required" });
+  }
+  if (!await activeMember(channel, deviceId)) return res.status(403).json({ error: "Join this channel first" });
+  await db.update(roadChannelPresenceTable).set({ muted })
+    .where(and(eq(roadChannelPresenceTable.channel, channel), eq(roadChannelPresenceTable.deviceId, deviceId)));
   return res.status(204).end();
 });
 
 router.get("/road-channels/:channel/presence", async (req, res) => {
+  if (!await requireEnabled(res)) return;
   const channel = channelFor(req.params.channel);
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
-  const rows = await db.select({ lat: roadChannelPresenceTable.lat, lng: roadChannelPresenceTable.lng, lastSeenAt: roadChannelPresenceTable.lastSeenAt })
+  const rows = await db.select({ direction: roadChannelPresenceTable.direction, muted: roadChannelPresenceTable.muted })
     .from(roadChannelPresenceTable).where(and(eq(roadChannelPresenceTable.channel, channel), gt(roadChannelPresenceTable.lastSeenAt, new Date(Date.now() - PRESENCE_TTL_MS))));
-  return res.json({ channel, activeCount: rows.length, presence: rows.map((row) => ({ ...row, lastSeenAt: row.lastSeenAt.getTime() })) });
+  const directions = rows.reduce<Record<string, number>>((counts, row) => {
+    counts[row.direction] = (counts[row.direction] ?? 0) + 1;
+    return counts;
+  }, {});
+  return res.json({ channel, activeCount: rows.length, mutedCount: rows.filter((row) => row.muted).length, directions });
 });
 
 router.get("/road-channels/:channel/feed", async (req, res) => {
+  if (!await requireEnabled(res)) return;
   const channel = channelFor(req.params.channel);
+  const deviceId = req.query.deviceId;
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
-  const rows = await db.select().from(roadChannelUpdatesTable).where(eq(roadChannelUpdatesTable.channel, channel))
+  if (!validDevice(deviceId) || !await activeMember(channel, deviceId)) {
+    return res.status(403).json({ error: "Join this active road channel before fetching updates" });
+  }
+  const cursorAt = decodeCursor(req.query.cursor);
+  const rows = await db.select().from(roadChannelUpdatesTable)
+    .where(and(
+      eq(roadChannelUpdatesTable.channel, channel),
+      ...(cursorAt ? [gt(roadChannelUpdatesTable.createdAt, cursorAt)] : []),
+    ))
     .orderBy(desc(roadChannelUpdatesTable.createdAt)).limit(50);
-  return res.json({ channel, updates: rows.map((r) => ({ id: r.id, kind: r.kind, reportId: r.reportId, createdAt: r.createdAt.getTime() })) });
+  rows.reverse();
+  const voiceIds = rows.map((row) => row.voiceReportId).filter((id): id is string => !!id);
+  const voices = voiceIds.length > 0
+    ? await db.select().from(roadChannelVoiceReportsTable)
+        .where(inArray(roadChannelVoiceReportsTable.id, voiceIds))
+    : [];
+  const voiceById = new Map(voices.map((voice) => [voice.id, voice]));
+  const updates = await Promise.all(rows.flatMap((row) => {
+    const voice = row.voiceReportId ? voiceById.get(row.voiceReportId) : null;
+    if (!voice || voice.moderationStatus !== "approved" || voice.status !== "confirmed"
+      || !voice.expiresAt || voice.expiresAt <= new Date()) return [];
+    const remainingSeconds = Math.floor((voice.expiresAt.getTime() - Date.now()) / 1000);
+    return [Promise.resolve(getPresignedDownloadUrl(voice.objectKey, remainingSeconds)).then((audioUrl) => ({
+      id: row.id,
+      kind: row.kind,
+      type: voice.proposedType,
+      summary: voice.summary,
+      road: channelName(row.channel),
+      reportId: row.reportId,
+      audioUrl,
+      createdAt: row.createdAt.toISOString(),
+    }))];
+  }));
+  const nextCursor = rows.length > 0
+    ? encodeCursor(rows[rows.length - 1]!.createdAt, rows[rows.length - 1]!.id)
+    : (typeof req.query.cursor === "string" ? req.query.cursor : null);
+  return res.json({ channel, items: updates, updates, nextCursor });
+});
+
+router.post("/road-channels/:channel/updates/:updateId/report", async (req: Request, res: Response) => {
+  if (!await requireEnabled(res)) return;
+  const channel = channelFor(req.params.channel);
+  const { deviceId, reason } = req.body as { deviceId?: unknown; reason?: unknown };
+  if (!channel || !validDevice(deviceId) || typeof reason !== "string" || reason.trim().length < 3 || reason.length > 280) {
+    return res.status(400).json({ error: "Valid channel, deviceId and reason required" });
+  }
+  if (!await activeMember(channel, deviceId)) return res.status(403).json({ error: "Join this channel first" });
+  const updateId = req.params.updateId as string;
+  const [update] = await db.select({ id: roadChannelUpdatesTable.id }).from(roadChannelUpdatesTable)
+    .where(and(eq(roadChannelUpdatesTable.id, updateId), eq(roadChannelUpdatesTable.channel, channel)));
+  if (!update) return res.status(404).json({ error: "Channel update not found" });
+  try {
+    await db.insert(roadChannelUserReportsTable).values({
+      updateId: update.id,
+      reporterDeviceId: deviceId,
+      reason: reason.trim(),
+    });
+  } catch {
+    return res.status(409).json({ error: "You already reported this update" });
+  }
+  return res.status(201).json({ reported: true });
 });
 
 router.post("/road-channels/:channel/voice/upload-url", async (req, res) => {
+  if (!await requireEnabled(res)) return;
   const channel = channelFor(req.params.channel);
   const { deviceId, contentType, sizeBytes, lat, lng } = req.body as Record<string, unknown>;
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
@@ -162,16 +289,18 @@ router.post("/road-channels/:channel/voice/upload-url", async (req, res) => {
   }
   if (!isR2Configured()) return res.status(503).json({ error: "Voice uploads are temporarily unavailable" });
   if (!permit(deviceId, "voice-upload", 5, 60 * 60_000) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to upload voice reports" });
+  if (!await activeMember(channel, deviceId)) return res.status(403).json({ error: "Join this active road channel before contributing" });
   const id = crypto.randomUUID(), objectKey = voiceKey(deviceId, id);
   await db.insert(roadChannelVoiceReportsTable).values({
     id, channel, deviceId, objectKey, contentType, sizeBytes: sizeBytes as number,
-    lat: lat as number, lng: lng as number,
+    lat: lat as number, lng: lng as number, expiresAt: new Date(Date.now() + AUDIO_RETENTION_MS),
   });
   const uploadUrl = await getPresignedUploadUrl(objectKey, contentType);
   return res.status(201).json({ voiceReportId: id, uploadUrl, expiresInSeconds: 900, objectKey });
 });
 
 router.post("/road-channels/voice/:id/interpret", async (req, res) => {
+  if (!await requireEnabled(res)) return;
   const { deviceId } = req.body as { deviceId?: unknown };
   if (!validDevice(deviceId)) return res.status(400).json({ error: "Valid deviceId required" });
   if (!permit(deviceId, "voice-interpret", 5, 60 * 60_000) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to interpret voice reports" });
@@ -202,9 +331,12 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
       && parsed.speedLimit >= 30 && parsed.speedLimit <= 110 ? parsed.speedLimit : null;
     const proposedCameraType = parsed.cameraType === "fixed" || parsed.cameraType === "mobile" ? parsed.cameraType : null;
     const summary = typeof parsed.summary === "string" ? parsed.summary.trim().slice(0, 280) : null;
+    const moderationStatus = PROFANITY_PATTERN.test(`${transcript} ${summary ?? ""}`) ? "rejected" : "pending";
     await db.update(roadChannelVoiceReportsTable).set({
       transcript, summary, proposedType, proposedSpeedLimit, proposedCameraType,
       status: "interpreted", interpretedAt: new Date(), sizeBytes: object.size,
+      moderationStatus,
+      moderationReason: moderationStatus === "rejected" ? "Automated language safety check" : null,
     })
       .where(eq(roadChannelVoiceReportsTable.id, voice.id));
     return res.json({
@@ -215,6 +347,7 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
       road: channelName(voice.channel),
       speedLimit: proposedSpeedLimit,
       cameraType: proposedCameraType,
+      moderationStatus,
       requiresConfirmation: true,
     });
   } catch (err) {
@@ -224,16 +357,29 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
 });
 
 router.post("/road-channels/voice/:id/confirm", async (req, res) => {
-  const { deviceId, type } = req.body as { deviceId?: unknown; type?: unknown };
+  if (!await requireEnabled(res)) return;
+  const { deviceId, type, selectedCategory, communityGuidelinesAccepted } = req.body as {
+    deviceId?: unknown;
+    type?: unknown;
+    selectedCategory?: unknown;
+    communityGuidelinesAccepted?: unknown;
+  };
   if (!validDevice(deviceId) || typeof type !== "string" || !ALLOWED_REPORT_TYPES.has(type)) return res.status(400).json({ error: "Valid deviceId and allowed report type required" });
   if (!permit(deviceId, "voice-confirm", 10) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to confirm voice reports" });
   const [voice] = await db.select().from(roadChannelVoiceReportsTable).where(eq(roadChannelVoiceReportsTable.id, req.params.id));
   if (!voice) return res.status(404).json({ error: "Voice report not found" });
   if (voice.deviceId !== deviceId) return res.status(403).json({ error: "Voice report belongs to another device" });
+  if (!await activeMember(voice.channel, deviceId)) return res.status(403).json({ error: "An active joined channel is required" });
+  if (communityGuidelinesAccepted !== true) return res.status(412).json({ error: "Accept the Road Channels community guidelines before contributing" });
+  if (voice.moderationStatus === "rejected") return res.status(409).json({ error: "This recording cannot be shared. Please record a factual road update." });
   if (voice.status !== "interpreted" || voice.proposedType !== type || voice.lat == null || voice.lng == null) return res.status(409).json({ error: "Interpret this report and explicitly confirm its proposed type first" });
-  const ttl = TTL_SECONDS[type] ?? null;
+  const confirmedType = typeof selectedCategory === "string" ? CATEGORY_TO_TYPE[selectedCategory] : undefined;
+  if (!confirmedType || confirmedType !== type) {
+    return res.status(409).json({ error: "The selected category must match the interpreted report type" });
+  }
+  const ttl = TTL_SECONDS[confirmedType] ?? null;
   const report = await createCommunityReport({
-    type,
+    type: confirmedType,
     lat: voice.lat,
     lng: voice.lng,
     deviceId,
@@ -241,11 +387,19 @@ router.post("/road-channels/voice/:id/confirm", async (req, res) => {
     expiresAt: ttl ? new Date(Date.now() + ttl * 1000) : null,
     observationContext: "on_location",
     observedAt: new Date(),
-    speedLimit: voice.proposedSpeedLimit ?? undefined,
-    cameraType: type === "camera" ? (voice.proposedCameraType as "fixed" | "mobile" | null) ?? undefined : undefined,
+    speedLimit: confirmedType === "camera" ? voice.proposedSpeedLimit ?? undefined : undefined,
+    cameraType: confirmedType === "camera" ? (voice.proposedCameraType as "fixed" | "mobile" | null) ?? undefined : undefined,
     source: "road_channel",
+    forceModeration: true,
   });
-  await db.update(roadChannelVoiceReportsTable).set({ status: "confirmed", confirmedAt: new Date(), reportId: report.id }).where(eq(roadChannelVoiceReportsTable.id, voice.id));
+  await db.update(roadChannelVoiceReportsTable).set({
+    status: "confirmed",
+    confirmedAt: new Date(),
+    reportId: report.id,
+    proposedType: confirmedType,
+    termsVersion: TERMS_VERSION,
+    termsAcceptedAt: new Date(),
+  }).where(eq(roadChannelVoiceReportsTable.id, voice.id));
   await db.insert(roadChannelUpdatesTable).values({ channel: voice.channel, deviceId, kind: "voice_report_confirmed", reportId: report.id, voiceReportId: voice.id });
   return res.status(201).json({ reportId: report.id, status: report.status });
 });

@@ -542,10 +542,12 @@ export async function createCommunityReport(input: {
   cameraType?: string; observationContext: string; observedAt: Date;
   reporterProximityM?: number;
   source?: string;
+  forceModeration?: boolean;
 }): Promise<typeof communityReportsTable.$inferSelect> {
-  const needsModeration = MODERATED_TYPES.has(input.type);
+  const needsModeration = input.forceModeration === true || MODERATED_TYPES.has(input.type);
+  const { forceModeration: _forceModeration, ...insertValues } = input;
   const [inserted] = await db.insert(communityReportsTable).values({
-    ...input,
+    ...insertValues,
     status: needsModeration ? "pending_review" : "active",
   }).returning();
 

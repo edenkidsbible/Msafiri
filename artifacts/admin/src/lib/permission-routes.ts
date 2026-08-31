@@ -8,6 +8,7 @@ import type { FeatureKey } from "@workspace/permissions";
 const ROUTE_FEATURE_PRIORITY: Array<{ feature: FeatureKey; href: string }> = [
   { feature: "dashboard", href: "/dashboard" },
   { feature: "reports", href: "/reports" },
+  { feature: "road_channels", href: "/road-channels" },
   { feature: "speed_zones", href: "/speed-zones" },
   { feature: "notifications", href: "/notifications" },
   { feature: "subscribers", href: "/subscribers" },

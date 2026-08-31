@@ -13,6 +13,7 @@ export interface RoadChannel {
   name: string;
   road?: string | null;
   memberCount?: number;
+  direction?: "inbound" | "outbound" | "unknown";
 }
 
 export interface RoadChannelsDiscovery {
@@ -23,7 +24,10 @@ export interface RoadChannelFeedItem {
   id: string;
   type: string;
   road?: string | null;
+  summary?: string | null;
+  audioUrl?: string | null;
   createdAt: string;
+  reportId?: string | null;
 }
 
 export interface VoiceUploadRequest {
@@ -50,16 +54,60 @@ export interface VoiceReportContext {
   channelId?: string;
 }
 
-export function discoverRoadChannels(roadName: string): Promise<RoadChannelsDiscovery> {
-  return apiGet(`/road-channels/discovery?roadName=${encodeURIComponent(roadName)}`);
+export function discoverRoadChannels(roadName: string, heading?: number | null): Promise<RoadChannelsDiscovery> {
+  const params = new URLSearchParams({ roadName });
+  if (heading != null) params.set("heading", String(heading));
+  return apiGet(`/road-channels/discovery?${params.toString()}`);
 }
 
 export function updateRoadChannelPresence(context: VoiceReportContext): Promise<void> {
   return apiPost<void>("/road-channels/presence", context);
 }
 
-export function getRoadChannelFeed(channelId: string): Promise<{ items: RoadChannelFeedItem[] }> {
-  return apiGet(`/road-channels/${encodeURIComponent(channelId)}/feed`);
+export interface RoadChannelFeed {
+  items: RoadChannelFeedItem[];
+  cursor: string | null;
+}
+
+/** Accepts both the current pilot `updates` envelope and the cursor envelope
+ * used by newer channel deployments. */
+export async function getRoadChannelFeed(
+  channelId: string,
+  deviceId: string,
+  cursor?: string | null,
+): Promise<RoadChannelFeed> {
+  const params = new URLSearchParams({ deviceId });
+  if (cursor) params.set("cursor", cursor);
+  const response = await apiGet<{
+    items?: RoadChannelFeedItem[];
+    updates?: Array<{
+      id: string; kind: string; reportId?: string | null; createdAt: string | number;
+      summary?: string | null; audioUrl?: string | null; road?: string | null; type?: string;
+    }>;
+    cursor?: string | null;
+    nextCursor?: string | null;
+  }>(`/road-channels/${encodeURIComponent(channelId)}/feed?${params.toString()}`);
+  const rawItems = response.items ?? response.updates ?? [];
+  return {
+    items: rawItems.map((item) => ({
+      id: item.id,
+      type: ("type" in item ? item.type : item.kind) ?? "road_update",
+      road: "road" in item ? item.road : null,
+      summary: item.summary ?? null,
+      audioUrl: item.audioUrl ?? null,
+      reportId: item.reportId ?? null,
+      createdAt: typeof item.createdAt === "number" ? new Date(item.createdAt).toISOString() : item.createdAt,
+    })),
+    cursor: response.nextCursor ?? response.cursor ?? (rawItems[0]?.id ?? null),
+  };
+}
+
+export function leaveRoadChannel(channelId: string, deviceId: string): Promise<void> {
+  return apiPost<void>(`/road-channels/${encodeURIComponent(channelId)}/leave`, { deviceId });
+}
+
+export function setRoadChannelMuted(channelId: string, deviceId: string, muted: boolean): Promise<void> {
+  return apiPost<void>(`/road-channels/${encodeURIComponent(channelId)}/mute`, { deviceId, muted });
 }
 
 export function requestVoiceUpload(
@@ -128,10 +176,32 @@ export function interpretVoiceReport(
 export function confirmVoiceReport(
   interpretation: VoiceInterpretation,
   context: VoiceReportContext,
+  options?: { selectedCategory?: RoadChannelCategory; communityGuidelinesAccepted?: boolean },
 ): Promise<{ reportId: string; status: string }> {
   if (!interpretation.proposedType) throw new Error("The report type was not clear enough to publish.");
   return apiPost<{ reportId: string; status: string }>(
     `/road-channels/voice/${encodeURIComponent(interpretation.voiceReportId)}/confirm`,
-    { deviceId: context.deviceId, type: interpretation.proposedType },
+    {
+      deviceId: context.deviceId,
+      type: interpretation.proposedType,
+      // The backend remains the source of truth for the interpreted type. These
+      // pilot fields preserve the driver's structured intent for compatible API
+      // versions without turning any pre-confirm action into publication.
+      selectedCategory: options?.selectedCategory,
+      communityGuidelinesAccepted: options?.communityGuidelinesAccepted,
+    },
   );
 }
+
+export const ROAD_CHANNEL_CATEGORIES = [
+  "traffic",
+  "accident",
+  "police_checkpoint",
+  "roadworks",
+  "hazard",
+  "speed_camera",
+  "flooding",
+  "breakdown",
+] as const;
+
+export type RoadChannelCategory = (typeof ROAD_CHANNEL_CATEGORIES)[number];

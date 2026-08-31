@@ -14,6 +14,7 @@ export const FEATURE_GROUPS = [
       { key: "pois", label: "Points of Interest (view / edit / create)" },
       { key: "blog", label: "Blog Management" },
       { key: "creators", label: "Creator Applications" },
+      { key: "road_channels", label: "Road Channels Moderation" },
     ],
   },
   {
@@ -51,6 +52,7 @@ export const ROLE_DEFAULTS: Record<AdminRole, FeatureKey[]> = {
     "pois",
     "blog",
     "creators",
+    "road_channels",
     "reports_bulk",
     "reports_export",
     "push_campaigns",
