@@ -2924,7 +2924,7 @@ export default function DriveScreen() {
               whose speed / depth scale with proximity).
               Border colour shifts RED → ORANGE → AMBER → alert-colour as
               distance grows. SOS (zIndex 10) always floats on top. */}
-          {locationGranted && !overLimit && !routeLoading && primaryAlert && primaryAlert!.distanceM <= 1000
+          {locationGranted && !routeLoading && primaryAlert && primaryAlert!.distanceM <= 1000
             // Hide when the driver has passed the alert — haversine distance
             // would otherwise keep increasing behind them, making it look like
             // the alert is receding rather than passed.
@@ -2935,6 +2935,11 @@ export default function DriveScreen() {
             // The IIFE boundary prevents TypeScript from propagating the &&
             // narrowing automatically, so we assert it here to keep TSC happy.
             const pa = primaryAlert!;
+            const overlaySpeedLimit = pa.speedLimit;
+            const overlayOverLimit = overlaySpeedLimit == null
+              ? overLimit
+              : currentSpeed > Number(overlaySpeedLimit);
+            const overlaySpeedColor = overlayOverLimit ? c.speedDanger : speedClr;
             return (
               // Outer view is always fully opaque — hides the gauge + right-panel
               // content underneath. The inner ring's opacity pulses AND the whole
@@ -3019,13 +3024,13 @@ export default function DriveScreen() {
                       </View>
                       {/* Your speed */}
                       <View style={[styles.alertOverlaySpeedCell, {
-                        backgroundColor: overLimit
+                        backgroundColor: overlayOverLimit
                           ? "#E5393518"
                           : (isDark ? "#FFFFFF0A" : "#00000008"),
                       }]}>
                         <Text style={[styles.alertOverlayCellLabel, { color: fgMuted }]}>YOUR SPEED</Text>
                         <Text style={[styles.alertOverlayCellNum, {
-                          color: speedClr,
+                          color: overlaySpeedColor,
                           fontSize: isSmall ? 38 : 46,
                           lineHeight: isSmall ? 44 : 52,
                         }]}>
