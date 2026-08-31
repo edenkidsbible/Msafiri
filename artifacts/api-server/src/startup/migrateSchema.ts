@@ -475,6 +475,21 @@ export async function migrateSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS last_bg_wakeup_at TIMESTAMP
     `);
 
+    // ── push_tokens.vendor_id ──────────────────────────────────────────────────
+    // Stable cross-reinstall device fingerprint used to evict stale rows when
+    // an iOS/Android device reinstalls the app and generates a new deviceId +
+    // new push token. iOS sends identifierForVendor (IDFV); Android sends
+    // androidId. Nullable — older clients that predate this field send nothing.
+    await db.execute(sql`
+      ALTER TABLE push_tokens
+      ADD COLUMN IF NOT EXISTS vendor_id TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS push_tokens_vendor_id_idx
+        ON push_tokens (vendor_id)
+        WHERE vendor_id IS NOT NULL
+    `);
+
     // ── Email-based OTP recovery (replaces phone/SMS) ─────────────────────────
     // phone_verifications: add email column; make phone nullable so new email-
     // based OTPs don't require a phone number.

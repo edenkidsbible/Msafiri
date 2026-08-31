@@ -8,6 +8,12 @@ export const pushTokensTable = pgTable("push_tokens", {
   // notifications through multiple rows.
   token:           text("token").notNull().unique(),
   platform:        text("platform").notNull().default("unknown"), // ios | android | web
+  // Stable cross-reinstall device fingerprint used to evict stale rows.
+  // iOS: identifierForVendor (survives reinstall within same vendor/keychain).
+  // Android: androidId (resets only on factory reset, not reinstall).
+  // Nullable: older clients that predate this field send nothing; the server
+  // falls back to token-only dedup for them.
+  vendorId:        text("vendor_id"),
   lastLat:         real("last_lat"),
   lastLng:         real("last_lng"),
   createdAt:       timestamp("created_at").notNull().defaultNow(),

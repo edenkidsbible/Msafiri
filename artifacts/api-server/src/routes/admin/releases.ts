@@ -44,6 +44,7 @@ router.post("/releases", async (req: Request, res: Response) => {
   const {
     version, buildNumber, platform, releaseType,
     releaseNotes, isForceUpdate, storeUrlIos, storeUrlAndroid, scheduledAt,
+    notifTitle, notifBody,
   } = req.body as {
     version:         string;
     buildNumber?:    number;
@@ -54,6 +55,8 @@ router.post("/releases", async (req: Request, res: Response) => {
     storeUrlIos?:    string;
     storeUrlAndroid?: string;
     scheduledAt?:    string;
+    notifTitle?:     string;
+    notifBody?:      string;
   };
 
   if (!version) {
@@ -77,6 +80,8 @@ router.post("/releases", async (req: Request, res: Response) => {
         storeUrlIos:     storeUrlIos ?? null,
         storeUrlAndroid: storeUrlAndroid ?? null,
         scheduledAt:     scheduledAt ? new Date(scheduledAt) : null,
+        notifTitle:      notifTitle?.trim() || null,
+        notifBody:       notifBody?.trim() || null,
         createdBy:       actor?.name ?? "admin",
       })
       .returning();
@@ -108,6 +113,7 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
   const {
     version, buildNumber, platform, releaseType,
     releaseNotes, isForceUpdate, storeUrlIos, storeUrlAndroid, scheduledAt,
+    notifTitle, notifBody,
   } = req.body as Partial<{
     version:         string;
     buildNumber:     number;
@@ -118,6 +124,8 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
     storeUrlIos:     string;
     storeUrlAndroid: string;
     scheduledAt:     string | null;
+    notifTitle:      string | null;
+    notifBody:       string | null;
   }>;
 
   try {
@@ -134,6 +142,8 @@ router.patch("/releases/:id", async (req: Request, res: Response) => {
     if (storeUrlIos !== undefined)     updateFields["storeUrlIos"]      = storeUrlIos;
     if (storeUrlAndroid !== undefined) updateFields["storeUrlAndroid"]  = storeUrlAndroid;
     if (scheduledAt !== undefined)     updateFields["scheduledAt"]      = scheduledAt ? new Date(scheduledAt) : null;
+    if (notifTitle !== undefined)      updateFields["notifTitle"]       = notifTitle?.trim() || null;
+    if (notifBody !== undefined)       updateFields["notifBody"]        = notifBody?.trim() || null;
 
     await db
       .update(appReleasesTable)

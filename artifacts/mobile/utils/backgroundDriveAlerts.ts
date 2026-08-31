@@ -452,6 +452,18 @@ export function defineBackgroundDriveAlertsTask(): void {
 
         if (!winner) return;
 
+        // Infer speed limit from the nearest zone within 300 m when a camera or
+        // zone entry has no limit stored.  This mirrors the foreground AppContext
+        // logic so the background notification body shows the correct km/h.
+        if (!winner.speedLimit && (winner.type === "camera" || winner.type === "zone")) {
+          const nearestWithLimit = zones
+            .filter((z) => z.speedLimit && z.id !== winner!.id)
+            .map((z) => ({ limit: z.speedLimit!, dist: haversine(lat, lng, z.lat, z.lng) }))
+            .filter((z) => z.dist <= 300)
+            .sort((a, b) => a.dist - b.dist)[0];
+          if (nearestWithLimit) winner = { ...winner, speedLimit: nearestWithLimit.limit };
+        }
+
         // ── 6. Session-scoped dedup: skip if already notified recently ─────
         const lastAt = notifiedMap.notified[winner.id] ?? 0;
         if (now - lastAt < ALERT_COOLDOWN_MS) return;

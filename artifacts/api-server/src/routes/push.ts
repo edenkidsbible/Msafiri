@@ -10,12 +10,15 @@ router.post("/push/register", async (req: Request, res: Response) => {
   if (!req.body || typeof req.body !== "object") {
     return res.status(400).json({ error: "Invalid request body" });
   }
-  const { deviceId, token, platform, lat, lng } = req.body as {
+  const { deviceId, token, platform, lat, lng, vendorId } = req.body as {
     deviceId: string;
     token: string;
     platform?: string;
     lat?: number;
     lng?: number;
+    // Stable cross-reinstall fingerprint: iOS IDFV or Android androidId.
+    // Absent for older clients — server degrades gracefully to token-only dedup.
+    vendorId?: string | null;
   };
 
   if (!deviceId || !token) {
@@ -30,14 +33,32 @@ router.post("/push/register", async (req: Request, res: Response) => {
       ? platform
       : "unknown";
 
-    // Remove any stale rows that share this token with a different deviceId.
-    // This happens when a user reinstalls — AsyncStorage is wiped so a new
-    // deviceId is generated, but APNs/FCM issues the same push token. Without
-    // this delete the same physical device accumulates multiple rows and
-    // receives one notification copy per row.
+    // ── Stale-row cleanup ──────────────────────────────────────────────────
+    // Two scenarios cause the same physical device to accumulate multiple rows:
+    //
+    // A) Same token, new deviceId: happens when the app reinstalls on a device
+    //    that keeps the same APNs/FCM token (rare but possible). The existing
+    //    token-match delete handles this.
+    //
+    // B) New token, new deviceId: the common iOS case — reinstall wipes
+    //    AsyncStorage (new deviceId) AND triggers a new APNs token rotation.
+    //    The old row stays valid for up to 30 minutes until the receipt purge
+    //    runs and APNs confirms the old token as stale. During that window the
+    //    same iPhone receives two copies of every notification. Passing the iOS
+    //    identifierForVendor (IDFV) or Android androidId lets us detect this
+    //    "same physical device, new row" situation and evict the stale row
+    //    immediately at registration time.
+    //
+    // Both deletes are safe no-ops if nothing matches.
     await db
       .delete(pushTokensTable)
       .where(and(eq(pushTokensTable.token, token), ne(pushTokensTable.deviceId, deviceId)));
+
+    if (vendorId) {
+      await db
+        .delete(pushTokensTable)
+        .where(and(eq(pushTokensTable.vendorId, vendorId), ne(pushTokensTable.deviceId, deviceId)));
+    }
 
     await db
       .insert(pushTokensTable)
@@ -45,6 +66,7 @@ router.post("/push/register", async (req: Request, res: Response) => {
         deviceId,
         token,
         platform: registeredPlatform,
+        vendorId: vendorId ?? null,
         lastLat: lat ?? null,
         lastLng: lng ?? null,
         lastSeenAt: new Date(),
@@ -54,6 +76,7 @@ router.post("/push/register", async (req: Request, res: Response) => {
         set: {
           token,
           platform: registeredPlatform,
+          ...(vendorId ? { vendorId } : {}),
           ...(lat != null && lng != null ? { lastLat: lat, lastLng: lng } : {}),
           lastSeenAt: new Date(),
         },

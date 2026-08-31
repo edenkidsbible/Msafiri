@@ -16,14 +16,17 @@ export async function fireReleasePush(
   release: AppRelease,
   actorName: string,
 ): Promise<void> {
-  const notifTitle = release.isForceUpdate
-    ? `Msafiri just got better 🚀`
-    : `What's new in Msafiri v${release.version} ✨`;
-  const notifBody = release.isForceUpdate
-    ? `v${release.version} is ready for you — a quick update and you're back on the road.`
-    : (release.releaseNotes
-        ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
-        : `Msafiri v${release.version} is here. Tap to see what's new.`);
+  // Use admin-specified custom copy when set; fall back to auto-generated.
+  const notifTitle = release.notifTitle ??
+    (release.isForceUpdate
+      ? `Msafiri just got better 🚀`
+      : `What's new in Msafiri v${release.version} ✨`);
+  const notifBody = release.notifBody ??
+    (release.isForceUpdate
+      ? `v${release.version} is ready for you — a quick update and you're back on the road.`
+      : (release.releaseNotes
+          ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
+          : `Msafiri v${release.version} is here. Tap to see what's new.`));
 
   const notifData = {
     type:            "app_update",

@@ -12,6 +12,8 @@ export const appReleasesTable = pgTable("app_releases", {
   storeUrlIos:        text("store_url_ios"),
   storeUrlAndroid:    text("store_url_android"),
   scheduledAt:        timestamp("scheduled_at"),                      // if set and in future → status "scheduled"
+  notifTitle:         text("notif_title"),                              // custom push title (null = auto-generated)
+  notifBody:          text("notif_body"),                               // custom push body  (null = auto-generated)
   createdBy:          text("created_by").notNull().default("system"),
   createdAt:          timestamp("created_at").notNull().defaultNow(),
   publishedAt:        timestamp("published_at"),

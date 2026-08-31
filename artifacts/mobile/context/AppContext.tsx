@@ -2442,8 +2442,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Speed-limit-specific audio only plays for single alerts where dedicated assets exist.
           speakAlertMulti(clusterHasCamera ? "camera" : winner.type).catch(() => {});
         } else {
-          // Single alert: play speed-specific phrase when limit is known, generic otherwise
-          speakAlert(resolveAlertKey(winner.type, winner.speedLimit)).catch(() => {});
+          // Single alert: play speed-specific phrase when limit is known.
+          // For cameras/zones with no stored speed limit, infer from the nearest
+          // zone within 300 m so the audio still names a speed rather than falling
+          // back to the generic "speed camera ahead" clip.
+          let effectiveSpeedLimit = winner.speedLimit;
+          if (!effectiveSpeedLimit && (winner.type === "camera" || winner.type === "zone")) {
+            // withDist is already sorted by distance — find() returns the nearest first.
+            const nearest = withDist.find(
+              (z) => z.speedLimit && z.id !== winner.id && z.distance <= 300,
+            );
+            if (nearest?.speedLimit) effectiveSpeedLimit = nearest.speedLimit;
+          }
+          speakAlert(resolveAlertKey(winner.type, effectiveSpeedLimit)).catch(() => {});
         }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }

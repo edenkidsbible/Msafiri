@@ -187,6 +187,24 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
   const token = tokenData.data;
   const deviceId = await getOrCreateDeviceId();
 
+  // Stable cross-reinstall fingerprint so the server can evict stale rows when
+  // the app is reinstalled (AsyncStorage wiped → new deviceId + new push token,
+  // but old row in DB remains valid for up to 30 min causing duplicate delivery).
+  // iOS: identifierForVendor (IDFV) — persists across reinstalls within the same
+  //   app vendor (tied to Apple ID + bundle team). Not available in Expo Go
+  //   simulator but fine on real devices and TestFlight/production builds.
+  // Android: androidId — persists across reinstalls, resets only on factory reset.
+  let vendorId: string | null = null;
+  try {
+    if (Platform.OS === "ios") {
+      vendorId = await Application.getIosIdForVendorAsync();
+    } else if (Platform.OS === "android") {
+      vendorId = Application.getAndroidId() ?? null;
+    }
+  } catch {
+    // Non-critical — if unavailable the server degrades to token-only dedup.
+  }
+
   try {
     // Always refresh the server registration when the app starts. The platform
     // field became part of release targeting after many users already had a
@@ -197,6 +215,7 @@ async function registerToken(lat?: number | null, lng?: number | null): Promise<
       deviceId,
       token,
       platform: Platform.OS,
+      vendorId,
       ...(lat != null && lng != null ? { lat, lng } : {}),
     });
     console.info(`[usePushNotifications] Push token registered for ${Platform.OS}`);

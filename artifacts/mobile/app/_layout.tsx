@@ -71,6 +71,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
+import { useTrialSessions } from "@/hooks/useTrialSessions";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
 import { defineBackgroundNotificationTask } from "@/utils/backgroundNotificationTask";
@@ -255,7 +256,8 @@ function RootLayoutNav() {
   const { hydrated, onboardingComplete, requestLocationPermission, setNavDestination, driverName, navTripActive } = useApp();
   // Prevent the name-prompt from firing more than once per app session
   const namePromptShown = useRef(false);
-  const { isSubscribed, isLoading: subLoading, trialExpiredUnpaid } = useSubscription();
+  const { isSubscribed, isLoading: subLoading } = useSubscription();
+  const { trialExpired, isLoading: trialLoading } = useTrialSessions();
   const c = useColors();
   const router = useRouter();
   // Explicit navigator-ready signal: the root navigation state gets a key only
@@ -402,17 +404,28 @@ function RootLayoutNav() {
       router.replace("/onboarding");
       return;
     }
-    // Onboarding done — wait for RevenueCat to confirm subscription status
-    if (subLoading) return;
+    // Onboarding done — wait for RevenueCat AND trial session count to resolve.
+    // trialLoading clears as soon as AsyncStorage is read (< 50 ms), so this
+    // adds negligible cold-start delay while guaranteeing the routing decision
+    // is made with the correct trial status.
+    if (subLoading || trialLoading) return;
     checked.current = true;
     // Only route to paywall if we've never seen a valid subscription in this
     // session. wasSubscribed guards against a transient isSubscribed=false that
     // RevenueCat emits while re-validating entitlements after a background resume.
     if (!isSubscribed && !wasSubscribed.current) {
-      // Route to the trial-ended screen if the user's free trial has expired
-      // without subscribing, so they get a clear explanation rather than the
-      // normal paywall (which would incorrectly re-offer a trial they've used).
-      router.replace(trialExpiredUnpaid ? "/trial-ended" : "/paywall");
+      // Non-subscriber: show paywall only after the 3-session free trial is used up.
+      // Users who still have trial sessions remaining are allowed through normally.
+      if (trialExpired) {
+        router.replace("/paywall");
+      } else {
+        // Still in trial — grant access and prompt for location/name as usual.
+        requestLocationPermission().catch(() => {});
+        if (!driverName && !namePromptShown.current) {
+          namePromptShown.current = true;
+          router.replace({ pathname: "/onboarding-name", params: { mode: "existing" } } as any);
+        }
+      }
     } else {
       requestLocationPermission().catch(() => {});
       // Soft prompt for existing users who never provided a name — shown once
@@ -422,7 +435,7 @@ function RootLayoutNav() {
         router.replace({ pathname: "/onboarding-name", params: { mode: "existing" } } as any);
       }
     }
-  }, [hydrated, navReady, onboardingComplete, isSubscribed, subLoading, versionCheck]);
+  }, [hydrated, navReady, onboardingComplete, isSubscribed, subLoading, versionCheck, trialExpired, trialLoading]);
 
   // ── Deep link handler (geo: URIs and msafiri:// scheme) ────────────────────
   // Handles both cold-start (app launched from a location tap) and warm-start

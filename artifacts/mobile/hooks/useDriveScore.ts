@@ -120,28 +120,18 @@ const GPS_SPEED_DELTA_BRAKE = 10;
  *  harsh-accel event. */
 const GPS_SPEED_DELTA_ACCEL = 8;
 
-// ── Scoring weights ────────────────────────────────────────────────────────────
-
-/** Scoring formula weights (mirrors server-side computeScore). */
-const W = {
-  harshBrake:     2,
-  harshAccel:     1,
-  sharpTurn:      1,
-  speedingMinute: 2,
-  smoothBonus:    1,   // per 15 smooth minutes, capped at +5
-} as const;
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DriveScoreSnapshot {
-  score:           number;
-  harshBrakes:     number;
-  harshAccels:     number;
-  sharpTurns:      number;
-  speedingMinutes: number;
-  smoothMinutes:   number;
-  maxSpeedKmh:     number;
-  distanceM:       number;
+  score:               number;
+  harshBrakes:         number;
+  harshAccels:         number;
+  sharpTurns:          number;
+  speedingMinutes:     number;
+  smoothMinutes:       number;
+  totalMovingMinutes:  number;
+  maxSpeedKmh:         number;
+  distanceM:           number;
 }
 
 interface GpsPoint {
@@ -189,14 +179,42 @@ function bearingDelta(a: number, b: number): number {
 
 // ── Score formula ─────────────────────────────────────────────────────────────
 
+/**
+ * Rate-normalised live driving score (0–100).
+ *
+ * Mirrors the server-side computeScore() in liveTrips.ts so the live gauge
+ * and the final session score always agree.
+ *
+ * Penalties are expressed as *rates* (events/hour, fraction of time speeding)
+ * so long trips are not unfairly punished for accumulating more raw events
+ * than short ones.  Smooth driving earns up to +15 points back, making the
+ * gauge visibly rise during good stretches and dip after harsh events — then
+ * recover as the driver continues cleanly.
+ *
+ * effectiveMins = max(30, totalMovingMinutes) so a single early harsh event
+ * doesn't crater the score to zero; the rate normalises as the trip continues.
+ */
 function computeLiveScore(snap: Omit<DriveScoreSnapshot, "score">): number {
-  const penalty =
-    snap.harshBrakes     * W.harshBrake +
-    snap.harshAccels     * W.harshAccel +
-    snap.sharpTurns      * W.sharpTurn  +
-    snap.speedingMinutes * W.speedingMinute;
-  const bonus = Math.min(Math.floor(snap.smoothMinutes / 15), 5) * W.smoothBonus;
-  return Math.max(0, Math.min(100, 100 - penalty + bonus));
+  const effectiveMins  = Math.max(30, snap.totalMovingMinutes);
+  const effectiveHours = effectiveMins / 60;
+
+  // Harsh-event penalty — weighted by severity, normalised to events/hour.
+  // Brakes (weight 2) are most dangerous; accels and turns (weight 1.5).
+  // 3 pts deducted per event/hour, capped at 50.
+  const weightedEvents = snap.harshBrakes * 2 + snap.harshAccels * 1.5 + snap.sharpTurns * 1.5;
+  const eventsPerHour  = weightedEvents / effectiveHours;
+  const harshPenalty   = Math.min(50, eventsPerHour * 3);
+
+  // Speeding penalty — fraction of driving time spent above limit (max −50).
+  const speedingFraction = snap.speedingMinutes / effectiveMins;
+  const speedingPenalty  = speedingFraction * 50;
+
+  // Smooth-driving bonus — rewards sustained safe behaviour (+0 to +15).
+  // After bad events, consistently clean driving visibly pushes the score up.
+  const smoothFraction = snap.smoothMinutes / effectiveMins;
+  const smoothBonus    = smoothFraction * 15;
+
+  return Math.max(0, Math.min(100, Math.round(100 - harshPenalty - speedingPenalty + smoothBonus)));
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -217,23 +235,25 @@ export function useDriveScore({
   currentLng,
 }: UseDriveScoreOptions) {
   // ── Reactive state (drives UI) ──────────────────────────────────────────
-  const [score,           setScore]           = useState(100);
-  const [harshBrakes,     setHarshBrakes]     = useState(0);
-  const [harshAccels,     setHarshAccels]     = useState(0);
-  const [sharpTurns,      setSharpTurns]      = useState(0);
-  const [speedingMinutes, setSpeedingMinutes] = useState(0);
-  const [smoothMinutes,   setSmoothMinutes]   = useState(0);
-  const [maxSpeedKmh,     setMaxSpeedKmh]     = useState(0);
-  const [distanceM,       setDistanceM]       = useState(0);
+  const [score,               setScore]               = useState(100);
+  const [harshBrakes,         setHarshBrakes]         = useState(0);
+  const [harshAccels,         setHarshAccels]         = useState(0);
+  const [sharpTurns,          setSharpTurns]          = useState(0);
+  const [speedingMinutes,     setSpeedingMinutes]     = useState(0);
+  const [smoothMinutes,       setSmoothMinutes]       = useState(0);
+  const [totalMovingMinutes,  setTotalMovingMinutes]  = useState(0);
+  const [maxSpeedKmh,         setMaxSpeedKmh]         = useState(0);
+  const [distanceM,           setDistanceM]           = useState(0);
 
   // ── Mutable refs (safe inside event listeners / intervals) ──────────────
-  const harshBrakesRef     = useRef(0);
-  const harshAccelsRef     = useRef(0);
-  const sharpTurnsRef      = useRef(0);
-  const speedingMinutesRef = useRef(0);
-  const smoothMinutesRef   = useRef(0);
-  const maxSpeedRef        = useRef(0);
-  const distanceRef        = useRef(0);
+  const harshBrakesRef        = useRef(0);
+  const harshAccelsRef        = useRef(0);
+  const sharpTurnsRef         = useRef(0);
+  const speedingMinutesRef    = useRef(0);
+  const smoothMinutesRef      = useRef(0);
+  const totalMovingMinsRef    = useRef(0);
+  const maxSpeedRef           = useRef(0);
+  const distanceRef           = useRef(0);
 
   const lastLatRef       = useRef<number | null>(null);
   const lastLngRef       = useRef<number | null>(null);
@@ -243,9 +263,10 @@ export function useDriveScore({
   // Rolling accelerometer window: last TURN_WINDOW_SIZE samples
   const windowRef = useRef<Array<{ netG: number; ax: number; ay: number }>>([]);
 
-  // Speeding / smooth second counters
-  const speedingSecsRef = useRef(0);
-  const smoothSecsRef   = useRef(0);
+  // Second counters for speeding, smooth, and total moving time
+  const speedingSecsRef     = useRef(0);
+  const smoothSecsRef       = useRef(0);
+  const totalMovingSecsRef  = useRef(0);
 
   // Refs for speed / limit (so the 1 s interval never sees stale closures)
   const speedRef = useRef(0);
@@ -268,13 +289,14 @@ export function useDriveScore({
   // ── Score recompute ───────────────────────────────────────────────────────
   const recompute = useCallback(() => {
     const s = computeLiveScore({
-      harshBrakes:     harshBrakesRef.current,
-      harshAccels:     harshAccelsRef.current,
-      sharpTurns:      sharpTurnsRef.current,
-      speedingMinutes: speedingMinutesRef.current,
-      smoothMinutes:   smoothMinutesRef.current,
-      maxSpeedKmh:     maxSpeedRef.current,
-      distanceM:       Math.round(distanceRef.current),
+      harshBrakes:        harshBrakesRef.current,
+      harshAccels:        harshAccelsRef.current,
+      sharpTurns:         sharpTurnsRef.current,
+      speedingMinutes:    speedingMinutesRef.current,
+      smoothMinutes:      smoothMinutesRef.current,
+      totalMovingMinutes: totalMovingMinsRef.current,
+      maxSpeedKmh:        maxSpeedRef.current,
+      distanceM:          Math.round(distanceRef.current),
     });
     setScore(s);
   }, []);
@@ -283,24 +305,26 @@ export function useDriveScore({
   const wasActive = useRef(false);
   useEffect(() => {
     if (active && !wasActive.current) {
-      harshBrakesRef.current     = 0;
-      harshAccelsRef.current     = 0;
-      sharpTurnsRef.current      = 0;
-      speedingMinutesRef.current = 0;
-      smoothMinutesRef.current   = 0;
-      maxSpeedRef.current        = 0;
-      distanceRef.current        = 0;
-      lastLatRef.current         = null;
-      lastLngRef.current         = null;
-      lastEventRef.current       = {};
-      lastHarshRef.current       = 0;
-      windowRef.current          = [];
-      speedingSecsRef.current    = 0;
-      smoothSecsRef.current      = 0;
-      gpsHistoryRef.current      = [];
-      pendingEventsRef.current   = [];
-      warmupDoneRef.current      = false;
-      warmupDistRef.current      = 0;
+      harshBrakesRef.current       = 0;
+      harshAccelsRef.current       = 0;
+      sharpTurnsRef.current        = 0;
+      speedingMinutesRef.current   = 0;
+      smoothMinutesRef.current     = 0;
+      totalMovingMinsRef.current   = 0;
+      maxSpeedRef.current          = 0;
+      distanceRef.current          = 0;
+      lastLatRef.current           = null;
+      lastLngRef.current           = null;
+      lastEventRef.current         = {};
+      lastHarshRef.current         = 0;
+      windowRef.current            = [];
+      speedingSecsRef.current      = 0;
+      smoothSecsRef.current        = 0;
+      totalMovingSecsRef.current   = 0;
+      gpsHistoryRef.current        = [];
+      pendingEventsRef.current     = [];
+      warmupDoneRef.current        = false;
+      warmupDistRef.current        = 0;
 
       setScore(100);
       setHarshBrakes(0);
@@ -308,6 +332,7 @@ export function useDriveScore({
       setSharpTurns(0);
       setSpeedingMinutes(0);
       setSmoothMinutes(0);
+      setTotalMovingMinutes(0);
       setMaxSpeedKmh(0);
       setDistanceM(0);
     }
@@ -463,7 +488,21 @@ export function useDriveScore({
         recompute();
       }
 
-      // Smooth driving: only count while moving (≥ 10 km/h)
+      // Total moving time — every second at ≥ 10 km/h regardless of harsh state.
+      // Used as the time denominator in the rate-based score formula so long
+      // trips are not unfairly penalised compared to short ones.
+      if (spd >= 10) {
+        totalMovingSecsRef.current += 1;
+        if (totalMovingSecsRef.current >= 60) {
+          totalMovingSecsRef.current = 0;
+          totalMovingMinsRef.current += 1;
+          setTotalMovingMinutes(totalMovingMinsRef.current);
+          recompute(); // rate denominator changed — score may rise without any new events
+        }
+      }
+
+      // Smooth driving: only count while moving (≥ 10 km/h) AND no harsh event
+      // in the last 60 s.  These minutes drive the smooth-driving bonus.
       if (spd >= 10) smoothSecsRef.current += 1;
       if (smoothSecsRef.current >= 60) {
         smoothSecsRef.current = 0;
@@ -550,27 +589,29 @@ export function useDriveScore({
 
   // ── Snapshot (stable — reads refs, not state) ─────────────────────────────
   const getSnapshot = useCallback((): DriveScoreSnapshot => ({
-    score:           computeLiveScore({
-      harshBrakes:     harshBrakesRef.current,
-      harshAccels:     harshAccelsRef.current,
-      sharpTurns:      sharpTurnsRef.current,
-      speedingMinutes: speedingMinutesRef.current,
-      smoothMinutes:   smoothMinutesRef.current,
-      maxSpeedKmh:     maxSpeedRef.current,
-      distanceM:       Math.round(distanceRef.current),
+    score:               computeLiveScore({
+      harshBrakes:        harshBrakesRef.current,
+      harshAccels:        harshAccelsRef.current,
+      sharpTurns:         sharpTurnsRef.current,
+      speedingMinutes:    speedingMinutesRef.current,
+      smoothMinutes:      smoothMinutesRef.current,
+      totalMovingMinutes: totalMovingMinsRef.current,
+      maxSpeedKmh:        maxSpeedRef.current,
+      distanceM:          Math.round(distanceRef.current),
     }),
-    harshBrakes:     harshBrakesRef.current,
-    harshAccels:     harshAccelsRef.current,
-    sharpTurns:      sharpTurnsRef.current,
-    speedingMinutes: speedingMinutesRef.current,
-    smoothMinutes:   smoothMinutesRef.current,
-    maxSpeedKmh:     maxSpeedRef.current,
-    distanceM:       Math.round(distanceRef.current),
+    harshBrakes:        harshBrakesRef.current,
+    harshAccels:        harshAccelsRef.current,
+    sharpTurns:         sharpTurnsRef.current,
+    speedingMinutes:    speedingMinutesRef.current,
+    smoothMinutes:      smoothMinutesRef.current,
+    totalMovingMinutes: totalMovingMinsRef.current,
+    maxSpeedKmh:        maxSpeedRef.current,
+    distanceM:          Math.round(distanceRef.current),
   }), []); // stable — all reads from refs
 
   return {
     score, harshBrakes, harshAccels, sharpTurns,
-    speedingMinutes, smoothMinutes, maxSpeedKmh, distanceM,
+    speedingMinutes, smoothMinutes, totalMovingMinutes, maxSpeedKmh, distanceM,
     getSnapshot,
   };
 }

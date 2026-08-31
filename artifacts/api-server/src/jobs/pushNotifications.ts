@@ -3,69 +3,34 @@ import { and, eq, lte, gte, isNull, or, ne, isNotNull, inArray, notInArray, sql 
 import { sendPushNotifications, flushBadTokensFromReceipts, drainForeignExperienceTokens } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
 
-// ─── Rotating daily messages ─────────────────────────────────────────────────
+// ─── Daily feature-education rotation ────────────────────────────────────────
+// Three daily notification slots (morning / midday / evening) each show a
+// different app feature so users discover capabilities they may not know exist.
+// Features rotate by day-of-year + slot offset, so on any given day all three
+// slots highlight different features. The 9-feature × 3-slot cycle means every
+// feature surfaces in every slot once every 9 days, then repeats.
+//
+// Slot offsets:
+//   morning  → 0   (feature[dayOfYear % 9])
+//   midday   → 3   (feature[(dayOfYear+3) % 9])
+//   evening  → 6   (feature[(dayOfYear+6) % 9])
+//
+// Friday & Saturday night (9 PM) uses only the three safety-critical features
+// because that audience is about to drive after a night out.
 
-const MORNING_MESSAGES = [
-  { title: "🚨 Roads already changing", body: "Incidents reported overnight near you. Other drivers know what's on your route — do you?" },
-  { title: "📸 Cameras don't warn you. We do.", body: "Live camera and checkpoint alerts updated for your morning commute. Tap before you drive." },
-  { title: "⚠️ Check this before you leave", body: "Fresh hazards, potholes, and roadblocks flagged near you since last night. Open Msafiri." },
-  { title: "🚔 Police out early today?", body: "Drivers near you are already reporting checkpoints. See exactly where before you hit the road." },
-  { title: "🗺️ Your route has new reports", body: "Things move fast on Kenyan roads. Check live alerts before your morning drive — takes 5 seconds." },
-  { title: "📍 Other drivers are ahead of you", body: "Hazards, cameras, and roadblocks already reported this morning. Don't drive blind — check now." },
-  { title: "🚧 Road conditions updated", body: "New overnight incidents near you. The drivers who check Msafiri first don't get surprised." },
-];
+function pickDailyFeatureMsg(slotOffset: number): { title: string; body: string } {
+  const idx = (getDayOfYear() + slotOffset) % FEATURE_CATALOG.length;
+  return FEATURE_CATALOG[idx]!.t1;
+}
 
-// Weekend mornings skew toward errands/road-trip framing instead of "commute".
-const MORNING_MESSAGES_WEEKEND = [
-  { title: "🛣️ Roads are busy already", body: "Incidents and checkpoints reported near you this morning. Check before you head out — your weekend depends on it." },
-  { title: "📸 Cameras & cops out weekends too", body: "Live speed camera and checkpoint alerts for your area. See what's waiting on your route." },
-  { title: "🚨 Don't start your weekend blind", body: "Potholes, roadblocks, and hazards flagged near you. Takes 10 seconds to check — could save your whole day." },
-  { title: "🧭 Know what's on your route today", body: "Community reports just updated. See exactly what other drivers are seeing right now on your roads." },
-  { title: "⚠️ Fresh hazards near you this morning", body: "Weekend traffic brings weekend surprises. See what's been reported near you before you leave." },
-];
-
-const EVENING_MESSAGES = [
-  { title: "🚔 Checkpoints going up now", body: "Police setting up for the evening rush. Drivers near you are already reporting locations — check before you leave." },
-  { title: "⚠️ Evening reports spiking near you", body: "Accidents and congestion being logged right now. Plan your route home before you're stuck in it." },
-  { title: "📸 Speed cameras active on your route?", body: "Evening enforcement is real. Live camera and checkpoint alerts updated — don't get caught off-guard." },
-  { title: "🚧 Roads changed since this morning", body: "Fresh incidents, roadblocks, and hazards reported near you. Check before your drive home." },
-  { title: "🌆 Accidents spiking on your route", body: "Accidents and breakdowns already reported on your routes. See what's blocking the way home." },
-  { title: "🛑 Don't guess your route home", body: "Live hazard and checkpoint reports from drivers already on the road. See what's waiting for you." },
-  { title: "🚨 Evening danger is real", body: "Visibility dropping, police out, incidents rising. Drivers who check Msafiri now get home faster — and safer." },
-];
-
-// Weekend evenings skew toward "heading out" rather than "rush hour home".
-const EVENING_MESSAGES_WEEKEND = [
-  { title: "🚔 Checkpoints up for the weekend", body: "Police are out in force. Live alcoblow and roadblock locations reported near you right now." },
-  { title: "⚠️ Heading out? Check this first.", body: "Hazards and checkpoints already reported on your routes tonight. Know before you go." },
-  { title: "📍 Reports coming in near you now", body: "Weekend evenings are when incidents spike. See live reports before your evening plans take you out." },
-  { title: "🌆 The roads look different tonight", body: "Fresh evening reports near you. Check what's out there before you leave — takes seconds." },
-];
-
-// Friday & Saturday night — the two big Kenyan going-out nights. Focused on
-// alcoblow checkpoints, hazards, and debris, which are far more common and
-// harder to spot after dark.
-const WEEKEND_NIGHT_MESSAGES = [
-  { title: "🚨 Alcoblow checkpoints active near you", body: "Police are set up tonight. Live community reports show exactly where — check before you drive." },
-  { title: "🔦 Night driving is the most dangerous", body: "Unlit debris, hidden potholes, surprise roadblocks — all reported live by Msafiri drivers near you. Check now." },
-  { title: "🚔 Police out in force tonight", body: "Checkpoint reports coming in near you. Every Msafiri driver near you knows where they are. Do you?" },
-  { title: "⚠️ Check before you drive tonight", body: "Late-night incidents are harder to avoid when you don't know where they are. Live reports near you now." },
-  { title: "🛑 Alcoblow & roadblocks active tonight", body: "Drivers near you have already reported locations. See the live map before you leave." },
-];
-
-// New midday slot — the third daily notification.
-const MIDDAY_MESSAGES = [
-  { title: "🕐 Roads have changed since this morning", body: "New hazards and incidents reported near you. Quick check before your next drive." },
-  { title: "📸 Fresh camera and checkpoint reports", body: "Drivers near you have been logging alerts all morning. See what's on your afternoon route." },
-  { title: "⚠️ Afternoon conditions are different", body: "Incidents, potholes, and roadblocks updated since morning. Don't drive on stale information." },
-  { title: "🚧 Midday surprises near you", body: "Road works and breakdowns flagged near you in the last few hours. Check the live map now." },
-];
-
-const MIDDAY_MESSAGES_WEEKEND = [
-  { title: "📍 Weekend roads are busiest right now", body: "Live incidents and checkpoints being reported near you. Check before your next trip out." },
-  { title: "🚔 Afternoon checkpoints in your area?", body: "Community reports updated near you. See what other drivers are seeing on the road right now." },
-  { title: "⚠️ Don't head out without checking this", body: "Fresh hazards reported near you this afternoon. Takes 5 seconds to stay ahead of the road." },
-];
+// Only dashcam, trip sharing, and crash assistant are promoted at 9 PM on
+// Fri/Sat — they're the features most relevant to late-night driving safety.
+const NIGHT_SAFETY_FEATURE_IDS = ["dashcam", "trip_sharing", "crash_assistant"] as const;
+function pickNightSafetyFeatureMsg(): { title: string; body: string } {
+  const idx = getDayOfYear() % NIGHT_SAFETY_FEATURE_IDS.length;
+  const featureId = NIGHT_SAFETY_FEATURE_IDS[idx]!;
+  return FEATURE_CATALOG.find((f) => f.id === featureId)!.t1;
+}
 
 // ─── Weekly engagement nudge (active users only) ─────────────────────────────
 
@@ -402,9 +367,13 @@ async function alreadySentToday(type: string): Promise<boolean> {
 async function sendAutoCampaign(type: string, title: string, body: string): Promise<void> {
   if (await alreadySentToday(type)) return;
 
-  const tokens = await db
-    .select({ token: pushTokensTable.token })
-    .from(pushTokensTable);
+  // DISTINCT ON device_id — same dedup rationale as sendActiveCampaign.
+  const rows = await db.execute(sql`
+    SELECT DISTINCT ON (device_id) token
+    FROM   push_tokens
+    ORDER  BY device_id, last_seen_at DESC
+  `);
+  const tokens = rows.rows as { token: string }[];
 
   if (tokens.length === 0) {
     logger.info({ type }, "No push tokens registered yet — skipping auto campaign");
@@ -429,19 +398,31 @@ async function sendAutoCampaign(type: string, title: string, body: string): Prom
 }
 
 // Active-only variant — only delivers to devices seen in the last 3 days.
-// Used for daily operational notifications (morning/midday/evening/etc.) so
-// inactive users don't receive road-condition alerts they can't act on; the
-// re-engagement system handles them separately with feature-marketing copy.
+// Used for daily feature-education notifications so inactive users don't
+// receive app-feature promotions while they're away; the re-engagement system
+// handles them separately with escalating feature-marketing copy.
+//
+// Send-time dedup: DISTINCT ON (device_id) ORDER BY last_seen_at DESC ensures
+// at most one token per logical device even when a reinstall has left behind a
+// stale row with a different device_id (the common iOS "two notifications for
+// the same iPhone" cause between reinstall and the 30-min receipt purge).
 const ACTIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 async function sendActiveCampaign(type: string, title: string, body: string): Promise<void> {
   if (await alreadySentToday(type)) return;
 
   const cutoff = new Date(Date.now() - ACTIVE_WINDOW_MS);
-  const tokens = await db
-    .select({ token: pushTokensTable.token })
-    .from(pushTokensTable)
-    .where(gte(pushTokensTable.lastSeenAt, cutoff));
+
+  // DISTINCT ON device_id: if the same physical device has two rows (e.g.
+  // post-reinstall stale row + new row), only the most-recently-seen token is
+  // sent, preventing duplicate delivery to the same handset.
+  const rows = await db.execute(sql`
+    SELECT DISTINCT ON (device_id) token
+    FROM   push_tokens
+    WHERE  last_seen_at >= ${cutoff}
+    ORDER  BY device_id, last_seen_at DESC
+  `);
+  const tokens = rows.rows as { token: string }[];
 
   if (tokens.length === 0) {
     logger.info({ type }, "No active push tokens — skipping daily campaign");
@@ -601,13 +582,9 @@ function toEat(now: Date): Date {
   return new Date(now.getTime() + 3 * 60 * 60 * 1000);
 }
 
-// Saturday(6) & Sunday(0) get "weekend" content framing for the 3 daily sends.
-function isWeekendDay(eatDay: number): boolean {
-  return eatDay === 0 || eatDay === 6;
-}
-
 // Friday(5) & Saturday(6) nights are Kenya's two big going-out nights — the
-// ones where alcoblow checkpoints, hazards, and debris are most relevant.
+// ones where safety features (dashcam, trip sharing, crash assistant) are
+// most worth promoting.
 function isNightSafetyDay(eatDay: number): boolean {
   return eatDay === 5 || eatDay === 6;
 }
@@ -618,33 +595,32 @@ async function checkDailyTriggers(): Promise<void> {
   const eatDay = eat.getUTCDay();
   const eatHour = eat.getUTCHours();
   const min = eat.getUTCMinutes();
-  const weekend = isWeekendDay(eatDay);
 
-  // 6:00–6:05 AM EAT → morning reminder (active users only)
+  // 6:00–6:05 AM EAT → morning feature education (active users only)
   if (eatHour === 6 && min < 5) {
-    const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
+    const msg = pickDailyFeatureMsg(0);
     await sendActiveCampaign("daily_morning", msg.title, msg.body);
   }
 
-  // 1:00–1:05 PM EAT → midday reminder (active users only)
+  // 1:00–1:05 PM EAT → midday feature education (active users only)
   if (eatHour === 13 && min < 5) {
-    const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
+    const msg = pickDailyFeatureMsg(3);
     await sendActiveCampaign("daily_midday", msg.title, msg.body);
   }
 
-  // 4:30–4:35 PM EAT → evening reminder (active users only)
+  // 4:30–4:35 PM EAT → evening feature education (active users only)
   if (eatHour === 16 && min >= 30 && min < 35) {
-    const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
+    const msg = pickDailyFeatureMsg(6);
     await sendActiveCampaign("daily_evening", msg.title, msg.body);
   }
 
-  // 9:00–9:05 PM EAT, Friday & Saturday only → weekend night safety (active users only)
+  // 9:00–9:05 PM EAT, Friday & Saturday only → night-safety feature education
   if (isNightSafetyDay(eatDay) && eatHour === 21 && min < 5) {
-    const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
+    const msg = pickNightSafetyFeatureMsg();
     await sendActiveCampaign("weekend_night_safety", msg.title, msg.body);
   }
 
-  // Wednesday 12:00–12:05 PM EAT → weekly engagement nudge (active users only)
+  // Wednesday 12:00–12:05 PM EAT → weekly reporting engagement nudge
   if (eatDay === 3 && eatHour === 12 && min < 5) {
     const msg = pickMessage(ENGAGEMENT_MESSAGES);
     await sendActiveCampaign("engagement", msg.title, msg.body);
@@ -684,7 +660,6 @@ async function catchUpMissedTriggers(): Promise<void> {
   const eatMin = eat.getUTCMinutes();
   // Total EAT minutes since midnight — used to compare against window start times.
   const eatTotalMin = eatHour * 60 + eatMin;
-  const weekend = isWeekendDay(eatDay);
 
   // Helper: true if window closed recently enough to be worth catching up.
   const freshEnough = (windowCloseMin: number) =>
@@ -693,25 +668,25 @@ async function catchUpMissedTriggers(): Promise<void> {
 
   // Morning window closed at 06:05 EAT
   if (freshEnough(6 * 60 + 5)) {
-    const msg = pickMessage(weekend ? MORNING_MESSAGES_WEEKEND : MORNING_MESSAGES);
+    const msg = pickDailyFeatureMsg(0);
     await sendActiveCampaign("daily_morning", msg.title, msg.body);
   }
 
   // Midday window closed at 13:05 EAT
   if (freshEnough(13 * 60 + 5)) {
-    const msg = pickMessage(weekend ? MIDDAY_MESSAGES_WEEKEND : MIDDAY_MESSAGES);
+    const msg = pickDailyFeatureMsg(3);
     await sendActiveCampaign("daily_midday", msg.title, msg.body);
   }
 
   // Evening window closed at 16:35 EAT
   if (freshEnough(16 * 60 + 35)) {
-    const msg = pickMessage(weekend ? EVENING_MESSAGES_WEEKEND : EVENING_MESSAGES);
+    const msg = pickDailyFeatureMsg(6);
     await sendActiveCampaign("daily_evening", msg.title, msg.body);
   }
 
   // Weekend night safety window closed at 21:05 EAT (Fri & Sat only)
   if (isNightSafetyDay(eatDay) && freshEnough(21 * 60 + 5)) {
-    const msg = pickMessage(WEEKEND_NIGHT_MESSAGES);
+    const msg = pickNightSafetyFeatureMsg();
     await sendActiveCampaign("weekend_night_safety", msg.title, msg.body);
   }
 

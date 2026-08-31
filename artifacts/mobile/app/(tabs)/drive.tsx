@@ -77,6 +77,8 @@ import {
 } from "@/utils/driveSessionApi";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { recordSession } from "@/utils/vehicleSessionMap";
+import { useTrialSessions, recordTrialSession, FREE_TRIAL_SESSIONS } from "@/hooks/useTrialSessions";
+import { useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
@@ -337,6 +339,15 @@ export default function DriveScreen() {
   // effect to use a shorter 8 s window (peek) instead of the 30 s manual-pan
   // window, so the driver is snapped back quickly without waiting.
   const alertFocusModeRef = useRef(false);
+
+  // ── Subscription / trial gate ────────────────────────────────────────────
+  const { isSubscribed } = useSubscription();
+  const { trialExpired } = useTrialSessions();
+  // Refs for stable reads inside useFocusEffect without re-creating callbacks.
+  const trialExpiredRef = useRef(false);
+  const isSubscribedRef = useRef(false);
+  trialExpiredRef.current = trialExpired;
+  isSubscribedRef.current = isSubscribed;
 
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
@@ -705,6 +716,13 @@ export default function DriveScreen() {
     // If the post-trip summary is still showing (pending dismissal or the user
     // just returned from a Clips/History detour), never auto-start a new trip.
     if (tripSummaryDataRef.current) return;
+    // ── Trial gate: block a 4th+ drive once the 3-session trial is used up ──
+    // Reads from refs (not state) so the useFocusEffect callback remains stable
+    // and doesn't need subscription/trial values in its own dep array.
+    if (!BYPASS_PAYWALL && !isSubscribedRef.current && trialExpiredRef.current) {
+      router.replace("/paywall" as any);
+      return;
+    }
     if (navDestination) {
       // Destination already set (e.g. after returning from the pre-trip
       // checklist). The idle screen shows the destination chip with a "Start"
@@ -1083,6 +1101,11 @@ export default function DriveScreen() {
           }
           Promise.all(busts).catch(() => {});
 
+          // ── Session-based trial: record this completed drive ──────────
+          // Fire-and-forget — never interrupt post-trip UX; updates the
+          // AsyncStorage cache so the next drive attempt sees the fresh count.
+          recordTrialSession().catch(() => {});
+
           // ── App Store / Google Play review prompt ──────────────────
           // Fire at most once ever (gated by hasRequestedReview flag).
           // Uses wall-clock session duration (≥ 5 min) — meaningful enough
@@ -1100,7 +1123,7 @@ export default function DriveScreen() {
                     "@msafiri/completedSessionCount",
                     String(count),
                   );
-                  if (count >= 5 && (await StoreReview.isAvailableAsync())) {
+                  if (count >= 2 && (await StoreReview.isAvailableAsync())) {
                     // Persist the flag BEFORE calling requestReview so that
                     // if the native prompt is interrupted or throws, the gate
                     // is already set and we never retry on a later session.

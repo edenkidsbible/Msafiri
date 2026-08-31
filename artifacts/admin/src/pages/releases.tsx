@@ -64,6 +64,8 @@ interface Release {
   platform: string;
   releaseType: string;
   releaseNotes: string | null;
+  notifTitle: string | null;
+  notifBody: string | null;
   status: string;
   isForceUpdate: boolean;
   storeUrlIos: string | null;
@@ -145,7 +147,7 @@ function isoToLocalDatetime(iso: string | null): string {
 const EMPTY_FORM = {
   version: "", buildNumber: "1", platform: "", releaseType: "patch",
   releaseNotes: "", isForceUpdate: false, storeUrlIos: "", storeUrlAndroid: "",
-  scheduledAt: "",
+  scheduledAt: "", notifTitle: "", notifBody: "",
 };
 
 function formFromRelease(release: Release) {
@@ -159,6 +161,8 @@ function formFromRelease(release: Release) {
     storeUrlIos:     release.storeUrlIos || (release.platform === "ios" || release.platform === "all" ? DEFAULT_STORE_URLS.ios : ""),
     storeUrlAndroid: release.storeUrlAndroid || (release.platform === "android" || release.platform === "all" ? DEFAULT_STORE_URLS.android : ""),
     scheduledAt:     isoToLocalDatetime(release.scheduledAt),
+    notifTitle:      release.notifTitle ?? "",
+    notifBody:       release.notifBody ?? "",
   };
 }
 
@@ -214,6 +218,8 @@ function ReleaseDialog({
         storeUrlIos:     form.storeUrlIos.trim() || null,
         storeUrlAndroid: form.storeUrlAndroid.trim() || null,
         scheduledAt:     localDatetimeToIso(form.scheduledAt),
+        notifTitle:      form.notifTitle.trim() || null,
+        notifBody:       form.notifBody.trim() || null,
       };
       if (isEdit) {
         await authFetch(`/admin/releases/${existing.id}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -304,6 +310,59 @@ function ReleaseDialog({
               onChange={(e) => set("releaseNotes", e.target.value)}
               rows={4}
             />
+          </div>
+
+          {/* ── Push notification copy (optional) ────────────────────────────── */}
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <Bell className="h-3.5 w-3.5 text-muted-foreground" />
+                Push notification copy
+                <span className="text-xs font-normal text-muted-foreground ml-0.5">(optional)</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Leave blank to use the auto-generated copy. Only the active variant (force update on/off) uses custom copy; the "hypothetical other" preview in the publish dialog always shows auto-generated.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notification title</Label>
+              <Input
+                placeholder={form.isForceUpdate
+                  ? "Msafiri just got better 🚀"
+                  : `What's new in Msafiri v${form.version || "X"} ✨`}
+                value={form.notifTitle}
+                onChange={(e) => set("notifTitle", e.target.value)}
+                maxLength={64}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notification body</Label>
+              <Textarea
+                placeholder={form.isForceUpdate
+                  ? `v${form.version || "X"} is ready for you — a quick update and you're back on the road.`
+                  : (form.releaseNotes.trim()
+                      ? form.releaseNotes.trim().slice(0, 120)
+                      : `Msafiri v${form.version || "X"} is here. Tap to see what's new.`)}
+                value={form.notifBody}
+                onChange={(e) => set("notifBody", e.target.value)}
+                rows={2}
+                maxLength={200}
+              />
+            </div>
+            {/* Live preview — only shown when the admin has typed something */}
+            {(form.notifTitle.trim() || form.notifBody.trim()) && (
+              <NotifPreviewCard
+                label="Preview (custom copy)"
+                title={form.notifTitle.trim() || (form.isForceUpdate
+                  ? "Msafiri just got better 🚀"
+                  : `What's new in Msafiri v${form.version || "X"} ✨`)}
+                body={form.notifBody.trim() || (form.isForceUpdate
+                  ? `v${form.version || "X"} is ready for you — a quick update and you're back on the road.`
+                  : (form.releaseNotes.trim()
+                      ? form.releaseNotes.trim().slice(0, 120)
+                      : `Msafiri v${form.version || "X"} is here. Tap to see what's new.`))}
+              />
+            )}
           </div>
 
           {/* Platform-specific store link and update policy. Keeping these scoped
@@ -423,17 +482,28 @@ function ReleaseDialog({
   );
 }
 
-// Mirrors the notification copy logic in api-server/src/routes/admin/releases.ts
+// Mirrors the notification copy logic in api-server/src/lib/releasePush.ts
 function buildNotifCopy(release: Release, force: boolean) {
-  const title = force
+  const autoTitle = force
     ? `Msafiri just got better 🚀`
     : `What's new in Msafiri v${release.version} ✨`;
-  const body = force
+  const autoBody = force
     ? `v${release.version} is ready for you — a quick update and you're back on the road.`
     : (release.releaseNotes
         ? release.releaseNotes.slice(0, 120) + (release.releaseNotes.length > 120 ? "…" : "")
         : `Msafiri v${release.version} is here. Tap to see what's new.`);
-  return { title, body };
+
+  // Custom copy applies only to the active variant (force === release.isForceUpdate).
+  // The "hypothetical other" preview always uses auto-generated text so admins can
+  // see both without the custom override bleeding into the wrong variant.
+  const isActiveVariant = force === release.isForceUpdate;
+  if (isActiveVariant && (release.notifTitle || release.notifBody)) {
+    return {
+      title: release.notifTitle || autoTitle,
+      body:  release.notifBody  || autoBody,
+    };
+  }
+  return { title: autoTitle, body: autoBody };
 }
 
 function NotifPreviewCard({ label, title, body, highlight }: {

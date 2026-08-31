@@ -32,21 +32,49 @@ function toUtcIso(ts: unknown): string | null {
 
 // ── Scoring algorithm ─────────────────────────────────────────────────────────
 
+/**
+ * Rate-normalised driving score (0–100).
+ *
+ * Penalties are expressed as rates (events/hour, % of time speeding) so that
+ * long trips are not unfairly punished for accumulating more raw events than
+ * short ones.  Sustained smooth driving earns up to +15 points back, making
+ * the score genuinely dynamic — it rises during good stretches and drops after
+ * harsh events.
+ *
+ * effectiveMins = max(30, durationS/60) so that a single early harsh event
+ * does not crater a brand-new session to zero; as the trip continues the rate
+ * normalises and the score recovers.
+ */
 function computeScore(stats: {
-  harshBrakes: number;
-  harshAccels: number;
-  sharpTurns: number;
+  harshBrakes:     number;
+  harshAccels:     number;
+  sharpTurns:      number;
   speedingMinutes: number;
-  smoothMinutes: number;
+  smoothMinutes:   number;
+  durationS:       number;
 }): number {
-  const penalty =
-    stats.harshBrakes * 2 +
-    stats.harshAccels * 1 +
-    stats.sharpTurns * 1 +
-    stats.speedingMinutes * 2;
-  // +1 per every 15 smooth minutes, capped at +5
-  const bonus = Math.min(Math.floor(stats.smoothMinutes / 15), 5);
-  return Math.max(0, Math.min(100, 100 - penalty + bonus));
+  // Use at least 30 min as the time window to avoid extreme early-trip swings.
+  const effectiveMins  = Math.max(30, stats.durationS / 60);
+  const effectiveHours = effectiveMins / 60;
+
+  // Harsh-event penalty — normalised to events/hour.
+  // Brakes are most dangerous (weight 2); accels and sharp turns (weight 1.5).
+  // 3 pts deducted per event/hour, capped at 50.
+  const weightedEvents = stats.harshBrakes * 2 + stats.harshAccels * 1.5 + stats.sharpTurns * 1.5;
+  const eventsPerHour  = weightedEvents / effectiveHours;
+  const harshPenalty   = Math.min(50, eventsPerHour * 3);
+
+  // Speeding penalty — fraction of driving time spent above limit (max −50).
+  const speedingFraction = stats.speedingMinutes / effectiveMins;
+  const speedingPenalty  = speedingFraction * 50;
+
+  // Smooth-driving bonus — rewards sustained safe behaviour (+0 to +15).
+  // Gives a driver who had a few early missteps a path to recover toward 100
+  // by driving consistently well for the rest of the session.
+  const smoothFraction = stats.smoothMinutes / effectiveMins;
+  const smoothBonus    = smoothFraction * 15;
+
+  return Math.max(0, Math.min(100, Math.round(100 - harshPenalty - speedingPenalty + smoothBonus)));
 }
 
 // ── POST /drive-sessions — start a session ────────────────────────────────────
@@ -145,9 +173,10 @@ router.post("/drive-sessions/:id/end", async (req: Request, res: Response) => {
     const sharpTurns      = n(body.sharpTurns);
     const speedingMinutes = n(body.speedingMinutes);
     const smoothMinutes   = n(body.smoothMinutes);
+    const durationS       = n(body.durationS);
 
     const score = computeScore({
-      harshBrakes, harshAccels, sharpTurns, speedingMinutes, smoothMinutes,
+      harshBrakes, harshAccels, sharpTurns, speedingMinutes, smoothMinutes, durationS,
     });
 
     const endLat = typeof body.endLat === "number" ? body.endLat : null;

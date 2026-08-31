@@ -22,3 +22,4 @@ export * from "./deviceBackups";
 export * from "./sharedVehicles";
 export * from "./inbox";
 export * from "./ops";
+export * from "./trialSessions";
