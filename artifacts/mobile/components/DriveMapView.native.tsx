@@ -32,7 +32,7 @@ import type { SpeedZone } from "@/data/speedZones";
 import { useColors } from "@/hooks/useColors";
 import type { POI } from "@/data/pois";
 import { apiGet } from "@/utils/apiClient";
-import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType } from "@/constants/incidentTypes";
+import { INCIDENT_TYPES, INCIDENT_TYPE_ORDER, resolveIncidentType, resolveIncidentEmoji } from "@/constants/incidentTypes";
 import { getVehicleTypeDef, capSpeedLimit } from "@/data/vehicleTypes";
 import { EMOJI_FONT_FAMILY } from "@/constants/emojiFont";
 import { formatTimeAgo } from "@/lib/timeAgo";
@@ -239,9 +239,13 @@ function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
         <View style={ms.clusterGrid}>
           {icons.map((r) => {
             const def = resolveIncidentType(r.type);
+            // Mobile cameras use green bg + 📸 so the cluster grid matches the
+            // single-marker treatment (green circle) at a glance.
+            const cellBg = r.type === "camera" && r.cameraType === "mobile" ? "#00A845" : def.color;
+            const emoji  = resolveIncidentEmoji(r.type, r.cameraType);
             return (
-              <View key={r.id} style={[ms.clusterCell, { backgroundColor: def.color }]}>
-                <Text style={ms.clusterEmoji}>{def.emoji}</Text>
+              <View key={r.id} style={[ms.clusterCell, { backgroundColor: cellBg }]}>
+                <Text style={ms.clusterEmoji}>{emoji}</Text>
               </View>
             );
           })}
@@ -1672,8 +1676,8 @@ const DriveMapView = forwardRef(function DriveMapView(
               <ScrollView {...SCROLL_PROPS} showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
                 {selectedCluster.members.map((r, i) => {
                   const def = resolveIncidentType(r.type);
-                  const bg = def.color;
-                  const emoji = def.emoji;
+                  const bg = r.type === "camera" && r.cameraType === "mobile" ? "#00A845" : def.color;
+                  const emoji = resolveIncidentEmoji(r.type, r.cameraType);
                   const ageStr = formatTimeAgo(r.timestamp, now);
                   // All reports get the interaction buttons — your own included.
                   // A driver may want to mark their own report "Gone now" if the

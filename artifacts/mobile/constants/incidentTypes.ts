@@ -35,6 +35,17 @@ export function resolveIncidentType(type: string): IncidentTypeDef {
   return INCIDENT_TYPES[type] ?? INCIDENT_TYPES.__unknown;
 }
 
+/**
+ * Returns the appropriate emoji for the incident type, taking sub-type into
+ * account where relevant.  Currently the only specialisation is camera:
+ *   • cameraType === "mobile" → 📸 (grey — speed trap, moves regularly)
+ *   • fixed / unknown         → 📷 (red — permanent infrastructure)
+ */
+export function resolveIncidentEmoji(type: string, cameraType?: string | null): string {
+  if (type === "camera" && cameraType === "mobile") return "📸";
+  return resolveIncidentType(type).emoji;
+}
+
 export const INCIDENT_TYPE_ORDER: (keyof typeof INCIDENT_TYPES)[] = [
   "camera", "police", "alcoblow", "accident", "traffic", "roadblock", "roadworks",
   "hazard", "speed_bump", "pothole", "debris", "breakdown", "weather", "closure", "clear",
