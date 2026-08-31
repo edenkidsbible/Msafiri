@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import { canDeliverForegroundAlert } from "./alertOwnership";
 
 // Central place for all short in-app notification sounds (not push-notification
 // sounds — those are handled by the OS via the `sound: "default"` field on the
@@ -276,7 +277,9 @@ export function getSoundsMuted(): boolean {
  */
 export async function playSound(key: SoundKey) {
   if (soundsMuted) return;
+  if (key === "alert" && !canDeliverForegroundAlert()) return;
   await duckForAlert();
+  if (key === "alert" && !canDeliverForegroundAlert()) return;
   const player = getPlayer(key);
   if (!player) return;
   try {
@@ -285,5 +288,10 @@ export async function playSound(key: SoundKey) {
   } catch (e) {
     console.warn(`[sound] Failed to play "${key}":`, e);
   }
+}
+
+export function stopSound(key: SoundKey): void {
+  const player = players[key];
+  try { player?.pause(); } catch {}
 }
 

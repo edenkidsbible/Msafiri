@@ -6,11 +6,12 @@ description: How drive alerts (overlay + voice) decide whether to fire — road-
 # Road-based alert gating
 
 ## The rule
-Fire a drive alert only when the driver is moving (`isDriving`) + within 1 km + on the same road as the incident. `roadsMatch()` returns **true** when either road name is absent → distance-only fallback (never silently drop).
+Fire a road-tagged drive alert only when the driver is moving, approaching the incident, and the resolved current road matches. Unknown road identity must not admit road-tagged alerts; only explicitly untagged legacy entries use distance/direction fallback.
 
 ## How road name is resolved
 - **During navigation**: `routeRef.current.steps[stepIdxRef.current]?.roadName` — comes from Google Routes API, always fresh, zero extra calls.
-- **Outside navigation**: `getRoadName(lat, lng)` (server → Google Geocoding API), throttled to at most once per 500 m **or** 60 s. Result stored in `currentRoadRef.current`.
+- **Outside navigation**: resolve frequently enough to catch turns and suppress road-tagged alerts while a resolution request is pending.
+- **Background**: refresh the road from the background GPS fix when cached context is stale or too far from the current position.
 
 ## `roadsMatch()` normalisation
 Strips parenthetical codes `(A2)`, road-type words (road/highway/way/bypass…), punctuation, extra spaces — then checks exact match or substring inclusion. Handles "Thika Superhighway (A2)" ↔ "Thika Road" and "A104 (Eldoret–Nakuru)" ↔ "A104 Highway".
@@ -20,5 +21,9 @@ The old >75° heading check is replaced by: if `currentRoadRef.current` and the 
 
 **Why:** Heading cones produced false alerts on parallel roads and silently dropped genuine alerts on bends where bearing diverged from heading direction.
 
-## Known gap
-First 500 m of a non-navigating trip uses distance-only fallback (road not yet resolved). A proposed follow-up tracks warming up road detection immediately on driving start.
+## Ownership
+Foreground and background alert producers use an explicit ownership handoff. A producer must re-check ownership after asynchronous audio/geocoding work and immediately before playback or notification delivery.
+
+**Why:** App-state transitions and close parallel roads can otherwise produce duplicate audio or an alert carrying the neighbouring road's speed limit.
+
+**How to apply:** Treat transient `inactive` as foreground-owned; transfer only on true background. Keep road metadata on every cached alert and group/infer limits only among compatible roads.

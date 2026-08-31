@@ -2,6 +2,11 @@ import { Platform } from "react-native";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { duckForAlert } from "@/utils/sound";
 import { API_BASE } from "@/utils/apiClient";
+import {
+  canDeliverForegroundAlert,
+  getAlertOwnershipGeneration,
+  isCurrentAlertGeneration,
+} from "@/utils/alertOwnership";
 
 const ALERT_AUDIO: Record<string, unknown> = {
   camera: require("@/assets/sounds/alerts/camera.mp3"),
@@ -118,16 +123,28 @@ export function isAlertVoicePlaying(): boolean {
   }
 }
 
-async function playKey(key: string): Promise<void> {
+async function playKey(key: string, expectedGeneration?: number): Promise<void> {
   if (!key || voiceDisabled || Platform.OS !== "android") return;
+  if (
+    expectedGeneration != null &&
+    (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+  ) return;
   stopAlertVoice();
   try {
     await duckForAlert();
+    if (
+      expectedGeneration != null &&
+      (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+    ) return;
     const player = getCachedPlayer(key);
     if (player) {
       currentPlayer = player;
       player.volume = 1;
       await player.seekTo(0);
+      if (
+        expectedGeneration != null &&
+        (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+      ) return;
       player.play();
       return;
     }
@@ -138,6 +155,10 @@ async function playKey(key: string): Promise<void> {
     );
     currentPlayer = remotePlayer;
     remotePlayer.volume = 1;
+    if (
+      expectedGeneration != null &&
+      (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+    ) return;
     remotePlayer.play();
   } catch (error) {
     console.warn("[androidAlertTts] Playback failed:", error);
@@ -157,12 +178,12 @@ export function resolveAlertKey(type: string, speedLimit?: number | null): strin
 }
 
 export async function speakAlert(type: string): Promise<void> {
-  await playKey(type);
+  await playKey(type, getAlertOwnershipGeneration());
 }
 
 export async function speakAlertMulti(type: string): Promise<void> {
   const multiKey = `${type}_multi`;
-  await playKey(ALERT_AUDIO[multiKey] ? multiKey : type);
+  await playKey(ALERT_AUDIO[multiKey] ? multiKey : type, getAlertOwnershipGeneration());
 }
 
 export function prewarmAlertAudio(): void {
@@ -187,15 +208,19 @@ export async function speakNavCancel(): Promise<void> {
 
 export async function speakAlertPhrase(text: string): Promise<void> {
   if (voiceDisabled || !API_BASE) return;
+  const generation = getAlertOwnershipGeneration();
+  if (!canDeliverForegroundAlert()) return;
   stopAlertVoice();
   try {
     await duckForAlert();
+    if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
     const player = createAudioPlayer(
       { uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` },
       { downloadFirst: true },
     );
     currentPlayer = player;
     player.volume = 1;
+    if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
     player.play();
   } catch (error) {
     console.warn("[androidAlertTts] Phrase playback failed:", error);

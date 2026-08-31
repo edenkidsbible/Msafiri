@@ -30,6 +30,7 @@ import {
   BG_ZONES_CACHE_KEY,
   BG_REPORTS_CACHE_KEY,
   BG_LAST_FIX_KEY,
+  BG_ROAD_CONTEXT_KEY,
   type BgZoneEntry,
   type BgReportEntry,
   type BgLastFix,
@@ -41,7 +42,7 @@ import {
 } from "@/utils/backgroundOdometer";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
-import { playSound, getSoundsMuted } from "@/utils/sound";
+import { playSound, getSoundsMuted, stopSound } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { syncBackup } from "@/utils/backupSync";
 import { loadVehicles, saveVehicles } from "@/utils/savedVehicles";
@@ -51,7 +52,12 @@ import { VehicleTypeId, DEFAULT_VEHICLE_TYPE, getVehicleTypeDef, capSpeedLimit }
 import { Accelerometer } from "expo-sensors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, resolveAlertKey } from "@/utils/alertTts";
+import { speakAlert, speakAlertMulti, speakAlertPhrase, isAlertVoicePlaying, resolveAlertKey, stopAlertVoice } from "@/utils/alertTts";
+import {
+  canDeliverForegroundAlert,
+  getAlertOwnershipGeneration,
+  isCurrentAlertGeneration,
+} from "@/utils/alertOwnership";
 import {
   ANDROID_ALERTS_CHANNEL_ID,
   ensureAndroidNotificationChannels,
@@ -1021,10 +1027,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (alertVoiceTimerRef.current) {
       clearTimeout(alertVoiceTimerRef.current);
     }
+    const generation = getAlertOwnershipGeneration();
     alertVoiceTimerRef.current = setTimeout(() => {
       alertVoiceTimerRef.current = null;
+      // The dedicated background task owns audio once the app leaves active
+      // state. Do not let a foreground voice timer cross the handoff boundary.
+      if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
       speak().catch(() => {});
     }, ALERT_VOICE_DELAY_MS);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "background") return;
+      if (alertVoiceTimerRef.current) {
+        clearTimeout(alertVoiceTimerRef.current);
+        alertVoiceTimerRef.current = null;
+      }
+      stopAlertVoice();
+      stopSound("alert");
+    });
+    return () => sub.remove();
   }, []);
   useEffect(() => () => {
     if (alertVoiceTimerRef.current) {
@@ -1216,8 +1240,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const alertDismissCooldownRef = useRef<Map<string, { expiry: number; peakDistM: number }>>(new Map());
   // Road name the driver is currently on. Resolved from the active navigation
   // step (precise, from Google Routes) or via periodic server reverse-geocoding
-  // (≤once per 500 m / 60 s outside navigation).
-  //   • null  = unknown road  → distance-only fallback (no alert silently dropped)
+  // (≤once per 150 m / 20 s outside navigation).
+  //   • null  = unknown road → tagged alerts wait; untagged legacy alerts may
+  //             still use distance/direction fallback
   //   • ""    = never used; always set to a road string or null
   // IMPORTANT: always write the result explicitly, including null, so a stale
   // road name from a previous road is never kept when the new one is unknown.
@@ -1816,8 +1841,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastHeadingRef.current = driverHeading ?? lastHeadingRef.current;
 
     // ── Current road resolution ───────────────────────────────────────────────
-    // Ask the server to reverse-geocode the position at most once per 500 m or
-    // 60 s — never every GPS tick.
+    // Ask the server to reverse-geocode the position at most once per 150 m or
+    // 20 s — frequent enough to catch turns without running on every GPS tick.
     {
       // ── Warm-up fetch on drive start ──────────────────────────────────────
       // When driving transitions false → true, fire an immediate getRoadName
@@ -1834,23 +1859,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (roadFetchSeqRef.current === seq) {
             currentRoadRef.current      = road;
             roadWarmupPendingRef.current = false;
+            if (Platform.OS !== "web") {
+              AsyncStorage.setItem(BG_ROAD_CONTEXT_KEY, JSON.stringify({
+                road,
+                heading: lastHeadingRef.current,
+                lat,
+                lng,
+                ts: Date.now(),
+              })).catch(() => {});
+            }
           }
-        }).catch(() => { roadWarmupPendingRef.current = false; });
+        }).catch(() => {
+          currentRoadRef.current = null;
+          roadWarmupPendingRef.current = false;
+        });
       } else {
         const nowMs = Date.now();
         const lastFetch = lastRoadFetchCoordRef.current;
         const distSinceLastFetch = lastFetch
           ? haversine(lat, lng, lastFetch.lat, lastFetch.lng)
           : Infinity;
-        if (distSinceLastFetch > 500 || nowMs - lastRoadFetchTimeRef.current > 60_000) {
+        if (distSinceLastFetch > 150 || nowMs - lastRoadFetchTimeRef.current > 20_000) {
           lastRoadFetchCoordRef.current = { lat, lng };
           lastRoadFetchTimeRef.current  = nowMs;
+          currentRoadRef.current = null;
+          roadWarmupPendingRef.current = true;
           // Capture sequence before the async boundary so out-of-order responses
           // (e.g. slow cell signal after a fast Wi-Fi response) are discarded.
           const seq = ++roadFetchSeqRef.current;
           void getRoadName(lat, lng).then((road) => {
-            if (roadFetchSeqRef.current === seq) currentRoadRef.current = road;
-          }).catch(() => {});
+            if (roadFetchSeqRef.current === seq) {
+              currentRoadRef.current = road;
+              roadWarmupPendingRef.current = false;
+              if (Platform.OS !== "web") {
+                AsyncStorage.setItem(BG_ROAD_CONTEXT_KEY, JSON.stringify({
+                  road,
+                  heading: lastHeadingRef.current,
+                  lat,
+                  lng,
+                  ts: Date.now(),
+                })).catch(() => {});
+              }
+            }
+          }).catch(() => {
+            currentRoadRef.current = null;
+            roadWarmupPendingRef.current = false;
+          });
         }
       }
       // Clear warm-up state when driving stops so the next departure gets a
@@ -1867,20 +1921,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     //
     // Activation gates (ALL must pass):
     //   • isDriving  — speed > 10 km/h; filters GPS jitter while parked/indoors
-    //   • roadReady  — road name resolved or driver moved > 200 m from start
+    //   • roadReady  — no road-name request is still pending
     //   • alertAccuracyOk — GPS fix is reliable enough (≤ 40 m horizontal error)
     //   • roadsMatch — driver and incident are on the same road; unknown road
     //                  means NO match (fail-safe — never spill onto other roads)
     //
-    // Road-ready gate: after a drive begins, suppress all alerts until either
-    //   (a) the warm-up road-name fetch resolves (pending → settled), OR
-    //   (b) the driver has moved > 200 m from the departure point.
-    // This prevents a parallel-road camera from firing in the first few seconds
-    // while road identity is still being resolved.
-    const roadReady =
-      !roadWarmupPendingRef.current ||
-      !drivingStartCoordRef.current ||
-      haversine(lat, lng, drivingStartCoordRef.current.lat, drivingStartCoordRef.current.lng) > 200;
+    // Road-ready gate: suppress alerts for the short duration of every road-name
+    // request. This prevents stale/null road identity from admitting a camera on
+    // a nearby parallel carriageway during a turn or initial warm-up.
+    const roadReady = !roadWarmupPendingRef.current;
 
     // Suppress alerts only when the GPS fix is so inaccurate that road position
     // is genuinely untrustworthy (≥ 100 m horizontal error, e.g. indoors or
@@ -1903,17 +1952,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let best: typeof inRangeZones[0] | null = null;
       for (const z of inRangeZones) {
         // Allow zones with no road stored (legacy admin entries without road tag).
-        // Also allow through when the driver's road is not yet resolved (null) —
-        // distance-only fallback prevents silent blackout during road-warmup.
-        // Suppress only when BOTH roads are known but disagree.
+        // Road-tagged entries require a resolved matching road. Only explicitly
+        // untagged legacy entries may use distance/direction fallback.
         //
-        // Camera-type zones are excluded from the road-name gate entirely.
-        // Cameras are admin-verified at precise GPS coordinates, so distance
-        // + heading is sufficient to avoid false positives.  The road-name
-        // gate caused ALL camera alerts to silently fail whenever the Google
-        // Geocoding API returned a road code (e.g. "A8") instead of the
-        // human-readable name stored in the camera record ("Mombasa Road").
-        if (z.type !== "camera" && z.road && currentRoadRef.current && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        // Apply road identity to cameras too. Precise coordinates and heading
+        // cannot distinguish close parallel carriageways such as Nairobi
+        // Expressway and Mombasa Road, which may have different limits.
+        if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
 
         // Direction gate: when heading is known, only consider zones that are
         // ahead of the driver (positive along-track).  A negative along-track
@@ -1965,7 +2010,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // no road stored").  This prevents silent blackout on dirt tracks,
         // industrial roads, and newly-opened roads not yet in OSM.
         // Same rule applies when currentRoad is null — fall back to distance only.
-        if (r.roadName && currentRoadRef.current && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        if (r.roadName && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
         // Direction gate: same as zone candidate — skip reports behind the driver.
         if (lastHeadingRef.current != null) {
           const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, r.lat, r.lng);
@@ -1993,7 +2038,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Road match: same rule as reports — skip only when BOTH roads are known
         // but disagree.  Unknown roadName = distance-only fallback (no blackout).
         // currentRoad null = distance-only fallback (driver road not yet resolved).
-        if (h.roadName && currentRoadRef.current && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        if (h.roadName && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
         // Direction gate: same as zone/report candidates — skip incidents behind the driver.
         if (lastHeadingRef.current != null) {
           const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, h.lat, h.lng);
@@ -2443,12 +2488,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertItemLngRef.current       = winner.lng ?? null;
         alertApproachRoadRef.current  = currentRoadRef.current;
         alertBearingDivCountRef.current = 0;
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        const foregroundOwnsAlert = canDeliverForegroundAlert();
+        if (foregroundOwnsAlert) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
         // Fire chime tone + voice from AppContext so both play in sequence
         // from a single call site, eliminating the previous race where the
         // overlay fired the chime independently on its own render cycle.
-        if (!getSoundsMuted()) playSound("alert").catch(() => {});
-        if (extraCandidates.length > 0) {
+        if (foregroundOwnsAlert && !getSoundsMuted()) playSound("alert").catch(() => {});
+        if (foregroundOwnsAlert && extraCandidates.length > 0) {
           // Multi-alert cluster: set geo-anchor and play bundled multi phrase.
           // Speed camera always takes audio priority in a mixed cluster — the
           // camera_multi phrase ("speed camera and more alerts nearby") covers
@@ -2461,7 +2509,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Multi-alert: keep base type so speakAlertMulti resolves camera_multi/zone_multi correctly.
           // Speed-limit-specific audio only plays for single alerts where dedicated assets exist.
           scheduleAlertVoice(() => speakAlertMulti(clusterHasCamera ? "camera" : winner.type));
-        } else {
+        } else if (foregroundOwnsAlert) {
           // Single alert: play speed-specific phrase when limit is known.
           // For cameras/zones with no stored speed limit, infer from the nearest
           // zone within 300 m so the audio still names a speed rather than falling
@@ -2470,7 +2518,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (!effectiveSpeedLimit && (winner.type === "camera" || winner.type === "zone")) {
             // withDist is already sorted by distance — find() returns the nearest first.
             const nearest = withDist.find(
-              (z) => z.speedLimit && z.id !== winner.id && z.distance <= 300,
+              (z) =>
+                z.speedLimit &&
+                z.id !== winner.id &&
+                z.distance <= 300 &&
+                (
+                  currentRoadRef.current
+                    ? (!z.road || roadsMatch(currentRoadRef.current, z.road))
+                    : (!winner.road || !z.road || roadsMatch(winner.road, z.road))
+                ),
             );
             if (nearest?.speedLimit) effectiveSpeedLimit = nearest.speedLimit;
           }
@@ -3825,6 +3881,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       type:       z.type,
       speedLimit: z.speedLimit,
       name:       z.name,
+      road:       z.road,
     }));
     AsyncStorage.setItem(BG_ZONES_CACHE_KEY, JSON.stringify(compact)).catch(() => {});
   }, [allZones]);
@@ -3853,6 +3910,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lng:        r.lng,
         type:       r.type,
         speedLimit: r.speedLimit,
+        road:       r.roadName,
       }));
     AsyncStorage.setItem(BG_REPORTS_CACHE_KEY, JSON.stringify(compact)).catch(() => {});
   }, [communityReports]);

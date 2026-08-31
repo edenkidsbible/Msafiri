@@ -79,11 +79,13 @@ import {
   defineBackgroundDriveAlertsTask,
   startBgDriveAlertsTask,
   stopBgDriveAlertsTask,
+  BG_ALERT_OWNER_KEY,
 } from "@/utils/backgroundDriveAlerts";
 import { defineBackgroundOdometerTask } from "@/utils/backgroundOdometer";
 import { prewarmAlertAudio, resetAlertPlayerCache, setAlertVoiceDisabled } from "@/utils/alertTts";
 import { resetAudioMode, setSoundsMuted } from "@/utils/sound";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
+import { setAlertOwner } from "@/utils/alertOwnership";
 
 try {
   initializeRevenueCat();
@@ -325,17 +327,32 @@ function RootLayoutNav() {
   const appStateRef = useRef(AppState.currentState);
   useEffect(() => {
     if (Platform.OS === "web") return;
+    let transition = Promise.resolve();
+    if (AppState.currentState === "active") {
+      AsyncStorage.setItem(BG_ALERT_OWNER_KEY, "foreground").catch(() => {});
+    }
     const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = next;
-      if (next === "background" || next === "inactive") {
-        // App backgrounded — start task if trip is active
-        if (navTripActive) {
-          startBgDriveAlertsTask().catch(() => {});
-        }
+      if (next === "background") {
+        setAlertOwner("background");
+        // Only a true background transition transfers ownership. "inactive"
+        // is transient on Android (notification shade/system dialogs) and may
+        // still leave foreground GPS/audio running.
+        transition = transition.then(async () => {
+          await AsyncStorage.setItem(BG_ALERT_OWNER_KEY, "background");
+          if (navTripActive) await startBgDriveAlertsTask();
+        }).catch(() => {});
       } else if (next === "active" && (prev === "background" || prev === "inactive")) {
-        // App foregrounded — always stop task so in-app overlay takes over
-        stopBgDriveAlertsTask().catch(() => {});
+        // Synchronously block both foreground producers and any new background
+        // delivery while the persisted owner/task shutdown catches up.
+        setAlertOwner("handoff");
+        // Stop the background producer before handing alert ownership back.
+        transition = transition.then(async () => {
+          await AsyncStorage.setItem(BG_ALERT_OWNER_KEY, "foreground");
+          await stopBgDriveAlertsTask();
+          setAlertOwner("foreground");
+        }).catch(() => {});
 
         // ── Restore audio alert capability after foreground return ──────────
         // A phone call, Siri/Google Assistant, or any system audio interruption
@@ -360,7 +377,15 @@ function RootLayoutNav() {
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (!navTripActive) {
-      stopBgDriveAlertsTask().catch(() => {});
+      setAlertOwner("foreground");
+      stopBgDriveAlertsTask()
+        .then(() => AsyncStorage.setItem(BG_ALERT_OWNER_KEY, "foreground"))
+        .catch(() => {});
+    } else if (appStateRef.current === "background") {
+      setAlertOwner("background");
+      AsyncStorage.setItem(BG_ALERT_OWNER_KEY, "background")
+        .then(() => startBgDriveAlertsTask())
+        .catch(() => {});
     }
   }, [navTripActive]);
 

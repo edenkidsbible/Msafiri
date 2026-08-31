@@ -55,6 +55,7 @@ import {
   ensureAndroidNotificationChannels,
   resolveAndroidVoiceChannelId,
 } from "@/utils/androidNotificationChannels";
+import { getRoadName } from "@/utils/snapToRoad";
 
 export const BG_DRIVE_ALERTS_TASK = "MSAFIRI_BG_DRIVE_ALERTS";
 
@@ -64,6 +65,8 @@ export const BG_SESSION_ID_KEY      = "@msafiri/bgSessionId";
 export const BG_ZONES_CACHE_KEY     = "@msafiri/bgZonesCache";
 export const BG_REPORTS_CACHE_KEY   = "@msafiri/bgReportsCache";
 export const BG_LAST_FIX_KEY        = "@msafiri/bgLastFix";   // ← foreground recovery
+export const BG_ALERT_OWNER_KEY     = "@msafiri/bgAlertOwner";
+export const BG_ROAD_CONTEXT_KEY    = "@msafiri/bgRoadContext";
 const        BG_NOTIFIED_ALERTS_KEY = "@msafiri/bgNotifiedAlerts";
 const        BG_ACCURACY_MODE_KEY   = "@msafiri/bgAccuracyMode";   // "high" | "balanced"
 const        BG_LAST_ALERT_AT_KEY   = "@msafiri/bgLastAlertAt";    // epoch ms string
@@ -102,6 +105,7 @@ export interface BgZoneEntry {
   type: string;
   speedLimit?: number | null;
   name: string;
+  road?: string | null;
 }
 
 /** Compact community-report entry persisted by AppContext. */
@@ -111,6 +115,15 @@ export interface BgReportEntry {
   lng: number;
   type: string;
   speedLimit?: number | null;
+  road?: string | null;
+}
+
+export interface BgRoadContext {
+  road: string | null;
+  heading: number | null;
+  lat: number;
+  lng: number;
+  ts: number;
 }
 
 /** Persisted last-known background GPS fix for foreground recovery. */
@@ -142,6 +155,53 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
     Math.sin(df / 2) ** 2 +
     Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function bearingDeg(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
+  const f1 = (fromLat * Math.PI) / 180;
+  const f2 = (toLat * Math.PI) / 180;
+  const dl = ((toLng - fromLng) * Math.PI) / 180;
+  const y = Math.sin(dl) * Math.cos(f2);
+  const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function alongTrackDistanceM(
+  driverLat: number,
+  driverLng: number,
+  driverHeading: number,
+  targetLat: number,
+  targetLng: number,
+): number {
+  const dist = haversine(driverLat, driverLng, targetLat, targetLng);
+  const targetBearing = bearingDeg(driverLat, driverLng, targetLat, targetLng);
+  const deltaRad = ((targetBearing - driverHeading + 540) % 360 - 180) * (Math.PI / 180);
+  return dist * Math.cos(deltaRad);
+}
+
+function normalizeRoad(name: string | null | undefined): string {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")
+    .replace(/\b(road|rd|street|st|avenue|ave|highway|hwy|superhighway|way|bypass|lane|drive|dr|place)\b/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const ROAD_ALIASES: ReadonlyArray<ReadonlyArray<string>> = [
+  ["thika", "northern"],
+  ["mombasa", "airport north"],
+];
+
+function roadsMatch(aRoad: string | null | undefined, bRoad: string | null | undefined): boolean {
+  if (!aRoad || !bRoad) return false;
+  const a = normalizeRoad(aRoad);
+  const b = normalizeRoad(bRoad);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  return ROAD_ALIASES.some((group) => group.includes(a) && group.includes(b));
 }
 
 // ── Notification sound helpers ────────────────────────────────────────────────
@@ -308,8 +368,11 @@ export function defineBackgroundDriveAlertsTask(): void {
         }
 
         // ── 1. Guard: only run when a drive session is active ──────────────
-        const activeRaw = await AsyncStorage.getItem(BG_DRIVE_ACTIVE_KEY);
-        if (activeRaw !== "true") return;
+        const [activeRaw, ownerRaw] = await Promise.all([
+          AsyncStorage.getItem(BG_DRIVE_ACTIVE_KEY),
+          AsyncStorage.getItem(BG_ALERT_OWNER_KEY),
+        ]);
+        if (activeRaw !== "true" || ownerRaw !== "background") return;
 
         // ── 2. Extract the freshest GPS fix from this background invocation ─
         // The OS may batch multiple locations; use the most recent one.
@@ -349,7 +412,7 @@ export function defineBackgroundDriveAlertsTask(): void {
         AsyncStorage.setItem(BG_LAST_FIX_KEY, JSON.stringify(lastFix)).catch(() => {});
 
         // ── 4. Load all data in parallel ───────────────────────────────────
-        const [sessionIdRaw, zonesRaw, reportsRaw, notifiedRaw, accuracyModeRaw, lastAlertAtRaw] =
+        const [sessionIdRaw, zonesRaw, reportsRaw, notifiedRaw, accuracyModeRaw, lastAlertAtRaw, roadContextRaw] =
           await Promise.all([
             AsyncStorage.getItem(BG_SESSION_ID_KEY),
             AsyncStorage.getItem(BG_ZONES_CACHE_KEY),
@@ -357,6 +420,7 @@ export function defineBackgroundDriveAlertsTask(): void {
             AsyncStorage.getItem(BG_NOTIFIED_ALERTS_KEY),
             AsyncStorage.getItem(BG_ACCURACY_MODE_KEY),
             AsyncStorage.getItem(BG_LAST_ALERT_AT_KEY),
+            AsyncStorage.getItem(BG_ROAD_CONTEXT_KEY),
           ]);
 
         const sessionId   = sessionIdRaw ?? "unknown";
@@ -380,8 +444,35 @@ export function defineBackgroundDriveAlertsTask(): void {
 
         let zones: BgZoneEntry[] = [];
         let reports: BgReportEntry[] = [];
+        let roadContext: BgRoadContext | null = null;
         try { zones   = zonesRaw   ? (JSON.parse(zonesRaw)   as BgZoneEntry[])   : []; } catch {}
         try { reports = reportsRaw ? (JSON.parse(reportsRaw) as BgReportEntry[]) : []; } catch {}
+        try { roadContext = roadContextRaw ? (JSON.parse(roadContextRaw) as BgRoadContext) : null; } catch {}
+        let currentRoad =
+          roadContext &&
+          now - roadContext.ts <= 2 * 60_000 &&
+          haversine(lat, lng, roadContext.lat, roadContext.lng) <= 200
+            ? roadContext.road
+            : null;
+        if (!currentRoad) {
+          currentRoad = await getRoadName(lat, lng).catch(() => null);
+          if (currentRoad) {
+            roadContext = {
+              road: currentRoad,
+              heading: loc.coords.heading ?? null,
+              lat,
+              lng,
+              ts: now,
+            };
+            await AsyncStorage.setItem(BG_ROAD_CONTEXT_KEY, JSON.stringify(roadContext));
+          }
+        }
+        const currentHeading =
+          loc.coords.heading != null && loc.coords.heading >= 0
+            ? loc.coords.heading
+            : roadContext && now - roadContext.ts <= 30_000
+              ? roadContext.heading
+              : null;
 
         // ── 5. Evaluate all zones + reports, pick the closest alertable one ─
         // Simultaneously track the nearest distance across ALL zones/reports
@@ -392,6 +483,7 @@ export function defineBackgroundDriveAlertsTask(): void {
           dist: number;
           speedLimit?: number | null;
           name: string;
+          road?: string | null;
           /** Alert pin coordinates — passed through to the notification tap handler
            *  so the map can focus and pulse-highlight the exact location. */
           lat: number;
@@ -404,8 +496,10 @@ export function defineBackgroundDriveAlertsTask(): void {
           const d = haversine(lat, lng, z.lat, z.lng);
           if (d < nearestDist) nearestDist = d;
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
+          if (z.road && !roadsMatch(currentRoad, z.road)) continue;
+          if (currentHeading != null && alongTrackDistanceM(lat, lng, currentHeading, z.lat, z.lng) <= 0) continue;
           if (!winner || d < winner.dist) {
-            winner = { id: z.id, type: z.type, dist: d, speedLimit: z.speedLimit, name: z.name, lat: z.lat, lng: z.lng };
+            winner = { id: z.id, type: z.type, dist: d, speedLimit: z.speedLimit, name: z.name, road: z.road, lat: z.lat, lng: z.lng };
           }
         }
 
@@ -413,6 +507,8 @@ export function defineBackgroundDriveAlertsTask(): void {
           const d = haversine(lat, lng, r.lat, r.lng);
           if (d < nearestDist) nearestDist = d;
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
+          if (r.road && !roadsMatch(currentRoad, r.road)) continue;
+          if (currentHeading != null && alongTrackDistanceM(lat, lng, currentHeading, r.lat, r.lng) <= 0) continue;
           if (!winner || d < winner.dist) {
             winner = {
               id:         r.id,
@@ -420,6 +516,7 @@ export function defineBackgroundDriveAlertsTask(): void {
               dist:       d,
               speedLimit: r.speedLimit,
               name:       TYPE_LABELS[r.type] ?? r.type,
+              road:       r.road,
               lat:        r.lat,
               lng:        r.lng,
             };
@@ -457,7 +554,11 @@ export function defineBackgroundDriveAlertsTask(): void {
         // logic so the background notification body shows the correct km/h.
         if (!winner.speedLimit && (winner.type === "camera" || winner.type === "zone")) {
           const nearestWithLimit = zones
-            .filter((z) => z.speedLimit && z.id !== winner!.id)
+            .filter((z) =>
+              z.speedLimit &&
+              z.id !== winner!.id &&
+              (!winner!.road || !z.road || roadsMatch(winner!.road, z.road))
+            )
             .map((z) => ({ limit: z.speedLimit!, dist: haversine(lat, lng, z.lat, z.lng) }))
             .filter((z) => z.dist <= 300)
             .sort((a, b) => a.dist - b.dist)[0];
@@ -473,6 +574,14 @@ export function defineBackgroundDriveAlertsTask(): void {
           !(await ensureAndroidNotificationChannels())
         ) {
           console.warn("[bgDriveAlerts] Android notification channel unavailable; retaining alert for retry.");
+          return;
+        }
+
+        // Ownership may have changed while this task was evaluating candidates
+        // (for example the driver unlocked the phone). Re-check immediately
+        // before delivery so a final queued background invocation cannot race
+        // the foreground alert path.
+        if ((await AsyncStorage.getItem(BG_ALERT_OWNER_KEY)) !== "background") {
           return;
         }
 

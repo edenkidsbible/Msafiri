@@ -11,6 +11,11 @@
 import { Platform } from "react-native";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { duckForAlert } from "@/utils/sound";
+import {
+  canDeliverForegroundAlert,
+  getAlertOwnershipGeneration,
+  isCurrentAlertGeneration,
+} from "@/utils/alertOwnership";
 import { API_BASE } from "@/utils/apiClient";
 
 // ─── Bundled assets (pre-generated via ElevenLabs Multilingual v2, Yna Agalo) ─
@@ -154,10 +159,18 @@ export function isAlertVoicePlaying(): boolean {
 
 // ─── Internal playback helper ─────────────────────────────────────────────────
 
-async function playKey(key: string): Promise<void> {
+async function playKey(key: string, expectedGeneration?: number): Promise<void> {
   if (!key || voiceDisabled || Platform.OS === "web") return;
+  const ownsAlert =
+    expectedGeneration == null ||
+    (canDeliverForegroundAlert() && isCurrentAlertGeneration(expectedGeneration));
+  if (!ownsAlert) return;
   stopAlertVoice();
   await duckForAlert(); // ducks BT music during dashcam recording; no-op on web
+  if (
+    expectedGeneration != null &&
+    (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+  ) return;
 
   try {
     const cached = getCachedPlayer(key);
@@ -167,6 +180,10 @@ async function playKey(key: string): Promise<void> {
       currentPlayer = cached;
       cached.volume = 0.5;
       cached.seekTo(0);
+      if (
+        expectedGeneration != null &&
+        (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+      ) return;
       cached.play();
     } else {
       // Unknown key — fall back to the on-demand TTS proxy (no pre-generated asset).
@@ -176,6 +193,10 @@ async function playKey(key: string): Promise<void> {
       );
       currentPlayer = player;
       player.volume = 0.5;
+      if (
+        expectedGeneration != null &&
+        (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
+      ) return;
       player.play();
     }
   } catch (err) {
@@ -210,7 +231,7 @@ export function resolveAlertKey(type: string, speedLimit?: number | null): strin
  * Pass `"report_submitted"` to play the bundled post-report confirmation phrase.
  */
 export async function speakAlert(type: string): Promise<void> {
-  await playKey(type);
+  await playKey(type, getAlertOwnershipGeneration());
 }
 
 /**
@@ -219,7 +240,7 @@ export async function speakAlert(type: string): Promise<void> {
  */
 export async function speakAlertMulti(type: string): Promise<void> {
   const multiKey = `${type}_multi`;
-  await playKey(ALERT_AUDIO[multiKey] ? multiKey : type);
+  await playKey(ALERT_AUDIO[multiKey] ? multiKey : type, getAlertOwnershipGeneration());
 }
 
 // ─── Navigation lifecycle phrases ────────────────────────────────────────────
@@ -264,12 +285,16 @@ export async function speakNavCancel(): Promise<void> {
  */
 export async function speakAlertPhrase(text: string): Promise<void> {
   if (voiceDisabled || Platform.OS === "web" || !API_BASE) return;
+  const generation = getAlertOwnershipGeneration();
+  if (!canDeliverForegroundAlert()) return;
   stopAlertVoice();
   await duckForAlert();
+  if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
   try {
     const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
     currentPlayer = player;
     player.volume = 0.5;
+    if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
     player.play();
   } catch (err) {
     console.warn("[alertTts] speakAlertPhrase failed:", err);
