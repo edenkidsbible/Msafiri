@@ -72,7 +72,7 @@ import { speakAlert, setAlertVoiceDisabled } from "@/utils/alertTts";
 import { apiPost } from "@/utils/apiClient";
 import { useDriveScore } from "@/hooks/useDriveScore";
 import {
-  startDriveSession, updateDriveSession, endDriveSession,
+  startDriveSession, updateDriveSession, endDriveSession, LOCAL_PREFIX,
   scoreColor as getScoreColor, scoreLabel as getScoreLabel,
 } from "@/utils/driveSessionApi";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
@@ -1104,7 +1104,11 @@ export default function DriveScreen() {
           // ── Session-based trial: record this completed drive ──────────
           // Fire-and-forget — never interrupt post-trip UX; updates the
           // AsyncStorage cache so the next drive attempt sees the fresh count.
-          recordTrialSession().catch(() => {});
+          // Skip for local-prefix sessions (offline trips) — those are counted
+          // once server-confirmed in flushOfflineSessions to avoid double-counting.
+          if (sid && !sid.startsWith(LOCAL_PREFIX)) {
+            recordTrialSession().catch(() => {});
+          }
 
           // ── App Store / Google Play review prompt ──────────────────
           // Fire at most once ever (gated by hasRequestedReview flag).

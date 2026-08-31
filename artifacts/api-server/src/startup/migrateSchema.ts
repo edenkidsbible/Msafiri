@@ -1039,6 +1039,20 @@ export async function migrateSchema(): Promise<void> {
       ON CONFLICT (application_id) DO NOTHING
     `);
 
+    // ── Session-based free trial ──────────────────────────────────────────────
+    // Tracks completed drive sessions per RevenueCat stable device ID.
+    // The upsert in /trial/session depends on the unique constraint on
+    // stable_device_id; the index below covers the GET /trial/status query.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS device_trial_sessions (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        stable_device_id TEXT        NOT NULL UNIQUE,
+        session_count    INTEGER     NOT NULL DEFAULT 0,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

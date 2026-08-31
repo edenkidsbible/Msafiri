@@ -7,7 +7,8 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiGet, apiPost, apiPatch } from "@/utils/apiClient";
+import { apiGet, apiPost, apiPatch, API_BASE } from "@/utils/apiClient";
+import Purchases from "react-native-purchases";
 
 // ── Offline session queue ─────────────────────────────────────────────────────
 //
@@ -19,7 +20,10 @@ import { apiGet, apiPost, apiPatch } from "@/utils/apiClient";
 // item against the server once connectivity is restored.
 
 const OFFLINE_QUEUE_KEY = "msafiri_offline_sessions_v1";
-const LOCAL_PREFIX       = "local-";
+export const LOCAL_PREFIX = "local-";
+
+/** AsyncStorage key for the trial session count — kept in sync with useTrialSessions.ts. */
+const TRIAL_CACHE_KEY = "@msafiri/trialSessionCount";
 
 interface QueuedSession {
   localId:         string;
@@ -45,6 +49,12 @@ interface QueuedSession {
     policeAlerts?:      number;
     hazardsEncountered?: number;
   };
+  /** Server-assigned session ID saved after a successful drive-session POST.
+   *  When set, retries skip the POST phase and go straight to trial recording. */
+  flushedServerId?: string;
+  /** True once the /trial/session POST has been confirmed server-side for this
+   *  session.  Kept false until confirmed so retries complete a partial flush. */
+  trialRecorded?: boolean;
 }
 
 async function readQueue(): Promise<QueuedSession[]> {
@@ -75,18 +85,57 @@ export async function flushOfflineSessions(deviceId: string): Promise<void> {
       // Trip was started but never ended (app killed mid-trip) — discard stale entry
       continue;
     }
-    try {
-      const { id } = await apiPost<{ id: string }>("/drive-sessions", {
-        deviceId:        item.deviceId,
-        startLat:        item.startLat        ?? null,
-        startLng:        item.startLng        ?? null,
-        vehicleId:       item.vehicleId       ?? null,
-        sharedVehicleId: item.sharedVehicleId ?? null,
-      });
-      await apiPost(`/drive-sessions/${id}/end`, { deviceId: item.deviceId, ...item.endData });
-    } catch {
-      remaining.push(item); // still offline — retry next time
+
+    const needsTrial = (item.endData.distanceM ?? 0) >= 50;
+    let flushedServerId = item.flushedServerId;
+    let trialRecorded   = item.trialRecorded ?? false;
+
+    // ── Phase 1: POST the drive session (skipped if already done on a prior attempt) ──
+    if (!flushedServerId) {
+      try {
+        const { id } = await apiPost<{ id: string }>("/drive-sessions", {
+          deviceId:        item.deviceId,
+          startLat:        item.startLat        ?? null,
+          startLng:        item.startLng        ?? null,
+          vehicleId:       item.vehicleId       ?? null,
+          sharedVehicleId: item.sharedVehicleId ?? null,
+        });
+        await apiPost(`/drive-sessions/${id}/end`, { deviceId: item.deviceId, ...item.endData });
+        flushedServerId = id;
+      } catch {
+        remaining.push(item); // still offline — retry next time
+        continue;
+      }
     }
+
+    // ── Phase 2: Record the trial session if qualifying and not yet confirmed ──
+    // We call the server directly (no optimistic fallback) so a failure keeps the
+    // item in the queue for a retry rather than silently losing the count.
+    if (needsTrial && !trialRecorded) {
+      try {
+        const info    = await Purchases.getCustomerInfo();
+        const stableId = info.originalAppUserId;
+        if (!stableId || !API_BASE) throw new Error("RC not ready");
+        const res = await fetch(`${API_BASE}/trial/session`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ stableDeviceId: stableId }),
+        });
+        if (!res.ok) throw new Error(`/trial/session returned ${res.status}`);
+        const data = (await res.json()) as { sessionCount: number };
+        // Sync the server-confirmed count to the AsyncStorage cache so
+        // useTrialSessions() reads the correct value on the next app focus.
+        await AsyncStorage.setItem(TRIAL_CACHE_KEY, String(data.sessionCount));
+        trialRecorded = true;
+      } catch {
+        // Trial server unreachable — keep in queue so we retry on the next
+        // reconnect, but store flushedServerId so Phase 1 is not repeated.
+        remaining.push({ ...item, flushedServerId, trialRecorded: false });
+        continue;
+      }
+    }
+
+    // Both phases complete — item is fully flushed; drop it from the queue.
   }
   await writeQueue(remaining);
 }

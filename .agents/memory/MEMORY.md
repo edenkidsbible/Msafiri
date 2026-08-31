@@ -95,5 +95,5 @@
 - [EAS file environment variables](eas-file-environment-variables.md) — file variables are temporary paths, not contents; copy them in build hooks and validate before building.
 - [Creator benefit trust boundary](creator-attribution-identity.md) — only independently verified activity may extend benefits; identity repair requires verified ownership.
 - [Drive score formula](drive-score-formula.md) — rate-normalised (events/hr, % time speeding); max 50 harsh + 50 speeding penalty, +15 smooth bonus; client and server must stay in lockstep.
-- [Session-based trial architecture](session-trial-architecture.md) — 3-drive free trial; RC originalAppUserId as stable ID; device_trial_sessions table; gate in _layout.tsx + drive.tsx; offline sessions NOT counted (known gap).
+- [Session-based trial architecture](session-trial-architecture.md) — 3-drive free trial; RC originalAppUserId as stable ID; device_trial_sessions in migrateSchema; offline sessions counted on flush via two-phase durable POST.
 - [Custom release notification copy](custom-release-notif-copy.md) — notif_title/notif_body columns on app_releases; releasePush.ts uses ?? fallback; admin UI live preview in ReleaseDialog.
