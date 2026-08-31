@@ -1064,6 +1064,72 @@ export async function migrateSchema(): Promise<void> {
         WHERE trial_expired_at IS NOT NULL
     `);
 
+    // ── Road Channels pilot ───────────────────────────────────────────────────
+    // Channel presence expires in application reads; these tables intentionally
+    // contain no account identifiers, only locally generated device IDs.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS road_channel_presence (
+        channel      TEXT NOT NULL,
+        device_id    TEXT NOT NULL,
+        lat          DOUBLE PRECISION NOT NULL,
+        lng          DOUBLE PRECISION NOT NULL,
+        last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (channel, device_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS road_channel_presence_seen_idx
+        ON road_channel_presence (channel, last_seen_at DESC)
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS road_channel_voice_reports (
+        id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        channel        TEXT NOT NULL,
+        device_id      TEXT NOT NULL,
+        object_key     TEXT NOT NULL UNIQUE,
+        content_type   TEXT NOT NULL,
+        size_bytes     INTEGER,
+        lat            DOUBLE PRECISION,
+        lng            DOUBLE PRECISION,
+        transcript     TEXT,
+        summary        TEXT,
+        proposed_type  TEXT,
+        proposed_speed_limit INTEGER,
+        proposed_camera_type TEXT,
+        status         TEXT NOT NULL DEFAULT 'upload_pending',
+        interpreted_at TIMESTAMP,
+        confirmed_at   TIMESTAMP,
+        report_id      UUID,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      ALTER TABLE road_channel_voice_reports
+        ADD COLUMN IF NOT EXISTS summary TEXT,
+        ADD COLUMN IF NOT EXISTS proposed_speed_limit INTEGER,
+        ADD COLUMN IF NOT EXISTS proposed_camera_type TEXT
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS road_channel_voice_reports_device_idx
+        ON road_channel_voice_reports (device_id, created_at DESC)
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS road_channel_updates (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        channel         TEXT NOT NULL,
+        device_id       TEXT NOT NULL,
+        kind            TEXT NOT NULL,
+        report_id       UUID,
+        voice_report_id UUID,
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS road_channel_updates_feed_idx
+        ON road_channel_updates (channel, created_at DESC)
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

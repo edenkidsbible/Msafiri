@@ -85,6 +85,7 @@ import { MarqueeText } from "@/components/MarqueeText";
 import OfflineAlertBanner from "@/components/OfflineAlertBanner";
 import BackOnlinePill from "@/components/BackOnlinePill";
 import RadarWaveRings from "@/components/RadarWaveRings";
+import RoadChannelsVoiceReporter from "@/components/RoadChannelsVoiceReporter";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,7 @@ export default function DriveScreen() {
   const insets = useSafeAreaInsets();
   const {
     locationGranted, requestLocationPermission,
-    currentSpeedLimit, activeAlert, activeAlertExtras, dismissAlert, nearbyZones, communityReports,
+    currentSpeedLimit, activeAlert, activeAlertExtras, dismissAlert, nearbyZones, communityReports, refreshReports,
     hereIncidents,
     setThemeOverride,
     navDestination, setNavDestination,
@@ -315,6 +316,8 @@ export default function DriveScreen() {
   const [showResults, setShowResults] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showRoadVoice, setShowRoadVoice] = useState(false);
+  const [roadVoiceRoadName, setRoadVoiceRoadName] = useState<string | null>(null);
   // CrosshairPickerModal request — lifted out of ReportModal to sit at the
   // screen root so it is never nested inside another Modal (fixes iOS silent
   // presentation failure) and DriveMapView can unmount its map while it's open.
@@ -3419,6 +3422,41 @@ export default function DriveScreen() {
             );
           })()}
 
+          {Platform.OS !== "web" && (
+            <TouchableOpacity
+              style={[styles.roadChannelCard, {
+                backgroundColor: isDark ? "#111F1A" : "#F0FDF7",
+                borderColor: c.primary + "55",
+              }]}
+              onPress={async () => {
+                if (currentLat == null || currentLng == null) {
+                  Alert.alert("Finding your road", "Wait for a GPS fix, then try again.");
+                  return;
+                }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                const road = await getRoadName(currentLat, currentLng).catch(() => null);
+                setRoadVoiceRoadName(road);
+                setShowRoadVoice(true);
+              }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open Road Channels voice reporting"
+            >
+              <View style={[styles.roadChannelIcon, { backgroundColor: c.primary + "22" }]}>
+                <Ionicons name="radio-outline" size={21} color={c.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.roadChannelTitle, { color: c.foreground }]}>Road Channel</Text>
+                <Text style={[styles.roadChannelSub, { color: c.mutedForeground }]} numberOfLines={1}>
+                  Tap, speak for up to 15 seconds, then confirm
+                </Text>
+              </View>
+              <View style={[styles.roadChannelMic, { backgroundColor: c.primary }]}>
+                <Ionicons name="mic" size={18} color="#FFF" />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Bottom row: Dashcam toggle · red Stop Drive · Audio Alerts toggle */}
           <View style={styles.dmBottomRow}>
             {/* Dashcam card */}
@@ -3619,6 +3657,49 @@ export default function DriveScreen() {
           speakAlert("report_submitted").catch(() => {});
         }}
       />
+
+      <Modal
+        visible={showRoadVoice}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRoadVoice(false)}
+      >
+        <View style={styles.roadVoiceBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowRoadVoice(false)} />
+          <View style={[styles.roadVoiceSheet, { backgroundColor: c.background, paddingBottom: bottomInset + 18 }]}>
+            <View style={styles.roadVoiceHeader}>
+              <View>
+                <Text style={[styles.roadVoiceEyebrow, { color: c.mutedForeground }]}>LIVE ROAD REPORT</Text>
+                <Text style={[styles.roadVoiceHeading, { color: c.foreground }]}>
+                  {roadVoiceRoadName ?? "Road Channels"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowRoadVoice(false)}
+                style={[styles.roadVoiceClose, { backgroundColor: c.muted }]}
+                accessibilityLabel="Close voice reporting"
+              >
+                <Ionicons name="close" size={22} color={c.foreground} />
+              </TouchableOpacity>
+            </View>
+            <RoadChannelsVoiceReporter
+              location={currentLat != null && currentLng != null ? { latitude: currentLat, longitude: currentLng } : null}
+              deviceId={deviceId ?? undefined}
+              roadName={roadVoiceRoadName}
+              onCancelled={() => setShowRoadVoice(false)}
+              onConfirmed={() => {
+                void refreshReports();
+                speakAlert("report_submitted").catch(() => {});
+                setShowRoadVoice(false);
+                Alert.alert(
+                  "Road alert submitted",
+                  "Channel listeners can receive the update, and the confirmed alert is now in the normal road-report system.",
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Crosshair map picker — rendered at the screen root (NOT inside
           ReportModal) so it is never a nested Modal. DriveMapView's MapView
@@ -5159,6 +5240,60 @@ const styles = StyleSheet.create({
   dmBottomRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginTop: 12,
+  },
+  roadChannelCard: {
+    minHeight: 62,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  roadChannelIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roadChannelTitle: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  roadChannelSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
+  roadChannelMic: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roadVoiceBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.52)",
+    justifyContent: "flex-end",
+  },
+  roadVoiceSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    maxHeight: "88%",
+  },
+  roadVoiceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  roadVoiceEyebrow: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 1.1 },
+  roadVoiceHeading: { fontFamily: "Inter_700Bold", fontSize: 19, marginTop: 2 },
+  roadVoiceClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dmToggleCard: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 8,

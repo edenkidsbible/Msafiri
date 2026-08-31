@@ -18,6 +18,9 @@
     },
     {
       "path": "../../lib/permissions"
+    },
+    {
+      "path": "../../lib/integrations-openai-ai-server"
     }
   ]
 }

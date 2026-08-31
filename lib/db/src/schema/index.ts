@@ -23,3 +23,4 @@ export * from "./sharedVehicles";
 export * from "./inbox";
 export * from "./ops";
 export * from "./trialSessions";
+export * from "./roadChannels";

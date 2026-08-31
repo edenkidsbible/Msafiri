@@ -98,3 +98,4 @@
 - [Session-based trial architecture](session-trial-architecture.md) — 3-drive free trial; quality gate (≥5 min or ≥2 km); in-drive pill; TripSummaryModal banner; post-trial nudge sequence (3 stages); PaywallModal copy drops "3-day free trial" language.
 - [Custom release notification copy](custom-release-notif-copy.md) — notif_title/notif_body columns on app_releases; releasePush.ts uses ?? fallback; admin UI live preview in ReleaseDialog.
 - [Legacy dump restore reconciliation](legacy-dump-restore-reconciliation.md) — after restoring an older dump, compare every TABLE DATA count; schema push can recreate startup-managed tables empty.
+- [Road Channels voice-report trust boundary](road-channels-voice-trust.md) — audio and AI output stay private drafts; only explicit driver confirmation may create a normal community report.

@@ -36,6 +36,7 @@ import accountRouter from "./account.js";
 import revenuecatWebhookRouter from "./revenuecatWebhook.js";
 import opsRouter from "./ops/index.js";
 import trialRouter from "./trial.js";
+import roadChannelsRouter from "./roadChannels.js";
 import { adminAuthMiddleware } from "../middleware/adminAuth.js";
 
 const router: IRouter = Router();
@@ -76,6 +77,7 @@ router.use(otpRouter);
 router.use(vehiclesRouter);
 router.use(accountRouter);
 router.use(trialRouter);
+router.use(roadChannelsRouter);
 router.use("/ops", adminAuthMiddleware, opsRouter);
 
 export default router;

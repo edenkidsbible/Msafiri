@@ -376,9 +376,8 @@ router.post("/reports", async (req: Request, res: Response) => {
     }
 
     // ── Insert new report ────────────────────────────────────────────────────
-    // Camera/checkpoint reports hold for moderator review before they reach
-    // drivers; every other type keeps going live immediately as before.
-    const needsModeration = MODERATED_TYPES.has(type);
+    // Camera reports hold for moderator review before they reach drivers; every
+    // other type keeps going live immediately as before.
     // Derive observation timestamp — use client-provided observedAt if given,
     // otherwise default to now (submission time = observation time for "Here" reports).
     const observedAtDate = observedAt ? new Date(observedAt) : new Date();
@@ -387,23 +386,10 @@ router.post("/reports", async (req: Request, res: Response) => {
       ? (observationContext as string)
       : "on_location";
 
-    const [inserted] = await db
-      .insert(communityReportsTable)
-      .values({
-        type, lat, lng, deviceId, speedLimit, roadName, expiresAt,
-        ...(cameraType ? { cameraType } : {}),
-        status: needsModeration ? "pending_review" : "active",
-        observationContext: safeContext,
-        observedAt: observedAtDate,
-        ...(reporterProximityM != null ? { reporterProximityM } : {}),
-      })
-      .returning();
-
-    if (needsModeration) {
-      notifyReporterUnderReview(deviceId, inserted.type).catch((err) =>
-        logger.warn({ err, reportId: inserted.id }, "Failed to send moderation push notice")
-      );
-    }
+    const inserted = await createCommunityReport({
+      type, lat, lng, deviceId, speedLimit, roadName, expiresAt, cameraType,
+      observationContext: safeContext, observedAt: observedAtDate, reporterProximityM,
+    });
 
     // ── Gamification milestone check ──────────────────────────────────────────
     void checkReportMilestone(deviceId).catch((err) =>
@@ -422,15 +408,6 @@ router.post("/reports", async (req: Request, res: Response) => {
           .set({ roadName: road })
           .where(eq(communityReportsTable.id, inserted.id));
       }).catch(() => {/* non-critical */});
-    }
-
-    // ── Notify nearby drivers to refresh — only for reports that go live now ──
-    // Moderated types (camera, police) stay in pending_review and aren't visible
-    // to other drivers yet, so a refresh push would be a no-op for them.
-    if (!needsModeration) {
-      void notifyNearbyDevices(lat, lng, inserted.id, deviceId).catch((err) =>
-        logger.warn({ err, reportId: inserted.id }, "Nearby-driver refresh push failed (non-critical)")
-      );
     }
 
     // ── Auto-clear nearby incidents when a driver marks the road as clear ────
@@ -556,6 +533,32 @@ async function notifyReporterUnderReview(deviceId: string, type: string): Promis
       data: { type: "moderation_pending" },
     },
   ]);
+}
+
+/** Shared creation path used by manual and explicitly-confirmed voice reports. */
+export async function createCommunityReport(input: {
+  type: string; lat: number; lng: number; deviceId: string;
+  speedLimit?: number; roadName?: string; expiresAt: Date | null;
+  cameraType?: string; observationContext: string; observedAt: Date;
+  reporterProximityM?: number;
+  source?: string;
+}): Promise<typeof communityReportsTable.$inferSelect> {
+  const needsModeration = MODERATED_TYPES.has(input.type);
+  const [inserted] = await db.insert(communityReportsTable).values({
+    ...input,
+    status: needsModeration ? "pending_review" : "active",
+  }).returning();
+
+  if (needsModeration) {
+    void notifyReporterUnderReview(input.deviceId, inserted.type).catch((err) =>
+      logger.warn({ err, reportId: inserted.id }, "Failed to send moderation push notice")
+    );
+  } else {
+    void notifyNearbyDevices(input.lat, input.lng, inserted.id, input.deviceId).catch((err) =>
+      logger.warn({ err, reportId: inserted.id }, "Nearby-driver refresh push failed (non-critical)")
+    );
+  }
+  return inserted;
 }
 
 // ── POST /reports/:id/confirm — "Still here" ──────────────────────────────────
