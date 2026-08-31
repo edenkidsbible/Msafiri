@@ -86,9 +86,9 @@ export default function TrialEndedScreen() {
         </View>
 
         {/* Headline */}
-        <Text style={[s.title, { color: c.foreground }]}>Your free trial has ended</Text>
+        <Text style={[s.title, { color: c.foreground }]}>Your 3 free drives are complete</Text>
         <Text style={[s.sub, { color: c.mutedForeground }]}>
-          Your 3-day trial gave you full access to everything Msafiri has to offer.
+          You’ve used all three qualifying free drives.
           Subscribe now to keep driving with real-time protection on Kenyan roads.
         </Text>
 

@@ -585,6 +585,14 @@ export default function DriveScreen() {
 
   const startTrip = useCallback(() => {
     if (countdownActiveRef.current) return;
+    // Guard every start path, including destination previews and the vehicle
+    // picker. The focus effect also checks this, but a live trial update can
+    // arrive while the Drive screen remains focused.
+    if (trialLoading) return;
+    if (!BYPASS_PAYWALL && !isSubscribedRef.current && trialExpiredRef.current) {
+      router.replace("/paywall" as any);
+      return;
+    }
     if (tripActive) {
       // ── Conflict guard: alert instead of silently no-oping ────────────────
       const isPaused = tripPausedRef.current;
@@ -679,7 +687,7 @@ export default function DriveScreen() {
           .catch(() => {}); // gracefully degraded — end call will no-op when null
       }
     }, 3000);
-  }, [tripActive, deviceId, currentLat, currentLng]);
+  }, [tripActive, deviceId, currentLat, currentLng, trialLoading]);
 
   // ── Load vehicles once on mount so the picker has data ───────────────────
   // We store the Promise so useFocusEffect can await it when the tab opens
@@ -724,6 +732,10 @@ export default function DriveScreen() {
     // If the post-trip summary is still showing (pending dismissal or the user
     // just returned from a Clips/History detour), never auto-start a new trip.
     if (tripSummaryDataRef.current) return;
+    // Do not start a trip while the cached/server trial status is unresolved.
+    // The callback is re-registered when loading finishes, so an exhausted
+    // account cannot briefly start a fourth drive during cold start.
+    if (trialLoading) return;
     // ── Trial gate: block a 4th+ drive once the 3-session trial is used up ──
     // Reads from refs (not state) so the useFocusEffect callback remains stable
     // and doesn't need subscription/trial values in its own dep array.
@@ -758,7 +770,7 @@ export default function DriveScreen() {
   // navDestination and noAutoStart are intentionally included so a fresh
   // destination set by the Map tab is visible when focus arrives.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navDestination, noAutoStart]));
+  }, [navDestination, noAutoStart, trialLoading]));
 
   // Check notification permission each time the drive tab gains focus.
   // If the user blocked notifications, show the background-alerts banner so

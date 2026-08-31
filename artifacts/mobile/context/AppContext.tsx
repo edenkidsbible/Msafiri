@@ -1003,6 +1003,7 @@ const CAMERA_CLUSTER_RADIUS = 50;
 // readout, so we only claim confidence in a posted limit when squarely
 // inside the admin-defined corridor — not just "somewhere nearby".
 const STRETCH_CORRIDOR_M = 80;
+const ALERT_VOICE_DELAY_MS = 1500;
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -1012,6 +1013,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [activeAlert, setActiveAlert] = useState<DriveAlert | null>(null);
   const [activeAlertExtras, setActiveAlertExtras] = useState<DriveAlert[]>([]);
+  // Keep the short chime and spoken alert separate. A pending voice is
+  // replaced by a newer alert so stale speech cannot play after the banner
+  // has moved on to another hazard.
+  const alertVoiceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleAlertVoice = useCallback((speak: () => Promise<void>) => {
+    if (alertVoiceTimerRef.current) {
+      clearTimeout(alertVoiceTimerRef.current);
+    }
+    alertVoiceTimerRef.current = setTimeout(() => {
+      alertVoiceTimerRef.current = null;
+      speak().catch(() => {});
+    }, ALERT_VOICE_DELAY_MS);
+  }, []);
+  useEffect(() => () => {
+    if (alertVoiceTimerRef.current) {
+      clearTimeout(alertVoiceTimerRef.current);
+      alertVoiceTimerRef.current = null;
+    }
+  }, []);
   const [currentSpeedLimit, setCurrentSpeedLimit] = useState<number | null>(null);
   const [nearbyZones, setNearbyZones] = useState<Array<SpeedZone & { distance: number }>>([]);
   const [hudMode, setHudModeState] = useState(false);
@@ -2440,7 +2460,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             extraCandidates.some((e) => e.type === "camera");
           // Multi-alert: keep base type so speakAlertMulti resolves camera_multi/zone_multi correctly.
           // Speed-limit-specific audio only plays for single alerts where dedicated assets exist.
-          speakAlertMulti(clusterHasCamera ? "camera" : winner.type).catch(() => {});
+          scheduleAlertVoice(() => speakAlertMulti(clusterHasCamera ? "camera" : winner.type));
         } else {
           // Single alert: play speed-specific phrase when limit is known.
           // For cameras/zones with no stored speed limit, infer from the nearest
@@ -2454,7 +2474,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             );
             if (nearest?.speedLimit) effectiveSpeedLimit = nearest.speedLimit;
           }
-          speakAlert(resolveAlertKey(winner.type, effectiveSpeedLimit)).catch(() => {});
+          scheduleAlertVoice(() => speakAlert(resolveAlertKey(winner.type, effectiveSpeedLimit)));
         }
         if (tripRef.current) tripRef.current.alertsCount = (tripRef.current.alertsCount ?? 0) + 1;
       }

@@ -447,7 +447,15 @@ function RootLayoutNav() {
   const pendingDeepLinkRef = useRef<ReturnType<typeof parseNavigationUrl> | null>(null);
   const handleNavigationUrl = useCallback(
     (url: string) => {
-      if (!hydrated || !onboardingComplete || (!isSubscribed && !wasSubscribed.current)) return;
+      // Deep links are also a valid way to start a free drive. Wait for the
+      // trial status before accepting one so an exhausted user cannot bypass
+      // the post-trial subscription gate through an external map link.
+      if (
+        !hydrated ||
+        !onboardingComplete ||
+        trialLoading ||
+        (!isSubscribed && !wasSubscribed.current && trialExpired)
+      ) return;
       const dest = parseNavigationUrl(url);
       if (!dest) return;
       if (!navReady) {
@@ -458,7 +466,7 @@ function RootLayoutNav() {
       // Navigate to Drive Mode where the map and navigation live
       router.replace("/(tabs)/drive");
     },
-    [hydrated, navReady, onboardingComplete, isSubscribed, setNavDestination, router]
+    [hydrated, navReady, onboardingComplete, isSubscribed, trialExpired, trialLoading, setNavDestination, router]
   );
 
   // Flush a queued deep link as soon as the navigator is ready

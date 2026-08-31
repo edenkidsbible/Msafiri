@@ -41,7 +41,9 @@ export default function OnboardingNameScreen() {
     const name = capitalize(raw);
     setDriverName(name);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace(isExisting ? "/(tabs)" : "/paywall");
+    // The first-time path still receives the free driving allowance. Existing
+    // users are already fully set up and can return to the tab navigator.
+    router.replace(isExisting ? "/(tabs)" : "/vehicle-setup");
   };
 
   return (

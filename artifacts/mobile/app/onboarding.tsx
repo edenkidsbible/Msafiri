@@ -315,7 +315,10 @@ export default function OnboardingScreen() {
     await AsyncStorage.setItem("onboardingCompletedAt", Date.now().toString()).catch(() => {});
     await requestLocationPermission();
     await requestNotificationPermission();
-    router.replace("/paywall");
+    // First-time users start with the three-session free allowance. Vehicle
+    // setup is the next step; the paywall is only reached after the allowance
+    // is exhausted.
+    router.replace("/vehicle-setup");
   };
 
   const next = () => {
