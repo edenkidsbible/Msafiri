@@ -150,7 +150,7 @@ export default function HomeScreen() {
   // re-reads loadVehicles() and shows any vehicle the user just changed.
   const [heroRefreshKey, setHeroRefreshKey] = useState(0);
 
-  const { isRecording: dashcamRecording, stopDashcam } = useDashcam();
+  const { isRecording: dashcamRecording, stopDashcam, requestDashcamPermissions } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
   const tabBarH = Platform.OS === "web" ? 84 : 96;
@@ -331,21 +331,29 @@ export default function HomeScreen() {
     }, []),
   );
 
-  const startDriving = useCallback(() => {
+  const startDriving = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    // Drive is already running (active or paused) — return to the drive screen
-    // immediately. No pre-trip check, no permission prompts: the session is live.
+    // Drive is already running (active or paused) — return immediately.
+    // Don't re-request permissions mid-session.
     if (navTripActive || navTripPaused) {
       router.replace("/(tabs)/drive");
       return;
     }
+    // Request camera + microphone for the dashcam right now, before any navigation.
+    // On first launch this shows the system permission dialogs so they are fully
+    // resolved before the checklist or drive screen renders — meaning the checklist
+    // will reflect the real permission state immediately and the dashcam can start
+    // without a mid-session prompt.  On subsequent calls (already granted) this
+    // returns in under a millisecond and navigation is instant.
+    // Denial is handled gracefully by the dashcam; we never block on the result.
+    await requestDashcamPermissions().catch(() => {});
     if (quickStartReadyRef.current) {
-      // All permissions are confirmed — go straight to drive
+      // All permissions confirmed — go straight to drive
       router.replace("/(tabs)/drive");
     } else {
       router.push("/pretrip-check");
     }
-  }, [navTripActive, navTripPaused]);
+  }, [navTripActive, navTripPaused, requestDashcamPermissions]);
 
   const openChecklist = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

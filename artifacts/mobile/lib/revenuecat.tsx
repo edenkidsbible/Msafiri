@@ -106,6 +106,23 @@ function useSubscriptionContext() {
     return status !== Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_INELIGIBLE;
   };
 
+  // Stronger gate for introductory-price UI: only advertise the intro offer when we have
+  // POSITIVE confirmation the user can actually redeem it. Never show it for unknown or
+  // pending states — that avoids presenting a price the user cannot get.
+  //
+  // iOS: the eligibility query must have resolved and explicitly returned ELIGIBLE.
+  //      Pending / unknown / ineligible → do not show intro offer.
+  // Android: Google Play only populates product.introPrice for eligible users; the field
+  //          itself is null when the user has already used the offer, so `introPrice != null`
+  //          is the reliable gate — no extra check needed here (caller checks introPrice).
+  // Web / other: no store eligibility API; conservative default is to not advertise.
+  const isDefinitelyIntroEligible = (productIdentifier: string): boolean => {
+    if (Platform.OS === "android") return true; // Google Play gates introPrice at source
+    if (Platform.OS !== "ios") return false;    // web / other: cannot confirm
+    const status = trialEligibilityQuery.data?.[productIdentifier]?.status;
+    return status === Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+  };
+
   const purchaseMutation = useMutation({
     mutationFn: async (packageToPurchase: any) => {
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
@@ -195,6 +212,7 @@ function useSubscriptionContext() {
     isPurchasing: purchaseMutation.isPending,
     isRestoring: restoreMutation.isPending,
     isTrialEligible,
+    isDefinitelyIntroEligible,
     error: customerInfoQuery.error ?? offeringsQuery.error ?? purchaseMutation.error ?? null,
   };
 }

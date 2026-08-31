@@ -22,6 +22,31 @@ import { AdminPinModal } from "@/components/AdminPinModal";
 
 type Result = "success" | "restored" | "error" | null;
 
+// ── Intro-price helpers ────────────────────────────────────────────────────────
+// Mirrors the same helpers in components/PaywallModal.tsx so both paywalls stay
+// in sync. If you update one, update the other.
+
+interface IntroPrice {
+  price: number;
+  priceString: string;
+  cycles: number;
+  period: string;
+  periodUnit: string;       // "DAY" | "WEEK" | "MONTH" | "YEAR"
+  periodNumberOfUnits: number;
+}
+
+/** "first month", "first 3 months", "first week" — derived from store data, never hard-coded. */
+function formatIntroPeriod(intro: IntroPrice): string {
+  const totalUnits = intro.cycles * intro.periodNumberOfUnits;
+  const unit = intro.periodUnit.toLowerCase();
+  return totalUnits === 1 ? `first ${unit}` : `first ${totalUnits} ${unit}s`;
+}
+
+/** Full charge description, e.g. "KSh 99 for the first month, then KSh 299/month". */
+function formatIntroWithRenewal(intro: IntroPrice, regularPriceString: string, regularPeriodLabel: string): string {
+  return `${intro.priceString} for the ${formatIntroPeriod(intro)}, then ${regularPriceString}/${regularPeriodLabel}`;
+}
+
 const FEATURES: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
@@ -321,7 +346,7 @@ export default function PaywallScreen() {
   const { requestLocationPermission, isAdmin, adminLogout } = useApp();
   const {
     offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings,
-    purchase, isPurchasing, restore, isRestoring, isTrialEligible,
+    purchase, isPurchasing, restore, isRestoring, isTrialEligible, isDefinitelyIntroEligible,
   } = useSubscription();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
@@ -342,6 +367,22 @@ export default function PaywallScreen() {
   const monthlyPriceString = monthlyPkg?.product.priceString ?? "";
   const chosenPriceString  = selectedPkg === "$rc_weekly" ? weeklyPriceString : monthlyPriceString;
   const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
+  const periodLabel = selectedPkg === "$rc_weekly" ? "week" : "month";
+
+  // ── Intro (discounted first-period) price ─────────────────────────────────────
+  // Only advertised when eligibility is POSITIVELY confirmed (isDefinitelyIntroEligible).
+  // Gracefully absent when the offer isn't configured in the store or the user
+  // is ineligible / iOS query hasn't resolved yet.
+  const monthlyIntroPrice: IntroPrice | null =
+    monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
+      ? (monthlyPkg.product.introPrice as IntroPrice | null) ?? null
+      : null;
+  const chosenIntroPrice: IntroPrice | null =
+    selectedPkg === "$rc_monthly" ? monthlyIntroPrice : null;
+  // Unified charge description reused in legal text, CTA pricing, and trust note.
+  const chargeDescription = chosenPkg && chosenIntroPrice
+    ? formatIntroWithRenewal(chosenIntroPrice, chosenPkg.product.priceString, periodLabel)
+    : null;
 
   // Hidden admin tap — 3 quick taps on the "Msafiri Premium" label
   const adminTapCount = useRef(0);
@@ -464,7 +505,7 @@ export default function PaywallScreen() {
   }
 
   // ── Main paywall ─────────────────────────────────────────────────────────
-  const periodLabel = selectedPkg === "$rc_weekly" ? "week" : "month";
+  // periodLabel is derived earlier (before intro-price computation). No re-declare.
 
   return (
     <View style={[p.root, { backgroundColor: c.background, paddingTop: topPad }]}>
@@ -499,12 +540,21 @@ export default function PaywallScreen() {
             <Text style={[p.heroSub, { color: c.mutedForeground }]}>
               Premium tools to protect you, your car, and the people who matter.
             </Text>
-            <View style={[p.trialPill, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
-              <Ionicons name={trialEligible ? "gift-outline" : "shield-checkmark-outline"} size={13} color={c.primary} />
-              <Text style={[p.trialTxt, { color: c.primary }]}>
-                {trialEligible ? "3-DAY FREE TRIAL" : "CANCEL ANYTIME"}
-              </Text>
-            </View>
+            {monthlyIntroPrice ? (
+              <View style={[p.trialPill, { backgroundColor: "#16a34a18", borderColor: "#16a34a44" }]}>
+                <Ionicons name="pricetag-outline" size={13} color="#16a34a" />
+                <Text style={[p.trialTxt, { color: "#16a34a" }]}>
+                  INTRO OFFER · {monthlyIntroPrice.priceString} {formatIntroPeriod(monthlyIntroPrice).toUpperCase()}
+                </Text>
+              </View>
+            ) : (
+              <View style={[p.trialPill, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
+                <Ionicons name={trialEligible ? "gift-outline" : "shield-checkmark-outline"} size={13} color={c.primary} />
+                <Text style={[p.trialTxt, { color: c.primary }]}>
+                  {trialEligible ? "3-DAY FREE TRIAL" : "CANCEL ANYTIME"}
+                </Text>
+              </View>
+            )}
           </View>
           <ShieldDecor primary={c.primary} />
         </View>
@@ -565,8 +615,8 @@ export default function PaywallScreen() {
               onPress={() => setSelectedPkg("$rc_monthly")}
               activeOpacity={0.8}
             >
-              <View style={[p.bestBadge, { backgroundColor: c.primary }]}>
-                <Text style={p.bestTxt}>BEST VALUE</Text>
+              <View style={[p.bestBadge, { backgroundColor: monthlyIntroPrice ? "#16a34a" : c.primary }]}>
+                <Text style={p.bestTxt}>{monthlyIntroPrice ? "INTRO OFFER" : "BEST VALUE"}</Text>
               </View>
               <View style={p.planRow}>
                 <View style={[p.radio, { borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.mutedForeground }]}>
@@ -574,14 +624,27 @@ export default function PaywallScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[p.planName, { color: c.foreground }]}>Monthly</Text>
-                  <Text style={[p.planNote, { color: c.primary }]}>
-                    {trialEligible ? "3 days free · " : ""}Save 25% vs weekly
-                  </Text>
+                  {monthlyIntroPrice ? (
+                    <Text style={[p.planNote, { color: "#16a34a" }]}>
+                      {monthlyIntroPrice.priceString} {formatIntroPeriod(monthlyIntroPrice)}
+                    </Text>
+                  ) : (
+                    <Text style={[p.planNote, { color: c.primary }]}>
+                      {trialEligible ? "3 days free · " : ""}Save 25% vs weekly
+                    </Text>
+                  )}
                 </View>
-                <View style={p.priceBlock}>
-                  <Text style={[p.price, { color: c.foreground }]}>{monthlyPriceString || "—"}</Text>
-                  <Text style={[p.pricePeriod, { color: c.mutedForeground }]}>/month</Text>
-                </View>
+                {monthlyIntroPrice ? (
+                  <View style={p.priceBlock}>
+                    <Text style={[p.price, { color: "#16a34a" }]}>{monthlyIntroPrice.priceString}</Text>
+                    <Text style={[p.pricePeriod, { color: c.mutedForeground }]}>then {monthlyPriceString}/mo</Text>
+                  </View>
+                ) : (
+                  <View style={p.priceBlock}>
+                    <Text style={[p.price, { color: c.foreground }]}>{monthlyPriceString || "—"}</Text>
+                    <Text style={[p.pricePeriod, { color: c.mutedForeground }]}>/month</Text>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
 
@@ -628,13 +691,15 @@ export default function PaywallScreen() {
 
         {/* Legal */}
         <Text style={[p.legal, { color: c.mutedForeground }]}>
-          {chosenPriceString
-            ? trialEligible
-              ? `After the free trial, your subscription auto-renews at ${chosenPriceString}/${periodLabel}. Cancel at least 24 hours before the trial ends to avoid being charged. `
-              : `Subscription auto-renews at ${chosenPriceString}/${periodLabel}. Cancel anytime from your store settings. `
-            : trialEligible
-              ? "After the free trial, your subscription auto-renews unless cancelled at least 24 hours before the trial ends. "
-              : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
+          {chosenIntroPrice && chosenPkg
+            ? `You'll be charged ${chosenIntroPrice.priceString} for the ${formatIntroPeriod(chosenIntroPrice)}, then ${chosenPkg.product.priceString}/${periodLabel} thereafter. Subscription auto-renews at the regular price until cancelled at least 24 hours before renewal. `
+            : chosenPriceString
+              ? trialEligible
+                ? `After the free trial, your subscription auto-renews at ${chosenPriceString}/${periodLabel}. Cancel at least 24 hours before the trial ends to avoid being charged. `
+                : `Subscription auto-renews at ${chosenPriceString}/${periodLabel}. Cancel anytime from your store settings. `
+              : trialEligible
+                ? "After the free trial, your subscription auto-renews unless cancelled at least 24 hours before the trial ends. "
+                : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
           By subscribing you agree to our{" "}
           <Text style={[p.legalLink, { color: c.primary }]} onPress={() => router.push("/terms")}>Terms of Service</Text>
           {" "}and{" "}
@@ -647,7 +712,17 @@ export default function PaywallScreen() {
         {/* Price context — stacked above the button */}
         {!offeringsLoading && !offeringsError && chosenPriceString && (
           <View style={p.priceContext}>
-            {trialEligible ? (
+            {chosenIntroPrice ? (
+              <>
+                <Text style={[p.ctaPriceMain, { color: "#16a34a" }]}>
+                  {chosenIntroPrice.priceString}
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#16a34a" }}> {formatIntroPeriod(chosenIntroPrice)}</Text>
+                </Text>
+                <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
+                  Then {chosenPkg!.product.priceString}/{periodLabel} · cancel anytime
+                </Text>
+              </>
+            ) : trialEligible ? (
               <>
                 <Text style={[p.ctaPriceMain, { color: c.foreground }]}>
                   Free for 3 days
@@ -693,12 +768,14 @@ export default function PaywallScreen() {
             ) : (
               <>
                 <Ionicons
-                  name={trialEligible ? "gift-outline" : "shield-checkmark-outline"}
+                  name={chosenIntroPrice ? "pricetag-outline" : trialEligible ? "gift-outline" : "shield-checkmark-outline"}
                   size={20}
                   color="#fff"
                 />
                 <Text style={p.ctaBtnTxt}>
-                  {trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}
+                  {chosenIntroPrice
+                    ? `Start at ${chosenIntroPrice.priceString}`
+                    : trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}
                 </Text>
                 <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.7)" />
               </>
@@ -710,9 +787,11 @@ export default function PaywallScreen() {
         <View style={p.trustNote}>
           <Ionicons name="lock-closed-outline" size={12} color={c.mutedForeground} />
           <Text style={[p.trustNoteTxt, { color: c.mutedForeground }]}>
-            {trialEligible
-              ? "No charge today · Secured by Apple"
-              : "Secured by Apple · Cancel anytime"}
+            {chosenIntroPrice
+              ? `${chosenIntroPrice.priceString} today · Secured by Apple`
+              : trialEligible
+                ? "No charge today · Secured by Apple"
+                : "Secured by Apple · Cancel anytime"}
           </Text>
         </View>
 

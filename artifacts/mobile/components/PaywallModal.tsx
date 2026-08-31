@@ -23,6 +23,16 @@ interface Props {
   onClose: () => void;
 }
 
+// Minimal shape we rely on — matches PurchasesIntroPrice from react-native-purchases.
+interface IntroPrice {
+  price: number;
+  priceString: string;
+  cycles: number;
+  period: string;
+  periodUnit: string;     // "DAY" | "WEEK" | "MONTH" | "YEAR"
+  periodNumberOfUnits: number;
+}
+
 const FEATURES = [
   { icon: "shield-checkmark", label: "Speed camera & police alerts" },
   { icon: "navigate", label: "Turn-by-turn navigation" },
@@ -32,18 +42,55 @@ const FEATURES = [
   { icon: "car", label: "Trip history & stats" },
 ];
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Derive a human-readable label for the intro period from the store data.
+ * Examples: "first month", "first 3 months", "first week", "first 2 weeks".
+ * Uses cycles × periodNumberOfUnits so a single P3M billing period (cycles=1,
+ * periodNumberOfUnits=3) correctly renders as "first 3 months", not "first month".
+ */
+function formatIntroPeriod(intro: IntroPrice): string {
+  // Total duration = billing cycles × units per billing period
+  // e.g. cycles=1, periodNumberOfUnits=3, periodUnit=MONTH → 3 months
+  //      cycles=3, periodNumberOfUnits=1, periodUnit=MONTH → 3 months
+  const totalUnits = intro.cycles * intro.periodNumberOfUnits;
+  const unit = intro.periodUnit.toLowerCase(); // "day" | "week" | "month" | "year"
+  return totalUnits === 1 ? `first ${unit}` : `first ${totalUnits} ${unit}s`;
+}
+
+/**
+ * Build the renewal description shown in legal text and confirmation dialog.
+ * e.g. "KSh 99 for the first month, then KSh 299/month"
+ */
+function formatIntroWithRenewal(intro: IntroPrice, regularPriceString: string, regularPeriodLabel: string): string {
+  const period = formatIntroPeriod(intro);
+  return `${intro.priceString} for the ${period}, then ${regularPriceString}/${regularPeriodLabel}`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function PaywallModal({ visible, onClose }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { offerings, offeringsLoading, purchase, isPurchasing, restore, isRestoring, error, isTrialEligible } =
-    useSubscription();
+  const {
+    offerings,
+    offeringsLoading,
+    purchase,
+    isPurchasing,
+    restore,
+    isRestoring,
+    error,
+    isTrialEligible,
+    isDefinitelyIntroEligible,
+  } = useSubscription();
   const { isAdmin, adminLogout } = useApp();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
   const [confirmPkg, setConfirmPkg] = useState<any>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  // ── Hidden admin entry: 4 taps on the top-right checkmark ───────────────────
+  // ── Hidden admin entry: 3 taps on "Drive" in the hero ───────────────────────
   const [adminTapCount, setAdminTapCount] = useState(0);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const adminTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,12 +122,28 @@ export function PaywallModal({ visible, onClose }: Props) {
     (p) => p.identifier === "$rc_monthly",
   );
 
-  const chosenPkg =
-    selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
+  const chosenPkg = selectedPkg === "$rc_weekly" ? weeklyPkg : monthlyPkg;
 
-  // If this store account has already used its free trial (iOS only — Android/web
-  // always report eligible), show regular pricing copy instead of trial copy.
+  // ── Intro price gate ──────────────────────────────────────────────────────────
+  // Use the STRICTER gate (isDefinitelyIntroEligible) so we only advertise the
+  // offer when the store has positively confirmed eligibility — never for unknown
+  // or pending iOS states, and never on web. On Android, Google Play only
+  // populates product.introPrice when the user is eligible, so introPrice != null
+  // is itself the reliable signal; the Android branch of isDefinitelyIntroEligible
+  // always returns true and we rely on the field being null when ineligible.
+  const monthlyIntroPrice: IntroPrice | null =
+    monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
+      ? (monthlyPkg.product.introPrice as IntroPrice | null) ?? null
+      : null;
+
+  // Intro offer is only active for the monthly plan (weekly has no intro offer).
+  const chosenIntroPrice: IntroPrice | null =
+    selectedPkg === "$rc_monthly" ? monthlyIntroPrice : null;
+
+  // For the plain free-trial gate (used elsewhere), keep the existing looser check.
   const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────────
 
   async function handlePurchase() {
     if (!chosenPkg || !agreedToTerms) return;
@@ -98,6 +161,34 @@ export function PaywallModal({ visible, onClose }: Props) {
         setConfirmPkg(null);
       }
     }
+  }
+
+  // ── Derived display strings ───────────────────────────────────────────────────
+
+  // CTA label leads with the intro price so the first action feels low-stakes.
+  const ctaLabel = chosenIntroPrice
+    ? `Start at ${chosenIntroPrice.priceString}`
+    : "Subscribe Now";
+
+  const regularPeriodLabel = selectedPkg === "$rc_weekly" ? "week" : "month";
+
+  // Full charge description used in both the legal paragraph and the confirm dialog.
+  const chargeDescription = chosenPkg
+    ? chosenIntroPrice
+      ? formatIntroWithRenewal(chosenIntroPrice, chosenPkg.product.priceString, regularPeriodLabel)
+      : `${chosenPkg.product.priceString} per ${regularPeriodLabel}`
+    : null;
+
+  // ── Legal copy ────────────────────────────────────────────────────────────────
+  function buildLegalText(): string {
+    if (!chosenPkg) {
+      return "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store or Google Play account settings.";
+    }
+    if (chosenIntroPrice) {
+      // Describe intro period then renewal — no duplication.
+      return `You'll be charged ${chosenIntroPrice.priceString} for the ${formatIntroPeriod(chosenIntroPrice)}, then ${chosenPkg.product.priceString}/${regularPeriodLabel} thereafter. Subscription auto-renews at the regular price until cancelled at least 24 hours before renewal. Manage or cancel anytime in your App Store or Google Play account settings.`;
+    }
+    return `You'll be charged ${chosenPkg.product.priceString} per ${regularPeriodLabel} and your subscription will auto-renew at that price until cancelled. Manage or cancel anytime in your App Store or Google Play account settings.`;
   }
 
   return (
@@ -138,13 +229,29 @@ export function PaywallModal({ visible, onClose }: Props) {
             </Text>
           </View>
 
-          {/* Commitment badge */}
-          <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
-            <Text style={[styles.trialText, { color: c.primary }]}>
-              Cancel anytime — no long-term commitment
-            </Text>
-          </View>
+          {/* Commitment / intro-offer badge */}
+          {monthlyIntroPrice ? (
+            // Green badge describing the intro offer — only shown when eligibility is
+            // positively confirmed; never shown while iOS query is still loading.
+            <View style={[styles.introBadge, { backgroundColor: "#16a34a18", borderColor: "#16a34a55" }]}>
+              <Ionicons name="pricetag" size={16} color="#16a34a" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.introBadgeTitle, { color: "#16a34a" }]}>
+                  Introductory offer — {monthlyIntroPrice.priceString} {formatIntroPeriod(monthlyIntroPrice)}
+                </Text>
+                <Text style={[styles.introBadgeSub, { color: "#16a34a" }]}>
+                  then {monthlyPkg!.product.priceString}/month · Cancel anytime
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
+              <Text style={[styles.trialText, { color: c.primary }]}>
+                Cancel anytime — no long-term commitment
+              </Text>
+            </View>
+          )}
 
           {/* Feature list */}
           <View style={[styles.featuresCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -189,9 +296,16 @@ export function PaywallModal({ visible, onClose }: Props) {
                   onPress={() => setSelectedPkg("$rc_monthly")}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.planBestBadge, { backgroundColor: c.primary }]}>
-                    <Text style={styles.planBestText}>BEST VALUE</Text>
+                  {/* Badge: "INTRO OFFER" when eligible, otherwise "BEST VALUE" */}
+                  <View style={[
+                    styles.planBestBadge,
+                    { backgroundColor: monthlyIntroPrice ? "#16a34a" : c.primary },
+                  ]}>
+                    <Text style={styles.planBestText}>
+                      {monthlyIntroPrice ? "INTRO OFFER" : "BEST VALUE"}
+                    </Text>
                   </View>
+
                   <View style={styles.planTop}>
                     <View style={[styles.planRadio, { borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.border }]}>
                       {selectedPkg === "$rc_monthly" && (
@@ -200,16 +314,35 @@ export function PaywallModal({ visible, onClose }: Props) {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.planName, { color: c.foreground }]}>Monthly</Text>
-                      <Text style={[styles.planSave, { color: c.primary }]}>
-                        Save 25% vs weekly
-                      </Text>
+                      {monthlyIntroPrice ? (
+                        // Subtext derived from actual period data, not hard-coded
+                        <Text style={[styles.planSave, { color: "#16a34a" }]}>
+                          {monthlyIntroPrice.priceString} for the {formatIntroPeriod(monthlyIntroPrice)}
+                        </Text>
+                      ) : (
+                        <Text style={[styles.planSave, { color: c.primary }]}>
+                          Save 25% vs weekly
+                        </Text>
+                      )}
                     </View>
-                    <View style={styles.planPriceWrap}>
-                      <Text style={[styles.planPrice, { color: c.foreground }]}>
-                        {monthlyPkg.product.priceString}
-                      </Text>
-                      <Text style={[styles.planPeriod, { color: c.mutedForeground }]}>/month</Text>
-                    </View>
+                    {/* Pricing column: intro price prominent + regular price as renewal note */}
+                    {monthlyIntroPrice ? (
+                      <View style={styles.planPriceWrap}>
+                        <Text style={[styles.planPrice, { color: "#16a34a" }]}>
+                          {monthlyIntroPrice.priceString}
+                        </Text>
+                        <Text style={[styles.planPriceRegular, { color: c.mutedForeground }]}>
+                          then {monthlyPkg.product.priceString}/mo
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.planPriceWrap}>
+                        <Text style={[styles.planPrice, { color: c.foreground }]}>
+                          {monthlyPkg.product.priceString}
+                        </Text>
+                        <Text style={[styles.planPeriod, { color: c.mutedForeground }]}>/month</Text>
+                      </View>
+                    )}
                   </View>
                 </TouchableOpacity>
               )}
@@ -259,10 +392,7 @@ export function PaywallModal({ visible, onClose }: Props) {
 
           {/* Legal note */}
           <Text style={[styles.legal, { color: c.mutedForeground }]}>
-            {chosenPkg
-              ? `You'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
-              : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
-            Manage or cancel anytime in your App Store or Google Play account settings.
+            {buildLegalText()}
           </Text>
 
           {/* Terms agreement checkbox */}
@@ -306,7 +436,13 @@ export function PaywallModal({ visible, onClose }: Props) {
         {/* CTA */}
         <View style={[styles.ctaWrap, { borderTopColor: c.border }]}>
           <TouchableOpacity
-            style={[styles.ctaBtn, { backgroundColor: c.primary, opacity: isPurchasing || offeringsLoading || !agreedToTerms ? 0.5 : 1 }]}
+            style={[
+              styles.ctaBtn,
+              {
+                backgroundColor: chosenIntroPrice ? "#16a34a" : c.primary,
+                opacity: isPurchasing || offeringsLoading || !agreedToTerms ? 0.5 : 1,
+              },
+            ]}
             onPress={handlePurchase}
             disabled={isPurchasing || offeringsLoading || !chosenPkg || !agreedToTerms}
             activeOpacity={0.85}
@@ -314,11 +450,16 @@ export function PaywallModal({ visible, onClose }: Props) {
             {isPurchasing ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.ctaBtnTxt}>
-                Subscribe Now
-              </Text>
+              <Text style={styles.ctaBtnTxt}>{ctaLabel}</Text>
             )}
           </TouchableOpacity>
+
+          {/* Renewal reminder under the CTA — driven by actual period data */}
+          {chosenIntroPrice && chosenPkg && (
+            <Text style={[styles.ctaRenewalNote, { color: c.mutedForeground }]}>
+              Renews at {chosenPkg.product.priceString}/{regularPeriodLabel} after the {formatIntroPeriod(chosenIntroPrice)}
+            </Text>
+          )}
 
           <TouchableOpacity
             onPress={() => restore()}
@@ -331,14 +472,16 @@ export function PaywallModal({ visible, onClose }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Admin login — triggered by 4-tap on top-left checkmark */}
+        {/* Admin login — triggered by 3-tap on "Drive" in the hero */}
         <AdminPinModal
           visible={showAdminLogin}
           onClose={() => setShowAdminLogin(false)}
           onSuccess={() => setShowAdminLogin(false)}
         />
 
-        {/* Test-mode purchase confirmation modal */}
+        {/* Test-mode purchase confirmation modal.
+            Shows intro pricing when applicable so the confirmation matches what
+            the driver sees on the plan card — no contradictory pricing. */}
         {confirmPkg && (
           <Modal transparent animationType="fade" visible onRequestClose={() => setConfirmPkg(null)}>
             <View style={styles.confirmOverlay}>
@@ -347,11 +490,23 @@ export function PaywallModal({ visible, onClose }: Props) {
                   Confirm Purchase (Test Mode)
                 </Text>
                 <Text style={[styles.confirmBody, { color: c.mutedForeground }]}>
-                  Purchase "{confirmPkg.product.title}" for{" "}
-                  <Text style={{ fontFamily: "Inter_700Bold", color: c.foreground }}>
-                    {confirmPkg.product.priceString}
-                  </Text>
-                  ?
+                  {chargeDescription ? (
+                    <>
+                      Purchase "{confirmPkg.product.title}" for{" "}
+                      <Text style={{ fontFamily: "Inter_700Bold", color: c.foreground }}>
+                        {chargeDescription}
+                      </Text>
+                      ?
+                    </>
+                  ) : (
+                    <>
+                      Purchase "{confirmPkg.product.title}" for{" "}
+                      <Text style={{ fontFamily: "Inter_700Bold", color: c.foreground }}>
+                        {confirmPkg.product.priceString}
+                      </Text>
+                      ?
+                    </>
+                  )}
                 </Text>
                 <View style={styles.confirmBtns}>
                   <TouchableOpacity
@@ -396,6 +551,16 @@ const styles = StyleSheet.create({
   },
   heroSub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
 
+  // Intro offer badge (green) — shown only when eligibility is positively confirmed
+  introBadge: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    borderRadius: 12, borderWidth: 1, paddingVertical: 12, paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  introBadgeTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  introBadgeSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+
+  // Fallback badge (brand color) — shown when no confirmed intro offer
   trialBadge: {
     flexDirection: "row", alignItems: "center", gap: 8,
     borderRadius: 12, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 16,
@@ -417,13 +582,10 @@ const styles = StyleSheet.create({
   plansComingSoonSub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
 
   plans: { gap: 12, marginBottom: 16 },
-  planCard: {
-    borderRadius: 16, borderWidth: 2, padding: 16, overflow: "hidden",
-  },
+  planCard: { borderRadius: 16, borderWidth: 2, padding: 16, overflow: "hidden" },
   planBestBadge: {
     position: "absolute", top: 0, right: 0,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderBottomLeftRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 12,
   },
   planBestText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
   planTop: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -437,6 +599,8 @@ const styles = StyleSheet.create({
   planPriceWrap: { alignItems: "flex-end" },
   planPrice: { fontSize: 20, fontFamily: "Inter_700Bold" },
   planPeriod: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  // Renewal rate shown below the intro price on the plan card
+  planPriceRegular: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
 
   errorText: { color: "#E53935", fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 8 },
 
@@ -454,15 +618,17 @@ const styles = StyleSheet.create({
   agreeText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, flex: 1 },
   agreeLink: { fontFamily: "Inter_600SemiBold" },
 
-  ctaWrap: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, gap: 12 },
-  ctaBtn: {
-    borderRadius: 18, paddingVertical: 17, alignItems: "center",
-  },
+  ctaWrap: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, gap: 8 },
+  ctaBtn: { borderRadius: 18, paddingVertical: 17, alignItems: "center" },
   ctaBtnTxt: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
-  restoreBtn: { alignItems: "center" },
+  ctaRenewalNote: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
+  restoreBtn: { alignItems: "center", paddingVertical: 4 },
   restoreTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
 
-  confirmOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 },
+  confirmOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center", alignItems: "center", padding: 24,
+  },
   confirmSheet: { borderRadius: 20, padding: 24, width: "100%", gap: 16 },
   confirmTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   confirmBody: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
