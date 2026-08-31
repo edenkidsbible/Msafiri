@@ -134,9 +134,67 @@ module.exports = {
           icon: "./assets/images/notification-icon.png",
           color: "#00C853",
           sounds: [
+            // ── Original notification tones ──────────────────────────────────
             "./assets/sounds/alert_tone.mp3",
             "./assets/sounds/confirm_chime.mp3",
             "./assets/sounds/notify_pop.mp3",
+
+            // ── Yna Agalo alert voices — iOS (.caf) ─────────────────────────
+            // iOS UNUserNotificationCenter only plays .wav / .aiff / .caf;
+            // .mp3 is silently ignored. The expo-notifications plugin copies
+            // each file listed here into the app bundle root at build time,
+            // making them available to the `sound:` field in scheduleNotificationAsync.
+            "./assets/sounds/alerts/camera.caf",
+            "./assets/sounds/alerts/police.caf",
+            "./assets/sounds/alerts/zone.caf",
+            "./assets/sounds/alerts/alcoblow.caf",
+            "./assets/sounds/alerts/accident.caf",
+            "./assets/sounds/alerts/traffic.caf",
+            "./assets/sounds/alerts/roadblock.caf",
+            "./assets/sounds/alerts/roadworks.caf",
+            "./assets/sounds/alerts/hazard.caf",
+            "./assets/sounds/alerts/pothole.caf",
+            "./assets/sounds/alerts/debris.caf",
+            "./assets/sounds/alerts/breakdown.caf",
+            "./assets/sounds/alerts/weather.caf",
+            "./assets/sounds/alerts/closure.caf",
+            "./assets/sounds/alerts/clear.caf",
+            "./assets/sounds/alerts/speed_bump.caf",
+            // Speed-limit-specific camera CAFs
+            "./assets/sounds/alerts/camera_30.caf",
+            "./assets/sounds/alerts/camera_50.caf",
+            "./assets/sounds/alerts/camera_60.caf",
+            "./assets/sounds/alerts/camera_80.caf",
+            "./assets/sounds/alerts/camera_100.caf",
+            "./assets/sounds/alerts/camera_110.caf",
+            // Speed-limit-specific zone CAFs
+            "./assets/sounds/alerts/zone_30.caf",
+            "./assets/sounds/alerts/zone_50.caf",
+            "./assets/sounds/alerts/zone_60.caf",
+            "./assets/sounds/alerts/zone_80.caf",
+            "./assets/sounds/alerts/zone_100.caf",
+            "./assets/sounds/alerts/zone_110.caf",
+
+            // ── Yna Agalo alert voices — Android (.mp3 → res/raw/) ──────────
+            // Android 8+ uses notification-channel sounds; files must be in
+            // res/raw/ (copied here by the expo-notifications plugin).
+            // Each msafiri_voice_<type> channel references its file by name.
+            "./assets/sounds/alerts/camera.mp3",
+            "./assets/sounds/alerts/police.mp3",
+            "./assets/sounds/alerts/zone.mp3",
+            "./assets/sounds/alerts/alcoblow.mp3",
+            "./assets/sounds/alerts/accident.mp3",
+            "./assets/sounds/alerts/traffic.mp3",
+            "./assets/sounds/alerts/roadblock.mp3",
+            "./assets/sounds/alerts/roadworks.mp3",
+            "./assets/sounds/alerts/hazard.mp3",
+            "./assets/sounds/alerts/pothole.mp3",
+            "./assets/sounds/alerts/debris.mp3",
+            "./assets/sounds/alerts/breakdown.mp3",
+            "./assets/sounds/alerts/weather.mp3",
+            "./assets/sounds/alerts/closure.mp3",
+            "./assets/sounds/alerts/clear.mp3",
+            "./assets/sounds/alerts/speed_bump.mp3",
           ],
         },
       ],

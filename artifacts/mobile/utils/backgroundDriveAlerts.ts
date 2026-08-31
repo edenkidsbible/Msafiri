@@ -53,6 +53,7 @@ import { Platform } from "react-native";
 import {
   ANDROID_ALERTS_CHANNEL_ID,
   ensureAndroidNotificationChannels,
+  resolveAndroidVoiceChannelId,
 } from "@/utils/androidNotificationChannels";
 
 export const BG_DRIVE_ALERTS_TASK = "MSAFIRI_BG_DRIVE_ALERTS";
@@ -141,6 +142,35 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
     Math.sin(df / 2) ** 2 +
     Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── Notification sound helpers ────────────────────────────────────────────────
+
+/** Speed limits that have a dedicated Yna Agalo CAF bundled for iOS. */
+const BUNDLED_SPEED_LIMITS = new Set([30, 50, 60, 80, 100, 110]);
+
+/**
+ * Resolves the iOS notification sound filename (.caf) for a given alert type
+ * and optional speed limit. Returns the bundled CAF name when available, or
+ * `true` (system default) as a safe fallback.
+ *
+ * UNUserNotificationCenter silently ignores .mp3 files — only .caf / .wav /
+ * .aiff play as notification sounds on iOS.
+ */
+function resolveIosNotificationSound(
+  type: string,
+  speedLimit?: number | null,
+): string | true {
+  // Speed-limit-specific camera / zone variants come first (Task #10 assets)
+  if ((type === "camera" || type === "zone") && speedLimit != null && BUNDLED_SPEED_LIMITS.has(speedLimit)) {
+    return `${type}_${speedLimit}.caf`;
+  }
+  const BUNDLED: ReadonlySet<string> = new Set([
+    "camera", "police", "zone", "alcoblow", "accident", "traffic",
+    "roadblock", "roadworks", "hazard", "pothole", "debris", "breakdown",
+    "weather", "closure", "clear", "speed_bump",
+  ]);
+  return BUNDLED.has(type) ? `${type}.caf` : true;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -442,28 +472,31 @@ export function defineBackgroundDriveAlertsTask(): void {
             : `${Math.round(winner.dist)} m`;
         const speedPart = winner.speedLimit ? ` – ${winner.speedLimit} km/h` : "";
 
+        // ── Resolve type-specific voice sound ─────────────────────────
+        // iOS:     .caf file played by UNUserNotificationCenter. .mp3 is
+        //          silently ignored — must be .caf / .wav / .aiff.
+        //          Speed-limit-specific files used when available (Task #10).
+        // Android: Sound comes from the notification CHANNEL on API 26+;
+        //          per-type msafiri_voice_* channels each carry their own
+        //          Yna Agalo clip. Content-level sound is ignored on Oreo+.
+        const iosSound = Platform.OS === "ios"
+          ? resolveIosNotificationSound(winner.type, winner.speedLimit)
+          : undefined;
+        const androidChannelId = Platform.OS === "android"
+          ? resolveAndroidVoiceChannelId(winner.type)
+          : undefined;
+
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `⚠️ ${label} ahead`,
             body:  `${label} ahead${speedPart} · ${distKm}`,
-
-            // ── Sound ──────────────────────────────────────────────────────
-            // iOS: local notification sounds MUST be .wav / .aiff / .caf —
-            //      .mp3 is silently ignored by UNUserNotificationCenter.
-            //      `true` → system uses the app's default notification sound.
-            // Android: sound comes from the notification CHANNEL (configured
-            //      in usePushNotifications); the content-level sound field is
-            //      ignored on API 26+ (Oreo+), so we leave it unset there.
-            sound: Platform.OS === "ios" ? true : undefined,
-
+            sound: iosSound,
             // lat/lng/alertId let the notification tap handler open the map
             // and pulse-highlight the exact alert pin.
             data:  { source: "bg_drive_alert", type: winner.type, alertId: winner.id, lat: winner.lat, lng: winner.lng },
           },
           trigger: Platform.OS === "android"
-            // The msafiri_alerts channel carries HIGH importance + sound.
-            // Setting channelId here is the correct way to route on Android 8+.
-            ? { channelId: ANDROID_ALERTS_CHANNEL_ID }
+            ? { channelId: androidChannelId ?? ANDROID_ALERTS_CHANNEL_ID }
             : null,
         });
 
