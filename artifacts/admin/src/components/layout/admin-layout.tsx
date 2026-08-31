@@ -1,18 +1,12 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, AlertCircle, Gauge, MapPin, Users, LogOut, Sun, Moon,
   ClipboardList, Bell, CreditCard, Megaphone, Rocket, FileText, KeyRound,
   Star, ShieldCheck, Search, Settings2, HardDrive, DatabaseBackup,
   ExternalLink, Inbox, Flag,
-  // Ops icons
-  Home, CalendarDays, Wallet, CheckSquare, Video, Map, FileUp,
-  UsersRound, MessageCircle, Building2,
 } from "lucide-react";
 import { getToken } from "@/lib/auth";
-import { subscribeChatSocket } from "@/lib/chat-socket";
-import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 
 function authFetch(url: string) {
   return fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
@@ -45,7 +39,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const user = getUser();
   const { resolvedTheme, toggle } = useTheme();
-  const { toast } = useToast();
   const [searchOpen, setSearchOpen] = useState(false);
   const { can } = usePermissions();
 
@@ -71,7 +64,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const unreadCount = notifData?.unreadCount ?? 0;
 
   const [inboxUnread, setInboxUnread] = useState(0);
-  const [chatUnread, setChatUnread] = useState(0);
 
   useEffect(() => {
     if (!can("inbox")) return;
@@ -86,72 +78,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
-  // Keep a stable ref to the current location so the socket listener can read
-  // the latest value without needing to re-subscribe on every navigation.
-  const locationRef = useRef(location);
-  locationRef.current = location;
-
-  // Chat unread badge: fetched once on mount, then refreshed in real time by
-  // WebSocket events (new messages and reconnects) — no polling interval.
-  useEffect(() => {
-    const fetchChatUnread = () => {
-      authFetch("/api/ops/chat/unread")
-        .then((r) => r.ok ? r.json() : null)
-        .then((d) => d && setChatUnread(d.total ?? 0))
-        .catch(() => {});
-    };
-    fetchChatUnread();
-    const unsubscribe = subscribeChatSocket((evt) => {
-      if (evt.event === "message:new" || evt.event === "connected") {
-        fetchChatUnread();
-      }
-      // Show a toast when a message arrives and the user isn't on the chat page.
-      if (
-        evt.event === "message:new" &&
-        evt.message &&
-        !locationRef.current.startsWith("/ops/chat") &&
-        evt.message.senderId !== user?.id
-      ) {
-        const msg = evt.message;
-        const senderFirst = (msg.senderName ?? "Someone").split(" ")[0];
-        toast({
-          title: `New message from ${senderFirst}`,
-          description: msg.body.length > 60 ? msg.body.slice(0, 60) + "…" : msg.body,
-          action: (
-            <ToastAction
-              altText="Open chat"
-              onClick={() => setLocation(`/ops/chat?conv=${msg.conversationId}`)}
-            >
-              Open
-            </ToastAction>
-          ),
-        });
-      }
-    });
-    return unsubscribe;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleLogout = () => {
     clearToken();
     setLocation("/login");
   };
-
-  // ── Ops nav items ──────────────────────────────────────────────────────────
-  const opsNav = [
-    { href: "/ops/home",          label: "Command",         icon: Home },
-    { href: "/ops/this-week",     label: "This Week",       icon: CalendarDays },
-    { href: "/ops/money",         label: "Money",           icon: Wallet },
-    { href: "/ops/tasks",         label: "Tasks",           icon: CheckSquare },
-    { href: "/ops/content",       label: "Content",         icon: Video },
-    { href: "/ops/field",         label: "Field & Road",    icon: Map },
-    { href: "/ops/subscriptions", label: "Subscribers",     icon: CreditCard },
-    { href: "/ops/team",          label: "Team",            icon: UsersRound },
-    { href: "/ops/chat",          label: "Chat",            icon: MessageCircle, badge: chatUnread },
-    { href: "/ops/import",        label: "Import",          icon: FileUp },
-    { href: "/ops/settings",      label: "Ops Settings",    icon: Settings2 },
-    { href: "/ops/backup",        label: "Backup & Restore", icon: DatabaseBackup },
-  ];
 
   // ── App management nav items ───────────────────────────────────────────────
   const coreNavAll: Array<{ href: string; label: string; icon: typeof AlertCircle; feature: FeatureKey }> = [
@@ -198,35 +128,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </SidebarHeader>
           <SidebarContent>
-
-            {/* ── Operations Platform ── */}
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-xs tracking-wider uppercase text-muted-foreground font-medium mb-2 px-4">
-                Operations
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {opsNav.map((item) => {
-                    const isActive = location.startsWith(item.href);
-                    return (
-                      <SidebarMenuItem key={item.href} className="px-2">
-                        <SidebarMenuButton asChild isActive={isActive} tooltip={item.label} className="h-10">
-                          <Link href={item.href} data-testid={`nav-ops-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                            <item.icon className="h-4 w-4 mr-2" />
-                            <span className="font-medium text-sm">{item.label}</span>
-                            {item.badge !== undefined && item.badge > 0 && (
-                              <span className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center shrink-0">
-                                {item.badge > 9 ? "9+" : item.badge}
-                              </span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
 
             {/* ── App Management Overview ── */}
             {adminOnlyNav.length > 0 && (
