@@ -19,6 +19,7 @@ import { loadVehicles } from "@/utils/savedVehicles";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { AdminPinModal } from "@/components/AdminPinModal";
+import { FREE_TRIAL_SESSIONS, useTrialSessions } from "@/hooks/useTrialSessions";
 
 type Result = "success" | "restored" | "error" | null;
 
@@ -97,7 +98,7 @@ const FEATURES: {
 ];
 
 const TRUST = [
-  { icon: "shield-checkmark-outline" as const, label: "No charge\nduring trial" },
+  { icon: "shield-checkmark-outline" as const, label: "3 free\ndrives" },
   { icon: "refresh-circle-outline" as const,   label: "Cancel\nanytime" },
   { icon: "lock-closed-outline" as const,       label: "Secure & private\npayments" },
 ];
@@ -346,8 +347,9 @@ export default function PaywallScreen() {
   const { requestLocationPermission, isAdmin, adminLogout } = useApp();
   const {
     offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings,
-    purchase, isPurchasing, restore, isRestoring, isTrialEligible, isDefinitelyIntroEligible,
+    purchase, isPurchasing, restore, isRestoring, isDefinitelyIntroEligible,
   } = useSubscription();
+  const { sessionsUsed, trialExpired } = useTrialSessions();
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
   const [result, setResult] = useState<Result>(null);
@@ -366,17 +368,23 @@ export default function PaywallScreen() {
   const weeklyPriceString  = weeklyPkg?.product.priceString  ?? "";
   const monthlyPriceString = monthlyPkg?.product.priceString ?? "";
   const chosenPriceString  = selectedPkg === "$rc_weekly" ? weeklyPriceString : monthlyPriceString;
-  const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
   const periodLabel = selectedPkg === "$rc_weekly" ? "week" : "month";
+  const sessionsRemaining = Math.max(0, FREE_TRIAL_SESSIONS - sessionsUsed);
+  const nextFreeDrive = Math.min(sessionsUsed + 1, FREE_TRIAL_SESSIONS);
+  const storeName = Platform.OS === "ios" ? "Apple App Store" : "Google Play";
 
   // ── Intro (discounted first-period) price ─────────────────────────────────────
   // Only advertised when eligibility is POSITIVELY confirmed (isDefinitelyIntroEligible).
   // Gracefully absent when the offer isn't configured in the store or the user
   // is ineligible / iOS query hasn't resolved yet.
-  const monthlyIntroPrice: IntroPrice | null =
+  const rawMonthlyIntroPrice: IntroPrice | null =
     monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
       ? (monthlyPkg.product.introPrice as IntroPrice | null) ?? null
       : null;
+  // The app's free access is session-based. Do not advertise a legacy store
+  // free trial here; only show a genuinely paid introductory store price.
+  const monthlyIntroPrice =
+    rawMonthlyIntroPrice && rawMonthlyIntroPrice.price > 0 ? rawMonthlyIntroPrice : null;
   const chosenIntroPrice: IntroPrice | null =
     selectedPkg === "$rc_monthly" ? monthlyIntroPrice : null;
   // Unified charge description reused in legal text, CTA pricing, and trust note.
@@ -465,18 +473,19 @@ export default function PaywallScreen() {
   }
 
   function handleDismiss() {
+    if (!trialExpired) {
+      void handleEnterApp();
+      return;
+    }
     const buttons: any[] = [
-      { text: trialEligible ? "Start Free Trial" : "Subscribe Now", style: "default" },
+      { text: "Subscribe Now", style: "default" },
     ];
     if (Platform.OS === "android") {
       buttons.push({ text: "Exit App", style: "destructive", onPress: () => BackHandler.exitApp() });
     }
     Alert.alert(
       "Subscription Required",
-      "All Msafiri features require an active subscription.\n\n" +
-        (trialEligible
-          ? "Start your 3-day free trial — it's free to begin and you can cancel anytime before it ends."
-          : "Subscribe to get full access. You can cancel anytime from your App Store or Google Play settings."),
+      `You've completed your ${FREE_TRIAL_SESSIONS} free driving sessions. Subscribe to keep using Msafiri. You can cancel anytime from your ${storeName} settings.`,
       buttons,
       { cancelable: true }
     );
@@ -540,7 +549,14 @@ export default function PaywallScreen() {
             <Text style={[p.heroSub, { color: c.mutedForeground }]}>
               Premium tools to protect you, your car, and the people who matter.
             </Text>
-            {monthlyIntroPrice ? (
+            {!trialExpired ? (
+              <View style={[p.trialPill, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
+                <Ionicons name="gift-outline" size={13} color={c.primary} />
+                <Text style={[p.trialTxt, { color: c.primary }]}>
+                  FREE DRIVE {nextFreeDrive} OF {FREE_TRIAL_SESSIONS}
+                </Text>
+              </View>
+            ) : monthlyIntroPrice ? (
               <View style={[p.trialPill, { backgroundColor: "#16a34a18", borderColor: "#16a34a44" }]}>
                 <Ionicons name="pricetag-outline" size={13} color="#16a34a" />
                 <Text style={[p.trialTxt, { color: "#16a34a" }]}>
@@ -549,9 +565,9 @@ export default function PaywallScreen() {
               </View>
             ) : (
               <View style={[p.trialPill, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
-                <Ionicons name={trialEligible ? "gift-outline" : "shield-checkmark-outline"} size={13} color={c.primary} />
+                <Ionicons name="shield-checkmark-outline" size={13} color={c.primary} />
                 <Text style={[p.trialTxt, { color: c.primary }]}>
-                  {trialEligible ? "3-DAY FREE TRIAL" : "CANCEL ANYTIME"}
+                  {FREE_TRIAL_SESSIONS} FREE DRIVES COMPLETE
                 </Text>
               </View>
             )}
@@ -630,7 +646,7 @@ export default function PaywallScreen() {
                     </Text>
                   ) : (
                     <Text style={[p.planNote, { color: c.primary }]}>
-                      {trialEligible ? "3 days free · " : ""}Save 25% vs weekly
+                      Save 25% vs weekly
                     </Text>
                   )}
                 </View>
@@ -664,7 +680,7 @@ export default function PaywallScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={[p.planName, { color: c.foreground }]}>Weekly</Text>
                   <Text style={[p.planNote, { color: c.mutedForeground }]}>
-                    {trialEligible ? "3 days free · " : ""}Flexible · Cancel anytime
+                    Flexible · Cancel anytime
                   </Text>
                 </View>
                 <View style={p.priceBlock}>
@@ -691,15 +707,14 @@ export default function PaywallScreen() {
 
         {/* Legal */}
         <Text style={[p.legal, { color: c.mutedForeground }]}>
+          {!trialExpired
+            ? `Your ${sessionsRemaining} remaining free driving ${sessionsRemaining === 1 ? "session does" : "sessions do"} not start a subscription. After your third qualifying drive, a paid subscription is required to continue. `
+            : `Your ${FREE_TRIAL_SESSIONS} free driving sessions are complete. `}
           {chosenIntroPrice && chosenPkg
             ? `You'll be charged ${chosenIntroPrice.priceString} for the ${formatIntroPeriod(chosenIntroPrice)}, then ${chosenPkg.product.priceString}/${periodLabel} thereafter. Subscription auto-renews at the regular price until cancelled at least 24 hours before renewal. `
             : chosenPriceString
-              ? trialEligible
-                ? `After the free trial, your subscription auto-renews at ${chosenPriceString}/${periodLabel}. Cancel at least 24 hours before the trial ends to avoid being charged. `
-                : `Subscription auto-renews at ${chosenPriceString}/${periodLabel}. Cancel anytime from your store settings. `
-              : trialEligible
-                ? "After the free trial, your subscription auto-renews unless cancelled at least 24 hours before the trial ends. "
-                : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
+              ? `If you subscribe, you'll be charged ${chosenPriceString}/${periodLabel}. The subscription auto-renews until cancelled from your ${storeName} settings. `
+              : "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. "}
           By subscribing you agree to our{" "}
           <Text style={[p.legalLink, { color: c.primary }]} onPress={() => router.push("/terms")}>Terms of Service</Text>
           {" "}and{" "}
@@ -722,15 +737,6 @@ export default function PaywallScreen() {
                   Then {chosenPkg!.product.priceString}/{periodLabel} · cancel anytime
                 </Text>
               </>
-            ) : trialEligible ? (
-              <>
-                <Text style={[p.ctaPriceMain, { color: c.foreground }]}>
-                  Free for 3 days
-                </Text>
-                <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
-                  Then {chosenPriceString}/{periodLabel} · cancel anytime
-                </Text>
-              </>
             ) : (
               <>
                 <Text style={[p.ctaPriceMain, { color: c.foreground }]}>
@@ -738,7 +744,7 @@ export default function PaywallScreen() {
                   <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular" }}> /{periodLabel}</Text>
                 </Text>
                 <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
-                  Cancel anytime from App Store settings
+                  Cancel anytime from {storeName} settings
                 </Text>
               </>
             )}
@@ -768,14 +774,14 @@ export default function PaywallScreen() {
             ) : (
               <>
                 <Ionicons
-                  name={chosenIntroPrice ? "pricetag-outline" : trialEligible ? "gift-outline" : "shield-checkmark-outline"}
+                  name={chosenIntroPrice ? "pricetag-outline" : "shield-checkmark-outline"}
                   size={20}
                   color="#fff"
                 />
                 <Text style={p.ctaBtnTxt}>
                   {chosenIntroPrice
                     ? `Start at ${chosenIntroPrice.priceString}`
-                    : trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}
+                    : "Subscribe Now"}
                 </Text>
                 <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.7)" />
               </>
@@ -788,10 +794,8 @@ export default function PaywallScreen() {
           <Ionicons name="lock-closed-outline" size={12} color={c.mutedForeground} />
           <Text style={[p.trustNoteTxt, { color: c.mutedForeground }]}>
             {chosenIntroPrice
-              ? `${chosenIntroPrice.priceString} today · Secured by Apple`
-              : trialEligible
-                ? "No charge today · Secured by Apple"
-                : "Secured by Apple · Cancel anytime"}
+              ? `${chosenIntroPrice.priceString} today · Secured by ${storeName}`
+              : `Secured by ${storeName} · Cancel anytime`}
           </Text>
         </View>
 
@@ -820,8 +824,15 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         {/* Dismiss */}
-        <TouchableOpacity onPress={handleDismiss} style={p.notNowBtn} accessibilityLabel="Not now" accessibilityRole="button">
-          <Text style={[p.notNowTxt, { color: c.mutedForeground }]}>Not now</Text>
+        <TouchableOpacity
+          onPress={handleDismiss}
+          style={p.notNowBtn}
+          accessibilityLabel={trialExpired ? "Not now" : `Start free drive ${nextFreeDrive} of ${FREE_TRIAL_SESSIONS}`}
+          accessibilityRole="button"
+        >
+          <Text style={[p.notNowTxt, { color: trialExpired ? c.mutedForeground : c.primary }]}>
+            {trialExpired ? "Not now" : `Start Free Drive ${nextFreeDrive} of ${FREE_TRIAL_SESSIONS}`}
+          </Text>
         </TouchableOpacity>
       </View>
 

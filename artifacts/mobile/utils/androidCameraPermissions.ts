@@ -8,7 +8,10 @@ export type AndroidCameraPermissionState = {
 };
 
 const CAMERA_DECISION_KEY = "@msafiri/androidCameraPermissionDecision";
-const NEVER_ASK_AGAIN = PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
+// PermissionsAndroid is unavailable on web, but this module is imported by
+// shared dashcam code during web bundle evaluation.
+const NEVER_ASK_AGAIN =
+  Platform.OS === "android" ? PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN : "never_ask_again";
 
 let cameraRequestInFlight: Promise<AndroidCameraPermissionState> | null = null;
 let microphoneRequestInFlight: Promise<boolean> | null = null;

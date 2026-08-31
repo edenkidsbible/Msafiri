@@ -77,7 +77,7 @@ export interface TrialSessionStatus {
    * Records a completed session AND updates local hook state so that
    * `trialExpired` reflects the new count immediately — no remount required.
    */
-  recordSession: () => Promise<void>;
+  recordSession: (deviceId?: string) => Promise<void>;
 }
 
 export function useTrialSessions(): TrialSessionStatus {
@@ -122,8 +122,8 @@ export function useTrialSessions(): TrialSessionStatus {
   }, []);
 
   /** Records a session on the server and refreshes local state. */
-  const recordSession = useCallback(async () => {
-    const newCount = await recordTrialSession();
+  const recordSession = useCallback(async (deviceId?: string) => {
+    const newCount = await recordTrialSession(deviceId);
     if (newCount !== null) {
       setSessionsUsed(newCount);
     }

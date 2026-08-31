@@ -401,7 +401,7 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.proBannerTitle, { color: c.primaryForeground }]}>Subscribe to Msafiri</Text>
             <Text style={[styles.proBannerSub, { color: c.primaryForeground + "CC" }]}>
-              {weeklyPriceString ? `From ${weeklyPriceString}/week · 3-day free trial` : "3-day free trial · cancel anytime"}
+              {weeklyPriceString ? `From ${weeklyPriceString}/week · 3 free drives included` : "3 free drives included"}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.primaryForeground + "CC"} />

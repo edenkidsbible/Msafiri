@@ -22,6 +22,7 @@ function SettingsRow({
   badge,
   badgeColor,
   onPress,
+  testID,
   isLast,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -31,12 +32,19 @@ function SettingsRow({
   badge?: string;
   badgeColor?: string;
   onPress: () => void;
+  testID?: string;
   isLast?: boolean;
 }) {
   const c = useColors();
   return (
     <>
-      <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.row}
+        onPress={onPress}
+        activeOpacity={0.7}
+        testID={testID}
+        accessibilityRole="button"
+      >
         <View style={[styles.rowIcon, { backgroundColor: iconColor + "22" }]}>
           <Ionicons name={icon} size={20} color={iconColor} />
         </View>
@@ -278,6 +286,14 @@ export default function ProfileScreen() {
               icon="person-outline" iconColor="#3B82F6" 
               title="Personal Information" sub="Update your details" 
               onPress={() => router.push("/personal-information" as any)} 
+            />
+            <SettingsRow
+              icon="star-outline"
+              iconColor={c.primary}
+              title="Msafiri Creator Program"
+              sub="Apply or redeem a creator promo code"
+              onPress={() => router.push("/creator-program" as any)}
+              testID="creator-program-settings-row"
             />
             <SettingsRow 
               icon="gift-outline" iconColor="#8B5CF6" 

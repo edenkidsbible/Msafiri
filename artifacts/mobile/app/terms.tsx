@@ -106,17 +106,17 @@ export default function TermsScreen() {
       <Text style={[s.p, { color: c.mutedForeground }]}>
         {"Msafiri offers a premium subscription tier, "}<B>Msafiri Pro</B>{", which unlocks additional features. Current pricing is:"}
       </Text>
-      <Li><B>Weekly plan:</B>{" KES 100 per week, with a 3-day free trial for new subscribers."}</Li>
-      <Li><B>Monthly plan:</B>{" KES 300 per month, with a 3-day free trial for new subscribers."}</Li>
+      <Li><B>Weekly plan:</B>{" KES 100 per week."}</Li>
+      <Li><B>Monthly plan:</B>{" KES 300 per month."}</Li>
       <Li>{"Other subscription durations may be offered from time to time as listed in the App."}</Li>
       <Text style={[s.p, { color: c.mutedForeground }]}>
         Pricing may change. We will give you at least 30 days' notice of any price increase before it
         takes effect.
       </Text>
 
-      <Text style={[s.h3, { color: c.foreground }]}>5.2 Free Trial</Text>
+      <Text style={[s.h3, { color: c.foreground }]}>5.2 Free Driving Sessions</Text>
       <Text style={[s.p, { color: c.mutedForeground }]}>
-        {"New subscribers may be eligible for a "}<B>3-day free trial</B>{". The free trial automatically converts to a paid subscription at the end of the trial period unless you cancel before the trial ends. Free trial eligibility is determined by Apple or Google and is generally limited to one trial per account — reinstalling the App does not grant an additional trial."}
+        {"New users receive "}<B>three free qualifying driving sessions</B>{". These sessions do not start a subscription and do not automatically convert into a paid plan. After the third qualifying drive, you must choose and purchase a subscription to continue using subscription features. Reinstalling the App does not grant additional free sessions."}
       </Text>
 
       <Text style={[s.h3, { color: c.foreground }]}>5.3 Billing and Renewal</Text>

@@ -81,7 +81,6 @@ export function PaywallModal({ visible, onClose }: Props) {
     restore,
     isRestoring,
     error,
-    isTrialEligible,
     isDefinitelyIntroEligible,
   } = useSubscription();
   const { isAdmin, adminLogout } = useApp();
@@ -131,17 +130,18 @@ export function PaywallModal({ visible, onClose }: Props) {
   // populates product.introPrice when the user is eligible, so introPrice != null
   // is itself the reliable signal; the Android branch of isDefinitelyIntroEligible
   // always returns true and we rely on the field being null when ineligible.
-  const monthlyIntroPrice: IntroPrice | null =
+  const rawMonthlyIntroPrice: IntroPrice | null =
     monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
       ? (monthlyPkg.product.introPrice as IntroPrice | null) ?? null
       : null;
+  // Free access is granted by completed driving sessions, not by a timed store
+  // trial. Only advertise a paid introductory store price.
+  const monthlyIntroPrice =
+    rawMonthlyIntroPrice && rawMonthlyIntroPrice.price > 0 ? rawMonthlyIntroPrice : null;
 
   // Intro offer is only active for the monthly plan (weekly has no intro offer).
   const chosenIntroPrice: IntroPrice | null =
     selectedPkg === "$rc_monthly" ? monthlyIntroPrice : null;
-
-  // For the plain free-trial gate (used elsewhere), keep the existing looser check.
-  const trialEligible = chosenPkg ? isTrialEligible(chosenPkg.product.identifier) : true;
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
 
