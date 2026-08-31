@@ -128,6 +128,11 @@ module.exports = {
           isAndroidBackgroundLocationEnabled: true,
         },
       ],
+      // Native mods are nested in reverse plugin-list order. Register this
+      // before expo-notifications so its Android cleanup runs after the sound
+      // files have been copied. It keeps MP3s in Android res/raw while leaving
+      // the iOS CAF bundle untouched.
+      "./plugins/withAndroidNotificationSounds.js",
       [
         "expo-notifications",
         {

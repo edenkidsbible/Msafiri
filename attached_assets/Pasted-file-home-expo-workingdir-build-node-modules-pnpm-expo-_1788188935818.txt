@@ -1,0 +1,65 @@
+file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/com/facebook/react/devsupport/DevMenuSettingsBase.kt:6:8 'class PreferenceManager : Any' is deprecated. Deprecated in Java.
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/com/facebook/react/devsupport/DevMenuSettingsBase.kt:18:51 'class PreferenceManager : Any' is deprecated. Deprecated in Java.
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/com/facebook/react/devsupport/DevMenuSettingsBase.kt:18:69 'static fun getDefaultSharedPreferences(p0: Context!): SharedPreferences!' is deprecated. Deprecated in Java.
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/com/facebook/react/devsupport/DevMenuSettingsBase.kt:51:13 This code uses error suppression for 'NOTHING_TO_OVERRIDE'. While it might compile and work, the compiler behavior is UNSPECIFIED and WILL NOT BE PRESERVED. Please report your use case to the Kotlin issue tracker instead: https://kotl.in/issue
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/com/facebook/react/devsupport/DevMenuSettingsBase.kt:58:13 This code uses error suppression for 'NOTHING_TO_OVERRIDE'. While it might compile and work, the compiler behavior is UNSPECIFIED and WILL NOT BE PRESERVED. Please report your use case to the Kotlin issue tracker instead: https://kotl.in/issue
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/expo/modules/devmenu/DevMenuPackage.kt:28:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/main/java/expo/modules/devmenu/DevMenuPackage.kt:47:78 'val reactNativeHost: ReactNativeHost' is deprecated. You should not use ReactNativeHost directly in the New Architecture. Use ReactHost instead.
+w: file:///home/expo/workingdir/build/node_modules/.pnpm/expo-dev-menu@7.0.19_expo@54.0.36/node_modules/expo-dev-menu/android/src/release/java/expo/modules/devmenu/DevMenuManager.kt:80:43 The corresponding parameter in the supertype 'DevMenuManagerInterface' is named 'shouldAutoLaunch'. This may cause problems when calling this function with named arguments.
+> Task :app:checkReleaseAarMetadata
+> Task :app:generateReleaseResValues
+> Task :app:processReleaseGoogleServices
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:mergeReleaseResources FAILED
+ERROR: [raw/clear] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/clear.caf [raw/clear] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/clear.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/roadblock] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadblock.caf [raw/roadblock] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadblock.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/debris] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/debris.caf [raw/debris] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/debris.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/breakdown] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/breakdown.caf [raw/breakdown] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/breakdown.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/alcoblow] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/alcoblow.caf [raw/alcoblow] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/alcoblow.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/accident] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/accident.caf [raw/accident] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/accident.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/traffic] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/traffic.mp3 [raw/traffic] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/traffic.caf: Resource and asset merger: Duplicate resources
+ERROR: [raw/police] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/police.mp3 [raw/police] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/police.caf: Resource and asset merger: Duplicate resources
+ERROR: [raw/closure] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/closure.mp3 [raw/closure] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/closure.caf: Resource and asset merger: Duplicate resources
+ERROR: [raw/hazard] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/hazard.caf [raw/hazard] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/hazard.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/zone] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/zone.caf [raw/zone] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/zone.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/speed_bump] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/speed_bump.mp3 [raw/speed_bump] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/speed_bump.caf: Resource and asset merger: Duplicate resources
+ERROR: [raw/weather] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/weather.mp3 [raw/weather] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/weather.caf: Resource and asset merger: Duplicate resources
+ERROR: [raw/roadworks] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadworks.caf [raw/roadworks] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadworks.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/pothole] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/pothole.caf [raw/pothole] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/pothole.mp3: Resource and asset merger: Duplicate resources
+ERROR: [raw/camera] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/camera.mp3 [raw/camera] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/camera.caf: Resource and asset merger: Duplicate resources
+> Task :expo-dev-menu:compileReleaseJavaWithJavac
+> Task :expo-updates:kspReleaseKotlin
+[Incubating] Problems report is available at: file:///home/expo/workingdir/build/artifacts/mobile/android/build/reports/problems/problems-report.html
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+783 actionable tasks: 783 executed
+FAILURE: Build failed with an exception.
+* What went wrong:
+Execution failed for task ':app:mergeReleaseResources'.
+> [raw/clear] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/clear.caf	[raw/clear] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/clear.mp3: Error: Duplicate resources
+  [raw/roadblock] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadblock.caf	[raw/roadblock] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadblock.mp3: Error: Duplicate resources
+  [raw/debris] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/debris.caf	[raw/debris] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/debris.mp3: Error: Duplicate resources
+  [raw/breakdown] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/breakdown.caf	[raw/breakdown] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/breakdown.mp3: Error: Duplicate resources
+  [raw/alcoblow] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/alcoblow.caf	[raw/alcoblow] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/alcoblow.mp3: Error: Duplicate resources
+  [raw/accident] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/accident.caf	[raw/accident] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/accident.mp3: Error: Duplicate resources
+  [raw/traffic] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/traffic.mp3	[raw/traffic] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/traffic.caf: Error: Duplicate resources
+  [raw/police] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/police.mp3	[raw/police] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/police.caf: Error: Duplicate resources
+  [raw/closure] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/closure.mp3	[raw/closure] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/closure.caf: Error: Duplicate resources
+  [raw/hazard] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/hazard.caf	[raw/hazard] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/hazard.mp3: Error: Duplicate resources
+  [raw/zone] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/zone.caf	[raw/zone] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/zone.mp3: Error: Duplicate resources
+  [raw/speed_bump] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/speed_bump.mp3	[raw/speed_bump] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/speed_bump.caf: Error: Duplicate resources
+  [raw/weather] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/weather.mp3	[raw/weather] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/weather.caf: Error: Duplicate resources
+  [raw/roadworks] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadworks.caf	[raw/roadworks] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/roadworks.mp3: Error: Duplicate resources
+  [raw/pothole] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/pothole.caf	[raw/pothole] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/pothole.mp3: Error: Duplicate resources
+  [raw/camera] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/camera.mp3	[raw/camera] /home/expo/workingdir/build/artifacts/mobile/android/app/src/main/res/raw/camera.caf: Error: Duplicate resources
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+BUILD FAILED in 8m 1s
+See the profiling report at: file:///home/expo/workingdir/build/artifacts/mobile/android/build/reports/profile/profile-2026-08-31-14-58-48.html
+A fine-grained performance profile is available: use the --scan option.
+Error: Gradle build failed with unknown error. See logs for the "Run gradlew" phase for more information.
