@@ -12,22 +12,27 @@ const FREE_TRIAL_SESSIONS = 3;
  * Records one completed drive session for the given stable device ID.
  * Creates a row if none exists; increments the counter otherwise (upsert).
  *
- * Body: { stableDeviceId: string }
+ * Body: { stableDeviceId: string; deviceId?: string }
  * Returns: { sessionCount: number; trialExpired: boolean }
  */
 router.post("/trial/session", async (req: Request, res: Response) => {
-  const { stableDeviceId } = (req.body ?? {}) as { stableDeviceId?: unknown };
+  const { stableDeviceId, deviceId } =
+    (req.body ?? {}) as { stableDeviceId?: unknown; deviceId?: unknown };
 
   if (!stableDeviceId || typeof stableDeviceId !== "string" || stableDeviceId.trim() === "") {
     return res.status(400).json({ error: "stableDeviceId required" });
   }
 
+  const safeDeviceId =
+    typeof deviceId === "string" && deviceId.trim() !== "" ? deviceId.trim() : null;
+
   try {
     await db.execute(sql`
-      INSERT INTO device_trial_sessions (stable_device_id, session_count, created_at, updated_at)
-      VALUES (${stableDeviceId}, 1, NOW(), NOW())
+      INSERT INTO device_trial_sessions (stable_device_id, session_count, device_id, created_at, updated_at)
+      VALUES (${stableDeviceId}, 1, ${safeDeviceId}, NOW(), NOW())
       ON CONFLICT (stable_device_id) DO UPDATE
         SET session_count = device_trial_sessions.session_count + 1,
+            device_id     = COALESCE(device_trial_sessions.device_id, ${safeDeviceId}),
             updated_at    = NOW()
     `);
 
@@ -38,6 +43,18 @@ router.post("/trial/session", async (req: Request, res: Response) => {
       .limit(1);
 
     const count = row?.sessionCount ?? 1;
+
+    // First time the trial expires: stamp trial_expired_at so the nudge
+    // sequence can fire. Only set if not already stamped (idempotent).
+    if (count >= FREE_TRIAL_SESSIONS && !row?.trialExpiredAt) {
+      await db.execute(sql`
+        UPDATE device_trial_sessions
+           SET trial_expired_at = NOW()
+         WHERE stable_device_id = ${stableDeviceId}
+           AND trial_expired_at IS NULL
+      `);
+    }
+
     return res.json({ sessionCount: count, trialExpired: count >= FREE_TRIAL_SESSIONS });
   } catch (err) {
     console.error("[trial] POST /trial/session error:", err);

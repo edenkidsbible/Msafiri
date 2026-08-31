@@ -1053,6 +1053,17 @@ export async function migrateSchema(): Promise<void> {
       )
     `);
 
+    // ── Trial session extras ──────────────────────────────────────────────────
+    // Columns added after initial release; IF NOT EXISTS is safe to re-run.
+    await db.execute(sql`ALTER TABLE device_trial_sessions ADD COLUMN IF NOT EXISTS device_id TEXT`);
+    await db.execute(sql`ALTER TABLE device_trial_sessions ADD COLUMN IF NOT EXISTS trial_expired_at TIMESTAMPTZ`);
+    await db.execute(sql`ALTER TABLE device_trial_sessions ADD COLUMN IF NOT EXISTS nudge_stage INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_dts_nudge
+        ON device_trial_sessions (nudge_stage, trial_expired_at)
+        WHERE trial_expired_at IS NOT NULL
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first

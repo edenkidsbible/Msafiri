@@ -342,12 +342,14 @@ export default function DriveScreen() {
 
   // ── Subscription / trial gate ────────────────────────────────────────────
   const { isSubscribed } = useSubscription();
-  const { trialExpired } = useTrialSessions();
+  const { trialExpired, sessionsUsed } = useTrialSessions();
   // Refs for stable reads inside useFocusEffect without re-creating callbacks.
-  const trialExpiredRef = useRef(false);
-  const isSubscribedRef = useRef(false);
-  trialExpiredRef.current = trialExpired;
-  isSubscribedRef.current = isSubscribed;
+  const trialExpiredRef  = useRef(false);
+  const isSubscribedRef  = useRef(false);
+  const sessionsUsedRef  = useRef(0);
+  trialExpiredRef.current  = trialExpired;
+  isSubscribedRef.current  = isSubscribed;
+  sessionsUsedRef.current  = sessionsUsed;
 
   // ── Live Trip state ──────────────────────────────────────────────────────
   const [tripActive, setTripActive] = useState(false);
@@ -997,6 +999,19 @@ export default function DriveScreen() {
       : tripElapsedS * 1000;
     const durationS = Math.max(0, Math.round(elapsedMs / 1000));
 
+    // Wall-clock duration (no pause subtraction) — used for the trial quality
+    // gate and shown in the TripSummaryModal trial banner.
+    const wallClockS = startTime
+      ? Math.max(0, Math.round((Date.now() - startTime.getTime()) / 1000))
+      : durationS;
+    // A drive counts toward the trial only if it's substantive: ≥5 min or ≥2 km.
+    // This prevents accidental short sessions from consuming a free drive.
+    const qualifiesForTrial = wallClockS >= 300 || snap.distanceM >= 2000;
+    const trialDrivesRemaining =
+      !isSubscribedRef.current && !trialExpiredRef.current && qualifiesForTrial
+        ? Math.max(0, FREE_TRIAL_SESSIONS - (sessionsUsedRef.current + 1))
+        : null;
+
     setTripSummaryData({
       durationS,
       distanceM:         snap.distanceM,
@@ -1018,6 +1033,7 @@ export default function DriveScreen() {
       // Capture now while the ref still holds the ID — it is cleared once
       // the end-session effect fires a few ms later.
       sessionId:         sessionIdRef.current,
+      trialDrivesRemaining,
     });
 
     stopTrip();
@@ -1104,10 +1120,16 @@ export default function DriveScreen() {
           // ── Session-based trial: record this completed drive ──────────
           // Fire-and-forget — never interrupt post-trip UX; updates the
           // AsyncStorage cache so the next drive attempt sees the fresh count.
+          // Quality gate: only count drives ≥ 5 min or ≥ 2 km so accidental
+          // short sessions don't consume a free drive.
           // Skip for local-prefix sessions (offline trips) — those are counted
           // once server-confirmed in flushOfflineSessions to avoid double-counting.
-          if (sid && !sid.startsWith(LOCAL_PREFIX)) {
-            recordTrialSession().catch(() => {});
+          if (
+            sid &&
+            !sid.startsWith(LOCAL_PREFIX) &&
+            (wallClockSessionS >= 300 || snap.distanceM >= 2000)
+          ) {
+            recordTrialSession(deviceId ?? undefined).catch(() => {});
           }
 
           // ── App Store / Google Play review prompt ──────────────────
@@ -2062,6 +2084,40 @@ export default function DriveScreen() {
           unobstructed header area. */}
       {Platform.OS !== "web" && (
         <BackOnlinePill topOffset={topInset + 8} />
+      )}
+
+      {/* ── Free trial in-drive indicator ───────────────────────────────────
+          A subtle pill at the top of the screen reminding the driver they are
+          on a free trial drive. Hidden when an alert or offline banner is
+          already occupying the top area.                                      */}
+      {tripActive && !isSubscribed && !trialExpired && primaryAlert == null && !isOffline && Platform.OS !== "web" && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: topInset + 8,
+            left: 0, right: 0,
+            alignItems: "center",
+            zIndex: 15,
+          }}
+        >
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: isDark ? "#0D2010" : "#F0FDF4",
+            borderWidth: 1,
+            borderColor: isDark ? "#22C55E35" : "#22C55E55",
+            borderRadius: 20,
+            paddingHorizontal: 12,
+            paddingVertical: 5,
+          }}>
+            <Ionicons name="leaf-outline" size={12} color="#22C55E" />
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#22C55E" }}>
+              Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
+            </Text>
+          </View>
+        </View>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════

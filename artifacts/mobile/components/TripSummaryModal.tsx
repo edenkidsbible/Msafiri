@@ -57,6 +57,12 @@ export interface TripSummaryData {
   isSharing:         boolean;
   /** server session ID — used by trip-history to poll until this session commits */
   sessionId:         string | null;
+  /**
+   * Free trial drives remaining after this session.
+   * 0 = this was the last free drive; 1 or 2 = still has drives left.
+   * null = not in trial (subscribed, or drive was too short to count).
+   */
+  trialDrivesRemaining?: number | null;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -313,6 +319,53 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidde
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
         >
+          {/* ── Trial drives remaining ───────────────────────────────────── */}
+          {data.trialDrivesRemaining !== null && data.trialDrivesRemaining !== undefined && (
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              paddingVertical: 11,
+              marginBottom: 14,
+              backgroundColor: data.trialDrivesRemaining === 0
+                ? (isDark ? "#2A0F00" : "#FFF7ED")
+                : (isDark ? "#0D2010" : "#F0FDF4"),
+              borderWidth: 1,
+              borderColor: data.trialDrivesRemaining === 0
+                ? (isDark ? "#F9731640" : "#F9731650")
+                : (isDark ? "#22C55E35" : "#22C55E55"),
+            }}>
+              <Ionicons
+                name={data.trialDrivesRemaining === 0 ? "trophy-outline" : "leaf-outline"}
+                size={18}
+                color={data.trialDrivesRemaining === 0 ? "#F97316" : "#22C55E"}
+              />
+              <View style={{ flex: 1 }}>
+                {data.trialDrivesRemaining === 0 ? (
+                  <>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: isDark ? "#FB923C" : "#EA580C", marginBottom: 2 }}>
+                      Your 3 free drives are complete 🎉
+                    </Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isDark ? "#FED7AA" : "#9A3412", lineHeight: 16 }}>
+                      Keep Msafiri with you on every journey — subscribe to stay protected.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: isDark ? "#4ADE80" : "#16A34A", marginBottom: 2 }}>
+                      {data.trialDrivesRemaining === 1 ? "1 free drive remaining" : `${data.trialDrivesRemaining} free drives remaining`}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isDark ? "#86EFAC" : "#166534", lineHeight: 16 }}>
+                      Keep exploring Msafiri.
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* ── Drive Score ──────────────────────────────────────────────── */}
           <View style={styles.scoreRow}>
             <View style={[styles.scoreRing, { borderColor: sc + "55", backgroundColor: sc + "12" }]}>

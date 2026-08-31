@@ -138,22 +138,13 @@ export function PaywallModal({ visible, onClose }: Props) {
             </Text>
           </View>
 
-          {/* Free trial badge */}
-          {trialEligible ? (
-            <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
-              <Ionicons name="gift-outline" size={16} color={c.primary} />
-              <Text style={[styles.trialText, { color: c.primary }]}>
-                3-day free trial — cancel anytime
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
-              <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
-              <Text style={[styles.trialText, { color: c.primary }]}>
-                Cancel anytime — no long-term commitment
-              </Text>
-            </View>
-          )}
+          {/* Commitment badge */}
+          <View style={[styles.trialBadge, { backgroundColor: c.primary + "15", borderColor: c.primary + "55" }]}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={c.primary} />
+            <Text style={[styles.trialText, { color: c.primary }]}>
+              Cancel anytime — no long-term commitment
+            </Text>
+          </View>
 
           {/* Feature list */}
           <View style={[styles.featuresCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -268,9 +259,7 @@ export function PaywallModal({ visible, onClose }: Props) {
 
           {/* Legal note */}
           <Text style={[styles.legal, { color: c.mutedForeground }]}>
-            {chosenPkg && trialEligible
-              ? `Msafiri starts with a 3-day free trial. Unless cancelled at least 24 hours before the trial ends, you'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
-              : chosenPkg
+            {chosenPkg
               ? `You'll be charged ${chosenPkg.product.priceString} per ${selectedPkg === "$rc_weekly" ? "week" : "month"} and your subscription will auto-renew at that price until cancelled. `
               : "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. "}
             Manage or cancel anytime in your App Store or Google Play account settings.
@@ -295,7 +284,7 @@ export function PaywallModal({ visible, onClose }: Props) {
               {agreedToTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
             </View>
             <Text style={[styles.agreeText, { color: c.mutedForeground }]}>
-              By starting my {trialEligible ? "free trial" : "subscription"}, I agree to the{" "}
+              By starting my subscription, I agree to the{" "}
               <Text
                 style={[styles.agreeLink, { color: c.primary }]}
                 onPress={(e) => { e.stopPropagation(); onClose(); router.push("/terms"); }}
@@ -326,7 +315,7 @@ export function PaywallModal({ visible, onClose }: Props) {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.ctaBtnTxt}>
-                {trialEligible ? "Start 3-Day Free Trial" : "Subscribe Now"}
+                Subscribe Now
               </Text>
             )}
           </TouchableOpacity>

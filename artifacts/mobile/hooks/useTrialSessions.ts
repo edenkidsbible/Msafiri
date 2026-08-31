@@ -35,7 +35,7 @@ const CACHE_KEY = "@msafiri/trialSessionCount";
  *
  * Returns the new server-confirmed session count, or null on failure.
  */
-export async function recordTrialSession(): Promise<number | null> {
+export async function recordTrialSession(deviceId?: string): Promise<number | null> {
   try {
     const info = await Purchases.getCustomerInfo();
     const stableId = info.originalAppUserId;
@@ -44,7 +44,7 @@ export async function recordTrialSession(): Promise<number | null> {
     const res = await fetch(`${API_BASE}/trial/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stableDeviceId: stableId }),
+      body: JSON.stringify({ stableDeviceId: stableId, ...(deviceId ? { deviceId } : {}) }),
     });
     if (!res.ok) return null;
 

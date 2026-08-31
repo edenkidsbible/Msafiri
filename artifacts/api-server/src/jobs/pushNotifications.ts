@@ -1,4 +1,4 @@
-import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable, deviceBackupsTable } from "@workspace/db";
+import { db, pushTokensTable, pushCampaignsTable, communityReportsTable, plannedTripsTable, deviceBackupsTable, deviceTrialSessionsTable } from "@workspace/db";
 import { and, eq, lte, gte, isNull, or, ne, isNotNull, inArray, notInArray, sql } from "drizzle-orm";
 import { sendPushNotifications, flushBadTokensFromReceipts, drainForeignExperienceTokens } from "../lib/expoPush.js";
 import { logger } from "../lib/logger.js";
@@ -466,6 +466,85 @@ const RECOVERY_PHONE_NUDGE_MESSAGES = [
   },
 ];
 
+// ─── Post-trial nudge sequence ────────────────────────────────────────────────
+// After a device's free trial expires, send up to 3 re-engagement pushes:
+//   Stage 0 → 1 : ~30–120 min after expiry  ("Your free drives are complete")
+//   Stage 1 → 2 : ~20–30 hours after expiry ("Driving today?")
+//   Stage 2 → 3 : ~2–5 days after expiry    ("Your Msafiri offer is still waiting")
+// Runs on every 30-min tick; nudge_stage gates against double-sending.
+
+const TRIAL_NUDGE_STAGES: Record<number, { minS: number; maxS: number; title: string; body: string }> = {
+  0: {
+    minS:  30 * 60, maxS: 120 * 60,
+    title: "Your free drives are complete 🎉",
+    body:  "Keep Msafiri with you on every journey. Unlock your first month at our introductory price.",
+  },
+  1: {
+    minS: 20 * 3600, maxS: 30 * 3600,
+    title: "Driving today?",
+    body:  "Your 3 free Msafiri drives are complete. Subscribe to keep speed-camera alerts, Dashcam and road intelligence active.",
+  },
+  2: {
+    minS: 2 * 86400, maxS: 5 * 86400,
+    title: "Your Msafiri offer is still waiting",
+    body:  "Get your first month at the introductory price and keep every drive protected.",
+  },
+};
+
+async function sendTrialExpiredNudges(): Promise<void> {
+  const rows = await db.execute(sql`
+    SELECT dts.id,
+           dts.device_id,
+           dts.nudge_stage,
+           EXTRACT(EPOCH FROM (NOW() - dts.trial_expired_at))::int AS expired_seconds
+      FROM device_trial_sessions dts
+     WHERE dts.trial_expired_at IS NOT NULL
+       AND dts.nudge_stage < 3
+       AND dts.device_id IS NOT NULL
+  `);
+
+  const records = rows.rows as {
+    id: string; device_id: string; nudge_stage: number; expired_seconds: number;
+  }[];
+
+  for (const rec of records) {
+    const stage = TRIAL_NUDGE_STAGES[rec.nudge_stage];
+    if (!stage) continue;
+    if (rec.expired_seconds < stage.minS || rec.expired_seconds > stage.maxS) continue;
+
+    // Look up the push token for this device
+    const tokenRows = await db.execute(sql`
+      SELECT token FROM push_tokens WHERE device_id = ${rec.device_id} LIMIT 1
+    `);
+    const token = (tokenRows.rows as { token: string }[])[0]?.token;
+    if (!token) {
+      // No token — skip to next stage to avoid retrying forever on this device
+      await db.execute(sql`
+        UPDATE device_trial_sessions SET nudge_stage = ${rec.nudge_stage + 1} WHERE id = ${rec.id}
+      `);
+      continue;
+    }
+
+    try {
+      await sendPushNotifications([{
+        to: token,
+        title: stage.title,
+        body: stage.body,
+        sound: "default" as const,
+        channelId: "msafiri_general",
+        data: { type: "trial_expired_nudge", screen: "/" },
+      }]);
+    } catch {
+      continue; // leave stage unchanged; will retry next cycle
+    }
+
+    await db.execute(sql`
+      UPDATE device_trial_sessions SET nudge_stage = ${rec.nudge_stage + 1} WHERE id = ${rec.id}
+    `);
+    logger.info({ deviceId: rec.device_id, fromStage: rec.nudge_stage }, "Trial-expired nudge sent");
+  }
+}
+
 async function nudgeUnlinkedDevices(): Promise<void> {
   // Use ISO week number so the key changes each Monday and alreadySentToday
   // only deduplicates within the same calendar day.
@@ -637,6 +716,9 @@ async function checkDailyTriggers(): Promise<void> {
   if (eatHour === 10 && min < 5) {
     await checkReengagement();
   }
+
+  // Every cycle → post-trial nudge sequence (self-gated by nudge_stage per device)
+  await sendTrialExpiredNudges();
 }
 
 // ─── Startup catch-up ─────────────────────────────────────────────────────────
