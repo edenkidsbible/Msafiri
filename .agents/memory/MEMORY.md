@@ -99,3 +99,4 @@
 - [Custom release notification copy](custom-release-notif-copy.md) — notif_title/notif_body columns on app_releases; releasePush.ts uses ?? fallback; admin UI live preview in ReleaseDialog.
 - [Legacy dump restore reconciliation](legacy-dump-restore-reconciliation.md) — after restoring an older dump, compare every TABLE DATA count; schema push can recreate startup-managed tables empty.
 - [Road Channels voice-report trust boundary](road-channels-voice-trust.md) — audio and AI output stay private drafts; only explicit driver confirmation may create a normal community report.
+- [Road Channels dashcam mic handoff](road-channels-dashcam-mic-handoff.md) — never run expo-audio and CameraView mic capture together; use an acknowledged provider-owned lease.

@@ -58,6 +58,7 @@ import {
   requestAndroidMicrophonePermission,
   type AndroidCameraPermissionState,
 } from "@/utils/androidCameraPermissions";
+import { setDashcamAudioMode } from "@/utils/sound";
 import {
   vehicleSegmentsKey,
   vehicleSegmentsDir as _vehicleSegmentsDir,
@@ -121,6 +122,10 @@ interface DashcamContextValue {
   isRecording: boolean;
   /** Stable ref — mirrors isRecording but readable synchronously from the recording loop. */
   isRecordingRef: React.MutableRefObject<boolean>;
+  /** True while Road Channels exclusively owns the dashcam release sequence. */
+  voiceHandoffActiveRef: React.MutableRefObject<boolean>;
+  /** True for the full period Road Channels owns or is acquiring the microphone. */
+  voiceCaptureActive: boolean;
   isDashcamOpen: boolean;
   backgroundRecordPending: boolean;
   segments: DashcamSegment[];
@@ -147,6 +152,14 @@ interface DashcamContextValue {
   /** Stop recording without auto-locking; last 5 clips are saved for review. */
   stopAndSaveDashcam: () => void;
   startBackgroundRecording: () => Promise<boolean>;
+  /**
+   * Finish and save the current segment, then fully release CameraView/audio
+   * capture for a short Road Channels microphone recording.
+   * Returns true when a running dashcam was paused and should later resume.
+   */
+  pauseForVoiceReport: () => Promise<boolean>;
+  /** Release the Road Channels microphone lease and resume when requested. */
+  resumeAfterVoiceReport: (shouldResume: boolean) => Promise<void>;
   requestDashcamPermissions: (options?: { requestCamera?: boolean; requestMicrophone?: boolean }) => Promise<{ cameraGranted: boolean; micGranted: boolean }>;
   refreshDashcamCameraPermission: () => Promise<AndroidCameraPermissionState>;
   clearBackgroundRecordPending: () => void;
@@ -273,6 +286,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const [isRecording, setIsRecording]             = useState(false);
   const [isDashcamOpen, setIsDashcamOpen]         = useState(false);
   const [backgroundRecordPending, setBackgroundRecordPending] = useState(false);
+  const [voiceCaptureActive, setVoiceCaptureActive] = useState(false);
   const [segments, setSegments]                   = useState<DashcamSegment[]>([]);
   const [settings, setSettings]                   = useState<DashcamSettings>(DEFAULT_SETTINGS);
   const [currentSegmentDuration, setCurrentSegmentDuration] = useState(0);
@@ -372,6 +386,17 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   // Cleared by onSegmentComplete (normal path) or the 12 s safety timer in
   // stopAndSaveDashcam (fallback). Guards against double-execution.
   const pendingTripEndRef      = useRef(false);
+  const voiceHandoffPendingRef = useRef(false);
+  const voiceHandoffPromiseRef = useRef<Promise<boolean> | null>(null);
+  const voiceHandoffResolveRef = useRef<((paused: boolean) => void) | null>(null);
+  const voiceHandoffRejectRef  = useRef<((error: Error) => void) | null>(null);
+  const voiceHandoffReleaseRef = useRef<Promise<void> | null>(null);
+  const voiceHandoffTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceHandoffFailureRef = useRef<Error | null>(null);
+  const cameraDetachResolveRef = useRef<(() => void) | null>(null);
+  const restartAfterDetachRef  = useRef(false);
+  const voiceCaptureLeaseRef   = useRef(false);
+  const deferredDashcamStartRef = useRef(false);
   const segmentStartRef        = useRef<number>(0);
   const segmentsRef            = useRef<DashcamSegment[]>([]);
   const settingsRef            = useRef<DashcamSettings>(DEFAULT_SETTINGS);
@@ -926,7 +951,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Public API ─────────────────────────────────────────────────────────────
 
-  const openDashcam  = useCallback(() => setIsDashcamOpen(true), []);
+  const openDashcam = useCallback(() => {
+    if (voiceCaptureLeaseRef.current || voiceHandoffPendingRef.current) return;
+    setIsDashcamOpen(true);
+  }, []);
   const closeDashcam = useCallback(() => setIsDashcamOpen(false), []);
 
   const requestDashcamPermissions = useCallback(async (
@@ -976,6 +1004,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, [cameraPermission?.granted, micPermission?.granted, refreshDashcamCameraPermission]);
 
   const startBackgroundRecording = useCallback(async (): Promise<boolean> => {
+    if (voiceCaptureLeaseRef.current || voiceHandoffPendingRef.current) {
+      deferredDashcamStartRef.current = true;
+      return false;
+    }
     if (isRecordingRef.current) return true;
 
     // Android permission prompting is deliberately reserved for an explicit UI
@@ -1035,6 +1067,124 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     setBackgroundRecordPending(true);
     return true;
   }, [cameraPermission?.granted, micPermission?.granted, refreshDashcamCameraPermission]);
+
+  const finishVoiceHandoffPause = useCallback(async (): Promise<void> => {
+    if (!voiceHandoffPendingRef.current) return;
+    if (voiceHandoffReleaseRef.current) return voiceHandoffReleaseRef.current;
+
+    const release = (async () => {
+      if (voiceHandoffTimerRef.current) clearTimeout(voiceHandoffTimerRef.current);
+      voiceHandoffTimerRef.current = null;
+
+      // Force the overlay and CameraView to unmount. A state update alone is
+      // not an ownership acknowledgement, so wait for setCameraRef(null).
+      setBackgroundRecordPending(false);
+      setIsDashcamOpen(false);
+      setIsRecording(false);
+      if (cameraRef.current) {
+        await new Promise<void>((resolve, reject) => {
+          cameraDetachResolveRef.current = resolve;
+          setTimeout(() => {
+            if (cameraDetachResolveRef.current !== resolve) return;
+            cameraDetachResolveRef.current = null;
+            reject(new Error("Dashcam camera did not release the microphone."));
+          }, 5_000);
+        });
+      }
+
+      // This is the canonical navigation/TTS baseline and must complete before
+      // the Road Channels recorder is allowed to configure PlayAndRecord.
+      await setDashcamAudioMode(false);
+      voiceHandoffPendingRef.current = false;
+      const handoffFailure = voiceHandoffFailureRef.current;
+      if (handoffFailure) {
+        voiceHandoffRejectRef.current?.(handoffFailure);
+        // Camera detach and audio release were acknowledged, so restarting is
+        // now safe. Voice capture will not begin.
+        setTimeout(() => { void startBackgroundRecording(); }, 250);
+      } else {
+        voiceCaptureLeaseRef.current = true;
+        setVoiceCaptureActive(true);
+        voiceHandoffResolveRef.current?.(true);
+      }
+    })().catch((error: unknown) => {
+      voiceHandoffPendingRef.current = false;
+      const message = error instanceof Error ? error : new Error("Could not safely pause the dashcam.");
+      voiceHandoffRejectRef.current?.(message);
+      // Voice capture fails closed. If the CameraView later acknowledges
+      // detachment, setCameraRef(null) will safely restart the dashcam.
+      restartAfterDetachRef.current = cameraRef.current != null;
+      if (!cameraRef.current) setTimeout(() => { void startBackgroundRecording(); }, 250);
+    }).finally(() => {
+      voiceHandoffResolveRef.current = null;
+      voiceHandoffRejectRef.current = null;
+      voiceHandoffPromiseRef.current = null;
+      voiceHandoffReleaseRef.current = null;
+      voiceHandoffFailureRef.current = null;
+    });
+    voiceHandoffReleaseRef.current = release;
+    return release;
+  }, [startBackgroundRecording]);
+
+  const pauseForVoiceReport = useCallback(async (): Promise<boolean> => {
+    if (voiceCaptureLeaseRef.current) {
+      throw new Error("Road Channels already owns the microphone.");
+    }
+    if (!isRecordingRef.current && !backgroundRecordPending) {
+      voiceCaptureLeaseRef.current = true;
+      setVoiceCaptureActive(true);
+      return false;
+    }
+    if (voiceHandoffPromiseRef.current) return voiceHandoffPromiseRef.current;
+
+    voiceHandoffPendingRef.current = true;
+    voiceHandoffFailureRef.current = null;
+    const pending = new Promise<boolean>((resolve, reject) => {
+      voiceHandoffResolveRef.current = resolve;
+      voiceHandoffRejectRef.current = reject;
+    });
+    voiceHandoffPromiseRef.current = pending;
+
+    const hadActiveSegment = isRecordingRef.current;
+    // Prevent onCameraReady and the record loop from starting another segment.
+    isRecordingRef.current = false;
+    setBackgroundRecordPending(false);
+    setIsDashcamOpen(false);
+    if (hadActiveSegment) cameraRef.current?.stopRecording();
+
+    if (hadActiveSegment) {
+      // Normal completion saves the segment and calls finish. Null/failed
+      // completion must NOT grant microphone ownership. Fail the voice request
+      // after six seconds but retain handoff classification while the camera
+      // finishes. A longer safety valve may detach/restart the dashcam, but
+      // voice capture remains cancelled.
+      voiceHandoffTimerRef.current = setTimeout(() => {
+        const timeoutError = new Error(
+          "The dashcam is taking too long to save its current segment. Road Channels recording was cancelled.",
+        );
+        voiceHandoffFailureRef.current = timeoutError;
+        voiceHandoffRejectRef.current?.(timeoutError);
+        voiceHandoffResolveRef.current = null;
+        voiceHandoffRejectRef.current = null;
+        voiceHandoffPromiseRef.current = null;
+        voiceHandoffTimerRef.current = setTimeout(() => {
+          void finishVoiceHandoffPause();
+        }, 14_000);
+      }, 6_000);
+    } else {
+      // A pending CameraView start has no segment to save.
+      void finishVoiceHandoffPause();
+    }
+    return pending;
+  }, [backgroundRecordPending, finishVoiceHandoffPause]);
+
+  const resumeAfterVoiceReport = useCallback(async (shouldResume: boolean): Promise<void> => {
+    voiceCaptureLeaseRef.current = false;
+    setVoiceCaptureActive(false);
+    const restart = shouldResume || deferredDashcamStartRef.current;
+    deferredDashcamStartRef.current = false;
+    if (restart && !isRecordingRef.current) await startBackgroundRecording();
+  }, [startBackgroundRecording]);
 
   const clearBackgroundRecordPending = useCallback(() => {
     setBackgroundRecordPending(false);
@@ -1240,7 +1390,16 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
   const setCameraRef = useCallback((ref: CameraView | null) => {
     cameraRef.current = ref;
-  }, []);
+    if (!ref && cameraDetachResolveRef.current) {
+      const resolve = cameraDetachResolveRef.current;
+      cameraDetachResolveRef.current = null;
+      resolve();
+    }
+    if (!ref && restartAfterDetachRef.current) {
+      restartAfterDetachRef.current = false;
+      setTimeout(() => { void startBackgroundRecording(); }, 250);
+    }
+  }, [startBackgroundRecording]);
 
   const onSegmentStart = useCallback(() => {
     recordingSegmentDirRef.current      = segmentsFsDirRef.current;
@@ -1316,12 +1475,25 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             const existing = await AsyncStorage.getItem(capturedAsyncKey);
             const prev: DashcamSegment[] = existing ? JSON.parse(existing) : [];
             await AsyncStorage.setItem(capturedAsyncKey, JSON.stringify([...prev, segment]));
+            if (voiceHandoffPendingRef.current) {
+              // The segment still belongs to the vehicle active when capture
+              // began, but a vehicle switch must not strand the microphone
+              // handoff after that segment has been safely persisted.
+              await finishVoiceHandoffPause();
+            }
           } catch (storageErr) {
             console.warn("[Dashcam] failed to persist mid-switch segment:", storageErr);
+            if (voiceHandoffPendingRef.current) {
+              voiceHandoffFailureRef.current = new Error(
+                "The current dashcam segment could not be saved, so Road Channels recording was cancelled.",
+              );
+              await finishVoiceHandoffPause();
+            }
           }
         } else {
           // Determine whether recording was stopped (trip end)
-          const tripEnded = !isRecordingRef.current;
+          const voiceHandoff = voiceHandoffPendingRef.current;
+          const tripEnded = !isRecordingRef.current && !voiceHandoff;
 
           setSegments((prev) => {
             // Apply the rolling window (max 5 unlocked, not savedForReview, not locked)
@@ -1366,6 +1538,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             setPendingTripReview(true);
             scheduleReviewReminder();
             setIsRecording(false);
+          } else if (voiceHandoff) {
+            // The segment was saved as an ordinary rolling clip. Do not mark
+            // the trip ended or create a review reminder for this short pause.
+            finishVoiceHandoffPause();
           }
         }
 
@@ -1379,7 +1555,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           );
         }
         // Still complete the deferred stop if trip ended
-        if (!isRecordingRef.current) {
+        if (voiceHandoffPendingRef.current) {
+          voiceHandoffFailureRef.current = new Error(
+            "The current dashcam segment could not be saved, so Road Channels recording was cancelled.",
+          );
+          finishVoiceHandoffPause();
+        } else if (!isRecordingRef.current) {
           pendingTripEndRef.current = false; // safety timer no longer needed
           AsyncStorage.setItem(
             capturedAsyncKey,
@@ -1391,7 +1572,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [applyRollingWindow, processUploadQueue, scheduleReviewReminder]
+    [applyRollingWindow, finishVoiceHandoffPause, processUploadQueue, scheduleReviewReminder]
   );
 
   const deleteSegment = useCallback(
@@ -1517,11 +1698,13 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<DashcamContextValue>(
     () => ({
-      isRecording, isRecordingRef, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
+      isRecording, isRecordingRef, voiceHandoffActiveRef: voiceHandoffPendingRef, voiceCaptureActive,
+      isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings, cameraPermissionState, microphonePermissionGranted,
       pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
-      startBackgroundRecording, requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
+      startBackgroundRecording, pauseForVoiceReport, resumeAfterVoiceReport,
+      requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
       lockCurrentClip, lockSavedClip, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,
@@ -1529,11 +1712,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       setCameraRef, onSegmentStart, onSegmentComplete,
     }),
     [
-      isRecording, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
+      isRecording, voiceCaptureActive, isDashcamOpen, backgroundRecordPending, segments, storageUsedBytes,
       currentSegmentDuration, uploadPending, settings, cameraPermissionState, microphonePermissionGranted,
       pushDeviceId, recordingEpoch, cloudQuotaFull, pendingTripReview,
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
-      startBackgroundRecording, requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
+      startBackgroundRecording, pauseForVoiceReport, resumeAfterVoiceReport,
+      requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
       lockCurrentClip, lockSavedClip, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,

@@ -243,10 +243,14 @@ export default function DriveScreen() {
     stopAndSaveDashcam,
     lockCurrentClip,
     startBackgroundRecording,
+    pauseForVoiceReport,
+    resumeAfterVoiceReport,
     requestDashcamPermissions,
     refreshDashcamCameraPermission,
     segments: dashcamSegments,
     pendingTripReview,
+    settings: dashcamSettings,
+    voiceCaptureActive,
   } = useDashcam();
 
   // Ref mirror so the empty-deps useFocusEffect can read the live recording
@@ -3070,6 +3074,7 @@ export default function DriveScreen() {
                   driveMapRef.current?.recenter();
                   setMapDrifted(false);
                 }}
+                disabled={voiceCaptureActive}
                 activeOpacity={0.85}
               >
                 <Ionicons name="locate" size={14} color="#1565C0" />
@@ -3135,7 +3140,7 @@ export default function DriveScreen() {
                   <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#FF5252", marginRight: 2 }} />
                 )}
                 <Text style={styles.driveActionPillTxt}>
-                  {dashcamRecording ? "● REC" : "🎥 Dashcam"}
+                  {voiceCaptureActive ? "🎙 Voice report" : dashcamRecording ? "● REC" : "🎥 Dashcam"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -3489,6 +3494,7 @@ export default function DriveScreen() {
                     if (!ok) openDashcam();
                   }
                 }}
+                disabled={voiceCaptureActive}
                 activeOpacity={0.85}
               >
                 {/* Icon + floating lock badge — lock sits on top of the icon so
@@ -3502,7 +3508,9 @@ export default function DriveScreen() {
                       ? c.primary + "22"
                       : (isDark ? "#232926" : "#FFFFFF"),
                   }]}>
-                    {dashcamPending && !dashcamRecording
+                    {voiceCaptureActive
+                      ? <Ionicons name="mic-outline" size={18} color={c.primary} />
+                      : dashcamPending && !dashcamRecording
                       ? <ActivityIndicator size="small" color={c.primary} />
                       : <Ionicons name="videocam-outline" size={18} color={
                           dashcamRecording ? c.speedDanger : c.foreground
@@ -3541,7 +3549,7 @@ export default function DriveScreen() {
                       }]}
                       numberOfLines={1}
                     >
-                      {dashcamRecording ? "Recording" : dashcamPending ? "Starting…" : "Off"}
+                      {voiceCaptureActive ? "Voice report" : dashcamRecording ? "Recording" : dashcamPending ? "Starting…" : "Off"}
                     </Text>
                     {dashcamRecording && (
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.speedDanger }} />
@@ -3692,6 +3700,10 @@ export default function DriveScreen() {
               location={currentLat != null && currentLng != null ? { latitude: currentLat, longitude: currentLng } : null}
               deviceId={deviceId ?? undefined}
               roadName={roadVoiceRoadName}
+              dashcamRecording={dashcamRecording || dashcamPending}
+              dashcamAudioEnabled={dashcamSettings.audioEnabled}
+              pauseDashcamForVoice={pauseForVoiceReport}
+              resumeDashcamAfterVoice={resumeAfterVoiceReport}
               onCancelled={() => setShowRoadVoice(false)}
               onConfirmed={() => {
                 void refreshReports();

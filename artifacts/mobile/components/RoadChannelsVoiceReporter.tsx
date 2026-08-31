@@ -11,6 +11,7 @@ import {
 } from "expo-audio";
 import { getInfoAsync } from "expo-file-system/legacy";
 import { requestAndroidMicrophonePermission } from "@/utils/androidCameraPermissions";
+import { restoreAudioMode } from "@/utils/sound";
 
 import { useColors } from "@/hooks/useColors";
 import {
@@ -28,19 +29,16 @@ import {
 
 const MAX_SECONDS = 15;
 const MIN_USEFUL_SECONDS = 2;
-const PLAYBACK_AUDIO_MODE = {
-  allowsRecording: false,
-  playsInSilentMode: true,
-  interruptionMode: "duckOthers" as const,
-  shouldPlayInBackground: false,
-  shouldRouteThroughEarpiece: false,
-};
 
 export interface RoadChannelsVoiceReporterProps {
   /** Pass the driver's current position when available. */
   location?: RoadChannelLocation | null;
   deviceId?: string;
   roadName?: string | null;
+  dashcamRecording?: boolean;
+  dashcamAudioEnabled?: boolean;
+  pauseDashcamForVoice?: () => Promise<boolean>;
+  resumeDashcamAfterVoice?: (shouldResume: boolean) => Promise<void>;
   /** Lets a parent surface a successful confirmed report without coupling to AppContext. */
   onConfirmed?: (reportId: string, interpretation: VoiceInterpretation) => void;
   onCancelled?: () => void;
@@ -59,6 +57,10 @@ export default function RoadChannelsVoiceReporter({
   location = null,
   deviceId,
   roadName,
+  dashcamRecording = false,
+  dashcamAudioEnabled = false,
+  pauseDashcamForVoice,
+  resumeDashcamAfterVoice,
   onConfirmed,
   onCancelled,
 }: RoadChannelsVoiceReporterProps) {
@@ -66,6 +68,15 @@ export default function RoadChannelsVoiceReporter({
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recording = useAudioRecorderState(recorder, 200);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startInFlightRef = useRef(false);
+  const recordingActiveRef = useRef(false);
+  const startGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
+  const voiceAudioModeActiveRef = useRef(false);
+  const dashcamPausedRef = useRef(false);
+  const voiceLeaseHeldRef = useRef(false);
+  const resumeDashcamRef = useRef(resumeDashcamAfterVoice);
+  useEffect(() => { resumeDashcamRef.current = resumeDashcamAfterVoice; }, [resumeDashcamAfterVoice]);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,6 +87,37 @@ export default function RoadChannelsVoiceReporter({
   const clearStopTimer = () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
     stopTimer.current = null;
+  };
+
+  const resumeDashcamIfNeeded = async () => {
+    if (!voiceLeaseHeldRef.current) return;
+    voiceLeaseHeldRef.current = false;
+    const shouldResume = dashcamPausedRef.current;
+    dashcamPausedRef.current = false;
+    await resumeDashcamRef.current?.(shouldResume);
+  };
+
+  const restoreVoiceAudioMode = async () => {
+    if (!voiceAudioModeActiveRef.current) return;
+    voiceAudioModeActiveRef.current = false;
+    await restoreAudioMode();
+  };
+
+  const confirmDashcamHandoff = (): Promise<boolean> => {
+    if (!dashcamRecording) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      Alert.alert(
+        "Pause dashcam briefly?",
+        dashcamAudioEnabled
+          ? "Road Channels needs the microphone. Msafiri will save the current dashcam segment, pause video and audio for up to 15 seconds, then resume the dashcam automatically."
+          : "Msafiri will save the current dashcam segment, pause video briefly while you speak, then resume the dashcam automatically.",
+        [
+          { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+          { text: "Pause & Speak", onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
   };
 
   // Discovery, presence and feed are intentionally best-effort context calls;
@@ -118,17 +160,36 @@ export default function RoadChannelsVoiceReporter({
     return () => { active = false; };
   }, [deviceId, location?.latitude, location?.longitude, roadName]);
 
-  useEffect(() => () => clearStopTimer(), []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      startGenerationRef.current += 1;
+      clearStopTimer();
+      // useAudioRecorder owns native recorder disposal on unmount. Never read
+      // or call that shared object here because Expo may already have released
+      // it before this cleanup executes.
+      recordingActiveRef.current = false;
+      void restoreVoiceAudioMode()
+        .catch(() => {})
+        .finally(() => { void resumeDashcamIfNeeded(); });
+    };
+  }, []);
 
   const stopRecording = async () => {
     clearStopTimer();
-    if (!recorder.isRecording) return;
+    if (!recordingActiveRef.current) return;
+    recordingActiveRef.current = false;
     try {
       // Read from the recorder, rather than hook state captured by an auto-stop
       // timeout, so the minimum-duration check remains correct at 15 seconds.
       const durationMillis = recorder.getStatus().durationMillis;
-      await recorder.stop();
-      await setAudioModeAsync(PLAYBACK_AUDIO_MODE).catch(() => {});
+      try {
+        await recorder.stop();
+      } finally {
+        await restoreVoiceAudioMode().catch(() => {});
+        await resumeDashcamIfNeeded();
+      }
       const uri = recorder.uri;
       if (!uri) throw new Error("The recording could not be saved.");
       if (durationMillis < MIN_USEFUL_SECONDS * 1000) {
@@ -143,6 +204,7 @@ export default function RoadChannelsVoiceReporter({
   };
 
   const startRecording = async () => {
+    if (startInFlightRef.current || recordingActiveRef.current) return;
     if (Platform.OS === "web") {
       setMessage("Voice reporting is available in the Msafiri mobile app.");
       return;
@@ -150,6 +212,17 @@ export default function RoadChannelsVoiceReporter({
     setMessage(null);
     setInterpretation(null);
     setRecordedUri(null);
+    startInFlightRef.current = true;
+    const generation = ++startGenerationRef.current;
+    const cancelled = () => !mountedRef.current || generation !== startGenerationRef.current;
+    const abortCancelledStart = async () => {
+      if (recordingActiveRef.current) {
+        recordingActiveRef.current = false;
+        await recorder.stop().catch(() => {});
+      }
+      await restoreVoiceAudioMode().catch(() => {});
+      await resumeDashcamIfNeeded().catch(() => {});
+    };
     try {
       const permission = Platform.OS === "android"
         ? {
@@ -160,6 +233,7 @@ export default function RoadChannelsVoiceReporter({
             const current = await getRecordingPermissionsAsync();
             return current.granted ? current : requestRecordingPermissionsAsync();
           })();
+      if (cancelled()) return void await abortCancelledStart();
       if (!permission.granted) {
         const detail = "Enable Microphone for Msafiri in Settings to report by voice.";
         setMessage(detail);
@@ -169,6 +243,17 @@ export default function RoadChannelsVoiceReporter({
         ]);
         return;
       }
+      if (!(await confirmDashcamHandoff())) return;
+      if (cancelled()) return void await abortCancelledStart();
+      if (!pauseDashcamForVoice) throw new Error("Microphone handoff is unavailable. Nothing was recorded.");
+      {
+        setMessage("Saving the current dashcam segment…");
+        dashcamPausedRef.current = await pauseDashcamForVoice();
+        voiceLeaseHeldRef.current = true;
+        if (cancelled()) return void await abortCancelledStart();
+        setMessage(null);
+      }
+      voiceAudioModeActiveRef.current = true;
       await setAudioModeAsync({
         allowsRecording: true,
         playsInSilentMode: true,
@@ -176,11 +261,20 @@ export default function RoadChannelsVoiceReporter({
         shouldPlayInBackground: false,
         shouldRouteThroughEarpiece: false,
       });
+      if (cancelled()) return void await abortCancelledStart();
       await recorder.prepareToRecordAsync();
+      if (cancelled()) return void await abortCancelledStart();
       recorder.record();
+      recordingActiveRef.current = true;
       stopTimer.current = setTimeout(() => { void stopRecording(); }, MAX_SECONDS * 1000);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not start recording.");
+      await restoreVoiceAudioMode().catch(() => {});
+      await resumeDashcamIfNeeded().catch(() => {});
+      if (mountedRef.current) {
+        setMessage(error instanceof Error ? error.message : "Could not start recording.");
+      }
+    } finally {
+      startInFlightRef.current = false;
     }
   };
 
@@ -233,10 +327,15 @@ export default function RoadChannelsVoiceReporter({
 
   const cancel = () => {
     clearStopTimer();
-    if (recorder.isRecording) {
+    if (recordingActiveRef.current) {
+      recordingActiveRef.current = false;
       void recorder.stop().finally(() => {
-        void setAudioModeAsync(PLAYBACK_AUDIO_MODE).catch(() => {});
+        void restoreVoiceAudioMode()
+          .catch(() => {})
+          .finally(() => { void resumeDashcamIfNeeded(); });
       });
+    } else {
+      void resumeDashcamIfNeeded();
     }
     rerecord();
     onCancelled?.();

@@ -79,6 +79,13 @@ export async function ensureAudioMode() {
   await audioModePromise;
 }
 
+/** Re-apply the canonical navigation/alert playback mode after a microphone
+ * owner (for example Road Channels) has temporarily changed AVAudioSession. */
+export async function restoreAudioMode(): Promise<void> {
+  resetAudioMode();
+  await ensureAudioMode();
+}
+
 // Debounce timer that restores MixWithOthers after the last alert finishes.
 let duckRestoreTimer: ReturnType<typeof setTimeout> | null = null;
 // Monotonically-increasing counter used to detect whether a restore timer has

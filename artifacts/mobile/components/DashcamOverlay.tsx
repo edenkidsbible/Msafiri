@@ -81,7 +81,8 @@ const PANEL_HEIGHT   = 340; // px — settings sheet height
 
 export default function DashcamOverlay() {
   const {
-    isRecording, isRecordingRef, isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
+    isRecording, isRecordingRef, voiceHandoffActiveRef,
+    isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked, stopAndSaveDashcam,
     closeDashcam, openDashcam, clearBackgroundRecordPending, setCameraRef,
@@ -579,7 +580,10 @@ export default function DashcamOverlay() {
       // the audio session is always restored whenever the loop is torn down,
       // regardless of whether isRecording changed or an epoch bump fired.
       if (Platform.OS !== "web") {
-        setDashcamAudioMode(false);
+        // DashcamContext owns the release during a Road Channels handoff and
+        // awaits it before granting microphone ownership. Avoid a second,
+        // racing AVAudioSession transition from this cleanup.
+        if (!voiceHandoffActiveRef.current) setDashcamAudioMode(false);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
