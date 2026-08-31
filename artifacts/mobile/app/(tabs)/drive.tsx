@@ -77,7 +77,7 @@ import {
 } from "@/utils/driveSessionApi";
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { recordSession } from "@/utils/vehicleSessionMap";
-import { useTrialSessions, recordTrialSession, FREE_TRIAL_SESSIONS } from "@/hooks/useTrialSessions";
+import { useTrialSessions, FREE_TRIAL_SESSIONS } from "@/hooks/useTrialSessions";
 import { useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
@@ -342,7 +342,8 @@ export default function DriveScreen() {
 
   // ── Subscription / trial gate ────────────────────────────────────────────
   const { isSubscribed } = useSubscription();
-  const { trialExpired, sessionsUsed } = useTrialSessions();
+  const { trialExpired, sessionsUsed, isLoading: trialLoading, recordSession: recordTrialSession } = useTrialSessions();
+  const sessionsRemaining = FREE_TRIAL_SESSIONS - sessionsUsed;
   // Refs for stable reads inside useFocusEffect without re-creating callbacks.
   const trialExpiredRef  = useRef(false);
   const isSubscribedRef  = useRef(false);
@@ -1671,6 +1672,40 @@ export default function DriveScreen() {
                 Msafiri is watching
               </Text>
             </View>
+
+            {/* ── Free-trial sessions remaining pill ───────────────────────
+                Shown to non-subscribers who still have free drives left.
+                Turns amber on the last drive; disappears once subscribed
+                or after the trial expires.                                */}
+            {!BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading && (
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 6,
+                backgroundColor: sessionsRemaining === 1
+                  ? (isDark ? "#3D1F00" : "#FFF3E0")
+                  : (isDark ? "#0D1F0D" : "#E8F5E9"),
+                borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
+                borderWidth: 1,
+                borderColor: sessionsRemaining === 1
+                  ? (isDark ? "#FF6D0044" : "#FB8C0044")
+                  : (isDark ? "#22C55E44" : "#22C55E44"),
+              }}>
+                <Ionicons
+                  name={sessionsRemaining === 1 ? "timer-outline" : "checkmark-circle-outline"}
+                  size={14}
+                  color={sessionsRemaining === 1 ? "#FB8C00" : c.primary}
+                />
+                <Text style={{
+                  fontSize: 13, fontFamily: "Inter_500Medium",
+                  color: sessionsRemaining === 1
+                    ? (isDark ? "#FFB74D" : "#E65100")
+                    : c.primary,
+                }}>
+                  {sessionsRemaining === 1
+                    ? "1 free drive left"
+                    : `${sessionsRemaining} free drives left`}
+                </Text>
+              </View>
+            )}
 
             {/* ── Destination picker / chip ─────────────────────────────── */}
             {navDestination ? (
