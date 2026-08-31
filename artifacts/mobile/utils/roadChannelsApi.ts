@@ -14,6 +14,7 @@ export interface RoadChannel {
   road?: string | null;
   memberCount?: number;
   direction?: "inbound" | "outbound" | "unknown";
+  nearby?: boolean;
 }
 
 export interface RoadChannelsDiscovery {
@@ -54,8 +55,11 @@ export interface VoiceReportContext {
   channelId?: string;
 }
 
-export function discoverRoadChannels(roadName: string, heading?: number | null): Promise<RoadChannelsDiscovery> {
-  const params = new URLSearchParams({ roadName });
+export function discoverRoadChannels(roadNames: string | string[], heading?: number | null): Promise<RoadChannelsDiscovery> {
+  const params = new URLSearchParams();
+  for (const roadName of (Array.isArray(roadNames) ? roadNames : [roadNames])) {
+    if (roadName.trim()) params.append("roadName", roadName);
+  }
   if (heading != null) params.set("heading", String(heading));
   return apiGet(`/road-channels/discovery?${params.toString()}`);
 }

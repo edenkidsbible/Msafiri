@@ -42,3 +42,24 @@ export async function getRoadName(
     return null;
   }
 }
+
+/** Returns the nearest reverse-geocoded route first, followed by other nearby
+ * route candidates. Older API deployments that only return `road` remain
+ * compatible. */
+export async function getNearbyRoadNames(
+  lat: number,
+  lng: number,
+): Promise<string[]> {
+  try {
+    if (!API_BASE) return [];
+    const res = await fetch(`${API_BASE}/routing/road-name?lat=${lat}&lng=${lng}`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { road?: string | null; roads?: string[] };
+    return [...new Set([
+      ...(data.road ? [data.road] : []),
+      ...(Array.isArray(data.roads) ? data.roads : []),
+    ].filter((road): road is string => typeof road === "string" && road.trim().length > 0))];
+  } catch {
+    return [];
+  }
+}

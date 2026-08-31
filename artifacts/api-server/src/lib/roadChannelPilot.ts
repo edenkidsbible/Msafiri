@@ -17,14 +17,19 @@ export const PILOT_CORRIDORS: PilotCorridor[] = [
   { id: "langata-road", name: "Lang'ata Road", aliases: ["langata road"], outboundBearing: 225 },
   { id: "kiambu-road", name: "Kiambu Road", aliases: [], outboundBearing: 5 },
   { id: "limuru-road", name: "Limuru Road", aliases: [], outboundBearing: 325 },
-  { id: "eastern-bypass", name: "Eastern Bypass", aliases: [], outboundBearing: 25 },
+  { id: "eastern-bypass", name: "Eastern Bypass", aliases: ["eastern bypass road", "c100"], outboundBearing: 25 },
   { id: "northern-bypass", name: "Northern Bypass", aliases: [], outboundBearing: 285 },
   { id: "southern-bypass", name: "Southern Bypass", aliases: [], outboundBearing: 290 },
   { id: "kangundo-road", name: "Kangundo Road", aliases: [], outboundBearing: 75 },
 ];
 
 function normalize(value: string): string {
-  return value.trim().toLowerCase().replace(/[–—-]/g, " ").replace(/[()]/g, " ").replace(/\s+/g, " ");
+  return value.trim().toLowerCase()
+    .replace(/[–—-]/g, " ")
+    .replace(/[()]/g, " ")
+    .replace(/\b(highway|road|rd|route)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 const BY_ALIAS = new Map<string, PilotCorridor>();
@@ -36,7 +41,18 @@ for (const corridor of PILOT_CORRIDORS) {
 
 export function resolvePilotCorridor(value: unknown): PilotCorridor | null {
   if (typeof value !== "string") return null;
-  return BY_ALIAS.get(normalize(value)) ?? null;
+  const normalized = normalize(value);
+  const exact = BY_ALIAS.get(normalized);
+  if (exact) return exact;
+
+  // Reverse geocoders commonly decorate a road with a route code or locality,
+  // e.g. "Eastern Bypass Road (C100)" or "A2 Thika Superhighway".
+  // Accept a catalog alias as a complete word sequence, never as a substring
+  // inside another word.
+  for (const [alias, corridor] of BY_ALIAS) {
+    if (alias.length >= 3 && (` ${normalized} `).includes(` ${alias} `)) return corridor;
+  }
+  return null;
 }
 
 export function pilotDirection(corridor: PilotCorridor, heading: unknown): RoadChannelDirection {

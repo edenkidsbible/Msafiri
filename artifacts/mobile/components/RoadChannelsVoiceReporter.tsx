@@ -15,6 +15,7 @@ import {
 import { getInfoAsync } from "expo-file-system/legacy";
 import { requestAndroidMicrophonePermission } from "@/utils/androidCameraPermissions";
 import { restoreAudioMode } from "@/utils/sound";
+import { getNearbyRoadNames } from "@/utils/snapToRoad";
 
 import { useColors } from "@/hooks/useColors";
 import {
@@ -104,6 +105,7 @@ export default function RoadChannelsVoiceReporter({
   const [message, setMessage] = useState<string | null>(null);
   const [interpretation, setInterpretation] = useState<VoiceInterpretation | null>(null);
   const [channel, setChannel] = useState<RoadChannel | null>(null);
+  const [availableChannels, setAvailableChannels] = useState<RoadChannel[]>([]);
   const [discoveryStatus, setDiscoveryStatus] = useState<"loading" | "available" | "unavailable">("loading");
   const [category, setCategory] = useState<RoadChannelCategory>("traffic");
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
@@ -170,23 +172,25 @@ export default function RoadChannelsVoiceReporter({
   // Discovery is read-only. Presence begins only after an explicit Join tap.
   useEffect(() => {
     if (Platform.OS === "web") return;
-    if (roadName === undefined) {
+    if (!location) {
       setChannel(null);
-      setDiscoveryStatus("loading");
-      return;
-    }
-    if (!location || !roadName) {
-      setChannel(null);
+      setAvailableChannels([]);
       setDiscoveryStatus("unavailable");
       return;
     }
     let active = true;
     setChannel(null);
     setDiscoveryStatus("loading");
-    discoverRoadChannels(roadName, heading)
+    Promise.race<string[]>([
+      getNearbyRoadNames(location.latitude, location.longitude)
+        .then((roads) => [...(roadName ? [roadName] : []), ...roads]),
+      new Promise<string[]>((resolve) => setTimeout(() => resolve(roadName ? [roadName] : []), 6000)),
+    ])
+      .then((roads) => discoverRoadChannels([...new Set(roads)], heading))
       .then(async ({ channels }) => {
         if (!active) return;
         const nearest = channels[0] ?? null;
+        setAvailableChannels(channels);
         const current = channelRef.current;
         if (!nearest || !current || nearest.id === current.id) {
           handoffCandidateRef.current = null;
@@ -216,6 +220,7 @@ export default function RoadChannelsVoiceReporter({
       .catch(() => {
         if (!active) return;
         setChannel(null);
+        setAvailableChannels([]);
         setDiscoveryStatus("unavailable");
       });
     return () => { active = false; };
@@ -545,6 +550,33 @@ export default function RoadChannelsVoiceReporter({
          </View>
        ) : null}
 
+       {activeDrive && (availableChannels.length > 1 || availableChannels[0]?.nearby) ? (
+         <View style={styles.nearbySection}>
+           <Text style={[styles.categoryHeading, { color: c.foreground }]}>Nearby Road Channels</Text>
+           <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>
+             Choose the road you are joining or reporting on.
+           </Text>
+           <View style={styles.categoryGrid}>
+             {availableChannels.map((item) => (
+               <TouchableOpacity
+                 key={item.id}
+                 accessibilityRole="button"
+                 accessibilityState={{ selected: channel?.id === item.id }}
+                 onPress={() => setChannel(item)}
+                 style={[styles.categoryChip, {
+                   borderColor: channel?.id === item.id ? c.primary : c.border,
+                   backgroundColor: channel?.id === item.id ? c.primary + "18" : c.card,
+                 }]}
+               >
+                 <Text style={[styles.categoryLabel, { color: channel?.id === item.id ? c.primary : c.foreground }]}>
+                   {item.road ?? item.name}
+                 </Text>
+               </TouchableOpacity>
+             ))}
+           </View>
+         </View>
+       ) : null}
+
        <View style={styles.categorySection}>
          <Text style={[styles.categoryHeading, { color: c.foreground }]}>What are you reporting?</Text>
          <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>Choose a category to give listeners useful context.</Text>
@@ -626,6 +658,7 @@ const styles = StyleSheet.create({
   feedRow: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 34 },
   autoSwitchRow: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 34 },
   categorySection: { gap: 5, marginTop: 2 },
+  nearbySection: { gap: 5, marginTop: 2 },
   categoryHeading: { fontFamily: "Inter_700Bold", fontSize: 15 },
   categoryHint: { fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 17 },
   categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 },

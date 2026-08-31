@@ -384,8 +384,21 @@ router.get("/routing/road-name", async (req, res) => {
   }
 
   const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
+  const hereApiKey = process.env.HERE_API_KEY;
+  const findWithHere = async (): Promise<string[]> => {
+    if (!hereApiKey) return [];
+    const hereRes = await fetch(
+      `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lng}&lang=en&limit=5&apiKey=${encodeURIComponent(hereApiKey)}`,
+    );
+    if (!hereRes.ok) return [];
+    const hereData = (await hereRes.json()) as any;
+    return [...new Set<string>((hereData.items ?? []).flatMap((item: any) =>
+      typeof item?.address?.street === "string" ? [item.address.street] : []
+    ))].slice(0, 8);
+  };
   if (!apiKey) {
-    res.json({ road: null });
+    const roads = await findWithHere().catch(() => []);
+    res.json({ road: roads[0] ?? null, roads });
     return;
   }
 
@@ -400,13 +413,17 @@ router.get("/routing/road-name", async (req, res) => {
     if (!gRes.ok) { res.json({ road: null }); return; }
 
     const data = (await gRes.json()) as any;
-    const result = data.results?.[0];
-    const routeComp = result?.address_components?.find(
-      (c: any) => Array.isArray(c.types) && c.types.includes("route")
-    );
-    res.json({ road: routeComp?.long_name ?? null });
+    const roads = [...new Set<string>((data.results ?? []).flatMap((result: any) => {
+      const routeComp = result?.address_components?.find(
+        (c: any) => Array.isArray(c.types) && c.types.includes("route")
+      );
+      return typeof routeComp?.long_name === "string" ? [routeComp.long_name] : [];
+    }))].slice(0, 8);
+    const candidates = roads.length > 0 ? roads : await findWithHere().catch(() => []);
+    res.json({ road: candidates[0] ?? null, roads: candidates });
   } catch {
-    res.json({ road: null });
+    const roads = await findWithHere().catch(() => []);
+    res.json({ road: roads[0] ?? null, roads });
   } finally {
     clearTimeout(timer);
   }

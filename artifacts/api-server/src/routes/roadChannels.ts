@@ -127,20 +127,33 @@ router.get("/road-channels", async (_req, res) => {
 
 router.get("/road-channels/discovery", async (req, res) => {
   if (!await requireEnabled(res)) return;
-  const channel = channelFor(req.query.roadName);
-  if (!channel) return res.json({ channels: [] });
-  const [presence] = await db.select({ value: count() }).from(roadChannelPresenceTable)
-    .where(and(eq(roadChannelPresenceTable.channel, channel), gt(roadChannelPresenceTable.lastSeenAt, new Date(Date.now() - PRESENCE_TTL_MS))));
-  const corridor = resolvePilotCorridor(channel)!;
-  const direction = pilotDirection(corridor, Number(req.query.heading));
+  const requestedRoads = Array.isArray(req.query.roadName)
+    ? req.query.roadName
+    : [req.query.roadName];
+  const channels = [...new Set(requestedRoads.map(channelFor).filter((id): id is string => !!id))];
+  if (channels.length === 0) return res.json({ channels: [] });
+  const presenceRows = await db.select({
+    channel: roadChannelPresenceTable.channel,
+    value: count(),
+  }).from(roadChannelPresenceTable)
+    .where(and(
+      inArray(roadChannelPresenceTable.channel, channels),
+      gt(roadChannelPresenceTable.lastSeenAt, new Date(Date.now() - PRESENCE_TTL_MS)),
+    ))
+    .groupBy(roadChannelPresenceTable.channel);
+  const presenceByChannel = new Map(presenceRows.map((row) => [row.channel, Number(row.value)]));
   return res.json({
-    channels: [{
-      id: channel,
-      name: `${channelName(channel)} Channel`,
-      road: channelName(channel),
-      direction,
-      memberCount: Number(presence?.value ?? 0),
-    }],
+    channels: channels.map((channel, index) => {
+      const corridor = resolvePilotCorridor(channel)!;
+      return {
+        id: channel,
+        name: `${channelName(channel)} Channel`,
+        road: channelName(channel),
+        direction: pilotDirection(corridor, Number(req.query.heading)),
+        memberCount: presenceByChannel.get(channel) ?? 0,
+        nearby: requestedRoads.findIndex((road) => channelFor(road) === channel) > 0,
+      };
+    }),
   });
 });
 

@@ -28,6 +28,10 @@ describe("Road Channels pilot catalog", () => {
     expect(resolvePilotCorridor("Thika Road")?.id).toBe("thika-superhighway");
     expect(resolvePilotCorridor("A109")?.id).toBe("mombasa-road");
     expect(resolvePilotCorridor("Lang'ata Road")?.id).toBe("langata-road");
+    expect(resolvePilotCorridor("Eastern Bypass Road")?.id).toBe("eastern-bypass");
+    expect(resolvePilotCorridor("Eastern Bypass Road (C100)")?.id).toBe("eastern-bypass");
+    expect(resolvePilotCorridor("C100")?.id).toBe("eastern-bypass");
+    expect(resolvePilotCorridor("A2 Thika Superhighway")?.id).toBe("thika-superhighway");
     expect(resolvePilotCorridor("Kisumu Busia Road")).toBeNull();
   });
 
