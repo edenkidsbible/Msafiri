@@ -27,6 +27,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useDashcam } from "@/context/DashcamContext";
+import { useSubscription } from "@/lib/revenuecat";
 import TripReviewCard from "@/components/TripReviewCard";
 import { type PlayerConfig } from "@/components/VideoPlayerModal";
 
@@ -188,6 +189,25 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidde
   // Subscribe to live segments so the button appears reactively even when
   // the final clip is saved asynchronously after the trip snapshot is taken.
   const { segments: dashcamSegments } = useDashcam();
+
+  // Pull RevenueCat offerings to show intro/regular price in the trial-end banner.
+  const { offerings, isDefinitelyIntroEligible } = useSubscription();
+  const monthlyPkg = offerings?.current?.availablePackages.find(
+    (p) => p.identifier === "$rc_monthly",
+  );
+  // Show intro price when the store has positively confirmed eligibility (same
+  // gate as PaywallModal). Fall back to the regular monthly price if no intro.
+  const monthlyIntroPrice =
+    monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
+      ? (monthlyPkg.product.introPrice as { priceString: string } | null) ?? null
+      : null;
+  // Banner body price line: prefer intro, then regular, then nothing.
+  const trialBannerPriceLine: string | null = monthlyIntroPrice
+    ? `First month just ${monthlyIntroPrice.priceString}`
+    : monthlyPkg
+      ? `${monthlyPkg.product.priceString}/month`
+      : null;
+
   const slideY = useRef(new Animated.Value(600)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
 
@@ -356,7 +376,9 @@ export default function TripSummaryModal({ data, onDismiss, onStopSharing, hidde
                       Your 3 free drives are complete 🎉
                     </Text>
                     <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isDark ? "#FED7AA" : "#9A3412", lineHeight: 16 }}>
-                      Keep Msafiri with you on every journey — subscribe to stay protected.
+                      {trialBannerPriceLine
+                        ? `${trialBannerPriceLine} — subscribe to stay protected.`
+                        : "Keep Msafiri with you on every journey — subscribe to stay protected."}
                     </Text>
                     {onSubscribeNow && (
                       <TouchableOpacity
