@@ -2138,40 +2138,6 @@ export default function DriveScreen() {
         <BackOnlinePill topOffset={topInset + 8} />
       )}
 
-      {/* ── Free trial in-drive indicator ───────────────────────────────────
-          A subtle pill at the top of the screen reminding the driver they are
-          on a free trial drive. Hidden when an alert or offline banner is
-          already occupying the top area.                                      */}
-      {tripActive && !isSubscribed && !trialExpired && primaryAlert == null && !isOffline && Platform.OS !== "web" && (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: topInset + 8,
-            left: 0, right: 0,
-            alignItems: "center",
-            zIndex: 15,
-          }}
-        >
-          <View style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            backgroundColor: isDark ? "#0D2010" : "#F0FDF4",
-            borderWidth: 1,
-            borderColor: isDark ? "#22C55E35" : "#22C55E55",
-            borderRadius: 20,
-            paddingHorizontal: 12,
-            paddingVertical: 5,
-          }}>
-            <Ionicons name="leaf-outline" size={12} color="#22C55E" />
-            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#22C55E" }}>
-              Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
-            </Text>
-          </View>
-        </View>
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════
           TOP: Search bar + results — hidden in pre-trip idle state;
           the clean pre-trip screen replaces the old map-based idle UI.
@@ -3177,6 +3143,25 @@ export default function DriveScreen() {
           }]}
           onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
+          {/* Keep the trial status in the protected bottom sheet instead of
+              the alert-covered map header. */}
+          {!BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading && (
+            <View
+              style={[
+                styles.inDriveTrialPill,
+                {
+                  backgroundColor: isDark ? "#0D2010" : "#F0FDF4",
+                  borderColor: isDark ? "#22C55E35" : "#22C55E55",
+                },
+              ]}
+            >
+              <Ionicons name="leaf-outline" size={12} color="#22C55E" />
+              <Text style={styles.inDriveTrialPillTxt}>
+                Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
+              </Text>
+            </View>
+          )}
+
           {/* Title row: "Drive Safely" · ETA (flex spacer) · SOS · End Trip
                The ETA Text always renders (flex:1) so SOS+End Trip stay pinned
                to the far right even when no route is active.               */}
@@ -4972,6 +4957,22 @@ const styles = StyleSheet.create({
   dmChipTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
   // ── Drive Safely panel ────────────────────────────────────────────────────
+  inDriveTrialPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 2,
+  },
+  inDriveTrialPillTxt: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#22C55E",
+  },
   dmPanelTitleRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingTop: 6, paddingBottom: 10,
