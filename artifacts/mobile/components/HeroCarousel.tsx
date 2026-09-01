@@ -247,10 +247,10 @@ export function HeroCarousel({ activeVehicle }: Props) {
             style={[
               styles.artPhoneFrame,
               {
-                width: Math.round(artworkSize * 0.48),
-                height: Math.round(artworkSize * 0.72),
-                borderRadius: Math.round(artworkSize * 0.12),
-                top: Math.round(artworkSize * 0.14),
+                width: Math.round(artworkSize * 0.34),
+                height: Math.round(artworkSize * 0.58),
+                borderRadius: Math.round(artworkSize * 0.09),
+                top: Math.round(artworkSize * 0.18),
               },
             ]}
           >
@@ -258,7 +258,7 @@ export function HeroCarousel({ activeVehicle }: Props) {
               pointerEvents="none"
               style={[
                 styles.artPhoneSpeaker,
-                { width: Math.round(artworkSize * 0.17) },
+                { width: Math.round(artworkSize * 0.13) },
               ]}
             />
             <View
@@ -266,15 +266,15 @@ export function HeroCarousel({ activeVehicle }: Props) {
               style={[
                 styles.artPhoneIcon,
                 {
-                  top: Math.round(artworkSize * 0.13),
-                  width: Math.round(artworkSize * 0.40),
-                  height: Math.round(artworkSize * 0.40),
+                  top: Math.round(artworkSize * 0.08),
+                  width: Math.round(artworkSize * 0.28),
+                  height: Math.round(artworkSize * 0.23),
                 },
               ]}
             >
               <Ionicons
                 name={boldIcon}
-                size={Math.round(artworkSize * 0.30)}
+                size={Math.round(artworkSize * 0.20)}
                 color="#FFFFFF"
                 style={styles.artWatermark}
               />
@@ -283,7 +283,7 @@ export function HeroCarousel({ activeVehicle }: Props) {
               pointerEvents="none"
               style={[
                 styles.artPhoneHomeIndicator,
-                { width: Math.round(artworkSize * 0.15) },
+                { width: Math.round(artworkSize * 0.12) },
               ]}
             />
           </View>
@@ -370,15 +370,15 @@ const styles = StyleSheet.create({
   artPhoneFrame: {
     position: "absolute",
     alignItems: "center",
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#FFFFFF52",
     backgroundColor: "#FFFFFF0A",
     overflow: "hidden",
   },
   artPhoneSpeaker: {
     position: "absolute",
-    top: 7,
-    height: 3,
+    top: 5,
+    height: 2,
     borderRadius: 2,
     backgroundColor: "#FFFFFF40",
   },
@@ -389,8 +389,8 @@ const styles = StyleSheet.create({
   },
   artPhoneHomeIndicator: {
     position: "absolute",
-    bottom: 7,
-    height: 3,
+    bottom: 5,
+    height: 2,
     borderRadius: 2,
     backgroundColor: "#FFFFFF40",
   },
