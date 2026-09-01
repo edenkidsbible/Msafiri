@@ -74,6 +74,9 @@ export function discoverRoadChannels(
     params.set("lng", String(location.longitude));
     params.set("radiusM", String(Math.min(5_000, Math.max(100, radiusM))));
   }
+  // Road Channels is live state. A unique request URL prevents native HTTP
+  // caches from returning a bare 304 response that the app cannot hydrate.
+  params.set("_fresh", String(Date.now()));
   return apiGet(`/road-channels/discovery?${params.toString()}`);
 }
 
@@ -95,6 +98,7 @@ export async function getRoadChannelFeed(
 ): Promise<RoadChannelFeed> {
   const params = new URLSearchParams({ deviceId });
   if (cursor) params.set("cursor", cursor);
+  params.set("_fresh", String(Date.now()));
   const response = await apiGet<{
     items?: RoadChannelFeedItem[];
     updates?: Array<{
@@ -172,16 +176,28 @@ export async function uploadVoiceRecording(
     form.append("file", uploadFile, file.name);
     return form;
   })() : uploadFile;
-  const response = await fetch(uploadUrl, {
-    method,
-    headers: {
-      "Content-Type": request.contentType ?? contentType,
-      ...request.headers,
-    },
-    body,
-  });
-  if (!response.ok) {
-    throw new ApiError(response.status, "Could not upload the voice report.");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(uploadUrl, {
+      method,
+      headers: {
+        "Content-Type": request.contentType ?? contentType,
+        ...request.headers,
+      },
+      body,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, "Could not upload the voice report.");
+    }
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Voice upload timed out. Check your connection and hold to record again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

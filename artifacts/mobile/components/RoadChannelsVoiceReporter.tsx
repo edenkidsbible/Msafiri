@@ -167,12 +167,13 @@ export default function RoadChannelsVoiceReporter({
   const channelRef = useRef<RoadChannel | null>(null);
   const reportLocationRef = useRef<RoadChannelLocation | null>(null);
   const handoffCandidateRef = useRef<{ id: string; count: number } | null>(null);
+  const discoveryResolvedRef = useRef(false);
   const [automaticSwitching, setAutomaticSwitching] = useState(false);
   useEffect(() => { channelRef.current = channel; }, [channel]);
   // Raw GPS and compass values update every second. Bucket discovery so an
   // in-flight road lookup is not cancelled by the next location fix.
-  const discoveryLat = location ? Math.round(location.latitude * 200) / 200 : null;
-  const discoveryLng = location ? Math.round(location.longitude * 200) / 200 : null;
+  const discoveryLat = location ? Math.round(location.latitude * 1_000) / 1_000 : null;
+  const discoveryLng = location ? Math.round(location.longitude * 1_000) / 1_000 : null;
   const discoveryHeading = heading == null ? null : Math.round(heading / 30) * 30 % 360;
   const reportingChannel = availableChannels.find(
     (item) => item.distanceM != null && item.distanceM <= ON_ROAD_DISTANCE_M,
@@ -239,10 +240,11 @@ export default function RoadChannelsVoiceReporter({
       setChannel(null);
       setAvailableChannels([]);
       setDiscoveryStatus("unavailable");
+      discoveryResolvedRef.current = true;
       return;
     }
     let active = true;
-    if (!channelRef.current) setDiscoveryStatus("loading");
+    if (!discoveryResolvedRef.current) setDiscoveryStatus("loading");
     Promise.race<string[]>([
       getNearbyRoadNames(discoveryLat, discoveryLng)
         .then((roads) => [...(roadName ? [roadName] : []), ...roads]),
@@ -283,6 +285,7 @@ export default function RoadChannelsVoiceReporter({
           }
         }
         setDiscoveryStatus(nearest ? "available" : "unavailable");
+        discoveryResolvedRef.current = true;
       })
       .catch((error) => {
         if (!active) return;
@@ -291,10 +294,11 @@ export default function RoadChannelsVoiceReporter({
           setAvailableChannels([]);
           setDiscoveryStatus("unavailable");
         }
+        discoveryResolvedRef.current = true;
         setMessage(error instanceof Error ? error.message : "Could not look up nearby Road Channels.");
       });
     return () => { active = false; };
-  }, [deviceId, discoveryLat, discoveryLng, roadName, discoveryHeading, automaticSwitching]);
+  }, [deviceId, discoveryLat, discoveryLng, roadName, automaticSwitching]);
 
   // Presence is a short lease, refreshed only while the driver is actively
   // listening. Exact coordinates remain server-private and are never in feeds.
@@ -522,7 +526,7 @@ export default function RoadChannelsVoiceReporter({
     if (!uri) return;
     clearSendCountdown();
     setBusy(true);
-    setMessage("Sending privately — understanding your report…");
+    setMessage("Preparing private upload…");
     try {
       const context = {
         deviceId,
@@ -536,11 +540,15 @@ export default function RoadChannelsVoiceReporter({
         contentType: VOICE_CONTENT_TYPE,
         sizeBytes: fileInfo.size,
       });
+      setMessage("Uploading voice report…");
       await uploadVoiceRecording(request, uri, VOICE_CONTENT_TYPE);
+      setMessage("Understanding your report…");
       const result = await interpretVoiceReport(request.voiceReportId, context);
       setInterpretation(result);
       setMessage(null);
     } catch (error) {
+      setRecordedUri(null);
+      reportLocationRef.current = null;
       setMessage(error instanceof Error ? error.message : "We could not interpret that report. Please re-record.");
     } finally {
       setBusy(false);

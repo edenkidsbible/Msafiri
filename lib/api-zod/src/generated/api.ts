@@ -13,7 +13,8 @@ import * as zod from 'zod';
  * @summary Get public app feature settings
  */
 export const GetAppSettingsResponse = zod.object({
-  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users')
+  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users'),
+  "roadChannelsEnabled": zod.boolean().describe('Whether Road Channels is visible and available in the mobile app')
 })
 
 
@@ -21,7 +22,8 @@ export const GetAppSettingsResponse = zod.object({
  * @summary Get app settings (admin)
  */
 export const AdminGetSettingsResponse = zod.object({
-  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users')
+  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users'),
+  "roadChannelsEnabled": zod.boolean().describe('Whether Road Channels is visible and available in the mobile app')
 })
 
 
@@ -29,11 +31,13 @@ export const AdminGetSettingsResponse = zod.object({
  * @summary Update app settings (admin)
  */
 export const AdminUpdateSettingsBody = zod.object({
-  "navigationEnabled": zod.boolean().optional()
+  "navigationEnabled": zod.boolean().optional(),
+  "roadChannelsEnabled": zod.boolean().optional()
 })
 
 export const AdminUpdateSettingsResponse = zod.object({
-  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users')
+  "navigationEnabled": zod.boolean().describe('Whether in-app turn-by-turn navigation is enabled for users'),
+  "roadChannelsEnabled": zod.boolean().describe('Whether Road Channels is visible and available in the mobile app')
 })
 
 

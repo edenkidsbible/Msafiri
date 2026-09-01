@@ -67,7 +67,7 @@ async function blocked(deviceId: string): Promise<boolean> {
 async function enabled(): Promise<boolean> {
   const [row] = await db.select({ value: appSettingsTable.roadChannelsEnabled })
     .from(appSettingsTable).where(eq(appSettingsTable.id, "singleton"));
-  return row?.value ?? true;
+  return row?.value ?? false;
 }
 async function requireEnabled(res: Response): Promise<boolean> {
   if (await enabled()) return true;
@@ -140,11 +140,13 @@ function isOnChannel(channel: string, lat: number, lng: number): boolean {
 }
 
 router.get("/road-channels", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (!await requireEnabled(res)) return;
   res.json({ enabled: true, channels: PILOT_CORRIDORS.map((corridor) => corridor.id) });
 });
 
 router.get("/road-channels/discovery", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (!await requireEnabled(res)) return;
   const requestedRoads = Array.isArray(req.query.roadName)
     ? req.query.roadName
@@ -253,6 +255,7 @@ router.post("/road-channels/:channel/mute", async (req: Request, res: Response) 
 });
 
 router.get("/road-channels/:channel/presence", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (!await requireEnabled(res)) return;
   const channel = channelFor(req.params.channel);
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
@@ -266,6 +269,7 @@ router.get("/road-channels/:channel/presence", async (req, res) => {
 });
 
 router.get("/road-channels/:channel/feed", async (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (!await requireEnabled(res)) return;
   const channel = channelFor(req.params.channel);
   const deviceId = req.query.deviceId;

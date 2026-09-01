@@ -69,7 +69,7 @@ import { snapToRoad, getRoadName } from "@/utils/snapToRoad";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { playSound, setSoundsMuted } from "@/utils/sound";
 import { speakAlert, setAlertVoiceDisabled } from "@/utils/alertTts";
-import { apiPost } from "@/utils/apiClient";
+import { apiGet, apiPost } from "@/utils/apiClient";
 import { useDriveScore } from "@/hooks/useDriveScore";
 import {
   startDriveSession, updateDriveSession, endDriveSession, LOCAL_PREFIX,
@@ -321,6 +321,7 @@ export default function DriveScreen() {
   const [searchError, setSearchError] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showRoadVoice, setShowRoadVoice] = useState(false);
+  const [roadChannelsEnabled, setRoadChannelsEnabled] = useState(false);
   const [roadVoiceRoadName, setRoadVoiceRoadName] = useState<string | null | undefined>(undefined);
   // CrosshairPickerModal request — lifted out of ReportModal to sit at the
   // screen root so it is never nested inside another Modal (fixes iOS silent
@@ -346,6 +347,42 @@ export default function DriveScreen() {
   const driveMapRef = useRef<DriveMapViewHandle>(null);
   // Kept above Road Channels callbacks so their guard always reads live state.
   const [tripActive, setTripActive] = useState(false);
+
+  const refreshRoadChannelsSetting = useCallback(async () => {
+    try {
+      const settings = await apiGet<{ roadChannelsEnabled: boolean }>(
+        `/app-settings?_fresh=${Date.now()}`,
+      );
+      setRoadChannelsEnabled(settings.roadChannelsEnabled === true);
+    } catch {
+      // Fail closed: a stale or unavailable settings response must not expose a
+      // feature the administrator has disabled.
+      setRoadChannelsEnabled(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    void refreshRoadChannelsSetting();
+  }, [refreshRoadChannelsSetting]));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshRoadChannelsSetting();
+    });
+    return () => subscription.remove();
+  }, [refreshRoadChannelsSetting]);
+
+  useEffect(() => {
+    if (!tripActive) return;
+    const timer = setInterval(() => {
+      void refreshRoadChannelsSetting();
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [tripActive, refreshRoadChannelsSetting]);
+
+  useEffect(() => {
+    if (!roadChannelsEnabled) setShowRoadVoice(false);
+  }, [roadChannelsEnabled]);
 
   useEffect(() => {
     if (!showRoadVoice || !tripActive) return;
@@ -3142,7 +3179,7 @@ export default function DriveScreen() {
                 </>
               )}
             </TouchableOpacity>
-            {Platform.OS !== "web" && (
+            {Platform.OS !== "web" && roadChannelsEnabled && (
               <TouchableOpacity
                 style={[styles.driveActionPill, {
                   backgroundColor: dashcamRecording ? "#B71C1C" : "#1A1A1A",

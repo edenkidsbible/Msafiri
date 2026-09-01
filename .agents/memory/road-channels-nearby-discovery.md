@@ -20,3 +20,9 @@ Do not key mobile discovery directly to raw latitude, longitude, or heading valu
 **Why:** Live GPS and compass updates can restart and cancel the asynchronous discovery request every second, leaving the UI permanently loading and the microphone disabled.
 
 **How to apply:** Rediscover only after a meaningful location/heading change. Tapping the microphone should establish the active aggregate-presence lease before recording so the later staged upload passes membership validation.
+
+Road Channels discovery/feed responses must be explicitly non-cacheable, and native clients should use a fresh request URL for each live lookup.
+
+**Why:** Native HTTP caching can return a bare `304 Not Modified`; the mobile API helper has no cached body to hydrate, so it treats the lookup as failed and the UI repeatedly returns to scanning.
+
+**How to apply:** Send `Cache-Control: no-cache, no-store, must-revalidate` on live channel GET routes and add a per-request cache-buster on discovery/feed calls.

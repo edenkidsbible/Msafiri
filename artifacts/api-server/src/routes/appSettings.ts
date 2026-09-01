@@ -10,6 +10,7 @@ const router = Router();
  * to decide which features to expose to users.
  */
 router.get("/app-settings", async (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   try {
     const [row] = await db
       .select()

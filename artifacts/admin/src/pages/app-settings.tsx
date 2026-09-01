@@ -1,11 +1,9 @@
-import { useState } from "react";
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { PageGuide } from "@/components/page-guide";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAdminGetSettings, useAdminUpdateSettings } from "@workspace/api-client-react";
-import { authFetch } from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation, MapPin, Radio } from "lucide-react";
@@ -33,19 +31,9 @@ export default function AppSettings() {
     updateSettings({ data: { navigationEnabled: enabled } });
   };
 
-  const roadChannelsEnabled = (data as { roadChannelsEnabled?: boolean } | undefined)?.roadChannelsEnabled ?? false;
-  const handleRoadChannelsToggle = async (enabled: boolean) => {
-    try {
-      const response = await authFetch("/api/admin/settings", {
-        method: "PUT",
-        body: JSON.stringify({ roadChannelsEnabled: enabled }),
-      });
-      if (!response.ok) throw new Error();
-      await refetch();
-      toast({ title: "Settings saved", description: `Road Channels ${enabled ? "enabled" : "disabled"}.` });
-    } catch {
-      toast({ title: "Error", description: "Failed to update Road Channels.", variant: "destructive" });
-    }
+  const roadChannelsEnabled = data?.roadChannelsEnabled ?? false;
+  const handleRoadChannelsToggle = (enabled: boolean) => {
+    updateSettings({ data: { roadChannelsEnabled: enabled } });
   };
 
   if (isLoading) {
@@ -175,6 +163,7 @@ export default function AppSettings() {
                 id="road-channels-toggle"
                 checked={roadChannelsEnabled}
                 onCheckedChange={handleRoadChannelsToggle}
+                disabled={isPending}
                 aria-label="Toggle Road Channels pilot"
               />
             </div>

@@ -2481,16 +2481,21 @@ components:
 
     AppSettings:
       type: object
-      required: [navigationEnabled]
+      required: [navigationEnabled, roadChannelsEnabled]
       properties:
         navigationEnabled:
           type: boolean
           description: Whether in-app turn-by-turn navigation is enabled for users
+        roadChannelsEnabled:
+          type: boolean
+          description: Whether Road Channels is visible and available in the mobile app
 
     UpdateAppSettingsInput:
       type: object
       properties:
         navigationEnabled:
+          type: boolean
+        roadChannelsEnabled:
           type: boolean
 
     AdminPoi:

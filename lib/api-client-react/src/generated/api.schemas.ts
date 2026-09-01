@@ -647,10 +647,13 @@ export interface AdminBlogPostInput {
 export interface AppSettings {
   /** Whether in-app turn-by-turn navigation is enabled for users */
   navigationEnabled: boolean;
+  /** Whether Road Channels is visible and available in the mobile app */
+  roadChannelsEnabled: boolean;
 }
 
 export interface UpdateAppSettingsInput {
   navigationEnabled?: boolean;
+  roadChannelsEnabled?: boolean;
 }
 
 export interface AdminPoi {
