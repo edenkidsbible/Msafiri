@@ -7,7 +7,7 @@ import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
 export const appSettingsTable = pgTable("app_settings", {
   id:                 text("id").primaryKey().default("singleton"),
   navigationEnabled:  boolean("navigation_enabled").notNull().default(true),
-  roadChannelsEnabled:boolean("road_channels_enabled").notNull().default(false),
+  roadChannelsEnabled:boolean("road_channels_enabled").notNull().default(true),
   updatedAt:          timestamp("updated_at").notNull().defaultNow(),
 });
 

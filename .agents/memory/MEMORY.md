@@ -101,3 +101,4 @@
 - [Road Channels voice-report trust boundary](road-channels-voice-trust.md) — audio and AI output stay private drafts; only explicit driver confirmation may create a normal community report.
 - [Road Channels dashcam mic handoff](road-channels-dashcam-mic-handoff.md) — never run expo-audio and CameraView mic capture together; use an acknowledged provider-owned lease.
 - [Road Channels privacy boundaries](road-channels-privacy-boundaries.md) — aggregate presence only; serialize one-channel leases; cap signed audio URLs at retention time; voice reports enter pending review.
+- [Road Channels nearby discovery](road-channels-nearby-discovery.md) — use coordinates plus corridor geometry for the 5 km list; bucket live GPS/heading so discovery is not cancelled every tick.

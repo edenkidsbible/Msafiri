@@ -121,6 +121,11 @@ export default function RoadChannelsVoiceReporter({
   const handoffCandidateRef = useRef<{ id: string; count: number } | null>(null);
   const [automaticSwitching, setAutomaticSwitching] = useState(false);
   useEffect(() => { channelRef.current = channel; }, [channel]);
+  // Raw GPS and compass values update every second. Bucket discovery so an
+  // in-flight road lookup is not cancelled by the next location fix.
+  const discoveryLat = location ? Math.round(location.latitude * 200) / 200 : null;
+  const discoveryLng = location ? Math.round(location.longitude * 200) / 200 : null;
+  const discoveryHeading = heading == null ? null : Math.round(heading / 30) * 30 % 360;
 
   const clearStopTimer = () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
@@ -172,21 +177,25 @@ export default function RoadChannelsVoiceReporter({
   // Discovery is read-only. Presence begins only after an explicit Join tap.
   useEffect(() => {
     if (Platform.OS === "web") return;
-    if (!location) {
+    if (discoveryLat == null || discoveryLng == null) {
       setChannel(null);
       setAvailableChannels([]);
       setDiscoveryStatus("unavailable");
       return;
     }
     let active = true;
-    setChannel(null);
-    setDiscoveryStatus("loading");
+    if (!channelRef.current) setDiscoveryStatus("loading");
     Promise.race<string[]>([
-      getNearbyRoadNames(location.latitude, location.longitude)
+      getNearbyRoadNames(discoveryLat, discoveryLng)
         .then((roads) => [...(roadName ? [roadName] : []), ...roads]),
       new Promise<string[]>((resolve) => setTimeout(() => resolve(roadName ? [roadName] : []), 6000)),
     ])
-      .then((roads) => discoverRoadChannels([...new Set(roads)], heading))
+      .then((roads) => discoverRoadChannels(
+        [...new Set(roads)],
+        discoveryHeading,
+        { latitude: discoveryLat, longitude: discoveryLng },
+        5_000,
+      ))
       .then(async ({ channels }) => {
         if (!active) return;
         const nearest = channels[0] ?? null;
@@ -217,14 +226,17 @@ export default function RoadChannelsVoiceReporter({
         }
         setDiscoveryStatus(nearest ? "available" : "unavailable");
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
-        setChannel(null);
-        setAvailableChannels([]);
-        setDiscoveryStatus("unavailable");
+        if (!channelRef.current) {
+          setChannel(null);
+          setAvailableChannels([]);
+          setDiscoveryStatus("unavailable");
+        }
+        setMessage(error instanceof Error ? error.message : "Could not look up nearby Road Channels.");
       });
     return () => { active = false; };
-  }, [deviceId, location?.latitude, location?.longitude, roadName, heading, automaticSwitching]);
+  }, [deviceId, discoveryLat, discoveryLng, roadName, discoveryHeading, automaticSwitching]);
 
   // Presence is a short lease, refreshed only while the driver is actively
   // listening. Exact coordinates remain server-private and are never in feeds.
@@ -339,6 +351,11 @@ export default function RoadChannelsVoiceReporter({
       setMessage("Voice reporting is available in the Msafiri mobile app.");
       return;
     }
+    const activeChannel = channelRef.current;
+    if (!activeChannel || !deviceId || !location) {
+      setMessage("A nearby Road Channel and current location are required before recording.");
+      return;
+    }
     setMessage(null);
     setInterpretation(null);
     setRecordedUri(null);
@@ -354,6 +371,20 @@ export default function RoadChannelsVoiceReporter({
       await resumeDashcamIfNeeded().catch(() => {});
     };
     try {
+      // Tapping the microphone is an explicit channel action. Join before
+      // recording so the staged upload cannot later fail its active-member
+      // check after the driver has already spoken.
+      if (!listening) {
+        setMessage(`Joining ${activeChannel.name}…`);
+        await updateRoadChannelPresence({
+          deviceId,
+          location,
+          channelId: activeChannel.id,
+        });
+        if (cancelled()) return void await abortCancelledStart();
+        setListening(true);
+        setMessage(null);
+      }
       const permission = Platform.OS === "android"
         ? {
             granted: await requestAndroidMicrophonePermission(),
@@ -569,7 +600,12 @@ export default function RoadChannelsVoiceReporter({
                  }]}
                >
                  <Text style={[styles.categoryLabel, { color: channel?.id === item.id ? c.primary : c.foreground }]}>
-                   {item.road ?? item.name}
+                    {item.road ?? item.name}
+                    {item.distanceM != null
+                      ? item.distanceM < 150
+                        ? " · On this road"
+                        : ` · ${(item.distanceM / 1000).toFixed(1)} km`
+                      : ""}
                  </Text>
                </TouchableOpacity>
              ))}

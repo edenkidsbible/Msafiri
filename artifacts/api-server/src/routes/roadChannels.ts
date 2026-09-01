@@ -11,7 +11,9 @@ import {
   downloadAsBuffer, getPresignedDownloadUrl, getPresignedUploadUrl, headObject, isR2Configured,
 } from "../lib/r2Storage.js";
 import { logger } from "../lib/logger.js";
-import { PILOT_CORRIDORS, pilotDirection, resolvePilotCorridor } from "../lib/roadChannelPilot.js";
+import {
+  nearbyPilotCorridors, PILOT_CORRIDORS, pilotDirection, resolvePilotCorridor,
+} from "../lib/roadChannelPilot.js";
 
 const router = Router();
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -62,7 +64,7 @@ async function blocked(deviceId: string): Promise<boolean> {
 async function enabled(): Promise<boolean> {
   const [row] = await db.select({ value: appSettingsTable.roadChannelsEnabled })
     .from(appSettingsTable).where(eq(appSettingsTable.id, "singleton"));
-  return row?.value ?? false;
+  return row?.value ?? true;
 }
 async function requireEnabled(res: Response): Promise<boolean> {
   if (await enabled()) return true;
@@ -130,7 +132,21 @@ router.get("/road-channels/discovery", async (req, res) => {
   const requestedRoads = Array.isArray(req.query.roadName)
     ? req.query.roadName
     : [req.query.roadName];
-  const channels = [...new Set(requestedRoads.map(channelFor).filter((id): id is string => !!id))];
+  const namedChannels = [...new Set(requestedRoads.map(channelFor).filter((id): id is string => !!id))];
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const requestedRadius = Number(req.query.radiusM);
+  const radiusM = Number.isFinite(requestedRadius)
+    ? Math.max(100, Math.min(5_000, requestedRadius))
+    : 5_000;
+  const nearby = Number.isFinite(lat) && Number.isFinite(lng)
+    ? nearbyPilotCorridors(lat, lng, radiusM)
+    : [];
+  const distanceByChannel = new Map(nearby.map(({ corridor, distanceM }) => [corridor.id, distanceM]));
+  const channels = [...new Set([
+    ...namedChannels,
+    ...nearby.map(({ corridor }) => corridor.id),
+  ])];
   if (channels.length === 0) return res.json({ channels: [] });
   const presenceRows = await db.select({
     channel: roadChannelPresenceTable.channel,
@@ -151,7 +167,10 @@ router.get("/road-channels/discovery", async (req, res) => {
         road: channelName(channel),
         direction: pilotDirection(corridor, Number(req.query.heading)),
         memberCount: presenceByChannel.get(channel) ?? 0,
-        nearby: requestedRoads.findIndex((road) => channelFor(road) === channel) > 0,
+        nearby: distanceByChannel.has(channel),
+        distanceM: distanceByChannel.has(channel)
+          ? Math.round(distanceByChannel.get(channel)!)
+          : null,
       };
     }),
   });

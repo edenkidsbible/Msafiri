@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PILOT_CORRIDORS,
+  nearbyPilotCorridors,
   pilotDirection,
   resolvePilotCorridor,
   shouldHandoff,
@@ -46,5 +47,15 @@ describe("Road Channels pilot catalog", () => {
     expect(shouldHandoff("thika-superhighway", ["mombasa-road"])).toBe(false);
     expect(shouldHandoff("thika-superhighway", ["mombasa-road", "thika-superhighway"])).toBe(false);
     expect(shouldHandoff("thika-superhighway", ["mombasa-road", "mombasa-road"])).toBe(true);
+  });
+
+  it("finds supported corridors within five kilometres without a road name", () => {
+    const nearEasternBypass = nearbyPilotCorridors(-1.221, 36.981, 5_000);
+    expect(nearEasternBypass.map(({ corridor }) => corridor.id)).toContain("eastern-bypass");
+    expect(nearEasternBypass.find(({ corridor }) => corridor.id === "eastern-bypass")!.distanceM).toBeLessThan(150);
+  });
+
+  it("does not offer distant corridors outside the discovery radius", () => {
+    expect(nearbyPilotCorridors(-0.0917, 34.768, 5_000)).toEqual([]);
   });
 });
