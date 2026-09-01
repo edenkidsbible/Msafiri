@@ -14,6 +14,7 @@ import { logger } from "../lib/logger.js";
 import {
   nearbyPilotCorridors, PILOT_CORRIDORS, pilotDirection, resolvePilotCorridor,
 } from "../lib/roadChannelPilot.js";
+import { detectVoiceReportType } from "../lib/roadChannelKeywords.js";
 
 const router = Router();
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -33,6 +34,16 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
   hazard: "hazard",
   speed_camera: "camera",
   flooding: "weather",
+  breakdown: "breakdown",
+};
+const VOICE_TYPE_LABELS: Record<string, string> = {
+  traffic: "traffic",
+  accident: "accident",
+  police: "police checkpoint",
+  roadworks: "roadworks",
+  hazard: "hazard",
+  camera: "speed camera",
+  weather: "flooding or weather",
   breakdown: "breakdown",
 };
 const PROFANITY_PATTERN = /\b(fuck|shit|bitch|asshole|cunt)\b/i;
@@ -398,22 +409,34 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
   try {
     const compatible = await ensureCompatibleFormat(await downloadAsBuffer(voice.objectKey));
     const transcript = await speechToText(compatible.buffer, compatible.format);
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5.6-luna", max_completion_tokens: 300,
-      messages: [{
-        role: "system",
-        content: `Classify a short Kenyan driver road report, including English, Swahili, and common Sheng. Return only JSON: {"type": one of ${JSON.stringify([...ALLOWED_REPORT_TYPES])} or null, "summary": a concise factual sentence, "speedLimit": an integer 30-110 or null, "cameraType": "fixed", "mobile", or null}. Map "speed camera", "camera", "speed trap", or a clearly described enforcement camera to type "camera". Never invent a speed, camera type, location, or event. Use null type when the audio is unclear or is not a current road condition.`,
-      }, { role: "user", content: transcript }],
-    });
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as {
-      type?: unknown; summary?: unknown; speedLimit?: unknown; cameraType?: unknown;
-    };
-    const proposedType = typeof parsed.type === "string" && ALLOWED_REPORT_TYPES.has(parsed.type) ? parsed.type : null;
-    const proposedSpeedLimit = typeof parsed.speedLimit === "number" && Number.isInteger(parsed.speedLimit)
-      && parsed.speedLimit >= 30 && parsed.speedLimit <= 110 ? parsed.speedLimit : null;
-    const proposedCameraType = parsed.cameraType === "fixed" || parsed.cameraType === "mobile" ? parsed.cameraType : null;
-    const summary = typeof parsed.summary === "string" ? parsed.summary.trim().slice(0, 280) : null;
+    const keywordMatch = detectVoiceReportType(transcript);
+    let proposedType: string | null = keywordMatch?.type ?? null;
+    let proposedSpeedLimit: number | null = null;
+    let proposedCameraType: "fixed" | "mobile" | null = null;
+    let summary: string | null = keywordMatch
+      ? `Detected the keyword "${keywordMatch.keyword}" as a ${VOICE_TYPE_LABELS[keywordMatch.type] ?? keywordMatch.type} report.`
+      : null;
+
+    // Keywords are the reliable first pass for short, mixed-language driver
+    // speech. Use the LLM only when no supported keyword was transcribed.
+    if (!keywordMatch) {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5.6-luna", max_completion_tokens: 300,
+        messages: [{
+          role: "system",
+          content: `Classify a short Kenyan driver road report, including English, Swahili, and common Sheng. Return only JSON: {"type": one of ${JSON.stringify([...ALLOWED_REPORT_TYPES])} or null, "summary": a concise factual sentence, "speedLimit": an integer 30-110 or null, "cameraType": "fixed", "mobile", or null}. Never invent a speed, camera type, location, or event. Use null type when the audio is unclear or is not a current road condition.`,
+        }, { role: "user", content: transcript }],
+      });
+      const raw = completion.choices[0]?.message?.content ?? "{}";
+      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as {
+        type?: unknown; summary?: unknown; speedLimit?: unknown; cameraType?: unknown;
+      };
+      proposedType = typeof parsed.type === "string" && ALLOWED_REPORT_TYPES.has(parsed.type) ? parsed.type : null;
+      proposedSpeedLimit = typeof parsed.speedLimit === "number" && Number.isInteger(parsed.speedLimit)
+        && parsed.speedLimit >= 30 && parsed.speedLimit <= 110 ? parsed.speedLimit : null;
+      proposedCameraType = parsed.cameraType === "fixed" || parsed.cameraType === "mobile" ? parsed.cameraType : null;
+      summary = typeof parsed.summary === "string" ? parsed.summary.trim().slice(0, 280) : null;
+    }
     const moderationStatus = PROFANITY_PATTERN.test(`${transcript} ${summary ?? ""}`) ? "rejected" : "pending";
     await db.update(roadChannelVoiceReportsTable).set({
       transcript, summary, proposedType, proposedSpeedLimit, proposedCameraType,
@@ -430,6 +453,7 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
       road: voice.roadName ?? channelName(voice.channel),
       speedLimit: proposedSpeedLimit,
       cameraType: proposedCameraType,
+      keywordMatch: keywordMatch?.keyword ?? null,
       moderationStatus,
       requiresConfirmation: true,
     });

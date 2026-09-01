@@ -163,6 +163,7 @@ export default function RoadChannelsVoiceReporter({
   const [feedStatus, setFeedStatus] = useState<"loading" | "ready" | "reconnecting">("loading");
   const [listenerMuted, setListenerMuted] = useState(false);
   const [listening, setListening] = useState(false);
+  const [joiningChannelId, setJoiningChannelId] = useState<string | null>(null);
   const feedPlayerRef = useRef<AudioPlayer | null>(null);
   const channelRef = useRef<RoadChannel | null>(null);
   const reportLocationRef = useRef<RoadChannelLocation | null>(null);
@@ -357,6 +358,48 @@ export default function RoadChannelsVoiceReporter({
     } catch {
       setMessage("Could not play this road update.");
     }
+  };
+
+  const joinRoadChannel = async (nextChannel: RoadChannel) => {
+    if (!deviceId || !location) {
+      setMessage("We need your current location before you can join this channel.");
+      return;
+    }
+    if (nextChannel.nearby === false) {
+      setMessage("Move closer to this road before joining its channel.");
+      return;
+    }
+    setJoiningChannelId(nextChannel.id);
+    try {
+      await updateRoadChannelPresence({ deviceId, location, channelId: nextChannel.id });
+      setChannel(nextChannel);
+      setListening(true);
+      setFeed([]);
+      setFeedCursor(null);
+      feedCursorRef.current = null;
+      setFeedStatus("loading");
+      setMessage(null);
+    } catch {
+      setMessage("Could not join this Road Channel. Please try again.");
+    } finally {
+      setJoiningChannelId(null);
+    }
+  };
+
+  const leaveActiveRoadChannel = async () => {
+    const activeChannel = channelRef.current;
+    if (!deviceId || !activeChannel) return;
+    setListening(false);
+    setFeed([]);
+    setFeedCursor(null);
+    feedCursorRef.current = null;
+    try {
+      await leaveRoadChannel(activeChannel.id, deviceId);
+    } catch {
+      setMessage("Could not leave the Road Channel.");
+      return;
+    }
+    onLeave?.();
   };
 
   useEffect(() => {
@@ -658,21 +701,28 @@ export default function RoadChannelsVoiceReporter({
               }} style={[styles.listenerControl, { borderColor: c.border }]}>
                <Ionicons name={listenerMuted ? "volume-mute-outline" : "volume-high-outline"} size={18} color={c.foreground} />
              </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={listening ? "Leave Road Channel" : "Join Road Channel"} onPress={() => {
-                if (!deviceId || !location) return;
-                if (listening) {
-                  setListening(false);
-                  setFeed([]);
-                  feedCursorRef.current = null;
-                  void leaveRoadChannel(channel.id, deviceId).catch(() => {});
-                  onLeave?.();
-                } else {
-                  setListening(true);
-                  void updateRoadChannelPresence({ deviceId, location, channelId: channel.id });
-                }
-              }} style={[styles.listenerControl, { borderColor: c.border }]}>
-                <Ionicons name={listening ? "exit-outline" : "radio-outline"} size={18} color={c.foreground} />
-             </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={listening ? "Leave channel" : "Join channel"}
+                accessibilityState={{ disabled: joiningChannelId === channel.id || (!listening && channel.nearby === false) }}
+                disabled={joiningChannelId === channel.id || (!listening && channel.nearby === false)}
+                onPress={() => { void (listening ? leaveActiveRoadChannel() : joinRoadChannel(channel)); }}
+                style={[
+                  styles.listenerTextControl,
+                  { borderColor: c.border },
+                  (joiningChannelId === channel.id || (!listening && channel.nearby === false)) && styles.disabled,
+                ]}
+              >
+                <Text style={[styles.listenerTextControlLabel, { color: c.foreground }]}>
+                  {joiningChannelId === channel.id
+                    ? "Joining…"
+                    : listening
+                      ? "Leave channel"
+                      : channel.nearby === false
+                        ? "Listen only"
+                        : "Join channel"}
+                </Text>
+              </TouchableOpacity>
            </View>
             <Text style={[styles.listenCopy, { color: c.mutedForeground }]}>
               {channel.direction && channel.direction !== "unknown" ? `${channel.direction} · ` : ""}
@@ -682,7 +732,7 @@ export default function RoadChannelsVoiceReporter({
               <Ionicons name={automaticSwitching ? "checkbox" : "square-outline"} size={17} color={c.primary} />
               <Text style={[styles.listenCopy, { color: c.mutedForeground }]}>Automatically switch after a stable road change</Text>
             </TouchableOpacity>
-            {!listening ? <Text style={[styles.feedItem, { color: c.primary }]}>Tap the radio button to join.</Text> : null}
+            {!listening ? <Text style={[styles.feedItem, { color: c.primary }]}>Tap “Join channel” to listen.</Text> : null}
             {feed.slice(0, 3).map((item) => (
               <TouchableOpacity key={item.id} accessibilityRole="button" disabled={!item.audioUrl || listenerMuted} onPress={() => { void playFeedItem(item); }} style={styles.feedRow}>
                 <Ionicons name="play-circle" size={18} color={item.audioUrl && !listenerMuted ? c.primary : c.mutedForeground} />
@@ -697,31 +747,53 @@ export default function RoadChannelsVoiceReporter({
        {activeDrive && (availableChannels.length > 1 || availableChannels[0]?.nearby) ? (
          <View style={styles.nearbySection}>
            <Text style={[styles.categoryHeading, { color: c.foreground }]}>Nearby Road Channels</Text>
-           <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>
-              Join nearby channels to listen. Reports always use the road or location you are currently driving on.
+            <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>
+               Choose a road channel, then tap the text action beside it to join. Reports always use the road or location you are currently driving on.
            </Text>
-           <View style={styles.categoryGrid}>
-             {availableChannels.map((item) => (
-               <TouchableOpacity
-                 key={item.id}
-                 accessibilityRole="button"
-                 accessibilityState={{ selected: channel?.id === item.id }}
-                 onPress={() => setChannel(item)}
-                 style={[styles.categoryChip, {
-                   borderColor: channel?.id === item.id ? c.primary : c.border,
-                   backgroundColor: channel?.id === item.id ? c.primary + "18" : c.card,
-                 }]}
-               >
-                 <Text style={[styles.categoryLabel, { color: channel?.id === item.id ? c.primary : c.foreground }]}>
-                    {item.road ?? item.name}
-                    {item.distanceM != null
-                      ? item.distanceM <= ON_ROAD_DISTANCE_M
-                        ? " · On this road · Report + listen"
-                        : ` · ${(item.distanceM / 1000).toFixed(1)} km · Listen only`
-                      : ""}
-                 </Text>
-               </TouchableOpacity>
-             ))}
+            <View style={styles.channelList}>
+              {availableChannels.map((item) => {
+                const isJoined = listening && channel?.id === item.id;
+                const isJoining = joiningChannelId === item.id;
+                const canJoin = item.nearby !== false;
+                return (
+                  <View
+                    key={item.id}
+                    style={[styles.channelRow, {
+                      borderColor: channel?.id === item.id ? c.primary : c.border,
+                      backgroundColor: channel?.id === item.id ? c.primary + "18" : c.card,
+                    }]}
+                  >
+                    <View style={styles.channelInfo}>
+                      <Text style={[styles.categoryLabel, { color: channel?.id === item.id ? c.primary : c.foreground }]}>
+                        {item.road ?? item.name}
+                      </Text>
+                      <Text style={[styles.channelMeta, { color: c.mutedForeground }]}>
+                        {item.distanceM != null
+                          ? item.distanceM <= ON_ROAD_DISTANCE_M
+                            ? "On this road · Report + listen"
+                            : `${(item.distanceM / 1000).toFixed(1)} km · Listen only`
+                          : "Road channel"}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={isJoined ? `Leave ${item.name}` : canJoin ? `Join ${item.name}` : `${item.name}, listen only`}
+                      accessibilityState={{ selected: isJoined, disabled: isJoining || !canJoin }}
+                      disabled={isJoining || !canJoin}
+                      onPress={() => { void (isJoined ? leaveActiveRoadChannel() : joinRoadChannel(item)); }}
+                      style={[
+                        styles.channelAction,
+                        { borderColor: isJoined ? c.destructive : c.primary },
+                        (!canJoin || isJoining) && styles.disabled,
+                      ]}
+                    >
+                      <Text style={[styles.channelActionLabel, { color: isJoined ? c.destructive : c.primary }]}>
+                        {isJoining ? "Joining…" : isJoined ? "Leave channel" : canJoin ? "Join channel" : "Listen only"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
            </View>
          </View>
        ) : null}
@@ -749,6 +821,7 @@ export default function RoadChannelsVoiceReporter({
               {CATEGORY_LABELS[category]} · {interpretation.road ?? "Road not recognised"}
            </Text>
             {interpretation.proposedType && interpretation.proposedType !== category && <Text style={[styles.detail, { color: c.mutedForeground }]}>Confirmed as: {interpretation.proposedType.replace(/_/g, " ")}</Text>}
+           {interpretation.keywordMatch ? <Text style={[styles.detail, { color: c.primary }]}>Keyword detected: “{interpretation.keywordMatch}”</Text> : null}
            {interpretation.summary ? <Text style={[styles.summary, { color: c.foreground }]}>{interpretation.summary}</Text> : null}
           <Text style={[styles.transcript, { color: c.mutedForeground }]}>{interpretation.transcript}</Text>
           {interpretation.speedLimit != null && <Text style={[styles.detail, { color: c.mutedForeground }]}>Speed limit: {interpretation.speedLimit} km/h</Text>}
@@ -824,6 +897,8 @@ const styles = StyleSheet.create({
   listenTitle: { fontFamily: "Inter_700Bold", fontSize: 15 },
   listenCopy: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
   listenerControl: { width: 36, height: 36, borderWidth: 1, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  listenerTextControl: { minHeight: 36, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  listenerTextControlLabel: { fontFamily: "Inter_700Bold", fontSize: 12 },
   feedItem: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "capitalize" },
   feedRow: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 34 },
   autoSwitchRow: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 34 },
@@ -834,6 +909,12 @@ const styles = StyleSheet.create({
   categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 },
   categoryChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 7 },
   categoryLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  channelList: { gap: 8, marginTop: 3 },
+  channelRow: { borderWidth: 1, borderRadius: 14, padding: 10, flexDirection: "row", alignItems: "center", gap: 10 },
+  channelInfo: { flex: 1, minWidth: 0, gap: 3 },
+  channelMeta: { fontFamily: "Inter_400Regular", fontSize: 11 },
+  channelAction: { minHeight: 36, borderWidth: 1, borderRadius: 18, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  channelActionLabel: { fontFamily: "Inter_700Bold", fontSize: 11 },
   timer: { fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center", marginVertical: 8 },
   primaryAction: { minHeight: 112, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 7, marginTop: 6 },
   primaryText: { fontFamily: "Inter_700Bold", fontSize: 19 },

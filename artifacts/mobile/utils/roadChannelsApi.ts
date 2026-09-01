@@ -49,6 +49,7 @@ export interface VoiceInterpretation {
   road: string | null;
   speedLimit?: number | null;
   cameraType?: string | null;
+  keywordMatch?: string | null;
 }
 
 export interface VoiceReportContext {
