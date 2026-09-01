@@ -376,7 +376,9 @@ export default function DriveScreen() {
     if (!tripActive) return;
     const timer = setInterval(() => {
       void refreshRoadChannelsSetting();
-    }, 15_000);
+    // This is a remote feature flag, not live driving data. Polling every 15s
+    // caused needless network/state churn on Android while the map was active.
+    }, 60_000);
     return () => clearInterval(timer);
   }, [tripActive, refreshRoadChannelsSetting]);
 

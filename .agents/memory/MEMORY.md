@@ -98,6 +98,7 @@
 - [Creator benefit trust boundary](creator-attribution-identity.md) — only independently verified activity may extend benefits; identity repair requires verified ownership.
 - [Drive score formula](drive-score-formula.md) — rate-normalised (events/hr, % time speeding); max 50 harsh + 50 speeding penalty, +15 smooth bonus; client and server must stay in lockstep.
 - [Hybrid subscription trial](session-trial-architecture.md) — store-backed 3-day trial is required for access and includes at most 3 qualifying drives before paid renewal.
+- [Android performance critical path](android-performance-critical-path.md) — splash waits only for local fonts; defer OTA/audio work and avoid aggressive GPS/network churn during drives.
 - [Custom release notification copy](custom-release-notif-copy.md) — notif_title/notif_body columns on app_releases; releasePush.ts uses ?? fallback; admin UI live preview in ReleaseDialog.
 - [Legacy dump restore reconciliation](legacy-dump-restore-reconciliation.md) — after restoring an older dump, compare every TABLE DATA count; schema push can recreate startup-managed tables empty.
 - [Road Channels voice-report trust boundary](road-channels-voice-trust.md) — audio and AI output stay private drafts; only explicit driver confirmation may create a normal community report.

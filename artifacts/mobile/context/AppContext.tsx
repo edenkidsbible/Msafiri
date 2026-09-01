@@ -2905,7 +2905,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const watchdog = setInterval(() => {
       if (cancelled || isSubscribing) return; // Guard 1: skip if already subscribing
-      if (Date.now() - lastLocationAtRef.current > 8000) {
+      // Android can legitimately pause high-accuracy fixes for 10–15 seconds
+      // in tunnels, dense streets, or under battery pressure. Eight seconds
+      // caused repeated native subscription teardown/recreation and extra heat.
+      if (Date.now() - lastLocationAtRef.current > 20_000) {
         console.warn("GPS watch stalled — resubscribing");
         navBreadcrumb("gps", "watchdog resubscribe", {
           stalledForMs: Date.now() - lastLocationAtRef.current,

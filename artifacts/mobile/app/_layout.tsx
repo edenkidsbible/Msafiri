@@ -53,7 +53,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, AppStateStatus, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AppState, AppStateStatus, InteractionManager, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -612,10 +612,13 @@ function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web") return;
-    // Run font loading and OTA update check in parallel behind the splash screen.
-    // If an OTA update is available, checkForOTAUpdate() calls Updates.reloadAsync()
-    // and returns true — in that case the app restarts and we must NOT hide the
-    // splash screen (setReady must not be called).
+    let cancelled = false;
+    let otaTimer: ReturnType<typeof setTimeout> | null = null;
+    let prewarmTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Fonts are the only resource allowed to hold the native splash screen.
+    // Network-dependent OTA checks run after first paint so a weak connection
+    // cannot make Android look frozen at launch.
     const fontPromise = Font.loadAsync({
       Inter_400Regular,
       Inter_500Medium,
@@ -643,13 +646,27 @@ function RootLayout() {
         setSoundsMuted(soundsVal === "true");
       })
       .catch(() => {});
-    // Pre-create all bundled alert audio players in parallel with font loading
-    // so the first speakAlert() call (e.g. "report submitted") is instant.
-    prewarmAlertAudio();
-    const updatePromise = checkForOTAUpdate();
-    Promise.all([fontPromise, updatePromise]).then(([, didReload]) => {
-      if (!didReload) setReady(true);
+    fontPromise.then(() => {
+      if (cancelled) return;
+      setReady(true);
+      otaTimer = setTimeout(() => {
+        void checkForOTAUpdate();
+      }, 1000);
     });
+
+    // Creating every native alert player is useful, but it competes with React
+    // and the map during cold start on low-end Android phones. Defer it until
+    // initial navigation/animations settle, then give first paint extra room.
+    const prewarmTask = InteractionManager.runAfterInteractions(() => {
+      prewarmTimer = setTimeout(() => prewarmAlertAudio(), 1500);
+    });
+
+    return () => {
+      cancelled = true;
+      if (otaTimer) clearTimeout(otaTimer);
+      if (prewarmTimer) clearTimeout(prewarmTimer);
+      prewarmTask.cancel();
+    };
   }, []);
 
   useEffect(() => {

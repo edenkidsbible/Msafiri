@@ -54,7 +54,10 @@ export function useAppVersion(): VersionCheckResult {
     const platform = Platform.OS;
 
     apiGet<VersionCheckResult & { error?: string }>(
-      `/app/version?platform=${platform}&version=${encodeURIComponent(version)}&build=${build}`
+      `/app/version?platform=${platform}&version=${encodeURIComponent(version)}&build=${build}`,
+      // This request participates in initial routing. Ten seconds made a weak
+      // mobile connection look like a frozen launch; foreground checks retry.
+      3000,
     )
       .then((data) => {
         setResult({
