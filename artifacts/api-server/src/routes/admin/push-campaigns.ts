@@ -165,9 +165,12 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
       .returning();
 
     if (isImmediate) {
-      const tokens = await db
-        .select({ token: pushTokensTable.token })
-        .from(pushTokensTable);
+      const tokenRows = await db.execute(sql`
+        SELECT DISTINCT ON (COALESCE(vendor_id, device_id)) token
+        FROM push_tokens
+        ORDER BY COALESCE(vendor_id, device_id), last_seen_at DESC
+      `);
+      const tokens = tokenRows.rows as { token: string }[];
 
       const messages = tokens.map((t) => ({
         to: t.token,

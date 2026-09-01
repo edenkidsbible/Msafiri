@@ -588,16 +588,21 @@ export default function PushCampaigns() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-sm">
               <div className="rounded-lg bg-white dark:bg-card border p-3">
-                <p className="font-semibold text-foreground">🌅 Morning Reminder</p>
-                <p className="text-muted-foreground text-xs mt-1">7:00 AM daily (EAT)</p>
-                <p className="text-muted-foreground text-xs">Encourages users to check road conditions</p>
+                <p className="font-semibold text-foreground">🌅 Morning Feature</p>
+                <p className="text-muted-foreground text-xs mt-1">6:00 AM daily (EAT)</p>
+                <p className="text-muted-foreground text-xs">One rotating feature notification</p>
               </div>
               <div className="rounded-lg bg-white dark:bg-card border p-3">
-                <p className="font-semibold text-foreground">🌆 Evening Reminder</p>
-                <p className="text-muted-foreground text-xs mt-1">5:30 PM daily (EAT)</p>
-                <p className="text-muted-foreground text-xs">Rush-hour heads-up with live hazard prompt</p>
+                <p className="font-semibold text-foreground">☀️ Midday Feature</p>
+                <p className="text-muted-foreground text-xs mt-1">1:00 PM daily (EAT)</p>
+                <p className="text-muted-foreground text-xs">One rotating feature notification</p>
+              </div>
+              <div className="rounded-lg bg-white dark:bg-card border p-3">
+                <p className="font-semibold text-foreground">🌆 Evening Feature</p>
+                <p className="text-muted-foreground text-xs mt-1">4:30 PM daily (EAT)</p>
+                <p className="text-muted-foreground text-xs">One rotating feature notification</p>
               </div>
               <div className="rounded-lg bg-white dark:bg-card border p-3">
                 <p className="font-semibold text-foreground">📍 Engagement Nudge</p>

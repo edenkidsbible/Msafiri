@@ -335,16 +335,86 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+async function claimAutoCampaign(
+  type: string,
+  title: string,
+  body: string,
+  activeCutoff?: Date,
+): Promise<{ campaignId: string; tokens: string[] } | null> {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setUTCHours(23, 59, 59, 999);
+
+  return db.transaction(async (tx) => {
+    // Multiple production workers can enter the same five-minute window at the
+    // same instant. A transaction-scoped advisory lock turns the old
+    // check-then-insert race into a single atomic claim per campaign type.
+    const lockResult = await tx.execute(sql`
+      SELECT pg_try_advisory_xact_lock(hashtextextended(${type}, 0)) AS acquired
+    `);
+    const acquired = Boolean(
+      (lockResult.rows[0] as { acquired?: boolean } | undefined)?.acquired,
+    );
+    if (!acquired) return null;
+
+    const existing = await tx
+      .select({ id: pushCampaignsTable.id })
+      .from(pushCampaignsTable)
+      .where(
+        and(
+          eq(pushCampaignsTable.type, type),
+          or(
+            eq(pushCampaignsTable.status, "sent"),
+            eq(pushCampaignsTable.status, "sending"),
+          ),
+          gte(pushCampaignsTable.createdAt, todayStart),
+          lte(pushCampaignsTable.createdAt, todayEnd),
+        ),
+      )
+      .limit(1);
+    if (existing.length > 0) return null;
+
+    // vendor_id survives reinstall; device_id is the fallback for older app
+    // versions. This guarantees one recipient per physical device.
+    const tokenResult = activeCutoff
+      ? await tx.execute(sql`
+          SELECT DISTINCT ON (COALESCE(vendor_id, device_id)) token
+          FROM push_tokens
+          WHERE last_seen_at >= ${activeCutoff}
+          ORDER BY COALESCE(vendor_id, device_id), last_seen_at DESC
+        `)
+      : await tx.execute(sql`
+          SELECT DISTINCT ON (COALESCE(vendor_id, device_id)) token
+          FROM push_tokens
+          ORDER BY COALESCE(vendor_id, device_id), last_seen_at DESC
+        `);
+    const tokens = (tokenResult.rows as { token: string }[]).map((row) => row.token);
+    if (tokens.length === 0) return null;
+
+    const [campaign] = await tx
+      .insert(pushCampaignsTable)
+      .values({
+        title,
+        body,
+        type,
+        status: "sending",
+        createdBy: "system",
+        targetCount: tokens.length,
+      })
+      .returning({ id: pushCampaignsTable.id });
+    if (!campaign) return null;
+
+    return { campaignId: campaign.id, tokens };
+  });
+}
+
 async function alreadySentToday(type: string): Promise<boolean> {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setUTCHours(23, 59, 59, 999);
 
-  // Include "sending" so that a campaign already in-flight (inserted but not
-  // yet marked "sent") blocks a concurrent job tick from firing a duplicate.
-  // Without this, two ticks within the 5-minute daily window can both pass
-  // the guard before either finishes writing status = "sent".
   const rows = await db
     .select({ id: pushCampaignsTable.id })
     .from(pushCampaignsTable)
@@ -353,46 +423,31 @@ async function alreadySentToday(type: string): Promise<boolean> {
         eq(pushCampaignsTable.type, type),
         or(
           eq(pushCampaignsTable.status, "sent"),
-          eq(pushCampaignsTable.status, "sending")
+          eq(pushCampaignsTable.status, "sending"),
         ),
         gte(pushCampaignsTable.createdAt, todayStart),
-        lte(pushCampaignsTable.createdAt, todayEnd)
-      )
+        lte(pushCampaignsTable.createdAt, todayEnd),
+      ),
     )
     .limit(1);
-
   return rows.length > 0;
 }
 
 async function sendAutoCampaign(type: string, title: string, body: string): Promise<void> {
-  if (await alreadySentToday(type)) return;
-
-  // DISTINCT ON device_id — same dedup rationale as sendActiveCampaign.
-  const rows = await db.execute(sql`
-    SELECT DISTINCT ON (device_id) token
-    FROM   push_tokens
-    ORDER  BY device_id, last_seen_at DESC
-  `);
-  const tokens = rows.rows as { token: string }[];
-
-  if (tokens.length === 0) {
+  const claim = await claimAutoCampaign(type, title, body);
+  if (!claim) {
     logger.info({ type }, "No push tokens registered yet — skipping auto campaign");
     return;
   }
 
-  const [campaign] = await db
-    .insert(pushCampaignsTable)
-    .values({ title, body, type, status: "sending", createdBy: "system" })
-    .returning();
-
   const { ok, failed } = await sendPushNotifications(
-    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, channelId: "msafiri_general", data: { type } }))
+    claim.tokens.map((token) => ({ to: token, title, body, sound: "default" as const, channelId: "msafiri_general", data: { type } }))
   );
 
   await db
     .update(pushCampaignsTable)
     .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed })
-    .where(eq(pushCampaignsTable.id, campaign.id));
+    .where(eq(pushCampaignsTable.id, claim.campaignId));
 
   logger.info({ type, ok, failed }, "Auto push campaign sent");
 }
@@ -409,41 +464,23 @@ async function sendAutoCampaign(type: string, title: string, body: string): Prom
 const ACTIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 async function sendActiveCampaign(type: string, title: string, body: string): Promise<void> {
-  if (await alreadySentToday(type)) return;
-
   const cutoff = new Date(Date.now() - ACTIVE_WINDOW_MS);
-
-  // DISTINCT ON device_id: if the same physical device has two rows (e.g.
-  // post-reinstall stale row + new row), only the most-recently-seen token is
-  // sent, preventing duplicate delivery to the same handset.
-  const rows = await db.execute(sql`
-    SELECT DISTINCT ON (device_id) token
-    FROM   push_tokens
-    WHERE  last_seen_at >= ${cutoff}
-    ORDER  BY device_id, last_seen_at DESC
-  `);
-  const tokens = rows.rows as { token: string }[];
-
-  if (tokens.length === 0) {
+  const claim = await claimAutoCampaign(type, title, body, cutoff);
+  if (!claim) {
     logger.info({ type }, "No active push tokens — skipping daily campaign");
     return;
   }
 
-  const [campaign] = await db
-    .insert(pushCampaignsTable)
-    .values({ title, body, type, status: "sending", createdBy: "system" })
-    .returning();
-
   const { ok, failed } = await sendPushNotifications(
-    tokens.map((t) => ({ to: t.token, title, body, sound: "default" as const, channelId: "msafiri_general", data: { type } }))
+    claim.tokens.map((token) => ({ to: token, title, body, sound: "default" as const, channelId: "msafiri_general", data: { type } }))
   );
 
   await db
     .update(pushCampaignsTable)
-    .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed, targetCount: tokens.length })
-    .where(eq(pushCampaignsTable.id, campaign.id));
+    .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed })
+    .where(eq(pushCampaignsTable.id, claim.campaignId));
 
-  logger.info({ type, activeTokens: tokens.length, ok, failed }, "Active-only daily campaign sent");
+  logger.info({ type, activeTokens: claim.tokens.length, ok, failed }, "Active-only daily campaign sent");
 }
 
 // ─── Recovery phone nudge ─────────────────────────────────────────────────────
@@ -616,14 +653,26 @@ async function processScheduledCampaigns(): Promise<void> {
 
   for (const campaign of due) {
     try {
-      await db
+      // Atomically claim the row. When several production workers poll at the
+      // same time, only the worker that changes scheduled → sending may send.
+      const claimed = await db
         .update(pushCampaignsTable)
         .set({ status: "sending" })
-        .where(eq(pushCampaignsTable.id, campaign.id));
+        .where(
+          and(
+            eq(pushCampaignsTable.id, campaign.id),
+            eq(pushCampaignsTable.status, "scheduled"),
+          ),
+        )
+        .returning({ id: pushCampaignsTable.id });
+      if (claimed.length === 0) continue;
 
-      const tokens = await db
-        .select({ token: pushTokensTable.token })
-        .from(pushTokensTable);
+      const tokenRows = await db.execute(sql`
+        SELECT DISTINCT ON (COALESCE(vendor_id, device_id)) token
+        FROM push_tokens
+        ORDER BY COALESCE(vendor_id, device_id), last_seen_at DESC
+      `);
+      const tokens = tokenRows.rows as { token: string }[];
 
       const messages = tokens.map((t) => ({
         to: t.token,
