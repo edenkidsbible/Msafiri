@@ -14,11 +14,6 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 // can be tested before Google Play Console subscription products exist.
 // Must NEVER be set in the "production" build profile — see eas.json.
 export const BYPASS_PAYWALL = process.env.EXPO_PUBLIC_BYPASS_PAYWALL === "true";
-// Temporary iOS access policy: App Store introductory-offer metadata has proven
-// unreliable for some eligible users. iOS therefore enters the app without an
-// entitlement and uses the server-backed three-drive allowance as its gate.
-// Paid entitlements are still detected normally and unlock unlimited driving.
-export const IOS_FREE_DRIVE_ACCESS = Platform.OS === "ios";
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro";
 

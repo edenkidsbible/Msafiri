@@ -1,17 +1,15 @@
 ---
-name: Platform-specific subscription and drive-count trial
-description: iOS gets app access with three qualifying drives; Android retains the store-backed subscription trial.
+name: Hybrid store and drive-count trial
+description: The subscription trial combines a store-controlled three-day window with a maximum of three qualifying drives.
 ---
 
 ## Core rule
 
-iOS users may enter and use the app without an active RevenueCat entitlement. They receive at most three qualifying drives; attempting a fourth opens subscription, while non-driving screens remain accessible. Paid subscribers have unlimited drives.
+Premium access requires starting the App Store or Google Play subscription. Its introductory offer is a three-day free trial, and that active trial includes at most three qualifying drives. Non-subscribers do not receive separate free-drive access.
 
-Android retains the store-backed subscription gate and its three-day introductory trial, capped at three qualifying drives.
+**Why:** The timed trial creates a clear subscription conversion path, while the drive cap prevents unlimited usage during the free period and guarantees each consumed session reflects meaningful product use.
 
-**Why:** App Store trial metadata was correctly configured but did not resolve reliably for iOS users, which blocked legitimate users before they could evaluate the app.
-
-**How to apply:** Never wait for RevenueCat or route an iOS non-subscriber to paywall at app startup. Enforce the iOS session limit at every drive-start path and keep the paywall dismissible back to the app. Continue honoring active paid entitlements.
+**How to apply:** Use RevenueCat/store metadata as the source of truth for trial eligibility and duration. Apply the drive-count restriction only while the entitlement period type is `TRIAL`; once it renews as paid, driving is unlimited.
 
 ## Quality gate for included trial drives
 
