@@ -103,7 +103,7 @@ function CarImage({ slide, vehicle }: { slide: Slide; vehicle?: SavedVehicle | n
   // Generic PNGs are flipped here via scaleX when flipX is true.
   const flip = slide.flipX ? [{ scaleX: -1 }] : undefined;
   return slide.image === null
-    ? <DefaultVehicleImage width={185} height={148} vehicle={vehicle} />
+    ? <DefaultVehicleImage width={212} height={166} vehicle={vehicle} />
     : <Image
         source={slide.image}
         style={[styles.vehicleImg, flip ? { transform: flip } : undefined]}
@@ -227,6 +227,15 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
     <>
       {/* Left: image area */}
       <View style={styles.imgWrap}>
+        {/* Soft showroom artwork behind the selected vehicle. The feature icon
+            changes with the slide, while the vehicle itself remains the user's
+            currently selected vehicle. */}
+        <View pointerEvents="none" style={styles.artHalo}>
+          <View style={styles.artIconTile}>
+            <Ionicons name={curSlide.icon} size={38} color="#B8F1CD" />
+          </View>
+        </View>
+
         <Animated.View
           style={[
             styles.carSlot,
@@ -259,7 +268,9 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
         </View>
 
         <View style={styles.featureRow}>
-          <Ionicons name={curSlide.icon} size={15} color="#8FE3B2" />
+          <View style={styles.featureIconBubble}>
+            <Ionicons name={curSlide.icon} size={20} color="#FFFFFF" />
+          </View>
           <Text style={styles.featureTitle} numberOfLines={1}>{curSlide.title}</Text>
         </View>
 
@@ -272,7 +283,7 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
         )}
 
         <View style={styles.chevron}>
-          <Ionicons name="chevron-forward" size={18} color="#0A7C3A" />
+          <Ionicons name="chevron-forward" size={25} color="#0A7C3A" />
         </View>
       </View>
     </>
@@ -282,9 +293,33 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   imgWrap: {
-    width: 175,
+    width: "46%",
+    position: "relative",
     alignItems: "flex-end",
     justifyContent: "flex-end",
+  },
+  artHalo: {
+    position: "absolute",
+    width: 156,
+    height: 156,
+    left: 10,
+    top: 10,
+    borderRadius: 78,
+    borderWidth: 3,
+    borderColor: "#FFFFFF2E",
+    backgroundColor: "#FFFFFF0A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  artIconTile: {
+    width: 76,
+    height: 92,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#FFFFFF16",
+    backgroundColor: "#FFFFFF0A",
+    alignItems: "center",
+    justifyContent: "center",
   },
   carSlot: {
     position: "absolute",
@@ -294,13 +329,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "flex-end",
   },
-  vehicleImg: { width: 185, height: 148 },
+  vehicleImg: { width: 212, height: 166 },
   dotsRow: {
     position: "absolute",
-    bottom: 10,
-    left: 10,
+    bottom: 12,
+    left: 12,
     flexDirection: "row",
-    gap: 5,
+    gap: 6,
     alignItems: "center",
   },
   dot:         { height: 5, borderRadius: 3 },
@@ -308,14 +343,14 @@ const styles = StyleSheet.create({
   dotInactive: { width: 5,  backgroundColor: "#FFFFFF55" },
   textCol: {
     flex: 1,
-    paddingVertical: 20,
+    paddingVertical: 18,
     paddingRight: 18,
-    paddingLeft: 4,
+    paddingLeft: 8,
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
   title: {
-    fontSize: 21,
+    fontSize: 23,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
   },
@@ -339,20 +374,28 @@ const styles = StyleSheet.create({
   featureRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 1,
+    gap: 8,
+    marginTop: 0,
+  },
+  featureIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF22",
+    alignItems: "center",
+    justifyContent: "center",
   },
   featureTitle: {
     flex: 1,
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: "#8FE3B2",
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
   },
   tip: {
-    fontSize: 11.5,
+    fontSize: 13.5,
     fontFamily: "Inter_400Regular",
-    color: "#FFFFFFBB",
-    lineHeight: 17,
+    color: "#D7F4E0",
+    lineHeight: 20,
   },
   longPressHint: {
     fontSize: 10,
@@ -362,10 +405,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chevron: {
-    marginTop: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    marginTop: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
