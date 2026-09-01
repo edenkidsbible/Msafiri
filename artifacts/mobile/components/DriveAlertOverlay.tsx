@@ -196,11 +196,14 @@ export default function DriveAlertOverlay({
   const typeIcon  = resolved.icon as React.ComponentProps<typeof Ionicons>["name"];
   const emoji     = !isZone ? resolved.emoji : null;
 
-  // Show the speed card whenever this is a camera-type zone alert — even when
-  // no speed limit is stored — so the driver always sees their live speed.
-  const isCamera       = isZone && alert.type === "camera";
-  const hasSpeedBadges = isZone && alert.speedLimit != null;
-  const showSpeedCard  = isCamera || hasSpeedBadges;
+  // The live speed comparison belongs exclusively to speed-camera alerts.
+  // Other zone types can carry a speedLimit for matching/alert logic, but
+  // showing it here makes police, hazards, and roadworks look like cameras.
+  // Keep the card for a camera even when its submitted limit is missing so the
+  // driver still gets the useful live-speed readout.
+  const isCamera       = alert.type === "camera";
+  const hasSpeedBadges = isCamera && alert.speedLimit != null;
+  const showSpeedCard  = isCamera;
   const overLimit      = hasSpeedBadges && currentSpeed > alert.speedLimit!;
   const speedColor     = overLimit ? colors.speedDanger : "#2E7D32";
 
@@ -352,7 +355,7 @@ export default function DriveAlertOverlay({
         nestedScrollEnabled
       >
 
-        {/* ── Speed comparison card (all camera zone alerts, or any zone with a limit) ── */}
+        {/* ── Speed comparison card (speed-camera alerts only) ── */}
         {showSpeedCard && (
           <View style={[styles.speedCard, {
             backgroundColor: colors.isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
@@ -402,24 +405,6 @@ export default function DriveAlertOverlay({
                 </Animated.View>
               </>
             )}
-          </View>
-        )}
-
-        {/* ── Speed limit row for report-type alerts (non-zone) ── */}
-        {!isZone && alert.speedLimit != null && (
-          <View style={[styles.reportLimitRow, {
-            backgroundColor: accentColor + "10",
-            borderColor:     accentColor + "28",
-          }]}>
-            <Ionicons name="speedometer-outline" size={17} color={accentColor} />
-            <Text style={[styles.reportLimitLbl, { color: colors.mutedForeground }]}>
-              Speed limit at hazard
-            </Text>
-            <Animated.View style={{ transform: [{ scale: urgent ? pulse : 1 }] }}>
-              <Text style={[styles.reportLimitNum, { color: accentColor }]}>
-                {alert.speedLimit} km/h
-              </Text>
-            </Animated.View>
           </View>
         )}
 
@@ -698,26 +683,6 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     borderWidth:  2,
     opacity:      0.35,
-  },
-
-  // ── Report-type speed limit row ───────────────────────────────────────────
-  reportLimitRow: {
-    flexDirection:    "row",
-    alignItems:       "center",
-    gap:              10,
-    paddingHorizontal: 14,
-    paddingVertical:  11,
-    borderRadius:     13,
-    borderWidth:      1,
-  },
-  reportLimitLbl: {
-    flex:       1,
-    fontSize:   13,
-    fontFamily: "Inter_500Medium",
-  },
-  reportLimitNum: {
-    fontSize:   16,
-    fontFamily: "Inter_700Bold",
   },
 
   // ── Location row ──────────────────────────────────────────────────────────

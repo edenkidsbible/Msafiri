@@ -2315,7 +2315,7 @@ export default function DriveScreen() {
               {primaryAlert.road ? ` • ${primaryAlert.road}` : ""}
             </Text>
           </View>
-          {primaryAlert.speedLimit != null && (
+          {primaryAlert.type === "camera" && primaryAlert.speedLimit != null && (
             <View style={styles.dmLimitBadge}>
               <Text style={styles.dmLimitBadgeTxt}>{primaryAlert.speedLimit}</Text>
             </View>
