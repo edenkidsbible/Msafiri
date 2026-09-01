@@ -239,7 +239,7 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
   const curSlide = slides[curIdx];
   const watermarkIcon: React.ComponentProps<typeof Ionicons>["name"] =
     curSlide.title === "Emergency Contacts"
-      ? "people-circle-outline"
+      ? "shield-outline"
       : curSlide.title === "Audio Course"
         ? "school-outline"
         : curSlide.icon;
@@ -262,12 +262,22 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
             },
           ]}
         >
-          <Ionicons
-            name={watermarkIcon}
-            size={Math.round(artworkSize * 0.66)}
-            color="#B8F1CD"
-            style={styles.artWatermark}
-          />
+          {/* The reference uses a second, taller rounded backdrop inside the
+              halo. It is intentionally lighter and narrower than the outer
+              circle, so the two shapes read as separate layers. */}
+          <View style={styles.artInnerBackdrop}>
+            <Ionicons
+              name={watermarkIcon}
+              size={Math.round(artworkSize * 0.48)}
+              color="#B8F1CD"
+              style={styles.artWatermark}
+            />
+            {curSlide.title === "Emergency Contacts" && (
+              <View pointerEvents="none" style={styles.artInnerPeople}>
+                <Ionicons name="people-outline" size={Math.round(artworkSize * 0.2)} color="#B8F1CD" />
+              </View>
+            )}
+          </View>
         </View>
 
         <Animated.View
@@ -342,7 +352,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  artInnerBackdrop: {
+    width: 68,
+    height: 84,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#FFFFFF20",
+    backgroundColor: "#FFFFFF05",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   artWatermark: { opacity: 0.15 },
+  artInnerPeople: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.9,
+  },
   carSlot: {
     position: "absolute",
     left: -5,
