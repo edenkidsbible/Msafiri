@@ -9,6 +9,12 @@ Road Channels audio upload and AI interpretation are private staging steps. Neit
 
 **How to apply:** Any new voice category, channel client, or admin tool must preserve the staged upload → interpretation → confirmation → community-report sequence. Camera voice reports remain pending review before global map visibility.
 
+The driver's explicit report-category selection is authoritative. Audio remains private report content for playback and moderation; speech recognition must not classify the report or determine whether it can proceed.
+
+**Why:** Short, accented, noisy, or silent recordings made speech classification unreliable and produced avoidable “could not interpret” failures even when the driver already knew what they were reporting.
+
+**How to apply:** Require a valid category before enabling recording, send it with draft preparation and confirmation, map it server-side to an allowed community-report type, and reject missing, unsupported, or changed categories.
+
 Voice incident reporting is not limited to supported live Road Channels. During an active drive, a driver with a valid location may create a private community-report draft even when no channel is within range. Only live listening, aggregate presence, and channel-feed publication depend on a supported nearby channel.
 
 **Why:** Useful first-hand incident reports occur on roads that do not yet have a live channel. Treating channel discovery as a microphone gate unnecessarily discards that safety data.

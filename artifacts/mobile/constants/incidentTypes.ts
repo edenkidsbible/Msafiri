@@ -28,6 +28,7 @@ export const INCIDENT_TYPES: Record<string, IncidentTypeDef> = {
   closure:   { label: "Road Closed",       icon: "hand-left",        iconSet: "Ionicons",               color: "#880E4F", emoji: "🔴"  },
   clear:      { label: "Road Clear",        icon: "checkmark-circle", iconSet: "Ionicons",               color: "#00C853", emoji: "✅"  },
   speed_bump: { label: "Speed Bump",        icon: "speedometer",      iconSet: "Ionicons",               color: "#EF6C00", emoji: "🔶"  },
+  other:      { label: "Other",              icon: "help-circle",      iconSet: "Ionicons",               color: "#546E7A", emoji: "❓"  },
   __unknown:  { label: "Unknown",           icon: "help-circle",      iconSet: "Ionicons",               color: "#546E7A", emoji: "❓"  },
 };
 
@@ -48,5 +49,5 @@ export function resolveIncidentEmoji(type: string, cameraType?: string | null): 
 
 export const INCIDENT_TYPE_ORDER: (keyof typeof INCIDENT_TYPES)[] = [
   "camera", "police", "alcoblow", "accident", "traffic", "roadblock", "roadworks",
-  "hazard", "speed_bump", "pothole", "debris", "breakdown", "weather", "closure", "clear",
+  "hazard", "speed_bump", "pothole", "debris", "breakdown", "weather", "closure", "clear", "other",
 ];

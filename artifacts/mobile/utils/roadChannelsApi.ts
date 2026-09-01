@@ -205,10 +205,11 @@ export async function uploadVoiceRecording(
 export function interpretVoiceReport(
   voiceReportId: string,
   context: VoiceReportContext,
+  selectedCategory: RoadChannelCategory,
 ): Promise<VoiceInterpretation> {
   return apiPost<VoiceInterpretation>(
     `/road-channels/voice/${encodeURIComponent(voiceReportId)}/interpret`,
-    { deviceId: context.deviceId },
+    { deviceId: context.deviceId, selectedCategory },
     45_000,
   );
 }
@@ -235,14 +236,22 @@ export function confirmVoiceReport(
 }
 
 export const ROAD_CHANNEL_CATEGORIES = [
-  "traffic",
-  "accident",
+  "speed_camera",
   "police_checkpoint",
+  "alcoblow",
+  "accident",
+  "traffic",
+  "roadblock",
   "roadworks",
   "hazard",
-  "speed_camera",
-  "flooding",
+  "speed_bump",
+  "pothole",
+  "debris",
   "breakdown",
+  "bad_weather",
+  "road_closed",
+  "road_clear",
+  "other",
 ] as const;
 
 export type RoadChannelCategory = (typeof ROAD_CHANNEL_CATEGORIES)[number];

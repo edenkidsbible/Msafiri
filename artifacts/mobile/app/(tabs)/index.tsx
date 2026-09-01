@@ -58,6 +58,7 @@ import { reverseGeocode } from "@/utils/geocoding";
 import { useVehicle } from "@/context/VehicleContext";
 import { QUICK_START_KEY } from "@/app/pretrip-check";
 import { getLinkedEmail } from "@/utils/backupSync";
+import { apiGet } from "@/utils/apiClient";
 
 const EMAIL_LINK_BANNER_DISMISSED_KEY = "emailLinkBannerDismissedAt";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -149,11 +150,26 @@ export default function HomeScreen() {
   // Increments each time the Home tab gains focus so DefaultVehicleImage
   // re-reads loadVehicles() and shows any vehicle the user just changed.
   const [heroRefreshKey, setHeroRefreshKey] = useState(0);
+  const [roadChannelsEnabled, setRoadChannelsEnabled] = useState(false);
 
   const { isRecording: dashcamRecording, stopDashcam, requestDashcamPermissions } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
   const tabBarH = Platform.OS === "web" ? 84 : 96;
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void apiGet<{ roadChannelsEnabled: boolean }>(`/app-settings?_fresh=${Date.now()}`)
+        .then((settings) => {
+          if (active) setRoadChannelsEnabled(settings.roadChannelsEnabled === true);
+        })
+        .catch(() => {
+          if (active) setRoadChannelsEnabled(false);
+        });
+      return () => { active = false; };
+    }, []),
+  );
 
   // ── Last trip + latest score from the persisted drive-session system ──────
   // Scoped to the active vehicle so the card changes when the user switches cars.
@@ -706,6 +722,7 @@ export default function HomeScreen() {
               /* Idle state — showroom carousel with rotating tips */
               <HeroCarousel
                 activeVehicle={activeVehicle}
+                 roadChannelsEnabled={roadChannelsEnabled}
               />
             )}
           </LinearGradient>

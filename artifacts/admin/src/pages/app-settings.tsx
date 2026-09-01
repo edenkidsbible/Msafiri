@@ -152,11 +152,11 @@ export default function AppSettings() {
           <CardContent>
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label htmlFor="road-channels-toggle" className="text-base font-medium">Pilot access</Label>
+                <Label htmlFor="road-channels-toggle" className="text-base font-medium">Road Channels feature</Label>
                 <p className="text-sm text-muted-foreground">
                   {roadChannelsEnabled
-                    ? "Active — eligible drivers can discover and join supported road channels."
-                    : "Off — discovery and contribution endpoints fail closed."}
+                    ? "On — Road Channels is visible to users and eligible drivers can discover and join supported road channels."
+                    : "Off — Road Channels is hidden from the user interface and all feature endpoints fail closed."}
                 </p>
               </div>
               <Switch
@@ -164,7 +164,7 @@ export default function AppSettings() {
                 checked={roadChannelsEnabled}
                 onCheckedChange={handleRoadChannelsToggle}
                 disabled={isPending}
-                aria-label="Toggle Road Channels pilot"
+                aria-label="Toggle Road Channels feature"
               />
             </div>
           </CardContent>

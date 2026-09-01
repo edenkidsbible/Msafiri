@@ -3179,7 +3179,7 @@ export default function DriveScreen() {
                 </>
               )}
             </TouchableOpacity>
-            {Platform.OS !== "web" && roadChannelsEnabled && (
+            {Platform.OS !== "web" && (
               <TouchableOpacity
                 style={[styles.driveActionPill, {
                   backgroundColor: dashcamRecording ? "#B71C1C" : "#1A1A1A",
@@ -3420,7 +3420,7 @@ export default function DriveScreen() {
               </View>
             ) : <View style={styles.driveStatusSpacer} />}
 
-            {Platform.OS !== "web" && (
+            {Platform.OS !== "web" && roadChannelsEnabled && (
               <TouchableOpacity
                 style={[styles.roadChannelPill, {
                   backgroundColor: isDark ? "#111F1A" : "#F0FDF7",

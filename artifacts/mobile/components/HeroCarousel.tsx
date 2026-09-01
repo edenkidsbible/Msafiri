@@ -114,16 +114,18 @@ function CarImage({
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   activeVehicle?: SavedVehicle | null;
+  roadChannelsEnabled?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function HeroCarousel({ activeVehicle }: Props) {
+export function HeroCarousel({ activeVehicle, roadChannelsEnabled = false }: Props) {
   const { width: viewportWidth } = useWindowDimensions();
   const isCompact = viewportWidth < 380;
   const artworkSize = isCompact ? 128 : 138;
   const carWidth = isCompact ? 178 : 194;
   const carHeight = isCompact ? 122 : 132;
-  const slides: Slide[] = FEATURES.map((feature, i) => ({
+  const visibleFeatures = roadChannelsEnabled ? FEATURES : FEATURES.filter((feature) => feature.title !== "Road Channels");
+  const slides: Slide[] = visibleFeatures.map((feature, i) => ({
     ...feature,
     image:  !!activeVehicle ? null : GENERIC_SLIDES[i % GENERIC_SLIDES.length].image,
     // User vehicles: DefaultVehicleImage handles FACE_RIGHT internally → no flipX.
@@ -144,6 +146,7 @@ export function HeroCarousel({ activeVehicle }: Props) {
   useEffect(() => {
     cancelRef.current = false;
     const n = slidesRef.current.length;
+    setCurIdx(0);
 
     function doEnter(idx: number) {
       if (cancelRef.current) return;
@@ -217,9 +220,9 @@ export function HeroCarousel({ activeVehicle }: Props) {
       zoomScale.stopAnimation();
       tipOpacity.stopAnimation();
     };
-  }, []);
+  }, [roadChannelsEnabled]);
 
-  const curSlide = slides[curIdx];
+  const curSlide = slides[curIdx % slides.length]!;
   const boldIcon = curSlide.icon.replace(/-outline$/, "") as React.ComponentProps<typeof Ionicons>["name"];
 
   return (

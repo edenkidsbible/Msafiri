@@ -62,9 +62,22 @@ export interface RoadChannelsVoiceReporterProps {
 
 const GUIDELINES_KEY = "@msafiri/road-channels-guidelines-v1";
 const CATEGORY_LABELS: Record<RoadChannelCategory, string> = {
-  traffic: "Traffic", accident: "Accident", police_checkpoint: "Police checkpoint",
-  roadworks: "Roadworks", hazard: "Hazard", speed_camera: "Speed camera",
-  flooding: "Flooding", breakdown: "Breakdown",
+  speed_camera: "Speed Camera",
+  police_checkpoint: "Police Checkpoint",
+  alcoblow: "Alcoblow",
+  accident: "Accident",
+  traffic: "Traffic Jam",
+  roadblock: "Roadblock",
+  roadworks: "Road Works",
+  hazard: "Hazard",
+  speed_bump: "Speed Bump",
+  pothole: "Pothole",
+  debris: "Debris",
+  breakdown: "Broken Down",
+  bad_weather: "Bad Weather",
+  road_closed: "Road Closed",
+  road_clear: "Road Clear",
+  other: "Other",
 };
 
 function timeLabel(milliseconds: number): string {
@@ -154,7 +167,7 @@ export default function RoadChannelsVoiceReporter({
   const [channel, setChannel] = useState<RoadChannel | null>(null);
   const [availableChannels, setAvailableChannels] = useState<RoadChannel[]>([]);
   const [discoveryStatus, setDiscoveryStatus] = useState<"loading" | "available" | "unavailable">("loading");
-  const [category, setCategory] = useState<RoadChannelCategory>("traffic");
+  const [category, setCategory] = useState<RoadChannelCategory | null>(null);
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
   const [guidelinesLoaded, setGuidelinesLoaded] = useState(false);
   const [feed, setFeed] = useState<RoadChannelFeedItem[]>([]);
@@ -472,6 +485,10 @@ export default function RoadChannelsVoiceReporter({
       setMessage("Start a drive before sending a Road Channels update.");
       return;
     }
+    if (!category) {
+      setMessage("Choose what you are reporting before holding the record button.");
+      return;
+    }
     if (Platform.OS === "web") {
       setMessage("Voice reporting is available in the Msafiri mobile app.");
       return;
@@ -585,14 +602,15 @@ export default function RoadChannelsVoiceReporter({
       });
       setMessage("Uploading voice report…");
       await uploadVoiceRecording(request, uri, VOICE_CONTENT_TYPE);
-      setMessage("Understanding your report…");
-      const result = await interpretVoiceReport(request.voiceReportId, context);
+      setMessage("Preparing your selected report…");
+      if (!category) throw new Error("Choose a report category before uploading.");
+      const result = await interpretVoiceReport(request.voiceReportId, context, category);
       setInterpretation(result);
       setMessage(null);
     } catch (error) {
       setRecordedUri(null);
       reportLocationRef.current = null;
-      setMessage(error instanceof Error ? error.message : "We could not interpret that report. Please re-record.");
+      setMessage(error instanceof Error ? error.message : "We could not prepare that report. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -608,13 +626,17 @@ export default function RoadChannelsVoiceReporter({
       setMessage("Accept the community guidelines before your first contribution.");
       return;
     }
+    if (!category) {
+      setMessage("Choose what you are reporting before sharing.");
+      return;
+    }
     setBusy(true);
     try {
       const result = await confirmVoiceReport(interpretation, {
         deviceId,
         location: reportLocationRef.current ?? location ?? undefined,
         channelId: reportingChannel?.id,
-      }, { selectedCategory: category, communityGuidelinesAccepted: true });
+        }, { selectedCategory: category ?? undefined, communityGuidelinesAccepted: true });
       await AsyncStorage.setItem(`${GUIDELINES_KEY}:${deviceId ?? "anonymous"}`, "accepted");
         setMessage(reportingChannel ? `Report shared with ${reportingChannel.name}.` : "Report shared for your current location.");
       onConfirmed?.(result.reportId, interpretation);
@@ -805,7 +827,18 @@ export default function RoadChannelsVoiceReporter({
           </Text>
          <View style={styles.categoryGrid}>
            {ROAD_CHANNEL_CATEGORIES.map((item) => (
-             <TouchableOpacity key={item} accessibilityRole="button" accessibilityState={{ selected: category === item }} onPress={() => setCategory(item)} style={[styles.categoryChip, { borderColor: category === item ? c.primary : c.border, backgroundColor: category === item ? c.primary + "18" : c.card }]}>
+             <TouchableOpacity
+               key={item}
+               testID={`road-channels-category-${item}`}
+               accessibilityRole="button"
+               accessibilityState={{ selected: category === item, disabled: busy || !!recordedUri || !!interpretation }}
+               disabled={busy || !!recordedUri || !!interpretation}
+               onPress={() => {
+                 setCategory(item);
+                 setMessage(null);
+               }}
+               style={[styles.categoryChip, { borderColor: category === item ? c.primary : c.border, backgroundColor: category === item ? c.primary + "18" : c.card }, (busy || !!recordedUri || !!interpretation) && styles.disabled]}
+             >
                <Text style={[styles.categoryLabel, { color: category === item ? c.primary : c.foreground }]}>{CATEGORY_LABELS[item]}</Text>
              </TouchableOpacity>
            ))}
@@ -818,12 +851,10 @@ export default function RoadChannelsVoiceReporter({
         <View style={[styles.result, { backgroundColor: c.secondary, borderColor: c.border }]}>
           <Text style={[styles.resultTitle, { color: c.foreground }]}>Check before sharing</Text>
            <Text style={[styles.resultText, { color: c.foreground }]}>
-              {CATEGORY_LABELS[category]} · {interpretation.road ?? "Road not recognised"}
+               {CATEGORY_LABELS[category ?? "traffic"]} · {interpretation.road ?? "Road not recognised"}
            </Text>
-            {interpretation.proposedType && interpretation.proposedType !== category && <Text style={[styles.detail, { color: c.mutedForeground }]}>Confirmed as: {interpretation.proposedType.replace(/_/g, " ")}</Text>}
-           {interpretation.keywordMatch ? <Text style={[styles.detail, { color: c.primary }]}>Keyword detected: “{interpretation.keywordMatch}”</Text> : null}
            {interpretation.summary ? <Text style={[styles.summary, { color: c.foreground }]}>{interpretation.summary}</Text> : null}
-          <Text style={[styles.transcript, { color: c.mutedForeground }]}>{interpretation.transcript}</Text>
+           {interpretation.transcript ? <Text style={[styles.transcript, { color: c.mutedForeground }]}>{interpretation.transcript}</Text> : null}
           {interpretation.speedLimit != null && <Text style={[styles.detail, { color: c.mutedForeground }]}>Speed limit: {interpretation.speedLimit} km/h</Text>}
           {interpretation.cameraType && <Text style={[styles.detail, { color: c.mutedForeground }]}>Camera: {interpretation.cameraType}</Text>}
            {!guidelinesLoaded ? <Text style={[styles.detail, { color: c.mutedForeground }]}>Loading contribution preferences…</Text> : !guidelinesAccepted ? (
@@ -832,7 +863,7 @@ export default function RoadChannelsVoiceReporter({
                <Text style={[styles.guidelinesText, { color: c.mutedForeground }]}>I agree to share accurate, first-hand updates and follow Community Guidelines.</Text>
              </TouchableOpacity>
            ) : null}
-           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Confirm and share report" disabled={busy || !interpretation.proposedType || !guidelinesAccepted || !activeDrive} onPress={confirm} style={[styles.confirm, { backgroundColor: c.primary }, (!interpretation.proposedType || !guidelinesAccepted || !activeDrive) && styles.disabled]}>
+           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Confirm and share report" disabled={busy || !interpretation.proposedType || !category || !guidelinesAccepted || !activeDrive} onPress={confirm} style={[styles.confirm, { backgroundColor: c.primary }, (!interpretation.proposedType || !category || !guidelinesAccepted || !activeDrive) && styles.disabled]}>
             <Ionicons name="checkmark-circle" size={24} color={c.primaryForeground} />
             <Text style={[styles.confirmText, { color: c.primaryForeground }]}>Confirm alert</Text>
           </TouchableOpacity>
@@ -843,7 +874,7 @@ export default function RoadChannelsVoiceReporter({
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
           accessibilityHint={isRecording ? "Release to stop recording and send privately" : "Press and hold to record for up to 15 seconds"}
-           disabled={busy || Platform.OS === "web" || !canReport || !!recordedUri}
+           disabled={busy || Platform.OS === "web" || !canReport || !category || !!recordedUri}
           onPressIn={isRecording ? undefined : () => {
             pressHeldRef.current = true;
             void startRecording();
@@ -852,7 +883,7 @@ export default function RoadChannelsVoiceReporter({
             pressHeldRef.current = false;
             if (recordingActiveRef.current) void stopRecording();
           }}
-           style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || !canReport || !!recordedUri) && styles.disabled]}
+           style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || !canReport || !category || !!recordedUri) && styles.disabled]}
         >
           <Ionicons name={isRecording ? "stop-circle" : "mic"} size={34} color={c.primaryForeground} />
           <Text style={[styles.primaryText, { color: c.primaryForeground }]}>{busy ? "Please wait…" : actionLabel}</Text>
@@ -863,7 +894,9 @@ export default function RoadChannelsVoiceReporter({
         <Text style={[styles.recordingHint, { color: c.mutedForeground }]}>
           {sendCountdown != null
             ? `Sending in ${sendCountdown} second${sendCountdown === 1 ? "" : "s"} · max recording ${MAX_SECONDS} seconds`
-            : `Hold to record · release to send · max ${MAX_SECONDS} seconds`}
+            : category
+              ? `Hold to record · release to send · max ${MAX_SECONDS} seconds`
+              : "Choose a report category above to enable recording"}
         </Text>
       )}
       {sendCountdown != null && !busy && (

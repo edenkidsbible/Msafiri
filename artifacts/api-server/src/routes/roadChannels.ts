@@ -4,17 +4,15 @@ import {
   appSettingsTable, blockedDevicesTable, communityReportsTable, db, roadChannelPresenceTable,
   roadChannelUpdatesTable, roadChannelUserReportsTable, roadChannelVoiceReportsTable,
 } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
-import { ensureCompatibleFormat, speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import { createCommunityReport, TTL_SECONDS } from "./reports.js";
 import {
-  downloadAsBuffer, getPresignedDownloadUrl, getPresignedUploadUrl, headObject, isR2Configured,
+  getPresignedDownloadUrl, getPresignedUploadUrl, headObject, isR2Configured,
 } from "../lib/r2Storage.js";
 import { logger } from "../lib/logger.js";
 import {
   nearbyPilotCorridors, PILOT_CORRIDORS, pilotDirection, resolvePilotCorridor,
 } from "../lib/roadChannelPilot.js";
-import { detectVoiceReportType } from "../lib/roadChannelKeywords.js";
+import { resolveRoadChannelCategory } from "../lib/roadChannelCategories.js";
 
 const router = Router();
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -26,16 +24,6 @@ const ALLOWED_REPORT_TYPES = new Set(Object.keys(TTL_SECONDS));
 const TERMS_VERSION = "road-channels-pilot-v1";
 const AUDIO_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const COMMUNITY_CHANNEL = "community";
-const CATEGORY_TO_TYPE: Record<string, string> = {
-  traffic: "traffic",
-  accident: "accident",
-  police_checkpoint: "police",
-  roadworks: "roadworks",
-  hazard: "hazard",
-  speed_camera: "camera",
-  flooding: "weather",
-  breakdown: "breakdown",
-};
 const VOICE_TYPE_LABELS: Record<string, string> = {
   traffic: "traffic",
   accident: "accident",
@@ -395,8 +383,13 @@ router.post("/road-channels/:channel/voice/upload-url", async (req, res) => {
 
 router.post("/road-channels/voice/:id/interpret", async (req, res) => {
   if (!await requireEnabled(res)) return;
-  const { deviceId } = req.body as { deviceId?: unknown };
+  const { deviceId, selectedCategory } = req.body as {
+    deviceId?: unknown;
+    selectedCategory?: unknown;
+  };
   if (!validDevice(deviceId)) return res.status(400).json({ error: "Valid deviceId required" });
+  const selectedType = resolveRoadChannelCategory(selectedCategory);
+  if (!selectedType) return res.status(400).json({ error: "Choose a valid Road Channels report category" });
   if (!permit(deviceId, "voice-interpret", 5, 60 * 60_000) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to interpret voice reports" });
   const [voice] = await db.select().from(roadChannelVoiceReportsTable).where(eq(roadChannelVoiceReportsTable.id, req.params.id));
   if (!voice) return res.status(404).json({ error: "Voice report not found" });
@@ -407,36 +400,14 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
     return res.status(400).json({ error: "Uploaded audio is missing or fails size/type validation" });
   }
   try {
-    const compatible = await ensureCompatibleFormat(await downloadAsBuffer(voice.objectKey));
-    const transcript = await speechToText(compatible.buffer, compatible.format);
-    const keywordMatch = detectVoiceReportType(transcript);
-    let proposedType: string | null = keywordMatch?.type ?? null;
-    let proposedSpeedLimit: number | null = null;
-    let proposedCameraType: "fixed" | "mobile" | null = null;
-    let summary: string | null = keywordMatch
-      ? `Detected the keyword "${keywordMatch.keyword}" as a ${VOICE_TYPE_LABELS[keywordMatch.type] ?? keywordMatch.type} report.`
-      : null;
-
-    // Keywords are the reliable first pass for short, mixed-language driver
-    // speech. Use the LLM only when no supported keyword was transcribed.
-    if (!keywordMatch) {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5.6-luna", max_completion_tokens: 300,
-        messages: [{
-          role: "system",
-          content: `Classify a short Kenyan driver road report, including English, Swahili, and common Sheng. Return only JSON: {"type": one of ${JSON.stringify([...ALLOWED_REPORT_TYPES])} or null, "summary": a concise factual sentence, "speedLimit": an integer 30-110 or null, "cameraType": "fixed", "mobile", or null}. Never invent a speed, camera type, location, or event. Use null type when the audio is unclear or is not a current road condition.`,
-        }, { role: "user", content: transcript }],
-      });
-      const raw = completion.choices[0]?.message?.content ?? "{}";
-      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as {
-        type?: unknown; summary?: unknown; speedLimit?: unknown; cameraType?: unknown;
-      };
-      proposedType = typeof parsed.type === "string" && ALLOWED_REPORT_TYPES.has(parsed.type) ? parsed.type : null;
-      proposedSpeedLimit = typeof parsed.speedLimit === "number" && Number.isInteger(parsed.speedLimit)
-        && parsed.speedLimit >= 30 && parsed.speedLimit <= 110 ? parsed.speedLimit : null;
-      proposedCameraType = parsed.cameraType === "fixed" || parsed.cameraType === "mobile" ? parsed.cameraType : null;
-      summary = typeof parsed.summary === "string" ? parsed.summary.trim().slice(0, 280) : null;
-    }
+    // The driver's explicit category is authoritative. The audio remains the
+    // private report content for confirmation and moderation, but speech
+    // recognition no longer decides whether the report can proceed.
+    const transcript = "";
+    const proposedType: string = selectedType;
+    const proposedSpeedLimit: number | null = null;
+    const proposedCameraType: "fixed" | "mobile" | null = null;
+    const summary = `Driver selected ${VOICE_TYPE_LABELS[selectedType] ?? selectedType}. Review the audio before sharing.`;
     const moderationStatus = PROFANITY_PATTERN.test(`${transcript} ${summary ?? ""}`) ? "rejected" : "pending";
     await db.update(roadChannelVoiceReportsTable).set({
       transcript, summary, proposedType, proposedSpeedLimit, proposedCameraType,
@@ -453,13 +424,13 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
       road: voice.roadName ?? channelName(voice.channel),
       speedLimit: proposedSpeedLimit,
       cameraType: proposedCameraType,
-      keywordMatch: keywordMatch?.keyword ?? null,
+      keywordMatch: null,
       moderationStatus,
       requiresConfirmation: true,
     });
   } catch (err) {
-    logger.warn({ err, voiceReportId: voice.id }, "Road channel voice interpretation failed");
-    return res.status(502).json({ error: "Could not interpret this voice report" });
+    logger.warn({ err, voiceReportId: voice.id }, "Road channel report preparation failed");
+    return res.status(502).json({ error: "Could not prepare this road report" });
   }
 });
 
@@ -485,7 +456,7 @@ router.post("/road-channels/voice/:id/confirm", async (req, res) => {
   if (communityGuidelinesAccepted !== true) return res.status(412).json({ error: "Accept the Road Channels community guidelines before contributing" });
   if (voice.moderationStatus === "rejected") return res.status(409).json({ error: "This recording cannot be shared. Please record a factual road update." });
   if (voice.status !== "interpreted" || voice.proposedType !== type || voice.lat == null || voice.lng == null) return res.status(409).json({ error: "Interpret this report and explicitly confirm its proposed type first" });
-  const confirmedType = typeof selectedCategory === "string" ? CATEGORY_TO_TYPE[selectedCategory] : undefined;
+  const confirmedType = resolveRoadChannelCategory(selectedCategory);
   if (!confirmedType || confirmedType !== type) {
     return res.status(409).json({ error: "The selected category must match the interpreted report type" });
   }

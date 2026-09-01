@@ -66,6 +66,7 @@ export const TTL_SECONDS: Record<string, number | null> = {
   breakdown:  24 * 3600,      // 24 h
   weather:    24 * 3600,      // 24 h
   clear:      INCIDENT_TTL,   // 12 h — ephemeral clearance signal
+  other:      INCIDENT_TTL,   // 12 h — uncategorised road report
 };
 
 // Cluster radius for non-camera report types (~50 m at equatorial latitudes)
