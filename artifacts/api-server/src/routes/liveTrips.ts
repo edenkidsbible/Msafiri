@@ -378,7 +378,10 @@ router.get("/drive-sessions", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "deviceId is required" });
     }
 
-    const limit  = Math.min(50, Math.max(1, parseInt(q.limit  ?? "20") || 20));
+    // Garage and Trip History intentionally request up to 100 recent sessions.
+    // Keep this ceiling in sync with those clients; the previous 50-row cap
+    // silently truncated both screens despite their explicit limit=100 request.
+    const limit  = Math.min(100, Math.max(1, parseInt(q.limit  ?? "20") || 20));
     const offset = Math.max(0,              parseInt(q.offset ?? "0")  || 0);
 
     // Optional per-vehicle filtering.

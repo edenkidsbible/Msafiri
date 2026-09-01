@@ -962,6 +962,9 @@ export default function GarageScreen() {
       setSharedStats(null);
       return;
     }
+    // Never show another shared vehicle's totals while this vehicle's cache or
+    // fresh aggregate is loading.
+    setSharedStats(null);
     // Load cached value immediately so the UI never shows zeros while waiting
     const cacheKey = sharedStatsCacheKey(sharedId);
     AsyncStorage.getItem(cacheKey)
@@ -994,6 +997,10 @@ export default function GarageScreen() {
       setPersonalStats(null);
       return;
     }
+    // Clear the previous vehicle's aggregate before loading this vehicle's
+    // cached/fresh value. Without this, an offline cache miss could leave the
+    // prior vehicle's totals displayed indefinitely.
+    setPersonalStats(null);
     const cacheKey = personalStatsCacheKey(activeVehicle.id);
     AsyncStorage.getItem(cacheKey)
       .then((raw) => { if (raw) setPersonalStats(JSON.parse(raw)); })

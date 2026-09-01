@@ -1335,7 +1335,11 @@ export default function DriveScreen() {
           ];
           if (drivingVehicleId) {
             busts.push(
-              AsyncStorage.removeItem(`msafiri_sessions_v1_${drivingVehicleId}`)
+              AsyncStorage.removeItem(`msafiri_sessions_v1_${drivingVehicleId}`),
+              // Garage Overview reads the server aggregate, not the session
+              // list. Invalidate both caches after every completed drive so a
+              // delayed/failed refresh cannot leave Overview undercounting.
+              AsyncStorage.removeItem(`msafiri_personal_stats_v1_${drivingVehicleId}`)
             );
           }
           if (drivingSharedId) {
