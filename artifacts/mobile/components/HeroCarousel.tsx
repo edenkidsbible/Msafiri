@@ -17,7 +17,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
 import { SavedVehicle } from "@/utils/savedVehicles";
 
@@ -103,7 +103,7 @@ function CarImage({ slide, vehicle }: { slide: Slide; vehicle?: SavedVehicle | n
   // Generic PNGs are flipped here via scaleX when flipX is true.
   const flip = slide.flipX ? [{ scaleX: -1 }] : undefined;
   return slide.image === null
-    ? <DefaultVehicleImage width={212} height={166} vehicle={vehicle} />
+    ? <DefaultVehicleImage width={168} height={132} vehicle={vehicle} />
     : <Image
         source={slide.image}
         style={[styles.vehicleImg, flip ? { transform: flip } : undefined]}
@@ -119,6 +119,8 @@ interface Props {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const isCompact = viewportWidth < 380;
   const slides: Slide[] = FEATURES.map((feature, i) => ({
     ...feature,
     image:  !!activeVehicle ? null : GENERIC_SLIDES[i % GENERIC_SLIDES.length].image,
@@ -259,22 +261,17 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
       {/* Right: text */}
       <View style={styles.textCol}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Start Driving</Text>
-          {curSlide.isNew && (
-            <View style={styles.newBadge}>
-              <Text style={styles.newBadgeText}>NEW</Text>
-            </View>
-          )}
+          <Text style={[styles.title, isCompact && styles.titleCompact]}>Start Driving</Text>
         </View>
 
         <View style={styles.featureRow}>
-          <View style={styles.featureIconBubble}>
-            <Ionicons name={curSlide.icon} size={20} color="#FFFFFF" />
+          <View style={[styles.featureIconBubble, isCompact && styles.featureIconBubbleCompact]}>
+            <Ionicons name={curSlide.icon} size={isCompact ? 17 : 20} color="#FFFFFF" />
           </View>
-          <Text style={styles.featureTitle} numberOfLines={1}>{curSlide.title}</Text>
+          <Text style={[styles.featureTitle, isCompact && styles.featureTitleCompact]} numberOfLines={1}>{curSlide.title}</Text>
         </View>
 
-        <Animated.Text style={[styles.tip, { opacity: tipOpacity }]}>
+        <Animated.Text style={[styles.tip, isCompact && styles.tipCompact, { opacity: tipOpacity }]}>
           {curSlide.tip}
         </Animated.Text>
 
@@ -282,8 +279,8 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
           <Text style={styles.longPressHint}>Hold to open checklist</Text>
         )}
 
-        <View style={styles.chevron}>
-          <Ionicons name="chevron-forward" size={25} color="#0A7C3A" />
+        <View style={[styles.chevron, isCompact && styles.chevronCompact]}>
+          <Ionicons name="chevron-forward" size={isCompact ? 22 : 25} color="#0A7C3A" />
         </View>
       </View>
     </>
@@ -295,7 +292,7 @@ const styles = StyleSheet.create({
   imgWrap: {
     width: "46%",
     position: "relative",
-    alignItems: "flex-end",
+    alignItems: "flex-start",
     justifyContent: "flex-end",
   },
   artHalo: {
@@ -325,11 +322,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     left: 0,
-    right: 0,
-    alignItems: "flex-end",
+    alignItems: "flex-start",
     justifyContent: "flex-end",
   },
-  vehicleImg: { width: 212, height: 166 },
+  vehicleImg: { width: 168, height: 132 },
   dotsRow: {
     position: "absolute",
     bottom: 12,
@@ -350,10 +346,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 23,
+    fontSize: 21,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
   },
+  titleCompact: { fontSize: 18 },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -385,18 +382,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  featureIconBubbleCompact: { width: 29, height: 29, borderRadius: 15 },
   featureTitle: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
   },
+  featureTitleCompact: { fontSize: 12.5 },
   tip: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontFamily: "Inter_400Regular",
     color: "#D7F4E0",
-    lineHeight: 20,
+    lineHeight: 18,
   },
+  tipCompact: { fontSize: 10.5, lineHeight: 15 },
   longPressHint: {
     fontSize: 10,
     fontFamily: "Inter_400Regular",
@@ -413,5 +413,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-start",
+  },
+  chevronCompact: {
+    marginTop: 6,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
 });
