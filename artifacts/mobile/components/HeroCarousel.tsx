@@ -221,6 +221,7 @@ export function HeroCarousel({ activeVehicle }: Props) {
 
   const curSlide = slides[curIdx];
   const watermarkIcon = curSlide.icon;
+  const boldIcon = curSlide.icon.replace(/-outline$/, "") as React.ComponentProps<typeof Ionicons>["name"];
 
   return (
     <>
@@ -243,9 +244,9 @@ export function HeroCarousel({ activeVehicle }: Props) {
           <View pointerEvents="none" style={styles.artHaloInnerRing} />
 
           <Ionicons
-            name={watermarkIcon}
+            name={boldIcon}
             size={Math.round(artworkSize * 0.43)}
-            color="#E4FFED"
+            color="#FFFFFF"
             style={styles.artWatermark}
           />
         </View>
@@ -282,7 +283,7 @@ export function HeroCarousel({ activeVehicle }: Props) {
 
         <View style={styles.featureRow}>
           <View style={[styles.featureIconBubble, isCompact && styles.featureIconBubbleCompact]}>
-            <Ionicons name={curSlide.icon} size={isCompact ? 13 : 15} color="#FFFFFF" />
+            <Ionicons name={boldIcon} size={isCompact ? 13 : 15} color="#FFFFFF" />
           </View>
           <Text style={[styles.featureTitle, isCompact && styles.featureTitleCompact]} numberOfLines={1}>{curSlide.title}</Text>
         </View>
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFFFFF2E",
   },
-  artWatermark: { opacity: 0.3 },
+  artWatermark: { opacity: 0.82 },
   artInnerPeople: {
     position: "absolute",
     alignItems: "center",
