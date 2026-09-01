@@ -1,20 +1,26 @@
 /**
  * HeroCarousel — reference-matched Start Driving carousel.
  *
- * The selected vehicle stays visible in front of the layered artwork while
- * the topic copy cross-fades between slides.
+ * Each selected vehicle enters from the left, holds in the reference
+ * composition, and exits to the right before the next topic is shown.
  */
 
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
 import { SavedVehicle } from "@/utils/savedVehicles";
 
 // ── Timing ────────────────────────────────────────────────────────────────────
-const HOLD_MS = 4600;
-const TIP_FADE_MS = 220;
+const DRIVE_IN_MS = 1100;
+const ZOOM_IN_MS = 450;
+const HOLD_MS = 3800;
+const ZOOM_OUT_MS = 350;
+const TIP_OUT_MS = 200;
+const DRIVE_OUT_MS = 1000;
+const OFFSCREEN = 260;
+const ZOOM_SCALE = 1.09;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Slide {
@@ -127,10 +133,11 @@ export function HeroCarousel({ activeVehicle }: Props) {
 
   const [curIdx, setCurIdx] = useState(0);
 
-  const tipOpacity = useRef(new Animated.Value(1)).current;
+  const carPos = useRef(new Animated.Value(-OFFSCREEN)).current;
+  const zoomScale = useRef(new Animated.Value(1)).current;
+  const tipOpacity = useRef(new Animated.Value(0)).current;
 
   const cancelRef   = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slidesRef   = useRef(slides);
   slidesRef.current = slides;
 
@@ -138,44 +145,82 @@ export function HeroCarousel({ activeVehicle }: Props) {
     cancelRef.current = false;
     const n = slidesRef.current.length;
 
-    function scheduleNext() {
-      timerRef.current = setTimeout(() => {
-        if (cancelRef.current) return;
-        Animated.timing(tipOpacity, {
-          toValue: 0,
-          duration: TIP_FADE_MS,
-          useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (!finished || cancelRef.current) return;
-          setCurIdx((idx) => (idx + 1) % n);
+    function doEnter(idx: number) {
+      if (cancelRef.current) return;
+      Animated.timing(carPos, {
+        toValue: 0,
+        duration: DRIVE_IN_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || cancelRef.current) return;
+        Animated.parallel([
+          Animated.timing(zoomScale, {
+            toValue: ZOOM_SCALE,
+            duration: ZOOM_IN_MS,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
           Animated.timing(tipOpacity, {
             toValue: 1,
-            duration: TIP_FADE_MS,
+            duration: ZOOM_IN_MS,
             useNativeDriver: true,
-          }).start(({ finished: fadedIn }) => {
-            if (fadedIn && !cancelRef.current) scheduleNext();
+          }),
+        ]).start(({ finished: held }) => {
+          if (!held || cancelRef.current) return;
+          Animated.delay(HOLD_MS).start(({ finished: delayed }) => {
+            if (delayed && !cancelRef.current) doExit(idx);
           });
         });
-      }, HOLD_MS);
+      });
     }
 
-    tipOpacity.setValue(1);
-    scheduleNext();
+    function doExit(idx: number) {
+      if (cancelRef.current) return;
+      const next = (idx + 1) % n;
+      Animated.sequence([
+        Animated.timing(zoomScale, {
+          toValue: 1,
+          duration: ZOOM_OUT_MS,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tipOpacity, {
+          toValue: 0,
+          duration: TIP_OUT_MS,
+          useNativeDriver: true,
+        }),
+        Animated.timing(carPos, {
+          toValue: OFFSCREEN,
+          duration: DRIVE_OUT_MS,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (!finished || cancelRef.current) return;
+        zoomScale.setValue(1);
+        tipOpacity.setValue(0);
+        carPos.setValue(-OFFSCREEN);
+        setCurIdx(next);
+        requestAnimationFrame(() => doEnter(next));
+      });
+    }
+
+    carPos.setValue(-OFFSCREEN);
+    zoomScale.setValue(1);
+    tipOpacity.setValue(0);
+    doEnter(0);
 
     return () => {
       cancelRef.current = true;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      carPos.stopAnimation();
+      zoomScale.stopAnimation();
       tipOpacity.stopAnimation();
     };
   }, []);
 
   const curSlide = slides[curIdx];
-  const watermarkIcon: React.ComponentProps<typeof Ionicons>["name"] =
-    curSlide.title === "Emergency Contacts"
-      ? "shield-outline"
-      : curSlide.title === "Audio Course"
-        ? "school-outline"
-        : curSlide.icon;
+  const watermarkIcon = curSlide.icon;
 
   return (
     <>
@@ -213,18 +258,14 @@ export function HeroCarousel({ activeVehicle }: Props) {
               color="#B8F1CD"
               style={styles.artWatermark}
             />
-            {curSlide.title === "Emergency Contacts" && (
-              <View pointerEvents="none" style={styles.artInnerPeople}>
-                <Ionicons name="people-outline" size={Math.round(artworkSize * 0.2)} color="#B8F1CD" />
-              </View>
-            )}
           </View>
         </View>
 
-        <View
+        <Animated.View
           style={[
             styles.carSlot,
             { width: carWidth, height: carHeight, bottom: isCompact ? 17 : 20 },
+            { transform: [{ translateX: carPos }, { scale: zoomScale }] },
           ]}
         >
           <CarImage
@@ -233,7 +274,7 @@ export function HeroCarousel({ activeVehicle }: Props) {
             width={carWidth}
             height={carHeight}
           />
-        </View>
+        </Animated.View>
 
         {/* Dot indicators */}
         <View style={styles.dotsRow}>

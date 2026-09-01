@@ -1137,6 +1137,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "stretch",
     borderRadius: 22, marginTop: 16, overflow: "hidden",
     minHeight: 152, aspectRatio: 1711 / 919,
+    alignSelf: "stretch",
   },
   // Large vehicle image on the left — no padding so it bleeds to the card edge
   heroImgWrap: {
