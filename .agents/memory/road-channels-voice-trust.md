@@ -14,3 +14,9 @@ Voice incident reporting is not limited to supported live Road Channels. During 
 **Why:** Useful first-hand incident reports occur on roads that do not yet have a live channel. Treating channel discovery as a microphone gate unnecessarily discards that safety data.
 
 **How to apply:** Keep the microphone available outside channel coverage, skip presence membership for the community-draft path, retain the detected road name and coordinates, and never insert the confirmed report into a channel feed unless it originated from a supported joined channel.
+
+Resolve and pin the report location when recording starts: use the live fix when present, otherwise request a fresh high-accuracy fix and fall back only to a recent cached OS fix. Reuse that pinned location through upload and confirmation.
+
+**Why:** The shared live-location prop can briefly be null while GPS subscriptions start or recover. Rejecting the mic at that moment makes automatic location feel manual; using a later moving fix can attach the report to the wrong point.
+
+**How to apply:** The voice control owns tap-time location recovery. Clear the pinned fix only after confirmation, cancellation, or re-recording.

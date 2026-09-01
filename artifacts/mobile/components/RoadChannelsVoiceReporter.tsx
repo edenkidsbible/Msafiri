@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import {
   createAudioPlayer,
   getRecordingPermissionsAsync,
@@ -69,6 +70,45 @@ function timeLabel(milliseconds: number): string {
   return `0:${seconds.toString().padStart(2, "0")}`;
 }
 
+async function resolveVoiceLocation(
+  supplied: RoadChannelLocation | null | undefined,
+): Promise<RoadChannelLocation | null> {
+  if (supplied) return supplied;
+
+  const permission = await Location.getForegroundPermissionsAsync();
+  const status = permission.status === "granted"
+    ? permission.status
+    : (await Location.requestForegroundPermissionsAsync()).status;
+  if (status !== "granted") return null;
+
+  // Prefer a fresh fix so a report is pinned to where the driver is now.
+  let fresh: Location.LocationObject | null = null;
+  try {
+    fresh = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
+    ]);
+  } catch {
+    fresh = null;
+  }
+  if (fresh) {
+    return { latitude: fresh.coords.latitude, longitude: fresh.coords.longitude };
+  }
+
+  // A short-lived GPS stall should not block a report when the OS has a
+  // recent fix available.
+  try {
+    const cached = await Location.getLastKnownPositionAsync({
+      maxAge: 5 * 60_000,
+      requiredAccuracy: 1_000,
+    });
+    if (cached) return { latitude: cached.coords.latitude, longitude: cached.coords.longitude };
+  } catch {
+    // The caller presents the actionable location-services message.
+  }
+  return null;
+}
+
 /**
  * A standalone, confirmation-gated voice reporting control. It can publish
  * through a live Road Channel when one is nearby, or stage a normal community
@@ -119,6 +159,7 @@ export default function RoadChannelsVoiceReporter({
   const [listening, setListening] = useState(false);
   const feedPlayerRef = useRef<AudioPlayer | null>(null);
   const channelRef = useRef<RoadChannel | null>(null);
+  const reportLocationRef = useRef<RoadChannelLocation | null>(null);
   const handoffCandidateRef = useRef<{ id: string; count: number } | null>(null);
   const [automaticSwitching, setAutomaticSwitching] = useState(false);
   useEffect(() => { channelRef.current = channel; }, [channel]);
@@ -352,9 +393,8 @@ export default function RoadChannelsVoiceReporter({
       setMessage("Voice reporting is available in the Msafiri mobile app.");
       return;
     }
-    const activeChannel = channelRef.current;
-    if (!deviceId || !location) {
-      setMessage("Current location is required before recording.");
+    if (!deviceId) {
+      setMessage("Preparing your device for voice reporting. Please try again.");
       return;
     }
     setMessage(null);
@@ -372,6 +412,14 @@ export default function RoadChannelsVoiceReporter({
       await resumeDashcamIfNeeded().catch(() => {});
     };
     try {
+      const resolvedLocation = await resolveVoiceLocation(location);
+      if (cancelled()) return void await abortCancelledStart();
+      if (!resolvedLocation) {
+        setMessage("We could not detect your location. Turn on Location Services and try again.");
+        return;
+      }
+      reportLocationRef.current = resolvedLocation;
+      const activeChannel = channelRef.current;
       // When a live channel exists, tapping the microphone is also an explicit
       // channel action. Join before recording so the staged upload cannot
       // later fail its active-member check. Without a channel, this remains a
@@ -380,7 +428,7 @@ export default function RoadChannelsVoiceReporter({
         setMessage(`Joining ${activeChannel.name}…`);
         await updateRoadChannelPresence({
           deviceId,
-          location,
+          location: resolvedLocation,
           channelId: activeChannel.id,
         });
         if (cancelled()) return void await abortCancelledStart();
@@ -448,7 +496,7 @@ export default function RoadChannelsVoiceReporter({
     try {
       const context = {
         deviceId,
-        location: location ?? undefined,
+        location: reportLocationRef.current ?? location ?? undefined,
         channelId: channel?.id,
         roadName,
       };
@@ -482,13 +530,16 @@ export default function RoadChannelsVoiceReporter({
     setBusy(true);
     try {
       const result = await confirmVoiceReport(interpretation, {
-        deviceId, location: location ?? undefined, channelId: channel?.id,
+        deviceId,
+        location: reportLocationRef.current ?? location ?? undefined,
+        channelId: channel?.id,
       }, { selectedCategory: category, communityGuidelinesAccepted: true });
       await AsyncStorage.setItem(`${GUIDELINES_KEY}:${deviceId ?? "anonymous"}`, "accepted");
         setMessage(channel ? "Report shared with Road Channels." : "Report shared with the Msafiri community.");
       onConfirmed?.(result.reportId, interpretation);
       setInterpretation(null);
       setRecordedUri(null);
+      reportLocationRef.current = null;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not confirm the report. Nothing was published.");
     } finally {
@@ -500,6 +551,7 @@ export default function RoadChannelsVoiceReporter({
     setRecordedUri(null);
     setInterpretation(null);
     setMessage(null);
+    reportLocationRef.current = null;
   };
 
   const cancel = () => {
