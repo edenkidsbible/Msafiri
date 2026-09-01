@@ -1,0 +1,72 @@
+Rebuild this onboarding card to match the supplied reference layout exactly. Do not redesign it, simplify it, or substitute your own arrangement.
+
+Keep the existing card dimensions and rounded green gradient container exactly the same size.
+
+The composition must be split into two visual zones:
+
+Left visual zone
+
+Place the vehicle in the lower-left/middle-left area, not at the very bottom.
+The car must be large enough to visually overlap the decorative circular backdrop.
+Behind the car, create a large semi-transparent circular graphic.
+The circle should be roughly 60–70% of the card height and positioned partly behind the car.
+Use a thin translucent border around the circle.
+Inside that large circle, place a very subtle oversized line icon related to the slide topic.
+For Emergency Contacts, use a faint phone/contact/shield-style icon.
+For Audio Course, use a faint graduation-cap or learning icon.
+The inner icon must be low-opacity so it behaves like a watermark/background graphic, not a primary icon.
+The car must sit in FRONT of the circular graphic so the circle appears like a halo/backdrop behind the car.
+
+Structure the left side as layered elements:
+
+large translucent circle
+    ↓
+faint oversized topic icon inside circle
+    ↓
+car image overlapping lower part of circle
+
+Do NOT put the topic icon inside a small rounded square like the current implementation.
+
+Right content zone
+
+Put “Start Driving” at the top-left of the right column in large bold white text.
+Directly below it, place the topic label such as “Audio Course” with a small circular icon badge.
+Add the supporting description below when the slide has one.
+Keep the text vertically centered relative to the car/backdrop area.
+
+Next button
+
+Place the white circular arrow button below the content, toward the lower-left portion of the right column.
+Do not attach it to the vehicle.
+
+Pagination
+
+Keep the pagination dots along the bottom-left of the card.
+The active step should be a wider white pill; inactive steps should be small low-opacity circles.
+
+Important visual rules
+
+Do not shrink the car.
+Do not leave a large empty gap above the car.
+Do not use a small icon tile as the main left visual.
+Do not place the car below the circular artwork as a separate element.
+The car and circular background must visually overlap.
+The decorative circle should feel like a soft glassmorphism/radar halo.
+The topic icon inside the circle should be oversized, centered, and approximately 10–18% opacity.
+Keep the overall look minimal, premium, modern, and consistent with the existing Msafiri green theme.
+
+Use absolute positioning or a layered Stack/Positioned layout rather than a basic Row/Column if necessary, because the car must overlap the circular backdrop.
+
+Target visual hierarchy:
+
+┌──────────────────────────────────────────────────────────┐
+│                    Start Driving                         │
+│      ◯ halo          ○ Audio Course                     │
+│    faint icon                                             │
+│                                                          │
+│       CAR                 supporting text                │
+│                           ○ →                            │
+│  • • • • ▬                                              │
+└──────────────────────────────────────────────────────────┘
+
+The key requirement is that the large translucent circular topic illustration sits behind the car, creating the same visual layering as the reference image.

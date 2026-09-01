@@ -98,15 +98,25 @@ const GENERIC_SLIDES: { image: ReturnType<typeof require>; flipX: boolean }[] = 
 ];
 
 // ── Sub-component: car image ──────────────────────────────────────────────────
-function CarImage({ slide, vehicle }: { slide: Slide; vehicle?: SavedVehicle | null }) {
+function CarImage({
+  slide,
+  vehicle,
+  width,
+  height,
+}: {
+  slide: Slide;
+  vehicle?: SavedVehicle | null;
+  width: number;
+  height: number;
+}) {
   // DefaultVehicleImage handles FACE_RIGHT internally, so no extra flip needed.
   // Generic PNGs are flipped here via scaleX when flipX is true.
   const flip = slide.flipX ? [{ scaleX: -1 }] : undefined;
   return slide.image === null
-    ? <DefaultVehicleImage width={168} height={116} vehicle={vehicle} />
+    ? <DefaultVehicleImage width={width} height={height} vehicle={vehicle} />
     : <Image
         source={slide.image}
-        style={[styles.vehicleImg, flip ? { transform: flip } : undefined]}
+        style={[{ width, height }, flip ? { transform: flip } : undefined]}
         contentFit="contain"
       />;
 }
@@ -121,6 +131,9 @@ interface Props {
 export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
   const { width: viewportWidth } = useWindowDimensions();
   const isCompact = viewportWidth < 380;
+  const artworkSize = isCompact ? 116 : 132;
+  const carWidth = isCompact ? 172 : 188;
+  const carHeight = isCompact ? 118 : 128;
   const slides: Slide[] = FEATURES.map((feature, i) => ({
     ...feature,
     image:  !!activeVehicle ? null : GENERIC_SLIDES[i % GENERIC_SLIDES.length].image,
@@ -224,27 +237,52 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
   }, []);
 
   const curSlide = slides[curIdx];
+  const watermarkIcon: React.ComponentProps<typeof Ionicons>["name"] =
+    curSlide.title === "Emergency Contacts"
+      ? "people-circle-outline"
+      : curSlide.title === "Audio Course"
+        ? "school-outline"
+        : curSlide.icon;
 
   return (
     <>
-      {/* Left: image area */}
+      {/* Left: layered artwork area. The halo and watermark stay behind the
+          selected vehicle; neither is a separate tile or a second vehicle. */}
       <View style={styles.imgWrap}>
-        {/* Soft showroom artwork behind the selected vehicle. The feature icon
-            changes with the slide, while the vehicle itself remains the user's
-            currently selected vehicle. */}
-        <View pointerEvents="none" style={styles.artHalo}>
-          <View style={styles.artIconTile}>
-            <Ionicons name={curSlide.icon} size={38} color="#B8F1CD" />
-          </View>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.artHalo,
+            {
+              width: artworkSize,
+              height: artworkSize,
+              borderRadius: artworkSize / 2,
+              left: isCompact ? 0 : 5,
+              top: isCompact ? 8 : 10,
+            },
+          ]}
+        >
+          <Ionicons
+            name={watermarkIcon}
+            size={Math.round(artworkSize * 0.66)}
+            color="#B8F1CD"
+            style={styles.artWatermark}
+          />
         </View>
 
         <Animated.View
           style={[
             styles.carSlot,
+            { width: carWidth, height: carHeight, bottom: isCompact ? 11 : 14 },
             { transform: [{ translateX: carPos }, { scale: zoomScale }] },
           ]}
         >
-          <CarImage slide={curSlide} vehicle={activeVehicle} />
+          <CarImage
+            slide={curSlide}
+            vehicle={activeVehicle}
+            width={carWidth}
+            height={carHeight}
+          />
         </Animated.View>
 
         {/* Dot indicators */}
@@ -258,11 +296,9 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
         </View>
       </View>
 
-      {/* Right: text */}
+      {/* Right: content column */}
       <View style={styles.textCol}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, isCompact && styles.titleCompact]}>Start Driving</Text>
-        </View>
+        <Text style={[styles.title, isCompact && styles.titleCompact]}>Start Driving</Text>
 
         <View style={styles.featureRow}>
           <View style={[styles.featureIconBubble, isCompact && styles.featureIconBubbleCompact]}>
@@ -271,7 +307,10 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
           <Text style={[styles.featureTitle, isCompact && styles.featureTitleCompact]} numberOfLines={1}>{curSlide.title}</Text>
         </View>
 
-        <Animated.Text style={[styles.tip, isCompact && styles.tipCompact, { opacity: tipOpacity }]}>
+        <Animated.Text
+          style={[styles.tip, isCompact && styles.tipCompact, { opacity: tipOpacity }]}
+          numberOfLines={isCompact ? 5 : 5}
+        >
           {curSlide.tip}
         </Animated.Text>
 
@@ -290,43 +329,27 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   imgWrap: {
-    width: "46%",
+    width: "48%",
     position: "relative",
     alignItems: "flex-start",
     justifyContent: "flex-end",
   },
   artHalo: {
     position: "absolute",
-    width: 142,
-    height: 142,
-    left: 7,
-    top: 5,
-    borderRadius: 71,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderColor: "#FFFFFF2E",
     backgroundColor: "#FFFFFF0A",
     alignItems: "center",
     justifyContent: "center",
   },
-  artIconTile: {
-    width: 68,
-    height: 82,
-    borderRadius: 17,
-    borderWidth: 2,
-    borderColor: "#FFFFFF16",
-    backgroundColor: "#FFFFFF0A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  artWatermark: { opacity: 0.15 },
   carSlot: {
     position: "absolute",
-    bottom: -2,
-    left: -3,
+    left: -5,
     alignItems: "flex-start",
     justifyContent: "flex-end",
     zIndex: 1,
   },
-  vehicleImg: { width: 168, height: 116 },
   dotsRow: {
     position: "absolute",
     bottom: 12,
@@ -341,11 +364,12 @@ const styles = StyleSheet.create({
   dotInactive: { width: 5,  backgroundColor: "#FFFFFF55" },
   textCol: {
     flex: 1,
-    paddingVertical: 18,
+    paddingTop: 16,
+    paddingBottom: 14,
     paddingRight: 18,
-    paddingLeft: 8,
+    paddingLeft: 7,
     justifyContent: "center",
-    gap: 8,
+    gap: 5,
   },
   title: {
     fontSize: 21,
@@ -353,11 +377,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   titleCompact: { fontSize: 18 },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
   newBadge: {
     backgroundColor: "#A7F3D0",
     borderRadius: 5,
@@ -374,7 +393,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 0,
+    marginTop: 2,
   },
   featureIconBubble: {
     width: 34,
@@ -393,12 +412,12 @@ const styles = StyleSheet.create({
   },
   featureTitleCompact: { fontSize: 12.5 },
   tip: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: "#D7F4E0",
-    lineHeight: 18,
+    lineHeight: 17,
   },
-  tipCompact: { fontSize: 10.5, lineHeight: 15 },
+  tipCompact: { fontSize: 10.5, lineHeight: 14.5 },
   longPressHint: {
     fontSize: 10,
     fontFamily: "Inter_400Regular",
@@ -407,7 +426,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chevron: {
-    marginTop: 10,
+    marginTop: 7,
     width: 42,
     height: 42,
     borderRadius: 21,
