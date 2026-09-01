@@ -26,6 +26,7 @@ const colors = {
     border: "#C2D2C4",
     input: "#D6E2D7",
     speedSafe: "#00A845",
+    speedGauge: "#EDF7F2",
     speedCaution: "#F29900",
     speedDanger: "#D93025",
     // Overhaul additions
@@ -58,6 +59,7 @@ const colors = {
     border: "#2E3D33",
     input: "#252E28",
     speedSafe: "#22DD66",
+    speedGauge: "#0B6623",
     speedCaution: "#FFB300",
     speedDanger: "#E5484D",
     // Overhaul additions

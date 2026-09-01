@@ -2728,14 +2728,14 @@ export default function DriveScreen() {
             pointerEvents="none"
             style={[styles.dmDialWrap, {
               top: topInset + (primaryAlert ? 90 : 16),
-              backgroundColor: overLimit ? c.speedDanger : c.primary,
+              backgroundColor: overLimit ? c.speedDanger : c.speedGauge,
               borderWidth: 0,
             }]}
           >
-            <Text style={[styles.dmDialNum, { color: "#FFFFFF" }]}>
+            <Text style={[styles.dmDialNum, { color: overLimit || isDark ? "#FFFFFF" : c.foreground }]}>
               {Math.round(currentSpeed)}
             </Text>
-            <Text style={[styles.dmDialUnit, { color: "rgba(255,255,255,0.82)" }]}>km/h</Text>
+            <Text style={[styles.dmDialUnit, { color: overLimit || isDark ? "rgba(255,255,255,0.82)" : c.mutedForeground }]}>km/h</Text>
             {currentSpeedLimit != null && (
               <View style={styles.dmDialLimit}>
                 <Text style={styles.dmDialLimitTxt}>{currentSpeedLimit}</Text>
