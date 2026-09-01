@@ -138,6 +138,7 @@ function getCachedPlayer(key: string): AudioPlayer | null {
  */
 export function resetAlertPlayerCache(): void {
   if (Platform.OS === "web") return;
+  cancelPendingFocusRelease();
   // Stop and discard every cached player. Expo Audio players hold native
   // resources; pausing before dropping the reference prevents them from
   // continuing to play (or holding audio focus) after the cache is cleared.
@@ -155,17 +156,33 @@ export function resetAlertPlayerCache(): void {
 
 let currentPlayer: AudioPlayer | null = null;
 let currentPlaybackSubscription: { remove(): void } | null = null;
+let focusReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 let voiceDisabled = false;
+const BLUETOOTH_DRAIN_MS = 1_000;
+
+function cancelPendingFocusRelease(): void {
+  if (focusReleaseTimer === null) return;
+  clearTimeout(focusReleaseTimer);
+  focusReleaseTimer = null;
+}
 
 function watchPlaybackCompletion(player: AudioPlayer): void {
   currentPlaybackSubscription?.remove();
   currentPlaybackSubscription = player.addListener("playbackStatusUpdate", (status) => {
     if (!status.didJustFinish) return;
+    // Ignore an in-flight completion event from a player that was replaced by
+    // a newer alert. Restoring AVAudioSession here can truncate Bluetooth audio.
+    if (currentPlayer !== player) return;
     currentPlaybackSubscription?.remove();
     currentPlaybackSubscription = null;
-    if (currentPlayer === player) currentPlayer = null;
-    // Let the decoder render its final frame before changing AVAudioSession.
-    setTimeout(() => { void releaseAlertAudioFocus(); }, 250);
+    currentPlayer = null;
+    cancelPendingFocusRelease();
+    // Allow the Bluetooth output buffer to drain before changing audio mode.
+    focusReleaseTimer = setTimeout(() => {
+      focusReleaseTimer = null;
+      if (currentPlayer !== null) return;
+      void releaseAlertAudioFocus();
+    }, BLUETOOTH_DRAIN_MS);
   });
 }
 
@@ -179,6 +196,7 @@ export function getAlertVoiceDisabled(): boolean {
 }
 
 export function stopAlertVoice() {
+  cancelPendingFocusRelease();
   currentPlaybackSubscription?.remove();
   currentPlaybackSubscription = null;
   try { currentPlayer?.pause(); } catch {}

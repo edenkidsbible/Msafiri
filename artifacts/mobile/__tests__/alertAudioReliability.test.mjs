@@ -41,6 +41,21 @@ test("music resumes only after the complete Yna clip finishes", () => {
   }
 });
 
+test("stale completion events cannot truncate a newer Bluetooth alert", () => {
+  for (const source of [iosVoice, androidVoice]) {
+    assert.match(source, /if \(currentPlayer !== player\) return/);
+    assert.match(source, /cancelPendingFocusRelease\(\)/);
+    assert.match(source, /if \(currentPlayer !== null\) return/);
+  }
+});
+
+test("Bluetooth output gets a full drain window before audio focus is restored", () => {
+  for (const source of [iosVoice, androidVoice]) {
+    assert.match(source, /BLUETOOTH_DRAIN_MS\s*=\s*1_000/);
+    assert.match(source, /}, BLUETOOTH_DRAIN_MS\)/);
+  }
+});
+
 test("iOS preserves dashcam microphone ownership while taking alert focus", () => {
   assert.match(iosSound, /allowsRecording:\s+dashcamAudioActive/);
   assert.match(

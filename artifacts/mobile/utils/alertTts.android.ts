@@ -65,16 +65,35 @@ const playerCache = new Map<string, AudioPlayer>();
 const MAX_CACHED_PLAYERS = 4;
 let currentPlayer: AudioPlayer | null = null;
 let currentPlaybackSubscription: { remove(): void } | null = null;
+let focusReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 let voiceDisabled = false;
+const BLUETOOTH_DRAIN_MS = 1_000;
+
+function cancelPendingFocusRelease(): void {
+  if (focusReleaseTimer === null) return;
+  clearTimeout(focusReleaseTimer);
+  focusReleaseTimer = null;
+}
 
 function watchPlaybackCompletion(player: AudioPlayer): void {
   currentPlaybackSubscription?.remove();
   currentPlaybackSubscription = player.addListener("playbackStatusUpdate", (status) => {
     if (!status.didJustFinish) return;
+    // A stale native completion event must never restore audio mode while a
+    // newer Yna clip is using Bluetooth audio focus.
+    if (currentPlayer !== player) return;
     currentPlaybackSubscription?.remove();
     currentPlaybackSubscription = null;
-    if (currentPlayer === player) currentPlayer = null;
-    setTimeout(() => { void releaseAlertAudioFocus(); }, 250);
+    currentPlayer = null;
+    cancelPendingFocusRelease();
+    // Car head units can retain close to a second of decoded A2DP audio. Keep
+    // exclusive focus until that tail drains, then restore music only if no
+    // newer alert has started.
+    focusReleaseTimer = setTimeout(() => {
+      focusReleaseTimer = null;
+      if (currentPlayer !== null) return;
+      void releaseAlertAudioFocus();
+    }, BLUETOOTH_DRAIN_MS);
   });
 }
 
@@ -113,6 +132,7 @@ function getCachedPlayer(key: string): AudioPlayer | null {
 }
 
 export function resetAlertPlayerCache(): void {
+  cancelPendingFocusRelease();
   for (const player of playerCache.values()) {
     try {
       player.pause();
@@ -135,6 +155,7 @@ export function getAlertVoiceDisabled(): boolean {
 }
 
 export function stopAlertVoice(): void {
+  cancelPendingFocusRelease();
   currentPlaybackSubscription?.remove();
   currentPlaybackSubscription = null;
   try {

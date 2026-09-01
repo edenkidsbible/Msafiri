@@ -18,4 +18,4 @@ Foreground safety alerts should request transient `doNotMix` audio focus for the
 
 **Why:** Many Bluetooth head units do not honour ducking cleanly; music and spoken alerts remain loud simultaneously and produce clipping or distorted, competing audio.
 
-**How to apply:** Acquire exclusive focus before the alert chime, renew it when the delayed voice starts, and restore music from the player's `didJustFinish` event—not a fixed timer. Keep only a long emergency timeout. On iOS, preserve `allowsRecording: true` while dashcam audio is active so only the mixing option changes and CameraView keeps microphone ownership.
+**How to apply:** Acquire exclusive focus before the alert chime and renew it when delayed voice starts. Restore only from the current player's `didJustFinish`, cancel older delayed restores when a new clip starts, and allow a 1-second Bluetooth buffer drain before changing audio mode. Keep only a long emergency timeout. On iOS, preserve `allowsRecording: true` while dashcam audio is active so only the mixing option changes and CameraView keeps microphone ownership.
