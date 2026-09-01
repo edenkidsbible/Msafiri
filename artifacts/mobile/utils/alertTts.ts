@@ -197,7 +197,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       // Reuse the pre-initialized player — seek to start and play immediately.
       // This path has no native initialization cost so audio starts in <50 ms.
       currentPlayer = cached;
-      cached.volume = 1;
+      cached.volume = 0.5;
       await cached.seekTo(0);
       if (
         expectedGeneration != null &&
@@ -211,7 +211,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
         { uri: `${API_BASE}/tts?text=${encodeURIComponent(key + " ahead")}` }
       );
       currentPlayer = player;
-      player.volume = 1;
+      player.volume = 0.5;
       if (
         expectedGeneration != null &&
         (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
@@ -308,7 +308,7 @@ export async function speakAlertPhrase(text: string): Promise<void> {
   try {
     const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
     currentPlayer = player;
-    player.volume = 1;
+    player.volume = 0.5;
     if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
     player.play();
   } catch (err) {

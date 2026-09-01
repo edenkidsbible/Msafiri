@@ -11,3 +11,11 @@ For a large sound library, do not pre-create one native player per asset. Load o
 **Why:** Centralizing playback keeps call sites and mute handling consistent, but eagerly allocating dozens of `AudioPlayer` instances can exhaust or destabilize native decoder/player resources and make every later playback silently fail.
 
 **How to apply:** Cache a few recently used players for in-app sounds and explicitly remove stale/evicted ones. This is separate from push-notification audio, which is controlled by the OS notification sound/channel configuration.
+
+## Bluetooth car audio focus
+
+Foreground safety alerts should request transient `doNotMix` audio focus for the complete chime-and-voice sequence, then restore the prior baseline. Do not rely on `duckOthers` for car speakers.
+
+**Why:** Many Bluetooth head units do not honour ducking cleanly; music and spoken alerts remain loud simultaneously and produce clipping or distorted, competing audio.
+
+**How to apply:** Acquire exclusive focus before the alert chime, renew it when the delayed voice starts, and restore music after the longest bundled phrase has finished. On iOS, preserve `allowsRecording: true` while dashcam audio is active so only the mixing option changes and CameraView keeps microphone ownership.

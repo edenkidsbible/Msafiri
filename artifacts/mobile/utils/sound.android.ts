@@ -11,6 +11,9 @@ export type SoundKey = keyof typeof SOURCES;
 const players: Partial<Record<SoundKey, AudioPlayer>> = {};
 let soundsMuted = false;
 let audioModePromise: Promise<void> | null = null;
+let alertFocusPromise: Promise<void> | null = null;
+let alertFocusTimer: ReturnType<typeof setTimeout> | null = null;
+let alertFocusGeneration = 0;
 
 /**
  * Android's alert path deliberately avoids the dashcam's recording audio-mode
@@ -34,7 +37,7 @@ export async function ensureAudioMode(): Promise<void> {
 }
 
 export async function duckForAlert(): Promise<void> {
-  await ensureAudioMode();
+  await acquireAlertAudioFocus();
 }
 
 export async function setDashcamAudioMode(_recording: boolean): Promise<void> {
@@ -44,6 +47,12 @@ export async function setDashcamAudioMode(_recording: boolean): Promise<void> {
 
 export function resetAudioMode(): void {
   audioModePromise = null;
+  alertFocusGeneration += 1;
+  alertFocusPromise = null;
+  if (alertFocusTimer !== null) {
+    clearTimeout(alertFocusTimer);
+    alertFocusTimer = null;
+  }
   for (const key of Object.keys(players) as SoundKey[]) {
     try {
       players[key]?.pause();
@@ -53,6 +62,52 @@ export function resetAudioMode(): void {
     }
     delete players[key];
   }
+}
+
+/**
+ * Car head units often ignore ducking and leave music competing with the Yna
+ * voice. Request transient exclusive focus for the complete chime + voice
+ * sequence, then restore normal ducking so music can resume.
+ */
+async function acquireAlertAudioFocus(): Promise<void> {
+  if (alertFocusTimer !== null) {
+    clearTimeout(alertFocusTimer);
+    alertFocusTimer = null;
+  }
+  const generation = ++alertFocusGeneration;
+  if (!alertFocusPromise) {
+    alertFocusPromise = setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: "doNotMix",
+      allowsRecording: false,
+      shouldPlayInBackground: true,
+      shouldRouteThroughEarpiece: false,
+    })
+      .catch((error) => {
+        audioModePromise = null;
+        console.warn("[androidSound] Alert audio focus failed:", error);
+      })
+      .finally(() => {
+        alertFocusPromise = null;
+      });
+  }
+  await alertFocusPromise;
+  if (generation !== alertFocusGeneration) return;
+  alertFocusTimer = setTimeout(async () => {
+    alertFocusTimer = null;
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: "duckOthers",
+        allowsRecording: false,
+        shouldPlayInBackground: true,
+        shouldRouteThroughEarpiece: false,
+      });
+      audioModePromise = Promise.resolve();
+    } catch {
+      audioModePromise = null;
+    }
+  }, 7_000);
 }
 
 function getPlayer(key: SoundKey): AudioPlayer | null {
@@ -78,7 +133,11 @@ export function getSoundsMuted(): boolean {
 export async function playSound(key: SoundKey): Promise<void> {
   if (soundsMuted) return;
   try {
-    await ensureAudioMode();
+    if (key === "alert") {
+      await acquireAlertAudioFocus();
+    } else {
+      await ensureAudioMode();
+    }
     const player = getPlayer(key);
     if (!player) return;
     player.volume = 1;

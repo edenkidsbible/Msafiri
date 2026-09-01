@@ -44,6 +44,11 @@ let audioModePromise: Promise<void> | null = null;
  */
 export function resetAudioMode(): void {
   audioModePromise = null;
+  duckRestoreGeneration += 1;
+  if (duckRestoreTimer !== null) {
+    clearTimeout(duckRestoreTimer);
+    duckRestoreTimer = null;
+  }
   // Also reset the duck-mode singleton so concurrent dashcam-path callers
   // don't join a stale in-flight call that can never resolve.
   duckModePromise  = null;
@@ -103,34 +108,19 @@ let duckRestoreGeneration = 0;
 let duckModePromise: Promise<void> | null = null;
 
 /**
- * Duck Bluetooth music momentarily for an alert, then restore full volume.
+ * Pause competing Bluetooth music momentarily for an alert, then restore it.
  *
- * When the dashcam is NOT recording: delegates to ensureAudioMode() which
- * already uses duckOthers — no change in behaviour.
+ * Car head units frequently do not honour duckOthers correctly, leaving the
+ * music and Yna voice competing at nearly full volume. doNotMix requests
+ * transient exclusive focus so the music pauses for the complete chime +
+ * spoken alert sequence.
  *
- * When the dashcam IS recording: the session is in PlayAndRecord+MixWithOthers
- * so that Bluetooth A2DP music plays alongside the camera microphone.  Alerts
- * in this mode previously mixed at full volume with the music, causing
- * clipping/distortion through the car speakers.
- *
- * This function temporarily switches to PlayAndRecord+DuckOthers (same
- * AVAudioSession CATEGORY — only the option changes, which is safe for the
- * active AVCaptureSession), lets the alert duck the music, then schedules a
- * restore back to MixWithOthers ~5 s after the last alert fires so music
- * returns to full volume automatically.  Rapid back-to-back alerts debounce
- * the restore so the mode never flips mid-alert.
+ * When dashcam audio is active, allowsRecording remains true. This preserves
+ * the PlayAndRecord category and changes only its mixing option, so CameraView
+ * keeps its microphone session while the competing media pauses.
  */
 export async function duckForAlert(): Promise<void> {
   if (Platform.OS === "web") return;
-
-  if (!dashcamAudioActive) {
-    // Normal path: ensureAudioMode already serialises concurrent callers via
-    // its own audioModePromise singleton — no additional protection needed.
-    await ensureAudioMode();
-    return;
-  }
-
-  // Dashcam path: temporarily duck while keeping the camera session alive.
 
   // Cancel any pending restore and bump the generation so any already-
   // scheduled restore timer knows it has been superseded.
@@ -145,17 +135,16 @@ export async function duckForAlert(): Promise<void> {
   // the alert chime and the TTS voice are triggered in the same JS tick.
   if (!duckModePromise) {
     duckModePromise = setAudioModeAsync({
-      // Switching interruptionMode within PlayAndRecord does NOT change the
-      // AVAudioSession category (allowsRecording stays true) so the active
-      // AVCaptureSession is unaffected.  This only adjusts the session option
-      // that controls how other apps' audio output is treated.
+      // doNotMix gives the alert exclusive focus instead of asking unreliable
+      // car head units to lower competing music themselves.
       playsInSilentMode:          true,
-      interruptionMode:           "duckOthers",
-      allowsRecording:            true,   // keep PlayAndRecord — camera stays live
+      interruptionMode:           "doNotMix",
+      allowsRecording:            dashcamAudioActive,
       shouldPlayInBackground:     true,
       shouldRouteThroughEarpiece: false,
     }).catch(() => {
-      // Non-fatal: alert plays mixed rather than ducked; camera continues.
+      // Non-fatal: playback can still proceed and the next alert retries.
+      audioModePromise = null;
     }).finally(() => {
       duckModePromise = null;
     });
@@ -167,21 +156,23 @@ export async function duckForAlert(): Promise<void> {
   // generation), we skip — the newer caller already owns the timer.
   if (myGeneration !== duckRestoreGeneration) return;
 
-  // Restore MixWithOthers ~5 s after the last alert fires.  Debounced so
-  // rapid consecutive alerts don't flip the session back between cues.
+  // Hold focus through the immediate chime and the delayed Yna phrase, then
+  // restore the correct baseline for the current dashcam state.
   duckRestoreTimer = setTimeout(async () => {
     duckRestoreTimer = null;
-    if (!dashcamAudioActive) return; // dashcam stopped while we were waiting
     try {
       await setAudioModeAsync({
         playsInSilentMode:          true,
-        interruptionMode:           "mixWithOthers",
-        allowsRecording:            true,
+        interruptionMode:           dashcamAudioActive ? "mixWithOthers" : "duckOthers",
+        allowsRecording:            dashcamAudioActive,
         shouldPlayInBackground:     true,
         shouldRouteThroughEarpiece: false,
       });
-    } catch { /* non-critical */ }
-  }, 5_000);
+      audioModePromise = Promise.resolve();
+    } catch {
+      audioModePromise = null;
+    }
+  }, 7_000);
 }
 
 /**
@@ -278,7 +269,11 @@ export function getSoundsMuted(): boolean {
 export async function playSound(key: SoundKey) {
   if (soundsMuted) return;
   if (key === "alert" && !canDeliverForegroundAlert()) return;
-  await duckForAlert();
+  if (key === "alert") {
+    await duckForAlert();
+  } else {
+    await ensureAudioMode();
+  }
   if (key === "alert" && !canDeliverForegroundAlert()) return;
   const player = getPlayer(key);
   if (!player) return;

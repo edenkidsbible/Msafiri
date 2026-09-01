@@ -155,7 +155,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
     const player = getCachedPlayer(key);
     if (player) {
       currentPlayer = player;
-      player.volume = 1;
+      player.volume = 0.5;
       await player.seekTo(0);
       if (
         expectedGeneration != null &&
@@ -170,7 +170,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       { downloadFirst: true },
     );
     currentPlayer = remotePlayer;
-    remotePlayer.volume = 1;
+    remotePlayer.volume = 0.5;
     if (
       expectedGeneration != null &&
       (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
@@ -236,7 +236,7 @@ export async function speakAlertPhrase(text: string): Promise<void> {
       { downloadFirst: true },
     );
     currentPlayer = player;
-    player.volume = 1;
+    player.volume = 0.5;
     if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
     player.play();
   } catch (error) {

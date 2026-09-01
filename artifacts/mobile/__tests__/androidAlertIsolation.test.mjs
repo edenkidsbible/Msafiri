@@ -9,10 +9,12 @@ const backgroundAlerts = fs.readFileSync(new URL("../utils/backgroundDriveAlerts
 
 test("Android alert audio has its own high-volume runtime", () => {
   assert.match(androidSound, /shouldPlayInBackground:\s*true/);
+  assert.match(androidSound, /interruptionMode:\s*"doNotMix"/);
+  assert.match(androidSound, /key === "alert"/);
   assert.match(androidSound, /player\.volume = 1/);
   assert.match(androidSound, /setDashcamAudioMode/);
-  assert.match(androidVoice, /player\.volume = 1/);
-  assert.match(androidVoice, /remotePlayer\.volume = 1/);
+  assert.match(androidVoice, /player\.volume = 0\.5/);
+  assert.match(androidVoice, /remotePlayer\.volume = 0\.5/);
 });
 
 test("Android background alerts verify the channel before scheduling", () => {
