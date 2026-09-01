@@ -643,7 +643,10 @@ export default function HomeScreen() {
           }}
           onLongPress={() => { longPressedRef.current = true; openChecklist(); }}
           delayLongPress={600}
-          style={({ pressed }) => [pressed && { transform: [{ scale: 0.985 }] }]}
+          style={({ pressed }) => [
+            { width: "100%" },
+            pressed && { transform: [{ scale: 0.985 }] },
+          ]}
         >
           <LinearGradient
             colors={
@@ -1137,7 +1140,6 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "stretch",
     borderRadius: 22, marginTop: 16, overflow: "hidden",
     minHeight: 152, aspectRatio: 1711 / 919,
-    alignSelf: "stretch",
   },
   // Large vehicle image on the left — no padding so it bleeds to the card edge
   heroImgWrap: {

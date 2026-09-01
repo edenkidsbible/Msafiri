@@ -242,23 +242,12 @@ export function HeroCarousel({ activeVehicle }: Props) {
         >
           <View pointerEvents="none" style={styles.artHaloInnerRing} />
 
-          {/* Narrow phone/contact-style watermark inside the circular halo. */}
-          <View
-            style={[
-              styles.artInnerBackdrop,
-              {
-                width: Math.round(artworkSize * 0.38),
-                height: Math.round(artworkSize * 0.65),
-              },
-            ]}
-          >
-            <Ionicons
-              name={watermarkIcon}
-              size={Math.round(artworkSize * 0.43)}
-              color="#B8F1CD"
-              style={styles.artWatermark}
-            />
-          </View>
+          <Ionicons
+            name={watermarkIcon}
+            size={Math.round(artworkSize * 0.43)}
+            color="#E4FFED"
+            style={styles.artWatermark}
+          />
         </View>
 
         <Animated.View
@@ -324,8 +313,8 @@ const styles = StyleSheet.create({
   artHalo: {
     position: "absolute",
     borderWidth: 3,
-    borderColor: "#FFFFFF2B",
-    backgroundColor: "#FFFFFF0A",
+    borderColor: "#FFFFFF4A",
+    backgroundColor: "#FFFFFF12",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -336,18 +325,10 @@ const styles = StyleSheet.create({
     bottom: 7,
     left: 7,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#FFFFFF18",
-  },
-  artInnerBackdrop: {
-    borderRadius: 16,
     borderWidth: 2,
-    borderColor: "#FFFFFF1F",
-    backgroundColor: "#FFFFFF05",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: "#FFFFFF2E",
   },
-  artWatermark: { opacity: 0.15 },
+  artWatermark: { opacity: 0.3 },
   artInnerPeople: {
     position: "absolute",
     alignItems: "center",
