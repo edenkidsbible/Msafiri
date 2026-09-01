@@ -20,6 +20,9 @@ export const deviceBackupsTable = pgTable("device_backups", {
   deviceId:      text("device_id").notNull().unique(),
   /** E.164 phone number linked for OTP-based restore. */
   phoneNumber:   text("phone_number"),
+  /** Legacy email restore identifier. Kept because older restore flows and
+   * existing records still use this column. */
+  recoveryEmail: text("recovery_email"),
   /** JSON array of SavedVehicle objects (includes plateNumber). */
   vehiclesJson:  text("vehicles_json").notNull().default("[]"),
   /** JSON object — arbitrary app settings (theme, driver name, etc.). */

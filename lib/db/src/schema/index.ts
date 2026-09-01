@@ -19,6 +19,7 @@ export * from "./crashEvents";
 export * from "./accidents";
 export * from "./customVehicles";
 export * from "./deviceBackups";
+export * from "./liveTrips";
 export * from "./sharedVehicles";
 export * from "./inbox";
 export * from "./ops";
