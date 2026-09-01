@@ -62,6 +62,7 @@ const ALERT_AUDIO: Record<string, unknown> = {
 };
 
 const playerCache = new Map<string, AudioPlayer>();
+const MAX_CACHED_PLAYERS = 4;
 let currentPlayer: AudioPlayer | null = null;
 let voiceDisabled = false;
 
@@ -69,6 +70,10 @@ function getCachedPlayer(key: string): AudioPlayer | null {
   const source = ALERT_AUDIO[key];
   if (!source) return null;
   let player = playerCache.get(key);
+  if (player) {
+    playerCache.delete(key);
+    playerCache.set(key, player);
+  }
   if (!player) {
     try {
       player = createAudioPlayer(
@@ -76,6 +81,17 @@ function getCachedPlayer(key: string): AudioPlayer | null {
         { downloadFirst: true },
       );
       playerCache.set(key, player);
+      if (playerCache.size > MAX_CACHED_PLAYERS) {
+        const oldestKey = playerCache.keys().next().value as string | undefined;
+        if (oldestKey) {
+          const oldest = playerCache.get(oldestKey);
+          playerCache.delete(oldestKey);
+          try {
+            oldest?.pause();
+            oldest?.remove();
+          } catch {}
+        }
+      }
     } catch (error) {
       console.warn(`[androidAlertTts] Failed to create ${key} player:`, error);
       return null;
@@ -187,7 +203,8 @@ export async function speakAlertMulti(type: string): Promise<void> {
 }
 
 export function prewarmAlertAudio(): void {
-  for (const key of Object.keys(ALERT_AUDIO)) getCachedPlayer(key);
+  // Intentionally load on demand. Creating every native player at startup can
+  // exhaust Android's decoder/player pool and leave all alert clips silent.
 }
 
 export function prewarmNavAudio(): void {

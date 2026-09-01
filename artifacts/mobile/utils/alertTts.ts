@@ -83,21 +83,37 @@ const ALERT_AUDIO: Record<string, unknown> = {
 };
 
 // ─── Player cache ─────────────────────────────────────────────────────────────
-// Players are created once per bundled key and reused — seeking back to 0 and
-// calling play() is near-instant. Creating a new AudioPlayer each time costs
-// 1-3 s on iOS/Android because the OS needs to initialize the native player,
-// decode, and buffer the asset before the first frame can play.
+// Keep only a few recently-used native players alive. Pre-creating a player for
+// every bundled clip can exhaust the platform decoder/player pool and leave all
+// subsequent play() calls silently doing nothing.
 
 const playerCache = new Map<string, AudioPlayer>();
+const MAX_CACHED_PLAYERS = 4;
 
 function getCachedPlayer(key: string): AudioPlayer | null {
   const bundled = ALERT_AUDIO[key];
   if (!bundled) return null;
   let player = playerCache.get(key);
+  if (player) {
+    // Refresh insertion order so eviction behaves like a small LRU cache.
+    playerCache.delete(key);
+    playerCache.set(key, player);
+  }
   if (!player) {
     try {
       player = createAudioPlayer(bundled as Parameters<typeof createAudioPlayer>[0]);
       playerCache.set(key, player);
+      if (playerCache.size > MAX_CACHED_PLAYERS) {
+        const oldestKey = playerCache.keys().next().value as string | undefined;
+        if (oldestKey) {
+          const oldest = playerCache.get(oldestKey);
+          playerCache.delete(oldestKey);
+          try {
+            oldest?.pause();
+            oldest?.remove();
+          } catch {}
+        }
+      }
     } catch {
       return null;
     }
@@ -126,7 +142,10 @@ export function resetAlertPlayerCache(): void {
   // resources; pausing before dropping the reference prevents them from
   // continuing to play (or holding audio focus) after the cache is cleared.
   for (const player of playerCache.values()) {
-    try { player.pause(); } catch {}
+    try {
+      player.pause();
+      player.remove();
+    } catch {}
   }
   playerCache.clear();
   currentPlayer = null;
@@ -179,7 +198,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       // This path has no native initialization cost so audio starts in <50 ms.
       currentPlayer = cached;
       cached.volume = 0.5;
-      cached.seekTo(0);
+      await cached.seekTo(0);
       if (
         expectedGeneration != null &&
         (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
@@ -249,16 +268,12 @@ export async function speakAlertMulti(type: string): Promise<void> {
 // no network call, no latency, plays on first trip.
 
 /**
- * Pre-create native audio players for every bundled alert asset.
- * Call once at app startup (after the splash screen) so the very first alert
- * or report confirmation plays without the 1–3 s player-initialization delay.
- * Safe to call multiple times — players are cached and won't be recreated.
+ * Alert clips are intentionally loaded on demand. Eagerly creating every
+ * bundled player at startup can exhaust native audio resources and silence the
+ * whole alert path. Kept as a no-op for call-site compatibility.
  */
 export function prewarmAlertAudio(): void {
-  if (Platform.OS === "web") return;
-  for (const key of Object.keys(ALERT_AUDIO)) {
-    getCachedPlayer(key); // creates + caches if not already present
-  }
+  // Intentionally empty.
 }
 
 /** @deprecated Use prewarmAlertAudio() — this alias kept for call-site compat. */
