@@ -645,6 +645,7 @@ export default function HomeScreen() {
           delayLongPress={600}
           style={({ pressed }) => [
             { width: "100%" },
+            { alignSelf: "stretch" },
             pressed && { transform: [{ scale: 0.985 }] },
           ]}
         >
@@ -1139,7 +1140,7 @@ const styles = StyleSheet.create({
   heroCard: {
     flexDirection: "row", alignItems: "stretch",
     borderRadius: 22, marginTop: 16, overflow: "hidden",
-    minHeight: 152, aspectRatio: 1711 / 919,
+    width: "100%", minHeight: 152, aspectRatio: 1711 / 919,
   },
   // Large vehicle image on the left — no padding so it bleeds to the card edge
   heroImgWrap: {
