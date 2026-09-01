@@ -134,8 +134,11 @@ export default function RoadChannelsVoiceReporter({
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recording = useAudioRecorderState(recorder, 200);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendCountdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sendCountdownRef = useRef(0);
   const startInFlightRef = useRef(false);
   const recordingActiveRef = useRef(false);
+  const pressHeldRef = useRef(false);
   const startGenerationRef = useRef(0);
   const mountedRef = useRef(true);
   const voiceAudioModeActiveRef = useRef(false);
@@ -144,6 +147,7 @@ export default function RoadChannelsVoiceReporter({
   const resumeDashcamRef = useRef(resumeDashcamAfterVoice);
   useEffect(() => { resumeDashcamRef.current = resumeDashcamAfterVoice; }, [resumeDashcamAfterVoice]);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
+  const [sendCountdown, setSendCountdown] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [interpretation, setInterpretation] = useState<VoiceInterpretation | null>(null);
@@ -177,6 +181,13 @@ export default function RoadChannelsVoiceReporter({
   const clearStopTimer = () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
     stopTimer.current = null;
+  };
+
+  const clearSendCountdown = (updateState = true) => {
+    if (sendCountdownTimer.current) clearInterval(sendCountdownTimer.current);
+    sendCountdownTimer.current = null;
+    sendCountdownRef.current = 0;
+    if (updateState) setSendCountdown(null);
   };
 
   const resumeDashcamIfNeeded = async () => {
@@ -349,7 +360,9 @@ export default function RoadChannelsVoiceReporter({
     return () => {
       mountedRef.current = false;
       startGenerationRef.current += 1;
+      pressHeldRef.current = false;
       clearStopTimer();
+      clearSendCountdown(false);
       // useAudioRecorder owns native recorder disposal on unmount. Never read
       // or call that shared object here because Expo may already have released
       // it before this cleanup executes.
@@ -360,6 +373,24 @@ export default function RoadChannelsVoiceReporter({
         .finally(() => { void resumeDashcamIfNeeded(); });
     };
   }, []);
+
+  const startAutoSendCountdown = (uri: string) => {
+    clearSendCountdown();
+    sendCountdownRef.current = 3;
+    setSendCountdown(3);
+    setMessage("Sending privately in 3 seconds…");
+    sendCountdownTimer.current = setInterval(() => {
+      const next = sendCountdownRef.current - 1;
+      sendCountdownRef.current = next;
+      if (next <= 0) {
+        clearSendCountdown();
+        void interpret(uri);
+      } else {
+        setSendCountdown(next);
+        setMessage(`Sending privately in ${next} second${next === 1 ? "" : "s"}…`);
+      }
+    }, 1_000);
+  };
 
   const stopRecording = async () => {
     clearStopTimer();
@@ -382,7 +413,7 @@ export default function RoadChannelsVoiceReporter({
         return;
       }
       setRecordedUri(uri);
-      setMessage("Ready to check your report.");
+      startAutoSendCountdown(uri);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not stop recording.");
     }
@@ -470,6 +501,10 @@ export default function RoadChannelsVoiceReporter({
       if (cancelled()) return void await abortCancelledStart();
       recorder.record();
       recordingActiveRef.current = true;
+      if (!pressHeldRef.current) {
+        await stopRecording();
+        return;
+      }
       stopTimer.current = setTimeout(() => { void stopRecording(); }, MAX_SECONDS * 1000);
     } catch (error) {
       await restoreVoiceAudioMode().catch(() => {});
@@ -482,10 +517,12 @@ export default function RoadChannelsVoiceReporter({
     }
   };
 
-  const interpret = async () => {
-    if (!recordedUri) return;
+  const interpret = async (uriOverride?: string) => {
+    const uri = uriOverride ?? recordedUri;
+    if (!uri) return;
+    clearSendCountdown();
     setBusy(true);
-    setMessage("Listening to your report…");
+    setMessage("Sending privately — understanding your report…");
     try {
       const context = {
         deviceId,
@@ -493,13 +530,13 @@ export default function RoadChannelsVoiceReporter({
         channelId: reportingChannel?.id,
         roadName,
       };
-      const fileInfo = await getInfoAsync(recordedUri);
+      const fileInfo = await getInfoAsync(uri);
       if (!fileInfo.exists || !fileInfo.size) throw new Error("The voice recording could not be read.");
       const request = await requestVoiceUpload(context, {
         contentType: VOICE_CONTENT_TYPE,
         sizeBytes: fileInfo.size,
       });
-      await uploadVoiceRecording(request, recordedUri, VOICE_CONTENT_TYPE);
+      await uploadVoiceRecording(request, uri, VOICE_CONTENT_TYPE);
       const result = await interpretVoiceReport(request.voiceReportId, context);
       setInterpretation(result);
       setMessage(null);
@@ -541,6 +578,7 @@ export default function RoadChannelsVoiceReporter({
   };
 
   const rerecord = () => {
+    clearSendCountdown();
     setRecordedUri(null);
     setInterpretation(null);
     setMessage(null);
@@ -549,6 +587,7 @@ export default function RoadChannelsVoiceReporter({
 
   const cancel = () => {
     clearStopTimer();
+    clearSendCountdown();
     if (recordingActiveRef.current) {
       recordingActiveRef.current = false;
       void recorder.stop().finally(() => {
@@ -563,8 +602,16 @@ export default function RoadChannelsVoiceReporter({
     onCancelled?.();
   };
 
+  const cancelPendingSend = () => {
+    clearSendCountdown();
+    setRecordedUri(null);
+    setInterpretation(null);
+    reportLocationRef.current = null;
+    setMessage("Send cancelled. Hold to record again.");
+  };
+
   const isRecording = recording.isRecording;
-  const actionLabel = isRecording ? "Tap to stop" : recordedUri ? "Understand report" : "Tap and speak";
+  const actionLabel = isRecording ? "Release to send" : recordedUri ? "Sending…" : "Hold to record";
   // Voice reports are useful even when no live Road Channel is nearby. Keep
   // the action available throughout an active drive; recording itself will
   // explain a missing GPS/device prerequisite instead of making the mic look
@@ -714,18 +761,37 @@ export default function RoadChannelsVoiceReporter({
           testID="road-channels-voice-action"
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
-          accessibilityHint={isRecording ? "Stops and saves the voice report" : "Starts a voice report up to 15 seconds"}
-           disabled={busy || Platform.OS === "web" || !canReport}
-          onPress={isRecording ? () => { void stopRecording(); } : recordedUri ? interpret : () => { void startRecording(); }}
-           style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || !canReport) && styles.disabled]}
+          accessibilityHint={isRecording ? "Release to stop recording and send privately" : "Press and hold to record for up to 15 seconds"}
+           disabled={busy || Platform.OS === "web" || !canReport || !!recordedUri}
+          onPressIn={isRecording ? undefined : () => {
+            pressHeldRef.current = true;
+            void startRecording();
+          }}
+          onPressOut={() => {
+            pressHeldRef.current = false;
+            if (recordingActiveRef.current) void stopRecording();
+          }}
+           style={[styles.primaryAction, { backgroundColor: isRecording ? c.destructive : c.primary }, (busy || Platform.OS === "web" || !canReport || !!recordedUri) && styles.disabled]}
         >
           <Ionicons name={isRecording ? "stop-circle" : "mic"} size={34} color={c.primaryForeground} />
           <Text style={[styles.primaryText, { color: c.primaryForeground }]}>{busy ? "Please wait…" : actionLabel}</Text>
         </TouchableOpacity>
       )}
 
+      {!interpretation && !busy && (
+        <Text style={[styles.recordingHint, { color: c.mutedForeground }]}>
+          {sendCountdown != null
+            ? `Sending in ${sendCountdown} second${sendCountdown === 1 ? "" : "s"} · max recording ${MAX_SECONDS} seconds`
+            : `Hold to record · release to send · max ${MAX_SECONDS} seconds`}
+        </Text>
+      )}
+      {sendCountdown != null && !busy && (
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Cancel voice report send" onPress={cancelPendingSend} style={styles.cancelSend}>
+          <Text style={[styles.cancelSendLabel, { color: c.destructive }]}>Cancel send</Text>
+        </TouchableOpacity>
+      )}
       {message && <Text accessibilityLiveRegion="polite" style={[styles.message, { color: c.mutedForeground }]}>{message}</Text>}
-      {(recordedUri || interpretation) && !busy && (
+      {interpretation && !busy && (
         <View style={styles.options}>
           <TouchableOpacity accessibilityRole="button" onPress={rerecord} style={styles.textAction}>
             <Text style={[styles.textActionLabel, { color: c.primary }]}>Re-record</Text>
@@ -763,6 +829,9 @@ const styles = StyleSheet.create({
   timer: { fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center", marginVertical: 8 },
   primaryAction: { minHeight: 112, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 7, marginTop: 6 },
   primaryText: { fontFamily: "Inter_700Bold", fontSize: 19 },
+  recordingHint: { fontFamily: "Inter_500Medium", fontSize: 13, textAlign: "center", lineHeight: 18 },
+  cancelSend: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
+  cancelSendLabel: { fontFamily: "Inter_700Bold", fontSize: 15 },
   disabled: { opacity: 0.55 },
   message: { fontFamily: "Inter_500Medium", fontSize: 14, lineHeight: 20, textAlign: "center" },
   result: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 7 },
