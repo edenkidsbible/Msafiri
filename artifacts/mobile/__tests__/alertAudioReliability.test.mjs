@@ -29,7 +29,15 @@ for (const [platform, source] of [["iOS", iosVoice], ["Android", androidVoice]])
 test("foreground alerts pause competing Bluetooth media instead of mixing", () => {
   for (const source of [iosSound, androidSound]) {
     assert.match(source, /interruptionMode:\s*"doNotMix"/);
-    assert.match(source, /7_000/);
+    assert.match(source, /30_000/);
+  }
+});
+
+test("music resumes only after the complete Yna clip finishes", () => {
+  for (const source of [iosVoice, androidVoice]) {
+    assert.match(source, /playbackStatusUpdate/);
+    assert.match(source, /status\.didJustFinish/);
+    assert.match(source, /releaseAlertAudioFocus/);
   }
 });
 

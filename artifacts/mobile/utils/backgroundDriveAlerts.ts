@@ -200,8 +200,27 @@ function roadsMatch(aRoad: string | null | undefined, bRoad: string | null | und
   const a = normalizeRoad(aRoad);
   const b = normalizeRoad(bRoad);
   if (!a || !b) return false;
-  if (a === b || a.includes(b) || b.includes(a)) return true;
+  if (a === b) return true;
   return ROAD_ALIASES.some((group) => group.includes(a) && group.includes(b));
+}
+
+/** Reject alerts that are merely in front of the vehicle but sit laterally on
+ * a branch, service road, or nearby parallel road. */
+function followsCurrentTravelCorridor(
+  driverLat: number,
+  driverLng: number,
+  driverHeading: number | null,
+  targetLat: number,
+  targetLng: number,
+): boolean {
+  if (driverHeading == null) return true;
+  const distanceM = haversine(driverLat, driverLng, targetLat, targetLng);
+  const angle = Math.abs(
+    ((bearingDeg(driverLat, driverLng, targetLat, targetLng) - driverHeading + 540) % 360) - 180,
+  );
+  if (angle > 35) return false;
+  const lateralM = Math.abs(distanceM * Math.sin(angle * Math.PI / 180));
+  return lateralM <= 75;
 }
 
 // ── Notification sound helpers ────────────────────────────────────────────────
@@ -498,6 +517,7 @@ export function defineBackgroundDriveAlertsTask(): void {
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
           if (z.road && !roadsMatch(currentRoad, z.road)) continue;
           if (currentHeading != null && alongTrackDistanceM(lat, lng, currentHeading, z.lat, z.lng) <= 0) continue;
+          if (!followsCurrentTravelCorridor(lat, lng, currentHeading, z.lat, z.lng)) continue;
           if (!winner || d < winner.dist) {
             winner = { id: z.id, type: z.type, dist: d, speedLimit: z.speedLimit, name: z.name, road: z.road, lat: z.lat, lng: z.lng };
           }
@@ -509,6 +529,7 @@ export function defineBackgroundDriveAlertsTask(): void {
           if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
           if (r.road && !roadsMatch(currentRoad, r.road)) continue;
           if (currentHeading != null && alongTrackDistanceM(lat, lng, currentHeading, r.lat, r.lng) <= 0) continue;
+          if (!followsCurrentTravelCorridor(lat, lng, currentHeading, r.lat, r.lng)) continue;
           if (!winner || d < winner.dist) {
             winner = {
               id:         r.id,

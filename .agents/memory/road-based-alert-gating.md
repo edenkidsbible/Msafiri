@@ -14,7 +14,9 @@ Fire a road-tagged drive alert only when the driver is moving, approaching the i
 - **Background**: refresh the road from the background GPS fix when cached context is stale or too far from the current position.
 
 ## `roadsMatch()` normalisation
-Strips parenthetical codes `(A2)`, road-type words (road/highway/way/bypass…), punctuation, extra spaces — then checks exact match or substring inclusion. Handles "Thika Superhighway (A2)" ↔ "Thika Road" and "A104 (Eldoret–Nakuru)" ↔ "A104 Highway".
+Strips parenthetical codes `(A2)`, road-type words (road/highway/way/bypass…), punctuation, extra spaces, then requires exact normalised identity or an explicit audited alias. Never use substring matching: it merges named branches such as "Mombasa Road" and "Old Mombasa Road".
+
+When navigation is active, the chosen route polyline is authoritative: safety alerts must be ahead in route order and within a tight 60 m route corridor. Without navigation, combine road identity with a narrow heading/lateral corridor; a positive along-track value alone only proves the pin is somewhere in the forward half-plane.
 
 ## Dismissal
 The old >75° heading check is replaced by: if `currentRoadRef.current` and the incident's road are both known and `roadsMatch()` returns false → dismiss. The existing "2 consecutive increasing distances" passed-it check is kept alongside this.

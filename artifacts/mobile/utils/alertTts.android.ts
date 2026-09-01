@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
-import { duckForAlert } from "@/utils/sound";
+import { duckForAlert, releaseAlertAudioFocus } from "@/utils/sound";
 import { API_BASE } from "@/utils/apiClient";
 import {
   canDeliverForegroundAlert,
@@ -64,7 +64,19 @@ const ALERT_AUDIO: Record<string, unknown> = {
 const playerCache = new Map<string, AudioPlayer>();
 const MAX_CACHED_PLAYERS = 4;
 let currentPlayer: AudioPlayer | null = null;
+let currentPlaybackSubscription: { remove(): void } | null = null;
 let voiceDisabled = false;
+
+function watchPlaybackCompletion(player: AudioPlayer): void {
+  currentPlaybackSubscription?.remove();
+  currentPlaybackSubscription = player.addListener("playbackStatusUpdate", (status) => {
+    if (!status.didJustFinish) return;
+    currentPlaybackSubscription?.remove();
+    currentPlaybackSubscription = null;
+    if (currentPlayer === player) currentPlayer = null;
+    setTimeout(() => { void releaseAlertAudioFocus(); }, 250);
+  });
+}
 
 function getCachedPlayer(key: string): AudioPlayer | null {
   const source = ALERT_AUDIO[key];
@@ -123,6 +135,8 @@ export function getAlertVoiceDisabled(): boolean {
 }
 
 export function stopAlertVoice(): void {
+  currentPlaybackSubscription?.remove();
+  currentPlaybackSubscription = null;
   try {
     currentPlayer?.pause();
   } catch {
@@ -161,6 +175,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
         expectedGeneration != null &&
         (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
       ) return;
+      watchPlaybackCompletion(player);
       player.play();
       return;
     }
@@ -175,6 +190,7 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       expectedGeneration != null &&
       (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
     ) return;
+    watchPlaybackCompletion(remotePlayer);
     remotePlayer.play();
   } catch (error) {
     console.warn("[androidAlertTts] Playback failed:", error);
@@ -238,6 +254,7 @@ export async function speakAlertPhrase(text: string): Promise<void> {
     currentPlayer = player;
     player.volume = 0.5;
     if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
+    watchPlaybackCompletion(player);
     player.play();
   } catch (error) {
     console.warn("[androidAlertTts] Phrase playback failed:", error);

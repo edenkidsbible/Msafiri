@@ -40,6 +40,26 @@ export async function duckForAlert(): Promise<void> {
   await acquireAlertAudioFocus();
 }
 
+export async function releaseAlertAudioFocus(): Promise<void> {
+  alertFocusGeneration += 1;
+  if (alertFocusTimer !== null) {
+    clearTimeout(alertFocusTimer);
+    alertFocusTimer = null;
+  }
+  try {
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: "duckOthers",
+      allowsRecording: false,
+      shouldPlayInBackground: true,
+      shouldRouteThroughEarpiece: false,
+    });
+    audioModePromise = Promise.resolve();
+  } catch {
+    audioModePromise = null;
+  }
+}
+
 export async function setDashcamAudioMode(_recording: boolean): Promise<void> {
   // Android's camera module owns recording audio focus. Keeping alert audio
   // separate prevents a dashcam state change from muting road alerts.
@@ -93,21 +113,11 @@ async function acquireAlertAudioFocus(): Promise<void> {
   }
   await alertFocusPromise;
   if (generation !== alertFocusGeneration) return;
-  alertFocusTimer = setTimeout(async () => {
-    alertFocusTimer = null;
-    try {
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        interruptionMode: "duckOthers",
-        allowsRecording: false,
-        shouldPlayInBackground: true,
-        shouldRouteThroughEarpiece: false,
-      });
-      audioModePromise = Promise.resolve();
-    } catch {
-      audioModePromise = null;
-    }
-  }, 7_000);
+  // Emergency fallback only. The voice player releases focus from its
+  // didJustFinish event, preventing this mode change from cutting audio short.
+  alertFocusTimer = setTimeout(() => {
+    void releaseAlertAudioFocus();
+  }, 30_000);
 }
 
 function getPlayer(key: SoundKey): AudioPlayer | null {

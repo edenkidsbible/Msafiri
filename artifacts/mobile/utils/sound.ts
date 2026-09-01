@@ -156,23 +156,34 @@ export async function duckForAlert(): Promise<void> {
   // generation), we skip — the newer caller already owns the timer.
   if (myGeneration !== duckRestoreGeneration) return;
 
-  // Hold focus through the immediate chime and the delayed Yna phrase, then
-  // restore the correct baseline for the current dashcam state.
+  // Emergency fallback only. Normal restoration is driven by the voice
+  // player's didJustFinish event via releaseAlertAudioFocus(), so changing the
+  // audio session can never truncate a long clip.
   duckRestoreTimer = setTimeout(async () => {
+    await releaseAlertAudioFocus();
+  }, 30_000);
+}
+
+/** Restore normal app audio only after the complete Yna clip has finished. */
+export async function releaseAlertAudioFocus(): Promise<void> {
+  if (Platform.OS === "web") return;
+  duckRestoreGeneration += 1;
+  if (duckRestoreTimer !== null) {
+    clearTimeout(duckRestoreTimer);
     duckRestoreTimer = null;
-    try {
-      await setAudioModeAsync({
-        playsInSilentMode:          true,
-        interruptionMode:           dashcamAudioActive ? "mixWithOthers" : "duckOthers",
-        allowsRecording:            dashcamAudioActive,
-        shouldPlayInBackground:     true,
-        shouldRouteThroughEarpiece: false,
-      });
-      audioModePromise = Promise.resolve();
-    } catch {
-      audioModePromise = null;
-    }
-  }, 7_000);
+  }
+  try {
+    await setAudioModeAsync({
+      playsInSilentMode:          true,
+      interruptionMode:           dashcamAudioActive ? "mixWithOthers" : "duckOthers",
+      allowsRecording:            dashcamAudioActive,
+      shouldPlayInBackground:     true,
+      shouldRouteThroughEarpiece: false,
+    });
+    audioModePromise = Promise.resolve();
+  } catch {
+    audioModePromise = null;
+  }
 }
 
 /**

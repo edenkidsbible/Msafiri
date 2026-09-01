@@ -25,7 +25,7 @@ function roadsMatch(aRoad, bRoad) {
   const a = normalizeRoad(aRoad);
   const b = normalizeRoad(bRoad);
   if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  return a === b;
 }
 
 function selectRoadCandidate(currentRoad, candidates) {
@@ -101,6 +101,20 @@ describe("road-aware candidate selection", () => {
       { id: "expressway", road: "Nairobi Expressway", distance: 500 },
     ].filter((candidate) => roadsMatch("Mombasa Road", candidate.road));
     assert.deepEqual(candidates.map(({ id }) => id), ["camera", "roadworks"]);
+  });
+
+  it("does not treat a named branch as the same road by substring", () => {
+    assert.equal(roadsMatch("Mombasa Road", "Old Mombasa Road"), false);
+    assert.equal(roadsMatch("Limuru Road", "Old Limuru Road"), false);
+  });
+
+  it("requires alerts to follow the driven corridor or active route", () => {
+    assert.match(appContextSource, /ALERT_ROUTE_CORRIDOR_M\s*=\s*60/);
+    assert.match(appContextSource, /incident\.offRouteM/);
+    assert.match(appContextSource, /lateralM\s*<=\s*75/);
+    assert.match(appContextSource, /if \(!isOnDrivenPath\(z\.id, "zone"/);
+    assert.match(appContextSource, /if \(!isOnDrivenPath\(r\.id, "report"/);
+    assert.match(appContextSource, /if \(!isOnDrivenPath\(h\.id, "here"/);
   });
 
   it("allows distance/direction fallback when the current road is unavailable", () => {

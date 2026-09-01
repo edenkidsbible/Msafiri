@@ -69,7 +69,7 @@ function roadsMatch(driverRoad, incidentRoad) {
   const b = normalizeRoad(incidentRoad);
   if (!a || !b) return true;
   // One name containing the other covers "Thika" ↔ "Thika Superhighway" etc.
-  return a === b || a.includes(b) || b.includes(a);
+  return a === b;
 }
 
 // ─── Constants (verbatim from AppContext.tsx) ─────────────────────────────────
@@ -245,7 +245,7 @@ describe("normalizeRoad — strips type words and parenthetical codes", () => {
     assert.ok(a.startsWith("a104"), `expected a to start with "a104", got "${a}"`);
     assert.ok(b === "a104", `expected b to equal "a104", got "${b}"`);
     // The include check used by roadsMatch should pass.
-    assert.ok(a.includes(b) || b.includes(a), `"${a}" and "${b}" should contain each other`);
+    assert.equal(a, b, `"${a}" and "${b}" should be identical after normalisation`);
   });
 
   it("null → empty string", () => {

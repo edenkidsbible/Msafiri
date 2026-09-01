@@ -192,6 +192,8 @@ export interface RouteIncident {
   lng: number;
   /** Distance in metres from the start of the route to this incident. */
   distanceAlongRouteM: number;
+  /** Shortest perpendicular distance from the incident pin to the route. */
+  offRouteM?: number;
   /** Distance in metres from the driver's current position to this incident
    *  (clamped to 0). Only populated on items from `routeIncidentsAhead`. */
   aheadDistanceM?: number;
@@ -539,7 +541,7 @@ const ROAD_ALIASES: ReadonlyArray<ReadonlyArray<string>> = [
   ["mombasa", "airport north"],
 ];
 
-/** True when the two road names refer to the same road.
+  /** True when the two road names refer to the same road.
  *  Returns FALSE when either side is absent — unknown road = no match,
  *  so alerts are suppressed rather than spilling onto unrelated roads. */
 function roadsMatch(
@@ -550,8 +552,9 @@ function roadsMatch(
   const a = normalizeRoad(driverRoad);
   const b = normalizeRoad(incidentRoad);
   if (!a || !b) return false;
-  // One name containing the other covers "Thika" ↔ "Thika Superhighway" etc.
-  if (a === b || a.includes(b) || b.includes(a)) return true;
+  // Exact normalised identity only. Substring matching incorrectly treats
+  // branches such as "Mombasa Road" and "Old Mombasa Road" as one road.
+  if (a === b) return true;
   // Alias table: known cases where OSM and NTSA use different names for the
   // same carriageway (e.g. "Northern Bypass" vs "Thika Superhighway" at sz009).
   for (const group of ROAD_ALIASES) {
@@ -747,6 +750,9 @@ async function fetchGoogleRoute(
 }
 
 const ROUTE_CORRIDOR_M = 250;
+/** Safety-alert corridor is deliberately much tighter than the route overview
+ * corridor. Nearby branches and service roads commonly sit 80–200 m away. */
+const ALERT_ROUTE_CORRIDOR_M = 60;
 
 /** Cumulative distance (metres) from the route start to each coordinate. */
 function buildCumulativeDistances(coords: RouteCoord[]): number[] {
@@ -1939,6 +1945,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // practical ceiling for usable road-position estimates on a moving vehicle.
     const alertAccuracyOk = accuracyM == null || accuracyM <= 100;
 
+    const isOnDrivenPath = (
+      id: string,
+      source: "zone" | "report" | "here",
+      targetLat: number,
+      targetLng: number,
+    ): boolean => {
+      // Navigation is authoritative: the alert must lie tightly on the chosen
+      // route and still be ahead in route order. A forward bearing alone admits
+      // hazards on branches that split away in front of the driver.
+      if (activeRoute) {
+        const routeId = source === "zone"
+          ? `static-${id}`
+          : source === "report"
+            ? `report-${id}`
+            : id;
+        const incident = routeIncidentsRef.current.find((item) => item.id === routeId);
+        if (!incident || (incident.offRouteM ?? Infinity) > ALERT_ROUTE_CORRIDOR_M) return false;
+        const aheadM = incident.distanceAlongRouteM - routeMaxDistMRef.current;
+        return aheadM >= -15 && aheadM <= ALERT_DIST + 100;
+      }
+
+      // Without navigation, use a narrow forward corridor in addition to road
+      // identity. This rejects diagonal branches while retaining bends close to
+      // the current travel line; road-name refresh handles the bend afterwards.
+      const heading = lastHeadingRef.current;
+      if (heading == null) return true;
+      const distanceM = haversine(lat, lng, targetLat, targetLng);
+      const bearing = bearingDeg(lat, lng, targetLat, targetLng);
+      const angle = angleDiffDeg(heading, bearing);
+      if (angle > 35) return false;
+      const lateralM = Math.abs(distanceM * Math.sin(angle * Math.PI / 180));
+      return lateralM <= 75;
+    };
+
     // (1) Zone candidate — closest in-range zone on the driver's current road.
     //     All zone/camera types appear regardless of current speed so the driver
     //     can see the upcoming limit and slow down before reaching it.
@@ -1959,6 +1999,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // cannot distinguish close parallel carriageways such as Nairobi
         // Expressway and Mombasa Road, which may have different limits.
         if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        if (!isOnDrivenPath(z.id, "zone", z.lat, z.lng)) continue;
 
         // Direction gate: when heading is known, only consider zones that are
         // ahead of the driver (positive along-track).  A negative along-track
@@ -2011,6 +2052,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // industrial roads, and newly-opened roads not yet in OSM.
         // Same rule applies when currentRoad is null — fall back to distance only.
         if (r.roadName && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        if (!isOnDrivenPath(r.id, "report", r.lat, r.lng)) continue;
         // Direction gate: same as zone candidate — skip reports behind the driver.
         if (lastHeadingRef.current != null) {
           const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, r.lat, r.lng);
@@ -2039,6 +2081,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // but disagree.  Unknown roadName = distance-only fallback (no blackout).
         // currentRoad null = distance-only fallback (driver road not yet resolved).
         if (h.roadName && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        if (!isOnDrivenPath(h.id, "here", h.lat, h.lng)) continue;
         // Direction gate: same as zone/report candidates — skip incidents behind the driver.
         if (lastHeadingRef.current != null) {
           const atd = alongTrackDistanceM(lat, lng, lastHeadingRef.current, h.lat, h.lng);
@@ -2334,6 +2377,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (z.isStretchEndpoint) continue;
         if (z.id === winner.id) continue;
         if (z.road && !roadsMatch(currentRoadRef.current, z.road)) continue;
+        if (!isOnDrivenPath(z.id, "zone", z.lat, z.lng)) continue;
         // Skip camera cluster members of a camera winner — same physical site.
         // Non-camera zones are independent hazards and must not be filtered out.
         if (
@@ -2355,6 +2399,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const d = haversine(lat, lng, r.lat, r.lng);
         if (d <= IN_ZONE_DIST || d > MULTI_RADIUS) continue;
         if (r.roadName && !roadsMatch(currentRoadRef.current, r.roadName)) continue;
+        if (!isOnDrivenPath(r.id, "report", r.lat, r.lng)) continue;
         extraCandidates.push({
           id: r.id, source: "report" as const, type: r.type,
           name: resolveIncidentType(r.type).label,
@@ -2371,6 +2416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const d = haversine(lat, lng, h.lat, h.lng);
         if (d <= IN_ZONE_DIST || d > MULTI_RADIUS) continue;
         if (h.roadName && !roadsMatch(currentRoadRef.current, h.roadName)) continue;
+        if (!isOnDrivenPath(h.id, "here", h.lat, h.lng)) continue;
         extraCandidates.push({
           id: h.id, source: "here" as const, type: h.type,
           name: resolveIncidentType(h.type).label,
@@ -3217,14 +3263,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // memo means it ONLY reruns when the route geometry or zone list changes, NOT
   // every time community reports refresh (every 20 s during navigation).
   const projectedZonesOnRoute = useMemo<
-    Array<{ zone: SpeedZone; alongRouteM: number }>
+    Array<{ zone: SpeedZone; alongRouteM: number; offRouteM: number }>
   >(() => {
     if (!activeRoute || !routeCumDist) return [];
-    const result: Array<{ zone: SpeedZone; alongRouteM: number }> = [];
+    const result: Array<{ zone: SpeedZone; alongRouteM: number; offRouteM: number }> = [];
     for (const z of allZones) {
       const proj = projectOntoRoute(activeRoute.coords, routeCumDist, z.lat, z.lng);
       if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
-        result.push({ zone: z, alongRouteM: proj.alongRouteM });
+        result.push({ zone: z, alongRouteM: proj.alongRouteM, offRouteM: proj.offRouteM });
       }
     }
     return result;
@@ -3239,7 +3285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const list: RouteIncident[] = [];
 
     // Static zones — projections pre-computed in Phase 1 above (no O(N) scan here)
-    for (const { zone: z, alongRouteM } of projectedZonesOnRoute) {
+    for (const { zone: z, alongRouteM, offRouteM } of projectedZonesOnRoute) {
       list.push({
         id: `static-${z.id}`,
         source: "static",
@@ -3252,6 +3298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lat: z.lat,
         lng: z.lng,
         distanceAlongRouteM: alongRouteM,
+        offRouteM,
       });
     }
 
@@ -3272,6 +3319,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lat: r.lat,
           lng: r.lng,
           distanceAlongRouteM: proj.alongRouteM,
+          offRouteM: proj.offRouteM,
           confirmCount: r.confirmCount,
           timestamp: r.timestamp,
         });
@@ -3296,6 +3344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lat: h.lat,
           lng: h.lng,
           distanceAlongRouteM: proj.alongRouteM,
+          offRouteM: proj.offRouteM,
         });
       }
     }
